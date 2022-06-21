@@ -1,0 +1,11 @@
+<script type="module">
+	const people = [{}];
+</script>
+
+<ol>
+  {{#people}}
+    <li>
+      {{name}} is {{age}} years old{{#canDrink}} and can drink{{/canDrink}}
+    </li>
+  {{/people}}
+</ol>
