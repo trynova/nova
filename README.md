@@ -35,8 +35,6 @@ template.
 
 ## Notes
 
-# XSS IN MUSTACHE WITH TILDAS RIGHT NOW
-
 - None of the parsers currently support source map modes, but this is planned.
 - The Mustache parser does not support custom delimiters.
   [See the Mustache(5) reference.](https://mustache.github.io/mustache.5.html#Set-Delimiter)

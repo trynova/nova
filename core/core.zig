@@ -1,8 +1,7 @@
 const std = @import("std");
 const mustache = @import("parsers/mustache.zig");
 const css_encoder = @import("utils/css.zig");
-
-pub fn resolveResources() void {}
+const AppConfig = @import("config.zig").AppConfig;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -10,23 +9,14 @@ pub fn main() !void {
     defer arena.deinit();
     var allocator = arena.allocator();
 
-    var cwd = std.fs.cwd();
-    defer cwd.close();
-
-    var resourcesDir = cwd.openDir("_dist", .{}) catch |e1| switch (e1) {
-        error.FileNotFound => blk: {
-            try cwd.makeDir("_dist");
-            break :blk try cwd.openDir("_dist", .{});
-        },
-        else => |e| return e,
-    };
-    defer resourcesDir.close();
+    var config = try AppConfig.init();
+    defer config.dirs.closeAll();
 
     const start = try std.time.Instant.now();
     const file_path = "template.mustache";
 
     const input = blk: {
-        var f = try cwd.openFile(file_path, .{});
+        var f = try config.dirs.cwd.openFile(file_path, .{});
         defer f.close();
         break :blk try f.readToEndAlloc(allocator, 4294967296);
     };
@@ -99,7 +89,7 @@ pub fn main() !void {
         try old.appendSlice(".js");
         break :blk old.toOwnedSlice();
     };
-    var ofile = try resourcesDir.createFile(out_file_path, .{});
+    var ofile = try config.dirs.dist.createFile(out_file_path, .{});
     try ofile.lock(.Exclusive);
     errdefer ofile.unlock();
     // var sourceMapFile = try std.io.BufferedAtomicFile.create(allocator, resourcesDir, "template.mustache.js", .{});

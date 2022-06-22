@@ -184,6 +184,10 @@ pub const TokenStream = struct {
                             }
                             stream.state = .content;
                         },
+                        '`' => {
+                            stream.iter.i -= 1;
+                            stream.state = .unexpected_symbol;
+                        },
                         else => |cp| {
                             stream.state = .var_name;
                             stream.iter.i -= std.unicode.utf8CodepointSequenceLength(cp) catch unreachable;
@@ -195,7 +199,7 @@ pub const TokenStream = struct {
                     }
                 },
                 .var_name => switch (cur) {
-                    '#', '&', '{', '^', '>', '~' => {
+                    '#', '&', '{', '^', '>', '~', '`' => {
                         stream.state = .unexpected_symbol;
                         return Token{
                             .kind = .var_name,
@@ -237,6 +241,7 @@ pub const TokenStream = struct {
                     },
                 },
                 .unexpected_symbol => {
+                    stream.state = .content;
                     return Token{
                         .kind = .unexpected_symbol,
                         .span = .{ .start = start, .end = start + 1 },
