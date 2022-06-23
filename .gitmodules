@@ -1,0 +1,3 @@
+[submodule "cosmo"]
+	path = cosmo
+	url = https://github.com/trynova/cosmo

@@ -3,3 +3,5 @@ _dist
 
 /core.exe
 /core.pdb
+/*.code-workspace
+/.vscode
