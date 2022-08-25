@@ -1,4 +1,4 @@
-use unicode_segmentation::{UnicodeSegmentation, GraphemeCursor};
+use boa_unicode::UnicodeProperties;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,9 +30,10 @@ pub enum TokenKind {
     SubAssign,
     Div,
     DivAssign,
-		Equal,
-		EqualEqual,
-		EqualEqualEqual,
+    Equal,
+    EqualEqual,
+    EqualEqualEqual,
+    Ident,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -61,7 +62,7 @@ enum State {
     Minus,
     FwdSlash,
     Equal,
-		EqualEqual,
+    EqualEqual,
 
     Junk,
     JunkNewline,
@@ -176,29 +177,51 @@ impl<'a> TokenStream<'a> {
                     }
                     0 => break,
                     _ => {
-											// TODO: identifier code here
-											panic!("Unknown character '{}'.", char::from(c));
-										},
+                        self.index -= 1;
+                        let mut chars = unsafe {
+                            std::str::from_utf8_unchecked(&self.buffer[self.index as usize..])
+                        }
+                        .char_indices();
+
+                        // we know there's at least one
+                        let (offset0, cp0) = chars.next().unwrap();
+
+                        if cp0.is_id_start() {
+                            self.index += offset0 as u32;
+
+                            for (offset, cp) in chars {
+                                if !cp.is_id_continue() {
+                                    break;
+                                }
+                                self.index += offset as u32;
+                            }
+
+                            kind = Ident;
+                            break;
+                        }
+
+                        panic!("Unknown character '{}'.", char::from(c));
+                    }
                 },
-								State::Equal => match c {
-									b'=' => state = State::EqualEqual,
-									_ => {
-										kind = TokenKind::Equal;
-										self.index -= 1;
-										break;
-									},
-								},
-								State::EqualEqual => match c {
-									b'=' => {
-										kind = EqualEqualEqual;
-										break;
-									},
-									_ => {
-										kind = TokenKind::EqualEqual;
-										self.index -= 1;
-										break;
-									},
-								},
+                State::Equal => match c {
+                    b'=' => state = State::EqualEqual,
+                    _ => {
+                        kind = TokenKind::Equal;
+                        self.index -= 1;
+                        break;
+                    }
+                },
+                State::EqualEqual => match c {
+                    b'=' => {
+                        kind = EqualEqualEqual;
+                        break;
+                    }
+                    _ => {
+                        kind = TokenKind::EqualEqual;
+                        self.index -= 1;
+                        break;
+                    }
+                },
                 State::FwdSlash => {
                     kind = if c == b'=' {
                         self.index -= 1;
