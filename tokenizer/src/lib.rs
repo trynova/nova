@@ -187,7 +187,7 @@ impl<'a> TokenStream<'a> {
                         let (offset0, cp0) = chars.next().unwrap();
 
                         if cp0.is_id_start() {
-                            self.index += offset0 as u32;
+                            self.index += offset0 as u32 + 1;
 
                             for (offset, cp) in chars {
                                 if !cp.is_id_continue() {
