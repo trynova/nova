@@ -7,7 +7,7 @@ pub fn main() {
     loop {
         let token = stream.next();
         println!("{:?}", token);
-				if token.kind == TokenKind::Eof {
+        if token.kind == TokenKind::Eof {
             break;
         }
     }

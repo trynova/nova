@@ -17,6 +17,8 @@ pub enum TokenKind {
     RParen,
     LBrace,
     RBrace,
+    LAngle,
+    RAngle,
     Bang,
     Caret,
     Asterisk,
@@ -33,6 +35,9 @@ pub enum TokenKind {
     Equal,
     EqualEqual,
     EqualEqualEqual,
+    LessOrEqual,
+    GreaterOrEqual,
+    FatArrow,
     Ident,
 }
 
@@ -63,6 +68,9 @@ enum State {
     FwdSlash,
     Equal,
     EqualEqual,
+
+    RAngle,
+    LAngle,
 
     Junk,
     JunkNewline,
@@ -141,6 +149,12 @@ impl<'a> TokenStream<'a> {
                         kind = RParen;
                         break;
                     }
+                    b'<' => {
+                        state = State::LAngle;
+                    }
+                    b'>' => {
+                        state = State::RAngle;
+                    }
                     b'!' => {
                         kind = Bang;
                         break;
@@ -205,6 +219,10 @@ impl<'a> TokenStream<'a> {
                 },
                 State::Equal => match c {
                     b'=' => state = State::EqualEqual,
+                    b'>' => {
+                        kind = TokenKind::FatArrow;
+                        break;
+                    }
                     _ => {
                         kind = TokenKind::Equal;
                         self.index -= 1;
@@ -224,28 +242,46 @@ impl<'a> TokenStream<'a> {
                 },
                 State::FwdSlash => {
                     kind = if c == b'=' {
-                        self.index -= 1;
                         DivAssign
                     } else {
+                        self.index -= 1;
                         TokenKind::Div
                     };
                     break;
                 }
                 State::Plus => {
                     kind = if c == b'=' {
-                        self.index -= 1;
                         AddAssign
                     } else {
+                        self.index -= 1;
                         TokenKind::Plus
                     };
                     break;
                 }
                 State::Minus => {
                     kind = if c == b'=' {
-                        self.index -= 1;
                         SubAssign
                     } else {
+                        self.index -= 1;
                         TokenKind::Minus
+                    };
+                    break;
+                }
+                State::LAngle => {
+                    kind = if c == b'=' {
+                        LessOrEqual
+                    } else {
+                        self.index -= 1;
+                        TokenKind::LAngle
+                    };
+                    break;
+                }
+                State::RAngle => {
+                    kind = if c == b'=' {
+                        GreaterOrEqual
+                    } else {
+                        self.index -= 1;
+                        TokenKind::RAngle
                     };
                     break;
                 }
