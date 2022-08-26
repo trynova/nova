@@ -92,11 +92,15 @@ pub struct TokenStream<'a> {
 }
 
 impl<'a> TokenStream<'a> {
+    /// Creates a new token stream with the given buffer as the source.
+    ///
+    /// ## Notes
+    /// - The buffer length must not be over the size of a `u32`.
     pub fn new(buffer: &'a [u8]) -> Self {
         Self {
             buffer,
             index: 0,
-            len: u32::try_from(buffer.len()).expect("[todo: better error]"),
+            len: buffer.len() as u32,
         }
     }
 
@@ -108,7 +112,7 @@ impl<'a> TokenStream<'a> {
         loop {
             let c = if self.index < self.len {
                 // TODO: find way to avoid upcast on 64bit machines
-                self.buffer[self.index as usize]
+                *unsafe { self.buffer.get_unchecked(self.index as usize) }
             } else {
                 0
             };
@@ -201,13 +205,13 @@ impl<'a> TokenStream<'a> {
                         let (offset0, cp0) = chars.next().unwrap();
 
                         if cp0.is_id_start() {
-                            self.index += offset0 as u32 + 1;
+                            self.index = start + offset0 as u32;
 
                             for (offset, cp) in chars {
+                                self.index = start + offset as u32;
                                 if !cp.is_id_continue() {
                                     break;
                                 }
-                                self.index += offset as u32;
                             }
 
                             kind = Ident;
