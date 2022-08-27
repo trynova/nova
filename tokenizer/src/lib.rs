@@ -240,15 +240,21 @@ impl<'a> TokenStream<'a> {
                         break;
                     }
                 },
-                State::FwdSlash => {
-                    kind = if c == b'=' {
-                        DivAssign
-                    } else {
+                State::FwdSlash => match c {
+                    b'*' => {
+                        kind = TokenKind::Junk;
+                        state = State::JunkCommentContinue;
+                    }
+                    b'=' => {
+                        kind = DivAssign;
+                        break;
+                    }
+                    _ => {
+                        kind = TokenKind::Div;
                         self.index -= 1;
-                        TokenKind::Div
-                    };
-                    break;
-                }
+                        break;
+                    }
+                },
                 State::Plus => {
                     kind = if c == b'=' {
                         AddAssign
@@ -483,5 +489,55 @@ impl<'a> TokenStream<'a> {
         }
 
         Token { start, kind }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{Token, TokenKind, TokenStream};
+
+    /// A wrapper over [`TokenStream`] that iterates over tokens and returns
+    /// them as pairs of the token kind and the subslice of the buffer that
+    /// corresponds to the token.
+    struct TokenAndSliceIterator<'a> {
+        stream: TokenStream<'a>,
+        slice: &'a [u8],
+        current_token: Option<Token>,
+    }
+    impl<'a> TokenAndSliceIterator<'a> {
+        pub fn new(buffer: &'a [u8]) -> TokenAndSliceIterator<'a> {
+            TokenAndSliceIterator {
+                stream: TokenStream::new(buffer),
+                slice: buffer,
+                current_token: None,
+            }
+        }
+    }
+    impl<'a> Iterator for TokenAndSliceIterator<'a> {
+        type Item = (TokenKind, &'a [u8]);
+
+        fn next(&mut self) -> Option<Self::Item> {
+            if self.current_token.is_none() {
+                self.current_token = Some(self.stream.next());
+            }
+
+            let token_kind = self.current_token.unwrap().kind;
+            if token_kind == TokenKind::Eof {
+                return None;
+            }
+
+            let next_token = self.stream.next();
+            let slice =
+                &self.slice[self.current_token.unwrap().start as usize..next_token.start as usize];
+            self.current_token = Some(next_token);
+            Some((token_kind, slice))
+        }
+    }
+
+    #[test]
+    fn comments() {
+        let mut it = TokenAndSliceIterator::new(b"/* flsjdf */");
+        assert_eq!(it.next(), Some((TokenKind::Junk, b"/* flsjdf */" as &[u8])));
+        assert_eq!(it.next(), None);
     }
 }
