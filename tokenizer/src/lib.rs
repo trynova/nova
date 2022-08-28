@@ -523,18 +523,17 @@ mod test {
                     let token = self.stream.next();
                     self.current_token = Some(token);
                     token
+                }
             };
 
-            let token_kind = self.current_token.unwrap().kind;
-            if token_kind == TokenKind::Eof {
+            if current_token.kind == TokenKind::Eof {
                 return None;
             }
 
             let next_token = self.stream.next();
-            let slice =
-                &self.slice[self.current_token.unwrap().start as usize..next_token.start as usize];
+            let slice = &self.slice[current_token.start as usize..next_token.start as usize];
             self.current_token = Some(next_token);
-            Some((token_kind, slice))
+            Some((current_token.kind, slice))
         }
     }
 
