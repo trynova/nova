@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check formatting
+        run: cargo fmt --check
+      - name: Build
+        run: cargo build
+      - name: Test
+        run: cargo test
+      - name: Build binaries and examples
+        run: cargo build --bins --examples
