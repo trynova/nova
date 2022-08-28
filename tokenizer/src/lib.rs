@@ -517,9 +517,13 @@ mod test {
         type Item = (TokenKind, &'a [u8]);
 
         fn next(&mut self) -> Option<Self::Item> {
-            if self.current_token.is_none() {
-                self.current_token = Some(self.stream.next());
-            }
+            let current_token = match self.current_token {
+                Some(token) => token,
+                None => {
+                    let token = self.stream.next();
+                    self.current_token = Some(token);
+                    token
+            };
 
             let token_kind = self.current_token.unwrap().kind;
             if token_kind == TokenKind::Eof {
