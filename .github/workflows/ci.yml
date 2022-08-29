@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build
+    # TODO: Run CI on all three platforms.
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check formatting
+        run: cargo fmt --check
+      - name: Build
+        run: cargo build
+      - name: Test
+        run: cargo test
+        timeout-minutes: 20
+      - name: Build binaries and examples
+        run: cargo build --bins --examples
