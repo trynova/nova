@@ -1,8 +1,8 @@
 mod code_section;
+mod common;
 mod type_section;
 mod util;
 
-use super::common;
 use crate::error::Error;
 use crate::error::Result;
 use leb128::read;

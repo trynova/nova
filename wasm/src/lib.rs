@@ -1,4 +1,3 @@
-mod common;
 mod decoder;
 pub mod error;
 
