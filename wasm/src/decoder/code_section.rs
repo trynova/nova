@@ -18,13 +18,15 @@ pub fn decode_code_section<R: crate::Reader>(reader: &mut R) -> Result<CodeBlock
     }
 
     let read = reader.seek(std::io::SeekFrom::Current(0))?;
-    
-    let instruction_size = body_size - (read - offset);
 
+    let instruction_size = body_size - (read - offset);
 
     let mut instructions = Vec::with_capacity(instruction_size as usize);
 
     reader.read_exact(&mut instructions)?;
 
-    Ok(CodeBlock {locals, instructions })
+    Ok(CodeBlock {
+        locals,
+        instructions,
+    })
 }
