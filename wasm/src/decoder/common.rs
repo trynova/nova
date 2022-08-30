@@ -31,19 +31,41 @@ impl TryFrom<u8> for ExternalKind {
 
 #[repr(u8)]
 #[derive(Copy, Clone)]
-pub enum ValueKind {
+enum NumKind {
     I32 = 0x7F,
     I64 = 0x7E,
     F32 = 0x7D,
     F64 = 0x7C,
-    Funcref = 0x70,
-    Func = 0x60,
-    Void = 0x40,
+}
+
+#[repr(u8)]
+#[derive(Copy, Clone)]
+enum RefKind {
+    FuncRef = 0x70,
+    ExternalRef = 0x6F,
+}
+
+#[repr(u8)]
+#[derive(Copy, Clone)]
+enum VecKind {
+    V128 = 0x7B,
+}
+
+#[repr(u8)]
+#[derive(Copy, Clone)]
+pub enum ValueKind {
+    RefKind(RefKind),
+    NumKind(NumKind),
+    VecKind(VecKind),
 }
 
 impl From<ValueKind> for u8 {
     fn from(v: ValueKind) -> Self {
-        v as Self
+        match v {
+            ValueKind::NumKind(v) => v as Self,
+            ValueKind::RefKind(v) => v as Self,
+            ValueKind::VecKind(v) => v as Self,
+        }
     }
 }
 
@@ -52,13 +74,13 @@ impl TryFrom<u8> for ValueKind {
 
     fn try_from(v: u8) -> Result<Self, Self::Error> {
         match v {
-            0x7F => Ok(Self::I32),
-            0x7E => Ok(Self::I64),
-            0x7D => Ok(Self::F32),
-            0x7C => Ok(Self::F64),
-            0x70 => Ok(Self::Funcref),
-            0x60 => Ok(Self::Func),
-            0x40 => Ok(Self::Void),
+            0x7F => Ok(Self::NumKind(NumKind::I32)),
+            0x7E => Ok(Self::NumKind(NumKind::I64)),
+            0x7D => Ok(Self::NumKind(NumKind::F32)),
+            0x7C => Ok(Self::NumKind(NumKind::F64)),
+            0x70 => Ok(Self::RefKind(RefKind::FuncRef)),
+            0x6F => Ok(Self::RefKind(RefKind::ExternalRef)),
+            0x7B => Ok(Self::VecKind(VecKind::V128)),
             _ => Err(error::Error::InvalidValueKind),
         }
     }
