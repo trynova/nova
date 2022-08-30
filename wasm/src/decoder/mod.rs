@@ -1,6 +1,7 @@
 mod code_section;
 mod common;
 mod import_section;
+mod table_section;
 mod type_section;
 mod util;
 
@@ -12,7 +13,7 @@ pub enum Section {
     Type(Vec<common::FnType>),
     Import(Vec<common::Import>),
     Function(Vec<u32>),
-    // TableSection(Vec<ResizableLimits>),
+    Table(Vec<common::Table>),
     // MemorySection(Vec<ResizableLimits>),
     // GlobalSection(Vec),
     // ExportSection(Vec),
@@ -27,6 +28,7 @@ pub struct Module {
     type_section: Option<Vec<common::FnType>>,
     import_section: Option<Vec<common::Import>>,
     fn_section: Option<Vec<u32>>,
+    table_section: Option<Vec<common::Table>>,
     code_section: Option<Vec<common::CodeBlock>>,
 }
 
@@ -45,7 +47,7 @@ impl Module {
                 Section::Type(v) => module.type_section = Some(v),
                 Section::Import(v) => module.import_section = Some(v),
                 Section::Function(v) => module.fn_section = Some(v),
-                // Section::TableSection(v) => module.table_section = Some(v),
+                Section::Table(v) => module.table_section = Some(v),
                 // Section::MemorySection(v) => module.memory_section = Some(v),
                 // Section::GlobalSection(v) => module.global_section = Some(v),
                 // Section::ExportSection(v) => module.export_section = Some(v),
@@ -82,8 +84,10 @@ pub fn decode_any_section<R: crate::Reader>(reader: &mut R) -> Result<Section> {
             let vec = util::decode_vec(reader, |r| Ok(decode_u32(r)?.value))?;
             Section::Function(vec)
         }
-        // 0x03 => Section::Function(section_data),
-        // 0x04 => Section::Table(section_data),
+        0x04 => {
+            let vec = util::decode_vec(reader, table_section::decode_table_section)?;
+            Section::Table(vec)
+        }
         // 0x05 => Section::Memory(section_data),
         // 0x06 => Section::Global(section_data),
         // 0x07 => Section::Export(section_data),
