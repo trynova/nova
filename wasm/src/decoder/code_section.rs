@@ -4,17 +4,17 @@ use crate::error::Result;
 use crate::varint::decode_u32;
 
 pub fn decode_code_section<R: crate::Reader>(reader: &mut R) -> Result<CodeBlock> {
-    let body_size = decode_u32(reader)?.0;
+    let body_size = decode_u32(reader)?.value;
 
     let v = util::decode_vec(reader, |x| Ok((decode_u32(x)?, util::decode_kind(x)?)))?;
 
     let mut locals = Vec::new();
     let mut read = 0;
-    for ((count, consumed), kind) in v {
-        for _ in 0..count {
+    for (res, kind) in v {
+        for _ in 0..res.value {
             locals.push(kind);
         }
-        read += consumed as u32;
+        read += res.bytes_read as u32;
     }
 
     let instruction_size = body_size - read;

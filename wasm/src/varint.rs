@@ -3,7 +3,13 @@ use crate::error::Error;
 const SEGMENT_BITS: u8 = 0x7F;
 const CONTINUE_BIT: u8 = 0x80;
 
-pub fn decode_u32<R: std::io::Read>(reader: &mut R) -> Result<(u32, u8), Error> {
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct DecodedResult<T> {
+    pub value: T,
+    pub bytes_read: u8,
+}
+
+pub fn decode_u32<R: std::io::Read>(reader: &mut R) -> Result<DecodedResult<u32>, Error> {
     let mut length = 0;
     let mut value = 0;
 
@@ -26,10 +32,14 @@ pub fn decode_u32<R: std::io::Read>(reader: &mut R) -> Result<(u32, u8), Error> 
     }
 
     length += length / 7;
-    Ok((value, length / 8))
+
+    Ok(DecodedResult {
+        value,
+        bytes_read: length / 8,
+    })
 }
 
-pub fn decode_u64<R: std::io::Read>(reader: &mut R) -> Result<(u64, u8), Error> {
+pub fn decode_u64<R: std::io::Read>(reader: &mut R) -> Result<DecodedResult<u64>, Error> {
     let mut length = 0;
     let mut value = 0;
 
@@ -51,7 +61,10 @@ pub fn decode_u64<R: std::io::Read>(reader: &mut R) -> Result<(u64, u8), Error> 
         }
     }
 
-    Ok((value, length / 8))
+    Ok(DecodedResult {
+        value,
+        bytes_read: length / 8,
+    })
 }
 
 #[cfg(test)]
@@ -61,27 +74,63 @@ mod test {
     fn decode_u32() {
         let mut bytes: &[u8] = &[0x00];
         let mut res = super::decode_u32(&mut bytes).unwrap();
-        assert_eq!(res, (0, 1));
+        assert_eq!(
+            res,
+            super::DecodedResult {
+                value: 0,
+                bytes_read: 1
+            }
+        );
 
         bytes = &[0x01];
         res = super::decode_u32(&mut bytes).unwrap();
-        assert_eq!(res, (1, 1));
+        assert_eq!(
+            res,
+            super::DecodedResult {
+                value: 1,
+                bytes_read: 1
+            }
+        );
 
         bytes = &[0x80, 0x01];
         res = super::decode_u32(&mut bytes).unwrap();
-        assert_eq!(res, (128, 2));
+        assert_eq!(
+            res,
+            super::DecodedResult {
+                value: 128,
+                bytes_read: 2
+            }
+        );
 
         bytes = &[0xDD, 0xC7, 0x01];
         res = super::decode_u32(&mut bytes).unwrap();
-        assert_eq!(res, (25565, 3));
+        assert_eq!(
+            res,
+            super::DecodedResult {
+                value: 25565,
+                bytes_read: 3
+            }
+        );
 
         bytes = &[0xFF, 0xFF, 0xFF, 0xFF, 0x07];
         res = super::decode_u32(&mut bytes).unwrap();
-        assert_eq!(res, (i32::MAX as u32, 5));
+        assert_eq!(
+            res,
+            super::DecodedResult {
+                value: i32::MAX as u32,
+                bytes_read: 5
+            }
+        );
 
         bytes = &[0xFF, 0xFF, 0xFF, 0xFF, 0x0F];
         res = super::decode_u32(&mut bytes).unwrap();
-        assert_eq!(res, (u32::MAX, 5));
+        assert_eq!(
+            res,
+            super::DecodedResult {
+                value: u32::MAX,
+                bytes_read: 5
+            }
+        );
     }
 
     #[test]

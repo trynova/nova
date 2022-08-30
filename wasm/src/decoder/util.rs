@@ -8,7 +8,7 @@ where
     F: Fn(&mut R) -> Result<T>,
 {
     // This is fine. It's already range checked by `decode_u32`
-    let length = decode_u32(reader)?.0 as usize;
+    let length = decode_u32(reader)?.value as usize;
 
     let mut v = Vec::with_capacity(length);
 

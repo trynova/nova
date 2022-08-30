@@ -77,7 +77,7 @@ pub fn decode_any_section<R: crate::Reader>(reader: &mut R) -> Result<Section> {
         //     Section::Import(vec)
         // }
         0x03 => {
-            let vec = util::decode_vec(reader, |r| Ok(decode_u32(r)?.0))?;
+            let vec = util::decode_vec(reader, |r| Ok(decode_u32(r)?.value))?;
             Section::Function(vec)
         }
         // 0x03 => Section::Function(section_data),
