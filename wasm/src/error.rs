@@ -1,4 +1,4 @@
-pub type Result<T> = std::result::Result<T, crate::error::Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[repr(u8)]
 #[derive(Debug)]
