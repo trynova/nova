@@ -12,6 +12,7 @@ pub enum Error {
     InvalidExternalKind,
     InvalidSignatureType,
     ArrayTooLarge,
+    FromUtf8Error(std::str::Utf8Error),
 }
 
 impl std::fmt::Display for Error {
@@ -29,6 +30,7 @@ impl std::fmt::Display for Error {
             Self::UnknownSectionID => f.write_str("Unknown Section ID"),
             Self::ArrayTooLarge => f.write_str("Array Too Large"),
             Self::InvalidExternalKind => f.write_str("Invalid External Kind"),
+            Self::FromUtf8Error(v) => write!(f, "From utf-8 Error: {v}"),
         }?;
 
         Ok(())
@@ -40,5 +42,17 @@ impl std::error::Error for Error {}
 impl From<std::io::Error> for Error {
     fn from(v: std::io::Error) -> Self {
         Self::IoError(v)
+    }
+}
+
+impl From<std::string::FromUtf8Error> for Error {
+    fn from(v: std::string::FromUtf8Error) -> Self {
+        v.utf8_error().into()
+    }
+}
+
+impl From<std::str::Utf8Error> for Error {
+    fn from(v: std::str::Utf8Error) -> Self {
+        Self::FromUtf8Error(v)
     }
 }

@@ -69,11 +69,11 @@ pub struct FnType {
     pub results: Box<[ValueKind]>,
 }
 
-// pub struct Import {
-//     pub module_name: String,
-//     pub export_name: String,
-//     pub kind: ExternalKind,
-// }
+pub struct Import {
+    pub module_name: String,
+    pub export_name: String,
+    pub kind: ExternalKind,
+}
 
 // pub struct ResizableLimits {
 //     pub min: u32,
