@@ -15,5 +15,5 @@ pub fn decode_type_section<R: std::io::Read>(reader: &mut R) -> Result<common::F
 
     let params = util::decode_vec(reader, util::decode_kind)?;
     let result = util::decode_vec(reader, util::decode_kind)?;
-    Ok(common::FnType { params, result })
+    Ok(common::FnType { params: params.into_boxed_slice(), result: result.into_boxed_slice() })
 }

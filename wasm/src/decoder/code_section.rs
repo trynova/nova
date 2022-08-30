@@ -26,7 +26,7 @@ pub fn decode_code_section<R: crate::Reader>(reader: &mut R) -> Result<CodeBlock
     reader.read_exact(&mut instructions)?;
 
     Ok(CodeBlock {
-        locals,
+        locals: locals.into_boxed_slice(),
         instructions,
     })
 }

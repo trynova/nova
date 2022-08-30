@@ -63,8 +63,8 @@ impl TryFrom<u8> for ValueKind {
 }
 
 pub struct FnType {
-    pub params: Vec<ValueKind>,
-    pub result: Vec<ValueKind>,
+    pub params: Box<[ValueKind]>,
+    pub result: Box<[ValueKind]>,
 }
 
 // pub struct Import {
@@ -90,6 +90,6 @@ pub struct FnType {
 // }
 
 pub struct CodeBlock {
-    pub locals: Vec<ValueKind>,
+    pub locals: Box<[ValueKind]>,
     pub instructions: Vec<u8>,
 }
