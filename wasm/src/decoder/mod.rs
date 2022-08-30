@@ -5,6 +5,7 @@ mod util;
 
 use crate::error::Error;
 use crate::error::Result;
+use crate::varint::decode_u32;
 
 pub enum Section {
     Type(Vec<common::FnType>),
@@ -65,7 +66,7 @@ pub fn decode_any_section<R: crate::Reader>(reader: &mut R) -> Result<Section> {
     // };
 
     // Consume length. Maybe useful later
-    leb128::read::unsigned(reader)?;
+    decode_u32(reader)?;
     let section = match section_id_byte[0] {
         0x01 => {
             let vec = util::decode_vec(reader, type_section::decode_type_section)?;
@@ -76,7 +77,7 @@ pub fn decode_any_section<R: crate::Reader>(reader: &mut R) -> Result<Section> {
         //     Section::Import(vec)
         // }
         0x03 => {
-            let vec = util::decode_vec(reader, |r| util::decode_u32(r))?;
+            let vec = util::decode_vec(reader, |r| Ok(decode_u32(r)?.value))?;
             Section::Function(vec)
         }
         // 0x03 => Section::Function(section_data),

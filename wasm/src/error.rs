@@ -1,5 +1,3 @@
-use leb128::read;
-
 pub type Result<T> = std::result::Result<T, crate::error::Error>;
 
 #[repr(u8)]
@@ -42,18 +40,5 @@ impl std::error::Error for Error {}
 impl From<std::io::Error> for Error {
     fn from(v: std::io::Error) -> Self {
         Self::IoError(v)
-    }
-}
-
-impl From<read::Error> for Error {
-    fn from(v: read::Error) -> Self {
-        match v {
-            read::Error::IoError(e) => Self::IoError(e),
-            // Atleast 11 bytes were encoded
-            read::Error::Overflow => Self::TooManyBytes {
-                expected: 10,
-                found: 11,
-            },
-        }
     }
 }
