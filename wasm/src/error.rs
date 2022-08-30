@@ -7,7 +7,7 @@ pub type Result<T> = std::result::Result<T, crate::error::Error>;
 pub enum Error {
     IoError(std::io::Error),
     ReadZeroBytes,
-    TooManyBytes(u8),
+    TooManyBytes { expected: u8, found: u8 },
     InvalidSectionOrder,
     UnknownSectionID,
     InvalidValueKind,
@@ -20,9 +20,9 @@ impl std::fmt::Display for Error {
         match self {
             Self::IoError(e) => e.fmt(f)?,
             Self::ReadZeroBytes => f.write_str("Tried to read from reader but got 0 bytes")?,
-            Self::TooManyBytes(size) => {
-                f.write_str(&format!("Varint is more than {} bytes long", size))?
-            }
+            Self::TooManyBytes { expected, found } => f.write_str(&format!(
+                "Varint is too long! Expected {expected} bytes but found {found}"
+            ))?,
             Self::InvalidValueKind => f.write_str("Invalid Value Kind")?,
             Self::InvalidSignatureType => f.write_str("Invalid Signature Kind")?,
             Self::InvalidSectionOrder => f.write_str("Invalid Section Order")?,
@@ -46,7 +46,8 @@ impl From<read::Error> for Error {
     fn from(v: read::Error) -> Self {
         match v {
             read::Error::IoError(e) => Self::IoError(e),
-            read::Error::Overflow => Self::TooManyBytes(10),
+            // Atleast 11 bytes were encoded
+            read::Error::Overflow => Self::TooManyBytes { expected: 10, found: 11 },
         }
     }
 }
