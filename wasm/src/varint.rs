@@ -23,7 +23,7 @@ pub fn decode_u32<R: std::io::Read>(reader: &mut R) -> Result<DecodedResult<u32>
             break;
         }
 
-        if length > 32 {
+        if length >= 32 {
             return Err(Error::TooManyBytes {
                 expected: 5,
                 found: length / 7 + 1,
@@ -53,7 +53,7 @@ pub fn decode_u64<R: std::io::Read>(reader: &mut R) -> Result<DecodedResult<u64>
             break;
         }
 
-        if length > 64 {
+        if length >= 64 {
             return Err(Error::TooManyBytes {
                 expected: 5,
                 found: length / 8,
