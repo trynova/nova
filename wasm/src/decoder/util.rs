@@ -15,8 +15,8 @@ where
 
     let mut v = Vec::with_capacity(length);
 
-    for x in v.iter_mut().take(length) {
-        *x = func(reader)?;
+    for _ in 0..length {
+        v.push(func(reader)?);
     }
 
     Ok(v)
