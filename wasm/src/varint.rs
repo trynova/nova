@@ -8,7 +8,7 @@ pub fn decode_u32<R: std::io::Read>(reader: &mut R) -> Result<(u32, u8), Error> 
     let mut value = 0;
 
     loop {
-        let mut bytes: [u8; 1] = [0 ;1];
+        let mut bytes: [u8; 1] = [0; 1];
         reader.read_exact(&mut bytes)?;
         value |= ((bytes[0] & SEGMENT_BITS) as u32) << length;
 
@@ -19,7 +19,10 @@ pub fn decode_u32<R: std::io::Read>(reader: &mut R) -> Result<(u32, u8), Error> 
 
         if length > 32 {
             print!("{length}");
-            return Err(Error::TooManyBytes { expected: 5, found: length / 7 + 1})
+            return Err(Error::TooManyBytes {
+                expected: 5,
+                found: length / 7 + 1,
+            });
         }
     }
 
@@ -32,7 +35,7 @@ pub fn decode_u64<R: std::io::Read>(reader: &mut R) -> Result<(u64, u8), Error> 
     let mut value = 0;
 
     loop {
-        let mut bytes: [u8; 1] = [0 ;1];
+        let mut bytes: [u8; 1] = [0; 1];
         reader.read_exact(&mut bytes)?;
         value |= ((bytes[0] & SEGMENT_BITS) as u64) << length;
 
@@ -42,7 +45,10 @@ pub fn decode_u64<R: std::io::Read>(reader: &mut R) -> Result<(u64, u8), Error> 
         }
 
         if length > 64 {
-            return Err(Error::TooManyBytes { expected: 5, found: length / 8})
+            return Err(Error::TooManyBytes {
+                expected: 5,
+                found: length / 8,
+            });
         }
     }
 
@@ -66,7 +72,7 @@ mod test {
         res = super::decode_u32(&mut bytes).unwrap();
         assert_eq!(res, (128, 2));
 
-        bytes = &[0xDD ,0xC7, 0x01];
+        bytes = &[0xDD, 0xC7, 0x01];
         res = super::decode_u32(&mut bytes).unwrap();
         assert_eq!(res, (25565, 3));
 
@@ -84,11 +90,11 @@ mod test {
         let mut bytes: &[u8] = &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01];
         let res = super::decode_u32(&mut bytes).unwrap_err();
         match res {
-            Error::TooManyBytes {expected, found } => {
+            Error::TooManyBytes { expected, found } => {
                 assert_eq!(expected, 5);
                 assert_eq!(found, 6);
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }

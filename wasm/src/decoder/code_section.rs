@@ -6,9 +6,7 @@ use crate::varint::decode_u32;
 pub fn decode_code_section<R: crate::Reader>(reader: &mut R) -> Result<CodeBlock> {
     let body_size = decode_u32(reader)?.0;
 
-    let v = util::decode_vec(reader, |x| {
-        Ok((decode_u32(x)?, util::decode_kind(x)?))
-    })?;
+    let v = util::decode_vec(reader, |x| Ok((decode_u32(x)?, util::decode_kind(x)?)))?;
 
     let mut locals = Vec::new();
     let mut read = 0;
