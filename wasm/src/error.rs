@@ -47,7 +47,10 @@ impl From<read::Error> for Error {
         match v {
             read::Error::IoError(e) => Self::IoError(e),
             // Atleast 11 bytes were encoded
-            read::Error::Overflow => Self::TooManyBytes { expected: 10, found: 11 },
+            read::Error::Overflow => Self::TooManyBytes {
+                expected: 10,
+                found: 11,
+            },
         }
     }
 }
