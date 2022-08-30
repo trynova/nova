@@ -29,7 +29,7 @@ impl std::fmt::Display for Error {
             Self::InvalidSectionOrder => f.write_str("Invalid Section Order")?,
             Self::UnknownSectionID => f.write_str("Unknown Section ID")?,
             Self::ArrayTooLarge => f.write_str("Array Too Large")?,
-            Self::InvalidExternalKind => f.write_str("Invalid External Kind")?
+            Self::InvalidExternalKind => f.write_str("Invalid External Kind")?,
         }
 
         Ok(())
