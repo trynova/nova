@@ -1,5 +1,6 @@
 mod decoder;
 pub mod error;
+mod varint;
 
 pub trait Reader: std::io::Read + std::io::Seek {}
 
