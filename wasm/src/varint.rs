@@ -18,7 +18,6 @@ pub fn decode_u32<R: std::io::Read>(reader: &mut R) -> Result<(u32, u8), Error> 
         }
 
         if length > 32 {
-            print!("{length}");
             return Err(Error::TooManyBytes {
                 expected: 5,
                 found: length / 7 + 1,
