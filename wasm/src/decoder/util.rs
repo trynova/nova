@@ -32,10 +32,18 @@ pub fn decode_kind<R: std::io::Read>(reader: &mut R) -> Result<common::ValueKind
     }
 }
 
-pub fn decode_u32<R: std::io::Read>(reader: &mut R) -> Result<u32> {
+pub fn decode_u32<R: crate::Reader>(reader: &mut R) -> Result<u32> {
+    let s = reader.seek(std::io::SeekFrom::Current(0))?;
     let length = read::unsigned(reader)?;
+    // This is so wacky to do. Replacing it with a better system should be done at some point
+    let end = reader.seek(std::io::SeekFrom::Current(0))?;
+
     if length > u32::MAX as u64 {
-        return Err(Error::TooManyBytes(5));
+        // The `as u8` is fine here because the max that `read::unsigned` reads is 10 bytes.
+        return Err(Error::TooManyBytes {
+            expected: 5,
+            found: (end - s) as u8,
+        });
     }
 
     Ok(length as u32)
