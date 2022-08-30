@@ -1,4 +1,5 @@
 #[repr(u8)]
+#[derive(Copy, Clone)]
 pub enum ExternalKind {
     Function = 0x00,
     Table = 0x01,
