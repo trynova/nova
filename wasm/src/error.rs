@@ -19,18 +19,19 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::IoError(e) => e.fmt(f)?,
-            Self::ReadZeroBytes => f.write_str("Tried to read from reader but got 0 bytes")?,
-            Self::TooManyBytes { expected, found } => f.write_str(&format!(
+            Self::IoError(e) => e.fmt(f),
+            Self::ReadZeroBytes => f.write_str("Tried to read from reader but got 0 bytes"),
+            Self::TooManyBytes { expected, found } => write!(
+                f,
                 "Varint is too long! Expected {expected} bytes but found {found}"
-            ))?,
-            Self::InvalidValueKind => f.write_str("Invalid Value Kind")?,
-            Self::InvalidSignatureType => f.write_str("Invalid Signature Kind")?,
-            Self::InvalidSectionOrder => f.write_str("Invalid Section Order")?,
-            Self::UnknownSectionID => f.write_str("Unknown Section ID")?,
-            Self::ArrayTooLarge => f.write_str("Array Too Large")?,
-            Self::InvalidExternalKind => f.write_str("Invalid External Kind")?,
-        }
+            ),
+            Self::InvalidValueKind => f.write_str("Invalid Value Kind"),
+            Self::InvalidSignatureType => f.write_str("Invalid Signature Kind"),
+            Self::InvalidSectionOrder => f.write_str("Invalid Section Order"),
+            Self::UnknownSectionID => f.write_str("Unknown Section ID"),
+            Self::ArrayTooLarge => f.write_str("Array Too Large"),
+            Self::InvalidExternalKind => f.write_str("Invalid External Kind"),
+        }?;
 
         Ok(())
     }
