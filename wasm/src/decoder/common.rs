@@ -31,23 +31,49 @@ impl TryFrom<u8> for ExternalKind {
 
 #[repr(u8)]
 #[derive(Copy, Clone)]
-enum NumKind {
+pub enum NumKind {
     I32 = 0x7F,
     I64 = 0x7E,
     F32 = 0x7D,
     F64 = 0x7C,
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone)]
-enum RefKind {
-    FuncRef = 0x70,
-    ExternalRef = 0x6F,
+impl TryFrom<u8> for NumKind {
+    type Error = error::Error;
+
+    fn try_from(v: u8) -> Result<Self, Self::Error> {
+        match v {
+            0x7F => Ok(Self::I32),
+            0x7E => Ok(Self::I64),
+            0x7D => Ok(Self::F32),
+            0x7C => Ok(Self::F64),
+            _ => Err(error::Error::InvalidValueKind),
+        }
+    }
 }
 
 #[repr(u8)]
 #[derive(Copy, Clone)]
-enum VecKind {
+pub enum RefKind {
+    FuncRef = 0x70,
+    ExternalRef = 0x6F,
+}
+
+impl TryFrom<u8> for RefKind {
+    type Error = error::Error;
+
+    fn try_from(v: u8) -> Result<Self, Self::Error> {
+        match v {
+            0x70 => Ok(Self::FuncRef),
+            0x6F => Ok(Self::ExternalRef),
+            _ => Err(error::Error::InvalidValueKind),
+        }
+    }
+}
+
+#[repr(u8)]
+#[derive(Copy, Clone)]
+pub enum VecKind {
     V128 = 0x7B,
 }
 
@@ -74,12 +100,8 @@ impl TryFrom<u8> for ValueKind {
 
     fn try_from(v: u8) -> Result<Self, Self::Error> {
         match v {
-            0x7F => Ok(Self::NumKind(NumKind::I32)),
-            0x7E => Ok(Self::NumKind(NumKind::I64)),
-            0x7D => Ok(Self::NumKind(NumKind::F32)),
-            0x7C => Ok(Self::NumKind(NumKind::F64)),
-            0x70 => Ok(Self::RefKind(RefKind::FuncRef)),
-            0x6F => Ok(Self::RefKind(RefKind::ExternalRef)),
+            0x7F | 0x7E | 0x7D | 0x7C => Ok(Self::NumKind(NumKind::try_from(v).unwrap())),
+            0x70 | 0x6F => Ok(Self::RefKind(RefKind::try_from(v).unwrap())),
             0x7B => Ok(Self::VecKind(VecKind::V128)),
             _ => Err(error::Error::InvalidValueKind),
         }
@@ -97,10 +119,15 @@ pub struct FnType {
 //     pub kind: ExternalKind,
 // }
 
-// pub struct ResizableLimits {
-//     pub min: u32,
-//     pub max: Option<u32>,
-// }
+pub struct ResizableLimits {
+    pub min: u32,
+    pub max: Option<u32>,
+}
+
+pub struct Table {
+    pub kind: RefKind,
+    pub limits: ResizableLimits,
+}
 
 // pub struct GlobalDescriptor {
 //     pub kind: ValueKind,
