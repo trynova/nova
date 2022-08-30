@@ -91,7 +91,12 @@ pub fn decode_any_section<R: crate::Reader>(reader: &mut R) -> Result<Section> {
             Section::Code(vec)
         }
         // 0x0B => Section::Data(section_data),
-        _ => return Err(Error::UnknownSectionID),
+        _ => {
+            if section_id_byte[0] >= 0x02 && section_id_byte[0] <= 0x0B {
+                unimplemented!("Section decoder not implemented yet");
+            }
+            return Err(Error::UnknownSectionID)
+        },
     };
 
     Ok(section)
