@@ -1,3 +1,5 @@
+use crate::error;
+
 #[repr(u8)]
 #[derive(Copy, Clone)]
 pub enum ExternalKind {
@@ -14,7 +16,7 @@ impl From<ExternalKind> for u8 {
 }
 
 impl TryFrom<u8> for ExternalKind {
-    type Error = ();
+    type Error = error::Error;
 
     fn try_from(v: u8) -> Result<Self, Self::Error> {
         match v {
@@ -22,7 +24,7 @@ impl TryFrom<u8> for ExternalKind {
             0x01 => Ok(Self::Table),
             0x02 => Ok(Self::Memory),
             0x03 => Ok(Self::Global),
-            _ => Err(()),
+            _ => Err(error::Error::InvalidExternalKind),
         }
     }
 }
@@ -46,7 +48,7 @@ impl From<ValueKind> for u8 {
 }
 
 impl TryFrom<u8> for ValueKind {
-    type Error = ();
+    type Error = error::Error;
 
     fn try_from(v: u8) -> Result<Self, Self::Error> {
         match v {
@@ -57,7 +59,7 @@ impl TryFrom<u8> for ValueKind {
             0x70 => Ok(Self::Funcref),
             0x60 => Ok(Self::Func),
             0x40 => Ok(Self::Void),
-            _ => Err(()),
+            _ => Err(error::Error::InvalidValueKind),
         }
     }
 }
