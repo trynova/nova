@@ -74,11 +74,11 @@ pub fn decode_any_section<R: crate::Reader>(reader: &mut R) -> Result<Section> {
     decode_u32(reader)?;
     let section = match section_id_byte[0] {
         0x01 => {
-            let vec = util::decode_vec(reader, type_section::decode_type_section)?;
+            let vec = util::decode_vec(reader, type_section::decode_fn_type)?;
             Section::Type(vec)
         }
         0x02 => {
-            let vec = util::decode_vec(reader, import_section::decode_import_section)?;
+            let vec = util::decode_vec(reader, import_section::decode_import)?;
             Section::Import(vec)
         }
         0x03 => {
@@ -86,7 +86,7 @@ pub fn decode_any_section<R: crate::Reader>(reader: &mut R) -> Result<Section> {
             Section::Function(vec)
         }
         0x04 => {
-            let vec = util::decode_vec(reader, table_section::decode_table_section)?;
+            let vec = util::decode_vec(reader, table_section::decode_table)?;
             Section::Table(vec)
         }
         0x05 => {
@@ -97,7 +97,7 @@ pub fn decode_any_section<R: crate::Reader>(reader: &mut R) -> Result<Section> {
         // 0x07 => Section::Export(section_data),
         // 0x09 => Section::Element(section_data),
         0x0A => {
-            let vec = util::decode_vec(reader, code_section::decode_code_section)?;
+            let vec = util::decode_vec(reader, code_section::decode_code_block)?;
             Section::Code(vec)
         }
         // 0x0B => Section::Data(section_data),

@@ -2,7 +2,7 @@ use super::common::Import;
 use crate::error::Result;
 use crate::varint::decode_u32;
 
-pub fn decode_import_section<R: std::io::Read>(reader: &mut R) -> Result<Import> {
+pub fn decode_import<R: std::io::Read>(reader: &mut R) -> Result<Import> {
     let mut module_name = Vec::with_capacity(decode_u32(reader)?.value as usize);
     reader.read_exact(&mut module_name)?;
     let mut name = Vec::with_capacity(decode_u32(reader)?.value as usize);

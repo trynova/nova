@@ -5,7 +5,7 @@ use crate::error::Result;
 
 const FN_SIGNATURE: u8 = 0x70;
 
-pub fn decode_type_section<R: std::io::Read>(reader: &mut R) -> Result<common::FnType> {
+pub fn decode_fn_type<R: std::io::Read>(reader: &mut R) -> Result<common::FnType> {
     let mut byte: [u8; 1] = [0; 1];
     reader.read_exact(&mut byte)?;
 

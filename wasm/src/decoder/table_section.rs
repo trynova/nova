@@ -7,7 +7,7 @@ use crate::error::Result;
 const EXTERN_REF_SIGNATURE: u8 = RefKind::ExternalRef as u8;
 const FUNC_REF_SIGNATURE: u8 = RefKind::FuncRef as u8;
 
-pub fn decode_table_section<R: std::io::Read>(reader: &mut R) -> Result<Table> {
+pub fn decode_table<R: std::io::Read>(reader: &mut R) -> Result<Table> {
     let mut indicator_byte: [u8; 1] = [0; 1];
     reader.read_exact(&mut indicator_byte)?;
 
