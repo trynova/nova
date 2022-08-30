@@ -5,7 +5,6 @@ mod util;
 
 use crate::error::Error;
 use crate::error::Result;
-use leb128::read;
 
 pub enum Section {
     Type(Vec<common::FnType>),
@@ -77,7 +76,7 @@ pub fn decode_any_section<R: crate::Reader>(reader: &mut R) -> Result<Section> {
         //     Section::Import(vec)
         // }
         0x03 => {
-            let vec = util::decode_vec(reader, |r| Ok(read::unsigned(r)? as u32))?;
+            let vec = util::decode_vec(reader, |r| util::decode_u32(r))?;
             Section::Function(vec)
         }
         // 0x03 => Section::Function(section_data),
