@@ -66,7 +66,7 @@ impl TryFrom<u8> for ValueKind {
 
 pub struct FnType {
     pub params: Box<[ValueKind]>,
-    pub result: Box<[ValueKind]>,
+    pub results: Box<[ValueKind]>,
 }
 
 // pub struct Import {
