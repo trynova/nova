@@ -129,10 +129,11 @@ pub struct Table {
     pub limits: ResizableLimits,
 }
 
-// pub struct GlobalDescriptor {
-//     pub kind: ValueKind,
-//     pub mutable: bool,
-// }
+pub struct GlobalDescriptor {
+    pub kind: ValueKind,
+    pub mutable: bool,
+    // pub init:
+}
 
 // pub struct Export {
 //     pub name: String,
