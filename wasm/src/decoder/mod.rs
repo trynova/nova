@@ -1,5 +1,5 @@
 mod code_section;
-mod common;
+pub(crate) mod common;
 mod type_section;
 mod util;
 

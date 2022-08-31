@@ -1,5 +1,6 @@
 mod decoder;
 pub mod error;
+mod instructions;
 mod varint;
 
 pub fn compile_module<R: std::io::Read>(bytes: &mut R) -> Result<(), error::Error> {
