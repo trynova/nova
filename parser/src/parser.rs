@@ -1,5 +1,5 @@
 use crate::{
-    ast::{AssignLevel, Binding, Expr, Span, Stmt},
+    ast::{AssignLevel, Binding, Expr, Span, Stmt, UnaryOp},
     lexer::{Keyword, Lexer, Token},
 };
 
@@ -44,6 +44,43 @@ impl<'a> Parser<'a> {
                 self.lex.next();
                 Ok(Expr::StringLiteral { span })
             }
+            Token::Identifier => {
+                let span = self.lex.span();
+                self.lex.next();
+                Ok(Expr::Identifier { span })
+            }
+            Token::Plus => {
+                self.lex.next();
+                let value = self.parse_expr(140)?;
+                Ok(Expr::UnaryOp {
+                    kind: UnaryOp::Pos,
+                    value: Box::new(value),
+                })
+            }
+            Token::Minus => {
+                self.lex.next();
+                let value = self.parse_expr(140)?;
+                Ok(Expr::UnaryOp {
+                    kind: UnaryOp::Neg,
+                    value: Box::new(value),
+                })
+            }
+            Token::Not => {
+                self.lex.next();
+                let value = self.parse_expr(140)?;
+                Ok(Expr::UnaryOp {
+                    kind: UnaryOp::Not,
+                    value: Box::new(value),
+                })
+            }
+            Token::BitComplement => {
+                self.lex.next();
+                let value = self.parse_expr(140)?;
+                Ok(Expr::UnaryOp {
+                    kind: UnaryOp::BitComplement,
+                    value: Box::new(value),
+                })
+            }
             tok => panic!("{tok:?}"),
         }
     }
@@ -56,6 +93,33 @@ impl<'a> Parser<'a> {
 
             if prec == 0 || prec < lbp {
                 break;
+            }
+
+            if self.lex.token == Token::LeftParen {
+                self.lex.next();
+                let mut args = Vec::new();
+
+                loop {
+                    if self.lex.token == Token::RightParen {
+                        break;
+                    }
+
+                    let value = self.parse_expr(0)?;
+                    args.push(value);
+
+                    if self.lex.token != Token::Comma {
+                        break;
+                    }
+                    self.lex.next();
+                }
+
+                self.eat(Token::RightParen)?;
+
+                lhs = Expr::FnCall {
+                    calle: Box::new(lhs),
+                    args: args.into_boxed_slice(),
+                };
+                continue;
             }
 
             let kind = self.lex.token.into();
@@ -86,32 +150,47 @@ impl<'a> Parser<'a> {
         let mut nodes = Vec::new();
         loop {
             match self.lex.token {
-                Token::Keyword(Keyword::Let) => loop {
+                Token::Keyword(Keyword::Let | Keyword::Const | Keyword::Var) => {
+                    let level = match self.lex.token {
+                        Token::Keyword(Keyword::Let) => AssignLevel::Let,
+                        Token::Keyword(Keyword::Const) => AssignLevel::Const,
+                        Token::Keyword(Keyword::Var) => AssignLevel::Var,
+                        _ => unreachable!(),
+                    };
+
                     self.lex.next();
-                    let binding = self.parse_binding()?;
+                    loop {
+                        let binding = self.parse_binding()?;
 
-                    match self.lex.token {
-                        Token::Equal => {
-                            self.lex.next();
-                            let value = self.parse_expr(0)?;
-                            nodes.push(Stmt::Assign {
-                                level: AssignLevel::Let,
-                                binding,
-                                value,
-                            });
+                        match self.lex.token {
+                            Token::Equal => {
+                                self.lex.next();
+                                let value = self.parse_expr(0)?;
+                                nodes.push(Stmt::Assign {
+                                    level,
+                                    binding,
+                                    value,
+                                });
+                            }
+                            _ => {}
                         }
-                        _ => {}
-                    }
 
-                    if self.lex.token != Token::Comma {
-                        if self.lex.token != Token::Semi && self.lex.has_newline_before == false {
-                            return Err(());
+                        if self.lex.token != Token::Comma {
+                            if self.lex.token != Token::Semi
+                                && self.lex.token != Token::EOF
+                                && self.lex.has_newline_before == false
+                            {
+                                return Err(());
+                            }
+
+                            if self.lex.token == Token::Semi {
+                                self.lex.next();
+                            }
+                            break;
                         }
                         self.lex.next();
-                        break;
                     }
-                    self.lex.next();
-                },
+                }
                 _ => break,
             }
         }

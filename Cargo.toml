@@ -2,5 +2,6 @@
 members = [
     "parser",
     "common",
-    "wasm"
+    "wasm",
+	"cli",
 ]

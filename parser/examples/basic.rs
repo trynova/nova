@@ -4,7 +4,7 @@ use parser::{
 };
 
 pub fn main() {
-    let input = r#" let a = 5;"#;
+    let input = r#" let abc = 5"#;
 
     let mut parser = Parser::new(input);
 

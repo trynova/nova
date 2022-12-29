@@ -23,10 +23,19 @@ pub enum Binding {
 /// An expression.
 #[derive(Debug, Clone)]
 pub enum Expr {
+    UnaryOp {
+        kind: UnaryOp,
+        value: Box<Expr>,
+    },
     BinaryOp {
         kind: BinaryOp,
         lhs: Box<Expr>,
         rhs: Box<Expr>,
+    },
+    FnCall {
+        calle: Box<Expr>,
+        args: Box<[Expr]>,
+        // TODO: support function spreading
     },
     StringLiteral {
         span: Span,
@@ -34,6 +43,17 @@ pub enum Expr {
     NumberLiteral {
         span: Span,
     },
+    Identifier {
+        span: Span,
+    },
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum UnaryOp {
+    Pos,
+    Neg,
+    Not,
+    BitComplement,
 }
 
 #[derive(Debug, Clone)]
@@ -143,7 +163,7 @@ pub enum Stmt {
     Label(Box<Stmt>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum AssignLevel {
     Let,
     Const,
