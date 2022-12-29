@@ -51,6 +51,9 @@ pub enum Expr {
         args: Box<[Expr]>,
         // TODO: support function spreading
     },
+    ArrayLiteral {
+        values: Box<[Option<Expr>]>,
+    },
     StringLiteral {
         span: Span,
     },

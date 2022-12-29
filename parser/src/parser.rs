@@ -103,6 +103,38 @@ impl<'a> Parser<'a> {
                 self.eat(Token::RightParen)?;
                 Ok(value)
             }
+            Token::LeftBrack => {
+                self.lex.next();
+
+                let mut values = Vec::new();
+
+                loop {
+                    if self.lex.token == Token::Comma {
+                        self.lex.next();
+                        if self.lex.token == Token::RightBrack {
+                            break;
+                        }
+                        values.push(None);
+                        continue;
+                    }
+
+                    if self.lex.token == Token::RightBrack {
+                        break;
+                    }
+
+                    let value = self.parse_expr(0)?;
+                    values.push(Some(value));
+
+                    if self.lex.token == Token::Comma {
+                        self.lex.next();
+                    }
+                }
+                self.eat(Token::RightBrack)?;
+
+                Ok(Expr::ArrayLiteral {
+                    values: values.into_boxed_slice(),
+                })
+            }
             Token::NumberLiteral => {
                 let span = self.lex.span();
                 self.lex.next();
