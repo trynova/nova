@@ -20,6 +20,19 @@ pub enum Binding {
     Ident(Span),
 }
 
+#[derive(Debug, Clone)]
+pub struct Function {
+    pub name: Option<Span>,
+    pub params: Box<[FunctionParam]>,
+    pub scope: Box<[Stmt]>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionParam {
+    pub name: Span,
+    pub default: Option<Box<Expr>>,
+}
+
 /// An expression.
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -32,6 +45,7 @@ pub enum Expr {
         lhs: Box<Expr>,
         rhs: Box<Expr>,
     },
+    Function(Function),
     FnCall {
         calle: Box<Expr>,
         args: Box<[Expr]>,
@@ -152,6 +166,10 @@ impl From<Token> for BinaryOp {
 /// A statement.
 #[derive(Debug, Clone)]
 pub enum Stmt {
+    Function(Function),
+    Return {
+        value: Expr,
+    },
     Assign {
         level: AssignLevel,
         binding: Binding,

@@ -1,5 +1,5 @@
 use crate::{
-    ast::{AssignLevel, Binding, Expr, Span, Stmt, UnaryOp},
+    ast::{AssignLevel, Binding, Expr, Function, FunctionParam, Span, Stmt, UnaryOp},
     lexer::{Keyword, Lexer, Token},
 };
 
@@ -26,8 +26,77 @@ impl<'a> Parser<'a> {
         Ok(span)
     }
 
+    /// Parses a function expression. Assumes the `function` keyword has already
+    /// been consumed.
+    fn parse_function(&mut self) -> Result<Function> {
+        let name = if self.lex.token == Token::Identifier {
+            let span = self.lex.span();
+            self.lex.next();
+            Some(span)
+        } else {
+            None
+        };
+
+        self.eat(Token::LeftParen)?;
+
+        let mut params = Vec::new();
+        loop {
+            if self.lex.token == Token::RightParen {
+                break;
+            }
+
+            let name = self.eat(Token::Identifier)?;
+
+            match self.lex.token {
+                Token::Comma => {
+                    self.lex.next();
+                    params.push(FunctionParam {
+                        name,
+                        default: None,
+                    });
+                }
+                Token::Equal => {
+                    self.lex.next();
+
+                    let default = self.parse_expr(0)?;
+                    params.push(FunctionParam {
+                        name,
+                        default: Some(Box::new(default)),
+                    });
+
+                    if self.lex.token != Token::Comma {
+                        break;
+                    }
+                    self.lex.next();
+                }
+                _ => {
+                    params.push(FunctionParam {
+                        name,
+                        default: None,
+                    });
+                    break;
+                }
+            }
+        }
+
+        self.eat(Token::RightParen)?;
+        self.eat(Token::LeftBrace)?;
+        let scope = self.parse_scope(true)?;
+        self.eat(Token::RightBrace)?;
+
+        Ok(Function {
+            name,
+            params: params.into_boxed_slice(),
+            scope,
+        })
+    }
+
     fn parse_simple_expr(&mut self) -> Result<Expr> {
         match self.lex.token {
+            Token::Keyword(Keyword::Function) => {
+                self.lex.next();
+                Ok(Expr::Function(self.parse_function()?))
+            }
             Token::LeftParen => {
                 self.lex.next();
                 let value = self.parse_expr(0)?;
@@ -150,6 +219,26 @@ impl<'a> Parser<'a> {
         let mut nodes = Vec::new();
         loop {
             match self.lex.token {
+                Token::Semi => self.lex.next(),
+                Token::Keyword(Keyword::Return) => {
+                    self.lex.next();
+                    nodes.push(Stmt::Return {
+                        value: self.parse_expr(0)?,
+                    });
+
+                    if self.lex.token == Token::Semi {
+                        self.lex.next();
+                    } else if self.lex.token != Token::EOF
+                        && self.lex.token != Token::RightBrace
+                        && !self.lex.has_newline_before
+                    {
+                        return Err(());
+                    }
+                }
+                Token::Keyword(Keyword::Function) => {
+                    self.lex.next();
+                    nodes.push(Stmt::Function(self.parse_function()?));
+                }
                 Token::Keyword(Keyword::Let | Keyword::Const | Keyword::Var) => {
                     let level = match self.lex.token {
                         Token::Keyword(Keyword::Let) => AssignLevel::Let,
@@ -178,6 +267,7 @@ impl<'a> Parser<'a> {
                         if self.lex.token != Token::Comma {
                             if self.lex.token != Token::Semi
                                 && self.lex.token != Token::EOF
+                                && self.lex.token != Token::RightBrace
                                 && self.lex.has_newline_before == false
                             {
                                 return Err(());
