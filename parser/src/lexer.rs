@@ -1,6 +1,8 @@
 use boa_unicode::UnicodeProperties;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+use crate::ast::Span;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Token {
     EOF,
 
@@ -8,8 +10,9 @@ pub enum Token {
     Identifier,
     StringLiteral,
     InvalidStringLiteral,
-    IntegerLiteral,
-    FloatLiteral,
+    NumberLiteral,
+    InvalidNumberLiteral,
+    Keyword(Keyword),
 
     // Unary
     Not,
@@ -41,6 +44,7 @@ pub enum Token {
     Or,
     And,
     Nullish,
+    Mod,
 
     // Binary Assign
     AddAssign,
@@ -57,6 +61,7 @@ pub enum Token {
     OrAssign,
     AndAssign,
     NullishAssign,
+    ModAssign,
 
     // Misc.
     Unknown,
@@ -69,7 +74,33 @@ pub enum Token {
     Semi,
     Question,
     Dot,
+    Comma,
     // TODO: DotDotDot
+}
+
+impl Token {
+    /// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence
+    pub fn lbp(self) -> u8 {
+        match self {
+            Self::LeftParen | Self::LeftBrack => 180,
+            // TODO: unary ops
+            Self::Pow => 130,
+            Self::Mul | Self::Div | Self::Mod => 120,
+            // these are binary at this point
+            Self::Plus | Self::Minus => 110,
+            Self::BitShiftLeft | Self::BitShiftRight | Self::BitUnsignedShiftRight => 100,
+            Self::Less | Self::LessEqual | Self::Greater | Self::GreaterEqual => 90,
+            Self::EqualEqual | Self::NotEqual | Self::EqualEqualEqual | Self::NotEqualEqual => 80,
+            Self::BitAnd => 70,
+            Self::BitXor => 60,
+            Self::BitOr => 50,
+            Self::And => 40,
+            Self::Nullish | Self::Or => 30,
+            Self::Equal | Self::OrAssign => 20,
+            // Self::Comma => 10,
+            _ => 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -127,6 +158,65 @@ pub enum Keyword {
     Public,
 }
 
+static KEYWORDS: phf::Map<&'static str, Token> = phf::phf_map! {
+    "break" => Token::Keyword(Keyword::Break),
+    "case" => Token::Keyword(Keyword::Case),
+    "catch" => Token::Keyword(Keyword::Catch),
+    "class" => Token::Keyword(Keyword::Class),
+    "const" => Token::Keyword(Keyword::Const),
+    "continue" => Token::Keyword(Keyword::Continue),
+    "debugger" => Token::Keyword(Keyword::Debugger),
+    "default" => Token::Keyword(Keyword::Default),
+    "delete" => Token::Keyword(Keyword::Delete),
+    "do" => Token::Keyword(Keyword::Do),
+    "else" => Token::Keyword(Keyword::Else),
+    "export" => Token::Keyword(Keyword::Export),
+    "extends" => Token::Keyword(Keyword::Extends),
+    "false" => Token::Keyword(Keyword::False),
+    "finally" => Token::Keyword(Keyword::Finally),
+    "for" => Token::Keyword(Keyword::For),
+    "function" => Token::Keyword(Keyword::Function),
+    "if" => Token::Keyword(Keyword::If),
+    "import" => Token::Keyword(Keyword::Import),
+    "in" => Token::Keyword(Keyword::In),
+    "instanceof" => Token::Keyword(Keyword::Instanceof),
+    "new" => Token::Keyword(Keyword::New),
+    "null" => Token::Keyword(Keyword::Null),
+    "return" => Token::Keyword(Keyword::Return),
+    "super" => Token::Keyword(Keyword::Super),
+    "switch" => Token::Keyword(Keyword::Switch),
+    "this" => Token::Keyword(Keyword::This),
+    "throw" => Token::Keyword(Keyword::Throw),
+    "true" => Token::Keyword(Keyword::True),
+    "try" => Token::Keyword(Keyword::Try),
+    "typeof" => Token::Keyword(Keyword::Typeof),
+    "var" => Token::Keyword(Keyword::Var),
+    "void" => Token::Keyword(Keyword::Void),
+    "while" => Token::Keyword(Keyword::While),
+    "with" => Token::Keyword(Keyword::With),
+
+    // Only reserved in strict mode.
+    "let" => Token::Keyword(Keyword::Let),
+    "static" => Token::Keyword(Keyword::Static),
+    "yield" => Token::Keyword(Keyword::Yield),
+
+    // Only reserved in modules or async function bodies.
+    "await" => Token::Keyword(Keyword::Await),
+
+    // Reserved in strict mode.
+    "implements" => Token::Keyword(Keyword::Implements),
+    "interface" => Token::Keyword(Keyword::Interface),
+    "package" => Token::Keyword(Keyword::Package),
+    "private" => Token::Keyword(Keyword::Private),
+    "protected" => Token::Keyword(Keyword::Protected),
+    "public" => Token::Keyword(Keyword::Public),
+};
+
+enum NumberParseState {
+    Number { seen_exp: bool },
+    Float { seen_exp: bool },
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Lexer<'a> {
     buffer: &'a [u8],
@@ -151,6 +241,65 @@ impl<'a> Lexer<'a> {
     pub fn source(&'a self) -> &'a str {
         // SAFETY: the API ensures that the buffer is already an &str
         unsafe { std::str::from_utf8_unchecked(self.buffer) }
+    }
+
+    pub fn span(&self) -> Span {
+        Span {
+            start: self.start as u32,
+            end: self.index as u32,
+        }
+    }
+
+    fn continue_number(&mut self, mut state: NumberParseState) {
+        // TODO: support underscore separators
+        loop {
+            match state {
+                NumberParseState::Float { seen_exp: false } => match self.buffer.get(self.index) {
+                    Some(b'e') => {
+                        self.index += 1;
+                        state = NumberParseState::Float { seen_exp: true };
+                    }
+                    Some(b'.') => {
+                        self.token = Token::InvalidNumberLiteral;
+                        return;
+                    }
+                    Some(b'0'..=b'9') => self.index += 1,
+                    _ => break,
+                },
+                NumberParseState::Float { seen_exp: true } => match self.buffer.get(self.index) {
+                    Some(b'e') => {
+                        self.token = Token::InvalidNumberLiteral;
+                        return;
+                    }
+                    Some(b'.') => {
+                        self.token = Token::InvalidNumberLiteral;
+                        return;
+                    }
+                    Some(b'0'..=b'9') => self.index += 1,
+                    Some(b'_') => panic!(),
+                    _ => break,
+                },
+                NumberParseState::Number { seen_exp } => match self.buffer.get(self.index) {
+                    Some(b'e') => {
+                        self.index += 1;
+                        state = NumberParseState::Number { seen_exp: true };
+                    }
+                    Some(b'_') => panic!(),
+                    Some(b'.') if seen_exp => {
+                        self.token = Token::InvalidNumberLiteral;
+                        return;
+                    }
+                    Some(b'.') => {
+                        self.index += 1;
+                        state = NumberParseState::Number { seen_exp: false };
+                    }
+                    Some(b'0'..=b'9') => {
+                        self.index += 1;
+                    }
+                    _ => break,
+                },
+            }
+        }
     }
 
     pub fn next(&mut self) {
@@ -208,7 +357,7 @@ impl<'a> Lexer<'a> {
                         Some(b'/') => loop {
                             self.index += 1;
 
-                            if let Some(b'\n') | None = self.buffer.get(self.index) {
+                            if let Some(b'\n' | b'\r') | None = self.buffer.get(self.index) {
                                 continue 'main;
                             }
                         },
@@ -412,6 +561,19 @@ impl<'a> Lexer<'a> {
                     self.index += 1;
                     self.token = Token::BitComplement;
                 }
+                Some(b'%') => {
+                    self.index += 1;
+                    self.token = if let Some(b'=') = self.buffer.get(self.index) {
+                        self.index += 1;
+                        Token::ModAssign
+                    } else {
+                        Token::Mod
+                    }
+                }
+                Some(b',') => {
+                    self.index += 1;
+                    self.token = Token::Comma;
+                }
                 Some(b'\r' | b'\n') => {
                     self.has_newline_before = true;
                     loop {
@@ -455,6 +617,7 @@ impl<'a> Lexer<'a> {
 								break;
 							}
 						}
+						self.token = *KEYWORDS.get(&self.source()[self.start..self.index]).unwrap_or(&Token::Identifier);
 						break;
 					};
                 },
@@ -482,8 +645,13 @@ impl<'a> Lexer<'a> {
                     self.index += 1;
                     self.token = Token::RightBrack;
                 }
-                Some(b'.') => {
+                Some(b'.') => 'blk: {
                     self.index += 1;
+                    if let Some(b'0'..=b'9') = self.buffer.get(self.index) {
+                        self.token = Token::NumberLiteral;
+                        self.continue_number(NumberParseState::Float { seen_exp: true });
+                        break 'blk;
+                    }
                     self.token = Token::Dot;
                 }
                 Some(b';') => {
@@ -504,8 +672,33 @@ impl<'a> Lexer<'a> {
                         Token::Question
                     };
                 }
+                Some(b'1'..=b'9') => {
+                    self.token = Token::NumberLiteral;
+                    self.index += 1;
+                    self.continue_number(NumberParseState::Number { seen_exp: false });
+                }
                 None => self.token = Token::EOF,
-                _ => {
+                _ => 'blk: {
+                    let mut chars = self.source()[self.index..].char_indices();
+
+                    let start_utf8 = self.index;
+                    if let Some((_, c)) = chars.next() {
+                        if !boa_unicode::UnicodeProperties::is_id_start(c) {
+                            self.index = start_utf8 + chars.next().map(|(idx, _)| idx).unwrap_or(1);
+                            self.token = Token::Unknown;
+                            break 'blk;
+                        }
+
+                        while let Some((_, c)) = chars.next() {
+                            if !boa_unicode::UnicodeProperties::is_id_continue(c) {
+                                self.index =
+                                    start_utf8 + chars.next().map(|(idx, _)| idx).unwrap_or(1);
+                                self.token = Token::Identifier;
+                                break 'blk;
+                            }
+                        }
+                    }
+
                     self.index += 1;
                     self.token = Token::Unknown;
                 }

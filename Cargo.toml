@@ -2,6 +2,5 @@
 members = [
     "parser",
     "common",
-		"tokenizer",
     "wasm"
 ]
