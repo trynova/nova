@@ -83,7 +83,7 @@ impl Token {
     pub fn lbp(self) -> u8 {
         match self {
             Self::LeftParen | Self::LeftBrack => 180,
-            // TODO: unary ops
+            // Unary ops are not left-binding
             Self::Pow => 130,
             Self::Mul | Self::Div | Self::Mod => 120,
             // these are binary at this point

@@ -1,4 +1,4 @@
-use crate::lexer::Token;
+use crate::lexer::{Keyword, Token};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Span {
@@ -68,6 +68,22 @@ pub enum UnaryOp {
     Neg,
     Not,
     BitComplement,
+    Yield,
+    Await,
+}
+
+impl From<Token> for UnaryOp {
+    fn from(value: Token) -> Self {
+        match value {
+            Token::Plus => Self::Pos,
+            Token::Minus => Self::Neg,
+            Token::Not => Self::Not,
+            Token::BitComplement => Self::BitComplement,
+            Token::Keyword(Keyword::Yield) => Self::Yield,
+            Token::Keyword(Keyword::Await) => Self::Await,
+            _ => unreachable!(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -168,6 +184,12 @@ impl From<Token> for BinaryOp {
 pub enum Stmt {
     Function(Function),
     Return {
+        value: Expr,
+    },
+    Yield {
+        value: Expr,
+    },
+    Await {
         value: Expr,
     },
     Assign {

@@ -118,35 +118,17 @@ impl<'a> Parser<'a> {
                 self.lex.next();
                 Ok(Expr::Identifier { span })
             }
-            Token::Plus => {
+            Token::Plus
+            | Token::Minus
+            | Token::Not
+            | Token::BitComplement
+            | Token::Keyword(Keyword::Yield)
+            | Token::Keyword(Keyword::Await) => {
+                let kind = self.lex.token.into();
                 self.lex.next();
                 let value = self.parse_expr(140)?;
                 Ok(Expr::UnaryOp {
-                    kind: UnaryOp::Pos,
-                    value: Box::new(value),
-                })
-            }
-            Token::Minus => {
-                self.lex.next();
-                let value = self.parse_expr(140)?;
-                Ok(Expr::UnaryOp {
-                    kind: UnaryOp::Neg,
-                    value: Box::new(value),
-                })
-            }
-            Token::Not => {
-                self.lex.next();
-                let value = self.parse_expr(140)?;
-                Ok(Expr::UnaryOp {
-                    kind: UnaryOp::Not,
-                    value: Box::new(value),
-                })
-            }
-            Token::BitComplement => {
-                self.lex.next();
-                let value = self.parse_expr(140)?;
-                Ok(Expr::UnaryOp {
-                    kind: UnaryOp::BitComplement,
+                    kind,
                     value: Box::new(value),
                 })
             }
@@ -163,6 +145,9 @@ impl<'a> Parser<'a> {
             if prec == 0 || prec < lbp {
                 break;
             }
+
+            // TODO: We need custom logic here for ordering unary keywords
+            //       because code like `a + yield 1` should fail to parse.
 
             if self.lex.token == Token::LeftParen {
                 self.lex.next();
