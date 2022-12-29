@@ -1,13 +1,13 @@
-use tokenizer::{TokenKind, TokenStream};
+use tokenizer::{Lexer, Token};
 
 pub fn main() {
-    let input = "2 == asdf 23 a ";
-    let mut stream = TokenStream::new(input.as_bytes());
+    let input = r#"asdf23 == "hello" "#;
+    let mut lex = Lexer::new(input);
 
     loop {
-        let token = stream.next();
-        println!("{:?}", token);
-        if token.kind == TokenKind::Eof {
+        lex.next();
+        println!("{:4} {:?}", lex.start, lex.token);
+        if lex.token == Token::EOF {
             break;
         }
     }

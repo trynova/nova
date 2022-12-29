@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 boa_unicode = "0.15.0"
+phf = { version = "0.11", features = ["macros"] }
