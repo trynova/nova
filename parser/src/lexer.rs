@@ -95,7 +95,21 @@ impl Token {
             Self::BitOr => 50,
             Self::And => 40,
             Self::Nullish | Self::Or => 30,
-            Self::Equal | Self::OrAssign => 20,
+            Self::Equal
+            | Self::AddAssign
+            | Self::SubAssign
+            | Self::PowAssign
+            | Self::MulAssign
+            | Self::DivAssign
+            | Self::ModAssign
+            | Self::BitShiftLeftAssign
+            | Self::BitShiftRightAssign
+            | Self::BitAndAssign
+            | Self::BitXorAssign
+            | Self::BitOrAssign
+            | Self::AndAssign
+            | Self::OrAssign
+            | Self::NullishAssign => 20,
             // Self::Comma => 10,
             _ => 0,
         }
