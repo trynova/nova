@@ -190,6 +190,17 @@ impl<'a> Parser<'a> {
             // TODO: We need custom logic here for ordering unary keywords
             //       because code like `a + yield 1` should fail to parse.
 
+            if self.lex.token == Token::LeftBrack {
+                self.lex.next();
+                let index = self.parse_expr(0)?;
+                self.eat(Token::RightBrack)?;
+                lhs = Expr::Index {
+                    root: Box::new(lhs),
+                    index: Box::new(index),
+                };
+                continue;
+            }
+
             if self.lex.token == Token::LeftParen {
                 self.lex.next();
                 let mut args = Vec::new();

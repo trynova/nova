@@ -37,6 +37,10 @@ pub struct FunctionParam {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Null,
+    Index {
+        root: Box<Expr>,
+        index: Box<Expr>,
+    },
     UnaryOp {
         kind: UnaryOp,
         value: Box<Expr>,
