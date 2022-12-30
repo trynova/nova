@@ -177,7 +177,10 @@ impl<'a> Parser<'a> {
                 self.lex.next();
                 Ok(Expr::Null)
             }
-            tok => panic!("{tok:?}"),
+            tok => {
+                self.error = format!("expected expression, found {tok:?}");
+                return Err(());
+            }
         }
     }
 
@@ -378,7 +381,13 @@ impl<'a> Parser<'a> {
 
                     self.expect_stmt_end()?;
                 }
-                _ => break,
+                _ => {
+                    let Ok(value) = self.parse_expr(0) else {
+						break;
+					};
+                    self.expect_stmt_end()?;
+                    nodes.push(Stmt::Expr { value });
+                }
             }
         }
         Ok(nodes.into_boxed_slice())

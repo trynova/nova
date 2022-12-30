@@ -219,6 +219,9 @@ pub enum Stmt {
     Continue {
         label: Option<Span>,
     },
+    Expr {
+        value: Expr,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
