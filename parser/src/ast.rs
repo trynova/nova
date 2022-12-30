@@ -46,7 +46,7 @@ pub enum Expr {
         rhs: Box<Expr>,
     },
     Function(Function),
-    FnCall {
+    FunctionCall {
         calle: Box<Expr>,
         args: Box<[Expr]>,
         // TODO: support function spreading

@@ -201,7 +201,7 @@ impl<'a> Parser<'a> {
 
                 self.eat(Token::RightParen)?;
 
-                lhs = Expr::FnCall {
+                lhs = Expr::FunctionCall {
                     calle: Box::new(lhs),
                     args: args.into_boxed_slice(),
                 };
