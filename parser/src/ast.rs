@@ -206,6 +206,7 @@ pub enum Stmt {
         value: Expr,
     },
     Declare {
+        level: AssignLevel,
         binding: Binding,
     },
     Label(Box<Stmt>),

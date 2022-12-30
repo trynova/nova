@@ -276,7 +276,7 @@ impl<'a> Parser<'a> {
                     self.lex.next();
                     nodes.push(Stmt::Function(self.parse_function()?));
                 }
-                Token::Keyword(Keyword::Let | Keyword::Const | Keyword::Var) => {
+                Token::Keyword(Keyword::Let | Keyword::Const | Keyword::Var) => 'blk: {
                     let level = match self.lex.token {
                         Token::Keyword(Keyword::Let) => AssignLevel::Let,
                         Token::Keyword(Keyword::Const) => AssignLevel::Const,
@@ -289,6 +289,11 @@ impl<'a> Parser<'a> {
                         let binding = self.parse_binding()?;
 
                         match self.lex.token {
+                            Token::Semi => {
+                                self.lex.next();
+                                nodes.push(Stmt::Declare { level, binding });
+                                break 'blk;
+                            }
                             Token::Equal => {
                                 self.lex.next();
                                 let value = self.parse_expr(0)?;
@@ -298,7 +303,14 @@ impl<'a> Parser<'a> {
                                     value,
                                 });
                             }
-                            _ => {}
+                            _ => {
+                                if !self.lex.has_newline_before {
+                                    self.eat(Token::Semi)?; // this must fail
+                                    unreachable!();
+                                }
+
+                                nodes.push(Stmt::Declare { level, binding });
+                            }
                         }
 
                         if self.lex.token != Token::Comma {
