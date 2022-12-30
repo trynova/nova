@@ -80,7 +80,8 @@ impl Token {
     /// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence
     pub fn lbp(self) -> u8 {
         match self {
-            Self::LeftParen | Self::LeftBrack => 180,
+            // Grouping is not left-binding
+            Self::LeftParen | Self::LeftBrack | Self::Dot => 180,
             // Unary ops are not left-binding
             Self::Pow => 130,
             Self::Mul | Self::Div | Self::Mod => 120,
