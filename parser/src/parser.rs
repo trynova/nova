@@ -1,5 +1,5 @@
 use crate::{
-    ast::{AssignLevel, Binding, Expr, Function, FunctionParam, Span, Stmt, UnaryOp},
+    ast::{AssignLevel, Binding, Expr, Function, FunctionParam, Span, Stmt},
     lexer::{Keyword, Lexer, Token},
 };
 
@@ -252,29 +252,70 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn expect_stmt_end(&mut self) -> Result<()> {
+        if self.lex.token == Token::Semi {
+            self.lex.next();
+        } else if self.lex.token != Token::EOF
+            && self.lex.token != Token::RightBrace
+            && !self.lex.has_newline_before
+        {
+            self.error = format!(
+                "expected new line or semi colon, found {:?}",
+                self.lex.token
+            );
+            return Err(());
+        }
+        Ok(())
+    }
+
     pub fn parse_scope(&mut self, is_fn_scope: bool) -> Result<Box<[Stmt]>> {
         let mut nodes = Vec::new();
         loop {
             match self.lex.token {
                 Token::Semi => self.lex.next(),
                 Token::Keyword(Keyword::Return) => {
+                    if !is_fn_scope {
+                        self.error =
+                            "return statements are not allowed outside of functions".into();
+                        return Err(());
+                    }
                     self.lex.next();
                     nodes.push(Stmt::Return {
                         value: self.parse_expr(0)?,
                     });
-
-                    if self.lex.token == Token::Semi {
-                        self.lex.next();
-                    } else if self.lex.token != Token::EOF
-                        && self.lex.token != Token::RightBrace
-                        && !self.lex.has_newline_before
-                    {
-                        return Err(());
-                    }
+                    self.expect_stmt_end()?;
                 }
                 Token::Keyword(Keyword::Function) => {
                     self.lex.next();
                     nodes.push(Stmt::Function(self.parse_function()?));
+                }
+                Token::Keyword(Keyword::Break) => {
+                    self.lex.next();
+
+                    nodes.push(Stmt::Break {
+                        label: if self.lex.token == Token::Identifier {
+                            let label = self.lex.span();
+                            self.lex.next();
+                            Some(label)
+                        } else {
+                            None
+                        },
+                    });
+                    self.expect_stmt_end()?;
+                }
+                Token::Keyword(Keyword::Continue) => {
+                    self.lex.next();
+
+                    nodes.push(Stmt::Continue {
+                        label: if self.lex.token == Token::Identifier {
+                            let label = self.lex.span();
+                            self.lex.next();
+                            Some(label)
+                        } else {
+                            None
+                        },
+                    });
+                    self.expect_stmt_end()?;
                 }
                 Token::Keyword(Keyword::Let | Keyword::Const | Keyword::Var) => 'blk: {
                     let level = match self.lex.token {
@@ -292,6 +333,7 @@ impl<'a> Parser<'a> {
                             Token::Semi => {
                                 self.lex.next();
                                 nodes.push(Stmt::Declare { level, binding });
+                                self.expect_stmt_end()?;
                                 break 'blk;
                             }
                             Token::Equal => {
@@ -329,6 +371,8 @@ impl<'a> Parser<'a> {
                         }
                         self.lex.next();
                     }
+
+                    self.expect_stmt_end()?;
                 }
                 _ => break,
             }

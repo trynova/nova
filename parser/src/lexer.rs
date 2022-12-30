@@ -1,5 +1,3 @@
-use boa_unicode::UnicodeProperties;
-
 use crate::ast::Span;
 
 #[derive(Debug, Clone, Copy, PartialEq)]

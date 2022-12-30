@@ -210,6 +210,12 @@ pub enum Stmt {
         binding: Binding,
     },
     Label(Box<Stmt>),
+    Break {
+        label: Option<Span>,
+    },
+    Continue {
+        label: Option<Span>,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
