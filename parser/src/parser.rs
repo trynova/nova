@@ -50,7 +50,7 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            let name = self.eat(Token::Identifier)?;
+            let name = self.parse_binding()?;
 
             match self.lex.token {
                 Token::Comma => {
@@ -75,6 +75,10 @@ impl<'a> Parser<'a> {
                     self.lex.next();
                 }
                 _ => {
+                    let Binding::Identifier(_) = name else {
+						self.error = "Missing initializer in destructuring declaration".into();
+						return Err(());
+					};
                     params.push(FunctionParam {
                         name,
                         default: None,
@@ -183,7 +187,7 @@ impl<'a> Parser<'a> {
         loop {
             let prec = self.lex.token.lbp();
 
-            if prec == 0 || prec < lbp {
+            if prec == 0 || prec <= lbp {
                 break;
             }
 
@@ -246,7 +250,7 @@ impl<'a> Parser<'a> {
             Token::Identifier => {
                 let span = self.lex.span();
                 self.lex.next();
-                Ok(Binding::Ident(span))
+                Ok(Binding::Identifier(span))
             }
             _ => Err(()),
         }

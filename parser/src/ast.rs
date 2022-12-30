@@ -17,7 +17,8 @@ impl Span {
 /// A binding for some data.
 #[derive(Debug, Clone)]
 pub enum Binding {
-    Ident(Span),
+    Identifier(Span),
+    _TheRestOfThemTM,
 }
 
 #[derive(Debug, Clone)]
@@ -29,7 +30,7 @@ pub struct Function {
 
 #[derive(Debug, Clone)]
 pub struct FunctionParam {
-    pub name: Span,
+    pub name: Binding,
     pub default: Option<Box<Expr>>,
 }
 
