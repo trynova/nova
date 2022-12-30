@@ -36,6 +36,7 @@ pub struct FunctionParam {
 /// An expression.
 #[derive(Debug, Clone)]
 pub enum Expr {
+    Null,
     UnaryOp {
         kind: UnaryOp,
         value: Box<Expr>,

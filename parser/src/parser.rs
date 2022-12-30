@@ -164,6 +164,10 @@ impl<'a> Parser<'a> {
                     value: Box::new(value),
                 })
             }
+            Token::Keyword(Keyword::Null) => {
+                self.lex.next();
+                Ok(Expr::Null)
+            }
             tok => panic!("{tok:?}"),
         }
     }
