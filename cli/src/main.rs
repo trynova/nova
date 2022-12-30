@@ -29,10 +29,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let mut parser = Parser::new(&input);
 
-            if verbose {
-                println!("{:#?}", parser.parse_scope(false).unwrap());
-            } else {
-                println!("{:?}", parser.parse_scope(false).unwrap());
+            if let Ok(nodes) = parser.parse_global_scope() {
+                if verbose {
+                    println!("{nodes:#?}");
+                } else {
+                    println!("{nodes:?}");
+                }
+            } else if verbose {
+                eprintln!("error: {}", parser.error);
+                eprintln!("{}:{}", &path, parser.lex.index);
             }
         }
     }

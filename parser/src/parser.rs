@@ -8,17 +8,22 @@ pub type Result<T> = std::result::Result<T, ()>;
 #[derive(Debug)]
 pub struct Parser<'a> {
     pub lex: Lexer<'a>,
+    pub error: String,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(input: &'a str) -> Self {
         let mut lex = Lexer::new(input);
         lex.next();
-        Self { lex }
+        Self {
+            lex,
+            error: "".into(),
+        }
     }
 
     fn eat(&mut self, tok: Token) -> Result<Span> {
         if self.lex.token != tok {
+            self.error = format!("expected {:?}, found {:?}", self.lex.token, tok);
             return Err(());
         }
         let span = self.lex.span();
@@ -306,5 +311,14 @@ impl<'a> Parser<'a> {
             }
         }
         Ok(nodes.into_boxed_slice())
+    }
+
+    pub fn parse_global_scope(&mut self) -> Result<Box<[Stmt]>> {
+        let scope = self.parse_scope(true)?;
+        if self.lex.token != Token::EOF {
+            self.error = format!("expected statement, found {:?}", self.lex.token);
+            return Err(());
+        }
+        Ok(scope)
     }
 }
