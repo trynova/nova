@@ -73,6 +73,11 @@ pub enum Expr {
         span: Span,
     },
     ObjectLiteral(ObjectLiteral),
+    Ternary {
+        condition: Box<Expr>,
+        truthy: Box<Expr>,
+        falsy: Box<Expr>,
+    },
 }
 
 #[derive(Debug, Clone)]

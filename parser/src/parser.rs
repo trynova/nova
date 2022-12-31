@@ -256,9 +256,21 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            // TODO: We need custom logic here for ordering unary keywords
-            //       because code like `a + yield 1` should fail to parse.
+            // parse ternary expresion
+            if self.lex.token == Token::Question {
+                self.lex.next();
+                let truthy = self.parse_expr(2)?;
+                self.eat(Token::Colon)?;
+                let falsy = self.parse_expr(2)?;
+                lhs = Expr::Ternary {
+                    condition: Box::new(lhs),
+                    truthy: Box::new(truthy),
+                    falsy: Box::new(falsy),
+                };
+                continue;
+            }
 
+            // parse index expression
             if self.lex.token == Token::LeftBrack {
                 self.lex.next();
                 let index = self.parse_expr(1)?;
@@ -270,6 +282,7 @@ impl<'a> Parser<'a> {
                 continue;
             }
 
+            // parse function call expression
             if self.lex.token == Token::LeftParen {
                 self.lex.next();
                 let mut args = Vec::new();

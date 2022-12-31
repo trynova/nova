@@ -98,6 +98,7 @@ impl Token {
                 | Self::AndAssign
                 | Self::OrAssign
                 | Self::NullishAssign
+                | Self::Question
         )
     }
 
@@ -133,7 +134,8 @@ impl Token {
             | Self::BitOrAssign
             | Self::AndAssign
             | Self::OrAssign
-            | Self::NullishAssign => 2,
+            | Self::NullishAssign
+            | Self::Question => 2,
             Self::Comma => 1,
             _ => 0,
         }
