@@ -1,7 +1,7 @@
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use hashbrown::{hash_set, HashMap, HashSet};
 use nova_parser::ast::{BinaryOp, Binding, BindingLevel, Expr, Stmt, UnaryOp};
-use std::{cell::RefCell, fmt::Display, rc::Rc};
+use std::{cell::RefCell, fmt::Display, hash::BuildHasher, rc::Rc};
 
 #[derive(Debug)]
 pub struct Env<'a> {
@@ -90,6 +90,12 @@ impl std::fmt::Display for Type {
 
 impl std::hash::Hash for Type {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        if let Self::Union(u) = self {
+            for v in u.iter() {
+                v.hash(state);
+            }
+        }
+
         core::mem::discriminant(self).hash(state);
     }
 }
