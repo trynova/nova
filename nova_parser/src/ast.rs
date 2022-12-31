@@ -6,7 +6,18 @@ pub struct Span {
     pub end: u32,
 }
 
+impl Into<std::ops::Range<usize>> for Span {
+    fn into(self) -> std::ops::Range<usize> {
+        self.into_range()
+    }
+}
+
 impl Span {
+    #[inline]
+    pub fn new(start: u32, end: u32) -> Self {
+        Self { start, end }
+    }
+
     // We do this because deriving Into<_> has some inference issues for range
     // indices.
     pub fn into_range(&self) -> std::ops::Range<usize> {
@@ -37,19 +48,30 @@ pub struct FunctionParam {
 /// An expression.
 #[derive(Debug, Clone)]
 pub enum Expr {
-    Null,
-    True,
-    False,
-    Undefined,
+    Null {
+        start: u32,
+    },
+    True {
+        start: u32,
+    },
+    False {
+        start: u32,
+    },
+    Undefined {
+        start: u32,
+    },
     Index {
+        span: Span,
         root: Box<Expr>,
         index: Box<Expr>,
     },
     UnaryOp {
+        start: u32,
         kind: UnaryOp,
         value: Box<Expr>,
     },
     BinaryOp {
+        op_index: u32,
         kind: BinaryOp,
         lhs: Box<Expr>,
         rhs: Box<Expr>,
@@ -61,6 +83,7 @@ pub enum Expr {
         // TODO: support function spreading
     },
     ArrayLiteral {
+        span: Span,
         values: Box<[Option<Expr>]>,
     },
     StringLiteral {
@@ -80,6 +103,29 @@ pub enum Expr {
     },
 }
 
+impl Expr {
+    pub fn span(&self) -> Span {
+        match self {
+            &Self::Null { start } => Span::new(start, start + 4),
+            &Self::True { start } => Span::new(start, start + 4),
+            &Self::False { start } => Span::new(start, start + 5),
+            &Self::Undefined { start } => Span::new(start, start + 5),
+            Self::UnaryOp { start, kind, value } => Span::new(*start, value.span().end),
+            Self::BinaryOp { lhs, rhs, .. } => Span::new(lhs.span().start, rhs.span().end),
+            &Self::StringLiteral { span }
+            | &Self::NumberLiteral { span }
+            | &Self::Index { span, .. }
+            | &Self::ArrayLiteral { span, .. } => span,
+            Self::Ternary {
+                condition,
+                truthy,
+                falsy,
+            } => Span::new(condition.span().start, falsy.span().end),
+            _ => panic!(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ObjectLiteral {
     pub entries: Box<[ObjectEntry]>,
@@ -95,10 +141,23 @@ pub struct ObjectEntry {
 pub enum UnaryOp {
     Pos,
     Neg,
-    Not,
     BitComplement,
+    Not,
     Yield,
     Await,
+}
+
+impl AsRef<str> for UnaryOp {
+    fn as_ref(&self) -> &str {
+        match self {
+            Self::Pos => "+",
+            Self::Neg => "-",
+            Self::BitComplement => "~",
+            Self::Not => "!",
+            Self::Yield => "yield",
+            Self::Await => "await",
+        }
+    }
 }
 
 impl From<Token> for UnaryOp {
@@ -163,6 +222,56 @@ pub enum BinaryOp {
     // Misc.
     MemberAccess,
     Sequence,
+}
+
+impl AsRef<str> for BinaryOp {
+    fn as_ref(&self) -> &str {
+        match self {
+            Self::Add => "+",
+            Self::Sub => "-",
+            Self::Mul => "*",
+            Self::Div => "/",
+            Self::Pow => "**",
+            Self::Equal => "=",
+            Self::EqualEqual => "==",
+            Self::EqualEqualEqual => "===",
+            Self::NotEqual => "!=",
+            Self::NotEqualEqual => "!==",
+            Self::Less => "<",
+            Self::LessEqual => "<=",
+            Self::Greater => ">",
+            Self::GreaterEqual => ">=",
+            Self::BitShiftLeft => "<<",
+            Self::BitShiftRight => ">>",
+            Self::BitUnsignedShiftRight => ">>>",
+            Self::BitAnd => "&",
+            Self::BitOr => "|",
+            Self::BitXor => "^",
+            Self::Or => "||",
+            Self::And => "&&",
+            Self::Nullish => "??",
+            Self::Mod => "%",
+
+            Self::AddAssign => "+=",
+            Self::SubAssign => "-=",
+            Self::MulAssign => "*=",
+            Self::DivAssign => "/=",
+            Self::PowAssign => "**=",
+            Self::BitShiftLeftAssign => "<<=",
+            Self::BitShiftRightAssign => ">>=",
+            Self::BitUnsignedShiftRightAssign => ">>>=",
+            Self::BitAndAssign => "&=",
+            Self::BitOrAssign => "|=",
+            Self::BitXorAssign => "^=",
+            Self::OrAssign => "||=",
+            Self::AndAssign => "&&=",
+            Self::NullishAssign => "??=",
+            Self::ModAssign => "%=",
+
+            Self::MemberAccess => ".",
+            Self::Sequence => ",",
+        }
+    }
 }
 
 impl From<Token> for BinaryOp {

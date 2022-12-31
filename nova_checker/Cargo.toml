@@ -1,0 +1,11 @@
+[package]
+name = "nova_checker"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nova_parser = { path = "../nova_parser" }
+hashbrown = "0.13"
+codespan-reporting = "0.11"

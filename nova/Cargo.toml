@@ -1,5 +1,5 @@
 [package]
-name = "cli"
+name = "nova"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,4 +7,6 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
-parser = { path = "../parser" }
+nova_parser = { path = "../nova_parser" }
+nova_checker = { path = "../nova_checker" }
+codespan-reporting = "0.11"

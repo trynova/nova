@@ -106,12 +106,14 @@ impl<'a> Parser<'a> {
     fn parse_simple_expr(&mut self, hp: u8) -> Result<Expr> {
         Ok(match self.lex.token {
             Token::Keyword(Keyword::True) => {
+                let start = self.lex.start as u32;
                 self.lex.next();
-                Expr::True
+                Expr::True { start }
             }
             Token::Keyword(Keyword::False) => {
+                let start = self.lex.start as u32;
                 self.lex.next();
-                Expr::False
+                Expr::False { start }
             }
             Token::Keyword(Keyword::Function) => {
                 self.lex.next();
@@ -124,6 +126,7 @@ impl<'a> Parser<'a> {
                 value
             }
             Token::LeftBrack => {
+                let start = self.lex.start as u32;
                 self.lex.next();
 
                 let mut values = Vec::new();
@@ -149,9 +152,11 @@ impl<'a> Parser<'a> {
                         self.lex.next();
                     }
                 }
+                let end = self.lex.start as u32;
                 self.eat(Token::RightBrack)?;
 
                 Expr::ArrayLiteral {
+                    span: Span::new(start, end),
                     values: values.into_boxed_slice(),
                 }
             }
@@ -203,10 +208,12 @@ impl<'a> Parser<'a> {
             | Token::Not
             | Token::BitComplement
             | Token::Keyword(Keyword::Await) => {
+                let start = self.lex.start as u32;
                 let kind = self.lex.token.into();
                 self.lex.next();
                 let value = self.parse_expr(14)?;
                 Expr::UnaryOp {
+                    start,
                     kind,
                     value: Box::new(value),
                 }
@@ -216,17 +223,20 @@ impl<'a> Parser<'a> {
                     return Err(());
                 }
 
+                let start = self.lex.start as u32;
                 let kind = self.lex.token.into();
                 self.lex.next();
                 let value = self.parse_expr(14)?;
                 Expr::UnaryOp {
+                    start,
                     kind,
                     value: Box::new(value),
                 }
             }
             Token::Keyword(Keyword::Null) => {
+                let start = self.lex.start as u32;
                 self.lex.next();
-                Expr::Null
+                Expr::Null { start }
             }
             tok => {
                 self.error = format!("expected expression, found {tok:?}");
@@ -272,10 +282,13 @@ impl<'a> Parser<'a> {
 
             // parse index expression
             if self.lex.token == Token::LeftBrack {
+                let start = self.lex.start as u32;
                 self.lex.next();
                 let index = self.parse_expr(1)?;
+                let end = self.lex.start as u32;
                 self.eat(Token::RightBrack)?;
                 lhs = Expr::Index {
+                    span: Span::new(start, end),
                     root: Box::new(lhs),
                     index: Box::new(index),
                 };
@@ -311,9 +324,11 @@ impl<'a> Parser<'a> {
             }
 
             let kind = self.lex.token.into();
+            let op_index = self.lex.start as u32;
             self.lex.next();
 
             lhs = Expr::BinaryOp {
+                op_index,
                 kind,
                 lhs: Box::new(lhs),
                 rhs: Box::new(self.parse_expr(prec)?),
