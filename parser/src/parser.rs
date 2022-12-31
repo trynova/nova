@@ -1,5 +1,8 @@
 use crate::{
-    ast::{AssignLevel, Binding, Expr, Function, FunctionParam, Span, Stmt},
+    ast::{
+        Binding, BindingLevel, Expr, Function, FunctionParam, ObjectEntry, ObjectLiteral, Span,
+        Stmt,
+    },
     lexer::{Keyword, Lexer, Token},
 };
 
@@ -101,16 +104,24 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_simple_expr(&mut self) -> Result<Expr> {
-        match self.lex.token {
+        Ok(match self.lex.token {
+            Token::Keyword(Keyword::True) => {
+                self.lex.next();
+                Expr::True
+            }
+            Token::Keyword(Keyword::False) => {
+                self.lex.next();
+                Expr::False
+            }
             Token::Keyword(Keyword::Function) => {
                 self.lex.next();
-                Ok(Expr::Function(self.parse_function()?))
+                Expr::Function(self.parse_function()?)
             }
             Token::LeftParen => {
                 self.lex.next();
                 let value = self.parse_expr(0)?;
                 self.eat(Token::RightParen)?;
-                Ok(value)
+                value
             }
             Token::LeftBrack => {
                 self.lex.next();
@@ -140,24 +151,52 @@ impl<'a> Parser<'a> {
                 }
                 self.eat(Token::RightBrack)?;
 
-                Ok(Expr::ArrayLiteral {
+                Expr::ArrayLiteral {
                     values: values.into_boxed_slice(),
+                }
+            }
+
+            Token::LeftBrace => {
+                self.lex.next();
+                let mut entries = Vec::new();
+                loop {
+                    let Token::Identifier = self.lex.token else {
+						break;
+					};
+                    let name = self.lex.span();
+                    self.lex.next();
+                    self.eat(Token::Colon)?;
+                    let value = self.parse_expr(1)?;
+                    entries.push(ObjectEntry {
+                        name,
+                        value: Some(Box::new(value)),
+                    });
+                    match self.lex.token {
+                        Token::Comma => self.lex.next(),
+                        Token::RightBrace => break,
+                        _ => return Err(()),
+                    }
+                    continue;
+                }
+                self.eat(Token::RightBrace)?;
+                Expr::ObjectLiteral(ObjectLiteral {
+                    entries: entries.into_boxed_slice(),
                 })
             }
             Token::NumberLiteral => {
                 let span = self.lex.span();
                 self.lex.next();
-                Ok(Expr::NumberLiteral { span })
+                Expr::NumberLiteral { span }
             }
             Token::StringLiteral => {
                 let span = self.lex.span();
                 self.lex.next();
-                Ok(Expr::StringLiteral { span })
+                Expr::StringLiteral { span }
             }
             Token::Identifier => {
                 let span = self.lex.span();
                 self.lex.next();
-                Ok(Expr::Identifier { span })
+                Expr::Identifier { span }
             }
             Token::Plus
             | Token::Minus
@@ -168,20 +207,20 @@ impl<'a> Parser<'a> {
                 let kind = self.lex.token.into();
                 self.lex.next();
                 let value = self.parse_expr(140)?;
-                Ok(Expr::UnaryOp {
+                Expr::UnaryOp {
                     kind,
                     value: Box::new(value),
-                })
+                }
             }
             Token::Keyword(Keyword::Null) => {
                 self.lex.next();
-                Ok(Expr::Null)
+                Expr::Null
             }
             tok => {
                 self.error = format!("expected expression, found {tok:?}");
                 return Err(());
             }
-        }
+        })
     }
 
     pub fn parse_expr(&mut self, lbp: u8) -> Result<Expr> {
@@ -190,7 +229,13 @@ impl<'a> Parser<'a> {
         loop {
             let prec = self.lex.token.lbp();
 
-            if prec == 0 || prec <= lbp {
+            if prec == 0
+                || if self.lex.token.left_assoc() {
+                    prec <= lbp
+                } else {
+                    prec < lbp
+                }
+            {
                 break;
             }
 
@@ -326,9 +371,9 @@ impl<'a> Parser<'a> {
                 }
                 Token::Keyword(Keyword::Let | Keyword::Const | Keyword::Var) => 'blk: {
                     let level = match self.lex.token {
-                        Token::Keyword(Keyword::Let) => AssignLevel::Let,
-                        Token::Keyword(Keyword::Const) => AssignLevel::Const,
-                        Token::Keyword(Keyword::Var) => AssignLevel::Var,
+                        Token::Keyword(Keyword::Let) => BindingLevel::Let,
+                        Token::Keyword(Keyword::Const) => BindingLevel::Const,
+                        Token::Keyword(Keyword::Var) => BindingLevel::Var,
                         _ => unreachable!(),
                     };
 

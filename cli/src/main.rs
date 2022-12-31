@@ -38,6 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else if verbose {
                 eprintln!("error: {}", parser.error);
                 eprintln!("{}:{}", &path, parser.lex.index);
+                std::process::exit(1);
             }
         }
     }

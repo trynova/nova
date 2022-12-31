@@ -38,6 +38,9 @@ pub struct FunctionParam {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Null,
+    True,
+    False,
+    Undefined,
     Index {
         root: Box<Expr>,
         index: Box<Expr>,
@@ -69,6 +72,18 @@ pub enum Expr {
     Identifier {
         span: Span,
     },
+    ObjectLiteral(ObjectLiteral),
+}
+
+#[derive(Debug, Clone)]
+pub struct ObjectLiteral {
+    pub entries: Box<[ObjectEntry]>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ObjectEntry {
+    pub name: Span,
+    pub value: Option<Box<Expr>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -95,7 +110,7 @@ impl From<Token> for UnaryOp {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinaryOp {
     // Binary
     Add,
@@ -204,12 +219,12 @@ pub enum Stmt {
         value: Expr,
     },
     Assign {
-        level: AssignLevel,
+        level: BindingLevel,
         binding: Binding,
         value: Expr,
     },
     Declare {
-        level: AssignLevel,
+        level: BindingLevel,
         binding: Binding,
     },
     Label(Box<Stmt>),
@@ -225,7 +240,8 @@ pub enum Stmt {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum AssignLevel {
+pub enum BindingLevel {
+    None,
     Let,
     Const,
     Var,

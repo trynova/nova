@@ -70,6 +70,7 @@ pub enum Token {
     LeftBrack,
     RightBrack,
     Semi,
+    Colon,
     Question,
     Dot,
     Comma,
@@ -78,23 +79,46 @@ pub enum Token {
 
 impl Token {
     /// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence
+    pub fn left_assoc(self) -> bool {
+        !matches!(
+            self,
+            Self::Pow
+                | Self::Equal
+                | Self::AddAssign
+                | Self::SubAssign
+                | Self::PowAssign
+                | Self::MulAssign
+                | Self::DivAssign
+                | Self::ModAssign
+                | Self::BitShiftLeftAssign
+                | Self::BitShiftRightAssign
+                | Self::BitAndAssign
+                | Self::BitXorAssign
+                | Self::BitOrAssign
+                | Self::AndAssign
+                | Self::OrAssign
+                | Self::NullishAssign
+        )
+    }
+
+    /// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence
     pub fn lbp(self) -> u8 {
         match self {
             // Grouping is not left-binding
-            Self::LeftParen | Self::LeftBrack | Self::Dot => 180,
+            Self::LeftParen | Self::LeftBrack | Self::Dot => 18,
             // Unary ops are not left-binding
-            Self::Pow => 130,
-            Self::Mul | Self::Div | Self::Mod => 120,
+            Self::Pow => 13,
+            Self::Mul | Self::Div | Self::Mod => 12,
             // these are binary at this point
-            Self::Plus | Self::Minus => 110,
-            Self::BitShiftLeft | Self::BitShiftRight | Self::BitUnsignedShiftRight => 100,
-            Self::Less | Self::LessEqual | Self::Greater | Self::GreaterEqual => 90,
-            Self::EqualEqual | Self::NotEqual | Self::EqualEqualEqual | Self::NotEqualEqual => 80,
-            Self::BitAnd => 70,
-            Self::BitXor => 60,
-            Self::BitOr => 50,
-            Self::And => 40,
-            Self::Nullish | Self::Or => 30,
+            Self::Plus | Self::Minus => 11,
+            Self::BitShiftLeft | Self::BitShiftRight | Self::BitUnsignedShiftRight => 10,
+            Self::Less | Self::LessEqual | Self::Greater | Self::GreaterEqual => 9,
+            Self::EqualEqual | Self::NotEqual | Self::EqualEqualEqual | Self::NotEqualEqual => 8,
+            Self::BitAnd => 7,
+            Self::BitXor => 6,
+            Self::BitOr => 5,
+            Self::And => 4,
+            Self::Nullish | Self::Or => 3,
             Self::Equal
             | Self::AddAssign
             | Self::SubAssign
@@ -109,8 +133,8 @@ impl Token {
             | Self::BitOrAssign
             | Self::AndAssign
             | Self::OrAssign
-            | Self::NullishAssign => 20,
-            // Self::Comma => 10,
+            | Self::NullishAssign => 2,
+            Self::Comma => 1,
             _ => 0,
         }
     }
@@ -670,6 +694,10 @@ impl<'a> Lexer<'a> {
                 Some(b';') => {
                     self.index += 1;
                     self.token = Token::Semi;
+                }
+                Some(b':') => {
+                    self.index += 1;
+                    self.token = Token::Colon;
                 }
                 Some(b'?') => {
                     self.index += 1;
