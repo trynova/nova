@@ -103,7 +103,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_simple_expr(&mut self) -> Result<Expr> {
+    fn parse_simple_expr(&mut self, hp: u8) -> Result<Expr> {
         Ok(match self.lex.token {
             Token::Keyword(Keyword::True) => {
                 self.lex.next();
@@ -202,8 +202,20 @@ impl<'a> Parser<'a> {
             | Token::Minus
             | Token::Not
             | Token::BitComplement
-            | Token::Keyword(Keyword::Yield)
             | Token::Keyword(Keyword::Await) => {
+                let kind = self.lex.token.into();
+                self.lex.next();
+                let value = self.parse_expr(14)?;
+                Expr::UnaryOp {
+                    kind,
+                    value: Box::new(value),
+                }
+            }
+            Token::Keyword(Keyword::Yield) => {
+                if hp > 2 {
+                    return Err(());
+                }
+
                 let kind = self.lex.token.into();
                 self.lex.next();
                 let value = self.parse_expr(14)?;
@@ -223,17 +235,22 @@ impl<'a> Parser<'a> {
         })
     }
 
-    pub fn parse_expr(&mut self, lbp: u8) -> Result<Expr> {
-        let mut lhs = self.parse_simple_expr()?;
+    /// Parses an expression with the specified highest precedence.
+    ///
+    /// ## Notes
+    /// - If you do not want to allow sequence parsing (e.g. `2, 3`), then you
+    ///   must specify `1` as the highest precedence.
+    pub fn parse_expr(&mut self, hp: u8) -> Result<Expr> {
+        let mut lhs = self.parse_simple_expr(hp)?;
 
         loop {
             let prec = self.lex.token.lbp();
 
             if prec == 0
                 || if self.lex.token.left_assoc() {
-                    prec <= lbp
+                    prec <= hp
                 } else {
-                    prec < lbp
+                    prec < hp
                 }
             {
                 break;
