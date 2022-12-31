@@ -154,7 +154,10 @@ pub enum BinaryOp {
     AndAssign,
     NullishAssign,
     ModAssign,
+
+    // Misc.
     MemberAccess,
+    Sequence,
 }
 
 impl From<Token> for BinaryOp {
@@ -200,6 +203,7 @@ impl From<Token> for BinaryOp {
             Token::NullishAssign => Self::NullishAssign,
             Token::ModAssign => Self::ModAssign,
             Token::Dot => Self::MemberAccess,
+            Token::Comma => Self::Sequence,
             _ => unreachable!(),
         }
     }

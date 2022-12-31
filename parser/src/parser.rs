@@ -66,7 +66,7 @@ impl<'a> Parser<'a> {
                 Token::Equal => {
                     self.lex.next();
 
-                    let default = self.parse_expr(0)?;
+                    let default = self.parse_expr(1)?;
                     params.push(FunctionParam {
                         name,
                         default: Some(Box::new(default)),
@@ -142,7 +142,7 @@ impl<'a> Parser<'a> {
                         break;
                     }
 
-                    let value = self.parse_expr(0)?;
+                    let value = self.parse_expr(1)?;
                     values.push(Some(value));
 
                     if self.lex.token == Token::Comma {
@@ -206,7 +206,7 @@ impl<'a> Parser<'a> {
             | Token::Keyword(Keyword::Await) => {
                 let kind = self.lex.token.into();
                 self.lex.next();
-                let value = self.parse_expr(140)?;
+                let value = self.parse_expr(14)?;
                 Expr::UnaryOp {
                     kind,
                     value: Box::new(value),
@@ -244,7 +244,7 @@ impl<'a> Parser<'a> {
 
             if self.lex.token == Token::LeftBrack {
                 self.lex.next();
-                let index = self.parse_expr(0)?;
+                let index = self.parse_expr(1)?;
                 self.eat(Token::RightBrack)?;
                 lhs = Expr::Index {
                     root: Box::new(lhs),
@@ -262,7 +262,7 @@ impl<'a> Parser<'a> {
                         break;
                     }
 
-                    let value = self.parse_expr(0)?;
+                    let value = self.parse_expr(1)?;
                     args.push(value);
 
                     if self.lex.token != Token::Comma {
@@ -333,7 +333,7 @@ impl<'a> Parser<'a> {
                     }
                     self.lex.next();
                     nodes.push(Stmt::Return {
-                        value: self.parse_expr(0)?,
+                        value: self.parse_expr(1)?,
                     });
                     self.expect_stmt_end()?;
                 }
@@ -390,7 +390,7 @@ impl<'a> Parser<'a> {
                             }
                             Token::Equal => {
                                 self.lex.next();
-                                let value = self.parse_expr(0)?;
+                                let value = self.parse_expr(2)?;
                                 nodes.push(Stmt::Assign {
                                     level,
                                     binding,
