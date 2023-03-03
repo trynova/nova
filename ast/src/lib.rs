@@ -18,28 +18,47 @@ pub enum Keyword {
     Else,
     Export,
     Extends,
-    False,
     Finally,
     For,
     Function,
+    Get,
     If,
     In,
     InstanceOf,
     Import,
     Let,
     New,
-    Null,
     Of,
     Return,
+    Set,
     Super,
+    Static,
     Switch,
     This,
     Throw,
-    True,
     Try,
     TypeOf,
     Var,
     Void,
     While,
     Yield,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub enum Reserved {
+    False,
+    Null,
+    True,
+
+    // future reserved words
+    Enum,
+    Implements,
+    Interface,
+    Package,
+    Private,
+    Protected,
+    Public,
+
+    // deprecated reserved words
+    With,
 }
