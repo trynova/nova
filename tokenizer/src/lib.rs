@@ -1,4 +1,5 @@
 use boa_unicode::UnicodeProperties;
+use common::Span;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,7 +46,7 @@ pub enum TokenKind {
 #[repr(C)]
 pub struct Token {
     pub kind: TokenKind,
-    pub start: u32,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -488,7 +489,13 @@ impl<'a> TokenStream<'a> {
             }
         }
 
-        Token { start, kind }
+        Token {
+            kind,
+            span: Span {
+                start: start as usize,
+                end: self.index as usize,
+            },
+        }
     }
 }
 
@@ -531,7 +538,8 @@ mod test {
             }
 
             let next_token = self.stream.next();
-            let slice = &self.slice[current_token.start as usize..next_token.start as usize];
+            let slice =
+                &self.slice[current_token.span.start as usize..next_token.span.start as usize];
             self.current_token = Some(next_token);
             Some((current_token.kind, slice))
         }

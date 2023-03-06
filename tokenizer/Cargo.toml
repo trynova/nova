@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 boa_unicode = "0.16.0"
+common = { path = "../common/" }
