@@ -30,6 +30,7 @@ pub enum Keyword {
     New,
     Of,
     Return,
+    // Setter functionality not set class
     Set,
     Super,
     Static,
@@ -42,6 +43,7 @@ pub enum Keyword {
     Void,
     While,
     Yield,
+    With,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -58,7 +60,4 @@ pub enum Reserved {
     Private,
     Protected,
     Public,
-
-    // deprecated reserved words
-    With,
 }
