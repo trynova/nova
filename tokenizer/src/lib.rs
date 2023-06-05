@@ -73,6 +73,7 @@ pub enum Token {
     TemplateEnd,
     TemplatePart,
     TemplateStart,
+    InvalidComment,
 }
 
 static KEYWORDS: phf::Map<&'static str, Token> = phf::phf_map! {
@@ -111,15 +112,11 @@ impl<'a> TokenStream<'a> {
     /// Steps a unicode codepoint forwards.
     fn step(&mut self) {
         let Some(cp) = self.codepoint else {
-			return;
-		};
+            return;
+        };
 
         self.index += cp.len_utf8();
-        self.codepoint = if let Some(next_char) = self.source[self.index..].chars().next() {
-            Some(next_char)
-        } else {
-            None
-        };
+        self.codepoint = self.source[self.index..].chars().next();
     }
 
     #[inline]
@@ -154,7 +151,7 @@ impl<'a> TokenStream<'a> {
         loop {
             let Some(ch) = self.codepoint else {
                 break;
-			};
+            };
 
             if !ch.is_id_continue() {
                 break;
@@ -371,13 +368,39 @@ impl<'a> TokenStream<'a> {
                         Token::Mod
                     };
                 }
-                Some('/') => {
+                Some('/') => 'blk: {
                     self.step();
-                    self.token = if let Some('=') = self.codepoint {
-                        self.step();
-                        Token::DivAssign
-                    } else {
-                        Token::Div
+                    self.token = match self.codepoint {
+                        Some('/') => loop {
+                            self.step();
+                            match self.codepoint {
+                                None | Some('\r' | '\n') => continue 'main,
+                                _ => {}
+                            }
+                        },
+                        Some('*') => loop {
+                            self.step();
+                            match self.codepoint {
+                                None => {
+                                    self.token = Token::InvalidComment;
+                                    break 'blk;
+                                }
+                                Some('*') => {
+                                    if let Some('/') = self.source[self.index + 1..].chars().next()
+                                    {
+                                        self.step();
+                                        self.step();
+                                        continue 'main;
+                                    }
+                                }
+                                _ => {}
+                            }
+                        },
+                        Some('=') => {
+                            self.step();
+                            Token::DivAssign
+                        }
+                        _ => Token::Div,
                     };
                 }
                 Some('=') => {
@@ -529,12 +552,12 @@ impl<'a> TokenStream<'a> {
                 Some('.') => {
                     self.step();
                     self.token = if let Some('.') = self.codepoint {
-                        self.step();
-                        if let Some('.') = self.codepoint {
+                        if let Some('.') = self.source[self.index + 1..].chars().next() {
+                            self.step();
                             self.step();
                             Token::Spread
                         } else {
-                            Token::InvalidDotDot
+                            Token::Dot
                         }
                     } else {
                         Token::Dot
@@ -579,4 +602,64 @@ impl<'a> TokenStream<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    macro_rules! assert_tokens {
+        ($source: expr, $tokens: expr) => {{
+            let expected: &[Token] = $tokens;
+            let mut out = Vec::<Token>::with_capacity(expected.len());
+            let source: &str = $source;
+            let mut stream = TokenStream::new(source);
+
+            loop {
+                stream.next();
+                if stream.token == Token::EOF {
+                    break;
+                }
+                out.push(stream.token);
+            }
+
+            if stream.token != Token::EOF {
+                assert!(
+                    false,
+                    "Expected end of file to end token stream. Found: {:?}",
+                    stream.token
+                );
+            }
+
+            assert_eq!(out.as_slice(), expected);
+        }};
+    }
+
+    #[test]
+    fn unicode_identifiers() {
+        assert_tokens!(
+            "ሀ zቐ ኂd bꡅa",
+            &[Token::Ident, Token::Ident, Token::Ident, Token::Ident]
+        );
+    }
+
+    #[test]
+    fn operators() {
+        assert_tokens!(
+            "+ += ++ - -= -- * *= % %= / /= ** **= . ...",
+            &[
+                Token::Add,
+                Token::AddAssign,
+                Token::Inc,
+                Token::Sub,
+                Token::SubAssign,
+                Token::Dec,
+                Token::Mul,
+                Token::MulAssign,
+                Token::Mod,
+                Token::ModAssign,
+                Token::Div,
+                Token::DivAssign,
+                Token::Pow,
+                Token::PowAssign,
+                Token::Dot,
+                Token::Spread,
+            ]
+        );
+    }
 }

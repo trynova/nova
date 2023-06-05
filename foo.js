@@ -1,3 +1,1 @@
-function foo() {
-  return `asdf`;
-}
+/* */
