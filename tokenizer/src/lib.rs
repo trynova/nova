@@ -1,546 +1,582 @@
 use boa_unicode::UnicodeProperties;
 
-#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TokenKind {
-    Eof,
-    String,
-    NonTerminatedString,
-    HexLit,
-    BinLit,
-    NumLit,
-    Junk,
-    JunkNewline,
-    InvalidNonTerminatedComment,
-    InvalidNewlineString,
+pub enum Token {
+    EOF,
+    Ident,
+    Number,
+    Semi,
+    Equal,
+    LBrack,
+    RBrack,
     LParen,
     RParen,
     LBrace,
     RBrace,
-    LAngle,
-    RAngle,
-    Bang,
-    Caret,
-    Asterisk,
-    Amp,
-    And,
-    Pipe,
+    Inc,
+    Dec,
+    Sub,
+    Colon,
+    Comma,
+
+    KeywordVar,
+    KeywordLet,
+    KeywordConst,
+    KeywordFunction,
+    Pow,
+    Mul,
+    Not,
+    Gte,
+    Gt,
+    ShiftRight,
+    ShiftRightAssign,
+    UShiftRight,
+    UShiftRightAssign,
+    ShiftLeft,
+    ShiftLeftAssign,
+    Lt,
+    Lte,
+    BOrAssign,
+    BOr,
+    OrAssign,
     Or,
-    Plus,
-    AddAssign,
-    Minus,
-    SubAssign,
+    AndAssign,
+    And,
+    BAndAssign,
+    BAnd,
+    Xor,
+    XorAssign,
+    BNot,
+    Nullish,
+    NullishAssign,
+    Ternary,
     Div,
     DivAssign,
-    Equal,
-    EqualEqual,
-    EqualEqualEqual,
-    LessOrEqual,
-    GreaterOrEqual,
-    FatArrow,
-    Ident,
+    Mod,
+    ModAssign,
+    AddAssign,
+    Add,
+    SubAssign,
+    PowAssign,
+    MulAssign,
+    Equality,
+    StrictEquality,
+    StrictInequality,
+    Inequality,
+    OptionalChain,
+    Dot,
+    Spread,
+    InvalidDotDot,
+    InvalidString,
+    String,
+    Template,
+    TemplateEnd,
+    TemplatePart,
+    TemplateStart,
 }
 
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct Token {
-    pub kind: TokenKind,
-    pub start: u32,
-}
+static KEYWORDS: phf::Map<&'static str, Token> = phf::phf_map! {
+    "var" => Token::KeywordVar,
+    "let" => Token::KeywordLet,
+    "const" => Token::KeywordConst,
+    "function" => Token::KeywordFunction,
+};
 
-#[derive(Debug, Clone, Copy)]
-enum State {
-    Init,
-    StringSingleContinue,
-    StringDoubleContinue,
-    StringSingleEscape,
-    StringDoubleEscape,
-    Zero,
-    HexContinue,
-    BinContinue,
-    NumContinue,
-    NumExpContinue,
-    NumFloatContinue,
-    Amp,
-    Pipe,
-    Plus,
-    Minus,
-    FwdSlash,
-    Equal,
-    EqualEqual,
-
-    RAngle,
-    LAngle,
-
-    Junk,
-    JunkNewline,
-
-    JunkSlash,
-    JunkNewlineSlash,
-
-    JunkCommentContinue,
-    JunkNewlineCommentContinue,
-
-    JunkCommentAsterisk,
-    JunkNewlineCommentAsterisk,
-}
-
+#[derive(Debug)]
 pub struct TokenStream<'a> {
-    buffer: &'a [u8],
-    index: u32,
-    len: u32,
+    source: &'a str,
+    /// `Option<char>` is memory optimized to only 4 bytes because of UTF-8
+    /// codepoint limits.
+    codepoint: Option<char>,
+    pub index: usize,
+    pub token: Token,
+    pub start: usize,
+    pub has_newline_before: bool,
+    pub open_template_count: usize,
 }
 
 impl<'a> TokenStream<'a> {
-    pub fn new(buffer: &'a [u8]) -> Self {
+    pub fn new(source: &'a str) -> Self {
         Self {
-            buffer,
+            source,
+            codepoint: source.chars().next().or(None),
             index: 0,
-            len: u32::try_from(buffer.len()).expect("[todo: better error]"),
+            token: Token::EOF,
+            start: 0,
+            has_newline_before: true,
+            open_template_count: 0,
         }
     }
 
-    pub fn next(&mut self) -> Token {
-        let start = self.index;
-        let mut state: State = State::Init;
-        let mut kind: TokenKind = TokenKind::Eof;
+    /// Steps a unicode codepoint forwards.
+    fn step(&mut self) {
+        let Some(cp) = self.codepoint else {
+			return;
+		};
 
+        self.index += cp.len_utf8();
+        self.codepoint = if let Some(next_char) = self.source[self.index..].chars().next() {
+            Some(next_char)
+        } else {
+            None
+        };
+    }
+
+    #[inline]
+    fn continue_ident_fast(&mut self) {
         loop {
-            let c = if self.index < self.len {
-                // TODO: find way to avoid upcast on 64bit machines
-                self.buffer[self.index as usize]
-            } else {
-                0
-            };
-            self.index += 1;
-
-            use State::*;
-            use TokenKind::*;
-
-            match state {
-                Init => match c {
-                    b'\'' => {
-                        state = StringSingleContinue;
-                        kind = String;
-                    }
-                    b'"' => {
-                        state = StringDoubleContinue;
-                        kind = String;
-                    }
-                    b'0' => state = Zero,
-                    b'1'..=b'9' => state = NumContinue,
-                    b'\n' => {
-                        kind = TokenKind::JunkNewline;
-                        state = State::JunkNewline;
-                    }
-                    b'{' => {
-                        kind = LBrace;
-                        break;
-                    }
-                    b'}' => {
-                        kind = RBrace;
-                        break;
-                    }
-                    b'(' => {
-                        kind = LParen;
-                        break;
-                    }
-                    b')' => {
-                        kind = RParen;
-                        break;
-                    }
-                    b'<' => {
-                        state = State::LAngle;
-                    }
-                    b'>' => {
-                        state = State::RAngle;
-                    }
-                    b'!' => {
-                        kind = Bang;
-                        break;
-                    }
-                    b'^' => {
-                        kind = Caret;
-                        break;
-                    }
-                    b'*' => {
-                        kind = Asterisk;
-                        break;
-                    }
-                    b'&' => {
-                        state = State::Amp;
-                    }
-                    b'|' => {
-                        state = State::Pipe;
-                    }
-                    b'+' => {
-                        state = State::Plus;
-                    }
-                    b'-' => {
-                        state = State::Minus;
-                    }
-                    b'/' => {
-                        state = State::FwdSlash;
-                    }
-                    b'=' => {
-                        state = State::Equal;
-                    }
-                    b' ' | b'\r' | b'\t' => {
-                        kind = TokenKind::Junk;
-                        state = State::Junk;
-                    }
-                    0 => break,
-                    _ => {
-                        self.index -= 1;
-                        let mut chars = unsafe {
-                            std::str::from_utf8_unchecked(&self.buffer[self.index as usize..])
-                        }
-                        .char_indices();
-
-                        // we know there's at least one
-                        let (offset0, cp0) = chars.next().unwrap();
-
-                        if cp0.is_id_start() {
-                            self.index += offset0 as u32 + 1;
-
-                            for (offset, cp) in chars {
-                                if !cp.is_id_continue() {
-                                    break;
-                                }
-                                self.index += offset as u32;
-                            }
-
-                            kind = Ident;
-                            break;
-                        }
-
-                        panic!("Unknown character '{}'.", char::from(c));
-                    }
-                },
-                State::Equal => match c {
-                    b'=' => state = State::EqualEqual,
-                    b'>' => {
-                        kind = TokenKind::FatArrow;
-                        break;
-                    }
-                    _ => {
-                        kind = TokenKind::Equal;
-                        self.index -= 1;
-                        break;
-                    }
-                },
-                State::EqualEqual => match c {
-                    b'=' => {
-                        kind = EqualEqualEqual;
-                        break;
-                    }
-                    _ => {
-                        kind = TokenKind::EqualEqual;
-                        self.index -= 1;
-                        break;
-                    }
-                },
-                State::FwdSlash => match c {
-                    b'*' => {
-                        kind = TokenKind::Junk;
-                        state = State::JunkCommentContinue;
-                    }
-                    b'=' => {
-                        kind = DivAssign;
-                        break;
-                    }
-                    _ => {
-                        kind = TokenKind::Div;
-                        self.index -= 1;
-                        break;
-                    }
-                },
-                State::Plus => {
-                    kind = if c == b'=' {
-                        AddAssign
-                    } else {
-                        self.index -= 1;
-                        TokenKind::Plus
-                    };
-                    break;
+            match self.codepoint {
+                Some('a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '$') => {
+                    self.step();
                 }
-                State::Minus => {
-                    kind = if c == b'=' {
-                        SubAssign
-                    } else {
-                        self.index -= 1;
-                        TokenKind::Minus
-                    };
-                    break;
+                Some(ch) => {
+                    // We know it's just a non-ident continue ASCII character.
+                    if ch.is_ascii() {
+                        break;
+                    }
+
+                    // We can return here and wave the keyword check because
+                    // keywords are only ASCII.
+                    return self.continue_ident_slow();
                 }
-                State::LAngle => {
-                    kind = if c == b'=' {
-                        LessOrEqual
-                    } else {
-                        self.index -= 1;
-                        TokenKind::LAngle
-                    };
-                    break;
-                }
-                State::RAngle => {
-                    kind = if c == b'=' {
-                        GreaterOrEqual
-                    } else {
-                        self.index -= 1;
-                        TokenKind::RAngle
-                    };
-                    break;
-                }
-                State::Amp => match c {
-                    b'&' => {
-                        kind = And;
-                        break;
-                    }
-                    _ => {
-                        kind = TokenKind::Amp;
-                        self.index -= 1;
-                        break;
-                    }
-                },
-                State::Pipe => match c {
-                    b'|' => {
-                        kind = Or;
-                        break;
-                    }
-                    _ => {
-                        kind = TokenKind::Pipe;
-                        self.index -= 1;
-                        break;
-                    }
-                },
-                State::Junk => match c {
-                    b'\n' => state = State::JunkNewline,
-                    b' ' | b'\r' | b'\t' => {}
-                    b'/' => state = JunkSlash,
-                    _ => {
-                        self.index -= 1;
-                        break;
-                    }
-                },
-                State::JunkNewline => match c {
-                    b' ' | b'\t' | b'\n' | b'\r' => {}
-                    b'/' => state = JunkNewlineSlash,
-                    _ => {
-                        self.index -= 1;
-                        break;
-                    }
-                },
-                JunkSlash => match c {
-                    b'*' => state = JunkCommentContinue,
-                    _ => {
-                        self.index -= 2;
-                        break;
-                    }
-                },
-                JunkNewlineSlash => match c {
-                    b'*' => state = JunkNewlineCommentContinue,
-                    _ => {
-                        self.index -= 2;
-                        break;
-                    }
-                },
-                JunkCommentContinue => match c {
-                    b'*' => state = JunkCommentAsterisk,
-                    b'\n' => {
-                        state = JunkNewlineCommentContinue;
-                        kind = TokenKind::JunkNewline;
-                    }
-                    0 => {
-                        kind = InvalidNonTerminatedComment;
-                        break;
-                    }
-                    _ => {}
-                },
-                JunkNewlineCommentContinue => match c {
-                    b'*' => state = JunkCommentAsterisk,
-                    0 => {
-                        kind = InvalidNonTerminatedComment;
-                        break;
-                    }
-                    _ => {}
-                },
-                JunkCommentAsterisk => match c {
-                    b'/' => {
-                        state = State::Junk;
-                    }
-                    0 => {
-                        kind = InvalidNonTerminatedComment;
-                        break;
-                    }
-                    _ => {
-                        self.index -= 2;
-                        break;
-                    }
-                },
-                JunkNewlineCommentAsterisk => match c {
-                    b'/' => {
-                        state = State::JunkNewline;
-                    }
-                    0 => {
-                        kind = InvalidNonTerminatedComment;
-                        break;
-                    }
-                    _ => {
-                        self.index -= 2;
-                        break;
-                    }
-                },
-                StringSingleContinue => match c {
-                    b'\\' => state = StringSingleEscape,
-                    b'\'' => break,
-                    b'\n' => kind = InvalidNewlineString,
-                    0 => {
-                        kind = NonTerminatedString;
-                        break;
-                    }
-                    _ => {}
-                },
-                StringSingleEscape => match c {
-                    0 => {
-                        kind = NonTerminatedString;
-                        break;
-                    }
-                    // TODO: make an actual validator
-                    _ => state = StringSingleContinue,
-                },
-                StringDoubleContinue => match c {
-                    b'\\' => state = StringDoubleEscape,
-                    b'"' => break,
-                    b'\n' => kind = InvalidNewlineString,
-                    0 => {
-                        kind = NonTerminatedString;
-                        break;
-                    }
-                    _ => {}
-                },
-                StringDoubleEscape => match c {
-                    0 => {
-                        kind = NonTerminatedString;
-                        break;
-                    }
-                    // TODO: make an actual validator
-                    _ => state = StringDoubleContinue,
-                },
-                Zero => match c {
-                    b'B' | b'b' => state = BinContinue,
-                    b'X' | b'x' | b'0' => state = HexContinue,
-                    0 => {
-                        kind = NumLit;
-                        self.index -= 1;
-                        break;
-                    }
-                    _ => {}
-                },
-                BinContinue => match c {
-                    b'0' | b'1' => {}
-                    b'_' => todo!("Underscore literal support."),
-                    _ => {
-                        kind = BinLit;
-                        self.index -= 1;
-                        break;
-                    }
-                },
-                HexContinue => match c {
-                    b'0'..=b'9' | b'A'..=b'F' | b'a'..=b'f' => {}
-                    b'_' => todo!("Underscore literal support."),
-                    _ => {
-                        kind = HexLit;
-                        self.index -= 1;
-                        break;
-                    }
-                },
-                NumContinue => match c {
-                    b'0'..=b'9' => {}
-                    b'_' => todo!("Underscore literal support."),
-                    b'e' => state = NumExpContinue,
-                    b'.' => state = NumFloatContinue,
-                    _ => {
-                        kind = NumLit;
-                        self.index -= 1;
-                        break;
-                    }
-                },
-                NumExpContinue => match c {
-                    b'0'..=b'9' => {}
-                    b'_' => todo!("Underscore literal support."),
-                    _ => {
-                        kind = NumLit;
-                        self.index -= 1;
-                        break;
-                    }
-                },
-                NumFloatContinue => match c {
-                    b'0'..=b'9' => {}
-                    b'_' => todo!("Underscore literal support."),
-                    b'e' => state = NumExpContinue,
-                    b'.' => state = NumFloatContinue,
-                    _ => {
-                        kind = NumLit;
-                        self.index -= 1;
-                        break;
-                    }
-                },
+                None => break,
             }
         }
 
-        Token { start, kind }
+        // Check if the identifier is a keyword.
+        if let Some(keyword) = KEYWORDS.get(&self.source[self.start..self.index]) {
+            self.token = *keyword;
+        }
+    }
+
+    #[inline]
+    fn continue_ident_slow(&mut self) {
+        loop {
+            let Some(ch) = self.codepoint else {
+                break;
+			};
+
+            if !ch.is_id_continue() {
+                break;
+            }
+
+            self.step();
+        }
+    }
+
+    #[inline]
+    fn continue_zero(&mut self) {
+        // TODO: actually implement this
+        self.continue_number();
+    }
+
+    #[inline]
+    fn continue_number(&mut self) {
+        // TODO: actually implement this
+        loop {
+            match self.codepoint {
+                Some('0'..='9') => {
+                    self.step();
+                }
+                _ => break,
+            }
+        }
+    }
+
+    #[inline]
+    fn continue_string(&mut self, end: char) {
+        let mut escaped = false;
+
+        loop {
+            match (escaped, self.codepoint) {
+                (_, None | Some('\r' | '\n')) => {
+                    self.token = Token::InvalidString;
+                    break;
+                }
+                (false, ch) if ch == Some(end) => {
+                    self.step();
+                    break;
+                }
+                (false, Some('\\')) => escaped = true,
+                _ => escaped = false,
+            }
+            self.step();
+        }
+    }
+
+    #[inline]
+    fn continue_template(&mut self) {
+        let mut escaped = false;
+        loop {
+            match (escaped, self.codepoint) {
+                (_, None) => {
+                    self.token = Token::InvalidString;
+                    break;
+                }
+                (false, Some('`')) => {
+                    self.step();
+                    self.token = if self.token == Token::TemplateStart {
+                        Token::Template
+                    } else {
+                        Token::TemplateEnd
+                    };
+                    break;
+                }
+                (false, Some('$')) => {
+                    self.step();
+                    if let Some('{') = self.codepoint {
+                        self.step();
+                        self.open_template_count += 1;
+                        break;
+                    }
+                }
+                _ => {
+                    self.step();
+                    escaped = false;
+                }
+            }
+        }
+    }
+
+    pub fn next(&mut self) {
+        self.has_newline_before = false;
+
+        'main: loop {
+            self.start = self.index;
+
+            match self.codepoint {
+                None => self.token = Token::EOF,
+                Some(' ' | '\t') => {
+                    self.step();
+                    continue 'main;
+                }
+                Some('\r' | '\n') => {
+                    self.step();
+                    self.has_newline_before = true;
+                    continue 'main;
+                }
+                Some('a'..='z' | 'A'..='Z' | '_' | '$') => {
+                    self.step();
+                    self.token = Token::Ident;
+                    self.continue_ident_fast();
+                }
+                Some('0') => {
+                    self.step();
+                    self.continue_zero();
+                }
+                Some('1'..='9') => {
+                    self.step();
+                    self.token = Token::Number;
+                    self.continue_number();
+                }
+                Some('\'') => {
+                    self.step();
+                    self.token = Token::String;
+                    self.continue_string('\'');
+                }
+                Some('"') => {
+                    self.step();
+                    self.token = Token::String;
+                    self.continue_string('"');
+                }
+                Some('`') => {
+                    self.step();
+                    self.token = Token::TemplateStart;
+                    self.continue_template();
+                }
+                Some('[') => {
+                    self.step();
+                    self.token = Token::LBrack;
+                }
+                Some(']') => {
+                    self.step();
+                    self.token = Token::RBrack;
+                }
+                Some('(') => {
+                    self.step();
+                    self.token = Token::LParen;
+                }
+                Some(')') => {
+                    self.step();
+                    self.token = Token::RParen;
+                }
+                Some('{') => {
+                    self.step();
+                    self.token = Token::LBrace;
+                }
+                Some('}') => {
+                    self.step();
+                    self.token = if self.open_template_count > 0 {
+                        self.token = Token::TemplatePart;
+                        self.continue_template();
+                        self.open_template_count -= 1;
+                        break;
+                    } else {
+                        Token::RBrace
+                    };
+                }
+                Some('+') => {
+                    self.step();
+                    self.token = match self.codepoint {
+                        Some('+') => {
+                            self.step();
+                            Token::Inc
+                        }
+                        Some('=') => {
+                            self.step();
+                            Token::AddAssign
+                        }
+                        _ => Token::Add,
+                    };
+                }
+                Some('-') => {
+                    self.step();
+                    self.token = match self.codepoint {
+                        Some('-') => {
+                            self.step();
+                            Token::Dec
+                        }
+                        Some('=') => {
+                            self.step();
+                            Token::SubAssign
+                        }
+                        _ => Token::Sub,
+                    };
+                }
+                Some('*') => {
+                    self.step();
+                    self.token = match self.codepoint {
+                        Some('*') => {
+                            self.step();
+                            if let Some('=') = self.codepoint {
+                                self.step();
+                                Token::PowAssign
+                            } else {
+                                Token::Pow
+                            }
+                        }
+                        Some('=') => {
+                            self.step();
+                            Token::MulAssign
+                        }
+                        _ => Token::Mul,
+                    };
+                }
+                Some('%') => {
+                    self.step();
+                    self.token = if let Some('=') = self.codepoint {
+                        self.step();
+                        Token::ModAssign
+                    } else {
+                        Token::Mod
+                    };
+                }
+                Some('/') => {
+                    self.step();
+                    self.token = if let Some('=') = self.codepoint {
+                        self.step();
+                        Token::DivAssign
+                    } else {
+                        Token::Div
+                    };
+                }
+                Some('=') => {
+                    self.step();
+                    self.token = if let Some('=') = self.codepoint {
+                        self.step();
+                        if let Some('=') = self.codepoint {
+                            self.step();
+                            Token::StrictEquality
+                        } else {
+                            Token::Equality
+                        }
+                    } else {
+                        Token::Equal
+                    };
+                }
+                Some('!') => {
+                    self.step();
+                    self.token = if let Some('=') = self.codepoint {
+                        self.step();
+                        if let Some('=') = self.codepoint {
+                            self.step();
+                            Token::StrictInequality
+                        } else {
+                            Token::Inequality
+                        }
+                    } else {
+                        Token::Not
+                    };
+                }
+                Some('>') => {
+                    self.step();
+                    self.token = match self.codepoint {
+                        Some('=') => {
+                            self.step();
+                            Token::Gte
+                        }
+                        Some('>') => {
+                            self.step();
+                            match self.codepoint {
+                                Some('>') => {
+                                    self.step();
+                                    if let Some('=') = self.codepoint {
+                                        self.step();
+                                        Token::UShiftRightAssign
+                                    } else {
+                                        Token::UShiftRight
+                                    }
+                                }
+                                Some('=') => {
+                                    self.step();
+                                    Token::ShiftRightAssign
+                                }
+                                _ => Token::ShiftRight,
+                            }
+                        }
+                        _ => Token::Gt,
+                    };
+                }
+                Some('<') => {
+                    self.step();
+                    self.token = match self.codepoint {
+                        Some('=') => {
+                            self.step();
+                            Token::Lte
+                        }
+                        Some('<') => {
+                            self.step();
+                            if let Some('=') = self.codepoint {
+                                self.step();
+                                Token::ShiftLeftAssign
+                            } else {
+                                Token::ShiftLeft
+                            }
+                        }
+                        _ => Token::Lt,
+                    };
+                }
+                Some('|') => {
+                    self.step();
+                    self.token = match self.codepoint {
+                        Some('|') => {
+                            self.step();
+                            if let Some('=') = self.codepoint {
+                                self.step();
+                                Token::OrAssign
+                            } else {
+                                Token::Or
+                            }
+                        }
+                        Some('=') => {
+                            self.step();
+                            Token::BOrAssign
+                        }
+                        _ => Token::BOr,
+                    };
+                }
+                Some('&') => {
+                    self.step();
+                    self.token = match self.codepoint {
+                        Some('&') => {
+                            self.step();
+                            if let Some('=') = self.codepoint {
+                                self.step();
+                                Token::AndAssign
+                            } else {
+                                Token::And
+                            }
+                        }
+                        Some('=') => {
+                            self.step();
+                            Token::BAndAssign
+                        }
+                        _ => Token::BAnd,
+                    };
+                }
+                Some('^') => {
+                    self.step();
+                    self.token = if let Some('=') = self.codepoint {
+                        self.step();
+                        Token::XorAssign
+                    } else {
+                        Token::Xor
+                    };
+                }
+                Some('~') => {
+                    self.step();
+                    self.token = Token::BNot;
+                }
+                Some('?') => {
+                    self.step();
+                    self.token = match self.codepoint {
+                        Some('?') => {
+                            self.step();
+                            if let Some('=') = self.codepoint {
+                                self.step();
+                                Token::NullishAssign
+                            } else {
+                                Token::Nullish
+                            }
+                        }
+                        Some('.') => {
+                            self.step();
+                            Token::OptionalChain
+                        }
+                        _ => Token::Ternary,
+                    };
+                }
+                Some('.') => {
+                    self.step();
+                    self.token = if let Some('.') = self.codepoint {
+                        self.step();
+                        if let Some('.') = self.codepoint {
+                            self.step();
+                            Token::Spread
+                        } else {
+                            Token::InvalidDotDot
+                        }
+                    } else {
+                        Token::Dot
+                    };
+                }
+                Some(';') => {
+                    self.step();
+                    self.token = Token::Semi;
+                }
+                Some(':') => {
+                    self.step();
+                    self.token = Token::Colon;
+                }
+                Some(',') => {
+                    self.step();
+                    self.token = Token::Comma;
+                }
+                Some(ch) => 'blk: {
+                    // Skip unicode whitespace characters.
+                    if ch.is_pattern_whitespace() {
+                        self.step();
+                        continue 'main;
+                    }
+
+                    // Eat unicode identifiers.
+                    if ch.is_id_continue() {
+                        self.step();
+                        self.token = Token::Ident;
+                        self.continue_ident_slow();
+                        break 'blk;
+                    }
+
+                    panic!("Unknown: {}", ch);
+                }
+            }
+
+            break;
+        }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{Token, TokenKind, TokenStream};
-
-    /// A wrapper over [`TokenStream`] that iterates over tokens and returns
-    /// them as pairs of the token kind and the subslice of the buffer that
-    /// corresponds to the token.
-    struct TokenAndSliceIterator<'a> {
-        stream: TokenStream<'a>,
-        slice: &'a [u8],
-        current_token: Option<Token>,
-    }
-    impl<'a> TokenAndSliceIterator<'a> {
-        pub fn new(buffer: &'a [u8]) -> TokenAndSliceIterator<'a> {
-            TokenAndSliceIterator {
-                stream: TokenStream::new(buffer),
-                slice: buffer,
-                current_token: None,
-            }
-        }
-    }
-    impl<'a> Iterator for TokenAndSliceIterator<'a> {
-        type Item = (TokenKind, &'a [u8]);
-
-        fn next(&mut self) -> Option<Self::Item> {
-            let current_token = match self.current_token {
-                Some(token) => token,
-                None => {
-                    let token = self.stream.next();
-                    self.current_token = Some(token);
-                    token
-                }
-            };
-
-            if current_token.kind == TokenKind::Eof {
-                return None;
-            }
-
-            let next_token = self.stream.next();
-            let slice = &self.slice[current_token.start as usize..next_token.start as usize];
-            self.current_token = Some(next_token);
-            Some((current_token.kind, slice))
-        }
-    }
-
-    #[test]
-    fn comments() {
-        let mut it = TokenAndSliceIterator::new(b"/* flsjdf */");
-        assert_eq!(it.next(), Some((TokenKind::Junk, b"/* flsjdf */" as &[u8])));
-        assert_eq!(it.next(), None);
-    }
+    use super::*;
 }

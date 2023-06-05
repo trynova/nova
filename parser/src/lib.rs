@@ -1,3 +1,6 @@
+#[derive(Debug)]
+pub struct Parser {}
+
 #[cfg(test)]
 mod tests {
     #[test]
