@@ -58,7 +58,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let scope = parser.parse_global_scope().unwrap();
 
             for node in scope.iter() {
-                println!("{:?}", parser.nodes.get(*node));
+                let Some(node) = parser.nodes.get(*node) else {
+                    unreachable!()
+                };
+                println!("{:?}", node);
             }
         }
     }

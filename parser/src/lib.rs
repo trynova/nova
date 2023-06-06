@@ -450,7 +450,6 @@ impl<'a> Parser<'a> {
         Ok(Decl { binding, value })
     }
 
-    #[inline]
     fn parse_stmt(&mut self, state: ScopeState) -> Result<NodeRef> {
         Ok(match self.lex.token {
             Token::Ident => {
@@ -458,12 +457,21 @@ impl<'a> Parser<'a> {
 
                 if self.lex.token == Token::Colon {
                     self.lex.next();
+
+                    if let Token::KeywordLet | Token::KeywordConst = self.lex.token {
+                        eprintln!(
+                            "Lexical declaration cannot appear in a single-statement context."
+                        );
+                        return Err(());
+                    }
+
                     let stmt = self.parse_stmt(state)?;
                     self.nodes.insert(Node::Label(ast::Label {
                         name: source_ref,
                         stmt,
                     }))
                 } else {
+                    // We need to backstep and parse as expression.
                     self.lex.index = source_ref.start as usize;
                     self.lex.next();
                     self.lex.has_newline_before = true;
