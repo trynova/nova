@@ -556,6 +556,23 @@ impl<'a> Parser<'a> {
                         nodes,
                     })));
                 }
+                Token::KeywordWhile => {
+                    self.lex.next();
+                    self.expect(Token::LParen)?;
+                    let condition = self.parse_expr(1)?;
+                    self.expect(Token::RParen)?;
+                    self.expect(Token::LBrace)?;
+                    let nodes = self.parse_scope(ScopeState {
+                        is_loop: true,
+                        ..state
+                    })?;
+                    self.expect(Token::RBrace)?;
+
+                    scope.push(
+                        self.nodes
+                            .insert(Node::While(ast::While { condition, nodes })),
+                    );
+                }
                 Token::RBrace | Token::EOF => break,
                 Token::Semi => {
                     self.lex.next();

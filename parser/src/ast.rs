@@ -68,6 +68,12 @@ pub struct For {
 }
 
 #[derive(Debug)]
+pub struct While {
+    pub condition: NodeRef,
+    pub nodes: Box<[NodeRef]>,
+}
+
+#[derive(Debug)]
 pub enum Node {
     /// Do not construct manually. Obtain a [`NodeRef`] with [`Node::empty()`].
     Empty,
@@ -105,6 +111,7 @@ pub enum Node {
     AsyncFunction(Function),
     ArrowFunction(Function),
     For(For),
+    While(While),
 }
 
 impl Node {
