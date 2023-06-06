@@ -23,9 +23,17 @@ impl<'a> Parser<'a> {
         let mut stream = TokenStream::new(source);
         stream.next();
         stream.has_newline_before = true;
+
+        let mut arena = Arena::new();
+        let empty_idx = arena.insert(Node::Empty);
+        assert!(
+            empty_idx == Node::empty(),
+            "The empty index must be placed at 0."
+        );
+
         Self {
             lex: stream,
-            nodes: Arena::new(),
+            nodes: arena,
         }
     }
 
@@ -88,6 +96,35 @@ impl<'a> Parser<'a> {
                 self.expect(Token::RParen)?;
                 self.nodes.insert(Node::Paren(node))
             }
+            Token::LBrack => {
+                self.lex.next();
+
+                let mut values = Vec::new();
+
+                if self.lex.token != Token::RBrack {
+                    loop {
+                        if self.lex.token == Token::RBrack {
+                            break;
+                        }
+
+                        if self.lex.token == Token::Comma {
+                            values.push(Node::empty());
+                        } else {
+                            values.push(self.parse_expr(1)?);
+                            if self.lex.token != Token::Comma {
+                                break;
+                            }
+                        }
+
+                        self.lex.next();
+                    }
+                }
+                self.expect(Token::RBrack)?;
+
+                self.nodes.insert(Node::Array(ast::Array {
+                    values: values.into_boxed_slice(),
+                }))
+            }
             // TODO: implement async scopes
             Token::KeywordAsync => {
                 self.lex.next();
@@ -99,8 +136,8 @@ impl<'a> Parser<'a> {
                 // Parse *just* the function.
                 let func_idx = self.parse_expr(100)?;
                 let Some(func) = self.nodes.get(func_idx) else {
-					unreachable!();
-				};
+                    unreachable!();
+                };
 
                 if let Node::Function(func) = func {
                     let func_data = func.clone();
@@ -114,9 +151,10 @@ impl<'a> Parser<'a> {
                 self.lex.next();
 
                 let name = if self.lex.token == Token::Ident {
-                    Some(self.take())
+                    let source_ref = self.take();
+                    self.nodes.insert(Node::Ident(source_ref))
                 } else {
-                    None
+                    Node::empty()
                 };
 
                 self.expect(Token::LParen)?;
@@ -144,9 +182,9 @@ impl<'a> Parser<'a> {
 
                         let default = if self.lex.token == Token::Equal {
                             self.lex.next();
-                            Some(self.parse_expr(1)?)
+                            self.parse_expr(1)?
                         } else {
-                            None
+                            Node::empty()
                         };
 
                         params.push(self.nodes.insert(Node::Param(ast::Param { name, default })));
@@ -190,6 +228,34 @@ impl<'a> Parser<'a> {
             }
 
             match self.lex.token {
+                // Implement `name =>` arrow syntax
+                Token::Arrow => {
+                    self.lex.next();
+
+                    let lhs_value = self.nodes.get(lhs);
+
+                    let Some(Node::Ident(_)) = lhs_value else {
+                        break;
+                    };
+
+                    let scope = if self.lex.token == Token::LBrace {
+                        self.lex.next();
+                        let scope = self.parse_scope(ScopeState {
+                            is_loop: false,
+                            is_function: true,
+                        })?;
+                        self.expect(Token::RBrace)?;
+                        scope.into_boxed_slice()
+                    } else {
+                        Box::new([self.parse_expr(1)?])
+                    };
+
+                    lhs = self.nodes.insert(Node::ArrowFunction(ast::Function {
+                        name: Node::empty(),
+                        params: Box::new([lhs]),
+                        scope,
+                    }));
+                }
                 Token::Equal => {
                     self.lex.next();
                     let rhs = self.parse_expr(power)?;
@@ -325,18 +391,18 @@ impl<'a> Parser<'a> {
                     self.lex.next();
 
                     if self.lex.has_newline_before {
-                        scope.push(self.nodes.insert(Node::Return(None)));
+                        scope.push(self.nodes.insert(Node::Return(Node::empty())));
                         break 'blk;
                     }
 
                     if self.lex.token == Token::Semi {
                         self.lex.next();
-                        scope.push(self.nodes.insert(Node::Return(None)));
+                        scope.push(self.nodes.insert(Node::Return(Node::empty())));
                         break 'blk;
                     }
 
                     let value = self.parse_expr(1)?;
-                    scope.push(self.nodes.insert(Node::Return(Some(value))));
+                    scope.push(self.nodes.insert(Node::Return(value)));
 
                     // We can simply report this later.
                     if !state.is_function {

@@ -32,7 +32,8 @@ pub struct Index {
 
 #[derive(Debug, Clone)]
 pub struct Function {
-    pub name: Option<SourceRef>,
+    /// `Node::Ident` or `Node::Empty`
+    pub name: NodeRef,
     /// `Node::Param` or `Node::Spread`
     pub params: Box<[NodeRef]>,
     pub scope: Box<[NodeRef]>,
@@ -41,13 +42,26 @@ pub struct Function {
 #[derive(Debug)]
 pub struct Param {
     pub name: NodeRef,
-    pub default: Option<NodeRef>,
+    pub default: NodeRef,
+}
+
+#[derive(Debug)]
+pub struct Array {
+    pub values: Box<[NodeRef]>,
 }
 
 #[derive(Debug)]
 pub enum Node {
-    LetDecl { decl: NodeRef, value: NodeRef },
-    ConstDecl { decl: NodeRef, value: NodeRef },
+    /// Do not construct manually. Achieve a [`NodeRef`] with [`Node::empty()`].
+    Empty,
+    LetDecl {
+        decl: NodeRef,
+        value: NodeRef,
+    },
+    ConstDecl {
+        decl: NodeRef,
+        value: NodeRef,
+    },
     String(SourceRef),
     Number(SourceRef),
     Decl(Decl),
@@ -58,13 +72,24 @@ pub enum Node {
     Mul(BinaryOp),
     Mod(BinaryOp),
     Div(BinaryOp),
+    Array(Array),
     Call(Call),
     Index(Index),
     Paren(NodeRef),
     Group(BinaryOp),
-    Return(Option<NodeRef>),
+    /// May be empty.
+    Return(NodeRef),
     Spread(NodeRef),
     Param(Param),
     Function(Function),
     AsyncFunction(Function),
+    ArrowFunction(Function),
+}
+
+impl Node {
+    /// A reference to the `Node::Empty` node in the arena.
+    pub fn empty() -> NodeRef {
+        // This is ensured to be at index 0 in the parser.
+        generational_arena::Index::from_raw_parts(0, 0)
+    }
 }
