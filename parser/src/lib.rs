@@ -64,6 +64,12 @@ impl<'a> Parser<'a> {
                 let source_ref = self.take();
                 self.nodes.insert(Node::Number(source_ref))
             }
+            Token::LParen => {
+                self.lex.next();
+                let node = self.parse_expr(0)?;
+                self.expect(Token::RParen)?;
+                self.nodes.insert(Node::Paren(node))
+            }
             other => {
                 eprintln!("{other:?}");
                 return Err(());
@@ -81,6 +87,11 @@ impl<'a> Parser<'a> {
                     self.lex.next();
                     let rhs = self.parse_expr(power)?;
                     lhs = self.nodes.insert(Node::Assign(ast::BinaryOp { lhs, rhs }));
+                }
+                Token::Comma => {
+                    self.lex.next();
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self.nodes.insert(Node::Group(ast::BinaryOp { lhs, rhs }));
                 }
                 Token::Add => {
                     self.lex.next();
@@ -107,6 +118,14 @@ impl<'a> Parser<'a> {
                     let rhs = self.parse_expr(power)?;
                     lhs = self.nodes.insert(Node::Div(ast::BinaryOp { lhs, rhs }));
                 }
+                Token::LBrack => {
+                    self.lex.next();
+                    let index = self.parse_expr(1)?;
+                    self.expect(Token::RBrack)?;
+                    lhs = self
+                        .nodes
+                        .insert(Node::Index(ast::Index { root: lhs, index }));
+                }
                 Token::LParen => {
                     self.lex.next();
                     let mut args = Vec::new();
@@ -128,6 +147,7 @@ impl<'a> Parser<'a> {
                     self.expect(Token::RParen)?;
 
                     lhs = self.nodes.insert(Node::Call(Call {
+                        callee: lhs,
                         args: args.into_boxed_slice(),
                     }));
                 }

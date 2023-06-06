@@ -19,7 +19,14 @@ pub struct BinaryOp {
 
 #[derive(Debug)]
 pub struct Call {
+    pub callee: NodeRef,
     pub args: Box<[NodeRef]>,
+}
+
+#[derive(Debug)]
+pub struct Index {
+    pub root: NodeRef,
+    pub index: NodeRef,
 }
 
 #[derive(Debug)]
@@ -37,4 +44,7 @@ pub enum Node {
     Mod(BinaryOp),
     Div(BinaryOp),
     Call(Call),
+    Index(Index),
+    Paren(NodeRef),
+    Group(BinaryOp),
 }
