@@ -11,6 +11,13 @@ pub struct Parser<'a> {
 
 type Result<T> = std::result::Result<T, ()>;
 
+#[derive(Debug)]
+#[repr(packed)]
+struct ScopeState {
+    pub is_loop: bool,
+    pub is_function: bool,
+}
+
 impl<'a> Parser<'a> {
     pub fn new(source: &'a str) -> Self {
         let mut stream = TokenStream::new(source);
@@ -46,6 +53,17 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    fn parse_binding(&mut self) -> Result<NodeRef> {
+        match self.lex.token {
+            // TODO: implement destructuring
+            Token::Ident => {
+                let source_ref = self.take();
+                Ok(self.nodes.insert(Node::Ident(source_ref)))
+            }
+            _ => Err(()),
+        }
+    }
+
     /// Takes in the highest power of the expression before.
     pub fn parse_expr(&mut self, hp: u8) -> Result<NodeRef> {
         let mut lhs = match self.lex.token {
@@ -70,8 +88,97 @@ impl<'a> Parser<'a> {
                 self.expect(Token::RParen)?;
                 self.nodes.insert(Node::Paren(node))
             }
+            // TODO: implement async scopes
+            Token::KeywordAsync => {
+                self.lex.next();
+
+                if self.lex.token != Token::KeywordFunction {
+                    self.expect(Token::KeywordFunction)?;
+                }
+
+                // Parse *just* the function.
+                let func_idx = self.parse_expr(100)?;
+                let Some(func) = self.nodes.get(func_idx) else {
+					unreachable!();
+				};
+
+                if let Node::Function(func) = func {
+                    let func_data = func.clone();
+                    self.nodes[func_idx] = Node::AsyncFunction(func_data);
+                    func_idx
+                } else {
+                    unreachable!()
+                }
+            }
+            Token::KeywordFunction => {
+                self.lex.next();
+
+                let name = if self.lex.token == Token::Ident {
+                    Some(self.take())
+                } else {
+                    None
+                };
+
+                self.expect(Token::LParen)?;
+
+                let mut params = Vec::new();
+                let mut spread_count: usize = 0;
+
+                loop {
+                    if self.lex.token == Token::RParen {
+                        break;
+                    }
+
+                    if self.lex.token == Token::Spread {
+                        self.lex.next();
+                        let value = self.parse_expr(1)?;
+                        params.push(self.nodes.insert(Node::Spread(value)));
+
+                        if spread_count > 0 {
+                            eprintln!("Found more than 1 function param spread.");
+                            return Err(());
+                        }
+                        spread_count += 1;
+                    } else {
+                        let name = self.parse_binding()?;
+
+                        let default = if self.lex.token == Token::Equal {
+                            self.lex.next();
+                            Some(self.parse_expr(1)?)
+                        } else {
+                            None
+                        };
+
+                        params.push(self.nodes.insert(Node::Param(ast::Param { name, default })));
+                    }
+
+                    if self.lex.token != Token::Comma {
+                        break;
+                    }
+                    self.lex.next();
+                }
+
+                self.expect(Token::RParen)?;
+                self.expect(Token::LBrace)?;
+
+                let scope = self.parse_scope(ScopeState {
+                    is_loop: false,
+                    is_function: true,
+                })?;
+
+                self.expect(Token::RBrace)?;
+
+                // ASI always terminates function expressions.
+                self.lex.has_newline_before = true;
+
+                self.nodes.insert(Node::Function(ast::Function {
+                    name,
+                    params: params.into_boxed_slice(),
+                    scope: scope.into_boxed_slice(),
+                }))
+            }
             other => {
-                eprintln!("{other:?}");
+                eprintln!("Expected expression, found {other:?}.");
                 return Err(());
             }
         };
@@ -135,7 +242,13 @@ impl<'a> Parser<'a> {
                             break;
                         }
 
-                        args.push(self.parse_expr(1)?);
+                        if self.lex.token == Token::Spread {
+                            self.lex.next();
+                            let value = self.parse_expr(1)?;
+                            args.push(self.nodes.insert(Node::Spread(value)));
+                        } else {
+                            args.push(self.parse_expr(1)?);
+                        }
 
                         if self.lex.token != Token::Comma {
                             break;
@@ -158,10 +271,39 @@ impl<'a> Parser<'a> {
         Ok(lhs)
     }
 
-    pub fn parse_scope(&mut self) -> Result<Vec<NodeRef>> {
+    #[inline]
+    pub fn parse_global_scope(&mut self) -> Result<Vec<NodeRef>> {
+        self.parse_scope(ScopeState {
+            is_function: false,
+            is_loop: false,
+        })
+    }
+
+    #[inline]
+    fn expect_valid_terminator(&mut self) -> Result<()> {
+        if self.lex.token == Token::Semi {
+            self.lex.next();
+            self.lex.has_newline_before = true;
+            Ok(())
+        } else if !self.lex.has_newline_before {
+            // Recoverable?
+            eprintln!("Expected a line ending at {:?}.", self.lex.token);
+            Err(())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn parse_scope(&mut self, state: ScopeState) -> Result<Vec<NodeRef>> {
         let mut scope = Vec::new();
 
         loop {
+            if self.lex.token == Token::RBrace || self.lex.token == Token::EOF {
+                break;
+            }
+
+            self.expect_valid_terminator()?;
+
             match self.lex.token {
                 Token::KeywordLet => {
                     self.lex.next();
@@ -179,9 +321,36 @@ impl<'a> Parser<'a> {
                     let value = self.parse_expr(1)?;
                     scope.push(self.nodes.insert(Node::ConstDecl { decl, value }));
                 }
-                Token::Semi => self.lex.next(),
-                Token::EOF | Token::RBrace => break,
-                _ => break,
+                Token::KeywordReturn => 'blk: {
+                    self.lex.next();
+
+                    if self.lex.has_newline_before {
+                        scope.push(self.nodes.insert(Node::Return(None)));
+                        break 'blk;
+                    }
+
+                    if self.lex.token == Token::Semi {
+                        self.lex.next();
+                        scope.push(self.nodes.insert(Node::Return(None)));
+                        break 'blk;
+                    }
+
+                    let value = self.parse_expr(1)?;
+                    scope.push(self.nodes.insert(Node::Return(Some(value))));
+
+                    // We can simply report this later.
+                    if !state.is_function {
+                        return Err(());
+                    }
+                }
+                Token::RBrace | Token::EOF => break,
+                Token::Semi => {
+                    self.lex.next();
+                    self.lex.has_newline_before = true;
+                }
+                _ => {
+                    scope.push(self.parse_expr(1)?);
+                }
             }
         }
 

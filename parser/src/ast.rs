@@ -1,6 +1,6 @@
 pub type NodeRef = generational_arena::Index;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SourceRef {
     pub start: u32,
     pub end: u32,
@@ -20,6 +20,7 @@ pub struct BinaryOp {
 #[derive(Debug)]
 pub struct Call {
     pub callee: NodeRef,
+    /// `Node::Param` or `Node::Spread`
     pub args: Box<[NodeRef]>,
 }
 
@@ -27,6 +28,20 @@ pub struct Call {
 pub struct Index {
     pub root: NodeRef,
     pub index: NodeRef,
+}
+
+#[derive(Debug, Clone)]
+pub struct Function {
+    pub name: Option<SourceRef>,
+    /// `Node::Param` or `Node::Spread`
+    pub params: Box<[NodeRef]>,
+    pub scope: Box<[NodeRef]>,
+}
+
+#[derive(Debug)]
+pub struct Param {
+    pub name: NodeRef,
+    pub default: Option<NodeRef>,
 }
 
 #[derive(Debug)]
@@ -47,4 +62,9 @@ pub enum Node {
     Index(Index),
     Paren(NodeRef),
     Group(BinaryOp),
+    Return(Option<NodeRef>),
+    Spread(NodeRef),
+    Param(Param),
+    Function(Function),
+    AsyncFunction(Function),
 }

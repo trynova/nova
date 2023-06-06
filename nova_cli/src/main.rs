@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let source = std::fs::read_to_string(path.as_str())?;
 
             let mut parser = Parser::new(source.as_str());
-            let scope = parser.parse_scope().unwrap();
+            let scope = parser.parse_global_scope().unwrap();
 
             for node in scope.iter() {
                 println!("{:?}", parser.nodes.get(*node));
