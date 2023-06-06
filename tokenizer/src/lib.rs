@@ -74,6 +74,53 @@ pub enum Token {
     TemplatePart,
     TemplateStart,
     InvalidComment,
+    Arrow,
+    Invalid,
+}
+
+impl Token {
+    /// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence
+    pub fn lbp(self) -> u8 {
+        match self {
+            // 18 is just grouping
+            Token::Dot | Token::OptionalChain | Token::LBrack | Token::LParen => 17,
+            // 16 is only prefix ops
+            Token::Inc | Token::Dec => 15,
+            // 14 is only prefix ops
+            Token::Pow => 13,
+            Token::Mul | Token::Mod | Token::Div => 12,
+            Token::Add | Token::Sub => 11,
+            Token::ShiftLeft | Token::ShiftRight | Token::UShiftRight => 10,
+            Token::Lt | Token::Lte | Token::Gt | Token::Gte => 9,
+            Token::Equality
+            | Token::Inequality
+            | Token::StrictEquality
+            | Token::StrictInequality => 8,
+            Token::BAnd => 7,
+            Token::Xor => 6,
+            Token::BOr => 5,
+            Token::And => 4,
+            Token::Or | Token::Nullish => 3,
+            Token::Equal
+            | Token::AddAssign
+            | Token::PowAssign
+            | Token::SubAssign
+            | Token::MulAssign
+            | Token::DivAssign
+            | Token::ModAssign
+            | Token::ShiftLeftAssign
+            | Token::ShiftRightAssign
+            | Token::UShiftRightAssign
+            | Token::BAndAssign
+            | Token::XorAssign
+            | Token::BOrAssign
+            | Token::AndAssign
+            | Token::OrAssign
+            | Token::NullishAssign => 2,
+            Token::Comma => 1,
+            _ => 0,
+        }
+    }
 }
 
 static KEYWORDS: phf::Map<&'static str, Token> = phf::phf_map! {
@@ -405,16 +452,21 @@ impl<'a> TokenStream<'a> {
                 }
                 Some('=') => {
                     self.step();
-                    self.token = if let Some('=') = self.codepoint {
-                        self.step();
-                        if let Some('=') = self.codepoint {
+                    self.token = match self.codepoint {
+                        Some('>') => {
                             self.step();
-                            Token::StrictEquality
-                        } else {
-                            Token::Equality
+                            Token::Arrow
                         }
-                    } else {
-                        Token::Equal
+                        Some('=') => {
+                            self.step();
+                            if let Some('=') = self.codepoint {
+                                self.step();
+                                Token::StrictEquality
+                            } else {
+                                Token::Equality
+                            }
+                        }
+                        _ => Token::Equal,
                     };
                 }
                 Some('!') => {
@@ -590,7 +642,8 @@ impl<'a> TokenStream<'a> {
                         break 'blk;
                     }
 
-                    panic!("Unknown: {}", ch);
+                    self.step();
+                    self.token = Token::Invalid;
                 }
             }
 

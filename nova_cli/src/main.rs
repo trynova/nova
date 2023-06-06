@@ -1,8 +1,9 @@
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser as ClapParser, Subcommand, ValueEnum};
+use parser::Parser;
 use tokenizer::{Token, TokenStream};
 
 /// A JavaScript engine
-#[derive(Debug, Parser)] // requires `derive` feature
+#[derive(Debug, ClapParser)] // requires `derive` feature
 #[command(name = "nova")]
 #[command(about = "A JavaScript engine", long_about = None)]
 struct Cli {
@@ -52,7 +53,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Command::Parse { path } => {
             let source = std::fs::read_to_string(path.as_str())?;
-            println!("{}", source);
+
+            let mut parser = Parser::new(source.as_str());
+            let scope = parser.parse_scope().unwrap();
+
+            for node in scope.iter() {
+                println!("{:?}", parser.nodes.get(*node));
+            }
         }
     }
 
