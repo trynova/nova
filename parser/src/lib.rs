@@ -71,6 +71,35 @@ impl<'a> Parser<'a> {
         }
     }
 
+    #[inline]
+    fn parse_call_args(&mut self) -> Result<Box<[NodeRef]>> {
+        let mut args = Vec::new();
+
+        loop {
+            if self.lex.token == Token::RParen {
+                break;
+            }
+
+            if self.lex.token == Token::Spread {
+                self.lex.next();
+                let value = self.parse_expr(1)?;
+                args.push(self.nodes.insert(Node::Spread(value)));
+            } else {
+                args.push(self.parse_expr(1)?);
+            }
+
+            if self.lex.token != Token::Comma {
+                break;
+            }
+
+            self.lex.next();
+        }
+
+        self.expect(Token::RParen)?;
+
+        Ok(args.into_boxed_slice())
+    }
+
     /// Takes in the highest power of the expression before.
     pub fn parse_expr(&mut self, hp: u8) -> Result<NodeRef> {
         let mut lhs = match self.lex.token {
@@ -157,6 +186,19 @@ impl<'a> Parser<'a> {
                 } else {
                     unreachable!()
                 }
+            }
+            Token::KeywordNew => 'blk: {
+                // TODO: this does not currently work for `new Foo.Bar()`
+                self.lex.next();
+                let callee = self.parse_expr(17)?;
+
+                if self.lex.token != Token::LParen {
+                    break 'blk self.nodes.insert(Node::New(callee));
+                }
+                self.lex.next();
+
+                let args = self.parse_call_args()?;
+                self.nodes.insert(Node::NewCall(ast::Call { callee, args }))
             }
             Token::KeywordFunction => {
                 self.lex.next();
@@ -293,37 +335,14 @@ impl<'a> Parser<'a> {
                             .insert(Node::OptionalChain(ast::BinaryOp { lhs, rhs }));
                         break 'blk;
                     }
+                    self.lex.next();
 
                     // foo?.()
-                    self.lex.next();
-                    let mut args = Vec::new();
 
-                    loop {
-                        if self.lex.token == Token::RParen {
-                            break;
-                        }
-
-                        if self.lex.token == Token::Spread {
-                            self.lex.next();
-                            let value = self.parse_expr(1)?;
-                            args.push(self.nodes.insert(Node::Spread(value)));
-                        } else {
-                            args.push(self.parse_expr(1)?);
-                        }
-
-                        if self.lex.token != Token::Comma {
-                            break;
-                        }
-
-                        self.lex.next();
-                    }
-
-                    self.expect(Token::RParen)?;
-
-                    lhs = self.nodes.insert(Node::OptionalCall(Call {
-                        callee: lhs,
-                        args: args.into_boxed_slice(),
-                    }));
+                    let args = self.parse_call_args()?;
+                    lhs = self
+                        .nodes
+                        .insert(Node::OptionalCall(Call { callee: lhs, args }));
                 }
                 Token::Comma => {
                     self.lex.next();
@@ -365,34 +384,8 @@ impl<'a> Parser<'a> {
                 }
                 Token::LParen => {
                     self.lex.next();
-                    let mut args = Vec::new();
-
-                    loop {
-                        if self.lex.token == Token::RParen {
-                            break;
-                        }
-
-                        if self.lex.token == Token::Spread {
-                            self.lex.next();
-                            let value = self.parse_expr(1)?;
-                            args.push(self.nodes.insert(Node::Spread(value)));
-                        } else {
-                            args.push(self.parse_expr(1)?);
-                        }
-
-                        if self.lex.token != Token::Comma {
-                            break;
-                        }
-
-                        self.lex.next();
-                    }
-
-                    self.expect(Token::RParen)?;
-
-                    lhs = self.nodes.insert(Node::Call(Call {
-                        callee: lhs,
-                        args: args.into_boxed_slice(),
-                    }));
+                    let args = self.parse_call_args()?;
+                    lhs = self.nodes.insert(Node::Call(Call { callee: lhs, args }));
                 }
                 Token::Ternary => {
                     self.lex.next();

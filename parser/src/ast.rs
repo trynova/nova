@@ -137,6 +137,8 @@ pub enum Node {
     Ternary(Ternary),
     Array(Array),
     Call(Call),
+    NewCall(Call),
+    New(NodeRef),
     Index(Index),
     Paren(NodeRef),
     Group(BinaryOp),
