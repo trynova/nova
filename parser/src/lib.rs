@@ -414,12 +414,18 @@ impl<'a> Parser<'a> {
         Ok(lhs)
     }
 
-    #[inline]
     pub fn parse_global_scope(&mut self) -> Result<Box<[NodeRef]>> {
-        self.parse_scope(ScopeState {
+        let nodes = self.parse_scope(ScopeState {
             is_function: false,
             is_loop: false,
-        })
+        })?;
+
+        if self.lex.token != Token::EOF {
+            eprintln!("Expected statement, found {:?}.", self.lex.token);
+            return Err(());
+        }
+
+        Ok(nodes)
     }
 
     #[inline]
