@@ -1,11 +1,11 @@
-use ast::{Call, Decl, Node, NodeRef, SourceRef};
+use crate::{
+    ast::{self, Call, Decl, Node, NodeRef, SourceRef},
+    Lexer, Token,
+};
 use generational_arena::Arena;
-use tokenizer::{Token, TokenStream};
-
-pub mod ast;
 
 pub struct Parser<'a> {
-    lex: TokenStream<'a>,
+    lex: Lexer<'a>,
     pub nodes: Arena<Node>,
 }
 
@@ -20,8 +20,8 @@ struct ScopeState {
 
 impl<'a> Parser<'a> {
     pub fn new(source: &'a str) -> Self {
-        let mut stream = TokenStream::new(source);
-        stream.next();
+        let mut lex = Lexer::new(source);
+        lex.next();
 
         let mut arena = Arena::new();
         let empty_idx = arena.insert(Node::Empty);
@@ -30,10 +30,7 @@ impl<'a> Parser<'a> {
             "The empty index must be placed at 0."
         );
 
-        Self {
-            lex: stream,
-            nodes: arena,
-        }
+        Self { lex, nodes: arena }
     }
 
     pub fn take(&mut self) -> SourceRef {

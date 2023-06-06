@@ -205,7 +205,7 @@ static KEYWORDS: phf::Map<&'static str, Token> = phf::phf_map! {
 };
 
 #[derive(Debug)]
-pub struct TokenStream<'a> {
+pub struct Lexer<'a> {
     source: &'a str,
     /// `Option<char>` is memory optimized to only 4 bytes because of UTF-8
     /// codepoint limits.
@@ -217,7 +217,7 @@ pub struct TokenStream<'a> {
     pub open_template_count: usize,
 }
 
-impl<'a> TokenStream<'a> {
+impl<'a> Lexer<'a> {
     pub fn new(source: &'a str) -> Self {
         Self {
             source,
@@ -735,7 +735,7 @@ mod test {
             let expected: &[Token] = $tokens;
             let mut out = Vec::<Token>::with_capacity(expected.len());
             let source: &str = $source;
-            let mut stream = TokenStream::new(source);
+            let mut stream = Lexer::new(source);
 
             loop {
                 stream.next();

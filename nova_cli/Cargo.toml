@@ -7,5 +7,4 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.3", features = ["derive"] }
-parser = { path = "../parser" }
-tokenizer = { path = "../tokenizer" }
+nova_parser = { path = "../nova_parser" }

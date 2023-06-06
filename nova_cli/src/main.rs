@@ -1,6 +1,5 @@
 use clap::{Args, Parser as ClapParser, Subcommand, ValueEnum};
-use parser::Parser;
-use tokenizer::{Token, TokenStream};
+use nova_parser::{Lexer, Parser, Token};
 
 /// A JavaScript engine
 #[derive(Debug, ClapParser)] // requires `derive` feature
@@ -32,21 +31,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match args.command {
         Command::Tokenize { path } => {
             let source = std::fs::read_to_string(path.as_str())?;
-            let mut stream = TokenStream::new(source.as_str());
+            let mut lex = Lexer::new(source.as_str());
 
             loop {
-                stream.next();
+                lex.next();
                 println!(
                     "{:?} '{}'{}",
-                    stream.token,
-                    &source[stream.start..stream.index],
-                    if stream.has_newline_before {
+                    lex.token,
+                    &source[lex.start..lex.index],
+                    if lex.has_newline_before {
                         " (has newline before)"
                     } else {
                         ""
                     }
                 );
-                if let Token::EOF = stream.token {
+                if let Token::EOF = lex.token {
                     break;
                 }
             }
