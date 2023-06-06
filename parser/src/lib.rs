@@ -75,6 +75,18 @@ impl<'a> Parser<'a> {
     /// Takes in the highest power of the expression before.
     pub fn parse_expr(&mut self, hp: u8) -> Result<NodeRef> {
         let mut lhs = match self.lex.token {
+            Token::KeywordTrue => {
+                let source_ref = self.take();
+                self.nodes.insert(Node::True(source_ref))
+            }
+            Token::KeywordFalse => {
+                let source_ref = self.take();
+                self.nodes.insert(Node::False(source_ref))
+            }
+            Token::KeywordNull => {
+                let source_ref = self.take();
+                self.nodes.insert(Node::Null(source_ref))
+            }
             Token::String => {
                 let source_ref = self.take();
                 self.nodes.insert(Node::String(SourceRef {
