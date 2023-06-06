@@ -607,6 +607,47 @@ impl<'a> Parser<'a> {
                 self.nodes
                     .insert(Node::While(ast::While { condition, nodes }))
             }
+            Token::KeywordIf => {
+                let head = self.nodes.insert(Node::Empty);
+                let mut tail = head;
+
+                loop {
+                    if self.lex.token != Token::KeywordIf {
+                        break;
+                    }
+                    self.lex.next();
+                    self.expect(Token::LParen)?;
+                    let condition = self.parse_expr(1)?;
+                    self.expect(Token::RParen)?;
+                    self.expect(Token::LBrace)?;
+                    let nodes = self.parse_scope(state)?;
+                    self.expect(Token::RBrace)?;
+
+                    let new_tail = self.nodes.insert(Node::Empty);
+                    self.nodes[tail] = Node::If(ast::If {
+                        condition,
+                        nodes,
+                        next: new_tail,
+                    });
+                    tail = new_tail;
+
+                    if self.lex.token != Token::KeywordElse {
+                        break;
+                    }
+                    self.lex.next();
+
+                    if self.lex.token == Token::LBrace {
+                        self.lex.next();
+                        let nodes = self.parse_scope(state)?;
+                        self.expect(Token::RBrace)?;
+                        self.nodes[tail] = Node::Else(ast::Else { nodes });
+                        break;
+                    }
+                }
+
+                self.lex.has_newline_before = true;
+                head
+            }
             Token::RBrace | Token::EOF => Node::empty(),
             Token::Semi => {
                 self.lex.next();

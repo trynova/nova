@@ -80,6 +80,19 @@ pub struct Label {
 }
 
 #[derive(Debug)]
+pub struct If {
+    pub condition: NodeRef,
+    pub nodes: Box<[NodeRef]>,
+    /// [`Node::If`] or [`Node::Else`] or empty
+    pub next: NodeRef,
+}
+
+#[derive(Debug)]
+pub struct Else {
+    pub nodes: Box<[NodeRef]>,
+}
+
+#[derive(Debug)]
 pub enum Node {
     /// Do not construct manually. Obtain a [`NodeRef`] with [`Node::empty()`].
     Empty,
@@ -124,6 +137,8 @@ pub enum Node {
     ArrowFunction(Function),
     For(For),
     While(While),
+    If(If),
+    Else(Else),
 }
 
 impl Node {
