@@ -452,6 +452,12 @@ impl<'a> Parser<'a> {
 
     fn parse_stmt(&mut self, state: ScopeState) -> Result<NodeRef> {
         Ok(match self.lex.token {
+            Token::LBrace => {
+                self.lex.next();
+                let nodes = self.parse_scope(state)?;
+                self.expect(Token::RBrace)?;
+                self.nodes.insert(Node::Block(ast::Block { nodes }))
+            }
             Token::Ident => {
                 let source_ref = self.take();
 
@@ -648,7 +654,49 @@ impl<'a> Parser<'a> {
                 self.lex.has_newline_before = true;
                 head
             }
-            Token::RBrace | Token::EOF => Node::empty(),
+            Token::KeywordSwitch => {
+                self.lex.next();
+                self.expect(Token::LParen)?;
+                let expr = self.parse_expr(1)?;
+                self.expect(Token::RParen)?;
+                self.expect(Token::LBrace)?;
+
+                let mut cases = Vec::new();
+                let mut seen_default = false;
+                loop {
+                    let value = match self.lex.token {
+                        Token::KeywordDefault => {
+                            self.lex.next();
+                            if seen_default {
+                                eprintln!("More than one default clause in switch statement");
+                                return Err(());
+                            }
+                            seen_default = true;
+                            Node::empty()
+                        }
+                        Token::KeywordCase => {
+                            self.lex.next();
+                            self.parse_expr(1)?
+                        }
+                        _ => break,
+                    };
+
+                    self.expect(Token::Colon)?;
+                    let nodes = self.parse_scope(state)?;
+                    cases.push(ast::Case { value, nodes });
+                }
+
+                self.lex.has_newline_before = true;
+                self.expect(Token::RBrace)?;
+
+                self.nodes.insert(Node::Switch(ast::Switch {
+                    expr,
+                    cases: cases.into_boxed_slice(),
+                }))
+            }
+            Token::RBrace | Token::KeywordDefault | Token::KeywordCase | Token::EOF => {
+                Node::empty()
+            }
             Token::Semi => {
                 self.lex.next();
                 self.lex.has_newline_before = true;
@@ -663,7 +711,9 @@ impl<'a> Parser<'a> {
         self.lex.has_newline_before = true;
 
         loop {
-            if self.lex.token == Token::RBrace || self.lex.token == Token::EOF {
+            if let Token::RBrace | Token::KeywordCase | Token::KeywordDefault | Token::EOF =
+                self.lex.token
+            {
                 break;
             }
 

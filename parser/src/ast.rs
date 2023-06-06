@@ -93,6 +93,24 @@ pub struct Else {
 }
 
 #[derive(Debug)]
+pub struct Switch {
+    pub expr: NodeRef,
+    pub cases: Box<[Case]>,
+}
+
+#[derive(Debug)]
+pub struct Case {
+    /// Empty if default case
+    pub value: NodeRef,
+    pub nodes: Box<[NodeRef]>,
+}
+
+#[derive(Debug)]
+pub struct Block {
+    pub nodes: Box<[NodeRef]>,
+}
+
+#[derive(Debug)]
 pub enum Node {
     /// Do not construct manually. Obtain a [`NodeRef`] with [`Node::empty()`].
     Empty,
@@ -139,6 +157,8 @@ pub enum Node {
     While(While),
     If(If),
     Else(Else),
+    Switch(Switch),
+    Block(Block),
 }
 
 impl Node {
