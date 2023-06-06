@@ -223,7 +223,7 @@ impl<'a> Parser<'a> {
                 self.nodes.insert(Node::Function(ast::Function {
                     name,
                     params: params.into_boxed_slice(),
-                    scope: scope.into_boxed_slice(),
+                    scope,
                 }))
             }
             other => {
@@ -243,9 +243,11 @@ impl<'a> Parser<'a> {
                 Token::Arrow => {
                     self.lex.next();
 
-                    let lhs_value = self.nodes.get(lhs);
+                    let Some(lhs_value) = self.nodes.get(lhs) else {
+                        unreachable!();
+                    };
 
-                    let Some(Node::Ident(_)) = lhs_value else {
+                    let Node::Ident(_) = lhs_value else {
                         break;
                     };
 
@@ -256,7 +258,7 @@ impl<'a> Parser<'a> {
                             is_function: true,
                         })?;
                         self.expect(Token::RBrace)?;
-                        scope.into_boxed_slice()
+                        scope
                     } else {
                         Box::new([self.parse_expr(1)?])
                     };
@@ -413,7 +415,7 @@ impl<'a> Parser<'a> {
     }
 
     #[inline]
-    pub fn parse_global_scope(&mut self) -> Result<Vec<NodeRef>> {
+    pub fn parse_global_scope(&mut self) -> Result<Box<[NodeRef]>> {
         self.parse_scope(ScopeState {
             is_function: false,
             is_loop: false,
@@ -448,7 +450,7 @@ impl<'a> Parser<'a> {
         Ok(Decl { binding, value })
     }
 
-    fn parse_scope(&mut self, state: ScopeState) -> Result<Vec<NodeRef>> {
+    fn parse_scope(&mut self, state: ScopeState) -> Result<Box<[NodeRef]>> {
         let mut scope = Vec::new();
         self.lex.has_newline_before = true;
 
@@ -500,6 +502,60 @@ impl<'a> Parser<'a> {
                         return Err(());
                     }
                 }
+                Token::KeywordFor => {
+                    self.lex.next();
+                    self.expect(Token::LParen)?;
+
+                    let init = match self.lex.token {
+                        Token::Semi => Node::empty(),
+                        Token::KeywordVar => {
+                            self.lex.next();
+                            let decl = self.parse_decl_body()?;
+                            self.nodes.insert(Node::VarDecl(decl))
+                        }
+                        Token::KeywordLet => {
+                            self.lex.next();
+                            let decl = self.parse_decl_body()?;
+                            self.nodes.insert(Node::LetDecl(decl))
+                        }
+                        Token::KeywordConst => {
+                            self.lex.next();
+                            let decl = self.parse_decl_body()?;
+                            self.nodes.insert(Node::ConstDecl(decl))
+                        }
+                        _ => self.parse_expr(0)?,
+                    };
+                    self.expect(Token::Semi)?;
+
+                    let condition = if self.lex.token == Token::Semi {
+                        Node::empty()
+                    } else {
+                        self.parse_expr(0)?
+                    };
+                    self.expect(Token::Semi)?;
+
+                    let action = if self.lex.token == Token::RParen {
+                        Node::empty()
+                    } else {
+                        self.parse_expr(0)?
+                    };
+                    self.expect(Token::RParen)?;
+
+                    self.expect(Token::LBrace)?;
+                    let nodes = self.parse_scope(ScopeState {
+                        is_loop: true,
+                        ..state
+                    })?;
+                    self.expect(Token::RBrace)?;
+                    self.lex.has_newline_before = true;
+
+                    scope.push(self.nodes.insert(Node::For(ast::For {
+                        init,
+                        condition,
+                        action,
+                        nodes,
+                    })));
+                }
                 Token::RBrace | Token::EOF => break,
                 Token::Semi => {
                     self.lex.next();
@@ -511,7 +567,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        Ok(scope)
+        Ok(scope.into_boxed_slice())
     }
 }
 

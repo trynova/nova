@@ -60,8 +60,16 @@ pub struct Ternary {
 }
 
 #[derive(Debug)]
+pub struct For {
+    pub init: NodeRef,
+    pub condition: NodeRef,
+    pub action: NodeRef,
+    pub nodes: Box<[NodeRef]>,
+}
+
+#[derive(Debug)]
 pub enum Node {
-    /// Do not construct manually. Achieve a [`NodeRef`] with [`Node::empty()`].
+    /// Do not construct manually. Obtain a [`NodeRef`] with [`Node::empty()`].
     Empty,
     VarDecl(Decl),
     LetDecl(Decl),
@@ -96,6 +104,7 @@ pub enum Node {
     Function(Function),
     AsyncFunction(Function),
     ArrowFunction(Function),
+    For(For),
 }
 
 impl Node {
