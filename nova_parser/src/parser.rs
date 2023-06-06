@@ -59,12 +59,63 @@ impl<'a> Parser<'a> {
 
     fn parse_binding(&mut self) -> Result<NodeRef> {
         match self.lex.token {
-            // TODO: implement destructuring
             Token::Ident => {
                 let source_ref = self.take();
                 Ok(self.nodes.insert(Node::Ident(source_ref)))
             }
-            _ => Err(()),
+            Token::LBrack => {
+                self.lex.next();
+                let mut values = Vec::new();
+
+                loop {
+                    match self.lex.token {
+                        Token::RBrack => break,
+                        Token::Comma => {
+                            self.lex.next();
+                            values.push(Node::empty());
+                        }
+                        Token::Spread => {
+                            self.lex.next();
+                            let value = self.parse_binding()?;
+                            values.push(self.nodes.insert(Node::Spread(value)));
+
+                            if self.lex.token != Token::RBrack {
+                                eprintln!("Rest element must be last element.");
+                                return Err(());
+                            }
+                            break;
+                        }
+                        _ => {
+                            let binding = self.parse_binding()?;
+                            if self.lex.token == Token::Equal {
+                                self.lex.next();
+                                let default = self.parse_expr(1)?;
+                                values.push(self.nodes.insert(Node::Assign(ast::BinaryOp {
+                                    lhs: binding,
+                                    rhs: default,
+                                })));
+                            } else {
+                                values.push(binding);
+                            }
+
+                            if self.lex.token != Token::Comma {
+                                break;
+                            }
+                            self.lex.next();
+                        }
+                    }
+                }
+
+                self.expect(Token::RBrack)?;
+
+                Ok(self.nodes.insert(Node::Array(ast::Array {
+                    values: values.into_boxed_slice(),
+                })))
+            }
+            _ => {
+                eprintln!("Invalid left-hand side in assignment");
+                Err(())
+            }
         }
     }
 
