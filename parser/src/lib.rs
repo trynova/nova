@@ -268,6 +268,72 @@ impl<'a> Parser<'a> {
                     scope,
                 }))
             }
+            Token::LBrace => {
+                self.lex.next();
+                let mut entries = Vec::new();
+
+                loop {
+                    match self.lex.token {
+                        Token::Spread => {
+                            self.lex.next();
+                            let value = self.parse_expr(1)?;
+                            entries.push(self.nodes.insert(Node::Spread(value)));
+                        }
+                        Token::String => {
+                            let name = {
+                                let full = self.take();
+                                SourceRef {
+                                    start: full.start + 1,
+                                    end: full.end - 1,
+                                }
+                            };
+                            self.expect(Token::Colon)?;
+                            let value = self.parse_expr(1)?;
+                            let name = self.nodes.insert(Node::String(name));
+                            entries.push(
+                                self.nodes
+                                    .insert(Node::Entry(ast::ObjectEntry { name, value })),
+                            );
+                        }
+                        Token::Ident => {
+                            let name = self.take();
+                            let value = if let Token::RBrace | Token::Comma = self.lex.token {
+                                Node::empty()
+                            } else {
+                                self.expect(Token::Colon)?;
+                                self.parse_expr(1)?
+                            };
+                            let name = self.nodes.insert(Node::String(name));
+                            entries.push(
+                                self.nodes
+                                    .insert(Node::Entry(ast::ObjectEntry { name, value })),
+                            )
+                        }
+                        Token::LBrack => {
+                            self.lex.next();
+                            let name = self.parse_expr(1)?;
+                            self.expect(Token::RBrack)?;
+                            self.expect(Token::Colon)?;
+                            let value = self.parse_expr(1)?;
+                            entries.push(
+                                self.nodes
+                                    .insert(Node::Entry(ast::ObjectEntry { name, value })),
+                            );
+                        }
+                        _ => break,
+                    }
+
+                    if self.lex.token != Token::Comma {
+                        break;
+                    }
+                    self.lex.next();
+                }
+
+                self.expect(Token::RBrace)?;
+                self.nodes.insert(Node::Object(ast::Object {
+                    entries: entries.into_boxed_slice(),
+                }))
+            }
             other => {
                 eprintln!("Expected expression, found {other:?}.");
                 return Err(());

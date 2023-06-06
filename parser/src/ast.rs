@@ -111,6 +111,22 @@ pub struct Block {
 }
 
 #[derive(Debug)]
+pub struct Object {
+    /// [`Node::ObjectEntry`] or [`Node::Spread`]
+    pub entries: Box<[NodeRef]>,
+}
+
+#[derive(Debug)]
+pub struct ObjectEntry {
+    /// [`Node::String`] or any other expression if computed. Idents are
+    /// normalized into strings due to ambiguity between binding idents or the
+    /// property name.
+    pub name: NodeRef,
+    /// Empty when using shorthand `{ foo }`.
+    pub value: NodeRef,
+}
+
+#[derive(Debug)]
 pub enum Node {
     /// Do not construct manually. Obtain a [`NodeRef`] with [`Node::empty()`].
     Empty,
@@ -161,6 +177,8 @@ pub enum Node {
     Else(Else),
     Switch(Switch),
     Block(Block),
+    Object(Object),
+    Entry(ObjectEntry),
 }
 
 impl Node {
