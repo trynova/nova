@@ -11,7 +11,7 @@ pub struct Parser<'a> {
 
 type Result<T> = std::result::Result<T, ()>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(packed)]
 struct ScopeState {
     pub is_loop: bool,
@@ -450,6 +450,165 @@ impl<'a> Parser<'a> {
         Ok(Decl { binding, value })
     }
 
+    #[inline]
+    fn parse_stmt(&mut self, state: ScopeState) -> Result<NodeRef> {
+        Ok(match self.lex.token {
+            Token::Ident => {
+                let source_ref = self.take();
+
+                if self.lex.token == Token::Colon {
+                    self.lex.next();
+                    let stmt = self.parse_stmt(state)?;
+                    self.nodes.insert(Node::Label(ast::Label {
+                        name: source_ref,
+                        stmt,
+                    }))
+                } else {
+                    self.lex.index = source_ref.start as usize;
+                    self.lex.next();
+                    self.lex.has_newline_before = true;
+                    self.parse_expr(1)?
+                }
+            }
+            Token::KeywordVar => {
+                self.lex.next();
+                let decl = self.parse_decl_body()?;
+                self.nodes.insert(Node::VarDecl(decl))
+            }
+            Token::KeywordLet => {
+                self.lex.next();
+                let decl = self.parse_decl_body()?;
+                self.nodes.insert(Node::LetDecl(decl))
+            }
+            Token::KeywordConst => {
+                self.lex.next();
+                let decl = self.parse_decl_body()?;
+                self.nodes.insert(Node::ConstDecl(decl))
+            }
+            Token::KeywordThrow => {
+                self.lex.next();
+                let value = self.parse_expr(1)?;
+                self.nodes.insert(Node::Throw(value))
+            }
+            Token::KeywordContinue => {
+                self.lex.next();
+                let label = if !self.lex.has_newline_before && self.lex.token == Token::Ident {
+                    let source_ref = self.take();
+                    self.nodes.insert(Node::Ident(source_ref))
+                } else {
+                    Node::empty()
+                };
+                self.nodes.insert(Node::Continue(label))
+            }
+            Token::KeywordBreak => {
+                self.lex.next();
+                let label = if !self.lex.has_newline_before && self.lex.token == Token::Ident {
+                    let source_ref = self.take();
+                    self.nodes.insert(Node::Ident(source_ref))
+                } else {
+                    Node::empty()
+                };
+                self.nodes.insert(Node::Break(label))
+            }
+            Token::KeywordReturn => 'blk: {
+                self.lex.next();
+
+                // We can simply report this later.
+                if !state.is_function {
+                    return Err(());
+                }
+
+                if self.lex.has_newline_before {
+                    break 'blk self.nodes.insert(Node::Return(Node::empty()));
+                }
+
+                if self.lex.token == Token::Semi {
+                    self.lex.next();
+                    break 'blk self.nodes.insert(Node::Return(Node::empty()));
+                }
+
+                let value = self.parse_expr(1)?;
+                self.nodes.insert(Node::Return(value))
+            }
+            Token::KeywordFor => {
+                self.lex.next();
+                self.expect(Token::LParen)?;
+
+                let init = match self.lex.token {
+                    Token::Semi => Node::empty(),
+                    Token::KeywordVar => {
+                        self.lex.next();
+                        let decl = self.parse_decl_body()?;
+                        self.nodes.insert(Node::VarDecl(decl))
+                    }
+                    Token::KeywordLet => {
+                        self.lex.next();
+                        let decl = self.parse_decl_body()?;
+                        self.nodes.insert(Node::LetDecl(decl))
+                    }
+                    Token::KeywordConst => {
+                        self.lex.next();
+                        let decl = self.parse_decl_body()?;
+                        self.nodes.insert(Node::ConstDecl(decl))
+                    }
+                    _ => self.parse_expr(0)?,
+                };
+                self.expect(Token::Semi)?;
+
+                let condition = if self.lex.token == Token::Semi {
+                    Node::empty()
+                } else {
+                    self.parse_expr(0)?
+                };
+                self.expect(Token::Semi)?;
+
+                let action = if self.lex.token == Token::RParen {
+                    Node::empty()
+                } else {
+                    self.parse_expr(0)?
+                };
+                self.expect(Token::RParen)?;
+
+                self.expect(Token::LBrace)?;
+                let nodes = self.parse_scope(ScopeState {
+                    is_loop: true,
+                    ..state
+                })?;
+                self.expect(Token::RBrace)?;
+                self.lex.has_newline_before = true;
+
+                self.nodes.insert(Node::For(ast::For {
+                    init,
+                    condition,
+                    action,
+                    nodes,
+                }))
+            }
+            Token::KeywordWhile => {
+                self.lex.next();
+                self.expect(Token::LParen)?;
+                let condition = self.parse_expr(1)?;
+                self.expect(Token::RParen)?;
+                self.expect(Token::LBrace)?;
+                let nodes = self.parse_scope(ScopeState {
+                    is_loop: true,
+                    ..state
+                })?;
+                self.expect(Token::RBrace)?;
+
+                self.nodes
+                    .insert(Node::While(ast::While { condition, nodes }))
+            }
+            Token::RBrace | Token::EOF => Node::empty(),
+            Token::Semi => {
+                self.lex.next();
+                self.lex.has_newline_before = true;
+                return self.parse_stmt(state);
+            }
+            _ => return self.parse_expr(1),
+        })
+    }
+
     fn parse_scope(&mut self, state: ScopeState) -> Result<Box<[NodeRef]>> {
         let mut scope = Vec::new();
         self.lex.has_newline_before = true;
@@ -461,127 +620,11 @@ impl<'a> Parser<'a> {
 
             self.expect_valid_terminator()?;
 
-            match self.lex.token {
-                Token::KeywordVar => {
-                    self.lex.next();
-                    let decl = self.parse_decl_body()?;
-                    scope.push(self.nodes.insert(Node::VarDecl(decl)));
-                }
-                Token::KeywordLet => {
-                    self.lex.next();
-                    let decl = self.parse_decl_body()?;
-                    scope.push(self.nodes.insert(Node::LetDecl(decl)));
-                }
-                Token::KeywordConst => {
-                    self.lex.next();
-                    let decl = self.parse_decl_body()?;
-                    scope.push(self.nodes.insert(Node::ConstDecl(decl)));
-                }
-                Token::KeywordIf => {
-                    self.lex.next();
-                }
-                Token::KeywordReturn => 'blk: {
-                    self.lex.next();
-
-                    if self.lex.has_newline_before {
-                        scope.push(self.nodes.insert(Node::Return(Node::empty())));
-                        break 'blk;
-                    }
-
-                    if self.lex.token == Token::Semi {
-                        self.lex.next();
-                        scope.push(self.nodes.insert(Node::Return(Node::empty())));
-                        break 'blk;
-                    }
-
-                    let value = self.parse_expr(1)?;
-                    scope.push(self.nodes.insert(Node::Return(value)));
-
-                    // We can simply report this later.
-                    if !state.is_function {
-                        return Err(());
-                    }
-                }
-                Token::KeywordFor => {
-                    self.lex.next();
-                    self.expect(Token::LParen)?;
-
-                    let init = match self.lex.token {
-                        Token::Semi => Node::empty(),
-                        Token::KeywordVar => {
-                            self.lex.next();
-                            let decl = self.parse_decl_body()?;
-                            self.nodes.insert(Node::VarDecl(decl))
-                        }
-                        Token::KeywordLet => {
-                            self.lex.next();
-                            let decl = self.parse_decl_body()?;
-                            self.nodes.insert(Node::LetDecl(decl))
-                        }
-                        Token::KeywordConst => {
-                            self.lex.next();
-                            let decl = self.parse_decl_body()?;
-                            self.nodes.insert(Node::ConstDecl(decl))
-                        }
-                        _ => self.parse_expr(0)?,
-                    };
-                    self.expect(Token::Semi)?;
-
-                    let condition = if self.lex.token == Token::Semi {
-                        Node::empty()
-                    } else {
-                        self.parse_expr(0)?
-                    };
-                    self.expect(Token::Semi)?;
-
-                    let action = if self.lex.token == Token::RParen {
-                        Node::empty()
-                    } else {
-                        self.parse_expr(0)?
-                    };
-                    self.expect(Token::RParen)?;
-
-                    self.expect(Token::LBrace)?;
-                    let nodes = self.parse_scope(ScopeState {
-                        is_loop: true,
-                        ..state
-                    })?;
-                    self.expect(Token::RBrace)?;
-                    self.lex.has_newline_before = true;
-
-                    scope.push(self.nodes.insert(Node::For(ast::For {
-                        init,
-                        condition,
-                        action,
-                        nodes,
-                    })));
-                }
-                Token::KeywordWhile => {
-                    self.lex.next();
-                    self.expect(Token::LParen)?;
-                    let condition = self.parse_expr(1)?;
-                    self.expect(Token::RParen)?;
-                    self.expect(Token::LBrace)?;
-                    let nodes = self.parse_scope(ScopeState {
-                        is_loop: true,
-                        ..state
-                    })?;
-                    self.expect(Token::RBrace)?;
-
-                    scope.push(
-                        self.nodes
-                            .insert(Node::While(ast::While { condition, nodes })),
-                    );
-                }
-                Token::RBrace | Token::EOF => break,
-                Token::Semi => {
-                    self.lex.next();
-                    self.lex.has_newline_before = true;
-                }
-                _ => {
-                    scope.push(self.parse_expr(1)?);
-                }
+            let stmt = self.parse_stmt(state)?;
+            if stmt == Node::empty() {
+                break;
             }
+            scope.push(stmt);
         }
 
         Ok(scope.into_boxed_slice())

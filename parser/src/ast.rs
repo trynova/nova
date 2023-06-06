@@ -74,6 +74,12 @@ pub struct While {
 }
 
 #[derive(Debug)]
+pub struct Label {
+    pub name: SourceRef,
+    pub stmt: NodeRef,
+}
+
+#[derive(Debug)]
 pub enum Node {
     /// Do not construct manually. Obtain a [`NodeRef`] with [`Node::empty()`].
     Empty,
@@ -105,6 +111,12 @@ pub enum Node {
     Group(BinaryOp),
     /// May be empty.
     Return(NodeRef),
+    Label(Label),
+    Throw(NodeRef),
+    /// [`Node::Ident`] for the label or empty
+    Continue(NodeRef),
+    /// [`Node::Ident`] for the label or empty
+    Break(NodeRef),
     Spread(NodeRef),
     Param(Param),
     Function(Function),
