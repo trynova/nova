@@ -153,7 +153,8 @@ impl Token {
             | Token::AndAssign
             | Token::OrAssign
             | Token::NullishAssign
-            | Token::Arrow => 2,
+            | Token::Arrow
+            | Token::Ternary => 2,
             Token::Comma => 1,
             _ => 0,
         }

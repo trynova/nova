@@ -7,8 +7,10 @@ pub struct SourceRef {
 }
 
 #[derive(Debug)]
-pub enum Decl {
-    Ident(SourceRef),
+pub struct Decl {
+    pub binding: NodeRef,
+    // May be empty.
+    pub value: NodeRef,
 }
 
 #[derive(Debug)]
@@ -51,17 +53,19 @@ pub struct Array {
 }
 
 #[derive(Debug)]
+pub struct Ternary {
+    pub condition: NodeRef,
+    pub positive: NodeRef,
+    pub negative: NodeRef,
+}
+
+#[derive(Debug)]
 pub enum Node {
     /// Do not construct manually. Achieve a [`NodeRef`] with [`Node::empty()`].
     Empty,
-    LetDecl {
-        decl: NodeRef,
-        value: NodeRef,
-    },
-    ConstDecl {
-        decl: NodeRef,
-        value: NodeRef,
-    },
+    VarDecl(Decl),
+    LetDecl(Decl),
+    ConstDecl(Decl),
     True(SourceRef),
     False(SourceRef),
     Null(SourceRef),
@@ -75,6 +79,11 @@ pub enum Node {
     Mul(BinaryOp),
     Mod(BinaryOp),
     Div(BinaryOp),
+    Member(BinaryOp),
+    /// a?.b
+    OptionalChain(BinaryOp),
+    OptionalCall(Call),
+    Ternary(Ternary),
     Array(Array),
     Call(Call),
     Index(Index),
@@ -91,6 +100,7 @@ pub enum Node {
 
 impl Node {
     /// A reference to the `Node::Empty` node in the arena.
+    #[inline]
     pub fn empty() -> NodeRef {
         // This is ensured to be at index 0 in the parser.
         generational_arena::Index::from_raw_parts(0, 0)

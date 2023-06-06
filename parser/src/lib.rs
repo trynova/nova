@@ -22,7 +22,6 @@ impl<'a> Parser<'a> {
     pub fn new(source: &'a str) -> Self {
         let mut stream = TokenStream::new(source);
         stream.next();
-        stream.has_newline_before = true;
 
         let mut arena = Arena::new();
         let empty_idx = arena.insert(Node::Empty);
@@ -270,8 +269,59 @@ impl<'a> Parser<'a> {
                 }
                 Token::Equal => {
                     self.lex.next();
+                    // TODO: validate lhs as assignment expr
                     let rhs = self.parse_expr(power)?;
                     lhs = self.nodes.insert(Node::Assign(ast::BinaryOp { lhs, rhs }));
+                }
+                Token::Dot => {
+                    self.lex.next();
+                    // TODO: validate lhs as member expr
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self.nodes.insert(Node::Member(ast::BinaryOp { lhs, rhs }));
+                }
+                Token::OptionalChain => 'blk: {
+                    self.lex.next();
+                    // TODO: validate lhs as member expr
+
+                    if self.lex.token != Token::LParen {
+                        // foo?.b
+                        let rhs = self.parse_expr(power)?;
+                        lhs = self
+                            .nodes
+                            .insert(Node::OptionalChain(ast::BinaryOp { lhs, rhs }));
+                        break 'blk;
+                    }
+
+                    // foo?.()
+                    self.lex.next();
+                    let mut args = Vec::new();
+
+                    loop {
+                        if self.lex.token == Token::RParen {
+                            break;
+                        }
+
+                        if self.lex.token == Token::Spread {
+                            self.lex.next();
+                            let value = self.parse_expr(1)?;
+                            args.push(self.nodes.insert(Node::Spread(value)));
+                        } else {
+                            args.push(self.parse_expr(1)?);
+                        }
+
+                        if self.lex.token != Token::Comma {
+                            break;
+                        }
+
+                        self.lex.next();
+                    }
+
+                    self.expect(Token::RParen)?;
+
+                    lhs = self.nodes.insert(Node::OptionalCall(Call {
+                        callee: lhs,
+                        args: args.into_boxed_slice(),
+                    }));
                 }
                 Token::Comma => {
                     self.lex.next();
@@ -342,6 +392,19 @@ impl<'a> Parser<'a> {
                         args: args.into_boxed_slice(),
                     }));
                 }
+                Token::Ternary => {
+                    self.lex.next();
+
+                    let positive = self.parse_expr(1)?;
+                    self.expect(Token::Colon)?;
+                    let negative = self.parse_expr(1)?;
+
+                    lhs = self.nodes.insert(Node::Ternary(ast::Ternary {
+                        condition: lhs,
+                        positive,
+                        negative,
+                    }));
+                }
                 _ => return Err(()),
             }
         }
@@ -372,8 +435,22 @@ impl<'a> Parser<'a> {
         }
     }
 
+    #[inline]
+    fn parse_decl_body(&mut self) -> Result<Decl> {
+        let binding = self.parse_binding()?;
+        let value = if self.lex.token == Token::Equal {
+            self.lex.next();
+            self.parse_expr(1)?
+        } else {
+            Node::empty()
+        };
+        // TODO: support commas separating declarations
+        Ok(Decl { binding, value })
+    }
+
     fn parse_scope(&mut self, state: ScopeState) -> Result<Vec<NodeRef>> {
         let mut scope = Vec::new();
+        self.lex.has_newline_before = true;
 
         loop {
             if self.lex.token == Token::RBrace || self.lex.token == Token::EOF {
@@ -383,21 +460,23 @@ impl<'a> Parser<'a> {
             self.expect_valid_terminator()?;
 
             match self.lex.token {
+                Token::KeywordVar => {
+                    self.lex.next();
+                    let decl = self.parse_decl_body()?;
+                    scope.push(self.nodes.insert(Node::VarDecl(decl)));
+                }
                 Token::KeywordLet => {
                     self.lex.next();
-                    let name = self.eat(Token::Ident)?;
-                    let decl = self.nodes.insert(Node::Decl(Decl::Ident(name)));
-                    self.expect(Token::Equal)?;
-                    let value = self.parse_expr(1)?;
-                    scope.push(self.nodes.insert(Node::LetDecl { decl, value }));
+                    let decl = self.parse_decl_body()?;
+                    scope.push(self.nodes.insert(Node::LetDecl(decl)));
                 }
                 Token::KeywordConst => {
                     self.lex.next();
-                    let name = self.eat(Token::Ident)?;
-                    let decl = self.nodes.insert(Node::Decl(Decl::Ident(name)));
-                    self.expect(Token::Equal)?;
-                    let value = self.parse_expr(1)?;
-                    scope.push(self.nodes.insert(Node::ConstDecl { decl, value }));
+                    let decl = self.parse_decl_body()?;
+                    scope.push(self.nodes.insert(Node::ConstDecl(decl)));
+                }
+                Token::KeywordIf => {
+                    self.lex.next();
                 }
                 Token::KeywordReturn => 'blk: {
                     self.lex.next();
