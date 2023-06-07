@@ -157,6 +157,7 @@ pub enum Node {
     New(NodeRef),
     Index(Index),
     Paren(NodeRef),
+    ParenList(Box<[NodeRef]>),
     Group(BinaryOp),
     /// May be empty.
     Return(NodeRef),

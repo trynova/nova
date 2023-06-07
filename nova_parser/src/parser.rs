@@ -170,39 +170,16 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn validate_arrow_func_params(&mut self, maybe_group_idx: NodeRef) -> Result<Box<[NodeRef]>> {
-        let mut params = Vec::new();
-        let mut cur_id = maybe_group_idx;
-        let mut has_rest = false;
-        loop {
-            let param = match self.nodes.get(cur_id).unwrap() {
-                Node::Group(inner) => {
-                    cur_id = inner.lhs;
-                    inner.rhs
-                }
-                _ => {
-                    let old_id = cur_id;
-                    cur_id = Node::empty();
-                    old_id
-                }
-            };
-
+    fn validate_arrow_func_params(&mut self, params: &[NodeRef]) -> Result<()> {
+        for &param in params {
             match self.nodes.get(param).unwrap() {
                 Node::Spread(value) => {
                     let value = self.nodes.get(*value).unwrap();
 
-                    if let Node::Ident(_) = value {
-                    } else {
+                    if !matches!(value, Node::Ident(_)) {
                         eprintln!("Invalid arrow function parameters");
                         return Err(());
                     }
-
-                    if has_rest {
-                        eprintln!("Rest parameter must be last formal parameter");
-                        return Err(());
-                    }
-
-                    has_rest = true;
                 }
                 Node::Ident(_) | Node::Assign(_) => {}
                 _ => {
@@ -210,16 +187,9 @@ impl<'a> Parser<'a> {
                     return Err(());
                 }
             }
-
-            params.push(param);
-
-            if cur_id == Node::empty() {
-                break;
-            }
         }
 
-        params.reverse();
-        Ok(params.into_boxed_slice())
+        Ok(())
     }
 
     fn validate_member_root(&self, node: NodeRef) -> Result<()> {
@@ -239,6 +209,20 @@ impl<'a> Parser<'a> {
         }
 
         Ok(())
+    }
+
+    fn parse_arrow_func_body(&mut self) -> Result<Box<[NodeRef]>> {
+        Ok(if self.lex.token == Token::LBrace {
+            self.lex.next();
+            let nodes = self.parse_scope(ScopeState {
+                is_loop: false,
+                is_function: true,
+            })?;
+            self.expect(Token::RBrace)?;
+            nodes
+        } else {
+            Box::new([self.parse_expr(1)?])
+        })
     }
 
     /// Takes in the highest power of the expression before.
@@ -278,17 +262,7 @@ impl<'a> Parser<'a> {
                     self.lex.next();
                     self.expect(Token::Arrow)?;
 
-                    let nodes = if self.lex.token == Token::LBrace {
-                        self.lex.next();
-                        let nodes = self.parse_scope(ScopeState {
-                            is_loop: false,
-                            is_function: true,
-                        })?;
-                        self.expect(Token::RBrace)?;
-                        nodes
-                    } else {
-                        Box::new([self.parse_expr(1)?])
-                    };
+                    let nodes = self.parse_arrow_func_body()?;
 
                     self.nodes.insert(ast::Node::ArrowFunction(ast::Function {
                         name: Node::empty(),
@@ -296,9 +270,70 @@ impl<'a> Parser<'a> {
                         scope: nodes,
                     }))
                 } else {
-                    let node = self.parse_expr(0)?;
-                    self.expect(Token::RParen)?;
-                    self.nodes.insert(Node::Paren(node))
+                    let node = self.parse_expr(1)?;
+                    match self.lex.token {
+                        Token::RParen => self.nodes.insert(Node::Paren(node)),
+                        Token::Comma => {
+                            self.lex.next();
+
+                            let mut nodes = vec![node];
+                            let mut has_rest = false;
+
+                            loop {
+                                if self.lex.token == Token::RParen {
+                                    break;
+                                }
+
+                                match self.lex.token {
+                                    Token::Spread => {
+                                        self.lex.next();
+                                        let value = self.parse_expr(1)?;
+                                        nodes.push(self.nodes.insert(Node::Spread(value)));
+
+                                        if self.lex.token != Token::RParen {
+                                            eprintln!(
+                                                "Rest parameter must be last formal parameter"
+                                            );
+                                            return Err(());
+                                        }
+                                        has_rest = true;
+                                        break;
+                                    }
+                                    _ => nodes.push(self.parse_expr(1)?),
+                                }
+
+                                if self.lex.token != Token::Comma {
+                                    break;
+                                }
+                                self.lex.next();
+                            }
+
+                            self.expect(Token::RParen)?;
+
+                            if self.lex.token == Token::Arrow {
+                                self.lex.next();
+                                let scope = self.parse_arrow_func_body()?;
+
+                                self.validate_arrow_func_params(&nodes)?;
+
+                                self.nodes.insert(Node::ArrowFunction(ast::Function {
+                                    name: Node::empty(),
+                                    params: nodes.into_boxed_slice(),
+                                    scope,
+                                }))
+                            } else {
+                                if has_rest {
+                                    eprintln!("Unexpected token '...'");
+                                    return Err(());
+                                }
+                                self.nodes.insert(Node::ParenList(nodes.into_boxed_slice()))
+                            }
+                        }
+                        _ => {
+                            self.expect(Token::RParen)?;
+                            unreachable!();
+                        }
+                    }
                 }
             }
             Token::LBrack => {
@@ -521,17 +556,7 @@ impl<'a> Parser<'a> {
 
                     match lhs_value {
                         Node::Ident(_) => {
-                            let scope = if self.lex.token == Token::LBrace {
-                                self.lex.next();
-                                let scope = self.parse_scope(ScopeState {
-                                    is_loop: false,
-                                    is_function: true,
-                                })?;
-                                self.expect(Token::RBrace)?;
-                                scope
-                            } else {
-                                Box::new([self.parse_expr(1)?])
-                            };
+                            let scope = self.parse_arrow_func_body()?;
 
                             lhs = self.nodes.insert(Node::ArrowFunction(ast::Function {
                                 name: Node::empty(),
@@ -540,19 +565,10 @@ impl<'a> Parser<'a> {
                             }));
                         }
                         Node::Paren(group_idx) => {
-                            let params = self.validate_arrow_func_params(*group_idx)?;
+                            let params = Box::new([*group_idx]);
+                            self.validate_arrow_func_params(params.as_slice())?;
 
-                            let scope = if self.lex.token == Token::LBrace {
-                                self.lex.next();
-                                let scope = self.parse_scope(ScopeState {
-                                    is_loop: false,
-                                    is_function: true,
-                                })?;
-                                self.expect(Token::RBrace)?;
-                                scope
-                            } else {
-                                Box::new([self.parse_expr(1)?])
-                            };
+                            let scope = self.parse_arrow_func_body()?;
 
                             lhs = self.nodes.insert(Node::ArrowFunction(ast::Function {
                                 name: Node::empty(),
@@ -601,20 +617,6 @@ impl<'a> Parser<'a> {
                         lhs = self
                             .nodes
                             .insert(Node::OptionalCall(Call { callee: lhs, args }));
-                    }
-                }
-                Token::Comma => {
-                    self.lex.next();
-                    if self.lex.token == Token::Spread {
-                        self.lex.next();
-                        let value = self.parse_expr(power)?;
-                        let spread = self.nodes.insert(Node::Spread(value));
-                        lhs = self
-                            .nodes
-                            .insert(Node::Group(ast::BinaryOp { lhs, rhs: spread }));
-                    } else {
-                        let rhs = self.parse_expr(power)?;
-                        lhs = self.nodes.insert(Node::Group(ast::BinaryOp { lhs, rhs }));
                     }
                 }
                 Token::Add => {
