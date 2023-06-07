@@ -127,6 +127,21 @@ pub struct ObjectEntry {
 }
 
 #[derive(Debug)]
+pub struct Try {
+    pub nodes: Box<[NodeRef]>,
+    /// [`Node::Catch`] or empty.
+    pub catch: NodeRef,
+    pub finally: Option<Box<[NodeRef]>>,
+}
+
+#[derive(Debug)]
+pub struct Catch {
+    /// A binding or empty.
+    pub capture: NodeRef,
+    pub nodes: Box<[NodeRef]>,
+}
+
+#[derive(Debug)]
 pub enum Node {
     /// Do not construct manually. Obtain a [`NodeRef`] with [`Node::empty()`].
     Empty,
@@ -216,6 +231,8 @@ pub enum Node {
     Block(Block),
     Object(Object),
     Entry(ObjectEntry),
+    Try(Try),
+    Catch(Catch),
 }
 
 impl Node {

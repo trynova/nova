@@ -1016,6 +1016,54 @@ impl<'a> Parser<'a> {
                     cases: cases.into_boxed_slice(),
                 }))
             }
+            Token::KeywordTry => {
+                self.lex.next();
+                self.expect(Token::LBrace)?;
+                let nodes = self.parse_scope(state)?;
+                self.expect(Token::RBrace)?;
+
+                let catch = if self.lex.token == Token::KeywordCatch {
+                    self.lex.next();
+
+                    let capture = if self.lex.token == Token::LParen {
+                        self.lex.next();
+                        let binding = self.parse_binding()?;
+                        self.expect(Token::RParen)?;
+                        binding
+                    } else {
+                        Node::empty()
+                    };
+
+                    self.expect(Token::LBrace)?;
+                    let nodes = self.parse_scope(state)?;
+                    self.expect(Token::RBrace)?;
+                    self.nodes
+                        .insert(Node::Catch(ast::Catch { capture, nodes }))
+                } else {
+                    Node::empty()
+                };
+
+                let finally = if self.lex.token == Token::KeywordFinally {
+                    self.lex.next();
+                    self.expect(Token::LBrace)?;
+                    let nodes = self.parse_scope(state)?;
+                    self.expect(Token::RBrace)?;
+                    Some(nodes)
+                } else {
+                    None
+                };
+
+                if catch == Node::empty() && finally == None {
+                    eprintln!("Missing catch or finally after try");
+                    return Err(());
+                }
+
+                self.nodes.insert(Node::Try(ast::Try {
+                    nodes,
+                    catch,
+                    finally,
+                }))
+            }
             Token::RBrace | Token::KeywordDefault | Token::KeywordCase | Token::EOF => {
                 Node::empty()
             }
