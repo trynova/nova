@@ -222,6 +222,25 @@ impl<'a> Parser<'a> {
         Ok(params.into_boxed_slice())
     }
 
+    fn validate_member_root(&self, node: NodeRef) -> Result<()> {
+        if !matches!(
+            self.nodes.get(node).unwrap(),
+            Node::Member(_)
+                | Node::OptionalChain(_)
+                | Node::Array(_)
+                | Node::Ident(_)
+                | Node::String(_)
+                | Node::Paren(_)
+                | Node::Call(_)
+                | Node::OptionalCall(_),
+        ) {
+            eprintln!("Invalid member expression");
+            return Err(());
+        }
+
+        Ok(())
+    }
+
     /// Takes in the highest power of the expression before.
     pub fn parse_expr(&mut self, hp: u8) -> Result<NodeRef> {
         let mut lhs = match self.lex.token {
@@ -556,17 +575,7 @@ impl<'a> Parser<'a> {
                 Token::Dot => {
                     self.lex.next();
 
-                    if !matches!(
-                        self.nodes.get(lhs).unwrap(),
-                        Node::Array(_)
-                            | Node::Ident(_)
-                            | Node::String(_)
-                            | Node::Paren(_)
-                            | Node::Call(_),
-                    ) {
-                        eprintln!("Invalid member expression");
-                        return Err(());
-                    }
+                    self.validate_member_root(lhs)?;
 
                     let source_ref = self.eat(Token::Ident)?;
                     let rhs = self.nodes.insert(Node::Ident(source_ref));
@@ -574,24 +583,25 @@ impl<'a> Parser<'a> {
                 }
                 Token::OptionalChain => 'blk: {
                     self.lex.next();
-                    // TODO: validate lhs as member expr
 
                     if self.lex.token != Token::LParen {
                         // foo?.b
-                        let rhs = self.parse_expr(power)?;
+                        self.validate_member_root(lhs)?;
+                        let source_ref = self.eat(Token::Ident)?;
+                        let rhs = self.nodes.insert(Node::Ident(source_ref));
                         lhs = self
                             .nodes
                             .insert(Node::OptionalChain(ast::BinaryOp { lhs, rhs }));
                         break 'blk;
+                    } else {
+                        self.lex.next();
+                        // foo?.()
+
+                        let args = self.parse_call_args()?;
+                        lhs = self
+                            .nodes
+                            .insert(Node::OptionalCall(Call { callee: lhs, args }));
                     }
-                    self.lex.next();
-
-                    // foo?.()
-
-                    let args = self.parse_call_args()?;
-                    lhs = self
-                        .nodes
-                        .insert(Node::OptionalCall(Call { callee: lhs, args }));
                 }
                 Token::Comma => {
                     self.lex.next();
