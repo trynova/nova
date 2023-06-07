@@ -18,6 +18,37 @@ struct ScopeState {
     pub is_function: bool,
 }
 
+macro_rules! impl_parse_decl {
+    ($func_name: ident, $name: ident, $group_name: ident) => {
+        fn $func_name(&mut self) -> Result<NodeRef> {
+            let mut nodes = Vec::with_capacity(1);
+
+            loop {
+                let binding = self.parse_binding()?;
+                let value = if self.lex.token == Token::Equal {
+                    self.lex.next();
+                    self.parse_expr(1)?
+                } else {
+                    Node::empty()
+                };
+                nodes.push(self.nodes.insert(Node::$name(Decl { binding, value })));
+
+                if self.lex.token != Token::Comma {
+                    break;
+                }
+                self.lex.next();
+            }
+
+            Ok(if nodes.len() == 1 {
+                nodes[0]
+            } else {
+                self.nodes
+                    .insert(Node::$group_name(nodes.into_boxed_slice()))
+            })
+        }
+    };
+}
+
 impl<'a> Parser<'a> {
     pub fn new(source: &'a str) -> Self {
         let mut lex = Lexer::new(source);
@@ -745,18 +776,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    #[inline]
-    fn parse_decl_body(&mut self) -> Result<Decl> {
-        let binding = self.parse_binding()?;
-        let value = if self.lex.token == Token::Equal {
-            self.lex.next();
-            self.parse_expr(1)?
-        } else {
-            Node::empty()
-        };
-        // TODO: support commas separating declarations
-        Ok(Decl { binding, value })
-    }
+    impl_parse_decl!(parse_var_decl_body, VarDecl, VarDeclGroup);
+    impl_parse_decl!(parse_let_decl_body, LetDecl, LetDeclGroup);
+    impl_parse_decl!(parse_const_decl_body, ConstDecl, ConstDeclGroup);
 
     fn parse_stmt(&mut self, state: ScopeState) -> Result<NodeRef> {
         Ok(match self.lex.token {
@@ -792,18 +814,15 @@ impl<'a> Parser<'a> {
             }
             Token::KeywordVar => {
                 self.lex.next();
-                let decl = self.parse_decl_body()?;
-                self.nodes.insert(Node::VarDecl(decl))
+                self.parse_var_decl_body()?
             }
             Token::KeywordLet => {
                 self.lex.next();
-                let decl = self.parse_decl_body()?;
-                self.nodes.insert(Node::LetDecl(decl))
+                self.parse_let_decl_body()?
             }
             Token::KeywordConst => {
                 self.lex.next();
-                let decl = self.parse_decl_body()?;
-                self.nodes.insert(Node::ConstDecl(decl))
+                self.parse_const_decl_body()?
             }
             Token::KeywordThrow => {
                 self.lex.next();
@@ -858,18 +877,15 @@ impl<'a> Parser<'a> {
                     Token::Semi => Node::empty(),
                     Token::KeywordVar => {
                         self.lex.next();
-                        let decl = self.parse_decl_body()?;
-                        self.nodes.insert(Node::VarDecl(decl))
+                        self.parse_var_decl_body()?
                     }
                     Token::KeywordLet => {
                         self.lex.next();
-                        let decl = self.parse_decl_body()?;
-                        self.nodes.insert(Node::LetDecl(decl))
+                        self.parse_let_decl_body()?
                     }
                     Token::KeywordConst => {
                         self.lex.next();
-                        let decl = self.parse_decl_body()?;
-                        self.nodes.insert(Node::ConstDecl(decl))
+                        self.parse_const_decl_body()?
                     }
                     _ => self.parse_expr(0)?,
                 };
