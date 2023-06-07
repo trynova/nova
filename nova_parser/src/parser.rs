@@ -288,6 +288,21 @@ impl<'a> Parser<'a> {
                 let source_ref = self.take();
                 self.nodes.insert(Node::Number(source_ref))
             }
+            Token::KeywordTypeOf => {
+                self.lex.next();
+                let value = self.parse_expr(14)?;
+                self.nodes.insert(Node::TypeOf(value))
+            }
+            Token::KeywordInstanceOf => {
+                self.lex.next();
+                let value = self.parse_expr(14)?;
+                self.nodes.insert(Node::InstanceOf(value))
+            }
+            Token::KeywordVoid => {
+                self.lex.next();
+                let value = self.parse_expr(14)?;
+                self.nodes.insert(Node::Void(value))
+            }
             Token::LParen => {
                 self.lex.next();
 
@@ -305,7 +320,10 @@ impl<'a> Parser<'a> {
                 } else {
                     let node = self.parse_expr(1)?;
                     match self.lex.token {
-                        Token::RParen => self.nodes.insert(Node::Paren(node)),
+                        Token::RParen => {
+                            self.lex.next();
+                            self.nodes.insert(Node::Paren(node))
+                        }
                         Token::Comma => {
                             self.lex.next();
 
@@ -663,7 +681,18 @@ impl<'a> Parser<'a> {
                 Token::Mul => binary_op!(Mul),
                 Token::Mod => binary_op!(Mod),
                 Token::Div => binary_op!(Div),
-                Token::Pow => binary_op!(Pow),
+                Token::Pow => {
+                    self.lex.next();
+                    if matches!(
+                        self.nodes.get(lhs).unwrap(),
+                        Node::InstanceOf(_) | Node::TypeOf(_) | Node::Void(_)
+                    ) {
+                        eprintln!("Unary operator used immediately before exponentiation expression. Parenthesis must be used to disambiguate operator precedence");
+                        return Err(());
+                    }
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self.nodes.insert(Node::Pow(ast::BinaryOp { lhs, rhs }));
+                }
                 Token::ShiftLeft => binary_op!(ShiftLeft),
                 Token::ShiftRight => binary_op!(ShiftRight),
                 Token::UShiftRight => binary_op!(UShiftRight),
@@ -828,6 +857,11 @@ impl<'a> Parser<'a> {
                 self.lex.next();
                 let value = self.parse_expr(1)?;
                 self.nodes.insert(Node::Throw(value))
+            }
+            Token::KeywordDelete => {
+                self.lex.next();
+                let value = self.parse_expr(1)?;
+                self.nodes.insert(Node::Delete(value))
             }
             Token::KeywordContinue => {
                 self.lex.next();

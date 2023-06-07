@@ -214,6 +214,10 @@ pub enum Node {
     Return(NodeRef),
     Label(Label),
     Throw(NodeRef),
+    Delete(NodeRef),
+    TypeOf(NodeRef),
+    InstanceOf(NodeRef),
+    Void(NodeRef),
     /// [`Node::Ident`] for the label or empty
     Continue(NodeRef),
     /// [`Node::Ident`] for the label or empty
