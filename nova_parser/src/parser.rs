@@ -588,11 +588,49 @@ impl<'a> Parser<'a> {
                     let rhs = self.parse_expr(power)?;
                     lhs = self.nodes.insert(Node::Assign(ast::BinaryOp { lhs, rhs }));
                 }
+                Token::AddAssign => {
+                    self.lex.next();
+                    self.validate_binding(lhs)?;
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self
+                        .nodes
+                        .insert(Node::AddAssign(ast::BinaryOp { lhs, rhs }));
+                }
+                Token::SubAssign => {
+                    self.lex.next();
+                    self.validate_binding(lhs)?;
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self
+                        .nodes
+                        .insert(Node::SubAssign(ast::BinaryOp { lhs, rhs }));
+                }
+                Token::MulAssign => {
+                    self.lex.next();
+                    self.validate_binding(lhs)?;
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self
+                        .nodes
+                        .insert(Node::MulAssign(ast::BinaryOp { lhs, rhs }));
+                }
+                Token::ModAssign => {
+                    self.lex.next();
+                    self.validate_binding(lhs)?;
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self
+                        .nodes
+                        .insert(Node::ModAssign(ast::BinaryOp { lhs, rhs }));
+                }
+                Token::DivAssign => {
+                    self.lex.next();
+                    self.validate_binding(lhs)?;
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self
+                        .nodes
+                        .insert(Node::DivAssign(ast::BinaryOp { lhs, rhs }));
+                }
                 Token::Dot => {
                     self.lex.next();
-
                     self.validate_member_root(lhs)?;
-
                     let source_ref = self.eat(Token::Ident)?;
                     let rhs = self.nodes.insert(Node::Ident(source_ref));
                     lhs = self.nodes.insert(Node::Member(ast::BinaryOp { lhs, rhs }));
@@ -643,6 +681,54 @@ impl<'a> Parser<'a> {
                     self.lex.next();
                     let rhs = self.parse_expr(power)?;
                     lhs = self.nodes.insert(Node::Div(ast::BinaryOp { lhs, rhs }));
+                }
+                Token::Lt => {
+                    self.lex.next();
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self.nodes.insert(Node::Lt(ast::BinaryOp { lhs, rhs }));
+                }
+                Token::Gt => {
+                    self.lex.next();
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self.nodes.insert(Node::Gt(ast::BinaryOp { lhs, rhs }));
+                }
+                Token::Lte => {
+                    self.lex.next();
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self.nodes.insert(Node::Lte(ast::BinaryOp { lhs, rhs }));
+                }
+                Token::Gte => {
+                    self.lex.next();
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self.nodes.insert(Node::Gte(ast::BinaryOp { lhs, rhs }));
+                }
+                Token::Equality => {
+                    self.lex.next();
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self
+                        .nodes
+                        .insert(Node::Equality(ast::BinaryOp { lhs, rhs }));
+                }
+                Token::StrictEquality => {
+                    self.lex.next();
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self
+                        .nodes
+                        .insert(Node::StrictEquality(ast::BinaryOp { lhs, rhs }));
+                }
+                Token::Inequality => {
+                    self.lex.next();
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self
+                        .nodes
+                        .insert(Node::Inequality(ast::BinaryOp { lhs, rhs }));
+                }
+                Token::StrictInequality => {
+                    self.lex.next();
+                    let rhs = self.parse_expr(power)?;
+                    lhs = self
+                        .nodes
+                        .insert(Node::StrictInequality(ast::BinaryOp { lhs, rhs }));
                 }
                 Token::LBrack => {
                     self.lex.next();
