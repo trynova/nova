@@ -112,6 +112,7 @@ pub enum Token {
     KeywordVoid,
     KeywordWhile,
     KeywordYield,
+    InvalidNumber,
 }
 
 impl Token {
@@ -242,6 +243,13 @@ pub struct Lexer<'a> {
     pub open_template_count: usize,
 }
 
+#[derive(Debug, Default)]
+#[repr(packed)]
+struct NumberState {
+    pub seen_exp: bool,
+    pub seen_dec: bool,
+}
+
 impl<'a> Lexer<'a> {
     pub fn new(source: &'a str) -> Self {
         Self {
@@ -314,19 +322,97 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    #[inline]
     fn continue_zero(&mut self) {
-        // TODO: actually implement this
-        self.continue_number();
-    }
+        let kind: u8 = match self.codepoint {
+            Some('b' | 'B') => {
+                self.step();
+                0
+            }
+            Some('o' | 'O') => {
+                self.step();
+                1
+            }
+            Some('0') => {
+                self.step();
+                if !matches!(self.codepoint, Some('0'..='7')) {
+                    return self.continue_number(NumberState::default());
+                }
+                1
+            }
+            Some('x' | 'X') => {
+                self.step();
+                2
+            }
+            _ => return self.continue_number(NumberState::default()),
+        };
+        let mut seen_sep = false;
 
-    #[inline]
-    fn continue_number(&mut self) {
-        // TODO: actually implement this
         loop {
             match self.codepoint {
-                Some('0'..='9') => {
+                Some('0' | '1') if kind == 0 => {
                     self.step();
+                    seen_sep = false;
+                }
+                Some('0'..='7') if kind == 1 => {
+                    self.step();
+                    seen_sep = false;
+                }
+                Some('0'..='9' | 'a'..='f' | 'A'..='F') if kind == 2 => {
+                    self.step();
+                    seen_sep = false;
+                }
+                Some('_') => {
+                    if seen_sep {
+                        self.token = Token::InvalidNumber;
+                    }
+                    self.step();
+                    seen_sep = true;
+                }
+                _ if seen_sep => {
+                    self.token = Token::InvalidNumber;
+                    break;
+                }
+                _ => break,
+            }
+        }
+    }
+
+    fn continue_number(&mut self, mut state: NumberState) {
+        loop {
+            match self.codepoint {
+                Some('0'..='9') => self.step(),
+                Some('_') => {
+                    self.step();
+                    if let Some('0'..='9') = self.codepoint {
+                        self.step();
+                    } else {
+                        self.token = Token::InvalidNumber;
+                    }
+                }
+                Some('.') => {
+                    if state.seen_dec || state.seen_exp {
+                        self.token = Token::InvalidNumber;
+                    }
+                    self.step();
+                    state.seen_dec = true;
+                }
+                Some('n') => {
+                    if state.seen_dec || state.seen_exp {
+                        self.token = Token::InvalidNumber;
+                    }
+                    self.step();
+                    break;
+                }
+                Some('e') => {
+                    if state.seen_exp {
+                        self.token = Token::InvalidNumber;
+                    }
+                    self.step();
+                    if !matches!(self.codepoint, Some('0'..='9')) {
+                        self.token = Token::InvalidNumber;
+                    }
+                    self.step();
+                    state.seen_exp = true;
                 }
                 _ => break,
             }
@@ -412,12 +498,13 @@ impl<'a> Lexer<'a> {
                 }
                 Some('0') => {
                     self.step();
+                    self.token = Token::Number;
                     self.continue_zero();
                 }
                 Some('1'..='9') => {
                     self.step();
                     self.token = Token::Number;
-                    self.continue_number();
+                    self.continue_number(NumberState::default());
                 }
                 Some('\'') => {
                     self.step();
