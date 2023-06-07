@@ -156,6 +156,8 @@ pub enum Node {
     UShiftRight(BinaryOp),
     BAndAssign(BinaryOp),
     BAnd(BinaryOp),
+    BOrAssign(BinaryOp),
+    BOr(BinaryOp),
     XorAssign(BinaryOp),
     Xor(BinaryOp),
     AndAssign(BinaryOp),
