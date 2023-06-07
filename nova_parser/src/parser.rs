@@ -44,6 +44,7 @@ impl<'a> Parser<'a> {
 
     pub fn eat(&mut self, token: Token) -> Result<SourceRef> {
         if self.lex.token != token {
+            eprintln!("Expected {:?}, found {:?}.", token, self.lex.token);
             return Err(());
         }
         Ok(self.take())
@@ -51,6 +52,7 @@ impl<'a> Parser<'a> {
 
     pub fn expect(&mut self, token: Token) -> Result<()> {
         if self.lex.token != token {
+            eprintln!("Expected {:?}, found {:?}.", token, self.lex.token);
             return Err(());
         }
         self.lex.next();
@@ -160,7 +162,7 @@ impl<'a> Parser<'a> {
                     }
                 }
             }
-            Node::Ident(_) => {}
+            Node::Ident(_) | Node::Member(_) | Node::Index(_) => {}
             _ => {
                 eprintln!("Invalid destructuring assignment target");
                 return Err(());
@@ -726,8 +728,11 @@ impl<'a> Parser<'a> {
             self.lex.has_newline_before = true;
             Ok(())
         } else if !self.lex.has_newline_before {
-            // Recoverable?
-            eprintln!("Expected a line ending at {:?}.", self.lex.token);
+            eprintln!(
+                "Expected a line ending at {:?} '{}'.",
+                self.lex.token,
+                &self.lex.source[self.lex.start..self.lex.index]
+            );
             Err(())
         } else {
             Ok(())
@@ -775,10 +780,7 @@ impl<'a> Parser<'a> {
                     }))
                 } else {
                     // We need to backstep and parse as expression.
-                    self.lex.start = source_ref.start as usize;
-                    self.lex.index = source_ref.end as usize;
-                    self.lex.token = Token::Ident;
-                    self.lex.has_newline_before = true;
+                    self.lex.reset(source_ref.start as usize);
                     self.parse_expr(1)?
                 }
             }

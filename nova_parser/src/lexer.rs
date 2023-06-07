@@ -206,10 +206,10 @@ static KEYWORDS: phf::Map<&'static str, Token> = phf::phf_map! {
 
 #[derive(Debug)]
 pub struct Lexer<'a> {
-    source: &'a str,
+    pub source: &'a str,
     /// `Option<char>` is memory optimized to only 4 bytes because of UTF-8
     /// codepoint limits.
-    codepoint: Option<char>,
+    pub codepoint: Option<char>,
     pub index: usize,
     pub token: Token,
     pub start: usize,
@@ -228,6 +228,13 @@ impl<'a> Lexer<'a> {
             has_newline_before: true,
             open_template_count: 0,
         }
+    }
+
+    /// Resets the parser at the given index.
+    pub fn reset(&mut self, index: usize) {
+        self.index = index;
+        self.codepoint = self.source[self.index..].chars().next().or(None);
+        self.next();
     }
 
     /// Steps a unicode codepoint forwards.
