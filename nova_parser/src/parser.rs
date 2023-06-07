@@ -23,7 +23,7 @@ impl<'a> Parser<'a> {
         let mut lex = Lexer::new(source);
         lex.next();
 
-        let mut arena = Arena::new();
+        let mut arena: Arena<Node> = Arena::new();
         let empty_idx = arena.insert(Node::Empty);
         assert!(
             empty_idx == Node::empty(),
@@ -112,6 +112,7 @@ impl<'a> Parser<'a> {
                     values: values.into_boxed_slice(),
                 })))
             }
+            // TODO: implement object destructuring
             _ => {
                 eprintln!("Invalid left-hand side in assignment");
                 Err(())
@@ -148,6 +149,79 @@ impl<'a> Parser<'a> {
         Ok(args.into_boxed_slice())
     }
 
+    fn validate_binding(&self, lhs: NodeRef) -> Result<()> {
+        match self.nodes.get(lhs).unwrap() {
+            // TODO: add object destructuring here once implemented
+            Node::Array(arr) => {
+                for &item in arr.values.iter() {
+                    match self.nodes.get(item).unwrap() {
+                        Node::Assign(assign) => self.validate_binding(assign.lhs)?,
+                        _ => self.validate_binding(item)?,
+                    }
+                }
+            }
+            Node::Ident(_) => {}
+            _ => {
+                eprintln!("Invalid destructuring assignment target");
+                return Err(());
+            }
+        }
+
+        Ok(())
+    }
+
+    fn validate_arrow_func_params(&mut self, maybe_group_idx: NodeRef) -> Result<Box<[NodeRef]>> {
+        let mut params = Vec::new();
+        let mut cur_id = maybe_group_idx;
+        let mut has_rest = false;
+        loop {
+            let param = match self.nodes.get(cur_id).unwrap() {
+                Node::Group(inner) => {
+                    cur_id = inner.lhs;
+                    inner.rhs
+                }
+                _ => {
+                    let old_id = cur_id;
+                    cur_id = Node::empty();
+                    old_id
+                }
+            };
+
+            match self.nodes.get(param).unwrap() {
+                Node::Spread(value) => {
+                    let value = self.nodes.get(*value).unwrap();
+
+                    if let Node::Ident(_) = value {
+                    } else {
+                        eprintln!("Invalid arrow function parameters");
+                        return Err(());
+                    }
+
+                    if has_rest {
+                        eprintln!("Rest parameter must be last formal parameter");
+                        return Err(());
+                    }
+
+                    has_rest = true;
+                }
+                Node::Ident(_) | Node::Assign(_) => {}
+                _ => {
+                    eprintln!("Invalid arrow function parameters");
+                    return Err(());
+                }
+            }
+
+            params.push(param);
+
+            if cur_id == Node::empty() {
+                break;
+            }
+        }
+
+        params.reverse();
+        Ok(params.into_boxed_slice())
+    }
+
     /// Takes in the highest power of the expression before.
     pub fn parse_expr(&mut self, hp: u8) -> Result<NodeRef> {
         let mut lhs = match self.lex.token {
@@ -180,9 +254,33 @@ impl<'a> Parser<'a> {
             }
             Token::LParen => {
                 self.lex.next();
-                let node = self.parse_expr(0)?;
-                self.expect(Token::RParen)?;
-                self.nodes.insert(Node::Paren(node))
+
+                if self.lex.token == Token::RParen {
+                    self.lex.next();
+                    self.expect(Token::Arrow)?;
+
+                    let nodes = if self.lex.token == Token::LBrace {
+                        self.lex.next();
+                        let nodes = self.parse_scope(ScopeState {
+                            is_loop: false,
+                            is_function: true,
+                        })?;
+                        self.expect(Token::RBrace)?;
+                        nodes
+                    } else {
+                        Box::new([self.parse_expr(1)?])
+                    };
+
+                    self.nodes.insert(ast::Node::ArrowFunction(ast::Function {
+                        name: Node::empty(),
+                        params: Box::new([]),
+                        scope: nodes,
+                    }))
+                } else {
+                    let node = self.parse_expr(0)?;
+                    self.expect(Token::RParen)?;
+                    self.nodes.insert(Node::Paren(node))
+                }
             }
             Token::LBrack => {
                 self.lex.next();
@@ -395,7 +493,6 @@ impl<'a> Parser<'a> {
             }
 
             match self.lex.token {
-                // Implement `name =>` arrow syntax
                 Token::Arrow => {
                     self.lex.next();
 
@@ -403,31 +500,57 @@ impl<'a> Parser<'a> {
                         unreachable!();
                     };
 
-                    let Node::Ident(_) = lhs_value else {
-                        break;
-                    };
+                    match lhs_value {
+                        Node::Ident(_) => {
+                            let scope = if self.lex.token == Token::LBrace {
+                                self.lex.next();
+                                let scope = self.parse_scope(ScopeState {
+                                    is_loop: false,
+                                    is_function: true,
+                                })?;
+                                self.expect(Token::RBrace)?;
+                                scope
+                            } else {
+                                Box::new([self.parse_expr(1)?])
+                            };
 
-                    let scope = if self.lex.token == Token::LBrace {
-                        self.lex.next();
-                        let scope = self.parse_scope(ScopeState {
-                            is_loop: false,
-                            is_function: true,
-                        })?;
-                        self.expect(Token::RBrace)?;
-                        scope
-                    } else {
-                        Box::new([self.parse_expr(1)?])
-                    };
+                            lhs = self.nodes.insert(Node::ArrowFunction(ast::Function {
+                                name: Node::empty(),
+                                params: Box::new([lhs]),
+                                scope,
+                            }));
+                        }
+                        Node::Paren(group_idx) => {
+                            let params = self.validate_arrow_func_params(*group_idx)?;
 
-                    lhs = self.nodes.insert(Node::ArrowFunction(ast::Function {
-                        name: Node::empty(),
-                        params: Box::new([lhs]),
-                        scope,
-                    }));
+                            let scope = if self.lex.token == Token::LBrace {
+                                self.lex.next();
+                                let scope = self.parse_scope(ScopeState {
+                                    is_loop: false,
+                                    is_function: true,
+                                })?;
+                                self.expect(Token::RBrace)?;
+                                scope
+                            } else {
+                                Box::new([self.parse_expr(1)?])
+                            };
+
+                            lhs = self.nodes.insert(Node::ArrowFunction(ast::Function {
+                                name: Node::empty(),
+                                params,
+                                scope,
+                            }));
+                        }
+                        _ => {
+                            eprintln!("Invalid arrow function parameters");
+                            return Err(());
+                        }
+                    }
                 }
                 Token::Equal => {
                     self.lex.next();
                     // TODO: validate lhs as assignment expr
+                    self.validate_binding(lhs)?;
                     let rhs = self.parse_expr(power)?;
                     lhs = self.nodes.insert(Node::Assign(ast::BinaryOp { lhs, rhs }));
                 }
@@ -460,8 +583,17 @@ impl<'a> Parser<'a> {
                 }
                 Token::Comma => {
                     self.lex.next();
-                    let rhs = self.parse_expr(power)?;
-                    lhs = self.nodes.insert(Node::Group(ast::BinaryOp { lhs, rhs }));
+                    if self.lex.token == Token::Spread {
+                        self.lex.next();
+                        let value = self.parse_expr(power)?;
+                        let spread = self.nodes.insert(Node::Spread(value));
+                        lhs = self
+                            .nodes
+                            .insert(Node::Group(ast::BinaryOp { lhs, rhs: spread }));
+                    } else {
+                        let rhs = self.parse_expr(power)?;
+                        lhs = self.nodes.insert(Node::Group(ast::BinaryOp { lhs, rhs }));
+                    }
                 }
                 Token::Add => {
                     self.lex.next();
@@ -591,8 +723,9 @@ impl<'a> Parser<'a> {
                     }))
                 } else {
                     // We need to backstep and parse as expression.
-                    self.lex.index = source_ref.start as usize;
-                    self.lex.next();
+                    self.lex.start = source_ref.start as usize;
+                    self.lex.index = source_ref.end as usize;
+                    self.lex.token = Token::Ident;
                     self.lex.has_newline_before = true;
                     self.parse_expr(1)?
                 }
