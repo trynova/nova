@@ -115,6 +115,31 @@ pub enum Token {
 }
 
 impl Token {
+    pub fn is_right_assoc(self) -> bool {
+        matches!(
+            self,
+            Token::Pow
+                | Token::Ternary
+                | Token::Arrow
+                | Token::Equal
+                | Token::AddAssign
+                | Token::PowAssign
+                | Token::SubAssign
+                | Token::MulAssign
+                | Token::DivAssign
+                | Token::ModAssign
+                | Token::ShiftLeftAssign
+                | Token::ShiftRightAssign
+                | Token::UShiftRightAssign
+                | Token::BAndAssign
+                | Token::XorAssign
+                | Token::BOrAssign
+                | Token::AndAssign
+                | Token::OrAssign
+                | Token::NullishAssign
+        )
+    }
+
     /// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence
     pub fn lbp(self) -> u8 {
         match self {

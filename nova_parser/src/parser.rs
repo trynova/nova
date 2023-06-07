@@ -544,7 +544,13 @@ impl<'a> Parser<'a> {
 
         loop {
             let power = self.lex.token.lbp();
-            if hp >= power || power == 0 {
+
+            if if self.lex.token.is_right_assoc() {
+                hp > power
+            } else {
+                hp >= power
+            } || power == 0
+            {
                 break;
             }
 
