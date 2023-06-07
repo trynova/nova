@@ -549,15 +549,27 @@ impl<'a> Parser<'a> {
                 }
                 Token::Equal => {
                     self.lex.next();
-                    // TODO: validate lhs as assignment expr
                     self.validate_binding(lhs)?;
                     let rhs = self.parse_expr(power)?;
                     lhs = self.nodes.insert(Node::Assign(ast::BinaryOp { lhs, rhs }));
                 }
                 Token::Dot => {
                     self.lex.next();
-                    // TODO: validate lhs as member expr
-                    let rhs = self.parse_expr(power)?;
+
+                    if !matches!(
+                        self.nodes.get(lhs).unwrap(),
+                        Node::Array(_)
+                            | Node::Ident(_)
+                            | Node::String(_)
+                            | Node::Paren(_)
+                            | Node::Call(_),
+                    ) {
+                        eprintln!("Invalid member expression");
+                        return Err(());
+                    }
+
+                    let source_ref = self.eat(Token::Ident)?;
+                    let rhs = self.nodes.insert(Node::Ident(source_ref));
                     lhs = self.nodes.insert(Node::Member(ast::BinaryOp { lhs, rhs }));
                 }
                 Token::OptionalChain => 'blk: {
