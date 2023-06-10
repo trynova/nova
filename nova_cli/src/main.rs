@@ -1,5 +1,7 @@
 use clap::{Args, Parser as ClapParser, Subcommand, ValueEnum};
-use nova_parser::{Lexer, Parser, Token};
+use nova_vm::VM;
+use oxc_ast::SourceType;
+use oxc_parser::Parser;
 
 /// A JavaScript engine
 #[derive(Debug, ClapParser)] // requires `derive` feature
@@ -12,15 +14,15 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    #[command(arg_required_else_help = true)]
-    Tokenize {
-        /// The path of the file to tokenize
+    /// Parses a file and logs out the AST
+    Parse {
+        /// The path of the file to parse
         path: String,
     },
 
-    #[command(arg_required_else_help = true)]
-    Parse {
-        /// The path of the file to parse
+    /// Evaluates a file
+    Eval {
+        /// The file to evaluate
         path: String,
     },
 }
@@ -29,39 +31,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
 
     match args.command {
-        Command::Tokenize { path } => {
-            let source = std::fs::read_to_string(path.as_str())?;
-            let mut lex = Lexer::new(source.as_str());
-
-            loop {
-                lex.next();
-                println!(
-                    "{:?} '{}'{}",
-                    lex.token,
-                    &source[lex.start..lex.index],
-                    if lex.has_newline_before {
-                        " (has newline before)"
-                    } else {
-                        ""
-                    }
-                );
-                if let Token::EOF = lex.token {
-                    break;
-                }
-            }
-        }
         Command::Parse { path } => {
-            let source = std::fs::read_to_string(path.as_str())?;
+            let file = std::fs::read_to_string(path)?;
+            let allocator = Default::default();
+            let source_type: SourceType = Default::default();
+            let parser = Parser::new(&allocator, &file, source_type.with_typescript(false));
+            let result = parser.parse();
 
-            let mut parser = Parser::new(source.as_str());
-            let scope = parser.parse_global_scope().unwrap();
+            println!("{:?}", result.program);
+        }
+        Command::Eval { path } => {
+            let file = std::fs::read_to_string(path)?;
+            let allocator = Default::default();
+            let source_type: SourceType = Default::default();
+            let parser = Parser::new(&allocator, &file, source_type.with_typescript(false));
+            let result = parser.parse();
 
-            for node in scope.iter() {
-                let Some(node) = parser.nodes.get(*node) else {
-                    unreachable!()
-                };
-                println!("{:?}", node);
-            }
+            let mut vm = VM {
+                source: &file,
+                pc: 0,
+                instructions: Vec::new(),
+                strings: Vec::new(),
+            };
+
+            vm.load_program(result.program);
+            println!("{:?}", vm.instructions);
+            vm.interpret();
         }
     }
 
