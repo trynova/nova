@@ -52,6 +52,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 pc: 0,
                 instructions: Vec::new(),
                 strings: Vec::new(),
+                heap_bigints: Vec::new(),
+                heap_numbers: Vec::new(),
+                objects: Vec::new(),
+                symbols: Vec::new(),
             };
 
             vm.load_program(result.program);
