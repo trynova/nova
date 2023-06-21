@@ -10,13 +10,12 @@ use gc::{unsafe_empty_trace, Finalize, Gc, GcCell, Trace};
 use oxc_ast::{
     ast::{
         AssignmentOperator, AssignmentTarget, BinaryOperator, BindingPatternKind, Declaration,
-        Expression, LogicalExpression, LogicalOperator, Program, SimpleAssignmentTarget, Statement,
-        VariableDeclaration, VariableDeclarationKind, VariableDeclarator,
+        Expression, LogicalOperator, Program, SimpleAssignmentTarget, Statement,
+        VariableDeclarator,
     },
     syntax_directed_operations::PropName,
 };
-use oxc_parser::*;
-use wtf8::{Wtf8, Wtf8Buf};
+use wtf8::Wtf8Buf;
 
 // Completely unoptimized...look away.
 #[derive(Clone)]
@@ -251,7 +250,7 @@ impl<'a> VM<'a> {
 
         let mut iter = self.instructions.iter();
         while let Some(leading) = iter.next() {
-            match unsafe { std::mem::transmute(*leading) } {
+            match unsafe { std::mem::transmute::<u32, Instruction>(*leading) } {
                 Instruction::LoadInteger => {
                     let addr = *iter.next().unwrap() as usize;
                     memory[addr] = Value::Number(unsafe {
@@ -349,7 +348,6 @@ impl<'a> VM<'a> {
                     let jump_rel = *iter.next().unwrap() as usize;
                     _ = iter.nth(jump_rel);
                 }
-                _ => panic!(),
             }
         }
 
@@ -496,7 +494,35 @@ impl<'a> VM<'a> {
                 },
                 _ => todo!(),
             },
-            other => todo!("{:?}", other),
+            Expression::ArrayExpression(_) => todo!(),
+            Expression::BigintLiteral(_) => todo!(),
+            Expression::RegExpLiteral(_) => todo!(),
+            Expression::TemplateLiteral(_) => todo!(),
+            Expression::MetaProperty(_) => todo!(),
+            Expression::Super(_) => todo!(),
+            Expression::ArrowFunctionExpression(_) => todo!(),
+            Expression::AwaitExpression(_) => todo!(),
+            Expression::CallExpression(_) => todo!(),
+            Expression::ChainExpression(_) => todo!(),
+            Expression::ClassExpression(_) => todo!(),
+            Expression::FunctionExpression(_) => todo!(),
+            Expression::ImportExpression(_) => todo!(),
+            Expression::MemberExpression(_) => todo!(),
+            Expression::NewExpression(_) => todo!(),
+            Expression::TaggedTemplateExpression(_) => todo!(),
+            Expression::ThisExpression(_) => todo!(),
+            Expression::UnaryExpression(_) => todo!(),
+            Expression::UpdateExpression(_) => todo!(),
+            Expression::YieldExpression(_) => todo!(),
+            Expression::PrivateInExpression(_) => todo!(),
+            // TypeScript and JSX not supported
+            Expression::JSXElement(_)
+            | Expression::JSXFragment(_)
+            | Expression::TSAsExpression(_)
+            | Expression::TSSatisfiesExpression(_)
+            | Expression::TSTypeAssertion(_)
+            | Expression::TSNonNullExpression(_)
+            | Expression::TSInstantiationExpression(_) => unreachable!(),
         }
     }
 
@@ -522,6 +548,8 @@ impl<'a> VM<'a> {
                     }
                 }
             }
+            Statement::Declaration(Declaration::FunctionDeclaration(_)) => todo!(),
+            Statement::Declaration(Declaration::ClassDeclaration(_)) => todo!(),
             Statement::ExpressionStatement(expr) => {
                 self.build_expr(self.pc, &expr.expression, env);
             }
@@ -554,8 +582,28 @@ impl<'a> VM<'a> {
 
                 self.instructions[finish_idx] = (self.instructions.len() - finish_idx - 2) as u32;
             }
-            // Statement::IfStatement(s) => {}
-            other => todo!("{other:?}"),
+            Statement::BreakStatement(_) => todo!(),
+            Statement::ContinueStatement(_) => todo!(),
+            Statement::DebuggerStatement(_) => todo!(),
+            Statement::DoWhileStatement(_) => todo!(),
+            Statement::EmptyStatement(_) => todo!(),
+            Statement::ForInStatement(_) => todo!(),
+            Statement::ForOfStatement(_) => todo!(),
+            Statement::ForStatement(_) => todo!(),
+            Statement::LabeledStatement(_) => todo!(),
+            Statement::ReturnStatement(_) => todo!(),
+            Statement::SwitchStatement(_) => todo!(),
+            Statement::ThrowStatement(_) => todo!(),
+            Statement::TryStatement(_) => todo!(),
+            Statement::WhileStatement(_) => todo!(),
+            Statement::WithStatement(_) => todo!(),
+            Statement::ModuleDeclaration(_) => todo!(),
+            // TypeScript not supported
+            Statement::Declaration(Declaration::TSTypeAliasDeclaration(_))
+            | Statement::Declaration(Declaration::TSInterfaceDeclaration(_))
+            | Statement::Declaration(Declaration::TSEnumDeclaration(_))
+            | Statement::Declaration(Declaration::TSModuleDeclaration(_))
+            | Statement::Declaration(Declaration::TSImportEqualsDeclaration(_)) => unreachable!(),
         }
     }
 
