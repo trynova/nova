@@ -1,5 +1,5 @@
 use clap::{Args, Parser as ClapParser, Subcommand, ValueEnum};
-use nova_vm::VM;
+use nova_vm::{Context, VM};
 use oxc_ast::SourceType;
 use oxc_parser::Parser;
 
@@ -19,7 +19,6 @@ enum Command {
         /// The path of the file to parse
         path: String,
     },
-
     /// Evaluates a file
     Eval {
         /// The file to evaluate
@@ -47,16 +46,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let parser = Parser::new(&allocator, &file, source_type.with_typescript(false));
             let result = parser.parse();
 
-            let mut vm = VM {
-                source: &file,
-                pc: 0,
-                instructions: Vec::new(),
-                strings: Vec::new(),
-            };
+            let mut context = Context::new();
 
-            vm.load_program(result.program);
-            println!("{:?}", vm.instructions);
-            vm.interpret();
+            context.eval(&result.program);
+
+            // vm.load_program(result.program);
+            // println!("{:?}", vm.instructions);
+            // vm.interpret();
         }
     }
 

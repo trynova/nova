@@ -1,26 +1,34 @@
-#![feature(try_trait_v2)]
+#![feature(coerce_unsized)]
 
-use std::{
-    borrow::Borrow,
-    fmt::Debug,
-    ops::{ControlFlow, FromResidual, Try},
-};
+mod byte_compiler;
+mod context;
+mod vm;
 
+pub use byte_compiler::ByteCompiler;
+pub use context::Context;
 use gc::{unsafe_empty_trace, Finalize, Gc, GcCell, Trace};
+use hashbrown::HashMap;
 use oxc_ast::{
     ast::{
         AssignmentOperator, AssignmentTarget, BinaryOperator, BindingPatternKind, Declaration,
-        Expression, LogicalExpression, LogicalOperator, Program, SimpleAssignmentTarget, Statement,
-        VariableDeclaration, VariableDeclarationKind, VariableDeclarator,
+        Expression, LogicalExpression, LogicalOperator, ObjectProperty, Program, Property,
+        PropertyValue, SimpleAssignmentTarget, Statement, VariableDeclaration,
+        VariableDeclarationKind, VariableDeclarator,
     },
     syntax_directed_operations::PropName,
 };
 use oxc_parser::*;
+use std::{
+    borrow::Borrow,
+    fmt::Debug,
+    hash::Hash,
+    ops::{CoerceUnsized, ControlFlow},
+};
+pub use vm::VM;
 use wtf8::{Wtf8, Wtf8Buf};
 
 // Completely unoptimized...look away.
 #[derive(Clone)]
-#[repr(u16)]
 pub enum Value {
     Undefined,
     Null,
@@ -29,7 +37,75 @@ pub enum Value {
     Symbol(Gc<JsSymbol>),
     Number(f64),
     BigInt(i64),
-    Object(Gc<dyn JsObject>),
+    Object(Gc<GcCell<dyn JsObject>>),
+}
+
+impl Finalize for Value {}
+
+impl Eq for Value {}
+
+impl Hash for Value {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Value::Boolean(x) => x.hash(state),
+            Value::String(x) => x.hash(state),
+            Value::Symbol(x) => x.hash(state),
+            Value::Number(x) => (unsafe { std::mem::transmute::<f64, u64>(*x) }).hash(state),
+            Value::BigInt(x) => x.hash(state),
+            Value::Object(x) => {
+                // TODO: validate this - very hacky
+                let obj = &**x;
+                let obj = obj.borrow();
+                ((&*obj) as *const dyn JsObject).hash(state)
+            }
+            _ => {}
+        }
+    }
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        self.is_strictly_equal(other).unwrap_or(false)
+    }
+}
+
+unsafe impl Trace for Value {
+    unsafe fn trace(&self) {
+        match self {
+            Value::String(x) => x.trace(),
+            Value::Symbol(x) => x.trace(),
+            Value::Object(x) => x.trace(),
+            _ => {}
+        }
+    }
+
+    unsafe fn root(&self) {
+        match self {
+            Value::String(x) => x.root(),
+            Value::Symbol(x) => x.root(),
+            Value::Object(x) => x.root(),
+            _ => {}
+        }
+    }
+
+    unsafe fn unroot(&self) {
+        match self {
+            Value::String(x) => x.unroot(),
+            Value::Symbol(x) => x.unroot(),
+            Value::Object(x) => x.unroot(),
+            _ => {}
+        }
+    }
+
+    fn finalize_glue(&self) {
+        match self {
+            Value::String(x) => x.finalize_glue(),
+            Value::Symbol(x) => x.finalize_glue(),
+            Value::Object(x) => x.finalize_glue(),
+            _ => {}
+        }
+    }
 }
 
 /// https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-ecmascript-language-types
@@ -109,7 +185,7 @@ impl Value {
             (Value::Boolean(b1), Value::Boolean(b2)) => b1 == b2,
             // TODO: implement x is y procedures
             (Value::Object(obj1), Value::Object(obj2)) => {
-                Gc::<(dyn JsObject + 'static)>::ptr_eq(&obj1, obj2)
+                Gc::<GcCell<(dyn JsObject + 'static)>>::ptr_eq(&obj1, obj2)
             }
             _ => false,
         })
@@ -142,6 +218,28 @@ impl Value {
             _ => todo!("should assert as object and do other steps"),
         })
     }
+
+    /// https://tc39.es/ecma262/multipage/abstract-operations.html#sec-tostring
+    pub fn to_string(&self) -> JsResult<Gc<JsString>> {
+        Ok(match self {
+            Value::String(s) => s.clone(),
+            Value::Symbol(_) => todo!("type error"),
+            Value::Undefined => Gc::new(JsString {
+                data: Wtf8Buf::from_str("undefined"),
+            }),
+            Value::Null => Gc::new(JsString {
+                data: Wtf8Buf::from_str("null"),
+            }),
+            &Value::Boolean(b) => Gc::new(JsString {
+                data: Wtf8Buf::from_str(if b { "true" } else { "false" }),
+            }),
+            Value::Number(n) => Gc::new(JsString {
+                data: Wtf8Buf::from_string(n.to_string()),
+            }),
+            Value::BigInt(_) => todo!(),
+            other => todo!("{other:?}"),
+        })
+    }
 }
 
 type JsResult<T> = std::result::Result<T, Value>;
@@ -164,9 +262,69 @@ impl Debug for Value {
     }
 }
 
-pub trait JsObject: Trace + Debug {}
+pub trait JsObject: Trace + Debug {
+    fn get_prototype_of(&mut self) -> JsResult<Option<Gc<dyn JsObject>>>;
+    // fn set_prototype_of(&mut self) -> JsResult<Option<Gc<dyn JsObject>>>;
+    // fn is_extensible(&mut self) -> JsResult<bool>;
+    // fn prevent_extensions(&mut self) -> JsResult<bool>;
+    fn get_own_property(&mut self, key: Value) -> JsResult<Option<Value>>;
+    fn set_own_property(&mut self, key: Value, value2: Value) -> JsResult<()>;
+}
 
-#[derive(Clone)]
+#[derive(Debug, Default)]
+pub struct BasicObject {
+    pub entries: HashMap<Value, Value>,
+    pub prototype: Option<Gc<dyn JsObject>>,
+}
+
+impl Finalize for BasicObject {}
+
+impl JsObject for BasicObject {
+    fn get_prototype_of(&mut self) -> JsResult<Option<Gc<dyn JsObject>>> {
+        Ok(self.prototype.clone())
+    }
+
+    fn get_own_property(&mut self, key: Value) -> JsResult<Option<Value>> {
+        Ok(self.entries.get(&key).map(|x| x.clone()))
+    }
+
+    fn set_own_property(&mut self, key: Value, value: Value) -> JsResult<()> {
+        self.entries.insert(key, value);
+        Ok(())
+    }
+}
+
+unsafe impl Trace for BasicObject {
+    unsafe fn trace(&self) {
+        for (key, value) in self.entries.iter() {
+            key.trace();
+            value.trace();
+        }
+    }
+
+    unsafe fn root(&self) {
+        for (key, value) in self.entries.iter() {
+            key.root();
+            value.root();
+        }
+    }
+
+    unsafe fn unroot(&self) {
+        for (key, value) in self.entries.iter() {
+            key.unroot();
+            value.unroot();
+        }
+    }
+
+    fn finalize_glue(&self) {
+        for (key, value) in self.entries.iter() {
+            key.finalize_glue();
+            value.finalize_glue();
+        }
+    }
+}
+
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub struct JsString {
     data: Wtf8Buf,
 }
@@ -178,399 +336,35 @@ unsafe impl Trace for JsString {
     unsafe_empty_trace!();
 }
 
-#[derive(Trace, Finalize)]
+#[derive(Hash, PartialEq, Eq)]
 pub struct JsSymbol {
     descriptor: Option<Gc<JsString>>,
 }
 
-#[repr(u32)]
-pub enum Instruction {
-    LoadInteger,
-    LoadBoolean,
-    LoadNull,
-    LoadString,
+impl Finalize for JsSymbol {}
 
-    // [out] [in]
-    CopyValue,
-
-    // [out] [left] [right]
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Mod,
-    StrictEquality,
-    Equality,
-    StrictInequality,
-    Inequality,
-
-    /// `[jump_rel]`
-    ///
-    /// Jumps to the relative instruction.
-    Jump,
-
-    /// `[addr] [jump_rel]`
-    ///
-    /// If `addr` is a true when converted to a boolean, then the instruction
-    /// will skip `jump_rel` instructions forward.
-    Test,
-
-    /// `[addr] [jump_rel]`
-    /// If `addr` is false when converted to a boolean, then the instruction
-    /// will skip `jump_rel` instructions forward.
-    TestNot,
-}
-
-impl Into<u32> for Instruction {
-    fn into(self) -> u32 {
-        self as u32
-    }
-}
-
-pub struct VM<'a> {
-    pub source: &'a str,
-    pub instructions: Vec<u32>,
-    /// Program counter.
-    pub pc: u32,
-    pub strings: Vec<Gc<JsString>>,
-}
-
-#[derive(Debug, Default)]
-pub struct Env<'a> {
-    pub map: std::collections::HashMap<&'a str, u32>,
-    pub parent: Option<Box<Env<'a>>>,
-}
-
-impl<'a> VM<'a> {
-    pub fn interpret(&self) -> JsResult<()> {
-        let mut memory = Vec::<Value>::with_capacity(self.pc as usize);
-
-        for _ in 0..self.pc {
-            memory.push(Value::Undefined);
-        }
-
-        let mut iter = self.instructions.iter();
-        while let Some(leading) = iter.next() {
-            match unsafe { std::mem::transmute(*leading) } {
-                Instruction::LoadInteger => {
-                    let addr = *iter.next().unwrap() as usize;
-                    memory[addr] = Value::Number(unsafe {
-                        std::mem::transmute::<u32, f32>(*iter.next().unwrap())
-                    } as f64);
-                }
-                Instruction::LoadBoolean => {
-                    let addr = *iter.next().unwrap() as usize;
-                    memory[addr] = Value::Boolean(*iter.next().unwrap() == 1);
-                }
-                Instruction::LoadNull => {
-                    let addr = *iter.next().unwrap() as usize;
-                    memory[addr] = Value::Null;
-                }
-                Instruction::LoadString => {
-                    let addr = *iter.next().unwrap() as usize;
-                    memory[addr] =
-                        Value::String(self.strings[*iter.next().unwrap() as usize].clone());
-                }
-                Instruction::CopyValue => {
-                    let addr = *iter.next().unwrap() as usize;
-                    memory[addr] = memory[*iter.next().unwrap() as usize].clone();
-                }
-                Instruction::Add => {
-                    let addr = *iter.next().unwrap() as usize;
-                    let left = &memory[addr];
-                    let right = &memory[*iter.next().unwrap() as usize];
-                    memory[addr] = Value::Number(left.to_number()? + right.to_number()?);
-                }
-                Instruction::Sub => {
-                    let addr = *iter.next().unwrap() as usize;
-                    let left = &memory[addr];
-                    let right = &memory[*iter.next().unwrap() as usize];
-                    memory[addr] = Value::Number(left.to_number()? - right.to_number()?);
-                }
-                Instruction::Mul => {
-                    let addr = *iter.next().unwrap() as usize;
-                    let left = &memory[addr];
-                    let right = &memory[*iter.next().unwrap() as usize];
-                    memory[addr] = Value::Number(left.to_number()? * right.to_number()?);
-                }
-                Instruction::Mod => {
-                    let addr = *iter.next().unwrap() as usize;
-                    let left = &memory[addr];
-                    let right = &memory[*iter.next().unwrap() as usize];
-                    memory[addr] = Value::Number(left.to_number()? % right.to_number()?);
-                }
-                Instruction::Div => {
-                    let addr = *iter.next().unwrap() as usize;
-                    let left = &memory[addr];
-                    let right = &memory[*iter.next().unwrap() as usize];
-                    memory[addr] = Value::Number(left.to_number()? / right.to_number()?);
-                }
-                Instruction::StrictEquality => {
-                    let addr = *iter.next().unwrap() as usize;
-                    let left = &memory[addr];
-                    let right = &memory[*iter.next().unwrap() as usize];
-                    memory[addr] = Value::Boolean(left.is_strictly_equal(right)?);
-                }
-                Instruction::Equality => {
-                    let addr = *iter.next().unwrap() as usize;
-                    let left = &memory[addr];
-                    let right = &memory[*iter.next().unwrap() as usize];
-                    memory[addr] = Value::Boolean(left.is_loosely_equal(right)?);
-                }
-                Instruction::StrictInequality => {
-                    let addr = *iter.next().unwrap() as usize;
-                    let left = &memory[addr];
-                    let right = &memory[*iter.next().unwrap() as usize];
-                    memory[addr] = Value::Boolean(!left.is_strictly_equal(right)?);
-                }
-                Instruction::Inequality => {
-                    let addr = *iter.next().unwrap() as usize;
-                    let left = &memory[addr];
-                    let right = &memory[*iter.next().unwrap() as usize];
-                    memory[addr] = Value::Boolean(!left.is_loosely_equal(right)?);
-                }
-                Instruction::Test => {
-                    let addr = *iter.next().unwrap() as usize;
-                    let jump_rel = *iter.next().unwrap() as usize;
-
-                    if memory[addr].to_boolean() {
-                        _ = iter.nth(jump_rel);
-                    };
-                }
-                Instruction::TestNot => {
-                    let addr = *iter.next().unwrap() as usize;
-                    let jump_rel = *iter.next().unwrap() as usize;
-
-                    if !memory[addr].to_boolean() {
-                        _ = iter.nth(jump_rel);
-                    };
-                }
-                Instruction::Jump => {
-                    let jump_rel = *iter.next().unwrap() as usize;
-                    _ = iter.nth(jump_rel);
-                }
-                _ => panic!(),
-            }
-        }
-
-        println!("{:?}", memory.as_slice());
-
-        Ok(())
-    }
-
-    /// Builds the bytecode to run an expression.
-    ///
-    /// Assumes the memory location is valid to use throughout the evaluation as
-    /// a scratch.
-    fn build_expr(&mut self, addr: u32, expr: &Expression, env: &mut Env) {
-        match expr {
-            Expression::NullLiteral(_) => {
-                self.instructions.push(Instruction::LoadNull.into());
-                self.instructions.push(addr);
-            }
-            Expression::BooleanLiteral(l) => {
-                self.instructions.push(Instruction::LoadBoolean.into());
-                self.instructions.push(addr);
-                self.instructions.push(l.value.into());
-            }
-            Expression::Identifier(ident) => {
-                // TODO: figure out how to return the ident's memory addr as
-                //       an optimization
-                self.instructions.push(Instruction::CopyValue.into());
-                self.instructions.push(addr);
-                // TODO: support recursive ident lookups
-                self.instructions
-                    .push(*env.map.get(ident.name.as_str()).unwrap());
-            }
-            Expression::NumberLiteral(num) => {
-                self.instructions.push(Instruction::LoadInteger.into());
-                self.instructions.push(addr);
-                self.instructions
-                    .push(unsafe { std::mem::transmute(*num.value.as_f32()) });
-            }
-            Expression::LogicalExpression(expr) => match expr.operator {
-                LogicalOperator::And => {
-                    self.build_expr(addr, &expr.left, env);
-                    self.instructions.push(Instruction::Test.into());
-                    self.instructions.push(addr);
-                    let jump_addr = self.instructions.len();
-                    self.instructions.push(0);
-                    self.build_expr(addr, &expr.right, env);
-                    self.instructions[jump_addr] = (self.instructions.len() - jump_addr) as u32;
-                }
-                LogicalOperator::Or => {
-                    self.build_expr(addr, &expr.left, env);
-                    self.instructions.push(Instruction::TestNot.into());
-                    self.instructions.push(addr);
-                    let jump_addr = self.instructions.len();
-                    self.instructions.push(0);
-                    self.build_expr(addr, &expr.right, env);
-                    self.instructions[jump_addr] = (self.instructions.len() - jump_addr) as u32;
-                }
-                _ => panic!(),
-            },
-            Expression::ConditionalExpression(cond) => {
-                self.build_expr(addr, &cond.test, env);
-
-                self.instructions.push(Instruction::Test.into());
-                self.instructions.push(addr);
-                let finish_idx = self.instructions.len();
-                self.instructions.push(0);
-
-                self.build_expr(addr, &cond.alternate, env);
-
-                self.instructions.push(Instruction::Jump.into());
-                let alternate_idx = self.instructions.len();
-                self.instructions.push(0);
-
-                self.instructions[finish_idx] = (self.instructions.len() - finish_idx - 2) as u32;
-                self.build_expr(addr, &cond.consequent, env);
-
-                self.instructions[alternate_idx] =
-                    (self.instructions.len() - alternate_idx - 2) as u32;
-            }
-            Expression::ObjectExpression(obj) => {
-                for prop in obj.properties.iter() {
-                    prop.prop_name();
-                }
-            }
-            Expression::BinaryExpression(binary_op) => {
-                macro_rules! binary_op {
-                    ($name: ident) => {{
-                        let right = self.pc;
-                        self.pc += 1;
-
-                        self.build_expr(addr, &binary_op.left, env);
-                        self.build_expr(right, &binary_op.right, env);
-
-                        self.instructions.push(Instruction::$name.into());
-                        self.instructions.push(addr);
-                        self.instructions.push(right);
-                    }};
-                }
-
-                match binary_op.operator {
-                    BinaryOperator::Addition => binary_op!(Add),
-                    BinaryOperator::Subtraction => binary_op!(Sub),
-                    BinaryOperator::Multiplication => binary_op!(Mul),
-                    BinaryOperator::Remainder => binary_op!(Mod),
-                    BinaryOperator::Division => binary_op!(Div),
-                    BinaryOperator::StrictEquality => binary_op!(StrictEquality),
-                    BinaryOperator::Equality => binary_op!(Equality),
-                    BinaryOperator::StrictInequality => binary_op!(StrictInequality),
-                    BinaryOperator::Inequality => binary_op!(Inequality),
-                    _ => todo!(),
-                }
-            }
-            Expression::StringLiteral(s) => {
-                let js_string = JsString {
-                    data: Wtf8Buf::from_str(&*s.value.as_str()),
-                };
-                let string_idx = self.strings.len();
-                self.strings.push(Gc::new(js_string));
-
-                self.instructions.push(Instruction::LoadString.into());
-                self.instructions.push(addr);
-                self.instructions.push(string_idx as u32);
-            }
-            Expression::ParenthesizedExpression(data) => {
-                return self.build_expr(addr, &data.expression, env);
-            }
-            Expression::SequenceExpression(data) => {
-                for expr in data.expressions.iter() {
-                    self.build_expr(addr, expr, env);
-                }
-            }
-            Expression::AssignmentExpression(s) => match s.operator {
-                AssignmentOperator::Assign => match &s.left {
-                    AssignmentTarget::SimpleAssignmentTarget(target) => match target {
-                        SimpleAssignmentTarget::AssignmentTargetIdentifier(ident) => {
-                            let Some(addr) = env.map.get(ident.name.as_str()) else {
-								panic!("Unknown ident.");
-							};
-                            self.build_expr(*addr, &s.right, env);
-                        }
-                        _ => todo!(),
-                    },
-                    _ => todo!(),
-                },
-                _ => todo!(),
-            },
-            other => todo!("{:?}", other),
+unsafe impl Trace for JsSymbol {
+    unsafe fn trace(&self) {
+        if let Some(x) = &self.descriptor {
+            x.trace();
         }
     }
 
-    pub fn build_stmt<'b>(&mut self, stmt: &'b Statement, env: &mut Env<'b>) {
-        match stmt {
-            Statement::Declaration(Declaration::VariableDeclaration(decl)) => {
-                for member in decl.declarations.as_slice() {
-                    let member: &VariableDeclarator = member;
-                    env.map.insert(
-                        match &member.id.kind {
-                            BindingPatternKind::BindingIdentifier(ident) => ident.name.as_str(),
-                            _ => panic!(),
-                        },
-                        self.pc,
-                    );
-                    let addr = self.pc;
-                    self.pc += 1;
-
-                    if let Some(expr) = &member.init {
-                        self.build_expr(addr, expr, env);
-                    } else {
-                        todo!("Load undefined.");
-                    }
-                }
-            }
-            Statement::ExpressionStatement(expr) => {
-                self.build_expr(self.pc, &expr.expression, env);
-            }
-            Statement::BlockStatement(block) => {
-                for stmt in block.body.iter() {
-                    self.build_stmt(&stmt, env);
-                }
-            }
-            Statement::IfStatement(s) => {
-                let addr = self.pc;
-                self.pc += 1;
-
-                self.build_expr(addr, &s.test, env);
-                self.instructions.push(Instruction::Test.into());
-                self.instructions.push(addr);
-                let consequent_idx = self.instructions.len();
-                self.instructions.push(0);
-
-                if let Some(alternate) = &s.alternate {
-                    self.build_stmt(alternate, env);
-                }
-
-                self.instructions.push(Instruction::Jump.into());
-                let finish_idx = self.instructions.len();
-                self.instructions.push(0);
-
-                self.instructions[consequent_idx] =
-                    (self.instructions.len() - consequent_idx - 2) as u32;
-                self.build_stmt(&s.consequent, env);
-
-                self.instructions[finish_idx] = (self.instructions.len() - finish_idx - 2) as u32;
-            }
-            // Statement::IfStatement(s) => {}
-            other => todo!("{other:?}"),
+    unsafe fn root(&self) {
+        if let Some(x) = &self.descriptor {
+            x.root();
         }
     }
 
-    pub fn load_program(&mut self, program: Program) {
-        let mut env = Env::default();
-        for stmt in program.body.iter() {
-            self.build_stmt(stmt, &mut env);
+    unsafe fn unroot(&self) {
+        if let Some(x) = &self.descriptor {
+            x.unroot();
         }
     }
-}
 
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    fn foo() {}
+    fn finalize_glue(&self) {
+        if let Some(x) = &self.descriptor {
+            x.finalize_glue();
+        }
+    }
 }
