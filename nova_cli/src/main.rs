@@ -1,5 +1,5 @@
-use clap::{Args, Parser as ClapParser, Subcommand, ValueEnum};
-use nova_vm::VM;
+use clap::{Parser as ClapParser, Subcommand};
+use nova_vm::{heap::Heap, VM};
 use oxc_ast::SourceType;
 use oxc_parser::Parser;
 
@@ -51,11 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 source: &file,
                 pc: 0,
                 instructions: Vec::new(),
-                strings: Vec::new(),
-                heap_bigints: Vec::new(),
-                heap_numbers: Vec::new(),
-                objects: Vec::new(),
-                symbols: Vec::new(),
+                heap: Heap::new(),
             };
 
             vm.load_program(result.program);
