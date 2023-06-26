@@ -1,131 +1,442 @@
-use crate::value::{self, JsResult, ObjectIndex, StringIndex, SymbolIndex, Value};
-use gc::{unsafe_empty_trace, Finalize, Gc, Trace};
-use std::fmt::Debug;
-use wtf8::Wtf8Buf;
-
-/// The Trace trait, which needs to be implemented on garbage-collected objects.
-pub unsafe trait HeapTrace: Finalize + Trace {
-    /// Marks all contained `Gc`s.
-    unsafe fn heap_trace(&self, _heap: &Heap) {
-        self.trace();
-    }
-
-    /// Increments the root-count of all contained `Gc`s.
-    unsafe fn heap_root(&self, _heap: &Heap) {
-        self.root();
-    }
-
-    /// Decrements the root-count of all contained `Gc`s.
-    unsafe fn heap_unroot(&self, _heap: &Heap) {
-        self.unroot();
-    }
-
-    /// Runs Finalize::finalize() on this object and all
-    /// contained subobjects
-    fn heap_finalize_glue(&self, _heap: &Heap) {
-        self.finalize_glue();
-    }
-}
+use crate::{
+    bigint::create_bigint_prototype,
+    function::create_function_prototype,
+    heap_trace::HeapTrace,
+    number::create_number_prototype,
+    object::create_object_prototype,
+    string::create_string_prototype,
+    value::{ObjectIndex, StringIndex, SymbolIndex, Value},
+};
+use std::cell::Cell;
+use wtf8::{Wtf8, Wtf8Buf};
 
 pub struct Heap {
-    pub bigints: Vec<Gc<BigIntHeapData>>,
+    pub bigints: Vec<Option<BigIntHeapData>>,
+    pub functions: Vec<Option<FunctionHeapData>>,
     pub globals: Vec<Value>,
-    pub numbers: Vec<Gc<NumberHeapData>>,
-    pub objects: Vec<Gc<dyn ObjectHeapData>>,
-    pub strings: Vec<Gc<StringHeapData>>,
-    pub symbols: Vec<Gc<SymbolHeapData>>,
+    pub numbers: Vec<Option<NumberHeapData>>,
+    pub objects: Vec<Option<ObjectHeapData>>,
+    pub strings: Vec<Option<StringHeapData>>,
+    pub symbols: Vec<Option<SymbolHeapData>>,
 }
+
+fn stop_the_world() {}
+fn start_the_world() {}
 
 impl Heap {
     pub fn new() -> Heap {
-        Heap {
+        let mut heap = Heap {
             bigints: Vec::with_capacity(1024),
+            functions: Vec::with_capacity(1024),
             globals: Vec::with_capacity(1024),
             numbers: Vec::with_capacity(1024),
             objects: Vec::with_capacity(1024),
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
+        };
+        let object_prototype = create_object_prototype(&mut heap);
+        heap.objects.push(Some(object_prototype));
+        heap.globals.push(Value::Object(0));
+        let function_prototype = create_function_prototype(&mut heap);
+        heap.objects.push(Some(function_prototype));
+        heap.globals.push(Value::Object(1));
+        heap.objects.push(Some(create_string_prototype()));
+        heap.globals.push(Value::Object(2));
+        heap.objects.push(Some(create_number_prototype()));
+        heap.globals.push(Value::Object(3));
+        heap.objects.push(Some(create_bigint_prototype()));
+        heap.globals.push(Value::Object(4));
+        heap
+    }
+
+    pub(crate) fn alloc_string(&mut self, message: &str) -> u32 {
+        let found = self.strings.iter().position(|opt| {
+            opt.as_ref()
+                .map_or(false, |data| data.data == Wtf8::from_str(message))
+        });
+        if let Some(idx) = found {
+            return idx as u32;
+        }
+        let data = StringHeapData::from_str(message);
+        let found = self.strings.iter().position(|opt| opt.is_none());
+        if let Some(idx) = found {
+            self.strings[idx].replace(data);
+            idx as u32
+        } else {
+            self.strings.push(Some(data));
+            self.strings.len() as u32
         }
     }
 
-    fn trace_value(&self, value: Value) {
-        match value {
-            Value::String(idx) => unsafe { self.strings[idx as usize].heap_trace(self) },
-            Value::Symbol(idx) => unsafe { self.symbols[idx as usize].heap_trace(self) },
-            Value::Number(idx) => unsafe { self.numbers[idx as usize].heap_trace(self) },
-            Value::BigInt(idx) => unsafe { self.bigints[idx as usize].heap_trace(self) },
-            Value::Object(idx) => unsafe { self.objects[idx as usize].heap_trace(self) },
+    fn partial_trace(&mut self) -> () {
+        // TODO: Consider roots count
+        for global in self.globals.iter() {
+            global.trace(self);
+        }
+        for object in self.objects.iter() {
+            let Some(data) = object else {
+                continue;
+            };
+            let marked = data.bits.marked.take();
+            data.bits.marked.set(marked);
+            if !marked {
+                continue;
+            }
+            let dirty = data.bits.dirty.take();
+            data.bits.dirty.set(dirty);
+            if dirty {
+                object.trace(self);
+            }
+        }
+        for symbol in self.symbols.iter() {
+            let Some(data) = symbol else {
+                continue;
+            };
+            let marked = data.bits.marked.take();
+            data.bits.marked.set(marked);
+            if !marked {
+                continue;
+            }
+            let dirty = data.bits.dirty.take();
+            data.bits.dirty.set(dirty);
+            if dirty {
+                symbol.trace(self);
+            }
+        }
+        stop_the_world();
+        // Repeat above tracing to check for mutations that happened while we were tracing.
+        for object in self.objects.iter_mut() {
+            let Some(data) = object else {
+                continue;
+            };
+            let marked = data.bits.marked.replace(true);
+            if !marked {
+                let _ = object.take();
+            }
+        }
+        for string in self.strings.iter_mut() {
+            let Some(data) = string else {
+                continue;
+            };
+            let marked = data.bits.marked.replace(true);
+            if !marked {
+                let _ = string.take();
+            }
+        }
+        for symbol in self.symbols.iter_mut() {
+            let Some(data) = symbol else {
+                continue;
+            };
+            let marked = data.bits.marked.replace(true);
+            if !marked {
+                let _ = symbol.take();
+            }
+        }
+        for number in self.numbers.iter_mut() {
+            let Some(data) = number else {
+                continue;
+            };
+            let marked = data.bits.marked.replace(true);
+            if !marked {
+                let _ = number.take();
+            }
+        }
+        for bigint in self.bigints.iter_mut() {
+            let Some(data) = bigint else {
+                continue;
+            };
+            let marked = data.bits.marked.replace(true);
+            if !marked {
+                let _ = bigint.take();
+            }
+        }
+        while self.objects.last().is_none() {
+            self.objects.pop();
+        }
+        while self.strings.last().is_none() {
+            self.strings.pop();
+        }
+        while self.symbols.last().is_none() {
+            self.symbols.pop();
+        }
+        while self.numbers.last().is_none() {
+            self.numbers.pop();
+        }
+        while self.bigints.last().is_none() {
+            self.bigints.pop();
+        }
+        start_the_world();
+    }
+
+    fn complete_trace(&mut self) -> () {
+        // TODO: Consider roots count
+        for object in self.objects.iter() {
+            let Some(data) = object else {
+                continue;
+            };
+            data.bits.marked.set(false);
+            data.bits.dirty.set(false);
+        }
+        for string in self.strings.iter() {
+            let Some(data) = string else {
+                continue;
+            };
+            data.bits.marked.set(false);
+            data.bits.dirty.set(false);
+        }
+        for symbol in self.symbols.iter() {
+            let Some(data) = symbol else {
+                continue;
+            };
+            data.bits.marked.set(false);
+            data.bits.dirty.set(false);
+        }
+        for number in self.numbers.iter() {
+            let Some(data) = number else {
+                continue;
+            };
+            data.bits.marked.set(false);
+            data.bits.dirty.set(false);
+        }
+        for bigint in self.bigints.iter() {
+            let Some(data) = bigint else {
+                continue;
+            };
+            data.bits.marked.set(false);
+            data.bits.dirty.set(false);
+        }
+        for global in self.globals.iter() {
+            global.trace(self);
+        }
+        stop_the_world();
+        // Trace from dirty objects and symbols.
+        for object in self.objects.iter_mut() {
+            let Some(data) = object else {
+                continue;
+            };
+            let marked = data.bits.marked.replace(true);
+            if !marked {
+                let _ = object.take();
+            }
+        }
+        for string in self.strings.iter_mut() {
+            let Some(data) = string else {
+                continue;
+            };
+            let marked = data.bits.marked.replace(true);
+            if !marked {
+                let _ = string.take();
+            }
+        }
+        for symbol in self.symbols.iter_mut() {
+            let Some(data) = symbol else {
+                continue;
+            };
+            let marked = data.bits.marked.replace(true);
+            if !marked {
+                let _ = symbol.take();
+            }
+        }
+        for number in self.numbers.iter_mut() {
+            let Some(data) = number else {
+                continue;
+            };
+            let marked = data.bits.marked.replace(true);
+            if !marked {
+                let _ = number.take();
+            }
+        }
+        for bigint in self.bigints.iter_mut() {
+            let Some(data) = bigint else {
+                continue;
+            };
+            let marked = data.bits.marked.replace(true);
+            if !marked {
+                let _ = bigint.take();
+            }
+        }
+        while self.objects.last().is_none() {
+            self.objects.pop();
+        }
+        while self.strings.last().is_none() {
+            self.strings.pop();
+        }
+        while self.symbols.last().is_none() {
+            self.symbols.pop();
+        }
+        while self.numbers.last().is_none() {
+            self.numbers.pop();
+        }
+        while self.bigints.last().is_none() {
+            self.bigints.pop();
+        }
+        start_the_world();
+    }
+}
+
+impl HeapTrace for Value {
+    fn trace(&self, heap: &Heap) {
+        match self {
+            &Value::String(idx) => heap.strings[idx as usize].trace(heap),
+            &Value::Symbol(idx) => heap.symbols[idx as usize].trace(heap),
+            &Value::Number(idx) => heap.numbers[idx as usize].trace(heap),
+            &Value::BigInt(idx) => heap.bigints[idx as usize].trace(heap),
+            &Value::Object(idx) => heap.objects[idx as usize].trace(heap),
             _ => {}
         }
     }
-}
 
-pub trait ObjectHeapData: Trace + Debug {
-    fn get_prototype_of(&self, heap: &mut Heap) -> JsResult<Option<ObjectIndex>>;
-    fn set_prototype_of(&self, heap: &mut Heap, prototype: Option<ObjectIndex>) -> JsResult<bool>;
-    fn is_extensible(&self, heap: &mut Heap) -> JsResult<bool>;
-    fn prevent_extensions(&self, heap: &mut Heap) -> JsResult<bool>;
-    fn get_own_property(
-        &self,
-        heap: &mut Heap,
-        key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>>;
-    fn define_own_property(
-        &self,
-        heap: &mut Heap,
-        key: PropertyKey,
-        descriptor: PropertyDescriptor,
-    ) -> JsResult<bool>;
-    fn has_property(&self, heap: &mut Heap, key: PropertyKey) -> JsResult<bool>;
-    fn get(&self, heap: &mut Heap, key: PropertyKey, receiver: &Value) -> JsResult<Value>;
-    fn set(
-        &self,
-        heap: &mut Heap,
-        key: PropertyKey,
-        value: Value,
-        receiver: &Value,
-    ) -> JsResult<bool>;
-    fn delete(&self, heap: &mut Heap, key: PropertyKey) -> JsResult<bool>;
-    fn own_property_keys(&self, heap: &mut Heap) -> JsResult<Vec<PropertyKey>>;
-
-    // Tracing helpers
-    fn get_strong_references(&self) -> Vec<Value>;
-    fn get_weak_references(&self) -> Vec<Value>;
-}
-unsafe impl HeapTrace for Gc<dyn ObjectHeapData> {
-    unsafe fn heap_trace(&self, heap: &Heap) {
-        for reference in self.get_strong_references().iter() {
-            heap.trace_value(reference.clone());
+    fn root(&self, heap: &Heap) {
+        match self {
+            &Value::String(idx) => heap.strings[idx as usize].root(heap),
+            &Value::Symbol(idx) => heap.symbols[idx as usize].root(heap),
+            &Value::Number(idx) => heap.numbers[idx as usize].root(heap),
+            &Value::BigInt(idx) => heap.bigints[idx as usize].root(heap),
+            &Value::Object(idx) => heap.objects[idx as usize].root(heap),
+            _ => {}
         }
     }
 
-    unsafe fn heap_root(&self, _heap: &Heap) {
-        self.root();
+    fn unroot(&self, heap: &Heap) {
+        match self {
+            &Value::String(idx) => heap.strings[idx as usize].unroot(heap),
+            &Value::Symbol(idx) => heap.symbols[idx as usize].unroot(heap),
+            &Value::Number(idx) => heap.numbers[idx as usize].unroot(heap),
+            &Value::BigInt(idx) => heap.bigints[idx as usize].unroot(heap),
+            &Value::Object(idx) => heap.objects[idx as usize].unroot(heap),
+            _ => {}
+        }
     }
 
-    unsafe fn heap_unroot(&self, _heap: &Heap) {
-        self.unroot();
-    }
-
-    fn heap_finalize_glue(&self, _heap: &Heap) {
-        self.finalize_glue();
+    fn finalize(&mut self, _heap: &Heap) {
+        unreachable!("Finalize should never be called on a Value in stack");
     }
 }
 
-pub trait FunctionHeapData: ObjectHeapData {
-    fn call(&self, this: &Value, args: &[Value]) -> JsResult<Value>;
+pub struct HeapBits {
+    marked: Cell<bool>,
+    _weak_marked: Cell<bool>,
+    dirty: Cell<bool>,
+    roots: Cell<u8>,
 }
 
-pub trait ConstructorHeapData: FunctionHeapData {
-    fn construct(&self, args: &[Value], target: ObjectIndex) -> JsResult<Value>;
+impl HeapBits {
+    pub fn new() -> Self {
+        HeapBits {
+            marked: Cell::new(false),
+            _weak_marked: Cell::new(false),
+            dirty: Cell::new(false),
+            roots: Cell::new(0),
+        }
+    }
+}
+
+unsafe impl Sync for HeapBits {}
+
+pub struct ObjectEntry {
+    key: PropertyKey,
+    value: PropertyDescriptor,
+}
+
+impl ObjectEntry {
+    pub(crate) fn new(key: PropertyKey, value: PropertyDescriptor) -> Self {
+        ObjectEntry { key, value }
+    }
+}
+
+pub struct ObjectHeapData {
+    bits: HeapBits,
+    _extensible: bool,
+    prototype: PropertyDescriptor,
+    entries: Vec<ObjectEntry>,
+}
+
+impl ObjectHeapData {
+    pub fn new(
+        bits: HeapBits,
+        extensible: bool,
+        prototype: PropertyDescriptor,
+        entries: Vec<ObjectEntry>,
+    ) -> Self {
+        Self {
+            bits,
+            _extensible: extensible,
+            prototype,
+            entries,
+        }
+    }
+}
+
+impl HeapTrace for Option<ObjectHeapData> {
+    fn trace(&self, heap: &Heap) {
+        assert!(self.is_some());
+        let data = self.as_ref().unwrap();
+        let dirty = data.bits.dirty.replace(false);
+        let marked = data.bits.marked.replace(true);
+        if marked && !dirty {
+            // Do not keep recursing into already-marked heap values.
+            return;
+        }
+        match &data.prototype {
+            PropertyDescriptor::Data { value, .. } => value.trace(heap),
+            PropertyDescriptor::Readable { get, .. } => {
+                heap.objects[*get as usize].trace(heap);
+            }
+            PropertyDescriptor::Writable { set, .. } => {
+                heap.objects[*set as usize].trace(heap);
+            }
+            PropertyDescriptor::ReadableWritable { get, set, .. } => {
+                heap.objects[*get as usize].trace(heap);
+                heap.objects[*set as usize].trace(heap);
+            }
+        }
+        for reference in data.entries.iter() {
+            match reference.key {
+                PropertyKey::String(idx) => heap.strings[idx as usize].trace(heap),
+                PropertyKey::Symbol(idx) => heap.symbols[idx as usize].trace(heap),
+                PropertyKey::Smi(_) => {}
+            }
+            match &reference.value {
+                PropertyDescriptor::Data { value, .. } => value.trace(heap),
+                PropertyDescriptor::Readable { get, .. } => {
+                    heap.objects[*get as usize].trace(heap);
+                }
+                PropertyDescriptor::Writable { set, .. } => {
+                    heap.objects[*set as usize].trace(heap);
+                }
+                PropertyDescriptor::ReadableWritable { get, set, .. } => {
+                    heap.objects[*get as usize].trace(heap);
+                    heap.objects[*set as usize].trace(heap);
+                }
+            }
+        }
+    }
+
+    fn root(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        let roots = self.as_ref().unwrap().bits.roots.replace(1);
+        assert!(roots != u8::MAX);
+        self.as_ref().unwrap().bits.roots.replace(roots + 1);
+    }
+
+    fn unroot(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        let roots = self.as_ref().unwrap().bits.roots.replace(1);
+        assert!(roots != 0);
+        self.as_ref().unwrap().bits.roots.replace(roots - 1);
+    }
+
+    fn finalize(&mut self, _heap: &Heap) {
+        self.take();
+    }
 }
 
 pub enum PropertyKey {
     String(StringIndex),
     Symbol(SymbolIndex),
+    Smi(i32),
 }
 
-// TODO(andreubotella): This name isn't great.
 pub enum PropertyDescriptor {
     Data {
         value: Value,
@@ -151,84 +462,144 @@ pub enum PropertyDescriptor {
     },
 }
 
-#[derive(Clone)]
 pub struct StringHeapData {
+    bits: HeapBits,
     pub data: Wtf8Buf,
 }
 
-impl Finalize for StringHeapData {
-    fn finalize(&self) {}
+impl StringHeapData {
+    pub fn from_str(str: &str) -> Self {
+        StringHeapData {
+            bits: HeapBits::new(),
+            data: Wtf8Buf::from_str(str),
+        }
+    }
 }
-unsafe impl Trace for StringHeapData {
-    unsafe_empty_trace!();
-}
-unsafe impl HeapTrace for Gc<StringHeapData> {}
 
-#[derive(Trace, Finalize)]
+impl HeapTrace for Option<StringHeapData> {
+    fn trace(&self, _heap: &Heap) {}
+
+    fn root(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        let roots = self.as_ref().unwrap().bits.roots.replace(1);
+        assert!(roots != u8::MAX);
+        self.as_ref().unwrap().bits.roots.replace(roots + 1);
+    }
+
+    fn unroot(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        let roots = self.as_ref().unwrap().bits.roots.replace(1);
+        assert!(roots != 0);
+        self.as_ref().unwrap().bits.roots.replace(roots - 1);
+    }
+
+    fn finalize(&mut self, _heap: &Heap) {
+        self.take();
+    }
+}
+
 pub struct SymbolHeapData {
+    bits: HeapBits,
     descriptor: Option<StringIndex>,
 }
 
-unsafe impl HeapTrace for Gc<SymbolHeapData> {
-    unsafe fn heap_trace(&self, heap: &Heap) {
-        if let Some(idx) = self.descriptor {
-            unsafe {
-                heap.strings[idx as usize].trace();
-            }
+impl HeapTrace for Option<SymbolHeapData> {
+    fn trace(&self, heap: &Heap) {
+        assert!(self.is_some());
+        if let Some(idx) = self.as_ref().unwrap().descriptor {
+            heap.strings[idx as usize].trace(heap);
         }
     }
-
-    unsafe fn heap_root(&self, heap: &Heap) {
-        if let Some(idx) = self.descriptor {
-            unsafe {
-                heap.strings[idx as usize].root();
-            }
-        }
+    fn root(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        let roots = self.as_ref().unwrap().bits.roots.replace(1);
+        assert!(roots != u8::MAX);
+        self.as_ref().unwrap().bits.roots.replace(roots + 1);
     }
 
-    unsafe fn heap_unroot(&self, heap: &Heap) {
-        if let Some(idx) = self.descriptor {
-            unsafe {
-                heap.strings[idx as usize].unroot();
-            }
-        }
+    fn unroot(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        let roots = self.as_ref().unwrap().bits.roots.replace(1);
+        assert!(roots != 0);
+        self.as_ref().unwrap().bits.roots.replace(roots - 1);
     }
 
-    fn heap_finalize_glue(&self, heap: &Heap) {
-        if let Some(idx) = self.descriptor {
-            heap.strings[idx as usize].finalize_glue();
-        }
+    fn finalize(&mut self, _heap: &Heap) {
+        self.take();
     }
 }
 
-#[derive(Clone)]
 pub struct NumberHeapData {
+    bits: HeapBits,
     pub data: f64,
-}
-impl Finalize for NumberHeapData {
-    fn finalize(&self) {}
-}
-unsafe impl Trace for NumberHeapData {
-    unsafe_empty_trace!();
 }
 
 impl NumberHeapData {
     pub fn new(data: f64) -> NumberHeapData {
-        NumberHeapData { data }
+        NumberHeapData {
+            bits: HeapBits::new(),
+            data,
+        }
     }
 }
-unsafe impl HeapTrace for Gc<NumberHeapData> {}
+impl HeapTrace for Option<NumberHeapData> {
+    fn trace(&self, _heap: &Heap) {}
 
-#[derive(Clone)]
+    fn root(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        let roots = self.as_ref().unwrap().bits.roots.replace(1);
+        assert!(roots != u8::MAX);
+        self.as_ref().unwrap().bits.roots.replace(roots + 1);
+    }
+
+    fn unroot(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        let roots = self.as_ref().unwrap().bits.roots.replace(1);
+        assert!(roots != 0);
+        self.as_ref().unwrap().bits.roots.replace(roots - 1);
+    }
+
+    fn finalize(&mut self, _heap: &Heap) {
+        self.take();
+    }
+}
+
 pub struct BigIntHeapData {
+    bits: HeapBits,
     pub sign: bool,
     pub len: u32,
     pub parts: Box<[u64]>,
 }
-impl Finalize for BigIntHeapData {
-    fn finalize(&self) {}
+impl HeapTrace for Option<BigIntHeapData> {
+    fn trace(&self, _heap: &Heap) {}
+
+    fn root(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        let roots = self.as_ref().unwrap().bits.roots.replace(1);
+        assert!(roots != u8::MAX);
+        self.as_ref().unwrap().bits.roots.replace(roots + 1);
+    }
+
+    fn unroot(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        let roots = self.as_ref().unwrap().bits.roots.replace(1);
+        assert!(roots != 0);
+        self.as_ref().unwrap().bits.roots.replace(roots - 1);
+    }
+
+    fn finalize(&mut self, _heap: &Heap) {
+        self.take();
+    }
 }
-unsafe impl Trace for BigIntHeapData {
-    unsafe_empty_trace!();
+
+pub struct FunctionHeapData {
+    bits: HeapBits,
+    length: u8,
+    _extensible: bool,
+    uses_arguments: bool,
+    prototype: PropertyDescriptor,
+    entries: Vec<ObjectEntry>,
+    bound: Vec<Value>,
+    visible: Vec<Value>,
+    binding: fn(this: Value, args: Vec<Value>) -> Value,
 }
-unsafe impl HeapTrace for Gc<BigIntHeapData> {}

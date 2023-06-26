@@ -1,11 +1,13 @@
 #![feature(try_trait_v2)]
 
+mod bigint;
+mod function;
 pub mod heap;
+mod heap_trace;
+mod number;
+mod object;
+mod string;
 pub mod value;
-
-use std::fmt::Debug;
-
-use gc::Gc;
 use heap::{Heap, StringHeapData};
 use oxc_ast::{
     ast::{
@@ -15,20 +17,21 @@ use oxc_ast::{
     },
     syntax_directed_operations::PropName,
 };
+use std::fmt::Debug;
 use value::{JsResult, Value};
-use wtf8::Wtf8Buf;
 
 /// https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-ecmascript-language-types
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Type {
-    Undefined,
-    Null,
+    BigInt,
     Boolean,
+    Function,
+    Null,
+    Number,
+    Object,
     String,
     Symbol,
-    Number,
-    BigInt,
-    Object,
+    Undefined,
 }
 
 #[repr(u32)]
@@ -308,11 +311,9 @@ impl<'a> VM<'a> {
                 }
             }
             Expression::StringLiteral(s) => {
-                let js_string = StringHeapData {
-                    data: Wtf8Buf::from_str(&*s.value.as_str()),
-                };
+                let js_string = StringHeapData::from_str(&*s.value.as_str());
                 let string_idx = self.heap.strings.len();
-                self.heap.strings.push(Gc::new(js_string));
+                self.heap.strings.push(Some(js_string));
 
                 self.instructions.push(Instruction::LoadString.into());
                 self.instructions.push(addr);
