@@ -491,6 +491,11 @@ impl StringHeapData {
             data: Wtf8Buf::from_str(str),
         }
     }
+
+    pub fn len(&self) -> usize {
+        // TODO: We should return the UTF-16 length.
+        self.data.len()
+    }
 }
 
 impl HeapTrace for Option<StringHeapData> {
