@@ -10,6 +10,7 @@ pub type SymbolIndex = u32;
 pub type NumberIndex = u32;
 pub type BigIntIndex = u32;
 pub type ObjectIndex = u32;
+pub type FunctionIndex = u32;
 
 // Completely unoptimized...look away.
 #[derive(Clone)]
@@ -33,7 +34,7 @@ pub enum Value {
     SmallBigIntU(u32),
     BigInt(BigIntIndex),
     Object(ObjectIndex),
-    Function(ObjectIndex),
+    Function(FunctionIndex),
 }
 
 impl Value {
