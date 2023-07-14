@@ -277,33 +277,36 @@ impl Heap {
 impl HeapTrace for Value {
     fn trace(&self, heap: &Heap) {
         match self {
+            &Value::BigInt(idx) => heap.bigints[idx as usize].trace(heap),
+            &Value::Function(idx) => heap.functions[idx as usize].trace(heap),
+            &Value::Number(idx) => heap.numbers[idx as usize].trace(heap),
+            &Value::Object(idx) => heap.objects[idx as usize].trace(heap),
             &Value::String(idx) => heap.strings[idx as usize].trace(heap),
             &Value::Symbol(idx) => heap.symbols[idx as usize].trace(heap),
-            &Value::Number(idx) => heap.numbers[idx as usize].trace(heap),
-            &Value::BigInt(idx) => heap.bigints[idx as usize].trace(heap),
-            &Value::Object(idx) => heap.objects[idx as usize].trace(heap),
             _ => {}
         }
     }
 
     fn root(&self, heap: &Heap) {
         match self {
+            &Value::BigInt(idx) => heap.bigints[idx as usize].root(heap),
+            &Value::Function(idx) => heap.functions[idx as usize].root(heap),
+            &Value::Number(idx) => heap.numbers[idx as usize].root(heap),
+            &Value::Object(idx) => heap.objects[idx as usize].root(heap),
             &Value::String(idx) => heap.strings[idx as usize].root(heap),
             &Value::Symbol(idx) => heap.symbols[idx as usize].root(heap),
-            &Value::Number(idx) => heap.numbers[idx as usize].root(heap),
-            &Value::BigInt(idx) => heap.bigints[idx as usize].root(heap),
-            &Value::Object(idx) => heap.objects[idx as usize].root(heap),
             _ => {}
         }
     }
 
     fn unroot(&self, heap: &Heap) {
         match self {
+            &Value::BigInt(idx) => heap.bigints[idx as usize].unroot(heap),
+            &Value::Function(idx) => heap.functions[idx as usize].unroot(heap),
+            &Value::Number(idx) => heap.numbers[idx as usize].unroot(heap),
+            &Value::Object(idx) => heap.objects[idx as usize].unroot(heap),
             &Value::String(idx) => heap.strings[idx as usize].unroot(heap),
             &Value::Symbol(idx) => heap.symbols[idx as usize].unroot(heap),
-            &Value::Number(idx) => heap.numbers[idx as usize].unroot(heap),
-            &Value::BigInt(idx) => heap.bigints[idx as usize].unroot(heap),
-            &Value::Object(idx) => heap.objects[idx as usize].unroot(heap),
             _ => {}
         }
     }
