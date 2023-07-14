@@ -118,7 +118,7 @@ impl<'a> VM<'a> {
                 }
                 Instruction::LoadString => {
                     let addr = *iter.next().unwrap() as usize;
-                    memory[addr] = Value::String(*iter.next().unwrap() as u32);
+                    memory[addr] = Value::HeapString(*iter.next().unwrap() as u32);
                 }
                 Instruction::CopyValue => {
                     let addr = *iter.next().unwrap() as usize;

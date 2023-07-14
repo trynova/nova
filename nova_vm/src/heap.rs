@@ -1,10 +1,10 @@
 use crate::{
-    bigint::create_bigint_prototype,
+    bigint::initialize_bigint_heap,
     function::create_function_prototype,
     heap_trace::HeapTrace,
     number::create_number_prototype,
-    object::create_object_prototype,
-    string::create_string_prototype,
+    object::initialize_object_heap,
+    string::initiate_string_heap,
     value::{FunctionIndex, StringIndex, SymbolIndex, Value},
 };
 use std::cell::Cell;
@@ -34,18 +34,17 @@ impl Heap {
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
         };
-        let object_prototype = create_object_prototype(&mut heap);
+        let object_prototype = initialize_object_heap(&mut heap);
         heap.objects.push(Some(object_prototype));
         heap.globals.push(Value::Object(0));
         let function_prototype = create_function_prototype(&mut heap);
         heap.objects.push(Some(function_prototype));
         heap.globals.push(Value::Object(1));
-        heap.objects.push(Some(create_string_prototype()));
+        heap.objects.push(Some(initiate_string_heap()));
         heap.globals.push(Value::Object(2));
         heap.objects.push(Some(create_number_prototype()));
         heap.globals.push(Value::Object(3));
-        heap.objects.push(Some(create_bigint_prototype()));
-        heap.globals.push(Value::Object(4));
+        initialize_bigint_heap(&mut heap);
         heap
     }
 
@@ -66,6 +65,57 @@ impl Heap {
             self.strings.push(Some(data));
             self.strings.len() as u32
         }
+    }
+
+    pub(crate) fn create_function(
+        &mut self,
+        name: Value,
+        length: u8,
+        binding: JsBindingFunction,
+    ) -> u32 {
+        let func_object_data = ObjectHeapData {
+            _extensible: true,
+            bits: HeapBits::new(),
+            entries: vec![
+                ObjectEntry::new(
+                    PropertyKey::from_str(self, "length"),
+                    PropertyDescriptor::Data {
+                        value: Value::SmiU(length as u32),
+                        writable: false,
+                        enumerable: false,
+                        configurable: true,
+                    },
+                ),
+                ObjectEntry::new(
+                    PropertyKey::from_str(self, "name"),
+                    PropertyDescriptor::Data {
+                        value: name,
+                        writable: false,
+                        enumerable: false,
+                        configurable: true,
+                    },
+                ),
+            ],
+            prototype: PropertyDescriptor::Data {
+                // TODO: Get %Function.prototype%
+                value: Value::Object(1),
+                writable: false,
+                enumerable: false,
+                configurable: false,
+            },
+        };
+        self.objects.push(Some(func_object_data));
+        let func_data = FunctionHeapData {
+            binding,
+            bits: HeapBits::new(),
+            bound: None,
+            length,
+            object_index: self.objects.len() as u32,
+            uses_arguments: false,
+            visible: None,
+        };
+        self.functions.push(Some(func_data));
+        self.functions.len() as u32
     }
 
     fn partial_trace(&mut self) -> () {
@@ -277,11 +327,11 @@ impl Heap {
 impl HeapTrace for Value {
     fn trace(&self, heap: &Heap) {
         match self {
-            &Value::BigInt(idx) => heap.bigints[idx as usize].trace(heap),
+            &Value::HeapBigInt(idx) => heap.bigints[idx as usize].trace(heap),
             &Value::Function(idx) => heap.functions[idx as usize].trace(heap),
-            &Value::Number(idx) => heap.numbers[idx as usize].trace(heap),
+            &Value::HeapNumber(idx) => heap.numbers[idx as usize].trace(heap),
             &Value::Object(idx) => heap.objects[idx as usize].trace(heap),
-            &Value::String(idx) => heap.strings[idx as usize].trace(heap),
+            &Value::HeapString(idx) => heap.strings[idx as usize].trace(heap),
             &Value::Symbol(idx) => heap.symbols[idx as usize].trace(heap),
             _ => {}
         }
@@ -289,11 +339,11 @@ impl HeapTrace for Value {
 
     fn root(&self, heap: &Heap) {
         match self {
-            &Value::BigInt(idx) => heap.bigints[idx as usize].root(heap),
+            &Value::HeapBigInt(idx) => heap.bigints[idx as usize].root(heap),
             &Value::Function(idx) => heap.functions[idx as usize].root(heap),
-            &Value::Number(idx) => heap.numbers[idx as usize].root(heap),
+            &Value::HeapNumber(idx) => heap.numbers[idx as usize].root(heap),
             &Value::Object(idx) => heap.objects[idx as usize].root(heap),
-            &Value::String(idx) => heap.strings[idx as usize].root(heap),
+            &Value::HeapString(idx) => heap.strings[idx as usize].root(heap),
             &Value::Symbol(idx) => heap.symbols[idx as usize].root(heap),
             _ => {}
         }
@@ -301,11 +351,11 @@ impl HeapTrace for Value {
 
     fn unroot(&self, heap: &Heap) {
         match self {
-            &Value::BigInt(idx) => heap.bigints[idx as usize].unroot(heap),
+            &Value::HeapBigInt(idx) => heap.bigints[idx as usize].unroot(heap),
             &Value::Function(idx) => heap.functions[idx as usize].unroot(heap),
-            &Value::Number(idx) => heap.numbers[idx as usize].unroot(heap),
+            &Value::HeapNumber(idx) => heap.numbers[idx as usize].unroot(heap),
             &Value::Object(idx) => heap.objects[idx as usize].unroot(heap),
-            &Value::String(idx) => heap.strings[idx as usize].unroot(heap),
+            &Value::HeapString(idx) => heap.strings[idx as usize].unroot(heap),
             &Value::Symbol(idx) => heap.symbols[idx as usize].unroot(heap),
             _ => {}
         }
@@ -357,6 +407,41 @@ impl ObjectEntry {
     pub(crate) fn new(key: PropertyKey, value: PropertyDescriptor) -> Self {
         ObjectEntry { key, value }
     }
+
+    pub(crate) fn new_prototype_function(
+        heap: &mut Heap,
+        name: &str,
+        length: u8,
+        binding: JsBindingFunction,
+    ) -> Self {
+        let key = PropertyKey::from_str(heap, name);
+        let name = match key {
+            PropertyKey::SmallAsciiString(data) => Value::SmallAsciiString(data.clone()),
+            PropertyKey::Smi(_) => unreachable!("No prototype functions should have SMI names"),
+            PropertyKey::String(idx) => Value::HeapString(idx),
+            PropertyKey::Symbol(idx) => Value::Symbol(idx),
+        };
+        let func_index = heap.create_function(name, length, binding);
+        let value = PropertyDescriptor::Data {
+            value: Value::Function(func_index),
+            writable: true,
+            enumerable: false,
+            configurable: true,
+        };
+        ObjectEntry { key, value }
+    }
+
+    pub(crate) fn new_prototype(heap: &mut Heap, idx: u32) -> Self {
+        ObjectEntry {
+            key: PropertyKey::from_str(heap, "prototype"),
+            value: PropertyDescriptor::Data {
+                value: Value::Object(idx),
+                writable: false,
+                enumerable: false,
+                configurable: false,
+            },
+        }
+    }
 }
 
 pub struct ObjectHeapData {
@@ -367,14 +452,9 @@ pub struct ObjectHeapData {
 }
 
 impl ObjectHeapData {
-    pub fn new(
-        bits: HeapBits,
-        extensible: bool,
-        prototype: PropertyDescriptor,
-        entries: Vec<ObjectEntry>,
-    ) -> Self {
+    pub fn new(extensible: bool, prototype: PropertyDescriptor, entries: Vec<ObjectEntry>) -> Self {
         Self {
-            bits,
+            bits: HeapBits::new(),
             _extensible: extensible,
             prototype,
             entries,
@@ -408,9 +488,9 @@ impl HeapTrace for Option<ObjectHeapData> {
         }
         for reference in data.entries.iter() {
             match reference.key {
+                PropertyKey::SmallAsciiString(_) | PropertyKey::Smi(_) => {}
                 PropertyKey::String(idx) => heap.strings[idx as usize].trace(heap),
                 PropertyKey::Symbol(idx) => heap.symbols[idx as usize].trace(heap),
-                PropertyKey::Smi(_) => {}
             }
             match &reference.value {
                 PropertyDescriptor::Data { value, .. } => value.trace(heap),
@@ -445,9 +525,25 @@ impl HeapTrace for Option<ObjectHeapData> {
 }
 
 pub enum PropertyKey {
+    SmallAsciiString([i8; 7]),
+    Smi(i32),
     String(StringIndex),
     Symbol(SymbolIndex),
-    Smi(i32),
+}
+
+impl PropertyKey {
+    pub fn from_str(heap: &mut Heap, str: &str) -> Self {
+        if str.len() <= 7 && str.is_ascii() {
+            let mut bytes: [i8; 7] = [0, 0, 0, 0, 0, 0, 0];
+            let str_ascii_bytes = str.as_bytes();
+            for (idx, byte) in str_ascii_bytes.iter().enumerate() {
+                bytes[idx] = *byte as i8;
+            }
+            PropertyKey::SmallAsciiString(bytes)
+        } else {
+            PropertyKey::String(heap.alloc_string(str))
+        }
+    }
 }
 
 pub enum PropertyDescriptor {
@@ -477,6 +573,17 @@ pub enum PropertyDescriptor {
         enumerable: bool,
         configurable: bool,
     },
+}
+
+impl PropertyDescriptor {
+    pub fn prototype_slot(idx: u32) -> Self {
+        Self::Data {
+            value: Value::Object(idx),
+            writable: false,
+            enumerable: false,
+            configurable: false,
+        }
+    }
 }
 
 pub struct StringHeapData {
@@ -598,14 +705,16 @@ impl HeapTrace for Option<BigIntHeapData> {
     }
 }
 
+pub type JsBindingFunction = fn(heap: &mut Heap, this: Value, args: &[Value]) -> Value;
+
 pub struct FunctionHeapData {
     bits: HeapBits,
     object_index: u32,
     length: u8,
     uses_arguments: bool,
-    bound: Vec<Value>,
-    visible: Vec<Value>,
-    binding: fn(this: Value, args: Vec<Value>) -> Value,
+    bound: Option<Box<[Value]>>,
+    visible: Option<Vec<Value>>,
+    binding: JsBindingFunction,
 }
 impl HeapTrace for Option<FunctionHeapData> {
     fn trace(&self, heap: &Heap) {

@@ -1,4 +1,7 @@
-use crate::{heap::NumberHeapData, Type, VM};
+use crate::{
+    heap::{Heap, NumberHeapData},
+    Type, VM,
+};
 use std::{fmt::Debug, mem::size_of};
 
 // TODO(@aapoalas): Use transparent struct (u32)'s to ensure proper indexing.
@@ -18,7 +21,7 @@ pub enum Value {
     Boolean(bool),
     EmptyString,
     SmallAsciiString([i8; 7]),
-    String(StringIndex),
+    HeapString(StringIndex),
     Symbol(SymbolIndex),
     Smi(i32),
     SmiU(u32),
@@ -26,10 +29,10 @@ pub enum Value {
     Infinity,
     NegativeInfinity,
     NegativeZero,
-    Number(NumberIndex),
+    HeapNumber(NumberIndex),
     SmallBigInt(i32),
     SmallBigIntU(u32),
-    BigInt(BigIntIndex),
+    HeapBigInt(BigIntIndex),
     Object(ObjectIndex),
     Function(FunctionIndex),
 }
@@ -37,14 +40,14 @@ pub enum Value {
 const VALUE_SIZE_IS_WORD: () = assert!(size_of::<Value>() == size_of::<usize>());
 
 impl Value {
-    pub fn new_string(vm: &mut VM, message: &str) -> Value {
+    pub fn new_string(heap: &mut Heap, message: &str) -> Value {
         let _ = VALUE_SIZE_IS_WORD;
-        Value::String(vm.heap.alloc_string(message))
+        Value::HeapString(heap.alloc_string(message))
     }
 
-    pub fn create_exception(vm: &mut VM, message: &str) -> Value {
+    pub fn create_exception(heap: &mut Heap, message: &str) -> Value {
         let _ = VALUE_SIZE_IS_WORD;
-        Value::String(vm.heap.alloc_string(message))
+        Value::HeapString(heap.alloc_string(message))
     }
 
     pub fn get_type(&self) -> Type {
@@ -53,7 +56,7 @@ impl Value {
             Value::Undefined => Type::Undefined,
             Value::Null => Type::Null,
             Value::Boolean(_) => Type::Boolean,
-            Value::EmptyString | Value::SmallAsciiString(_) | Value::String(_) => Type::String,
+            Value::EmptyString | Value::SmallAsciiString(_) | Value::HeapString(_) => Type::String,
             Value::Symbol(_) => Type::Symbol,
             Value::NaN
             | Value::NegativeInfinity
@@ -61,8 +64,8 @@ impl Value {
             | Value::Infinity
             | Value::Smi(_)
             | Value::SmiU(_)
-            | Value::Number(_) => Type::Number,
-            Value::SmallBigInt(_) | Value::SmallBigIntU(_) | Value::BigInt(_) => Type::BigInt,
+            | Value::HeapNumber(_) => Type::Number,
+            Value::SmallBigInt(_) | Value::SmallBigIntU(_) | Value::HeapBigInt(_) => Type::BigInt,
             Value::Function(_) => Type::Function,
             Value::Object(_) => Type::Object,
         }
@@ -93,22 +96,24 @@ impl Value {
                 Value::SmallBigIntU(this) | Value::SmiU(this),
                 Value::SmallBigInt(that) | Value::Smi(that),
             ) => *this == *that as u32,
-            (&Value::BigInt(x), &Value::Number(y)) => {
+            (&Value::HeapBigInt(x), &Value::HeapNumber(y)) => {
                 let big_int = &vm.heap.bigints[x as usize];
                 let number = &vm.heap.numbers[y as usize];
                 big_int.as_ref().unwrap().len == 1
                     && big_int.as_ref().unwrap().parts[0] as f64 == number.as_ref().unwrap().data
             }
-            (&Value::Number(x), &Value::BigInt(y)) => {
+            (&Value::HeapNumber(x), &Value::HeapBigInt(y)) => {
                 let big_int = &vm.heap.bigints[y as usize];
                 let number = &vm.heap.numbers[x as usize];
                 big_int.as_ref().unwrap().len == 1
                     && big_int.as_ref().unwrap().parts[0] as f64 == number.as_ref().unwrap().data
             }
-            (Value::Number(_), Value::String(_)) => todo!("use ToNumber() intrinsics"),
-            (Value::String(_), Value::Number(_)) => todo!("use ToNumber() intrinsics"),
-            (Value::BigInt(_), Value::String(_)) => todo!("use StringToBigInt() intrinsics"),
-            (Value::String(_), Value::BigInt(_)) => other.is_loosely_equal(vm, self)?,
+            (Value::HeapNumber(_), Value::HeapString(_)) => todo!("use ToNumber() intrinsics"),
+            (Value::HeapString(_), Value::HeapNumber(_)) => todo!("use ToNumber() intrinsics"),
+            (Value::HeapBigInt(_), Value::HeapString(_)) => {
+                todo!("use StringToBigInt() intrinsics")
+            }
+            (Value::HeapString(_), Value::HeapBigInt(_)) => other.is_loosely_equal(vm, self)?,
             (Value::Boolean(_), _) => {
                 let self_as_f64 = self.try_into_f64(vm)?;
                 Value::from_f64(vm, self_as_f64).is_loosely_equal(vm, other)?
@@ -117,12 +122,19 @@ impl Value {
                 let other_as_f64 = other.try_into_f64(vm)?;
                 Value::from_f64(vm, other_as_f64).is_loosely_equal(vm, self)?
             }
-            (Value::String(_) | Value::Number(_) | Value::BigInt(_) | Value::Symbol(_), _) => {
-                other.is_loosely_equal(vm, &self.to_primitive()?)?
-            }
+            (
+                Value::HeapString(_)
+                | Value::HeapNumber(_)
+                | Value::HeapBigInt(_)
+                | Value::Symbol(_),
+                _,
+            ) => other.is_loosely_equal(vm, &self.to_primitive()?)?,
             (
                 Value::Object(_),
-                Value::String(_) | Value::Number(_) | Value::BigInt(_) | Value::Symbol(_),
+                Value::HeapString(_)
+                | Value::HeapNumber(_)
+                | Value::HeapBigInt(_)
+                | Value::Symbol(_),
             ) => self.to_primitive()?.is_loosely_equal(vm, other)?,
             _ => false,
         })
@@ -147,7 +159,7 @@ impl Value {
                 Value::SmiU(n2) | Value::SmallBigIntU(n2),
             ) => n1 == n2,
 
-            (Value::Number(n1), Value::Number(n2)) => {
+            (Value::HeapNumber(n1), Value::HeapNumber(n2)) => {
                 n1 == n2
                     || vm.heap.numbers[*n1 as usize].as_ref().unwrap().data
                         == vm.heap.numbers[*n2 as usize].as_ref().unwrap().data
@@ -155,8 +167,8 @@ impl Value {
 
             // https://tc39.es/ecma262/multipage/abstract-operations.html#sec-samevaluenonnumber
             (Value::Null | Value::Undefined, _) => true,
-            (Value::BigInt(n1), Value::BigInt(n2)) => n1 == n2,
-            (Value::String(s1), Value::String(s2)) => {
+            (Value::HeapBigInt(n1), Value::HeapBigInt(n2)) => n1 == n2,
+            (Value::HeapString(s1), Value::HeapString(s2)) => {
                 s1 == s2
                     || vm.heap.strings[*s1 as usize].as_ref().unwrap().data
                         == vm.heap.strings[*s2 as usize].as_ref().unwrap().data
@@ -187,7 +199,7 @@ impl Value {
     /// https://tc39.es/ecma262/multipage/abstract-operations.html#sec-tonumber
     pub fn to_number(&self, _vm: &mut VM) -> JsResult<Value> {
         Ok(match self {
-            Value::Number(_)
+            Value::HeapNumber(_)
             | Value::Smi(_)
             | Value::SmiU(_)
             | Value::Infinity
@@ -195,13 +207,13 @@ impl Value {
             | Value::NegativeZero => self.clone(),
             Value::Function(_)
             | Value::Symbol(_)
-            | Value::BigInt(_)
+            | Value::HeapBigInt(_)
             | Value::SmallBigInt(_)
             | Value::SmallBigIntU(_) => todo!("type error"),
             Value::Undefined | Value::NaN => Value::NaN,
             Value::Null | Value::Boolean(false) | Value::EmptyString => Value::SmiU(0),
             Value::Boolean(true) => Value::SmiU(1),
-            Value::SmallAsciiString(_) | Value::String(_) => todo!("parse number from string"),
+            Value::SmallAsciiString(_) | Value::HeapString(_) => todo!("parse number from string"),
             Value::Object(_) => todo!("call valueOf"),
         })
     }
@@ -218,7 +230,7 @@ impl Value {
             }
         } else if !is_int || value > u32::MAX as f64 || value < i32::MIN as f64 {
             vm.heap.numbers.push(Some(NumberHeapData::new(value)));
-            Value::Number(vm.heap.numbers.len() as u32)
+            Value::HeapNumber(vm.heap.numbers.len() as u32)
         } else if value.is_sign_positive() {
             Value::SmiU(value as u32)
         } else {
@@ -228,7 +240,7 @@ impl Value {
 
     pub fn try_into_f64(&self, vm: &mut VM) -> JsResult<f64> {
         match self {
-            &Value::Number(n) => Ok(vm.heap.numbers[n as usize].as_ref().unwrap().data),
+            &Value::HeapNumber(n) => Ok(vm.heap.numbers[n as usize].as_ref().unwrap().data),
             &Value::Smi(n) => Ok(n as f64),
             &Value::SmiU(n) => Ok(n as f64),
             Value::Infinity => Ok(f64::INFINITY),
@@ -237,12 +249,12 @@ impl Value {
             Value::Undefined | Value::NaN => Ok(f64::NAN),
             Value::Function(_)
             | Value::Symbol(_)
-            | Value::BigInt(_)
+            | Value::HeapBigInt(_)
             | Value::SmallBigInt(_)
             | Value::SmallBigIntU(_) => todo!("type error"),
             Value::Null | Value::Boolean(false) | Value::EmptyString => Ok(0.),
             Value::Boolean(true) => Ok(1.),
-            Value::SmallAsciiString(_) | Value::String(_) => todo!("parse number from string"),
+            Value::SmallAsciiString(_) | Value::HeapString(_) => todo!("parse number from string"),
             Value::Object(_) => todo!("call valueOf"),
         }
     }
@@ -267,6 +279,33 @@ impl Value {
             Value::Smi(value)
         }
     }
+
+    pub fn is_undefined(&self) -> bool {
+        match self {
+            Value::Undefined => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_null(&self) -> bool {
+        match self {
+            Value::Null => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_number(&self) -> bool {
+        match self {
+            Value::Smi(_) => true,
+            Value::SmiU(_) => true,
+            Value::NaN => true,
+            Value::Infinity => true,
+            Value::NegativeInfinity => true,
+            Value::NegativeZero => true,
+            Value::HeapNumber(_) => true,
+            _ => false,
+        }
+    }
 }
 
 pub type JsResult<T> = std::result::Result<T, Value>;
@@ -277,13 +316,13 @@ impl Debug for Value {
             Value::Null => write!(f, "Null"),
             Value::Undefined => write!(f, "Undefined"),
             Value::Boolean(arg0) => f.debug_tuple("Boolean").field(arg0).finish(),
-            Value::Number(arg0) => f.debug_tuple("Number").field(arg0).finish(),
+            Value::HeapNumber(arg0) => f.debug_tuple("Number").field(arg0).finish(),
             Value::Smi(arg0) => f.debug_tuple("Smi").field(arg0).finish(),
             Value::SmiU(arg0) => f.debug_tuple("SmiU").field(arg0).finish(),
-            Value::BigInt(arg0) => f.debug_tuple("BigInt").field(arg0).finish(),
+            Value::HeapBigInt(arg0) => f.debug_tuple("BigInt").field(arg0).finish(),
             Value::SmallBigInt(arg0) => f.debug_tuple("SmallBigInt").field(arg0).finish(),
             Value::SmallBigIntU(arg0) => f.debug_tuple("SmallBigIntU").field(arg0).finish(),
-            Value::String(arg0) => f.debug_tuple("String").field(arg0).finish(),
+            Value::HeapString(arg0) => f.debug_tuple("String").field(arg0).finish(),
             Value::SmallAsciiString(arg0) => f.debug_tuple("SmallAsciiString").field(arg0).finish(),
             Value::Object(arg0) => f.debug_tuple("JsObject").field(arg0).finish(),
             Value::Symbol(arg0) => f.debug_tuple("Symbol").field(arg0).finish(),
