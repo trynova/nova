@@ -332,8 +332,8 @@ impl<'a> VM<'a> {
                     AssignmentTarget::SimpleAssignmentTarget(target) => match target {
                         SimpleAssignmentTarget::AssignmentTargetIdentifier(ident) => {
                             let Some(addr) = env.map.get(ident.name.as_str()) else {
-								panic!("Unknown ident.");
-							};
+                                panic!("Unknown ident.");
+                            };
                             self.build_expr(*addr, &s.right, env);
                         }
                         _ => todo!(),

@@ -1,7 +1,4 @@
-use crate::{
-    heap::NumberHeapData,
-    Type, VM,
-};
+use crate::{heap::NumberHeapData, Type, VM};
 use std::{fmt::Debug, mem::size_of};
 
 // TODO(@aapoalas): Use transparent struct (u32)'s to ensure proper indexing.

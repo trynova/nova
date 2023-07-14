@@ -5,7 +5,7 @@ use crate::{
     number::create_number_prototype,
     object::create_object_prototype,
     string::create_string_prototype,
-    value::{StringIndex, SymbolIndex, Value, FunctionIndex},
+    value::{FunctionIndex, StringIndex, SymbolIndex, Value},
 };
 use std::cell::Cell;
 use wtf8::{Wtf8, Wtf8Buf};
@@ -332,6 +332,18 @@ impl HeapBits {
             roots: Cell::new(0),
         }
     }
+
+    fn root(&self) {
+        let roots = self.roots.replace(1);
+        assert!(roots != u8::MAX);
+        self.roots.replace(roots + 1);
+    }
+
+    fn unroot(&self) {
+        let roots = self.roots.replace(1);
+        assert!(roots != 0);
+        self.roots.replace(roots - 1);
+    }
 }
 
 unsafe impl Sync for HeapBits {}
@@ -382,7 +394,7 @@ impl HeapTrace for Option<ObjectHeapData> {
         }
         match &data.prototype {
             PropertyDescriptor::Data { value, .. } => value.trace(heap),
-            PropertyDescriptor::Blocked { .. } => {},
+            PropertyDescriptor::Blocked { .. } => {}
             PropertyDescriptor::ReadOnly { get, .. } => {
                 heap.objects[*get as usize].trace(heap);
             }
@@ -402,7 +414,7 @@ impl HeapTrace for Option<ObjectHeapData> {
             }
             match &reference.value {
                 PropertyDescriptor::Data { value, .. } => value.trace(heap),
-                PropertyDescriptor::Blocked { .. } => {},
+                PropertyDescriptor::Blocked { .. } => {}
                 PropertyDescriptor::ReadOnly { get, .. } => {
                     heap.objects[*get as usize].trace(heap);
                 }
@@ -419,16 +431,12 @@ impl HeapTrace for Option<ObjectHeapData> {
 
     fn root(&self, _heap: &Heap) {
         assert!(self.is_some());
-        let roots = self.as_ref().unwrap().bits.roots.replace(1);
-        assert!(roots != u8::MAX);
-        self.as_ref().unwrap().bits.roots.replace(roots + 1);
+        self.as_ref().unwrap().bits.root();
     }
 
     fn unroot(&self, _heap: &Heap) {
         assert!(self.is_some());
-        let roots = self.as_ref().unwrap().bits.roots.replace(1);
-        assert!(roots != 0);
-        self.as_ref().unwrap().bits.roots.replace(roots - 1);
+        self.as_ref().unwrap().bits.unroot();
     }
 
     fn finalize(&mut self, _heap: &Heap) {
@@ -490,16 +498,12 @@ impl HeapTrace for Option<StringHeapData> {
 
     fn root(&self, _heap: &Heap) {
         assert!(self.is_some());
-        let roots = self.as_ref().unwrap().bits.roots.replace(1);
-        assert!(roots != u8::MAX);
-        self.as_ref().unwrap().bits.roots.replace(roots + 1);
+        self.as_ref().unwrap().bits.root();
     }
 
     fn unroot(&self, _heap: &Heap) {
         assert!(self.is_some());
-        let roots = self.as_ref().unwrap().bits.roots.replace(1);
-        assert!(roots != 0);
-        self.as_ref().unwrap().bits.roots.replace(roots - 1);
+        self.as_ref().unwrap().bits.unroot();
     }
 
     fn finalize(&mut self, _heap: &Heap) {
@@ -521,16 +525,12 @@ impl HeapTrace for Option<SymbolHeapData> {
     }
     fn root(&self, _heap: &Heap) {
         assert!(self.is_some());
-        let roots = self.as_ref().unwrap().bits.roots.replace(1);
-        assert!(roots != u8::MAX);
-        self.as_ref().unwrap().bits.roots.replace(roots + 1);
+        self.as_ref().unwrap().bits.root();
     }
 
     fn unroot(&self, _heap: &Heap) {
         assert!(self.is_some());
-        let roots = self.as_ref().unwrap().bits.roots.replace(1);
-        assert!(roots != 0);
-        self.as_ref().unwrap().bits.roots.replace(roots - 1);
+        self.as_ref().unwrap().bits.unroot();
     }
 
     fn finalize(&mut self, _heap: &Heap) {
@@ -556,16 +556,12 @@ impl HeapTrace for Option<NumberHeapData> {
 
     fn root(&self, _heap: &Heap) {
         assert!(self.is_some());
-        let roots = self.as_ref().unwrap().bits.roots.replace(1);
-        assert!(roots != u8::MAX);
-        self.as_ref().unwrap().bits.roots.replace(roots + 1);
+        self.as_ref().unwrap().bits.root();
     }
 
     fn unroot(&self, _heap: &Heap) {
         assert!(self.is_some());
-        let roots = self.as_ref().unwrap().bits.roots.replace(1);
-        assert!(roots != 0);
-        self.as_ref().unwrap().bits.roots.replace(roots - 1);
+        self.as_ref().unwrap().bits.unroot();
     }
 
     fn finalize(&mut self, _heap: &Heap) {
@@ -584,16 +580,12 @@ impl HeapTrace for Option<BigIntHeapData> {
 
     fn root(&self, _heap: &Heap) {
         assert!(self.is_some());
-        let roots = self.as_ref().unwrap().bits.roots.replace(1);
-        assert!(roots != u8::MAX);
-        self.as_ref().unwrap().bits.roots.replace(roots + 1);
+        self.as_ref().unwrap().bits.root();
     }
 
     fn unroot(&self, _heap: &Heap) {
         assert!(self.is_some());
-        let roots = self.as_ref().unwrap().bits.roots.replace(1);
-        assert!(roots != 0);
-        self.as_ref().unwrap().bits.roots.replace(roots - 1);
+        self.as_ref().unwrap().bits.unroot();
     }
 
     fn finalize(&mut self, _heap: &Heap) {
@@ -617,16 +609,12 @@ impl HeapTrace for Option<FunctionHeapData> {
     }
     fn root(&self, _heap: &Heap) {
         assert!(self.is_some());
-        let roots = self.as_ref().unwrap().bits.roots.replace(1);
-        assert!(roots != u8::MAX);
-        self.as_ref().unwrap().bits.roots.replace(roots + 1);
+        self.as_ref().unwrap().bits.root();
     }
 
     fn unroot(&self, _heap: &Heap) {
         assert!(self.is_some());
-        let roots = self.as_ref().unwrap().bits.roots.replace(1);
-        assert!(roots != 0);
-        self.as_ref().unwrap().bits.roots.replace(roots - 1);
+        self.as_ref().unwrap().bits.unroot();
     }
 
     fn finalize(&mut self, _heap: &Heap) {
