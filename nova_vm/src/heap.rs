@@ -594,12 +594,33 @@ impl HeapTrace for Option<BigIntHeapData> {
 
 pub struct FunctionHeapData {
     bits: HeapBits,
+    object_index: u32,
     length: u8,
-    _extensible: bool,
     uses_arguments: bool,
-    prototype: PropertyDescriptor,
-    entries: Vec<ObjectEntry>,
     bound: Vec<Value>,
     visible: Vec<Value>,
     binding: fn(this: Value, args: Vec<Value>) -> Value,
+}
+impl HeapTrace for Option<FunctionHeapData> {
+    fn trace(&self, heap: &Heap) {
+        assert!(self.is_some());
+        heap.objects[self.object_index as usize].trace(heap);
+    }
+    fn root(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        let roots = self.as_ref().unwrap().bits.roots.replace(1);
+        assert!(roots != u8::MAX);
+        self.as_ref().unwrap().bits.roots.replace(roots + 1);
+    }
+
+    fn unroot(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        let roots = self.as_ref().unwrap().bits.roots.replace(1);
+        assert!(roots != 0);
+        self.as_ref().unwrap().bits.roots.replace(roots - 1);
+    }
+
+    fn finalize(&mut self, _heap: &Heap) {
+        self.take();
+    }
 }
