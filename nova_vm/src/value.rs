@@ -1,8 +1,8 @@
 use crate::{
-    heap::{NumberHeapData, StringHeapData},
+    heap::NumberHeapData,
     Type, VM,
 };
-use std::fmt::Debug;
+use std::{fmt::Debug, mem::size_of};
 
 // TODO(@aapoalas): Use transparent struct (u32)'s to ensure proper indexing.
 pub type StringIndex = u32;
@@ -37,16 +37,21 @@ pub enum Value {
     Function(FunctionIndex),
 }
 
+const VALUE_SIZE_IS_WORD: () = assert!(size_of::<Value>() == size_of::<usize>());
+
 impl Value {
     pub fn new_string(vm: &mut VM, message: &str) -> Value {
+        let _ = VALUE_SIZE_IS_WORD;
         Value::String(vm.heap.alloc_string(message))
     }
 
     pub fn create_exception(vm: &mut VM, message: &str) -> Value {
+        let _ = VALUE_SIZE_IS_WORD;
         Value::String(vm.heap.alloc_string(message))
     }
 
     pub fn get_type(&self) -> Type {
+        let _ = VALUE_SIZE_IS_WORD;
         match self {
             Value::Undefined => Type::Undefined,
             Value::Null => Type::Null,
@@ -68,6 +73,7 @@ impl Value {
 
     /// https://tc39.es/ecma262/multipage/abstract-operations.html#sec-islooselyequal
     pub fn is_loosely_equal(&self, vm: &mut VM, other: &Value) -> JsResult<bool> {
+        let _ = VALUE_SIZE_IS_WORD;
         if self.get_type() == other.get_type() {
             return self.is_strictly_equal(vm, other);
         }
@@ -127,6 +133,7 @@ impl Value {
 
     /// https://tc39.es/ecma262/multipage/abstract-operations.html#sec-isstrictlyequal
     pub fn is_strictly_equal(&self, vm: &VM, other: &Value) -> JsResult<bool> {
+        let _ = VALUE_SIZE_IS_WORD;
         if self.get_type() != other.get_type() {
             return Ok(false);
         }

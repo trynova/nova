@@ -5,7 +5,7 @@ use crate::{
     number::create_number_prototype,
     object::create_object_prototype,
     string::create_string_prototype,
-    value::{ObjectIndex, StringIndex, SymbolIndex, Value},
+    value::{StringIndex, SymbolIndex, Value, FunctionIndex},
 };
 use std::cell::Cell;
 use wtf8::{Wtf8, Wtf8Buf};
@@ -382,13 +382,14 @@ impl HeapTrace for Option<ObjectHeapData> {
         }
         match &data.prototype {
             PropertyDescriptor::Data { value, .. } => value.trace(heap),
-            PropertyDescriptor::Readable { get, .. } => {
+            PropertyDescriptor::Blocked { .. } => {},
+            PropertyDescriptor::ReadOnly { get, .. } => {
                 heap.objects[*get as usize].trace(heap);
             }
-            PropertyDescriptor::Writable { set, .. } => {
+            PropertyDescriptor::WriteOnly { set, .. } => {
                 heap.objects[*set as usize].trace(heap);
             }
-            PropertyDescriptor::ReadableWritable { get, set, .. } => {
+            PropertyDescriptor::ReadWrite { get, set, .. } => {
                 heap.objects[*get as usize].trace(heap);
                 heap.objects[*set as usize].trace(heap);
             }
@@ -401,13 +402,14 @@ impl HeapTrace for Option<ObjectHeapData> {
             }
             match &reference.value {
                 PropertyDescriptor::Data { value, .. } => value.trace(heap),
-                PropertyDescriptor::Readable { get, .. } => {
+                PropertyDescriptor::Blocked { .. } => {},
+                PropertyDescriptor::ReadOnly { get, .. } => {
                     heap.objects[*get as usize].trace(heap);
                 }
-                PropertyDescriptor::Writable { set, .. } => {
+                PropertyDescriptor::WriteOnly { set, .. } => {
                     heap.objects[*set as usize].trace(heap);
                 }
-                PropertyDescriptor::ReadableWritable { get, set, .. } => {
+                PropertyDescriptor::ReadWrite { get, set, .. } => {
                     heap.objects[*get as usize].trace(heap);
                     heap.objects[*set as usize].trace(heap);
                 }
@@ -447,19 +449,23 @@ pub enum PropertyDescriptor {
         enumerable: bool,
         configurable: bool,
     },
-    Readable {
-        get: ObjectIndex,
+    Blocked {
         enumerable: bool,
         configurable: bool,
     },
-    Writable {
-        set: ObjectIndex,
+    ReadOnly {
+        get: FunctionIndex,
         enumerable: bool,
         configurable: bool,
     },
-    ReadableWritable {
-        get: ObjectIndex,
-        set: ObjectIndex,
+    WriteOnly {
+        set: FunctionIndex,
+        enumerable: bool,
+        configurable: bool,
+    },
+    ReadWrite {
+        get: FunctionIndex,
+        set: FunctionIndex,
         enumerable: bool,
         configurable: bool,
     },
@@ -607,7 +613,7 @@ pub struct FunctionHeapData {
 impl HeapTrace for Option<FunctionHeapData> {
     fn trace(&self, heap: &Heap) {
         assert!(self.is_some());
-        heap.objects[self.object_index as usize].trace(heap);
+        heap.objects[self.as_ref().unwrap().object_index as usize].trace(heap);
     }
     fn root(&self, _heap: &Heap) {
         assert!(self.is_some());

@@ -1,4 +1,4 @@
-use crate::heap::{Heap, HeapBits, ObjectEntry, ObjectHeapData, PropertyDescriptor};
+use crate::heap::{Heap, HeapBits, ObjectHeapData, PropertyDescriptor};
 use crate::Value;
 
 pub fn create_function_prototype(heap: &mut Heap) -> ObjectHeapData {
