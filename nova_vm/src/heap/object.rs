@@ -1,16 +1,17 @@
 use crate::{
     heap::{
-        FunctionHeapData, Heap, HeapBits, ObjectEntry, ObjectHeapData, PropertyDescriptor,
-        PropertyKey,
+        heap_constants::{
+            FUNCTION_CONSTRUCTOR_INDEX, OBJECT_CONSTRUCTOR_INDEX, OBJECT_PROTOTYPE_INDEX,
+        },
+        FunctionHeapData, Heap, HeapBits, ObjectHeapData, PropertyDescriptor,
     },
-    heap_constants::{OBJECT_CONSTRUCTOR_INDEX, OBJECT_PROTOTYPE_INDEX},
     value::Value,
 };
 
 pub fn initialize_object_heap(heap: &mut Heap) {
     let object_constructor_object = ObjectHeapData::new(
         true,
-        PropertyDescriptor::prototype_slot(OBJECT_PROTOTYPE_INDEX),
+        PropertyDescriptor::prototype_slot(FUNCTION_CONSTRUCTOR_INDEX),
         Vec::with_capacity(24),
     );
     debug_assert!(heap.objects.len() as u32 == OBJECT_CONSTRUCTOR_INDEX);
@@ -22,7 +23,7 @@ pub fn initialize_object_heap(heap: &mut Heap) {
         uses_arguments: false,
         bound: None,
         visible: None,
-        binding: todo!(),
+        binding: object_constructor_binding,
     }));
     let object_prototype_object = ObjectHeapData::new(
         true,
@@ -36,6 +37,10 @@ pub fn initialize_object_heap(heap: &mut Heap) {
     );
     debug_assert!(heap.objects.len() as u32 == OBJECT_PROTOTYPE_INDEX);
     heap.objects.push(Some(object_prototype_object));
+}
+
+fn object_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
+    Value::Object(0)
 }
 
 pub fn populate_object_heap(heap: &mut Heap) {}

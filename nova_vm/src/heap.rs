@@ -1,12 +1,19 @@
-use crate::{
-    bigint::initialize_bigint_heap,
-    function::create_function_prototype,
-    heap_trace::HeapTrace,
-    number::create_number_prototype,
-    object::initialize_object_heap,
-    string::initiate_string_heap,
-    value::{FunctionIndex, StringIndex, SymbolIndex, Value},
+mod bigint;
+mod boolean;
+mod function;
+mod heap_constants;
+mod heap_trace;
+mod number;
+mod object;
+mod string;
+mod symbol;
+
+use self::{
+    bigint::initialize_bigint_heap, boolean::initialize_boolean_heap,
+    function::initialize_function_heap, heap_trace::HeapTrace, number::initialize_number_heap,
+    object::initialize_object_heap, string::initialize_string_heap, symbol::initialize_symbol_heap,
 };
+use crate::value::{FunctionIndex, StringIndex, SymbolIndex, Value};
 use std::cell::Cell;
 use wtf8::{Wtf8, Wtf8Buf};
 
@@ -34,17 +41,16 @@ impl Heap {
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
         };
-        let object_prototype = initialize_object_heap(&mut heap);
-        heap.objects.push(Some(object_prototype));
-        heap.globals.push(Value::Object(0));
-        let function_prototype = create_function_prototype(&mut heap);
-        heap.objects.push(Some(function_prototype));
-        heap.globals.push(Value::Object(1));
-        heap.objects.push(Some(initiate_string_heap()));
-        heap.globals.push(Value::Object(2));
-        heap.objects.push(Some(create_number_prototype()));
-        heap.globals.push(Value::Object(3));
+        initialize_object_heap(&mut heap);
+        initialize_function_heap(&mut heap);
+        initialize_boolean_heap(&mut heap);
+        initialize_symbol_heap(&mut heap);
+        // initialize_error_heap(&mut heap);
+        initialize_number_heap(&mut heap);
         initialize_bigint_heap(&mut heap);
+        // initialize_math_object(&mut heap);
+        // initialize_date_object(&mut heap);
+        initialize_string_heap(&mut heap);
         heap
     }
 

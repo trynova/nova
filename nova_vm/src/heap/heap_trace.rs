@@ -1,4 +1,4 @@
-use crate::heap::Heap;
+use super::Heap;
 
 pub trait HeapTrace {
     fn trace(&self, heap: &Heap);

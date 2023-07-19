@@ -1,12 +1,6 @@
 #![feature(try_trait_v2)]
 
-mod bigint;
-mod function;
 pub mod heap;
-mod heap_trace;
-mod number;
-mod object;
-mod string;
 pub mod value;
 use heap::{Heap, StringHeapData};
 use oxc_ast::{
