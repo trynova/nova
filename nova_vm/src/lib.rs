@@ -2,7 +2,7 @@
 
 pub mod heap;
 pub mod value;
-use heap::{Heap, StringHeapData};
+use heap::Heap;
 use oxc_ast::{
     ast::{
         AssignmentOperator, AssignmentTarget, BinaryOperator, BindingPatternKind, Declaration,
@@ -305,9 +305,7 @@ impl<'a> VM<'a> {
                 }
             }
             Expression::StringLiteral(s) => {
-                let js_string = StringHeapData::from_str(&*s.value.as_str());
-                let string_idx = self.heap.strings.len();
-                self.heap.strings.push(Some(js_string));
+                let string_idx = self.heap.alloc_string(&*s.value.as_str());
 
                 self.instructions.push(Instruction::LoadString.into());
                 self.instructions.push(addr);

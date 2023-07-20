@@ -18,7 +18,7 @@ use self::{
     object::{
         initialize_object_heap, ObjectEntry, ObjectHeapData, PropertyDescriptor, PropertyKey,
     },
-    string::initialize_string_heap,
+    string::{initialize_string_heap, StringHeapData},
     symbol::initialize_symbol_heap,
 };
 use crate::value::{StringIndex, Value};
@@ -429,43 +429,6 @@ impl HeapBits {
 }
 
 unsafe impl Sync for HeapBits {}
-
-pub struct StringHeapData {
-    bits: HeapBits,
-    pub data: Wtf8Buf,
-}
-
-impl StringHeapData {
-    pub fn from_str(str: &str) -> Self {
-        StringHeapData {
-            bits: HeapBits::new(),
-            data: Wtf8Buf::from_str(str),
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        // TODO: We should return the UTF-16 length.
-        self.data.len()
-    }
-}
-
-impl HeapTrace for Option<StringHeapData> {
-    fn trace(&self, _heap: &Heap) {}
-
-    fn root(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.root();
-    }
-
-    fn unroot(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.unroot();
-    }
-
-    fn finalize(&mut self, _heap: &Heap) {
-        self.take();
-    }
-}
 
 pub struct SymbolHeapData {
     bits: HeapBits,
