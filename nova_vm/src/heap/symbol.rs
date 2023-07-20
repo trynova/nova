@@ -3,8 +3,37 @@ use crate::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, Heap, HeapBits, ObjectHeapData, PropertyDescriptor,
     },
-    value::Value,
+    value::{StringIndex, Value},
 };
+
+use super::heap_trace::HeapTrace;
+
+pub(crate) struct SymbolHeapData {
+    pub(super) bits: HeapBits,
+    pub(super) descriptor: Option<StringIndex>,
+}
+
+impl HeapTrace for Option<SymbolHeapData> {
+    fn trace(&self, heap: &Heap) {
+        assert!(self.is_some());
+        if let Some(idx) = self.as_ref().unwrap().descriptor {
+            heap.strings[idx as usize].trace(heap);
+        }
+    }
+    fn root(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        self.as_ref().unwrap().bits.root();
+    }
+
+    fn unroot(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        self.as_ref().unwrap().bits.unroot();
+    }
+
+    fn finalize(&mut self, _heap: &Heap) {
+        self.take();
+    }
+}
 
 pub fn initialize_symbol_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::SymbolConstructorIndex as usize] =

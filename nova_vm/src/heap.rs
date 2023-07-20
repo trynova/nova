@@ -9,30 +9,30 @@ mod string;
 mod symbol;
 
 use self::{
-    bigint::initialize_bigint_heap,
+    bigint::{initialize_bigint_heap, BigIntHeapData},
     boolean::initialize_boolean_heap,
-    function::initialize_function_heap,
+    function::{initialize_function_heap, FunctionHeapData, JsBindingFunction},
     heap_constants::{BuiltinObjectIndexes, FIRST_CONSTRUCTOR_INDEX, LAST_BUILTIN_OBJECT_INDEX},
     heap_trace::HeapTrace,
-    number::initialize_number_heap,
+    number::{initialize_number_heap, NumberHeapData},
     object::{
         initialize_object_heap, ObjectEntry, ObjectHeapData, PropertyDescriptor, PropertyKey,
     },
     string::{initialize_string_heap, StringHeapData},
-    symbol::initialize_symbol_heap,
+    symbol::{initialize_symbol_heap, SymbolHeapData},
 };
-use crate::value::{StringIndex, Value};
+use crate::value::Value;
 use std::cell::Cell;
-use wtf8::{Wtf8, Wtf8Buf};
+use wtf8::Wtf8;
 
 pub struct Heap {
-    pub bigints: Vec<Option<BigIntHeapData>>,
-    pub functions: Vec<Option<FunctionHeapData>>,
-    pub globals: Vec<Value>,
-    pub numbers: Vec<Option<NumberHeapData>>,
-    pub objects: Vec<Option<ObjectHeapData>>,
-    pub strings: Vec<Option<StringHeapData>>,
-    pub symbols: Vec<Option<SymbolHeapData>>,
+    pub(crate) bigints: Vec<Option<BigIntHeapData>>,
+    pub(crate) functions: Vec<Option<FunctionHeapData>>,
+    pub(crate) globals: Vec<Value>,
+    pub(crate) numbers: Vec<Option<NumberHeapData>>,
+    pub(crate) objects: Vec<Option<ObjectHeapData>>,
+    pub(crate) strings: Vec<Option<StringHeapData>>,
+    pub(crate) symbols: Vec<Option<SymbolHeapData>>,
 }
 
 fn stop_the_world() {}
@@ -111,6 +111,11 @@ impl Heap {
             self.strings.push(Some(data));
             self.strings.len() as u32
         }
+    }
+
+    pub(crate) fn alloc_number(&mut self, number: f64) -> u32 {
+        self.numbers.push(Some(NumberHeapData::new(number)));
+        self.numbers.len() as u32
     }
 
     pub(crate) fn create_function(
@@ -429,116 +434,3 @@ impl HeapBits {
 }
 
 unsafe impl Sync for HeapBits {}
-
-pub struct SymbolHeapData {
-    bits: HeapBits,
-    descriptor: Option<StringIndex>,
-}
-
-impl HeapTrace for Option<SymbolHeapData> {
-    fn trace(&self, heap: &Heap) {
-        assert!(self.is_some());
-        if let Some(idx) = self.as_ref().unwrap().descriptor {
-            heap.strings[idx as usize].trace(heap);
-        }
-    }
-    fn root(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.root();
-    }
-
-    fn unroot(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.unroot();
-    }
-
-    fn finalize(&mut self, _heap: &Heap) {
-        self.take();
-    }
-}
-
-pub struct NumberHeapData {
-    bits: HeapBits,
-    pub data: f64,
-}
-
-impl NumberHeapData {
-    pub fn new(data: f64) -> NumberHeapData {
-        NumberHeapData {
-            bits: HeapBits::new(),
-            data,
-        }
-    }
-}
-impl HeapTrace for Option<NumberHeapData> {
-    fn trace(&self, _heap: &Heap) {}
-
-    fn root(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.root();
-    }
-
-    fn unroot(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.unroot();
-    }
-
-    fn finalize(&mut self, _heap: &Heap) {
-        self.take();
-    }
-}
-
-pub struct BigIntHeapData {
-    bits: HeapBits,
-    pub sign: bool,
-    pub len: u32,
-    pub parts: Box<[u64]>,
-}
-impl HeapTrace for Option<BigIntHeapData> {
-    fn trace(&self, _heap: &Heap) {}
-
-    fn root(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.root();
-    }
-
-    fn unroot(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.unroot();
-    }
-
-    fn finalize(&mut self, _heap: &Heap) {
-        self.take();
-    }
-}
-
-pub type JsBindingFunction = fn(heap: &mut Heap, this: Value, args: &[Value]) -> Value;
-
-pub struct FunctionHeapData {
-    bits: HeapBits,
-    object_index: u32,
-    length: u8,
-    uses_arguments: bool,
-    bound: Option<Box<[Value]>>,
-    visible: Option<Vec<Value>>,
-    binding: JsBindingFunction,
-}
-impl HeapTrace for Option<FunctionHeapData> {
-    fn trace(&self, heap: &Heap) {
-        assert!(self.is_some());
-        heap.objects[self.as_ref().unwrap().object_index as usize].trace(heap);
-    }
-    fn root(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.root();
-    }
-
-    fn unroot(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.unroot();
-    }
-
-    fn finalize(&mut self, _heap: &Heap) {
-        self.take();
-    }
-}

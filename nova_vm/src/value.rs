@@ -1,7 +1,4 @@
-use crate::{
-    heap::{Heap, NumberHeapData},
-    Type, VM,
-};
+use crate::{heap::Heap, Type, VM};
 use std::{fmt::Debug, mem::size_of};
 
 // TODO(@aapoalas): Use transparent struct (u32)'s to ensure proper indexing.
@@ -99,14 +96,12 @@ impl Value {
             (&Value::HeapBigInt(x), &Value::HeapNumber(y)) => {
                 let big_int = &vm.heap.bigints[x as usize];
                 let number = &vm.heap.numbers[y as usize];
-                big_int.as_ref().unwrap().len == 1
-                    && big_int.as_ref().unwrap().parts[0] as f64 == number.as_ref().unwrap().data
+                big_int.as_ref().unwrap().try_into_f64() == Some(number.as_ref().unwrap().value())
             }
             (&Value::HeapNumber(x), &Value::HeapBigInt(y)) => {
                 let big_int = &vm.heap.bigints[y as usize];
                 let number = &vm.heap.numbers[x as usize];
-                big_int.as_ref().unwrap().len == 1
-                    && big_int.as_ref().unwrap().parts[0] as f64 == number.as_ref().unwrap().data
+                big_int.as_ref().unwrap().try_into_f64() == Some(number.as_ref().unwrap().value())
             }
             (Value::HeapNumber(_), Value::HeapString(_)) => todo!("use ToNumber() intrinsics"),
             (Value::HeapString(_), Value::HeapNumber(_)) => todo!("use ToNumber() intrinsics"),
@@ -161,8 +156,8 @@ impl Value {
 
             (Value::HeapNumber(n1), Value::HeapNumber(n2)) => {
                 n1 == n2
-                    || vm.heap.numbers[*n1 as usize].as_ref().unwrap().data
-                        == vm.heap.numbers[*n2 as usize].as_ref().unwrap().data
+                    || vm.heap.numbers[*n1 as usize].as_ref().unwrap().value()
+                        == vm.heap.numbers[*n2 as usize].as_ref().unwrap().value()
             }
 
             // https://tc39.es/ecma262/multipage/abstract-operations.html#sec-samevaluenonnumber
@@ -229,8 +224,7 @@ impl Value {
                 Value::NegativeInfinity
             }
         } else if !is_int || value > u32::MAX as f64 || value < i32::MIN as f64 {
-            vm.heap.numbers.push(Some(NumberHeapData::new(value)));
-            Value::HeapNumber(vm.heap.numbers.len() as u32)
+            Value::HeapNumber(vm.heap.alloc_number(value))
         } else if value.is_sign_positive() {
             Value::SmiU(value as u32)
         } else {
@@ -240,7 +234,7 @@ impl Value {
 
     pub fn try_into_f64(&self, vm: &mut VM) -> JsResult<f64> {
         match self {
-            &Value::HeapNumber(n) => Ok(vm.heap.numbers[n as usize].as_ref().unwrap().data),
+            &Value::HeapNumber(n) => Ok(vm.heap.numbers[n as usize].as_ref().unwrap().value()),
             &Value::Smi(n) => Ok(n as f64),
             &Value::SmiU(n) => Ok(n as f64),
             Value::Infinity => Ok(f64::INFINITY),

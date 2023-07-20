@@ -1,13 +1,12 @@
 use crate::{
     heap::{
+        function::JsBindingFunction,
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         heap_trace::HeapTrace,
         FunctionHeapData, Heap, HeapBits,
     },
     value::{FunctionIndex, StringIndex, SymbolIndex, Value},
 };
-
-use super::JsBindingFunction;
 
 pub struct ObjectEntry {
     key: PropertyKey,
@@ -197,7 +196,7 @@ impl PropertyDescriptor {
     }
 }
 
-pub struct ObjectHeapData {
+pub(crate) struct ObjectHeapData {
     pub(crate) bits: HeapBits,
     pub(crate) _extensible: bool,
     // TODO: It's probably not necessary to have a whole data descriptor here.

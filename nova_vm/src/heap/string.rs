@@ -8,7 +8,7 @@ use crate::{
 };
 use wtf8::Wtf8Buf;
 
-pub struct StringHeapData {
+pub(crate) struct StringHeapData {
     pub(crate) bits: HeapBits,
     pub(crate) data: Wtf8Buf,
 }

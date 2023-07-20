@@ -7,6 +7,47 @@ use crate::{
     value::Value,
 };
 
+use super::heap_trace::HeapTrace;
+
+pub(crate) struct BigIntHeapData {
+    pub(super) bits: HeapBits,
+    pub(super) sign: bool,
+    pub(super) len: u32,
+    pub(super) parts: Box<[u64]>,
+}
+
+impl BigIntHeapData {
+    pub(crate) fn len(&self) -> u32 {
+        self.len
+    }
+
+    pub(crate) fn try_into_f64(&self) -> Option<f64> {
+        if self.len == 1 {
+            Some(self.parts[0] as f64)
+        } else {
+            None
+        }
+    }
+}
+
+impl HeapTrace for Option<BigIntHeapData> {
+    fn trace(&self, _heap: &Heap) {}
+
+    fn root(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        self.as_ref().unwrap().bits.root();
+    }
+
+    fn unroot(&self, _heap: &Heap) {
+        assert!(self.is_some());
+        self.as_ref().unwrap().bits.unroot();
+    }
+
+    fn finalize(&mut self, _heap: &Heap) {
+        self.take();
+    }
+}
+
 fn bigint_constructor(heap: &mut Heap, this: Value, args: &[Value]) -> Value {
     if !this.is_undefined() {
         // TODO: Throw TypeError
