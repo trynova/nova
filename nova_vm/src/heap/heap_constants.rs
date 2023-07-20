@@ -1,127 +1,139 @@
-// Fundamental objects
-pub const OBJECT_PROTOTYPE_INDEX: u32 = 0;
-pub const FUNCTION_PROTOTYPE_INDEX: u32 = OBJECT_PROTOTYPE_INDEX + 1;
-pub const BOOLEAN_PROTOTYPE_INDEX: u32 = FUNCTION_PROTOTYPE_INDEX + 1;
-pub const SYMBOL_PROTOTYPE_INDEX: u32 = BOOLEAN_PROTOTYPE_INDEX + 1;
-pub const ERROR_PROTOTYPE_INDEX: u32 = SYMBOL_PROTOTYPE_INDEX + 1;
+//! Heap constants for initializing the heap
+//!
+//! These define the order in which built-in prototypes and constructors
+//! are placed into the heap vectors. The order is based on the ECMAScript
+//! definition found in https://tc39.es/ecma262/
 
-// Numbers and dates
-pub const NUMBER_PROTOTYPE_INDEX: u32 = ERROR_PROTOTYPE_INDEX + 1;
-pub const BIGINT_PROTOTYPE_INDEX: u32 = NUMBER_PROTOTYPE_INDEX + 1;
-// pub const MATH_OBJECT_PROTOTYPE_INDEX: u32 = OBJECT_PROTOTYPE_INDEX;
-pub const DATE_PROTOTYPE_INDEX: u32 = BIGINT_PROTOTYPE_INDEX + 1;
+// +==================================================================+
+// | First the list of built-in prototypes and non-prototypal objects |
+// +==================================================================+
 
-// Text processing
-pub const STRING_PROTOTYPE_INDEX: u32 = DATE_PROTOTYPE_INDEX + 1;
-pub const REGEXP_PROTOTYPE_INDEX: u32 = STRING_PROTOTYPE_INDEX + 1;
+#[repr(u32)]
+pub enum BuiltinObjectIndexes {
+    // Fundamental objects
+    ObjectPrototypeIndex,
+    FunctionPrototypeIndex,
+    BooleanPrototypeIndex,
+    SymbolPrototypeIndex,
+    ErrorPrototypeIndex,
 
-// Indexed collections
-pub const ARRAY_PROTOTYPE_INDEX: u32 = REGEXP_PROTOTYPE_INDEX + 1;
-pub const INT_8_ARRAY_PROTOTYPE_INDEX: u32 = ARRAY_PROTOTYPE_INDEX + 1;
-pub const UINT_8_ARRAY_PROTOTYPE_INDEX: u32 = INT_8_ARRAY_PROTOTYPE_INDEX + 1;
-pub const UINT_8_CLAMPED_ARRAY_PROTOTYPE_INDEX: u32 = UINT_8_ARRAY_PROTOTYPE_INDEX + 1;
-pub const INT_16_ARRAY_PROTOTYPE_INDEX: u32 = UINT_8_CLAMPED_ARRAY_PROTOTYPE_INDEX + 1;
-pub const UINT_16_ARRAY_PROTOTYPE_INDEX: u32 = INT_16_ARRAY_PROTOTYPE_INDEX + 1;
-pub const INT_32_ARRAY_PROTOTYPE_INDEX: u32 = UINT_16_ARRAY_PROTOTYPE_INDEX + 1;
-pub const UINT_32_ARRAY_PROTOTYPE_INDEX: u32 = INT_32_ARRAY_PROTOTYPE_INDEX + 1;
-pub const BIG_INT_64_ARRAY_PROTOTYPE_INDEX: u32 = UINT_32_ARRAY_PROTOTYPE_INDEX + 1;
-pub const BIG_UINT_64_ARRAY_PROTOTYPE_INDEX: u32 = BIG_INT_64_ARRAY_PROTOTYPE_INDEX + 1;
-pub const FLOAT_32_ARRAY_PROTOTYPE_INDEX: u32 = BIG_UINT_64_ARRAY_PROTOTYPE_INDEX + 1;
-pub const FLOAT_64_ARRAY_PROTOTYPE_INDEX: u32 = FLOAT_32_ARRAY_PROTOTYPE_INDEX + 1;
+    // Numbers and dates
+    NumberPrototypeIndex,
+    BigintPrototypeIndex,
+    MathObjectIndex,
+    DatePrototypeIndex,
 
-// Keyed collections
-pub const MAP_PROTOTYPE_INDEX: u32 = FLOAT_64_ARRAY_PROTOTYPE_INDEX + 1;
-pub const SET_PROTOTYPE_INDEX: u32 = MAP_PROTOTYPE_INDEX + 1;
-pub const WEAK_MAP_PROTOTYPE_INDEX: u32 = SET_PROTOTYPE_INDEX + 1;
-pub const WEAK_SET_PROTOTYPE_INDEX: u32 = WEAK_MAP_PROTOTYPE_INDEX + 1;
+    // Text processing
+    StringPrototypeIndex,
+    RegexpPrototypeIndex,
 
-// Structured data
-pub const ARRAY_BUFFER_PROTOTYPE_INDEX: u32 = WEAK_SET_PROTOTYPE_INDEX + 1;
-pub const SHARED_ARRAY_BUFFER_PROTOTYPE_INDEX: u32 = ARRAY_BUFFER_PROTOTYPE_INDEX + 1;
-pub const DATA_VIEW_PROTOTYPE_INDEX: u32 = SHARED_ARRAY_BUFFER_PROTOTYPE_INDEX + 1;
-// pub const ATOMICS_OBJECT_PROTOTYPE_INDEX: u32 = OBJECT_PROTOTYPE_INDEX;
-// pub const JSON_OBJECT_PROTOTYPE_INDEX: u32 = OBJECT_PROTOTYPE_INDEX;
+    // Indexed collections
+    ArrayPrototypeIndex,
+    Int8ArrayPrototypeIndex,
+    Uint8ArrayPrototypeIndex,
+    Uint8ClampedArrayPrototypeIndex,
+    Int16ArrayPrototypeIndex,
+    Uint16ArrayPrototypeIndex,
+    Int32ArrayPrototypeIndex,
+    Uint32ArrayPrototypeIndex,
+    BigInt64ArrayPrototypeIndex,
+    BigUint64ArrayPrototypeIndex,
+    Float32ArrayPrototypeIndex,
+    Float64ArrayPrototypeIndex,
 
-// Managing memory
-pub const WEAK_REF_PROTOTYPE_INDEX: u32 = DATA_VIEW_PROTOTYPE_INDEX + 1;
-pub const FINALIZATION_REGISTRY_PROTOTYPE_INDEX: u32 = WEAK_REF_PROTOTYPE_INDEX + 1;
+    // Keyed collections
+    MapPrototypeIndex,
+    SetPrototypeIndex,
+    WeakMapPrototypeIndex,
+    WeakSetPrototypeIndex,
 
-// Control abstraction objects
-pub const ITERATOR_PROTOTYPE_INDEX: u32 = FINALIZATION_REGISTRY_PROTOTYPE_INDEX + 1;
-pub const ASYNC_ITERATOR_PROTOTYPE_INDEX: u32 = ITERATOR_PROTOTYPE_INDEX + 1;
-pub const PROMISE_PROTOTYPE_INDEX: u32 = ASYNC_ITERATOR_PROTOTYPE_INDEX + 1;
-pub const GENERATOR_FUNCTION_PROTOTYPE_INDEX: u32 = PROMISE_PROTOTYPE_INDEX + 1;
-pub const ASYNC_GENERATOR_FUNCTION_PROTOTYPE_INDEX: u32 = GENERATOR_FUNCTION_PROTOTYPE_INDEX + 1;
-pub const GENERATOR_PROTOTYPE_INDEX: u32 = ASYNC_GENERATOR_FUNCTION_PROTOTYPE_INDEX + 1;
-pub const ASYNC_GENERATOR_PROTOTYPE_INDEX: u32 = GENERATOR_PROTOTYPE_INDEX + 1;
-pub const ASYNC_FUNCTION_PROTOTYPE_INDEX: u32 = ASYNC_GENERATOR_PROTOTYPE_INDEX + 1;
+    // Structured data
+    ArrayBufferPrototypeIndex,
+    SharedArrayBufferPrototypeIndex,
+    DataViewPrototypeIndex,
+    AtomicsObjectIndex,
+    JsonObjectIndex,
 
-// Reflection
-// pub const REFLECT_PROTOTYPE_INDEX: u32 = OBJECT_PROTOTYPE_INDEX;
-// pub const PROXY_PROTOTYPE_INDEX: u32 = FUNCTION_PROTOTYPE_INDEX;
-pub const MODULE_PROTOTYPE_INDEX: u32 = ASYNC_FUNCTION_PROTOTYPE_INDEX + 1;
+    // Managing memory
+    WeakRefPrototypeIndex,
+    FinalizationRegistryPrototypeIndex,
 
-// Fundamental objects
-pub const OBJECT_CONSTRUCTOR_INDEX: u32 = MODULE_PROTOTYPE_INDEX + 1;
-pub const FUNCTION_CONSTRUCTOR_INDEX: u32 = OBJECT_CONSTRUCTOR_INDEX + 1;
-pub const BOOLEAN_CONSTRUCTOR_INDEX: u32 = FUNCTION_CONSTRUCTOR_INDEX + 1;
-pub const SYMBOL_CONSTRUCTOR_INDEX: u32 = BOOLEAN_CONSTRUCTOR_INDEX + 1;
-pub const ERROR_CONSTRUCTOR_INDEX: u32 = SYMBOL_CONSTRUCTOR_INDEX + 1;
+    // Control abstraction objects
+    IteratorPrototypeIndex,
+    AsyncIteratorPrototypeIndex,
+    PromisePrototypeIndex,
+    GeneratorFunctionPrototypeIndex,
+    AsyncGeneratorFunctionPrototypeIndex,
+    GeneratorPrototypeIndex,
+    AsyncGeneratorPrototypeIndex,
+    AsyncFunctionPrototypeIndex,
 
-// Numbers and dates
-pub const NUMBER_CONSTRUCTOR_INDEX: u32 = ERROR_CONSTRUCTOR_INDEX + 1;
-pub const BIGINT_CONSTRUCTOR_INDEX: u32 = NUMBER_CONSTRUCTOR_INDEX + 1;
-pub const MATH_OBJECT_INDEX: u32 = BIGINT_CONSTRUCTOR_INDEX + 1;
-pub const DATE_CONSTRUCTOR_INDEX: u32 = MATH_OBJECT_INDEX + 1;
+    // Reflection
+    ReflectObjectIndex,
+    ModulePrototypeIndex,
 
-// Text processing
-pub const STRING_CONSTRUCTOR_INDEX: u32 = DATE_CONSTRUCTOR_INDEX + 1;
-pub const REGEXP_CONSTRUCTOR_INDEX: u32 = STRING_CONSTRUCTOR_INDEX + 1;
+    // +===============================================+
+    // | Then the list of constructor function objects |
+    // +===============================================+
 
-// Indexed collections
-pub const ARRAY_CONSTRUCTOR_INDEX: u32 = REGEXP_CONSTRUCTOR_INDEX + 1;
-pub const INT_8_ARRAY_CONSTRUCTOR_INDEX: u32 = ARRAY_CONSTRUCTOR_INDEX + 1;
-pub const UINT_8_ARRAY_CONSTRUCTOR_INDEX: u32 = INT_8_ARRAY_CONSTRUCTOR_INDEX + 1;
-pub const UINT_8_CLAMPED_ARRAY_CONSTRUCTOR_INDEX: u32 = UINT_8_ARRAY_CONSTRUCTOR_INDEX + 1;
-pub const INT_16_ARRAY_CONSTRUCTOR_INDEX: u32 = UINT_8_CLAMPED_ARRAY_CONSTRUCTOR_INDEX + 1;
-pub const UINT_16_ARRAY_CONSTRUCTOR_INDEX: u32 = INT_16_ARRAY_CONSTRUCTOR_INDEX + 1;
-pub const INT_32_ARRAY_CONSTRUCTOR_INDEX: u32 = UINT_16_ARRAY_CONSTRUCTOR_INDEX + 1;
-pub const UINT_32_ARRAY_CONSTRUCTOR_INDEX: u32 = INT_32_ARRAY_CONSTRUCTOR_INDEX + 1;
-pub const BIG_INT_64_ARRAY_CONSTRUCTOR_INDEX: u32 = UINT_32_ARRAY_CONSTRUCTOR_INDEX + 1;
-pub const BIG_UINT_64_ARRAY_CONSTRUCTOR_INDEX: u32 = BIG_INT_64_ARRAY_CONSTRUCTOR_INDEX + 1;
-pub const FLOAT_32_ARRAY_CONSTRUCTOR_INDEX: u32 = BIG_UINT_64_ARRAY_CONSTRUCTOR_INDEX + 1;
-pub const FLOAT_64_ARRAY_CONSTRUCTOR_INDEX: u32 = FLOAT_32_ARRAY_CONSTRUCTOR_INDEX + 1;
+    // Fundamental objects
+    ObjectConstructorIndex,
+    FunctionConstructorIndex,
+    BooleanConstructorIndex,
+    SymbolConstructorIndex,
+    ErrorConstructorIndex,
 
-// Keyed collections
-pub const MAP_CONSTRUCTOR_INDEX: u32 = FLOAT_64_ARRAY_CONSTRUCTOR_INDEX + 1;
-pub const SET_CONSTRUCTOR_INDEX: u32 = MAP_CONSTRUCTOR_INDEX + 1;
-pub const WEAK_MAP_CONSTRUCTOR_INDEX: u32 = SET_CONSTRUCTOR_INDEX + 1;
-pub const WEAK_SET_CONSTRUCTOR_INDEX: u32 = WEAK_MAP_CONSTRUCTOR_INDEX + 1;
+    // Numbers and dates
+    NumberConstructorIndex,
+    BigintConstructorIndex,
+    DateConstructorIndex,
 
-// Structured data
-pub const ARRAY_BUFFER_CONSTRUCTOR_INDEX: u32 = WEAK_SET_CONSTRUCTOR_INDEX + 1;
-pub const SHARED_ARRAY_BUFFER_CONSTRUCTOR_INDEX: u32 = ARRAY_BUFFER_CONSTRUCTOR_INDEX + 1;
-pub const DATA_VIEW_CONSTRUCTOR_INDEX: u32 = SHARED_ARRAY_BUFFER_CONSTRUCTOR_INDEX + 1;
-pub const ATOMICS_OBJECT_INDEX: u32 = DATA_VIEW_CONSTRUCTOR_INDEX + 1;
-pub const JSON_OBJECT_INDEX: u32 = ATOMICS_OBJECT_INDEX + 1;
+    // Text processing
+    StringConstructorIndex,
+    RegexpConstructorIndex,
 
-// Managing memory
-pub const WEAK_REF_CONSTRUCTOR_INDEX: u32 = JSON_OBJECT_INDEX + 1;
-pub const FINALIZATION_REGISTRY_CONSTRUCTOR_INDEX: u32 = WEAK_REF_CONSTRUCTOR_INDEX + 1;
+    // Indexed collections
+    ArrayConstructorIndex,
+    Int8ArrayConstructorIndex,
+    Uint8ArrayConstructorIndex,
+    Uint8ClampedArrayConstructorIndex,
+    Int16ArrayConstructorIndex,
+    Uint16ArrayConstructorIndex,
+    Int32ArrayConstructorIndex,
+    Uint32ArrayConstructorIndex,
+    BigInt64ArrayConstructorIndex,
+    BigUint64ArrayConstructorIndex,
+    Float32ArrayConstructorIndex,
+    Float64ArrayConstructorIndex,
 
-// Control abstraction objects
-// pub const ITERATOR_CONSTRUCTOR_INDEX: u32 = 0;
-// pub const ASYNC_ITERATOR_CONSTRUCTOR_INDEX: u32 = 0;
-pub const PROMISE_CONSTRUCTOR_INDEX: u32 = FINALIZATION_REGISTRY_CONSTRUCTOR_INDEX + 1;
-pub const GENERATOR_FUNCTION_CONSTRUCTOR_INDEX: u32 = PROMISE_CONSTRUCTOR_INDEX + 1;
-pub const ASYNC_GENERATOR_FUNCTION_CONSTRUCTOR_INDEX: u32 = GENERATOR_FUNCTION_CONSTRUCTOR_INDEX + 1;
-// pub const GENERATOR_CONSTRUCTOR_INDEX: u32 = 0;
-// pub const ASYNC_GENERATOR_CONSTRUCTOR_INDEX: u32 = 0;
-pub const ASYNC_FUNCTION_CONSTRUCTOR_INDEX: u32 = ASYNC_GENERATOR_FUNCTION_CONSTRUCTOR_INDEX + 1;
+    // Keyed collections
+    MapConstructorIndex,
+    SetConstructorIndex,
+    WeakMapConstructorIndex,
+    WeakSetConstructorIndex,
 
-// Reflection
-pub const REFLECT_OBJECT_INDEX: u32 = ASYNC_FUNCTION_CONSTRUCTOR_INDEX + 1;
-pub const PROXY_CONSTRUCTOR_INDEX: u32 = REFLECT_OBJECT_INDEX + 1;
-// pub const MODULE_CONSTRUCTOR_INDEX = 0;
+    // Structured data
+    ArrayBufferConstructorIndex,
+    SharedArrayBufferConstructorIndex,
+    DataViewConstructorIndex,
 
-pub const LAST_STATIC_INDEX: u32 = PROXY_CONSTRUCTOR_INDEX;
+    // Managing memory
+    WeakRefConstructorIndex,
+    FinalizationRegistryConstructorIndex,
+
+    // Control abstraction objects
+    PromiseConstructorIndex,
+    GeneratorFunctionConstructorIndex,
+    AsyncGeneratorFunctionConstructorIndex,
+    AsyncFunctionConstructorIndex,
+
+    // Reflection
+    ProxyConstructorIndex,
+}
+
+pub const LAST_BUILTIN_OBJECT_INDEX: u32 = BuiltinObjectIndexes::ProxyConstructorIndex as u32;
+pub const FIRST_CONSTRUCTOR_INDEX: u32 = BuiltinObjectIndexes::ObjectConstructorIndex as u32;
+
+pub const fn get_constructor_index(object_index: BuiltinObjectIndexes) -> u32 {
+    object_index as u32 - FIRST_CONSTRUCTOR_INDEX
+}

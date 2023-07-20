@@ -9,9 +9,15 @@ mod string;
 mod symbol;
 
 use self::{
-    bigint::initialize_bigint_heap, boolean::initialize_boolean_heap,
-    function::initialize_function_heap, heap_trace::HeapTrace, number::initialize_number_heap,
-    object::initialize_object_heap, string::initialize_string_heap, symbol::initialize_symbol_heap,
+    bigint::initialize_bigint_heap,
+    boolean::initialize_boolean_heap,
+    function::initialize_function_heap,
+    heap_constants::{BuiltinObjectIndexes, FIRST_CONSTRUCTOR_INDEX, LAST_BUILTIN_OBJECT_INDEX},
+    heap_trace::HeapTrace,
+    number::initialize_number_heap,
+    object::initialize_object_heap,
+    string::initialize_string_heap,
+    symbol::initialize_symbol_heap,
 };
 use crate::value::{FunctionIndex, StringIndex, SymbolIndex, Value};
 use std::cell::Cell;
@@ -41,6 +47,13 @@ impl Heap {
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
         };
+        for i in (0..LAST_BUILTIN_OBJECT_INDEX) {
+            // Initialize all static slots in heap objects.
+            heap.objects.push(None);
+            if i >= FIRST_CONSTRUCTOR_INDEX {
+                heap.functions.push(None);
+            }
+        }
         initialize_object_heap(&mut heap);
         initialize_function_heap(&mut heap);
         initialize_boolean_heap(&mut heap);
@@ -51,6 +64,31 @@ impl Heap {
         // initialize_math_object(&mut heap);
         // initialize_date_object(&mut heap);
         initialize_string_heap(&mut heap);
+        // initialize_regexp_object(&mut heap);
+        // initialize_typedarray_object(&mut heap);
+        // initialize_map_object(&mut heap);
+        // initialize_set_object(&mut heap);
+        // initialize_weak_map_object(&mut heap);
+        // initialize_weak_set_object(&mut heap);
+        // initialize_array_buffer_object(&mut heap);
+        // initialize_shared_array_buffer_object(&mut heap);
+        // initialize_data_view_object(&mut heap);
+        // initialize_json_object(&mut heap);
+        // initialize_atomics_object(&mut heap);
+        // initialize_weak_ref_object(&mut heap);
+        // initialize_finalization_registry_object(&mut heap);
+        // initialize_iterator_object(&mut heap);
+        // initialize_async_iterator_object(&mut heap);
+        // initialize_promise_object(&mut heap);
+        // initialize_generator_function_object(&mut heap);
+        // initialize_async_generator_function_object(&mut heap);
+        // initialize_generator_object(&mut heap);
+        // initialize_async_generator_object(&mut heap);
+        // initialize_async_function_object(&mut heap);
+        // initialize_reflect_object(&mut heap);
+        // initialize_proxy_object(&mut heap);
+        // initialize_module_object(&mut heap);
+
         heap
     }
 
@@ -85,30 +123,16 @@ impl Heap {
             entries: vec![
                 ObjectEntry::new(
                     PropertyKey::from_str(self, "length"),
-                    PropertyDescriptor::Data {
-                        value: Value::SmiU(length as u32),
-                        writable: false,
-                        enumerable: false,
-                        configurable: true,
-                    },
+                    PropertyDescriptor::roxh(Value::SmiU(length as u32)),
                 ),
                 ObjectEntry::new(
                     PropertyKey::from_str(self, "name"),
-                    PropertyDescriptor::Data {
-                        value: name,
-                        writable: false,
-                        enumerable: false,
-                        configurable: true,
-                    },
+                    PropertyDescriptor::roxh(name),
                 ),
             ],
-            prototype: PropertyDescriptor::Data {
-                // TODO: Get %Function.prototype%
-                value: Value::Object(1),
-                writable: false,
-                enumerable: false,
-                configurable: false,
-            },
+            prototype: PropertyDescriptor::roh(Value::Object(
+                BuiltinObjectIndexes::FunctionPrototypeIndex as u32,
+            )),
         };
         self.objects.push(Some(func_object_data));
         let func_data = FunctionHeapData {
@@ -428,12 +452,7 @@ impl ObjectEntry {
             PropertyKey::Symbol(idx) => Value::Symbol(idx),
         };
         let func_index = heap.create_function(name, length, binding);
-        let value = PropertyDescriptor::Data {
-            value: Value::Function(func_index),
-            writable: true,
-            enumerable: false,
-            configurable: true,
-        };
+        let value = PropertyDescriptor::rwxh(Value::Function(func_index));
         ObjectEntry { key, value }
     }
 
@@ -453,6 +472,12 @@ impl ObjectEntry {
 pub struct ObjectHeapData {
     bits: HeapBits,
     _extensible: bool,
+    // TODO: It's probably not necessary to have a whole data descriptor here.
+    // A prototype can only be set to be null or an object, meaning that most of the
+    // possible Value options are impossible.
+    // We could possibly do with just a `Option<ObjectIndex>` but it would cause issues
+    // with functions and possible other special object cases we want to track with partially
+    // separate heap fields later down the line.
     prototype: PropertyDescriptor,
     entries: Vec<ObjectEntry>,
 }
@@ -582,12 +607,97 @@ pub enum PropertyDescriptor {
 }
 
 impl PropertyDescriptor {
-    pub fn prototype_slot(idx: u32) -> Self {
+    #[inline(always)]
+    pub const fn prototype_slot(idx: u32) -> Self {
         Self::Data {
             value: Value::Object(idx),
             writable: false,
             enumerable: false,
             configurable: false,
+        }
+    }
+
+    #[inline(always)]
+    /// Read, unconfigurable-only data descriptor
+    pub const fn ro(value: Value) -> Self {
+        Self::Data {
+            value,
+            writable: false,
+            enumerable: true,
+            configurable: false,
+        }
+    }
+    #[inline(always)]
+    /// Read, unconfigurable-only, unenumerable data descriptor
+    pub const fn roh(value: Value) -> Self {
+        Self::Data {
+            value,
+            writable: false,
+            enumerable: false,
+            configurable: false,
+        }
+    }
+
+    #[inline(always)]
+    /// Read-only, configurable data descriptor
+    pub const fn rox(value: Value) -> Self {
+        Self::Data {
+            value,
+            writable: false,
+            enumerable: true,
+            configurable: true,
+        }
+    }
+    #[inline(always)]
+    /// Read-only, configurable, unenumerable data descriptor
+    pub const fn roxh(value: Value) -> Self {
+        Self::Data {
+            value,
+            writable: false,
+            enumerable: false,
+            configurable: true,
+        }
+    }
+
+    #[inline(always)]
+    /// Writable, unconfigurable data descriptor
+    pub const fn rw(value: Value) -> Self {
+        Self::Data {
+            value,
+            writable: true,
+            enumerable: false,
+            configurable: false,
+        }
+    }
+    #[inline(always)]
+    /// Writable, unconfigurable, unenumerable data descriptor
+    pub const fn rwh(value: Value) -> Self {
+        Self::Data {
+            value,
+            writable: true,
+            enumerable: false,
+            configurable: false,
+        }
+    }
+
+    #[inline(always)]
+    /// Writable, configurable data descriptor
+    pub const fn rwx(value: Value) -> Self {
+        Self::Data {
+            value,
+            writable: true,
+            enumerable: false,
+            configurable: true,
+        }
+    }
+    #[inline(always)]
+    /// Writable, configurable, unenumerable data descriptor
+    pub const fn rwxh(value: Value) -> Self {
+        Self::Data {
+            value,
+            writable: true,
+            enumerable: false,
+            configurable: true,
         }
     }
 }
