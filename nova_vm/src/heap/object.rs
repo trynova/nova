@@ -311,8 +311,67 @@ pub fn initialize_object_heap(heap: &mut Heap) {
         Some(ObjectHeapData::new(
             true,
             PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-            // TODO: Initialize object constructor static methods and properties
-            Vec::with_capacity(24),
+            vec![
+                ObjectEntry::new_prototype_function(heap, "assign", 1, true, object_todo),
+                ObjectEntry::new_prototype_function(heap, "create", 2, false, object_todo),
+                ObjectEntry::new_prototype_function(
+                    heap,
+                    "defineProperties",
+                    2,
+                    false,
+                    object_todo,
+                ),
+                ObjectEntry::new_prototype_function(heap, "defineProperty", 3, false, object_todo),
+                ObjectEntry::new_prototype_function(heap, "entries", 1, false, object_todo),
+                ObjectEntry::new_prototype_function(heap, "freeze", 1, false, object_todo),
+                ObjectEntry::new_prototype_function(heap, "fromEntries", 1, false, object_todo),
+                ObjectEntry::new_prototype_function(
+                    heap,
+                    "getOwnPropertyDescriptor",
+                    2,
+                    false,
+                    object_todo,
+                ),
+                ObjectEntry::new_prototype_function(
+                    heap,
+                    "getOwnPropertyDescriptors",
+                    1,
+                    false,
+                    object_todo,
+                ),
+                ObjectEntry::new_prototype_function(
+                    heap,
+                    "getOwnPropertyNames",
+                    1,
+                    false,
+                    object_todo,
+                ),
+                ObjectEntry::new_prototype_function(
+                    heap,
+                    "getOwnPropertySymbols",
+                    1,
+                    false,
+                    object_todo,
+                ),
+                ObjectEntry::new_prototype_function(heap, "getPrototypeOf", 1, false, object_todo),
+                ObjectEntry::new_prototype_function(heap, "hasOwn", 2, false, object_todo),
+                ObjectEntry::new_prototype_function(heap, "is", 1, false, object_todo),
+                ObjectEntry::new_prototype_function(heap, "isExtensible", 1, false, object_todo),
+                ObjectEntry::new_prototype_function(heap, "isFrozen", 1, false, object_todo),
+                ObjectEntry::new_prototype_function(heap, "isSealed", 1, false, object_todo),
+                ObjectEntry::new_prototype_function(heap, "keys", 1, false, object_todo),
+                ObjectEntry::new_prototype_function(
+                    heap,
+                    "preventExtensions",
+                    1,
+                    false,
+                    object_todo,
+                ),
+                ObjectEntry::new_prototype(heap, BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+                ObjectEntry::new_prototype_function(heap, "seal", 1, false, object_todo),
+                ObjectEntry::new_prototype_function(heap, "setPrototypeOf", 2, false, object_todo),
+                ObjectEntry::new_prototype_function(heap, "values", 1, false, object_todo),
+            ],
         ));
     heap.functions[get_constructor_index(BuiltinObjectIndexes::ObjectConstructorIndex) as usize] =
         Some(FunctionHeapData {
@@ -328,8 +387,26 @@ pub fn initialize_object_heap(heap: &mut Heap) {
         Some(ObjectHeapData::new(
             true,
             PropertyDescriptor::roh(Value::Null),
-            // TODO: Initialize object prototype methods and properties
-            Vec::with_capacity(7),
+            vec![
+                ObjectEntry::new(
+                    PropertyKey::from_str(heap, "constructor"),
+                    PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+                        BuiltinObjectIndexes::ObjectConstructorIndex,
+                    ))),
+                ),
+                ObjectEntry::new_prototype_function(heap, "hasOwnProperty", 1, false, object_todo),
+                ObjectEntry::new_prototype_function(heap, "isPrototypeOf", 1, false, object_todo),
+                ObjectEntry::new_prototype_function(
+                    heap,
+                    "propertyIsEnumerable",
+                    1,
+                    false,
+                    object_todo,
+                ),
+                ObjectEntry::new_prototype_function(heap, "toLocaleString", 0, false, object_todo),
+                ObjectEntry::new_prototype_function(heap, "toString", 0, false, object_todo),
+                ObjectEntry::new_prototype_function(heap, "valueOf", 0, false, object_todo),
+            ],
         ));
 }
 
@@ -337,250 +414,6 @@ fn object_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> 
     Value::Object(0)
 }
 
-pub fn populate_object_heap(heap: &mut Heap) {}
-
-// ObjectHeapData::new(
-//     true,
-//     PropertyDescriptor::Data {
-//         value: crate::value::Value::Null,
-//         writable: false,
-//         enumerable: false,
-//         configurable: false,
-//     },
-//     vec![
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("constructor")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("assign")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("create")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("defineProperties")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("defineProperty")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("defineProperties")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("entries")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("defineProperties")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("freeze")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("defineProperties")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("fromEntries")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("getOwnPropertyDescriptor")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("getOwnPropertyDescriptors")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("getOwnPropertyNames")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("getOwnPropertySymbols")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("getPrototypeOf")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("is")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("isExtensible")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("isFrozen")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("setPrototypeOf")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("isExtensible")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("preventExtensions")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("getOwnProperty")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("hasOwn")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("hasProperty")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//         ObjectEntry::new(
-//             PropertyKey::String(heap.alloc_string("ownPropertyKeys")),
-//             PropertyDescriptor::Data {
-//                 value: Value::Function(0),
-//                 writable: true,
-//                 enumerable: false,
-//                 configurable: true,
-//             },
-//         ),
-//     ],
-// )
+fn object_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
+    todo!()
+}
