@@ -22,7 +22,7 @@ use self::{
         initialize_object_heap, ObjectEntry, ObjectHeapData, PropertyDescriptor, PropertyKey,
     },
     string::{initialize_string_heap, StringHeapData},
-    symbol::{initialize_symbol_heap, initialize_well_known_symbols, SymbolHeapData},
+    symbol::{initialize_symbol_heap, SymbolHeapData},
 };
 use crate::value::Value;
 use std::cell::Cell;
@@ -52,7 +52,7 @@ impl Heap {
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
         };
-        for i in 0..LAST_WELL_KNOWN_SYMBOL_INDEX {
+        for _ in 0..LAST_WELL_KNOWN_SYMBOL_INDEX {
             // Initialize well known symbol slots
             heap.symbols.push(None);
         }
