@@ -4,7 +4,7 @@ use crate::{
         heap_trace::HeapTrace,
         FunctionHeapData, Heap, HeapBits, ObjectHeapData, PropertyDescriptor,
     },
-    value::Value,
+    value::{JsResult, Value},
 };
 use wtf8::Wtf8Buf;
 
@@ -71,6 +71,6 @@ pub fn initialize_string_heap(heap: &mut Heap) {
     ));
 }
 
-fn string_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
-    Value::EmptyString
+fn string_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
+    Ok(Value::EmptyString)
 }

@@ -4,7 +4,7 @@ use crate::{
         heap_trace::HeapTrace,
         FunctionHeapData, Heap, HeapBits, ObjectHeapData, PropertyDescriptor,
     },
-    value::{StringIndex, Value},
+    value::{JsResult, StringIndex, Value},
 };
 
 use super::object::{ObjectEntry, PropertyKey};
@@ -224,10 +224,10 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
     ));
 }
 
-fn symbol_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
-    Value::Symbol(0)
+fn symbol_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
+    Ok(Value::Symbol(0))
 }
 
-fn symbol_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
+fn symbol_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
     todo!();
 }

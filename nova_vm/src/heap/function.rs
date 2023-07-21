@@ -3,7 +3,7 @@ use crate::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, HeapBits, ObjectHeapData, PropertyDescriptor,
     },
-    value::Value,
+    value::{JsResult, Value},
 };
 
 use super::{
@@ -12,7 +12,7 @@ use super::{
     object::{ObjectEntry, PropertyKey},
 };
 
-pub type JsBindingFunction = fn(heap: &mut Heap, this: Value, args: &[Value]) -> Value;
+pub type JsBindingFunction = fn(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value>;
 
 pub(crate) struct FunctionHeapData {
     pub(super) bits: HeapBits,
@@ -96,10 +96,10 @@ pub fn initialize_function_heap(heap: &mut Heap) {
         ));
 }
 
-fn function_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
-    Value::Function(0)
+fn function_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
+    Ok(Value::Function(0))
 }
 
-fn function_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
+fn function_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
     todo!()
 }

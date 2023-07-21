@@ -10,7 +10,7 @@ use crate::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, HeapBits, ObjectHeapData, PropertyDescriptor,
     },
-    value::Value,
+    value::{JsResult, Value},
 };
 
 pub(crate) struct NumberHeapData {
@@ -126,10 +126,10 @@ pub fn initialize_number_heap(heap: &mut Heap) {
     ));
 }
 
-fn number_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
-    Value::SmiU(0)
+fn number_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
+    Ok(Value::SmiU(0))
 }
 
-fn number_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
+fn number_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
     todo!();
 }

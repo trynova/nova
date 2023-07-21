@@ -3,7 +3,7 @@ use crate::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, HeapBits, ObjectHeapData, PropertyDescriptor,
     },
-    value::Value,
+    value::{JsResult, Value},
 };
 
 use super::{
@@ -80,10 +80,10 @@ pub fn initialize_error_heap(heap: &mut Heap) {
     ));
 }
 
-fn error_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
-    Value::Function(0)
+fn error_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
+    Ok(Value::Function(0))
 }
 
-fn error_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
+fn error_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
     todo!()
 }

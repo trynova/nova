@@ -3,7 +3,7 @@ use crate::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, HeapBits, ObjectHeapData, PropertyDescriptor,
     },
-    value::Value,
+    value::{JsResult, Value},
 };
 
 use super::{
@@ -47,10 +47,10 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
     ));
 }
 
-fn boolean_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
-    Value::Boolean(false)
+fn boolean_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
+    Ok(Value::Boolean(false))
 }
 
-fn boolean_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
+fn boolean_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
     todo!();
 }

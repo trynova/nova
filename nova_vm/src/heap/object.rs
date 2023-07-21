@@ -5,7 +5,7 @@ use crate::{
         heap_trace::HeapTrace,
         FunctionHeapData, Heap, HeapBits,
     },
-    value::{FunctionIndex, StringIndex, SymbolIndex, Value},
+    value::{FunctionIndex, JsResult, StringIndex, SymbolIndex, Value},
 };
 
 pub struct ObjectEntry {
@@ -410,10 +410,10 @@ pub fn initialize_object_heap(heap: &mut Heap) {
         ));
 }
 
-fn object_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
-    Value::Object(0)
+fn object_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
+    Ok(Value::Object(0))
 }
 
-fn object_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
+fn object_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
     todo!()
 }
