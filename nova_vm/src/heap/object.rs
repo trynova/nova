@@ -230,7 +230,15 @@ impl ObjectHeapData {
         Self {
             bits: HeapBits::new(),
             _extensible: extensible,
+            // TODO: Number, Boolean, etc. objects exist. These can all be
+            // modeled with their own heap vector or alternatively by adding
+            // a [[PrimitiveValue]] field to objects: Normally this field is None
+            // to signal that the object is its own primitive value. For
+            // Number objects etc the field is Some(Value).
+            // TODO: Move prototype and key vector into shapes
             prototype,
+            // TODO: Separate entries into key and value vectors
+            // TODO: Use SmallVec<[T; 4]>
             entries,
         }
     }

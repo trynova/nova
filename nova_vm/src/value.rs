@@ -111,11 +111,11 @@ impl Value {
             (Value::HeapString(_), Value::HeapBigInt(_)) => other.is_loosely_equal(vm, self)?,
             (Value::Boolean(_), _) => {
                 let self_as_f64 = self.try_into_f64(vm)?;
-                Value::from_f64(vm, self_as_f64).is_loosely_equal(vm, other)?
+                Value::from_f64(&mut vm.heap, self_as_f64).is_loosely_equal(vm, other)?
             }
             (_, Value::Boolean(_)) => {
                 let other_as_f64 = other.try_into_f64(vm)?;
-                Value::from_f64(vm, other_as_f64).is_loosely_equal(vm, self)?
+                Value::from_f64(&mut vm.heap, other_as_f64).is_loosely_equal(vm, self)?
             }
             (
                 Value::HeapString(_)
@@ -213,7 +213,7 @@ impl Value {
         })
     }
 
-    pub fn from_f64(vm: &mut VM, value: f64) -> Value {
+    pub fn from_f64(heap: &mut Heap, value: f64) -> Value {
         let is_int = value.fract() == 0.0;
         if value.is_nan() {
             Value::NaN
@@ -224,7 +224,7 @@ impl Value {
                 Value::NegativeInfinity
             }
         } else if !is_int || value > u32::MAX as f64 || value < i32::MIN as f64 {
-            Value::HeapNumber(vm.heap.alloc_number(value))
+            Value::HeapNumber(heap.alloc_number(value))
         } else if value.is_sign_positive() {
             Value::SmiU(value as u32)
         } else {

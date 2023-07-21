@@ -1,4 +1,10 @@
-use super::{heap_trace::HeapTrace, Heap};
+use std::vec;
+
+use super::{
+    heap_trace::HeapTrace,
+    object::{ObjectEntry, PropertyKey},
+    Heap,
+};
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
@@ -48,7 +54,47 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         Some(ObjectHeapData::new(
             true,
             PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-            Vec::with_capacity(24),
+            vec![
+                ObjectEntry::new(
+                    PropertyKey::from_str(heap, "EPSILON"),
+                    PropertyDescriptor::roh(Value::from_f64(heap, f64::EPSILON)),
+                ),
+                ObjectEntry::new_prototype_function(heap, "isFinite", 1, false, number_todo),
+                ObjectEntry::new_prototype_function(heap, "isInteger", 1, false, number_todo),
+                ObjectEntry::new_prototype_function(heap, "isNan", 1, false, number_todo),
+                ObjectEntry::new_prototype_function(heap, "isSafeInteger", 1, false, number_todo),
+                ObjectEntry::new(
+                    PropertyKey::from_str(heap, "MAX_SAFE_INTEGER"),
+                    PropertyDescriptor::roh(Value::from_f64(heap, 9007199254740991)),
+                ),
+                ObjectEntry::new(
+                    PropertyKey::from_str(heap, "MAX_VALUE"),
+                    PropertyDescriptor::roh(Value::from_f64(heap, f64::MAX)),
+                ),
+                ObjectEntry::new(
+                    PropertyKey::from_str(heap, "MIN_SAFE_INTEGER"),
+                    PropertyDescriptor::roh(Value::from_f64(heap, -9007199254740991)),
+                ),
+                ObjectEntry::new(
+                    PropertyKey::from_str(heap, "MIN_VALUE"),
+                    PropertyDescriptor::roh(Value::from_f64(heap, f64::MIN)),
+                ),
+                ObjectEntry::new(
+                    PropertyKey::from_str(heap, "NaN"),
+                    PropertyDescriptor::roh(Value::NaN),
+                ),
+                ObjectEntry::new(
+                    PropertyKey::from_str(heap, "NEGATIVE_INFINITY"),
+                    PropertyDescriptor::roh(Value::NegativeInfinity),
+                ),
+                ObjectEntry::new_prototype_function(heap, "parseFloat", 1, false, number_todo),
+                ObjectEntry::new_prototype_function(heap, "parseInt", 2, false, number_todo),
+                ObjectEntry::new(
+                    PropertyKey::from_str(heap, "POSITIVE_INFINITY"),
+                    PropertyDescriptor::roh(Value::Infinity),
+                ),
+                ObjectEntry::new_prototype(heap, BuiltinObjectIndexes::NumberPrototypeIndex as u32),
+            ],
         ));
     heap.functions[get_constructor_index(BuiltinObjectIndexes::NumberConstructorIndex) as usize] =
         Some(FunctionHeapData {
@@ -69,4 +115,8 @@ pub fn initialize_number_heap(heap: &mut Heap) {
 
 fn number_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
     Value::SmiU(0)
+}
+
+fn number_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
+    todo!();
 }
