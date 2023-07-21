@@ -258,14 +258,14 @@ impl HeapTrace for Option<ObjectHeapData> {
             PropertyDescriptor::Data { value, .. } => value.trace(heap),
             PropertyDescriptor::Blocked { .. } => {}
             PropertyDescriptor::ReadOnly { get, .. } => {
-                heap.objects[*get as usize].trace(heap);
+                heap.functions[*get as usize].trace(heap);
             }
             PropertyDescriptor::WriteOnly { set, .. } => {
-                heap.objects[*set as usize].trace(heap);
+                heap.functions[*set as usize].trace(heap);
             }
             PropertyDescriptor::ReadWrite { get, set, .. } => {
-                heap.objects[*get as usize].trace(heap);
-                heap.objects[*set as usize].trace(heap);
+                heap.functions[*get as usize].trace(heap);
+                heap.functions[*set as usize].trace(heap);
             }
         }
         for reference in data.entries.iter() {
@@ -278,14 +278,14 @@ impl HeapTrace for Option<ObjectHeapData> {
                 PropertyDescriptor::Data { value, .. } => value.trace(heap),
                 PropertyDescriptor::Blocked { .. } => {}
                 PropertyDescriptor::ReadOnly { get, .. } => {
-                    heap.objects[*get as usize].trace(heap);
+                    heap.functions[*get as usize].trace(heap);
                 }
                 PropertyDescriptor::WriteOnly { set, .. } => {
-                    heap.objects[*set as usize].trace(heap);
+                    heap.functions[*set as usize].trace(heap);
                 }
                 PropertyDescriptor::ReadWrite { get, set, .. } => {
-                    heap.objects[*get as usize].trace(heap);
-                    heap.objects[*set as usize].trace(heap);
+                    heap.functions[*get as usize].trace(heap);
+                    heap.functions[*set as usize].trace(heap);
                 }
             }
         }
