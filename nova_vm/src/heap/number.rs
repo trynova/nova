@@ -109,7 +109,20 @@ pub fn initialize_number_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::NumberPrototypeIndex as usize] = Some(ObjectHeapData::new(
         true,
         PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
-        Vec::with_capacity(7),
+        vec![
+            ObjectEntry::new(
+                PropertyKey::from_str(heap, "constructor"),
+                PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+                    BuiltinObjectIndexes::NumberConstructorIndex,
+                ))),
+            ),
+            ObjectEntry::new_prototype_function(heap, "toExponential", 1, false, number_todo),
+            ObjectEntry::new_prototype_function(heap, "toExponential", 1, false, number_todo),
+            ObjectEntry::new_prototype_function(heap, "toLocaleString", 0, false, number_todo),
+            ObjectEntry::new_prototype_function(heap, "toPrecision", 1, false, number_todo),
+            ObjectEntry::new_prototype_function(heap, "toString", 0, false, number_todo),
+            ObjectEntry::new_prototype_function(heap, "valueOf", 0, false, number_todo),
+        ],
     ));
 }
 
