@@ -129,6 +129,7 @@ impl Heap {
         &mut self,
         name: Value,
         length: u8,
+        uses_arguments: bool,
         binding: JsBindingFunction,
     ) -> u32 {
         let func_object_data = ObjectHeapData {
@@ -155,7 +156,7 @@ impl Heap {
             bound: None,
             length,
             object_index: self.objects.len() as u32,
-            uses_arguments: false,
+            uses_arguments,
             visible: None,
         };
         self.functions.push(Some(func_data));

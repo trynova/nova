@@ -63,8 +63,8 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
             true,
             PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
             vec![
-                ObjectEntry::new_prototype_function(heap, "asIntN", 2, bigint_as_int_n),
-                ObjectEntry::new_prototype_function(heap, "asUintN", 2, bigint_as_uint_n),
+                ObjectEntry::new_prototype_function(heap, "asIntN", 2, false, bigint_as_int_n),
+                ObjectEntry::new_prototype_function(heap, "asUintN", 2, false, bigint_as_uint_n),
                 ObjectEntry::new_prototype(heap, heap.objects.len() as u32 + 2),
             ],
         ));
@@ -84,18 +84,31 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
         vec![
             ObjectEntry::new(
                 PropertyKey::from_str(heap, "constructor"),
-                PropertyDescriptor::rwx(Value::Object(
-                    BuiltinObjectIndexes::BigintConstructorIndex as u32,
-                )),
+                PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+                    BuiltinObjectIndexes::BigintConstructorIndex,
+                ))),
             ),
             ObjectEntry::new_prototype_function(
                 heap,
                 "toLocaleString",
                 0,
+                false,
                 bigint_prototype_to_locale_string,
             ),
-            ObjectEntry::new_prototype_function(heap, "toString", 0, bigint_prototype_to_string),
-            ObjectEntry::new_prototype_function(heap, "valueOf", 0, bigint_prototype_value_of),
+            ObjectEntry::new_prototype_function(
+                heap,
+                "toString",
+                0,
+                false,
+                bigint_prototype_to_string,
+            ),
+            ObjectEntry::new_prototype_function(
+                heap,
+                "valueOf",
+                0,
+                false,
+                bigint_prototype_value_of,
+            ),
             // @@ToStringTag
             // ObjectEntry { key: PropertyKey::Symbol(), PropertyDescriptor }
         ],

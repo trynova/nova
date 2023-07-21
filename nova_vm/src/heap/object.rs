@@ -22,6 +22,7 @@ impl ObjectEntry {
         heap: &mut Heap,
         name: &str,
         length: u8,
+        uses_arguments: bool,
         binding: JsBindingFunction,
     ) -> Self {
         let key = PropertyKey::from_str(heap, name);
@@ -31,7 +32,7 @@ impl ObjectEntry {
             PropertyKey::String(idx) => Value::HeapString(idx),
             PropertyKey::Symbol(idx) => Value::Symbol(idx),
         };
-        let func_index = heap.create_function(name, length, binding);
+        let func_index = heap.create_function(name, length, uses_arguments, binding);
         let value = PropertyDescriptor::rwxh(Value::Function(func_index));
         ObjectEntry { key, value }
     }
@@ -41,11 +42,12 @@ impl ObjectEntry {
         name: &str,
         symbol_index: u32,
         length: u8,
+        uses_arguments: bool,
         binding: JsBindingFunction,
     ) -> Self {
         let name = Value::new_string(heap, name);
         let key = PropertyKey::Symbol(symbol_index);
-        let func_index = heap.create_function(name, length, binding);
+        let func_index = heap.create_function(name, length, uses_arguments, binding);
         let value = PropertyDescriptor::roxh(Value::Function(func_index));
         ObjectEntry { key, value }
     }

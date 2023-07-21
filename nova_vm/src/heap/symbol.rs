@@ -114,7 +114,7 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
                         WellKnownSymbolIndexes::AsyncIterator as u32,
                     )),
                 ),
-                ObjectEntry::new_prototype_function(heap, "for", 1, symbol_todo),
+                ObjectEntry::new_prototype_function(heap, "for", 1, false, symbol_todo),
                 ObjectEntry::new(
                     PropertyKey::from_str(heap, "hasInstance"),
                     PropertyDescriptor::roh(Value::Symbol(
@@ -131,7 +131,7 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
                     PropertyKey::from_str(heap, "iterator"),
                     PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Iterator as u32)),
                 ),
-                ObjectEntry::new_prototype_function(heap, "keyFor", 1, symbol_todo),
+                ObjectEntry::new_prototype_function(heap, "keyFor", 1, false, symbol_todo),
                 ObjectEntry::new(
                     PropertyKey::from_str(heap, "Match"),
                     PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Match as u32)),
@@ -193,9 +193,9 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
         vec![
             ObjectEntry::new(
                 PropertyKey::from_str(heap, "constructor"),
-                PropertyDescriptor::rwx(Value::Object(
-                    BuiltinObjectIndexes::SymbolConstructorIndex as u32,
-                )),
+                PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+                    BuiltinObjectIndexes::SymbolConstructorIndex,
+                ))),
             ),
             ObjectEntry::new(
                 PropertyKey::from_str(heap, "description"),
@@ -206,13 +206,14 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
                     configurable: true,
                 },
             ),
-            ObjectEntry::new_prototype_function(heap, "toString", 0, symbol_todo),
-            ObjectEntry::new_prototype_function(heap, "valueOf", 0, symbol_todo),
+            ObjectEntry::new_prototype_function(heap, "toString", 0, false, symbol_todo),
+            ObjectEntry::new_prototype_function(heap, "valueOf", 0, false, symbol_todo),
             ObjectEntry::new_prototype_symbol_function(
                 heap,
                 "[Symbol.toPrimitive]",
                 WellKnownSymbolIndexes::ToPrimitive as u32,
                 1,
+                false,
                 symbol_todo,
             ),
             ObjectEntry::new(
