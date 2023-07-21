@@ -6,15 +6,17 @@ use crate::{
     value::Value,
 };
 
-use super::Heap;
+use super::{object::ObjectEntry, Heap};
 
 pub fn initialize_boolean_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::BooleanConstructorIndex as usize] =
         Some(ObjectHeapData::new(
             true,
             PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-            // TODO: Methods and properties
-            Vec::with_capacity(1),
+            vec![ObjectEntry::new_prototype(
+                heap,
+                BuiltinObjectIndexes::BooleanPrototypeIndex as u32,
+            )],
         ));
     heap.functions[get_constructor_index(BuiltinObjectIndexes::BooleanConstructorIndex) as usize] =
         Some(FunctionHeapData {
@@ -29,11 +31,23 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::BooleanPrototypeIndex as usize] = Some(ObjectHeapData::new(
         true,
         PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
-        // TODO: Methods and properties
-        Vec::with_capacity(7),
+        vec![
+            ObjectEntry::new(
+                PropertyKey::from_str(heap, "constructor"),
+                PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+                    BuiltinObjectIndexes::BooleanConstructorIndex,
+                ))),
+            ),
+            ObjectEntry::new_prototype_function(heap, "toString", 0, false, boolean_todo),
+            ObjectEntry::new_prototype_function(heap, "valueOf", 0, false, boolean_todo),
+        ],
     ));
 }
 
 fn boolean_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
     Value::Boolean(false)
+}
+
+fn boolean_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> Value {
+    todo!();
 }
