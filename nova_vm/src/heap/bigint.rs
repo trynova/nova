@@ -65,7 +65,7 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
             vec![
                 ObjectEntry::new_prototype_function(heap, "asIntN", 2, false, bigint_as_int_n),
                 ObjectEntry::new_prototype_function(heap, "asUintN", 2, false, bigint_as_uint_n),
-                ObjectEntry::new_prototype(heap, BuiltinObjectIndexes::BigintPrototypeIndex),
+                ObjectEntry::new_prototype(heap, BuiltinObjectIndexes::BigintPrototypeIndex as u32),
             ],
         ));
     heap.functions[get_constructor_index(BuiltinObjectIndexes::BigintConstructorIndex) as usize] =

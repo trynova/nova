@@ -6,7 +6,10 @@ use crate::{
     value::Value,
 };
 
-use super::{object::ObjectEntry, Heap};
+use super::{
+    object::{ObjectEntry, PropertyKey},
+    Heap,
+};
 
 pub fn initialize_boolean_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::BooleanConstructorIndex as usize] =

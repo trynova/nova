@@ -2,39 +2,46 @@ use crate::{heap::Heap, Type, VM};
 use std::{fmt::Debug, mem::size_of};
 
 // TODO(@aapoalas): Use transparent struct (u32)'s to ensure proper indexing.
+pub type BigIntIndex = u32;
+pub type ErrorIndex = u32;
+pub type FunctionIndex = u32;
+pub type NumberIndex = u32;
+pub type ObjectIndex = u32;
 pub type StringIndex = u32;
 pub type SymbolIndex = u32;
-pub type NumberIndex = u32;
-pub type BigIntIndex = u32;
-pub type ObjectIndex = u32;
-pub type FunctionIndex = u32;
 
-// Completely unoptimized...look away.
 #[derive(Clone)]
 #[repr(u8)]
 pub enum Value {
-    Undefined,
-    Null,
+    BigIntObject(u32),  // TODO: Implement primitive value objects :(
+    BooleanObject(u32), // TODO: Implement primitive value objects :(
     Boolean(bool),
     EmptyString,
-    SmallAsciiString([i8; 7]),
+    Error(ErrorIndex),
+    Function(FunctionIndex),
+    HeapBigInt(BigIntIndex),
+    HeapNumber(NumberIndex),
     HeapString(StringIndex),
-    Symbol(SymbolIndex),
-    Smi(i32),
-    SmiU(u32),
-    NaN,
     Infinity,
+    NaN,
     NegativeInfinity,
     NegativeZero,
-    HeapNumber(NumberIndex),
+    Null,
+    NumberObject(u32), // TODO: Implement primitive value objects :(
+    Object(ObjectIndex),
+    SmallAsciiString([i8; 7]),
     SmallBigInt(i32),
     SmallBigIntU(u32),
-    HeapBigInt(BigIntIndex),
-    Object(ObjectIndex),
-    Function(FunctionIndex),
+    Smi(i32),
+    SmiU(u32),
+    StringObject(u32), // TODO: Implement primitive value objects :(
+    Symbol(SymbolIndex),
+    SymbolObject(u32), // TODO: Implement primitive value objects :(
+    Undefined,
 }
 
 const VALUE_SIZE_IS_WORD: () = assert!(size_of::<Value>() == size_of::<usize>());
+const OPTIONAL_VALUE_SIZE_IS_WORD: () = assert!(size_of::<Option<Value>>() == size_of::<usize>());
 
 impl Value {
     pub fn new_string(heap: &mut Heap, message: &str) -> Value {
@@ -50,11 +57,9 @@ impl Value {
     pub fn get_type(&self) -> Type {
         let _ = VALUE_SIZE_IS_WORD;
         match self {
-            Value::Undefined => Type::Undefined,
-            Value::Null => Type::Null,
             Value::Boolean(_) => Type::Boolean,
             Value::EmptyString | Value::SmallAsciiString(_) | Value::HeapString(_) => Type::String,
-            Value::Symbol(_) => Type::Symbol,
+            Value::Function(_) => Type::Function,
             Value::NaN
             | Value::NegativeInfinity
             | Value::NegativeZero
@@ -62,9 +67,17 @@ impl Value {
             | Value::Smi(_)
             | Value::SmiU(_)
             | Value::HeapNumber(_) => Type::Number,
+            Value::Null => Type::Null,
+            Value::Object(_)
+            | Value::Error(_)
+            | Value::BigIntObject(_)
+            | Value::BooleanObject(_)
+            | Value::NumberObject(_)
+            | Value::StringObject(_)
+            | Value::SymbolObject(_) => Type::Object,
             Value::SmallBigInt(_) | Value::SmallBigIntU(_) | Value::HeapBigInt(_) => Type::BigInt,
-            Value::Function(_) => Type::Function,
-            Value::Object(_) => Type::Object,
+            Value::Symbol(_) => Type::Symbol,
+            Value::Undefined => Type::Undefined,
         }
     }
 
@@ -209,7 +222,8 @@ impl Value {
             Value::Null | Value::Boolean(false) | Value::EmptyString => Value::SmiU(0),
             Value::Boolean(true) => Value::SmiU(1),
             Value::SmallAsciiString(_) | Value::HeapString(_) => todo!("parse number from string"),
-            Value::Object(_) => todo!("call valueOf"),
+            Value::Object(_) | Value::Error(_) => todo!("call valueOf"),
+            _ => todo!("implement primitive value objects :("),
         })
     }
 
@@ -250,6 +264,7 @@ impl Value {
             Value::Boolean(true) => Ok(1.),
             Value::SmallAsciiString(_) | Value::HeapString(_) => todo!("parse number from string"),
             Value::Object(_) => todo!("call valueOf"),
+            _ => todo!("sigh"),
         }
     }
 
@@ -307,25 +322,31 @@ pub type JsResult<T> = std::result::Result<T, Value>;
 impl Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::Null => write!(f, "Null"),
-            Value::Undefined => write!(f, "Undefined"),
+            Value::BigIntObject(arg0) => f.debug_tuple("BigIntObject").field(arg0).finish(),
             Value::Boolean(arg0) => f.debug_tuple("Boolean").field(arg0).finish(),
-            Value::HeapNumber(arg0) => f.debug_tuple("Number").field(arg0).finish(),
-            Value::Smi(arg0) => f.debug_tuple("Smi").field(arg0).finish(),
-            Value::SmiU(arg0) => f.debug_tuple("SmiU").field(arg0).finish(),
-            Value::HeapBigInt(arg0) => f.debug_tuple("BigInt").field(arg0).finish(),
-            Value::SmallBigInt(arg0) => f.debug_tuple("SmallBigInt").field(arg0).finish(),
-            Value::SmallBigIntU(arg0) => f.debug_tuple("SmallBigIntU").field(arg0).finish(),
-            Value::HeapString(arg0) => f.debug_tuple("String").field(arg0).finish(),
-            Value::SmallAsciiString(arg0) => f.debug_tuple("SmallAsciiString").field(arg0).finish(),
-            Value::Object(arg0) => f.debug_tuple("JsObject").field(arg0).finish(),
-            Value::Symbol(arg0) => f.debug_tuple("Symbol").field(arg0).finish(),
-            Value::Function(arg0) => f.debug_tuple("Function").field(arg0).finish(),
+            Value::BooleanObject(arg0) => f.debug_tuple("BooleanObject").field(arg0).finish(),
             Value::EmptyString => write!(f, "EmptyString"),
-            Value::NaN => write!(f, "NaN"),
+            Value::Error(arg0) => f.debug_tuple("Error").field(arg0).finish(),
+            Value::Function(arg0) => f.debug_tuple("Function").field(arg0).finish(),
+            Value::HeapBigInt(arg0) => f.debug_tuple("BigInt").field(arg0).finish(),
+            Value::HeapNumber(arg0) => f.debug_tuple("Number").field(arg0).finish(),
+            Value::HeapString(arg0) => f.debug_tuple("String").field(arg0).finish(),
             Value::Infinity => write!(f, "Infinity"),
+            Value::NaN => write!(f, "NaN"),
             Value::NegativeInfinity => write!(f, "-Infinity"),
             Value::NegativeZero => write!(f, "-0"),
+            Value::Null => write!(f, "Null"),
+            Value::NumberObject(arg0) => f.debug_tuple("NumberObject").field(arg0).finish(),
+            Value::Object(arg0) => f.debug_tuple("Object").field(arg0).finish(),
+            Value::SmallAsciiString(arg0) => f.debug_tuple("SmallAsciiString").field(arg0).finish(),
+            Value::SmallBigInt(arg0) => f.debug_tuple("SmallBigInt").field(arg0).finish(),
+            Value::SmallBigIntU(arg0) => f.debug_tuple("SmallBigIntU").field(arg0).finish(),
+            Value::Smi(arg0) => f.debug_tuple("Smi").field(arg0).finish(),
+            Value::SmiU(arg0) => f.debug_tuple("SmiU").field(arg0).finish(),
+            Value::StringObject(arg0) => f.debug_tuple("StringObject").field(arg0).finish(),
+            Value::Symbol(arg0) => f.debug_tuple("Symbol").field(arg0).finish(),
+            Value::SymbolObject(arg0) => f.debug_tuple("SymbolObject").field(arg0).finish(),
+            Value::Undefined => write!(f, "Undefined"),
         }
     }
 }

@@ -22,6 +22,7 @@ pub(crate) struct FunctionHeapData {
     pub(super) bound: Option<Box<[Value]>>,
     pub(super) visible: Option<Vec<Value>>,
     pub(super) binding: JsBindingFunction,
+    // TODO: Should name be here as an "internal slot" of sorts?
 }
 
 impl HeapTrace for Option<FunctionHeapData> {

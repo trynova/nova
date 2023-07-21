@@ -1,5 +1,6 @@
 mod bigint;
 mod boolean;
+mod error;
 mod function;
 mod heap_constants;
 mod heap_trace;
@@ -11,6 +12,7 @@ mod symbol;
 use self::{
     bigint::{initialize_bigint_heap, BigIntHeapData},
     boolean::initialize_boolean_heap,
+    error::{initialize_error_heap, ErrorHeapData},
     function::{initialize_function_heap, FunctionHeapData, JsBindingFunction},
     heap_constants::{
         BuiltinObjectIndexes, FIRST_CONSTRUCTOR_INDEX, LAST_BUILTIN_OBJECT_INDEX,
@@ -30,6 +32,7 @@ use wtf8::Wtf8;
 
 pub struct Heap {
     pub(crate) bigints: Vec<Option<BigIntHeapData>>,
+    pub(crate) errors: Vec<Option<ErrorHeapData>>,
     pub(crate) functions: Vec<Option<FunctionHeapData>>,
     pub(crate) globals: Vec<Value>,
     pub(crate) numbers: Vec<Option<NumberHeapData>>,
@@ -45,6 +48,7 @@ impl Heap {
     pub fn new() -> Heap {
         let mut heap = Heap {
             bigints: Vec::with_capacity(1024),
+            errors: Vec::with_capacity(1024),
             functions: Vec::with_capacity(1024),
             globals: Vec::with_capacity(1024),
             numbers: Vec::with_capacity(1024),
@@ -67,7 +71,7 @@ impl Heap {
         initialize_function_heap(&mut heap);
         initialize_boolean_heap(&mut heap);
         initialize_symbol_heap(&mut heap);
-        // initialize_error_heap(&mut heap);
+        initialize_error_heap(&mut heap);
         initialize_number_heap(&mut heap);
         initialize_bigint_heap(&mut heap);
         // initialize_math_object(&mut heap);
@@ -168,6 +172,36 @@ impl Heap {
         for global in self.globals.iter() {
             global.trace(self);
         }
+        for error in self.errors.iter() {
+            let Some(data) = error else {
+                continue;
+            };
+            let marked = data.bits.marked.take();
+            data.bits.marked.set(marked);
+            if !marked {
+                continue;
+            }
+            let dirty = data.bits.dirty.take();
+            data.bits.dirty.set(dirty);
+            if dirty {
+                error.trace(self);
+            }
+        }
+        for function in self.functions.iter() {
+            let Some(data) = function else {
+                continue;
+            };
+            let marked = data.bits.marked.take();
+            data.bits.marked.set(marked);
+            if !marked {
+                continue;
+            }
+            let dirty = data.bits.dirty.take();
+            data.bits.dirty.set(dirty);
+            if dirty {
+                function.trace(self);
+            }
+        }
         for object in self.objects.iter() {
             let Some(data) = object else {
                 continue;
@@ -265,6 +299,20 @@ impl Heap {
 
     fn complete_trace(&mut self) -> () {
         // TODO: Consider roots count
+        for error in self.errors.iter() {
+            let Some(data) = error else {
+                continue;
+            };
+            data.bits.marked.set(false);
+            data.bits.dirty.set(false);
+        }
+        for function in self.functions.iter() {
+            let Some(data) = function else {
+                continue;
+            };
+            data.bits.marked.set(false);
+            data.bits.dirty.set(false);
+        }
         for object in self.objects.iter() {
             let Some(data) = object else {
                 continue;
@@ -372,11 +420,12 @@ impl Heap {
 impl HeapTrace for Value {
     fn trace(&self, heap: &Heap) {
         match self {
-            &Value::HeapBigInt(idx) => heap.bigints[idx as usize].trace(heap),
+            &Value::Error(idx) => heap.errors[idx as usize].trace(heap),
             &Value::Function(idx) => heap.functions[idx as usize].trace(heap),
+            &Value::HeapBigInt(idx) => heap.bigints[idx as usize].trace(heap),
             &Value::HeapNumber(idx) => heap.numbers[idx as usize].trace(heap),
-            &Value::Object(idx) => heap.objects[idx as usize].trace(heap),
             &Value::HeapString(idx) => heap.strings[idx as usize].trace(heap),
+            &Value::Object(idx) => heap.objects[idx as usize].trace(heap),
             &Value::Symbol(idx) => heap.symbols[idx as usize].trace(heap),
             _ => {}
         }
@@ -384,11 +433,12 @@ impl HeapTrace for Value {
 
     fn root(&self, heap: &Heap) {
         match self {
-            &Value::HeapBigInt(idx) => heap.bigints[idx as usize].root(heap),
+            &Value::Error(idx) => heap.errors[idx as usize].root(heap),
             &Value::Function(idx) => heap.functions[idx as usize].root(heap),
+            &Value::HeapBigInt(idx) => heap.bigints[idx as usize].root(heap),
             &Value::HeapNumber(idx) => heap.numbers[idx as usize].root(heap),
-            &Value::Object(idx) => heap.objects[idx as usize].root(heap),
             &Value::HeapString(idx) => heap.strings[idx as usize].root(heap),
+            &Value::Object(idx) => heap.objects[idx as usize].root(heap),
             &Value::Symbol(idx) => heap.symbols[idx as usize].root(heap),
             _ => {}
         }
@@ -396,11 +446,12 @@ impl HeapTrace for Value {
 
     fn unroot(&self, heap: &Heap) {
         match self {
-            &Value::HeapBigInt(idx) => heap.bigints[idx as usize].unroot(heap),
+            &Value::Error(idx) => heap.errors[idx as usize].unroot(heap),
             &Value::Function(idx) => heap.functions[idx as usize].unroot(heap),
+            &Value::HeapBigInt(idx) => heap.bigints[idx as usize].unroot(heap),
             &Value::HeapNumber(idx) => heap.numbers[idx as usize].unroot(heap),
-            &Value::Object(idx) => heap.objects[idx as usize].unroot(heap),
             &Value::HeapString(idx) => heap.strings[idx as usize].unroot(heap),
+            &Value::Object(idx) => heap.objects[idx as usize].unroot(heap),
             &Value::Symbol(idx) => heap.symbols[idx as usize].unroot(heap),
             _ => {}
         }
@@ -411,10 +462,15 @@ impl HeapTrace for Value {
     }
 }
 
+// TODO: Change to using vectors of u8 bitfields for mark and dirty bits.
 pub struct HeapBits {
     marked: Cell<bool>,
     _weak_marked: Cell<bool>,
     dirty: Cell<bool>,
+    // TODO: Consider removing roots entirely and only using globals.
+    // Roots are useful for stack allocated Values, as they can just
+    // mark their holding of the value. But they're not particularly great
+    // from a GC standpoint, probably.
     roots: Cell<u8>,
 }
 

@@ -122,31 +122,31 @@ impl<'a> VM<'a> {
                     let addr = *iter.next().unwrap() as usize;
                     let left = &memory[addr].try_into_f64(self)?;
                     let right = &memory[*iter.next().unwrap() as usize].try_into_f64(self)?;
-                    memory[addr] = Value::from_f64(self, left + right);
+                    memory[addr] = Value::from_f64(&mut self.heap, left + right);
                 }
                 Instruction::Sub => {
                     let addr = *iter.next().unwrap() as usize;
                     let left = &memory[addr].try_into_f64(self)?;
                     let right = &memory[*iter.next().unwrap() as usize].try_into_f64(self)?;
-                    memory[addr] = Value::from_f64(self, left - right);
+                    memory[addr] = Value::from_f64(&mut self.heap, left - right);
                 }
                 Instruction::Mul => {
                     let addr = *iter.next().unwrap() as usize;
                     let left = &memory[addr].try_into_f64(self)?;
                     let right = &memory[*iter.next().unwrap() as usize].try_into_f64(self)?;
-                    memory[addr] = Value::from_f64(self, left * right);
+                    memory[addr] = Value::from_f64(&mut self.heap, left * right);
                 }
                 Instruction::Mod => {
                     let addr = *iter.next().unwrap() as usize;
                     let left = &memory[addr].try_into_f64(self)?;
                     let right = &memory[*iter.next().unwrap() as usize].try_into_f64(self)?;
-                    memory[addr] = Value::from_f64(self, left % right);
+                    memory[addr] = Value::from_f64(&mut self.heap, left % right);
                 }
                 Instruction::Div => {
                     let addr = *iter.next().unwrap() as usize;
                     let left = &memory[addr].try_into_f64(self)?;
                     let right = &memory[*iter.next().unwrap() as usize].try_into_f64(self)?;
-                    memory[addr] = Value::from_f64(self, left / right);
+                    memory[addr] = Value::from_f64(&mut self.heap, left / right);
                 }
                 Instruction::StrictEquality => {
                     let addr = *iter.next().unwrap() as usize;
