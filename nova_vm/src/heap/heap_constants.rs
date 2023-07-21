@@ -137,3 +137,22 @@ pub const FIRST_CONSTRUCTOR_INDEX: u32 = BuiltinObjectIndexes::ObjectConstructor
 pub const fn get_constructor_index(object_index: BuiltinObjectIndexes) -> u32 {
     object_index as u32 - FIRST_CONSTRUCTOR_INDEX
 }
+
+#[repr(u32)]
+pub enum WellKnownSymbolIndexes {
+    AsyncIterator,
+    HasInstance,
+    IsConcatSpreadable,
+    Iterator,
+    Match,
+    MatchAll,
+    Replace,
+    Search,
+    Species,
+    Split,
+    ToPrimitive,
+    ToStringTag,
+    Unscopables,
+}
+
+pub const LAST_WELL_KNOWN_SYMBOL_INDEX: u32 = WellKnownSymbolIndexes::Unscopables as u32;

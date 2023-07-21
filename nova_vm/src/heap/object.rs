@@ -36,6 +36,20 @@ impl ObjectEntry {
         ObjectEntry { key, value }
     }
 
+    pub(crate) fn new_prototype_symbol_function(
+        heap: &mut Heap,
+        name: &str,
+        symbol_index: u32,
+        length: u8,
+        binding: JsBindingFunction,
+    ) -> Self {
+        let name = Value::new_string(heap, name);
+        let key = PropertyKey::Symbol(symbol_index);
+        let func_index = heap.create_function(name, length, binding);
+        let value = PropertyDescriptor::roxh(Value::Function(func_index));
+        ObjectEntry { key, value }
+    }
+
     pub(crate) fn new_prototype(heap: &mut Heap, idx: u32) -> Self {
         ObjectEntry {
             key: PropertyKey::from_str(heap, "prototype"),
@@ -112,7 +126,7 @@ impl PropertyDescriptor {
     }
 
     #[inline(always)]
-    /// Read, unconfigurable-only data descriptor
+    /// Read-only, unconfigurable, enumerable data descriptor
     pub const fn ro(value: Value) -> Self {
         Self::Data {
             value,
@@ -122,7 +136,7 @@ impl PropertyDescriptor {
         }
     }
     #[inline(always)]
-    /// Read, unconfigurable-only, unenumerable data descriptor
+    /// Read-only, unconfigurable, unenumerable data descriptor
     pub const fn roh(value: Value) -> Self {
         Self::Data {
             value,
@@ -133,7 +147,7 @@ impl PropertyDescriptor {
     }
 
     #[inline(always)]
-    /// Read-only, configurable data descriptor
+    /// Read-only, configurable, enumerable data descriptor
     pub const fn rox(value: Value) -> Self {
         Self::Data {
             value,
@@ -154,7 +168,7 @@ impl PropertyDescriptor {
     }
 
     #[inline(always)]
-    /// Writable, unconfigurable data descriptor
+    /// Writable, unconfigurable, enumerable data descriptor
     pub const fn rw(value: Value) -> Self {
         Self::Data {
             value,
@@ -175,7 +189,7 @@ impl PropertyDescriptor {
     }
 
     #[inline(always)]
-    /// Writable, configurable data descriptor
+    /// Writable, configurable, enumerable data descriptor
     pub const fn rwx(value: Value) -> Self {
         Self::Data {
             value,

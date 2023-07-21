@@ -12,14 +12,17 @@ use self::{
     bigint::{initialize_bigint_heap, BigIntHeapData},
     boolean::initialize_boolean_heap,
     function::{initialize_function_heap, FunctionHeapData, JsBindingFunction},
-    heap_constants::{BuiltinObjectIndexes, FIRST_CONSTRUCTOR_INDEX, LAST_BUILTIN_OBJECT_INDEX},
+    heap_constants::{
+        BuiltinObjectIndexes, FIRST_CONSTRUCTOR_INDEX, LAST_BUILTIN_OBJECT_INDEX,
+        LAST_WELL_KNOWN_SYMBOL_INDEX,
+    },
     heap_trace::HeapTrace,
     number::{initialize_number_heap, NumberHeapData},
     object::{
         initialize_object_heap, ObjectEntry, ObjectHeapData, PropertyDescriptor, PropertyKey,
     },
     string::{initialize_string_heap, StringHeapData},
-    symbol::{initialize_symbol_heap, SymbolHeapData},
+    symbol::{initialize_symbol_heap, initialize_well_known_symbols, SymbolHeapData},
 };
 use crate::value::Value;
 use std::cell::Cell;
@@ -49,6 +52,10 @@ impl Heap {
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
         };
+        for i in 0..LAST_WELL_KNOWN_SYMBOL_INDEX {
+            // Initialize well known symbol slots
+            heap.symbols.push(None);
+        }
         for i in 0..LAST_BUILTIN_OBJECT_INDEX {
             // Initialize all static slots in heap objects.
             heap.objects.push(None);
