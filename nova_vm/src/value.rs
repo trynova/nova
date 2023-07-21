@@ -40,7 +40,10 @@ pub enum Value {
     Undefined,
 }
 
+/// We want to guarantee that all handles to JS values are register sized. This assert must never be removed or broken.
 const VALUE_SIZE_IS_WORD: () = assert!(size_of::<Value>() == size_of::<usize>());
+// We may also want to keep Option<Value> register sized to allow returning it in some cases.
+// This may not be possible in the long run and it may not be necessary as we might want to use Undefined instead.
 const OPTIONAL_VALUE_SIZE_IS_WORD: () = assert!(size_of::<Option<Value>>() == size_of::<usize>());
 
 impl Value {
