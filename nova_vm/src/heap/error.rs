@@ -42,7 +42,7 @@ pub fn initialize_error_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::ErrorConstructorIndex as usize] = Some(ObjectHeapData::new(
         true,
         PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-        vec![ObjectEntry::new_prototype(
+        vec![ObjectEntry::new_constructor_prototype_entry(
             heap,
             BuiltinObjectIndexes::ErrorPrototypeIndex as u32,
         )],
@@ -75,7 +75,7 @@ pub fn initialize_error_heap(heap: &mut Heap) {
                 PropertyKey::from_str(heap, "name"),
                 PropertyDescriptor::rwx(Value::new_string(heap, "Error")),
             ),
-            ObjectEntry::new_prototype_function(heap, "toString", 0, false, error_todo),
+            ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, error_todo),
         ],
     ));
 }

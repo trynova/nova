@@ -4,6 +4,7 @@ mod error;
 mod function;
 mod heap_constants;
 mod heap_trace;
+mod math;
 mod number;
 mod object;
 mod string;
@@ -19,6 +20,7 @@ use self::{
         LAST_WELL_KNOWN_SYMBOL_INDEX,
     },
     heap_trace::HeapTrace,
+    math::initialize_math_object,
     number::{initialize_number_heap, NumberHeapData},
     object::{
         initialize_object_heap, ObjectEntry, ObjectHeapData, PropertyDescriptor, PropertyKey,
@@ -74,7 +76,7 @@ impl Heap {
         initialize_error_heap(&mut heap);
         initialize_number_heap(&mut heap);
         initialize_bigint_heap(&mut heap);
-        // initialize_math_object(&mut heap);
+        initialize_math_object(&mut heap);
         // initialize_date_object(&mut heap);
         initialize_string_heap(&mut heap);
         // initialize_regexp_object(&mut heap);
@@ -165,6 +167,19 @@ impl Heap {
         };
         self.functions.push(Some(func_data));
         self.functions.len() as u32
+    }
+
+    pub(crate) fn create_object(&mut self, entries: Vec<ObjectEntry>) -> u32 {
+        let object_data = ObjectHeapData {
+            _extensible: true,
+            bits: HeapBits::new(),
+            entries,
+            prototype: PropertyDescriptor::roh(Value::Object(
+                BuiltinObjectIndexes::ObjectPrototypeIndex as u32,
+            )),
+        };
+        self.objects.push(Some(object_data));
+        self.objects.len() as u32
     }
 
     fn partial_trace(&mut self) -> () {

@@ -54,9 +54,24 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
             true,
             PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
             vec![
-                ObjectEntry::new_prototype_function(heap, "asIntN", 2, false, bigint_as_int_n),
-                ObjectEntry::new_prototype_function(heap, "asUintN", 2, false, bigint_as_uint_n),
-                ObjectEntry::new_prototype(heap, BuiltinObjectIndexes::BigintPrototypeIndex as u32),
+                ObjectEntry::new_prototype_function_entry(
+                    heap,
+                    "asIntN",
+                    2,
+                    false,
+                    bigint_as_int_n,
+                ),
+                ObjectEntry::new_prototype_function_entry(
+                    heap,
+                    "asUintN",
+                    2,
+                    false,
+                    bigint_as_uint_n,
+                ),
+                ObjectEntry::new_constructor_prototype_entry(
+                    heap,
+                    BuiltinObjectIndexes::BigintPrototypeIndex as u32,
+                ),
             ],
         ));
     heap.functions[get_constructor_index(BuiltinObjectIndexes::BigintConstructorIndex) as usize] =
@@ -79,21 +94,21 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
                     BuiltinObjectIndexes::BigintConstructorIndex,
                 ))),
             ),
-            ObjectEntry::new_prototype_function(
+            ObjectEntry::new_prototype_function_entry(
                 heap,
                 "toLocaleString",
                 0,
                 false,
                 bigint_prototype_to_locale_string,
             ),
-            ObjectEntry::new_prototype_function(
+            ObjectEntry::new_prototype_function_entry(
                 heap,
                 "toString",
                 0,
                 false,
                 bigint_prototype_to_string,
             ),
-            ObjectEntry::new_prototype_function(
+            ObjectEntry::new_prototype_function_entry(
                 heap,
                 "valueOf",
                 0,

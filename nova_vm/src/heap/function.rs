@@ -50,7 +50,7 @@ pub fn initialize_function_heap(heap: &mut Heap) {
         Some(ObjectHeapData::new(
             true,
             PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-            vec![ObjectEntry::new_prototype(
+            vec![ObjectEntry::new_constructor_prototype_entry(
                 heap,
                 BuiltinObjectIndexes::FunctionPrototypeIndex as u32,
             )],
@@ -74,17 +74,23 @@ pub fn initialize_function_heap(heap: &mut Heap) {
             true,
             PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
             vec![
-                ObjectEntry::new_prototype_function(heap, "apply", 2, false, function_todo),
-                ObjectEntry::new_prototype_function(heap, "bind", 1, true, function_todo),
-                ObjectEntry::new_prototype_function(heap, "call", 1, true, function_todo),
+                ObjectEntry::new_prototype_function_entry(heap, "apply", 2, false, function_todo),
+                ObjectEntry::new_prototype_function_entry(heap, "bind", 1, true, function_todo),
+                ObjectEntry::new_prototype_function_entry(heap, "call", 1, true, function_todo),
                 ObjectEntry::new(
                     PropertyKey::from_str(heap, "constructor"),
                     PropertyDescriptor::rwx(Value::Function(get_constructor_index(
                         BuiltinObjectIndexes::FunctionConstructorIndex,
                     ))),
                 ),
-                ObjectEntry::new_prototype_function(heap, "toString", 0, false, function_todo),
-                ObjectEntry::new_prototype_symbol_function(
+                ObjectEntry::new_prototype_function_entry(
+                    heap,
+                    "toString",
+                    0,
+                    false,
+                    function_todo,
+                ),
+                ObjectEntry::new_prototype_symbol_function_entry(
                     heap,
                     "hasInstance",
                     WellKnownSymbolIndexes::HasInstance as u32,

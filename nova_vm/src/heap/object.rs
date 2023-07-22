@@ -18,7 +18,7 @@ impl ObjectEntry {
         ObjectEntry { key, value }
     }
 
-    pub(crate) fn new_prototype_function(
+    pub(crate) fn new_prototype_function_entry(
         heap: &mut Heap,
         name: &str,
         length: u8,
@@ -37,7 +37,7 @@ impl ObjectEntry {
         ObjectEntry { key, value }
     }
 
-    pub(crate) fn new_prototype_symbol_function(
+    pub(crate) fn new_prototype_symbol_function_entry(
         heap: &mut Heap,
         name: &str,
         symbol_index: u32,
@@ -52,7 +52,7 @@ impl ObjectEntry {
         ObjectEntry { key, value }
     }
 
-    pub(crate) fn new_prototype(heap: &mut Heap, idx: u32) -> Self {
+    pub(crate) fn new_constructor_prototype_entry(heap: &mut Heap, idx: u32) -> Self {
         ObjectEntry {
             key: PropertyKey::from_str(heap, "prototype"),
             value: PropertyDescriptor::Data {
@@ -61,6 +61,13 @@ impl ObjectEntry {
                 enumerable: false,
                 configurable: false,
             },
+        }
+    }
+
+    pub(crate) fn new_frozen_entry(heap: &mut Heap, key: &str, value: Value) -> Self {
+        ObjectEntry {
+            key: PropertyKey::from_str(heap, key),
+            value: PropertyDescriptor::roh(value),
         }
     }
 }
@@ -312,65 +319,98 @@ pub fn initialize_object_heap(heap: &mut Heap) {
             true,
             PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
             vec![
-                ObjectEntry::new_prototype_function(heap, "assign", 1, true, object_todo),
-                ObjectEntry::new_prototype_function(heap, "create", 2, false, object_todo),
-                ObjectEntry::new_prototype_function(
+                ObjectEntry::new_prototype_function_entry(heap, "assign", 1, true, object_todo),
+                ObjectEntry::new_prototype_function_entry(heap, "create", 2, false, object_todo),
+                ObjectEntry::new_prototype_function_entry(
                     heap,
                     "defineProperties",
                     2,
                     false,
                     object_todo,
                 ),
-                ObjectEntry::new_prototype_function(heap, "defineProperty", 3, false, object_todo),
-                ObjectEntry::new_prototype_function(heap, "entries", 1, false, object_todo),
-                ObjectEntry::new_prototype_function(heap, "freeze", 1, false, object_todo),
-                ObjectEntry::new_prototype_function(heap, "fromEntries", 1, false, object_todo),
-                ObjectEntry::new_prototype_function(
+                ObjectEntry::new_prototype_function_entry(
+                    heap,
+                    "defineProperty",
+                    3,
+                    false,
+                    object_todo,
+                ),
+                ObjectEntry::new_prototype_function_entry(heap, "entries", 1, false, object_todo),
+                ObjectEntry::new_prototype_function_entry(heap, "freeze", 1, false, object_todo),
+                ObjectEntry::new_prototype_function_entry(
+                    heap,
+                    "fromEntries",
+                    1,
+                    false,
+                    object_todo,
+                ),
+                ObjectEntry::new_prototype_function_entry(
                     heap,
                     "getOwnPropertyDescriptor",
                     2,
                     false,
                     object_todo,
                 ),
-                ObjectEntry::new_prototype_function(
+                ObjectEntry::new_prototype_function_entry(
                     heap,
                     "getOwnPropertyDescriptors",
                     1,
                     false,
                     object_todo,
                 ),
-                ObjectEntry::new_prototype_function(
+                ObjectEntry::new_prototype_function_entry(
                     heap,
                     "getOwnPropertyNames",
                     1,
                     false,
                     object_todo,
                 ),
-                ObjectEntry::new_prototype_function(
+                ObjectEntry::new_prototype_function_entry(
                     heap,
                     "getOwnPropertySymbols",
                     1,
                     false,
                     object_todo,
                 ),
-                ObjectEntry::new_prototype_function(heap, "getPrototypeOf", 1, false, object_todo),
-                ObjectEntry::new_prototype_function(heap, "hasOwn", 2, false, object_todo),
-                ObjectEntry::new_prototype_function(heap, "is", 1, false, object_todo),
-                ObjectEntry::new_prototype_function(heap, "isExtensible", 1, false, object_todo),
-                ObjectEntry::new_prototype_function(heap, "isFrozen", 1, false, object_todo),
-                ObjectEntry::new_prototype_function(heap, "isSealed", 1, false, object_todo),
-                ObjectEntry::new_prototype_function(heap, "keys", 1, false, object_todo),
-                ObjectEntry::new_prototype_function(
+                ObjectEntry::new_prototype_function_entry(
+                    heap,
+                    "getPrototypeOf",
+                    1,
+                    false,
+                    object_todo,
+                ),
+                ObjectEntry::new_prototype_function_entry(heap, "hasOwn", 2, false, object_todo),
+                ObjectEntry::new_prototype_function_entry(heap, "is", 1, false, object_todo),
+                ObjectEntry::new_prototype_function_entry(
+                    heap,
+                    "isExtensible",
+                    1,
+                    false,
+                    object_todo,
+                ),
+                ObjectEntry::new_prototype_function_entry(heap, "isFrozen", 1, false, object_todo),
+                ObjectEntry::new_prototype_function_entry(heap, "isSealed", 1, false, object_todo),
+                ObjectEntry::new_prototype_function_entry(heap, "keys", 1, false, object_todo),
+                ObjectEntry::new_prototype_function_entry(
                     heap,
                     "preventExtensions",
                     1,
                     false,
                     object_todo,
                 ),
-                ObjectEntry::new_prototype(heap, BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
-                ObjectEntry::new_prototype_function(heap, "seal", 1, false, object_todo),
-                ObjectEntry::new_prototype_function(heap, "setPrototypeOf", 2, false, object_todo),
-                ObjectEntry::new_prototype_function(heap, "values", 1, false, object_todo),
+                ObjectEntry::new_constructor_prototype_entry(
+                    heap,
+                    BuiltinObjectIndexes::ObjectPrototypeIndex as u32,
+                ),
+                ObjectEntry::new_prototype_function_entry(heap, "seal", 1, false, object_todo),
+                ObjectEntry::new_prototype_function_entry(
+                    heap,
+                    "setPrototypeOf",
+                    2,
+                    false,
+                    object_todo,
+                ),
+                ObjectEntry::new_prototype_function_entry(heap, "values", 1, false, object_todo),
             ],
         ));
     heap.functions[get_constructor_index(BuiltinObjectIndexes::ObjectConstructorIndex) as usize] =
@@ -394,18 +434,36 @@ pub fn initialize_object_heap(heap: &mut Heap) {
                         BuiltinObjectIndexes::ObjectConstructorIndex,
                     ))),
                 ),
-                ObjectEntry::new_prototype_function(heap, "hasOwnProperty", 1, false, object_todo),
-                ObjectEntry::new_prototype_function(heap, "isPrototypeOf", 1, false, object_todo),
-                ObjectEntry::new_prototype_function(
+                ObjectEntry::new_prototype_function_entry(
+                    heap,
+                    "hasOwnProperty",
+                    1,
+                    false,
+                    object_todo,
+                ),
+                ObjectEntry::new_prototype_function_entry(
+                    heap,
+                    "isPrototypeOf",
+                    1,
+                    false,
+                    object_todo,
+                ),
+                ObjectEntry::new_prototype_function_entry(
                     heap,
                     "propertyIsEnumerable",
                     1,
                     false,
                     object_todo,
                 ),
-                ObjectEntry::new_prototype_function(heap, "toLocaleString", 0, false, object_todo),
-                ObjectEntry::new_prototype_function(heap, "toString", 0, false, object_todo),
-                ObjectEntry::new_prototype_function(heap, "valueOf", 0, false, object_todo),
+                ObjectEntry::new_prototype_function_entry(
+                    heap,
+                    "toLocaleString",
+                    0,
+                    false,
+                    object_todo,
+                ),
+                ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, object_todo),
+                ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false, object_todo),
             ],
         ));
 }
