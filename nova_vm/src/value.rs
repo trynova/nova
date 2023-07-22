@@ -1,4 +1,4 @@
-use crate::{heap::Heap, Type, VM};
+use crate::{heap::Heap, small_ascii_string::SmallAsciiString, Type, VM};
 use std::{fmt::Debug, mem::size_of};
 
 // TODO(@aapoalas): Use transparent struct (u32)'s to ensure proper indexing.
@@ -29,7 +29,7 @@ pub enum Value {
     Null,
     NumberObject(u32), // TODO: Implement primitive value objects :(
     Object(ObjectIndex),
-    SmallAsciiString([i8; 7]),
+    SmallAsciiString(SmallAsciiString),
     // TOO: Extend these to i56.
     SmallBigInt(i32),
     SmallBigIntU(u32),
@@ -52,7 +52,11 @@ const _OPTIONAL_VALUE_SIZE_IS_WORD: () = assert!(size_of::<Option<Value>>() == s
 
 impl Value {
     pub fn new_string(heap: &mut Heap, message: &str) -> Value {
-        Value::HeapString(heap.alloc_string(message))
+        if let Some(ascii_string) = SmallAsciiString::try_from_str(message) {
+            Value::SmallAsciiString(ascii_string)
+        } else {
+            Value::HeapString(heap.alloc_string(message))
+        }
     }
 
     pub fn create_exception(heap: &mut Heap, message: &str) -> Value {

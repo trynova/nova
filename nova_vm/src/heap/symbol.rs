@@ -9,6 +9,7 @@ use crate::{
 
 use super::object::{ObjectEntry, PropertyKey};
 
+#[derive(Debug)]
 pub(crate) struct SymbolHeapData {
     pub(super) bits: HeapBits,
     pub(super) descriptor: Option<StringIndex>,

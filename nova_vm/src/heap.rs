@@ -32,6 +32,7 @@ use crate::value::Value;
 use std::cell::Cell;
 use wtf8::Wtf8;
 
+#[derive(Debug)]
 pub struct Heap {
     pub(crate) bigints: Vec<Option<BigIntHeapData>>,
     pub(crate) errors: Vec<Option<ErrorHeapData>>,
@@ -58,11 +59,11 @@ impl Heap {
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
         };
-        for _ in 0..LAST_WELL_KNOWN_SYMBOL_INDEX {
+        for _ in 0..LAST_WELL_KNOWN_SYMBOL_INDEX + 1 {
             // Initialize well known symbol slots
             heap.symbols.push(None);
         }
-        for i in 0..LAST_BUILTIN_OBJECT_INDEX {
+        for i in 0..LAST_BUILTIN_OBJECT_INDEX + 1 {
             // Initialize all static slots in heap objects.
             heap.objects.push(None);
             if i >= FIRST_CONSTRUCTOR_INDEX {
@@ -478,6 +479,7 @@ impl HeapTrace for Value {
 }
 
 // TODO: Change to using vectors of u8 bitfields for mark and dirty bits.
+#[derive(Debug)]
 pub struct HeapBits {
     marked: Cell<bool>,
     _weak_marked: Cell<bool>,
@@ -513,3 +515,10 @@ impl HeapBits {
 }
 
 unsafe impl Sync for HeapBits {}
+
+#[test]
+fn init_heap() {
+    let heap = Heap::new();
+    assert!(heap.objects.len() >= LAST_BUILTIN_OBJECT_INDEX as usize);
+    println!("{:#?}", heap);
+}

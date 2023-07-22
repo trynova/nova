@@ -13,6 +13,7 @@ use crate::{
     value::{JsResult, Value},
 };
 
+#[derive(Debug)]
 pub(crate) struct NumberHeapData {
     pub(super) bits: HeapBits,
     pub(super) data: f64,

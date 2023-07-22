@@ -9,6 +9,7 @@ use crate::{
 
 use super::heap_trace::HeapTrace;
 
+#[derive(Debug)]
 pub(crate) struct BigIntHeapData {
     pub(super) bits: HeapBits,
     pub(super) sign: bool,

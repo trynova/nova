@@ -5,9 +5,12 @@ use crate::{
         heap_trace::HeapTrace,
         FunctionHeapData, Heap, HeapBits,
     },
+    small_ascii_string::SmallAsciiString,
     value::{FunctionIndex, JsResult, StringIndex, SymbolIndex, Value},
 };
+use std::fmt::Debug;
 
+#[derive(Debug)]
 pub struct ObjectEntry {
     key: PropertyKey,
     value: PropertyDescriptor,
@@ -72,8 +75,9 @@ impl ObjectEntry {
     }
 }
 
+#[derive(Debug)]
 pub enum PropertyKey {
-    SmallAsciiString([i8; 7]),
+    SmallAsciiString(SmallAsciiString),
     Smi(i32),
     String(StringIndex),
     Symbol(SymbolIndex),
@@ -81,19 +85,15 @@ pub enum PropertyKey {
 
 impl PropertyKey {
     pub fn from_str(heap: &mut Heap, str: &str) -> Self {
-        if str.len() <= 7 && str.is_ascii() {
-            let mut bytes: [i8; 7] = [0, 0, 0, 0, 0, 0, 0];
-            let str_ascii_bytes = str.as_bytes();
-            for (idx, byte) in str_ascii_bytes.iter().enumerate() {
-                bytes[idx] = *byte as i8;
-            }
-            PropertyKey::SmallAsciiString(bytes)
+        if let Some(ascii_string) = SmallAsciiString::try_from_str(str) {
+            PropertyKey::SmallAsciiString(ascii_string)
         } else {
             PropertyKey::String(heap.alloc_string(str))
         }
     }
 }
 
+#[derive(Debug)]
 pub enum PropertyDescriptor {
     Data {
         value: Value,
@@ -219,6 +219,7 @@ impl PropertyDescriptor {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct ObjectHeapData {
     pub(crate) bits: HeapBits,
     pub(crate) _extensible: bool,

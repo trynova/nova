@@ -12,6 +12,7 @@ use super::{
     object::{ObjectEntry, PropertyKey},
 };
 
+#[derive(Debug)]
 pub(crate) struct ErrorHeapData {
     pub(super) bits: HeapBits,
     pub(super) object_index: u32,

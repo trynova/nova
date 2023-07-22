@@ -14,6 +14,7 @@ use super::{
 
 pub type JsBindingFunction = fn(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value>;
 
+#[derive(Debug)]
 pub(crate) struct FunctionHeapData {
     pub(super) bits: HeapBits,
     pub(super) object_index: u32,
