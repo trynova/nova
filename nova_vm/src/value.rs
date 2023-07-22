@@ -30,8 +30,12 @@ pub enum Value {
     NumberObject(u32), // TODO: Implement primitive value objects :(
     Object(ObjectIndex),
     SmallAsciiString([i8; 7]),
+    // TOO: Extend these to i56.
     SmallBigInt(i32),
     SmallBigIntU(u32),
+    // TODO: Extend these to i48 or even i56.
+    // i56 would provide safe integer operations
+    // superior to f64 but is no longer spec-compliant.
     Smi(i32),
     SmiU(u32),
     StringObject(u32), // TODO: Implement primitive value objects :(
@@ -41,24 +45,21 @@ pub enum Value {
 }
 
 /// We want to guarantee that all handles to JS values are register sized. This assert must never be removed or broken.
-const VALUE_SIZE_IS_WORD: () = assert!(size_of::<Value>() == size_of::<usize>());
+const _VALUE_SIZE_IS_WORD: () = assert!(size_of::<Value>() == size_of::<usize>());
 // We may also want to keep Option<Value> register sized to allow returning it in some cases.
 // This may not be possible in the long run and it may not be necessary as we might want to use Undefined instead.
-const OPTIONAL_VALUE_SIZE_IS_WORD: () = assert!(size_of::<Option<Value>>() == size_of::<usize>());
+const _OPTIONAL_VALUE_SIZE_IS_WORD: () = assert!(size_of::<Option<Value>>() == size_of::<usize>());
 
 impl Value {
     pub fn new_string(heap: &mut Heap, message: &str) -> Value {
-        let _ = VALUE_SIZE_IS_WORD;
         Value::HeapString(heap.alloc_string(message))
     }
 
     pub fn create_exception(heap: &mut Heap, message: &str) -> Value {
-        let _ = VALUE_SIZE_IS_WORD;
         Value::HeapString(heap.alloc_string(message))
     }
 
     pub fn get_type(&self) -> Type {
-        let _ = VALUE_SIZE_IS_WORD;
         match self {
             Value::Boolean(_) => Type::Boolean,
             Value::EmptyString | Value::SmallAsciiString(_) | Value::HeapString(_) => Type::String,
@@ -86,7 +87,6 @@ impl Value {
 
     /// https://tc39.es/ecma262/multipage/abstract-operations.html#sec-islooselyequal
     pub fn is_loosely_equal(&self, vm: &mut VM, other: &Value) -> JsResult<bool> {
-        let _ = VALUE_SIZE_IS_WORD;
         if self.get_type() == other.get_type() {
             return self.is_strictly_equal(vm, other);
         }
@@ -153,7 +153,6 @@ impl Value {
 
     /// https://tc39.es/ecma262/multipage/abstract-operations.html#sec-isstrictlyequal
     pub fn is_strictly_equal(&self, vm: &VM, other: &Value) -> JsResult<bool> {
-        let _ = VALUE_SIZE_IS_WORD;
         if self.get_type() != other.get_type() {
             return Ok(false);
         }
