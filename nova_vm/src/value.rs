@@ -3,6 +3,7 @@ use std::{fmt::Debug, mem::size_of};
 
 // TODO(@aapoalas): Use transparent struct (u32)'s to ensure proper indexing.
 pub type BigIntIndex = u32;
+pub type DateIndex = u32;
 pub type ErrorIndex = u32;
 pub type FunctionIndex = u32;
 pub type NumberIndex = u32;
@@ -16,6 +17,7 @@ pub enum Value {
     BigIntObject(u32),  // TODO: Implement primitive value objects :(
     BooleanObject(u32), // TODO: Implement primitive value objects :(
     Boolean(bool),
+    Date(DateIndex),
     EmptyString,
     Error(ErrorIndex),
     Function(FunctionIndex),
@@ -66,24 +68,25 @@ impl Value {
     pub fn get_type(&self) -> Type {
         match self {
             Value::Boolean(_) => Type::Boolean,
-            Value::EmptyString | Value::SmallAsciiString(_) | Value::HeapString(_) => Type::String,
+            Value::EmptyString | Value::HeapString(_) | Value::SmallAsciiString(_) => Type::String,
             Value::Function(_) => Type::Function,
-            Value::NaN
+            Value::HeapNumber(_)
+            | Value::Infinity
+            | Value::NaN
             | Value::NegativeInfinity
             | Value::NegativeZero
-            | Value::Infinity
             | Value::Smi(_)
-            | Value::SmiU(_)
-            | Value::HeapNumber(_) => Type::Number,
+            | Value::SmiU(_) => Type::Number,
             Value::Null => Type::Null,
             Value::Object(_)
-            | Value::Error(_)
             | Value::BigIntObject(_)
             | Value::BooleanObject(_)
+            | Value::Date(_)
+            | Value::Error(_)
             | Value::NumberObject(_)
             | Value::StringObject(_)
             | Value::SymbolObject(_) => Type::Object,
-            Value::SmallBigInt(_) | Value::SmallBigIntU(_) | Value::HeapBigInt(_) => Type::BigInt,
+            Value::HeapBigInt(_) | Value::SmallBigInt(_) | Value::SmallBigIntU(_) => Type::BigInt,
             Value::Symbol(_) => Type::Symbol,
             Value::Undefined => Type::Undefined,
         }
@@ -332,6 +335,7 @@ impl Debug for Value {
             Value::Boolean(arg0) => f.debug_tuple("Boolean").field(arg0).finish(),
             Value::BooleanObject(arg0) => f.debug_tuple("BooleanObject").field(arg0).finish(),
             Value::EmptyString => write!(f, "EmptyString"),
+            Value::Date(arg0) => f.debug_tuple("Date").field(arg0).finish(),
             Value::Error(arg0) => f.debug_tuple("Error").field(arg0).finish(),
             Value::Function(arg0) => f.debug_tuple("Function").field(arg0).finish(),
             Value::HeapBigInt(arg0) => f.debug_tuple("BigInt").field(arg0).finish(),
