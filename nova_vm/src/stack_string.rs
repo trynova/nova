@@ -12,6 +12,9 @@ pub struct StackString {
 
 impl StackString {
     // TODO: Need to get the length, and UTF-16 length, of the string.
+    pub fn utf16_len(&self) -> usize {
+        self.as_str().encode_utf16().count()
+    }
 
     pub fn byte_len(&self) -> usize {
         // Find the last non-null character and add one to its index to get length.
