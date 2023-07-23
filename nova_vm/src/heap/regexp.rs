@@ -41,6 +41,7 @@ impl HeapTrace for Option<RegExpHeapData> {
 }
 
 pub fn initialize_regexp_heap(heap: &mut Heap) {
+    let species_function_name = Value::new_string(heap, "get [Symbol.species]");
     heap.objects[BuiltinObjectIndexes::RegExpConstructorIndex as usize] =
         Some(ObjectHeapData::new(
             true,
@@ -53,7 +54,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
                 ObjectEntry::new(
                     PropertyKey::Symbol(WellKnownSymbolIndexes::Species as u32),
                     PropertyDescriptor::ReadOnly {
-                        get: heap.create_function(Value::EmptyString, 0, false, regexp_species),
+                        get: heap.create_function(species_function_name, 0, false, regexp_species),
                         enumerable: false,
                         configurable: true,
                     },

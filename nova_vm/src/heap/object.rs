@@ -30,7 +30,7 @@ impl ObjectEntry {
     ) -> Self {
         let key = PropertyKey::from_str(heap, name);
         let name = match key {
-            PropertyKey::SmallAsciiString(data) => Value::SmallAsciiString(data.clone()),
+            PropertyKey::SmallAsciiString(data) => Value::StackString(data.clone()),
             PropertyKey::Smi(_) => unreachable!("No prototype functions should have SMI names"),
             PropertyKey::String(idx) => Value::HeapString(idx),
             PropertyKey::Symbol(idx) => Value::Symbol(idx),

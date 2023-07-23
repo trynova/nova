@@ -1,3 +1,4 @@
+mod array;
 mod bigint;
 mod boolean;
 mod date;
@@ -13,6 +14,7 @@ mod string;
 mod symbol;
 
 use self::{
+    array::{initialize_array_heap, ArrayHeapData},
     bigint::{initialize_bigint_heap, BigIntHeapData},
     boolean::initialize_boolean_heap,
     date::{initialize_date_heap, DateHeapData},
@@ -38,6 +40,7 @@ use wtf8::Wtf8;
 
 #[derive(Debug)]
 pub struct Heap {
+    pub(crate) arrays: Vec<Option<ArrayHeapData>>,
     pub(crate) bigints: Vec<Option<BigIntHeapData>>,
     pub(crate) errors: Vec<Option<ErrorHeapData>>,
     pub(crate) functions: Vec<Option<FunctionHeapData>>,
@@ -56,6 +59,7 @@ fn start_the_world() {}
 impl Heap {
     pub fn new() -> Heap {
         let mut heap = Heap {
+            arrays: Vec::with_capacity(1024),
             bigints: Vec::with_capacity(1024),
             errors: Vec::with_capacity(1024),
             functions: Vec::with_capacity(1024),
@@ -89,6 +93,7 @@ impl Heap {
         initialize_date_heap(&mut heap);
         initialize_string_heap(&mut heap);
         initialize_regexp_heap(&mut heap);
+        initialize_array_heap(&mut heap);
         // initialize_typedarray_heap(&mut heap);
         // initialize_map_heap(&mut heap);
         // initialize_set_heap(&mut heap);
@@ -186,6 +191,17 @@ impl Heap {
             prototype: PropertyDescriptor::roh(Value::Object(
                 BuiltinObjectIndexes::ObjectPrototypeIndex as u32,
             )),
+        };
+        self.objects.push(Some(object_data));
+        self.objects.len() as u32
+    }
+
+    pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> u32 {
+        let object_data = ObjectHeapData {
+            _extensible: true,
+            bits: HeapBits::new(),
+            entries,
+            prototype: PropertyDescriptor::roh(Value::Null),
         };
         self.objects.push(Some(object_data));
         self.objects.len() as u32

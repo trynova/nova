@@ -2,6 +2,7 @@ use crate::{heap::Heap, stack_string::StackString, Type, VM};
 use std::{fmt::Debug, mem::size_of};
 
 // TODO(@aapoalas): Use transparent struct (u32)'s to ensure proper indexing.
+pub type ArrayIndex = u32;
 pub type BigIntIndex = u32;
 pub type DateIndex = u32;
 pub type ErrorIndex = u32;
@@ -15,6 +16,7 @@ pub type SymbolIndex = u32;
 #[derive(Clone)]
 #[repr(u8)]
 pub enum Value {
+    Array(ArrayIndex),
     BigIntObject(u32),  // TODO: Implement primitive value objects :(
     BooleanObject(u32), // TODO: Implement primitive value objects :(
     Boolean(bool),
@@ -33,7 +35,7 @@ pub enum Value {
     NumberObject(u32), // TODO: Implement primitive value objects :(
     Object(ObjectIndex),
     RegExp(RegExpIndex),
-    SmallAsciiString(StackString),
+    StackString(StackString),
     // TOO: Extend these to i56.
     SmallBigInt(i32),
     SmallBigIntU(u32),
@@ -57,7 +59,7 @@ const _OPTIONAL_VALUE_SIZE_IS_WORD: () = assert!(size_of::<Option<Value>>() == s
 impl Value {
     pub fn new_string(heap: &mut Heap, message: &str) -> Value {
         if let Some(ascii_string) = StackString::try_from_str(message) {
-            Value::SmallAsciiString(ascii_string)
+            Value::StackString(ascii_string)
         } else {
             Value::HeapString(heap.alloc_string(message))
         }
@@ -70,7 +72,7 @@ impl Value {
     pub fn get_type(&self) -> Type {
         match self {
             Value::Boolean(_) => Type::Boolean,
-            Value::EmptyString | Value::HeapString(_) | Value::SmallAsciiString(_) => Type::String,
+            Value::EmptyString | Value::HeapString(_) | Value::StackString(_) => Type::String,
             Value::Function(_) => Type::Function,
             Value::HeapNumber(_)
             | Value::Infinity
@@ -81,6 +83,7 @@ impl Value {
             | Value::SmiU(_) => Type::Number,
             Value::Null => Type::Null,
             Value::Object(_)
+            | Value::Array(_)
             | Value::BigIntObject(_)
             | Value::BooleanObject(_)
             | Value::Date(_)
@@ -233,7 +236,7 @@ impl Value {
             Value::Undefined | Value::NaN => Value::NaN,
             Value::Null | Value::Boolean(false) | Value::EmptyString => Value::SmiU(0),
             Value::Boolean(true) => Value::SmiU(1),
-            Value::SmallAsciiString(_) | Value::HeapString(_) => todo!("parse number from string"),
+            Value::StackString(_) | Value::HeapString(_) => todo!("parse number from string"),
             Value::Object(_) | Value::Error(_) => todo!("call valueOf"),
             _ => todo!("implement primitive value objects :("),
         })
@@ -274,7 +277,7 @@ impl Value {
             | Value::SmallBigIntU(_) => todo!("type error"),
             Value::Null | Value::Boolean(false) | Value::EmptyString => Ok(0.),
             Value::Boolean(true) => Ok(1.),
-            Value::SmallAsciiString(_) | Value::HeapString(_) => todo!("parse number from string"),
+            Value::StackString(_) | Value::HeapString(_) => todo!("parse number from string"),
             Value::Object(_) => todo!("call valueOf"),
             _ => todo!("sigh"),
         }
@@ -334,6 +337,7 @@ pub type JsResult<T> = std::result::Result<T, Value>;
 impl Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Value::Array(arg0) => f.debug_tuple("Array").field(arg0).finish(),
             Value::BigIntObject(arg0) => f.debug_tuple("BigIntObject").field(arg0).finish(),
             Value::Boolean(arg0) => f.debug_tuple("Boolean").field(arg0).finish(),
             Value::BooleanObject(arg0) => f.debug_tuple("BooleanObject").field(arg0).finish(),
@@ -352,7 +356,7 @@ impl Debug for Value {
             Value::NumberObject(arg0) => f.debug_tuple("NumberObject").field(arg0).finish(),
             Value::Object(arg0) => f.debug_tuple("Object").field(arg0).finish(),
             Value::RegExp(arg0) => f.debug_tuple("RegExp").field(arg0).finish(),
-            Value::SmallAsciiString(arg0) => f.debug_tuple("SmallAsciiString").field(arg0).finish(),
+            Value::StackString(arg0) => f.debug_tuple("SmallAsciiString").field(arg0).finish(),
             Value::SmallBigInt(arg0) => f.debug_tuple("SmallBigInt").field(arg0).finish(),
             Value::SmallBigIntU(arg0) => f.debug_tuple("SmallBigIntU").field(arg0).finish(),
             Value::Smi(arg0) => f.debug_tuple("Smi").field(arg0).finish(),
