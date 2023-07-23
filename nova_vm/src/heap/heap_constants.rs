@@ -25,7 +25,7 @@ pub enum BuiltinObjectIndexes {
 
     // Text processing
     StringPrototypeIndex,
-    RegexpPrototypeIndex,
+    RegExpPrototypeIndex,
 
     // Indexed collections
     ArrayPrototypeIndex,
@@ -90,7 +90,7 @@ pub enum BuiltinObjectIndexes {
 
     // Text processing
     StringConstructorIndex,
-    RegexpConstructorIndex,
+    RegExpConstructorIndex,
 
     // Indexed collections
     ArrayConstructorIndex,

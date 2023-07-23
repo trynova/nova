@@ -8,6 +8,7 @@ pub type ErrorIndex = u32;
 pub type FunctionIndex = u32;
 pub type NumberIndex = u32;
 pub type ObjectIndex = u32;
+pub type RegExpIndex = u32;
 pub type StringIndex = u32;
 pub type SymbolIndex = u32;
 
@@ -31,6 +32,7 @@ pub enum Value {
     Null,
     NumberObject(u32), // TODO: Implement primitive value objects :(
     Object(ObjectIndex),
+    RegExp(RegExpIndex),
     SmallAsciiString(StackString),
     // TOO: Extend these to i56.
     SmallBigInt(i32),
@@ -84,6 +86,7 @@ impl Value {
             | Value::Date(_)
             | Value::Error(_)
             | Value::NumberObject(_)
+            | Value::RegExp(_)
             | Value::StringObject(_)
             | Value::SymbolObject(_) => Type::Object,
             Value::HeapBigInt(_) | Value::SmallBigInt(_) | Value::SmallBigIntU(_) => Type::BigInt,
@@ -348,6 +351,7 @@ impl Debug for Value {
             Value::Null => write!(f, "Null"),
             Value::NumberObject(arg0) => f.debug_tuple("NumberObject").field(arg0).finish(),
             Value::Object(arg0) => f.debug_tuple("Object").field(arg0).finish(),
+            Value::RegExp(arg0) => f.debug_tuple("RegExp").field(arg0).finish(),
             Value::SmallAsciiString(arg0) => f.debug_tuple("SmallAsciiString").field(arg0).finish(),
             Value::SmallBigInt(arg0) => f.debug_tuple("SmallBigInt").field(arg0).finish(),
             Value::SmallBigIntU(arg0) => f.debug_tuple("SmallBigIntU").field(arg0).finish(),

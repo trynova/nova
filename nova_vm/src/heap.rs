@@ -8,6 +8,7 @@ mod heap_trace;
 mod math;
 mod number;
 mod object;
+mod regexp;
 mod string;
 mod symbol;
 
@@ -27,6 +28,7 @@ use self::{
     object::{
         initialize_object_heap, ObjectEntry, ObjectHeapData, PropertyDescriptor, PropertyKey,
     },
+    regexp::{initialize_regexp_heap, RegExpHeapData},
     string::{initialize_string_heap, StringHeapData},
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
@@ -43,6 +45,7 @@ pub struct Heap {
     pub(crate) globals: Vec<Value>,
     pub(crate) numbers: Vec<Option<NumberHeapData>>,
     pub(crate) objects: Vec<Option<ObjectHeapData>>,
+    pub(crate) regexps: Vec<Option<RegExpHeapData>>,
     pub(crate) strings: Vec<Option<StringHeapData>>,
     pub(crate) symbols: Vec<Option<SymbolHeapData>>,
 }
@@ -60,6 +63,7 @@ impl Heap {
             globals: Vec::with_capacity(1024),
             numbers: Vec::with_capacity(1024),
             objects: Vec::with_capacity(1024),
+            regexps: Vec::with_capacity(1024),
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
         };
@@ -84,30 +88,30 @@ impl Heap {
         initialize_math_object(&mut heap);
         initialize_date_heap(&mut heap);
         initialize_string_heap(&mut heap);
-        // initialize_regexp_object(&mut heap);
-        // initialize_typedarray_object(&mut heap);
-        // initialize_map_object(&mut heap);
-        // initialize_set_object(&mut heap);
-        // initialize_weak_map_object(&mut heap);
-        // initialize_weak_set_object(&mut heap);
-        // initialize_array_buffer_object(&mut heap);
-        // initialize_shared_array_buffer_object(&mut heap);
-        // initialize_data_view_object(&mut heap);
-        // initialize_json_object(&mut heap);
-        // initialize_atomics_object(&mut heap);
-        // initialize_weak_ref_object(&mut heap);
-        // initialize_finalization_registry_object(&mut heap);
-        // initialize_iterator_object(&mut heap);
-        // initialize_async_iterator_object(&mut heap);
-        // initialize_promise_object(&mut heap);
-        // initialize_generator_function_object(&mut heap);
-        // initialize_async_generator_function_object(&mut heap);
-        // initialize_generator_object(&mut heap);
-        // initialize_async_generator_object(&mut heap);
-        // initialize_async_function_object(&mut heap);
-        // initialize_reflect_object(&mut heap);
-        // initialize_proxy_object(&mut heap);
-        // initialize_module_object(&mut heap);
+        initialize_regexp_heap(&mut heap);
+        // initialize_typedarray_heap(&mut heap);
+        // initialize_map_heap(&mut heap);
+        // initialize_set_heap(&mut heap);
+        // initialize_weak_map_heap(&mut heap);
+        // initialize_weak_set_heap(&mut heap);
+        // initialize_array_buffer_heap(&mut heap);
+        // initialize_shared_array_buffer_heap(&mut heap);
+        // initialize_data_view_heap(&mut heap);
+        // initialize_json_heap(&mut heap);
+        // initialize_atomics_heap(&mut heap);
+        // initialize_weak_ref_heap(&mut heap);
+        // initialize_finalization_registry_heap(&mut heap);
+        // initialize_iterator_heap(&mut heap);
+        // initialize_async_iterator_heap(&mut heap);
+        // initialize_promise_heap(&mut heap);
+        // initialize_generator_function_heap(&mut heap);
+        // initialize_async_generator_function_heap(&mut heap);
+        // initialize_generator_heap(&mut heap);
+        // initialize_async_generator_heap(&mut heap);
+        // initialize_async_function_heap(&mut heap);
+        // initialize_reflect_heap(&mut heap);
+        // initialize_proxy_heap(&mut heap);
+        // initialize_module_heap(&mut heap);
 
         heap
     }
