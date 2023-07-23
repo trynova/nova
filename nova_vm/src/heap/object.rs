@@ -5,7 +5,7 @@ use crate::{
         heap_trace::HeapTrace,
         FunctionHeapData, Heap, HeapBits,
     },
-    small_ascii_string::SmallAsciiString,
+    stack_string::StackString,
     value::{FunctionIndex, JsResult, StringIndex, SymbolIndex, Value},
 };
 use std::fmt::Debug;
@@ -77,7 +77,7 @@ impl ObjectEntry {
 
 #[derive(Debug)]
 pub enum PropertyKey {
-    SmallAsciiString(SmallAsciiString),
+    SmallAsciiString(StackString),
     Smi(i32),
     String(StringIndex),
     Symbol(SymbolIndex),
@@ -85,7 +85,7 @@ pub enum PropertyKey {
 
 impl PropertyKey {
     pub fn from_str(heap: &mut Heap, str: &str) -> Self {
-        if let Some(ascii_string) = SmallAsciiString::try_from_str(str) {
+        if let Some(ascii_string) = StackString::try_from_str(str) {
             PropertyKey::SmallAsciiString(ascii_string)
         } else {
             PropertyKey::String(heap.alloc_string(str))

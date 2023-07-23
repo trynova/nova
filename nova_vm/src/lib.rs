@@ -1,7 +1,7 @@
 #![feature(try_trait_v2)]
 
 pub mod heap;
-mod small_ascii_string;
+mod stack_string;
 pub mod value;
 use heap::Heap;
 use oxc_ast::{
