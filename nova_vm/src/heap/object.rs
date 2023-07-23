@@ -1,5 +1,7 @@
-use std::collections::HashMap;
-
+use super::{
+    element_array::ElementsVector,
+    indexes::{FunctionIndex, ObjectIndex, StringIndex, SymbolIndex},
+};
 use crate::{
     execution::JsResult,
     heap::{
@@ -10,11 +12,6 @@ use crate::{
     SmallString,
 };
 use std::{fmt::Debug, vec};
-
-use super::{
-    element_array::ElementsVector,
-    indexes::{FunctionIndex, ObjectIndex, StringIndex, SymbolIndex},
-};
 
 #[derive(Debug)]
 pub struct ObjectEntry {
