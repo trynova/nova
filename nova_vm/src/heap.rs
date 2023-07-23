@@ -1,5 +1,6 @@
 mod bigint;
 mod boolean;
+mod date;
 mod error;
 mod function;
 mod heap_constants;
@@ -13,6 +14,7 @@ mod symbol;
 use self::{
     bigint::{initialize_bigint_heap, BigIntHeapData},
     boolean::initialize_boolean_heap,
+    date::{initialize_date_heap, DateHeapData},
     error::{initialize_error_heap, ErrorHeapData},
     function::{initialize_function_heap, FunctionHeapData, JsBindingFunction},
     heap_constants::{
@@ -37,6 +39,7 @@ pub struct Heap {
     pub(crate) bigints: Vec<Option<BigIntHeapData>>,
     pub(crate) errors: Vec<Option<ErrorHeapData>>,
     pub(crate) functions: Vec<Option<FunctionHeapData>>,
+    pub(crate) dates: Vec<Option<DateHeapData>>,
     pub(crate) globals: Vec<Value>,
     pub(crate) numbers: Vec<Option<NumberHeapData>>,
     pub(crate) objects: Vec<Option<ObjectHeapData>>,
@@ -53,6 +56,7 @@ impl Heap {
             bigints: Vec::with_capacity(1024),
             errors: Vec::with_capacity(1024),
             functions: Vec::with_capacity(1024),
+            dates: Vec::with_capacity(1024),
             globals: Vec::with_capacity(1024),
             numbers: Vec::with_capacity(1024),
             objects: Vec::with_capacity(1024),
@@ -78,7 +82,7 @@ impl Heap {
         initialize_number_heap(&mut heap);
         initialize_bigint_heap(&mut heap);
         initialize_math_object(&mut heap);
-        // initialize_date_object(&mut heap);
+        initialize_date_heap(&mut heap);
         initialize_string_heap(&mut heap);
         // initialize_regexp_object(&mut heap);
         // initialize_typedarray_object(&mut heap);
