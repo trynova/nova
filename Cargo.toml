@@ -1,8 +1,7 @@
 [workspace]
 members = [
-    "parser",
+    "nova_cli",
+    "nova_vm",
     "common",
-		"tokenizer",
-    "ast",
     "wasm"
 ]
