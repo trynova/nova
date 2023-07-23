@@ -17,6 +17,7 @@ use super::{
 pub(crate) struct ArrayHeapData {
     pub(super) bits: HeapBits,
     pub(super) object_index: u32,
+    // TODO: Use SmallVec<[Value; 4]>
     pub(super) elements: Vec<Option<Value>>,
 }
 
