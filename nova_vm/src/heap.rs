@@ -1,122 +1,115 @@
 mod array;
 mod bigint;
-mod boolean;
-mod date;
-mod error;
-mod function;
 mod heap_constants;
 mod heap_trace;
-mod math;
 mod number;
 mod object;
-mod regexp;
 mod string;
 mod symbol;
 
-use self::{
-    array::{initialize_array_heap, ArrayHeapData},
-    bigint::{initialize_bigint_heap, BigIntHeapData},
-    boolean::initialize_boolean_heap,
-    date::{initialize_date_heap, DateHeapData},
-    error::{initialize_error_heap, ErrorHeapData},
-    function::{initialize_function_heap, FunctionHeapData, JsBindingFunction},
-    heap_constants::{
-        BuiltinObjectIndexes, FIRST_CONSTRUCTOR_INDEX, LAST_BUILTIN_OBJECT_INDEX,
-        LAST_WELL_KNOWN_SYMBOL_INDEX,
-    },
-    heap_trace::HeapTrace,
-    math::initialize_math_object,
-    number::{initialize_number_heap, NumberHeapData},
-    object::{
-        initialize_object_heap, ObjectEntry, ObjectHeapData, PropertyDescriptor, PropertyKey,
-    },
-    regexp::{initialize_regexp_heap, RegExpHeapData},
-    string::{initialize_string_heap, StringHeapData},
-    symbol::{initialize_symbol_heap, SymbolHeapData},
-};
-use crate::value::Value;
-use std::cell::Cell;
+pub use array::ArrayHeapData;
+pub use bigint::BigIntHeapData;
+pub use number::NumberHeapData;
+pub use object::ObjectHeapData;
+pub use string::StringHeapData;
+pub use symbol::SymbolHeapData;
+
+use self::heap_trace::HeapTrace;
+use crate::types::Value;
+use std::{cell::Cell, marker::PhantomData};
 use wtf8::Wtf8;
+
+/// A handle to GC-managed memory.
+#[derive(Clone)]
+pub struct Handle<T: 'static> {
+    id: u32,
+    _marker: &'static PhantomData<T>,
+}
+
+impl<T: 'static + Clone> Copy for Handle<T> {}
+
+impl<T: 'static> Handle<T> {
+    pub fn new(id: u32) -> Self {
+        Self {
+            id,
+            // SAFETY: We hopefully will make sure handles ar esafe.
+            _marker: unsafe {
+                std::mem::transmute::<&PhantomData<T>, &'static PhantomData<T>>(
+                    &PhantomData::default(),
+                )
+            },
+        }
+    }
+}
+
+macro_rules! impl_handle_debug {
+    ($name: ty) => {
+        impl std::fmt::Debug for Handle<$name> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "$name(0x{:x})", self.id)
+            }
+        }
+    };
+}
+
+impl_handle_debug!(StringHeapData);
+impl_handle_debug!(SymbolHeapData);
+impl_handle_debug!(NumberHeapData);
+impl_handle_debug!(BigIntHeapData);
+impl_handle_debug!(ObjectHeapData);
+impl_handle_debug!(ArrayHeapData);
 
 #[derive(Debug)]
 pub struct Heap {
-    pub(crate) arrays: Vec<Option<ArrayHeapData>>,
-    pub(crate) bigints: Vec<Option<BigIntHeapData>>,
-    pub(crate) errors: Vec<Option<ErrorHeapData>>,
-    pub(crate) functions: Vec<Option<FunctionHeapData>>,
-    pub(crate) dates: Vec<Option<DateHeapData>>,
-    pub(crate) globals: Vec<Value>,
-    pub(crate) numbers: Vec<Option<NumberHeapData>>,
-    pub(crate) objects: Vec<Option<ObjectHeapData>>,
-    pub(crate) regexps: Vec<Option<RegExpHeapData>>,
     pub(crate) strings: Vec<Option<StringHeapData>>,
     pub(crate) symbols: Vec<Option<SymbolHeapData>>,
+    pub(crate) numbers: Vec<Option<NumberHeapData>>,
+    pub(crate) bigints: Vec<Option<BigIntHeapData>>,
+    pub(crate) objects: Vec<Option<ObjectHeapData>>,
+    pub(crate) arrays: Vec<Option<ArrayHeapData>>,
 }
 
 fn stop_the_world() {}
 fn start_the_world() {}
 
+/// Creates a [`Value`] from the given data. Allocating the data is **not**
+/// guaranteed.
+pub trait CreateHeapData<T> {
+    fn create(&mut self, data: T) -> Value;
+}
+
+impl CreateHeapData<f64> for Heap {
+    fn create(&mut self, data: f64) -> Value {
+        if let Ok(value) = Value::try_from(data) {
+            value
+        } else {
+            let id = self.alloc_number(data);
+            Value::Number(Handle::new(id))
+        }
+    }
+}
+
+impl CreateHeapData<&str> for Heap {
+    fn create(&mut self, data: &str) -> Value {
+        if let Ok(value) = Value::try_from(data) {
+            value
+        } else {
+            let id = self.alloc_string(data);
+            Value::String(Handle::new(id))
+        }
+    }
+}
+
 impl Heap {
     pub fn new() -> Heap {
         let mut heap = Heap {
-            arrays: Vec::with_capacity(1024),
-            bigints: Vec::with_capacity(1024),
-            errors: Vec::with_capacity(1024),
-            functions: Vec::with_capacity(1024),
-            dates: Vec::with_capacity(1024),
-            globals: Vec::with_capacity(1024),
-            numbers: Vec::with_capacity(1024),
-            objects: Vec::with_capacity(1024),
-            regexps: Vec::with_capacity(1024),
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
+            numbers: Vec::with_capacity(1024),
+            bigints: Vec::with_capacity(1024),
+            objects: Vec::with_capacity(1024),
+            arrays: Vec::with_capacity(1024),
         };
-        for _ in 0..LAST_WELL_KNOWN_SYMBOL_INDEX + 1 {
-            // Initialize well known symbol slots
-            heap.symbols.push(None);
-        }
-        for i in 0..LAST_BUILTIN_OBJECT_INDEX + 1 {
-            // Initialize all static slots in heap objects.
-            heap.objects.push(None);
-            if i >= FIRST_CONSTRUCTOR_INDEX {
-                heap.functions.push(None);
-            }
-        }
-        initialize_object_heap(&mut heap);
-        initialize_function_heap(&mut heap);
-        initialize_boolean_heap(&mut heap);
-        initialize_symbol_heap(&mut heap);
-        initialize_error_heap(&mut heap);
-        initialize_number_heap(&mut heap);
-        initialize_bigint_heap(&mut heap);
-        initialize_math_object(&mut heap);
-        initialize_date_heap(&mut heap);
-        initialize_string_heap(&mut heap);
-        initialize_regexp_heap(&mut heap);
-        initialize_array_heap(&mut heap);
-        // initialize_typedarray_heap(&mut heap);
-        // initialize_map_heap(&mut heap);
-        // initialize_set_heap(&mut heap);
-        // initialize_weak_map_heap(&mut heap);
-        // initialize_weak_set_heap(&mut heap);
-        // initialize_array_buffer_heap(&mut heap);
-        // initialize_shared_array_buffer_heap(&mut heap);
-        // initialize_data_view_heap(&mut heap);
-        // initialize_json_heap(&mut heap);
-        // initialize_atomics_heap(&mut heap);
-        // initialize_weak_ref_heap(&mut heap);
-        // initialize_finalization_registry_heap(&mut heap);
-        // initialize_iterator_heap(&mut heap);
-        // initialize_async_iterator_heap(&mut heap);
-        // initialize_promise_heap(&mut heap);
-        // initialize_generator_function_heap(&mut heap);
-        // initialize_async_generator_function_heap(&mut heap);
-        // initialize_generator_heap(&mut heap);
-        // initialize_async_generator_heap(&mut heap);
-        // initialize_async_function_heap(&mut heap);
-        // initialize_reflect_heap(&mut heap);
-        // initialize_proxy_heap(&mut heap);
-        // initialize_module_heap(&mut heap);
 
         heap
     }
@@ -145,214 +138,8 @@ impl Heap {
         self.numbers.len() as u32
     }
 
-    pub(crate) fn create_function(
-        &mut self,
-        name: Value,
-        length: u8,
-        uses_arguments: bool,
-        binding: JsBindingFunction,
-    ) -> u32 {
-        let func_object_data = ObjectHeapData {
-            _extensible: true,
-            bits: HeapBits::new(),
-            entries: vec![
-                ObjectEntry::new(
-                    PropertyKey::from_str(self, "length"),
-                    PropertyDescriptor::roxh(Value::SmiU(length as u32)),
-                ),
-                ObjectEntry::new(
-                    PropertyKey::from_str(self, "name"),
-                    PropertyDescriptor::roxh(name),
-                ),
-            ],
-            prototype: PropertyDescriptor::roh(Value::Object(
-                BuiltinObjectIndexes::FunctionPrototypeIndex as u32,
-            )),
-        };
-        self.objects.push(Some(func_object_data));
-        let func_data = FunctionHeapData {
-            binding,
-            bits: HeapBits::new(),
-            bound: None,
-            length,
-            object_index: self.objects.len() as u32,
-            uses_arguments,
-            visible: None,
-        };
-        self.functions.push(Some(func_data));
-        self.functions.len() as u32
-    }
-
-    pub(crate) fn create_object(&mut self, entries: Vec<ObjectEntry>) -> u32 {
-        let object_data = ObjectHeapData {
-            _extensible: true,
-            bits: HeapBits::new(),
-            entries,
-            prototype: PropertyDescriptor::roh(Value::Object(
-                BuiltinObjectIndexes::ObjectPrototypeIndex as u32,
-            )),
-        };
-        self.objects.push(Some(object_data));
-        self.objects.len() as u32
-    }
-
-    pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> u32 {
-        let object_data = ObjectHeapData {
-            _extensible: true,
-            bits: HeapBits::new(),
-            entries,
-            prototype: PropertyDescriptor::roh(Value::Null),
-        };
-        self.objects.push(Some(object_data));
-        self.objects.len() as u32
-    }
-
-    fn partial_trace(&mut self) -> () {
-        // TODO: Consider roots count
-        for global in self.globals.iter() {
-            global.trace(self);
-        }
-        for error in self.errors.iter() {
-            let Some(data) = error else {
-                continue;
-            };
-            let marked = data.bits.marked.take();
-            data.bits.marked.set(marked);
-            if !marked {
-                continue;
-            }
-            let dirty = data.bits.dirty.take();
-            data.bits.dirty.set(dirty);
-            if dirty {
-                error.trace(self);
-            }
-        }
-        for function in self.functions.iter() {
-            let Some(data) = function else {
-                continue;
-            };
-            let marked = data.bits.marked.take();
-            data.bits.marked.set(marked);
-            if !marked {
-                continue;
-            }
-            let dirty = data.bits.dirty.take();
-            data.bits.dirty.set(dirty);
-            if dirty {
-                function.trace(self);
-            }
-        }
-        for object in self.objects.iter() {
-            let Some(data) = object else {
-                continue;
-            };
-            let marked = data.bits.marked.take();
-            data.bits.marked.set(marked);
-            if !marked {
-                continue;
-            }
-            let dirty = data.bits.dirty.take();
-            data.bits.dirty.set(dirty);
-            if dirty {
-                object.trace(self);
-            }
-        }
-        for symbol in self.symbols.iter() {
-            let Some(data) = symbol else {
-                continue;
-            };
-            let marked = data.bits.marked.take();
-            data.bits.marked.set(marked);
-            if !marked {
-                continue;
-            }
-            let dirty = data.bits.dirty.take();
-            data.bits.dirty.set(dirty);
-            if dirty {
-                symbol.trace(self);
-            }
-        }
-        stop_the_world();
-        // Repeat above tracing to check for mutations that happened while we were tracing.
-        for object in self.objects.iter_mut() {
-            let Some(data) = object else {
-                continue;
-            };
-            let marked = data.bits.marked.replace(true);
-            if !marked {
-                let _ = object.take();
-            }
-        }
-        for string in self.strings.iter_mut() {
-            let Some(data) = string else {
-                continue;
-            };
-            let marked = data.bits.marked.replace(true);
-            if !marked {
-                let _ = string.take();
-            }
-        }
-        for symbol in self.symbols.iter_mut() {
-            let Some(data) = symbol else {
-                continue;
-            };
-            let marked = data.bits.marked.replace(true);
-            if !marked {
-                let _ = symbol.take();
-            }
-        }
-        for number in self.numbers.iter_mut() {
-            let Some(data) = number else {
-                continue;
-            };
-            let marked = data.bits.marked.replace(true);
-            if !marked {
-                let _ = number.take();
-            }
-        }
-        for bigint in self.bigints.iter_mut() {
-            let Some(data) = bigint else {
-                continue;
-            };
-            let marked = data.bits.marked.replace(true);
-            if !marked {
-                let _ = bigint.take();
-            }
-        }
-        while self.objects.last().is_none() {
-            self.objects.pop();
-        }
-        while self.strings.last().is_none() {
-            self.strings.pop();
-        }
-        while self.symbols.last().is_none() {
-            self.symbols.pop();
-        }
-        while self.numbers.last().is_none() {
-            self.numbers.pop();
-        }
-        while self.bigints.last().is_none() {
-            self.bigints.pop();
-        }
-        start_the_world();
-    }
-
     fn complete_trace(&mut self) -> () {
         // TODO: Consider roots count
-        for error in self.errors.iter() {
-            let Some(data) = error else {
-                continue;
-            };
-            data.bits.marked.set(false);
-            data.bits.dirty.set(false);
-        }
-        for function in self.functions.iter() {
-            let Some(data) = function else {
-                continue;
-            };
-            data.bits.marked.set(false);
-            data.bits.dirty.set(false);
-        }
         for object in self.objects.iter() {
             let Some(data) = object else {
                 continue;
@@ -387,9 +174,6 @@ impl Heap {
             };
             data.bits.marked.set(false);
             data.bits.dirty.set(false);
-        }
-        for global in self.globals.iter() {
-            global.trace(self);
         }
         stop_the_world();
         // Trace from dirty objects and symbols.
@@ -460,39 +244,36 @@ impl Heap {
 impl HeapTrace for Value {
     fn trace(&self, heap: &Heap) {
         match self {
-            &Value::Error(idx) => heap.errors[idx as usize].trace(heap),
-            &Value::Function(idx) => heap.functions[idx as usize].trace(heap),
-            &Value::HeapBigInt(idx) => heap.bigints[idx as usize].trace(heap),
-            &Value::HeapNumber(idx) => heap.numbers[idx as usize].trace(heap),
-            &Value::HeapString(idx) => heap.strings[idx as usize].trace(heap),
-            &Value::Object(idx) => heap.objects[idx as usize].trace(heap),
-            &Value::Symbol(idx) => heap.symbols[idx as usize].trace(heap),
+            &Value::String(handle) => heap.strings[handle.id as usize].trace(heap),
+            &Value::Symbol(handle) => heap.symbols[handle.id as usize].trace(heap),
+            &Value::Number(handle) => heap.numbers[handle.id as usize].trace(heap),
+            &Value::BigInt(handle) => heap.bigints[handle.id as usize].trace(heap),
+            &Value::Object(handle) => heap.objects[handle.id as usize].trace(heap),
+            &Value::ArrayObject(handle) => heap.arrays[handle.id as usize].trace(heap),
             _ => {}
         }
     }
 
     fn root(&self, heap: &Heap) {
         match self {
-            &Value::Error(idx) => heap.errors[idx as usize].root(heap),
-            &Value::Function(idx) => heap.functions[idx as usize].root(heap),
-            &Value::HeapBigInt(idx) => heap.bigints[idx as usize].root(heap),
-            &Value::HeapNumber(idx) => heap.numbers[idx as usize].root(heap),
-            &Value::HeapString(idx) => heap.strings[idx as usize].root(heap),
-            &Value::Object(idx) => heap.objects[idx as usize].root(heap),
-            &Value::Symbol(idx) => heap.symbols[idx as usize].root(heap),
+            &Value::String(handle) => heap.strings[handle.id as usize].root(heap),
+            &Value::Symbol(handle) => heap.symbols[handle.id as usize].root(heap),
+            &Value::Number(handle) => heap.numbers[handle.id as usize].root(heap),
+            &Value::BigInt(handle) => heap.bigints[handle.id as usize].root(heap),
+            &Value::Object(handle) => heap.objects[handle.id as usize].root(heap),
+            &Value::ArrayObject(handle) => heap.arrays[handle.id as usize].root(heap),
             _ => {}
         }
     }
 
     fn unroot(&self, heap: &Heap) {
         match self {
-            &Value::Error(idx) => heap.errors[idx as usize].unroot(heap),
-            &Value::Function(idx) => heap.functions[idx as usize].unroot(heap),
-            &Value::HeapBigInt(idx) => heap.bigints[idx as usize].unroot(heap),
-            &Value::HeapNumber(idx) => heap.numbers[idx as usize].unroot(heap),
-            &Value::HeapString(idx) => heap.strings[idx as usize].unroot(heap),
-            &Value::Object(idx) => heap.objects[idx as usize].unroot(heap),
-            &Value::Symbol(idx) => heap.symbols[idx as usize].unroot(heap),
+            &Value::String(handle) => heap.strings[handle.id as usize].unroot(heap),
+            &Value::Symbol(handle) => heap.symbols[handle.id as usize].unroot(heap),
+            &Value::Number(handle) => heap.numbers[handle.id as usize].unroot(heap),
+            &Value::BigInt(handle) => heap.bigints[handle.id as usize].unroot(heap),
+            &Value::Object(handle) => heap.objects[handle.id as usize].unroot(heap),
+            &Value::ArrayObject(handle) => heap.arrays[handle.id as usize].unroot(heap),
             _ => {}
         }
     }
@@ -503,7 +284,7 @@ impl HeapTrace for Value {
 }
 
 // TODO: Change to using vectors of u8 bitfields for mark and dirty bits.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HeapBits {
     marked: Cell<bool>,
     _weak_marked: Cell<bool>,
@@ -539,10 +320,3 @@ impl HeapBits {
 }
 
 unsafe impl Sync for HeapBits {}
-
-#[test]
-fn init_heap() {
-    let heap = Heap::new();
-    assert!(heap.objects.len() >= LAST_BUILTIN_OBJECT_INDEX as usize);
-    println!("{:#?}", heap);
-}
