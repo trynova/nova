@@ -1,9 +1,10 @@
 use crate::{
+    execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, PropertyDescriptor,
     },
-    value::{JsResult, Value},
+    types::Value,
 };
 
 use super::{
@@ -20,7 +21,7 @@ pub(crate) struct RegExpHeapData {
 }
 
 pub fn initialize_regexp_heap(heap: &mut Heap) {
-    let species_function_name = Value::new_string(heap, "get [Symbol.species]");
+    let species_function_name = Value::from_str(heap, "get [Symbol.species]");
     let entries = vec![
         ObjectEntry::new_constructor_prototype_entry(
             heap,

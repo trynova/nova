@@ -1,6 +1,6 @@
 use std::sync::atomic::AtomicBool;
 
-use crate::value::Value;
+use crate::types::Value;
 
 use super::{
     indexes::{
@@ -104,33 +104,27 @@ impl WorkQueues {
     pub(crate) fn push_value(&mut self, value: Value) {
         match value {
             Value::Array(idx) => self.arrays.push(idx),
-            Value::BigIntObject(_) => todo!(),
-            Value::BooleanObject(idx) => todo!(),
+            // Value::BigIntObject(_) => todo!(),
+            // Value::BooleanObject(idx) => todo!(),
             Value::Boolean(_) => {}
             Value::Date(idx) => self.dates.push(idx),
-            Value::EmptyString => {}
             Value::Error(idx) => self.errors.push(idx),
             Value::Function(idx) => todo!(),
-            Value::HeapBigInt(idx) => self.bigints.push(idx),
-            Value::HeapNumber(idx) => self.numbers.push(idx),
-            Value::HeapString(idx) => self.strings.push(idx),
-            Value::Infinity => {}
-            Value::NaN => {}
-            Value::NegativeInfinity => {}
-            Value::NegativeZero => {}
+            Value::BigInt(idx) => self.bigints.push(idx),
+            Value::Number(idx) => self.numbers.push(idx),
+            Value::String(idx) => self.strings.push(idx),
             Value::Null => {}
-            Value::NumberObject(_) => todo!(),
+            // Value::NumberObject(_) => todo!(),
             Value::Object(idx) => self.objects.push(idx),
             Value::RegExp(idx) => self.regexps.push(idx),
-            Value::StackString(_) => {}
+            Value::SmallString(_) => {}
             Value::SmallBigInt(_) => {}
-            Value::SmallBigIntU(_) => {}
-            Value::Smi(_) => {}
-            Value::SmiU(_) => {}
-            Value::StringObject(_) => todo!(),
+            // Value::StringObject(_) => todo!(),
             Value::Symbol(idx) => self.symbols.push(idx),
-            Value::SymbolObject(_) => todo!(),
+            // Value::SymbolObject(_) => todo!(),
             Value::Undefined => {}
+            Value::Integer(_) => {}
+            Value::Float(_) => {}
         }
     }
 

@@ -1,9 +1,10 @@
 use crate::{
+    execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, PropertyDescriptor,
     },
-    value::{JsResult, Value},
+    types::Value,
 };
 
 use super::{
@@ -48,11 +49,11 @@ pub fn initialize_error_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "name"),
-            PropertyDescriptor::rwx(Value::EmptyString),
+            PropertyDescriptor::rwx(Value::try_from("").unwrap()),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "name"),
-            PropertyDescriptor::rwx(Value::new_string(heap, "Error")),
+            PropertyDescriptor::rwx(Value::from_str(heap, "Error")),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, error_todo),
     ];

@@ -1,11 +1,12 @@
 use std::time::SystemTime;
 
 use crate::{
+    execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, PropertyDescriptor,
     },
-    value::{JsResult, Value},
+    types::Value,
 };
 
 use super::{

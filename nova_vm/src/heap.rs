@@ -42,7 +42,7 @@ use self::{
     string::{initialize_string_heap, StringHeapData},
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
-use crate::value::Value;
+use crate::types::Value;
 use wtf8::Wtf8;
 
 #[derive(Debug)]
@@ -62,6 +62,34 @@ pub struct Heap {
     pub(crate) regexps: Vec<Option<RegExpHeapData>>,
     pub(crate) strings: Vec<Option<StringHeapData>>,
     pub(crate) symbols: Vec<Option<SymbolHeapData>>,
+}
+
+/// Creates a [`Value`] from the given data. Allocating the data is **not**
+/// guaranteed.
+pub trait CreateHeapData<T> {
+    fn create(&mut self, data: T) -> Value;
+}
+
+impl CreateHeapData<f64> for Heap {
+    fn create(&mut self, data: f64) -> Value {
+        if let Ok(value) = Value::try_from(data) {
+            value
+        } else {
+            let id = self.alloc_number(data);
+            Value::Number(id)
+        }
+    }
+}
+
+impl CreateHeapData<&str> for Heap {
+    fn create(&mut self, data: &str) -> Value {
+        if let Ok(value) = Value::try_from(data) {
+            value
+        } else {
+            let id = self.alloc_string(data);
+            Value::String(id)
+        }
+    }
 }
 
 impl Heap {
@@ -100,41 +128,18 @@ impl Heap {
                 heap.functions.push(None);
             }
         }
-        initialize_object_heap(&mut heap);
-        initialize_function_heap(&mut heap);
-        initialize_boolean_heap(&mut heap);
-        initialize_symbol_heap(&mut heap);
-        initialize_error_heap(&mut heap);
-        initialize_number_heap(&mut heap);
-        initialize_bigint_heap(&mut heap);
-        initialize_math_object(&mut heap);
-        initialize_date_heap(&mut heap);
-        initialize_string_heap(&mut heap);
-        initialize_regexp_heap(&mut heap);
         initialize_array_heap(&mut heap);
-        // initialize_typedarray_heap(&mut heap);
-        // initialize_map_heap(&mut heap);
-        // initialize_set_heap(&mut heap);
-        // initialize_weak_map_heap(&mut heap);
-        // initialize_weak_set_heap(&mut heap);
-        // initialize_array_buffer_heap(&mut heap);
-        // initialize_shared_array_buffer_heap(&mut heap);
-        // initialize_data_view_heap(&mut heap);
-        // initialize_json_heap(&mut heap);
-        // initialize_atomics_heap(&mut heap);
-        // initialize_weak_ref_heap(&mut heap);
-        // initialize_finalization_registry_heap(&mut heap);
-        // initialize_iterator_heap(&mut heap);
-        // initialize_async_iterator_heap(&mut heap);
-        // initialize_promise_heap(&mut heap);
-        // initialize_generator_function_heap(&mut heap);
-        // initialize_async_generator_function_heap(&mut heap);
-        // initialize_generator_heap(&mut heap);
-        // initialize_async_generator_heap(&mut heap);
-        // initialize_async_function_heap(&mut heap);
-        // initialize_reflect_heap(&mut heap);
-        // initialize_proxy_heap(&mut heap);
-        // initialize_module_heap(&mut heap);
+        initialize_bigint_heap(&mut heap);
+        initialize_boolean_heap(&mut heap);
+        initialize_date_heap(&mut heap);
+        initialize_error_heap(&mut heap);
+        initialize_function_heap(&mut heap);
+        initialize_math_object(&mut heap);
+        initialize_number_heap(&mut heap);
+        initialize_object_heap(&mut heap);
+        initialize_regexp_heap(&mut heap);
+        initialize_string_heap(&mut heap);
+        initialize_symbol_heap(&mut heap);
 
         heap
     }
@@ -173,7 +178,7 @@ impl Heap {
         let entries = vec![
             ObjectEntry::new(
                 PropertyKey::from_str(self, "length"),
-                PropertyDescriptor::roxh(Value::SmiU(length as u32)),
+                PropertyDescriptor::roxh(Value::from(length)),
             ),
             ObjectEntry::new(
                 PropertyKey::from_str(self, "name"),

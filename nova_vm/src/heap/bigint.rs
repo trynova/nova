@@ -1,31 +1,22 @@
+use super::indexes::ObjectIndex;
 use crate::{
+    execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, Heap, ObjectEntry, PropertyDescriptor, PropertyKey,
     },
-    value::{JsResult, Value},
+    types::Value,
 };
-
-use super::indexes::{ErrorIndex, ObjectIndex};
+use num_bigint_dig::BigInt;
 
 #[derive(Debug, Clone)]
 pub(crate) struct BigIntHeapData {
-    pub(super) sign: bool,
-    pub(super) len: u32,
-    pub(super) parts: Box<[u64]>,
+    pub(super) data: BigInt,
 }
 
 impl BigIntHeapData {
-    pub(crate) fn len(&self) -> u32 {
-        self.len
-    }
-
     pub(crate) fn try_into_f64(&self) -> Option<f64> {
-        if self.len == 1 {
-            Some(self.parts[0] as f64)
-        } else {
-            None
-        }
+        None
     }
 }
 
@@ -94,20 +85,23 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
 }
 
 fn bigint_constructor(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value> {
-    if !this.is_undefined() {
-        // TODO: Throw TypeError
-        return Err(Value::Error(ErrorIndex::from_index(0)));
-    } else {
-        return Ok(Value::SmallBigInt(3));
-    }
+    // if !this.is_undefined() {
+    //     // TODO: Throw TypeError
+    //     return Err(Value::Error(ErrorIndex::from_index(0)));
+    // } else {
+    //      Ok(Value::SmallBigInt(3))
+    // }
+    Ok(Value::Null)
 }
 
 fn bigint_as_int_n(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
-    Ok(Value::SmallBigInt(3))
+    // Ok(Value::SmallBigInt(3))
+    Ok(Value::Null)
 }
 
 fn bigint_as_uint_n(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value> {
-    Ok(Value::SmallBigIntU(3))
+    // Ok(Value::SmallBigIntU(3))
+    Ok(Value::Null)
 }
 
 fn bigint_prototype_to_locale_string(
@@ -115,13 +109,13 @@ fn bigint_prototype_to_locale_string(
     this: Value,
     args: &[Value],
 ) -> JsResult<Value> {
-    Ok(Value::new_string(heap, "BigInt(3n)"))
+    Ok(Value::from_str(heap, "BigInt(3n)"))
 }
 
 fn bigint_prototype_to_string(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value> {
-    Ok(Value::new_string(heap, "BigInt(3n)"))
+    Ok(Value::from_str(heap, "BigInt(3n)"))
 }
 
 fn bigint_prototype_value_of(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value> {
-    Ok(Value::new_string(heap, "BigInt(3n)"))
+    Ok(Value::from_str(heap, "BigInt(3n)"))
 }

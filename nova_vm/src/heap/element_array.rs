@@ -2,7 +2,7 @@ use super::{
     indexes::{ElementIndex, FunctionIndex},
     object::{ObjectEntry, PropertyDescriptor, PropertyKey},
 };
-use crate::value::Value;
+use crate::types::Value;
 use core::panic;
 use std::{collections::HashMap, mem::MaybeUninit, num::NonZeroU16};
 
@@ -788,9 +788,9 @@ impl ElementArrays {
             let (maybe_descriptor, maybe_value) =
                 ElementDescriptor::from_property_descriptor(value);
             let key = match key {
-                PropertyKey::SmallAsciiString(data) => Value::StackString(data),
-                PropertyKey::Smi(data) => Value::Smi(data),
-                PropertyKey::String(data) => Value::HeapString(data),
+                PropertyKey::SmallString(data) => Value::SmallString(data),
+                PropertyKey::Smi(data) => Value::from(data),
+                PropertyKey::String(data) => Value::String(data),
                 PropertyKey::Symbol(data) => Value::Symbol(data),
             };
             keys.push(Some(key));

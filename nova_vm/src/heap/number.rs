@@ -1,15 +1,14 @@
-use std::vec;
-
 use super::{
     object::{ObjectEntry, PropertyKey},
     Heap,
 };
 use crate::{
+    execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, PropertyDescriptor,
     },
-    value::{JsResult, Value},
+    types::Value,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -55,17 +54,17 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "NaN"),
-            PropertyDescriptor::roh(Value::NaN),
+            PropertyDescriptor::roh(Value::from(f32::NAN)),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "NEGATIVE_INFINITY"),
-            PropertyDescriptor::roh(Value::NegativeInfinity),
+            PropertyDescriptor::roh(Value::from(f32::NEG_INFINITY)),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "parseFloat", 1, false, number_todo),
         ObjectEntry::new_prototype_function_entry(heap, "parseInt", 2, false, number_todo),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "POSITIVE_INFINITY"),
-            PropertyDescriptor::roh(Value::Infinity),
+            PropertyDescriptor::roh(Value::from(f32::INFINITY)),
         ),
         ObjectEntry::new_constructor_prototype_entry(
             heap,
@@ -111,7 +110,7 @@ pub fn initialize_number_heap(heap: &mut Heap) {
 }
 
 fn number_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
-    Ok(Value::SmiU(0))
+    Ok(Value::from(0))
 }
 
 fn number_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {

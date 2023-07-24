@@ -1,9 +1,10 @@
 use crate::{
+    execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, PropertyDescriptor,
     },
-    value::{JsResult, Value},
+    types::Value,
 };
 
 use super::{
@@ -22,7 +23,7 @@ pub(crate) struct ArrayHeapData {
 }
 
 pub fn initialize_array_heap(heap: &mut Heap) {
-    let species_function_name = Value::new_string(heap, "get [Symbol.species]");
+    let species_function_name = Value::from_str(heap, "get [Symbol.species]");
     let at_key = PropertyKey::from_str(heap, "at");
     let copy_within_key = PropertyKey::from_str(heap, "copyWithin");
     let entries_key = PropertyKey::from_str(heap, "entries");

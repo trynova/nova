@@ -1,9 +1,10 @@
 use crate::{
+    execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes, WellKnownSymbolIndexes},
         FunctionHeapData, Heap, PropertyDescriptor,
     },
-    value::{JsResult, Value},
+    types::Value,
 };
 
 use super::{
@@ -176,7 +177,7 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new(
             PropertyKey::Symbol(WellKnownSymbolIndexes::ToStringTag.into()),
-            PropertyDescriptor::roxh(Value::new_string(heap, "Symbol")),
+            PropertyDescriptor::roxh(Value::from_str(heap, "Symbol")),
         ),
     ];
     heap.insert_builtin_object(

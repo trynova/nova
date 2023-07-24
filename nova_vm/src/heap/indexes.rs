@@ -1,4 +1,4 @@
-use crate::value::Value;
+use crate::types::Value;
 
 use super::{
     array::ArrayHeapData, bigint::BigIntHeapData, date::DateHeapData, error::ErrorHeapData,

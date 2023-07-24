@@ -1,11 +1,12 @@
 use crate::{
+    execution::JsResult,
     heap::{
         function::JsBindingFunction,
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, Heap,
     },
-    stack_string::StackString,
-    value::{JsResult, Value},
+    types::Value,
+    SmallString,
 };
 use std::{fmt::Debug, vec};
 
@@ -34,9 +35,9 @@ impl ObjectEntry {
     ) -> Self {
         let key = PropertyKey::from_str(heap, name);
         let name = match key {
-            PropertyKey::SmallAsciiString(data) => Value::StackString(data.clone()),
+            PropertyKey::SmallString(data) => Value::SmallString(data.clone()),
             PropertyKey::Smi(_) => unreachable!("No prototype functions should have SMI names"),
-            PropertyKey::String(idx) => Value::HeapString(idx),
+            PropertyKey::String(idx) => Value::String(idx),
             PropertyKey::Symbol(idx) => Value::Symbol(idx),
         };
         let func_index = heap.create_function(name, length, uses_arguments, binding);
@@ -52,7 +53,7 @@ impl ObjectEntry {
         uses_arguments: bool,
         binding: JsBindingFunction,
     ) -> Self {
-        let name = Value::new_string(heap, name);
+        let name = Value::from_str(heap, name);
         let key = PropertyKey::Symbol(symbol_index);
         let func_index = heap.create_function(name, length, uses_arguments, binding);
         let value = PropertyDescriptor::roxh(Value::Function(func_index));
@@ -81,7 +82,7 @@ impl ObjectEntry {
 
 #[derive(Debug)]
 pub enum PropertyKey {
-    SmallAsciiString(StackString),
+    SmallString(SmallString),
     Smi(i32),
     String(StringIndex),
     Symbol(SymbolIndex),
@@ -89,8 +90,8 @@ pub enum PropertyKey {
 
 impl PropertyKey {
     pub fn from_str(heap: &mut Heap, str: &str) -> Self {
-        if let Some(ascii_string) = StackString::try_from_str(str) {
-            PropertyKey::SmallAsciiString(ascii_string)
+        if let Ok(ascii_string) = SmallString::try_from(str) {
+            PropertyKey::SmallString(ascii_string)
         } else {
             PropertyKey::String(heap.alloc_string(str))
         }
@@ -226,7 +227,7 @@ impl PropertyDescriptor {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ObjectHeapData {
     pub(crate) _extensible: bool,
-    // TODO: It's probably not necessary to have a whole data descriptor here.
+    // TODO: It's probably not necessary to have a whole Value here.
     // A prototype can only be set to be null or an object, meaning that most of the
     // possible Value options are impossible.
     // We could possibly do with just a `Option<ObjectIndex>` but it would cause issues

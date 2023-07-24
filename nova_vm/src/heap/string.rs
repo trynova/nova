@@ -1,9 +1,10 @@
 use crate::{
+    execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, Heap,
     },
-    value::{JsResult, Value},
+    types::Value,
 };
 use wtf8::Wtf8Buf;
 
@@ -17,11 +18,6 @@ impl StringHeapData {
         StringHeapData {
             data: Wtf8Buf::from_str(str),
         }
-    }
-
-    pub fn len(&self) -> usize {
-        // TODO: We should return the UTF-16 length.
-        self.data.len()
     }
 }
 
@@ -53,5 +49,5 @@ pub fn initialize_string_heap(heap: &mut Heap) {
 }
 
 fn string_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
-    Ok(Value::EmptyString)
+    Ok(Value::Null)
 }
