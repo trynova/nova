@@ -25,7 +25,7 @@ impl SmallString {
 
     pub(crate) fn from_str_unchecked(value: &str) -> Self {
         let len = value.len();
-        assert!(len < 8);
+        assert!(len < 8 && !value.as_bytes().contains(&0));
         let mut data: [u8; 7] = [0, 0, 0, 0, 0, 0, 0];
         let data_slice = &mut data.as_mut_slice()[0..len];
         data_slice.copy_from_slice(value.as_bytes());
@@ -36,7 +36,7 @@ impl SmallString {
 impl TryFrom<&str> for SmallString {
     type Error = ();
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        if value.len() < 8 {
+        if value.len() < 8 && !value.as_bytes().contains(&0) {
             Ok(Self::from_str_unchecked(value))
         } else {
             Err(())
