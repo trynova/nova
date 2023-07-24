@@ -1,5 +1,5 @@
 /// 56-bit signed integer.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct SmallInteger {
     data: [u8; 7],
 }
@@ -11,18 +11,23 @@ impl std::fmt::Debug for SmallInteger {
 }
 
 impl SmallInteger {
-    pub const MIN: i64 = -(2 as i64).pow(56) / 2 + 1;
-    pub const MAX: i64 = (2 as i64).pow(56) / 2 - 1;
+    pub const MIN: i64 = -(2 as i64).pow(53) / 2 + 1;
+    pub const MAX: i64 = (2 as i64).pow(53) / 2 - 1;
 
     pub(crate) fn from_i64_unchecked(value: i64) -> SmallInteger {
         debug_assert!(value >= Self::MIN && value <= Self::MAX);
-        let mut data: [u8; 7] = [0, 0, 0, 0, 0, 0, 0];
         let bytes = i64::to_ne_bytes(value);
-        if cfg!(target_endian = "little") {
-            data.copy_from_slice(&bytes[0..7]);
+
+        let data = if cfg!(target_endian = "little") {
+            [
+                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6],
+            ]
         } else {
-            data.copy_from_slice(&bytes[1..8]);
-        }
+            [
+                bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+            ]
+        };
+
         Self { data }
     }
 }
@@ -41,13 +46,45 @@ impl TryFrom<i64> for SmallInteger {
 impl Into<i64> for SmallInteger {
     fn into(self) -> i64 {
         let Self { data } = self;
-        let mut bytes: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
-        let bytes_slice = &mut bytes.as_mut_slice()[0..7];
-        bytes_slice.copy_from_slice(data.as_slice());
-        if cfg!(target_endian = "big") {
-            bytes.copy_within(0..7, 1);
+
+        #[repr(u8)]
+        enum Repr {
+            Data([u8; 7]),
         }
-        // SAFETY: The format is guaranteed to match `from_i64_unchecked`.
-        unsafe { std::mem::transmute(bytes) }
+
+        // SAFETY: This matches the format on the endian platform.
+        let number: i64 = unsafe { std::mem::transmute(Repr::Data(data)) };
+
+        if cfg!(target_endian = "little") {
+            number >> 8
+        } else {
+            number << 8 >> 8
+        }
     }
+}
+
+#[test]
+fn valid_small_integers() {
+    assert_eq!(0i64, SmallInteger::try_from(0).unwrap().into());
+    assert_eq!(5i64, SmallInteger::try_from(5).unwrap().into());
+    assert_eq!(23i64, SmallInteger::try_from(23).unwrap().into());
+    assert_eq!(
+        SmallInteger::MAX,
+        SmallInteger::try_from(SmallInteger::MAX).unwrap().into()
+    );
+
+    assert_eq!(-5i64, SmallInteger::try_from(-5).unwrap().into());
+    assert_eq!(-59i64, SmallInteger::try_from(-59).unwrap().into());
+    assert_eq!(
+        SmallInteger::MIN,
+        SmallInteger::try_from(SmallInteger::MIN).unwrap().into()
+    );
+}
+
+#[test]
+fn invalid_small_integers() {
+    assert_eq!(SmallInteger::try_from(SmallInteger::MAX + 1), Err(()));
+    assert_eq!(SmallInteger::try_from(i64::MAX), Err(()));
+    assert_eq!(SmallInteger::try_from(SmallInteger::MIN - 1), Err(()));
+    assert_eq!(SmallInteger::try_from(i64::MIN), Err(()));
 }
