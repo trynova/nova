@@ -9,6 +9,8 @@ use std::{any::Any, cell::RefCell, rc::Rc};
 /// https://tc39.es/ecma262/#sec-code-realms
 #[derive(Debug)]
 pub struct Realm<'ctx, 'host> {
+    pub heap: Heap,
+
     pub agent: Rc<RefCell<Agent<'ctx, 'host>>>,
 
     // rng: Xoroshiro128,

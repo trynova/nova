@@ -39,7 +39,7 @@ impl String {
         let s = self.into_value();
 
         match s {
-            Value::String(s) => agent.heap.get(s).len(),
+            Value::String(s) => agent.current_realm().borrow().heap.get(s).len(),
             Value::SmallString(s) => s.len(),
             _ => unreachable!(),
         }
@@ -47,7 +47,11 @@ impl String {
 
     pub fn as_str<'a>(&'a self, agent: &'a Agent) -> Option<&'a str> {
         match &self.0 {
-            Value::String(s) => agent.heap.get(*s).as_str(),
+            // SAFETY: The immutable reference to the Agent ensures no mutable
+            //         access to the realm.
+            Value::String(s) => unsafe {
+                std::mem::transmute(agent.current_realm().borrow().heap.get(*s).as_str())
+            },
             Value::SmallString(s) => Some(s.as_str()),
             _ => unreachable!(),
         }
