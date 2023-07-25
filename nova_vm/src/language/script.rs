@@ -3,9 +3,7 @@ use crate::{
     types::Value,
 };
 use oxc_allocator::Allocator;
-use oxc_ast::ast::{
-    BindingPattern, BindingPatternKind, Declaration, Program, Statement, VariableDeclarationKind,
-};
+use oxc_ast::ast::{BindingPatternKind, Declaration, Program, Statement};
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};

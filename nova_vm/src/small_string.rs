@@ -17,12 +17,12 @@ impl SmallString {
             .iter()
             .rev()
             .position(|&x| x != 0)
-            .map_or(0, |i| 7 - i)
+            .unwrap_or(7)
     }
 
     #[inline]
     pub fn as_str(&self) -> &str {
-        // SAFETY: Guaranteed to be ASCII, which is a subset of UTF-8.
+        // SAFETY: Guaranteed to be UTF-8.
         unsafe { &std::str::from_utf8_unchecked(self.as_bytes()) }
     }
 

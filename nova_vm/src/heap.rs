@@ -15,9 +15,9 @@ pub use string::StringHeapData;
 pub use symbol::SymbolHeapData;
 
 use self::heap_trace::HeapTrace;
-use crate::types::Value;
+use crate::types::{Number, String, Value};
 use std::{cell::Cell, marker::PhantomData};
-use wtf8::Wtf8;
+use wtf8::{Wtf8, Wtf8Buf};
 
 /// A handle to GC-managed memory.
 #[derive(Clone)]
@@ -72,31 +72,62 @@ pub struct Heap {
 fn stop_the_world() {}
 fn start_the_world() {}
 
-/// Creates a [`Value`] from the given data. Allocating the data is **not**
-/// guaranteed.
-pub trait CreateHeapData<T> {
-    fn create(&mut self, data: T) -> Value;
+pub trait CreateHeapData<T, F> {
+    /// Creates a [`Value`] from the given data. Allocating the data is **not**
+    /// guaranteed.
+    fn create(&mut self, data: T) -> F;
 }
 
-impl CreateHeapData<f64> for Heap {
-    fn create(&mut self, data: f64) -> Value {
+pub trait GetHeapData<'a, T, F: 'a> {
+    fn get(&'a self, handle: Handle<T>) -> F;
+}
+
+impl CreateHeapData<f64, Number> for Heap {
+    fn create(&mut self, data: f64) -> Number {
         if let Ok(value) = Value::try_from(data) {
-            value
+            Number::new(value)
+        } else if data as f32 as f64 == data {
+            Number::new(Value::FloatNumber(data as f32))
         } else {
             let id = self.alloc_number(data);
-            Value::Number(Handle::new(id))
+            Number::new(Value::Number(Handle::new(id)))
         }
     }
 }
 
-impl CreateHeapData<&str> for Heap {
-    fn create(&mut self, data: &str) -> Value {
-        if let Ok(value) = Value::try_from(data) {
+impl<'a> GetHeapData<'a, NumberHeapData, f64> for Heap {
+    fn get(&'a self, handle: Handle<NumberHeapData>) -> f64 {
+        self.numbers
+            .get(handle.id as usize)
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .data
+    }
+}
+
+impl CreateHeapData<&str, String> for Heap {
+    fn create(&mut self, data: &str) -> String {
+        if let Ok(value) = String::try_from(data) {
             value
         } else {
             let id = self.alloc_string(data);
-            Value::String(Handle::new(id))
+            String::new(Value::String(Handle::new(id)))
         }
+    }
+}
+
+impl<'a> GetHeapData<'a, StringHeapData, &'a Wtf8> for Heap {
+    fn get(&'a self, handle: Handle<StringHeapData>) -> &'a Wtf8 {
+        let data = self
+            .strings
+            .get(handle.id as usize)
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .unwrap();
+        &data.data.slice(0, data.data.len())
     }
 }
 

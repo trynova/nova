@@ -1,7 +1,7 @@
 mod intrinsics;
 
 use super::{Agent, GlobalEnvironment};
-use crate::types::Object;
+use crate::{types::Object, Heap};
 use intrinsics::Intrinsics;
 use std::{
     any::Any,

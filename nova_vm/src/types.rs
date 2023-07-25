@@ -1,7 +1,7 @@
 mod language;
 mod spec;
 
-pub use language::Value;
+pub use language::{Number, String, Value};
 pub use spec::{Base, Reference, ReferencedName};
 
 impl From<Object> for Value {
