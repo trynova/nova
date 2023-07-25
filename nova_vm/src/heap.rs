@@ -42,7 +42,7 @@ use self::{
     string::{initialize_string_heap, StringHeapData},
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
-use crate::types::{Number, String, Value};
+use crate::types::{Function, Number, String, Value};
 use wtf8::Wtf8;
 
 #[derive(Debug)]
@@ -120,6 +120,25 @@ impl<'a> GetHeapData<'a, StringHeapData, &'a Wtf8> for Heap {
             .as_ref()
             .unwrap();
         &data.data.slice(0, data.data.len())
+    }
+}
+
+impl CreateHeapData<FunctionHeapData, Function> for Heap {
+    fn create(&mut self, data: FunctionHeapData) -> Function {
+        let id = self.functions.len();
+        self.functions.push(Some(data));
+        Function::new(Value::Function(FunctionIndex::from_index(id)))
+    }
+}
+
+impl<'a> GetHeapData<'a, FunctionHeapData, &'a FunctionHeapData> for Heap {
+    fn get(&'a self, id: FunctionIndex) -> &'a FunctionHeapData {
+        self.functions
+            .get(id.into_index())
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .unwrap()
     }
 }
 
@@ -227,11 +246,11 @@ impl Heap {
         self.objects.push(Some(func_object_data));
         let func_data = FunctionHeapData {
             binding,
-            bound: None,
+            // bound: None,
             length,
             object_index: ObjectIndex::last(&self.objects),
-            uses_arguments,
-            visible: None,
+            // uses_arguments,
+            // visible: None,
         };
         let index = FunctionIndex::from_index(self.functions.len());
         self.functions.push(Some(func_data));

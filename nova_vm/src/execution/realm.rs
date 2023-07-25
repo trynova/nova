@@ -15,7 +15,7 @@ pub struct Realm<'ctx, 'host> {
 
     // rng: Xoroshiro128,
     /// [[Intrinsics]]
-    pub intrinsics: Intrinsics<'ctx, 'host>,
+    // pub intrinsics: Intrinsics<'ctx, 'host>,
 
     /// [[GlobalObject]]
     pub global_object: Object,
@@ -26,4 +26,10 @@ pub struct Realm<'ctx, 'host> {
     /// [[HostDefined]]
     pub host_defined: Option<Rc<RefCell<dyn Any>>>,
     // TODO: [[TemplateMap]], [[LoadedModules]]
+}
+
+impl<'ctx, 'host> Realm<'ctx, 'host> {
+    pub fn intrinsics<'a>(&'a self) -> Intrinsics<'a, 'ctx, 'host> {
+        Intrinsics { realm: self }
+    }
 }

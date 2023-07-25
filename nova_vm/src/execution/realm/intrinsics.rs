@@ -1,144 +1,194 @@
 use super::Realm;
 use crate::types::Object;
-use std::{cell::RefCell, rc::Rc};
 
 #[derive(Debug)]
-pub struct Intrinsics<'ctx, 'host> {
-    pub realm: Rc<RefCell<Realm<'ctx, 'host>>>,
-
-    // Not stored as top-level properties so we can have methods of the same names
-    pub lazy_intrinsics: LazyIntrinsics,
+pub struct Intrinsics<'a, 'ctx, 'host> {
+    pub realm: &'a Realm<'ctx, 'host>,
 }
 
-macro_rules! lazy_intrinsic {
-    ($name: ident $ptr: ty) => {
-        pub fn $name(&mut self) -> Object {
-            let intrinsic = &mut self.lazy_intrinsics.$name;
-
-            if let Some(intrinsic) = intrinsic {
-                intrinsic
-            } else {
-            }
-        }
-    };
-}
-
-impl Intrinsics<'_, '_> {
-    pub fn function_prototype(&mut self) -> Object {
+impl Intrinsics<'_, '_, '_> {
+    /// %Array%
+    pub fn array(&self) -> Object {
         todo!()
     }
-}
-
-#[derive(Debug)]
-pub struct LazyIntrinsics {
-    /// %Array%
-    pub array: Option<Object>,
 
     /// %Array.prototype%
-    pub array_prototype_prototype: Option<Object>,
+    pub fn array_prototype_prototype(&self) -> Object {
+        todo!()
+    }
 
     /// %BigInt%
-    pub big_int: Option<Object>,
+    pub fn big_int(&self) -> Object {
+        todo!()
+    }
 
     /// %BigInt.prototype%
-    pub big_int_prototype: Option<Object>,
+    pub fn big_int_prototype(&self) -> Object {
+        todo!()
+    }
 
     /// %Boolean%
-    pub boolean: Option<Object>,
+    pub fn boolean(&self) -> Object {
+        todo!()
+    }
 
     /// %Boolean.prototype%
-    pub boolean_prototype: Option<Object>,
+    pub fn boolean_prototype(&self) -> Object {
+        todo!()
+    }
 
     /// %Error%
-    pub error: Option<Object>,
+    pub fn error(&self) -> Object {
+        todo!()
+    }
 
     /// %Error.prototype%
-    pub error_prototype: Option<Object>,
+    pub fn error_prototype(&self) -> Object {
+        todo!()
+    }
 
     /// %eval%
-    pub eval: Option<Object>,
+    pub fn eval(&self) -> Object {
+        todo!()
+    }
 
     /// %EvalError%
-    pub eval_error: Option<Object>,
+    pub fn eval_error(&self) -> Object {
+        todo!()
+    }
 
     /// %EvalError.prototype%
-    pub eval_error_prototype: Option<Object>,
+    pub fn eval_error_prototype(&self) -> Object {
+        todo!()
+    }
 
     /// %Function%
-    pub function: Option<Object>,
+    pub fn function(&self) -> Object {
+        todo!()
+    }
 
     /// %Function.prototype%
-    pub function_prototype: Option<Object>,
+    pub fn function_prototype(&self) -> Object {
+        todo!()
+    }
 
     /// %isFinite%
-    pub is_finite: Option<Object>,
+    pub fn is_finite(&self) -> Object {
+        todo!()
+    }
 
     /// %isNaN%
-    pub is_nan: Option<Object>,
+    pub fn is_nan(&self) -> Object {
+        todo!()
+    }
 
     /// %Math%
-    pub math: Option<Object>,
+    pub fn math(&self) -> Object {
+        todo!()
+    }
 
     /// %Number%
-    pub number: Option<Object>,
+    pub fn number(&self) -> Object {
+        todo!()
+    }
 
     /// %Number.prototype%
-    pub number_prototype: Option<Object>,
+    pub fn number_prototype(&self) -> Object {
+        todo!()
+    }
 
     /// %Object%
-    pub object: Option<Object>,
+    pub fn object(&self) -> Object {
+        todo!()
+    }
 
     /// %Object.prototype%
-    pub object_prototype: Option<Object>,
+    pub fn object_prototype(&self) -> Object {
+        todo!()
+    }
 
     /// %Object.prototype.toString%
-    pub object_prototype_to_string: Option<Object>,
+    pub fn object_prototype_to_string(&self) -> Object {
+        todo!()
+    }
 
     /// %RangeError%
-    pub range_error: Option<Object>,
+    pub fn range_error(&self) -> Object {
+        todo!()
+    }
 
     /// %RangeError.prototype%
-    pub range_error_prototype: Option<Object>,
+    pub fn range_error_prototype(&self) -> Object {
+        todo!()
+    }
 
     /// %ReferenceError%
-    pub reference_error: Option<Object>,
+    pub fn reference_error(&self) -> Object {
+        todo!()
+    }
 
     /// %ReferenceError.prototype%
-    pub reference_error_prototype: Option<Object>,
+    pub fn reference_error_prototype(&self) -> Object {
+        todo!()
+    }
 
     /// %Reflect%
-    pub reflect: Option<Object>,
+    pub fn reflect(&self) -> Object {
+        todo!()
+    }
 
     /// %String%
-    pub string: Option<Object>,
+    pub fn string(&self) -> Object {
+        todo!()
+    }
 
     /// %String.prototype%
-    pub string_prototype: Option<Object>,
+    pub fn string_prototype(&self) -> Object {
+        todo!()
+    }
 
     /// %Symbol%
-    pub symbol: Option<Object>,
+    pub fn symbol(&self) -> Object {
+        todo!()
+    }
 
     /// %Symbol.prototype%
-    pub symbol_prototype: Option<Object>,
+    pub fn symbol_prototype(&self) -> Object {
+        todo!()
+    }
 
     /// %SyntaxError%
-    pub syntax_error: Option<Object>,
+    pub fn syntax_error(&self) -> Object {
+        todo!()
+    }
 
     /// %SyntaxError.prototype%
-    pub syntax_error_prototype: Option<Object>,
+    pub fn syntax_error_prototype(&self) -> Object {
+        todo!()
+    }
 
     /// %ThrowTypeError%
-    pub throw_type_error: Option<Object>,
+    pub fn throw_type_error(&self) -> Object {
+        todo!()
+    }
 
     /// %TypeError%
-    pub type_error: Option<Object>,
+    pub fn type_error(&self) -> Object {
+        todo!()
+    }
 
     /// %TypeError.prototype%
-    pub type_error_prototype: Option<Object>,
+    pub fn type_error_prototype(&self) -> Object {
+        todo!()
+    }
 
     /// %URIError%
-    pub uri_error: Option<Object>,
+    pub fn uri_error(&self) -> Object {
+        todo!()
+    }
 
     /// %URIError.prototype%
-    pub uri_error_prototype: Option<Object>,
+    pub fn uri_error_prototype(&self) -> Object {
+        todo!()
+    }
 }

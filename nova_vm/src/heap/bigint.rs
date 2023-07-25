@@ -40,9 +40,9 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
         Some(FunctionHeapData {
             object_index: ObjectIndex::last(&heap.objects),
             length: 1,
-            uses_arguments: false,
-            bound: None,
-            visible: None,
+            // uses_arguments: false,
+            // bound: None,
+            // visible: None,
             binding: bigint_constructor,
         });
     let entries = vec![

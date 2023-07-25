@@ -16,7 +16,7 @@ use std::{cell::RefCell, rc::Rc};
 
 /// 9.1.1 The Environment Record Type Hierarchy
 /// https://tc39.es/ecma262/#sec-the-environment-record-type-hierarchy
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Environment {
     DeclarativeEnvironment(Rc<RefCell<DeclarativeEnvironment>>),
     ObjectEnvironment(Rc<RefCell<ObjectEnvironment>>),

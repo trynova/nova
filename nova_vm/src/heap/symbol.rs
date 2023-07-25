@@ -144,9 +144,9 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
         Some(FunctionHeapData {
             object_index: BuiltinObjectIndexes::SymbolConstructorIndex.into(),
             length: 1,
-            uses_arguments: false,
-            bound: None,
-            visible: None,
+            // uses_arguments: false,
+            // bound: None,
+            // visible: None,
             binding: symbol_constructor_binding,
         });
     let entries = vec![

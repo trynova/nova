@@ -19,10 +19,10 @@ pub type JsBindingFunction = fn(heap: &mut Heap, this: Value, args: &[Value]) ->
 pub(crate) struct FunctionHeapData {
     pub(super) object_index: ObjectIndex,
     pub(super) length: u8,
-    pub(super) uses_arguments: bool,
-    pub(super) bound: Option<Box<[Value]>>,
-    pub(super) visible: Option<Vec<Value>>,
     pub(super) binding: JsBindingFunction,
+    // pub(super) uses_arguments: bool,
+    // pub(super) bound: Option<Box<[Value]>>,
+    // pub(super) visible: Option<Vec<Value>>,
     // TODO: Should name be here as an "internal slot" of sorts?
 }
 
@@ -42,9 +42,9 @@ pub fn initialize_function_heap(heap: &mut Heap) {
         Some(FunctionHeapData {
             object_index: BuiltinObjectIndexes::FunctionConstructorIndex.into(),
             length: 1,
-            uses_arguments: false,
-            bound: None,
-            visible: None,
+            // uses_arguments: false,
+            // bound: None,
+            // visible: None,
             binding: function_constructor_binding,
         });
     let entries = vec![

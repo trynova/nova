@@ -1,13 +1,13 @@
 use crate::{
     execution::{Agent, JsResult, Realm},
-    types::{Object, Value},
+    types::{Function, Object, Value},
 };
 
 #[derive(Debug)]
-pub struct ArgumentsList;
+pub struct ArgumentsList<'a>(&'a [Value]);
 
-type RegularFn = fn(&mut Agent, Value, ArgumentsList) -> JsResult<Value>;
-type ConstructorFn = fn(&mut Agent, Value, ArgumentsList, Option<Object>) -> JsResult<Value>;
+pub type RegularFn = fn(&mut Agent, Value, ArgumentsList<'_>) -> JsResult<Value>;
+type ConstructorFn = fn(&mut Agent, Value, ArgumentsList<'_>, Option<Object>) -> JsResult<Value>;
 
 #[derive(Debug)]
 pub enum Behaviour {
@@ -16,7 +16,7 @@ pub enum Behaviour {
 }
 
 pub trait Builtin {
-    fn create(realm: &mut Realm) -> Object;
+    fn create<'a>(realm: &'a mut Realm<'a, 'a>) -> JsResult<Object>;
 }
 
 #[derive(Debug, Default)]
@@ -28,7 +28,7 @@ pub struct BuiltinFunctionArgs<'a, 'ctx, 'host> {
     pub prefix: Option<Object>,
 }
 
-impl<'a, 'ctx, 'host: 'ctx> BuiltinFunctionArgs<'a, 'ctx, 'host> {
+impl<'a, 'ctx: 'a, 'host: 'ctx> BuiltinFunctionArgs<'a, 'ctx, 'host> {
     pub fn new(length: u32, name: &'static str, realm: &'a mut Realm<'ctx, 'host>) -> Self {
         Self {
             length,
@@ -41,18 +41,19 @@ impl<'a, 'ctx, 'host: 'ctx> BuiltinFunctionArgs<'a, 'ctx, 'host> {
 
 /// 10.3.3 CreateBuiltinFunction ( behaviour, length, name, additionalInternalSlotsList [ , realm [ , prototype [ , prefix ] ] ] )
 /// https://tc39.es/ecma262/#sec-createbuiltinfunction
-pub fn create_builtin_function<'ctx, 'host: 'ctx>(
-    agent: &mut Agent<'ctx, 'host>,
+pub fn create_builtin_function<'a, 'b: 'a>(
     behaviour: Behaviour,
-    args: BuiltinFunctionArgs<'_, 'ctx, 'host>,
-) -> Object {
+    args: BuiltinFunctionArgs<'a, 'b, 'b>,
+) -> Function {
     // 1. If realm is not present, set realm to the current Realm Record.
     let realm = args.realm.unwrap(); // TODO: load record
 
     // 2. If prototype is not present, set prototype to realm.[[Intrinsics]].[[%Function.prototype%]].
-    let prototype = args
-        .prototype
-        .unwrap_or_else(|| realm.intrinsics.function_prototype());
+    let prototype = if let Some(prototype) = args.prototype {
+        prototype
+    } else {
+        realm.intrinsics().function()
+    };
 
     // 3. Let internalSlotsList be a List containing the names of all the internal slots that 10.3
     //    requires for the built-in function object that is about to be created.
@@ -74,23 +75,27 @@ pub fn create_builtin_function<'ctx, 'host: 'ctx>(
     todo!();
 }
 
-pub fn define_builtin_function<'ctx, 'host: 'ctx>(
+pub fn define_builtin_function<'a>(
     object: Object,
     name: &'static str,
     behaviour: RegularFn,
     length: u32,
-    realm: &'ctx mut Realm<'ctx, 'host>,
-) {
-    let agent_mut = realm.agent.clone();
-    let mut agent = agent_mut.borrow_mut();
-
+    realm: &'a mut Realm<'a, 'a>,
+) -> JsResult<()> {
     let function = create_builtin_function(
-        &mut agent,
         Behaviour::Regular(behaviour),
         BuiltinFunctionArgs::new(length, name, realm),
     );
 
-    define_builtin_property(object, name, Value::from(function));
+    Ok(())
 }
 
 pub fn define_builtin_property(object: Object, name: &'static str, value: Value) {}
+
+pub fn todo_builtin(agent: &mut Agent, _: Value, _: ArgumentsList) -> JsResult<Value> {
+    agent.throw_exception(
+        crate::execution::agent::ExceptionType::SyntaxError,
+        "TODO: Builtin not implemented.",
+    );
+    Err(())
+}

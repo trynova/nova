@@ -5,9 +5,9 @@ use std::{cell::RefCell, rc::Rc};
 #[derive(Debug)]
 pub struct Module;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ScriptOrModule<'ctx, 'host> {
-    Script(&'ctx mut Script<'ctx, 'host>),
+    Script(Rc<RefCell<Script<'ctx, 'host>>>),
     Module(Rc<RefCell<Module>>),
 }
 

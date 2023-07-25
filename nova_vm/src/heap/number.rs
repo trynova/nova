@@ -82,9 +82,9 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         Some(FunctionHeapData {
             object_index: BuiltinObjectIndexes::NumberConstructorIndex.into(),
             length: 1,
-            uses_arguments: false,
-            bound: None,
-            visible: None,
+            // uses_arguments: false,
+            // bound: None,
+            // visible: None,
             binding: number_constructor_binding,
         });
     let entries = vec![

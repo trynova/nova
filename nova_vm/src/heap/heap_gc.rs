@@ -76,16 +76,16 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 marked.store(true, Ordering::Relaxed);
                 let data = heap.functions.get(index).unwrap().as_ref().unwrap();
                 queues.objects.push(data.object_index);
-                if let Some(bound) = &data.bound {
-                    bound.iter().for_each(|&value| {
-                        queues.push_value(value);
-                    })
-                }
-                if let Some(visible) = &data.visible {
-                    visible.iter().for_each(|&value| {
-                        queues.push_value(value);
-                    })
-                }
+                // if let Some(bound) = &data.bound {
+                //     bound.iter().for_each(|&value| {
+                //         queues.push_value(value);
+                //     })
+                // }
+                // if let Some(visible) = &data.visible {
+                //     visible.iter().for_each(|&value| {
+                //         queues.push_value(value);
+                //     })
+                // }
             }
         });
         let mut dates: Box<[DateIndex]> = queues.dates.drain(..).collect();

@@ -47,9 +47,9 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
         Some(FunctionHeapData {
             object_index: BuiltinObjectIndexes::RegExpConstructorIndex.into(),
             length: 1,
-            uses_arguments: false,
-            bound: None,
-            visible: None,
+            // uses_arguments: false,
+            // bound: None,
+            // visible: None,
             binding: regexp_constructor_binding,
         });
     let entries = vec![

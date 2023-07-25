@@ -28,9 +28,9 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
         Some(FunctionHeapData {
             object_index: BuiltinObjectIndexes::BooleanConstructorIndex.into(),
             length: 1,
-            uses_arguments: false,
-            bound: None,
-            visible: None,
+            // uses_arguments: false,
+            // bound: None,
+            // visible: None,
             binding: boolean_constructor_binding,
         });
     let entries = vec![
