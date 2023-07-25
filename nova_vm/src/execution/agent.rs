@@ -3,7 +3,7 @@ use crate::{
     types::{Object, Symbol, Value},
     Heap,
 };
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Debug, Default)]
 pub struct Options {
@@ -27,7 +27,6 @@ pub struct HostHooks {
 /// https://tc39.es/ecma262/#sec-agents
 #[derive(Debug)]
 pub struct Agent<'ctx, 'host> {
-    pub heap: Heap,
     pub options: Options,
     // pre_allocated: PreAllocated,
     pub exception: Option<Value>,
@@ -37,9 +36,9 @@ pub struct Agent<'ctx, 'host> {
     pub execution_context_stack: Vec<ExecutionContext<'ctx, 'host>>,
 }
 
-impl Agent<'_, '_> {
-    pub fn current_realm(&self) -> &mut Realm {
-        todo!()
+impl<'ctx, 'host> Agent<'ctx, 'host> {
+    pub fn current_realm(&self) -> Rc<RefCell<Realm<'ctx, 'host>>> {
+        self.execution_context_stack.last().unwrap().realm.clone()
     }
 
     /// 5.2.3.2 Throw an Exception
