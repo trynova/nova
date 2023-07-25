@@ -61,7 +61,7 @@ impl<'ctx, 'host: 'ctx> Script<'ctx, 'host> {
 
     /// 16.1.6 ScriptEvaluation ( scriptRecord )
     /// https://tc39.es/ecma262/#sec-runtime-semantics-scriptevaluation
-    pub fn evaluate(&'ctx mut self) -> Value {
+    pub fn evaluate(self) -> Value {
         let ecmascript_code = self.ecmascript_code.clone();
         let realm = self.realm.clone();
         let agent = {
@@ -84,7 +84,7 @@ impl<'ctx, 'host: 'ctx> Script<'ctx, 'host> {
             realm,
 
             // 5. Set the ScriptOrModule of scriptContext to scriptRecord.
-            script_or_module: Some(ScriptOrModule::Script(self)),
+            script_or_module: Some(ScriptOrModule::Script(Rc::new(RefCell::new(self)))),
 
             ecmascript_code: Some(ECMAScriptCode {
                 // 6. Set the VariableEnvironment of scriptContext to globalEnv.

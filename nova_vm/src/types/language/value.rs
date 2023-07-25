@@ -1,8 +1,8 @@
 use crate::{
     execution::{Agent, JsResult},
     heap::{
-        ArrayHeapData, BigIntHeapData, Handle, NumberHeapData, ObjectHeapData, StringHeapData,
-        SymbolHeapData,
+        ArrayHeapData, BigIntHeapData, FunctionHeapData, Handle, NumberHeapData, ObjectHeapData,
+        StringHeapData, SymbolHeapData,
     },
     SmallInteger, SmallString,
 };
@@ -48,6 +48,7 @@ pub enum Value {
     /// https://tc39.es/ecma262/#sec-object-type
     Object(Handle<ObjectHeapData>),
     ArrayObject(Handle<ArrayHeapData>),
+    Function(Handle<FunctionHeapData>),
 }
 
 #[derive(Debug, Clone, Copy)]

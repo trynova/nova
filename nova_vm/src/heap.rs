@@ -1,5 +1,6 @@
 mod array;
 mod bigint;
+mod function;
 mod heap_constants;
 mod heap_trace;
 mod number;
@@ -9,13 +10,14 @@ mod symbol;
 
 pub use array::ArrayHeapData;
 pub use bigint::BigIntHeapData;
+pub use function::FunctionHeapData;
 pub use number::NumberHeapData;
 pub use object::ObjectHeapData;
 pub use string::StringHeapData;
 pub use symbol::SymbolHeapData;
 
 use self::heap_trace::HeapTrace;
-use crate::types::{Number, String, Value};
+use crate::types::{Function, Number, Object, String, Value};
 use std::{cell::Cell, marker::PhantomData};
 use wtf8::{Wtf8, Wtf8Buf};
 
@@ -58,6 +60,7 @@ impl_handle_debug!(NumberHeapData);
 impl_handle_debug!(BigIntHeapData);
 impl_handle_debug!(ObjectHeapData);
 impl_handle_debug!(ArrayHeapData);
+impl_handle_debug!(FunctionHeapData);
 
 #[derive(Debug)]
 pub struct Heap {
@@ -67,6 +70,7 @@ pub struct Heap {
     pub(crate) bigints: Vec<Option<BigIntHeapData>>,
     pub(crate) objects: Vec<Option<ObjectHeapData>>,
     pub(crate) arrays: Vec<Option<ArrayHeapData>>,
+    pub(crate) functions: Vec<Option<FunctionHeapData>>,
 }
 
 fn stop_the_world() {}
@@ -131,6 +135,25 @@ impl<'a> GetHeapData<'a, StringHeapData, &'a Wtf8> for Heap {
     }
 }
 
+impl CreateHeapData<FunctionHeapData, Function> for Heap {
+    fn create(&mut self, data: FunctionHeapData) -> Function {
+        let id = self.functions.len();
+        self.functions.push(Some(data));
+        Function::new(Value::Function(Handle::new(id as u32)))
+    }
+}
+
+impl<'a> GetHeapData<'a, FunctionHeapData, &'a FunctionHeapData> for Heap {
+    fn get(&'a self, handle: Handle<FunctionHeapData>) -> &'a FunctionHeapData {
+        self.functions
+            .get(handle.id as usize)
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+    }
+}
+
 impl Heap {
     pub fn new() -> Heap {
         let mut heap = Heap {
@@ -140,6 +163,7 @@ impl Heap {
             bigints: Vec::with_capacity(1024),
             objects: Vec::with_capacity(1024),
             arrays: Vec::with_capacity(1024),
+            functions: Vec::with_capacity(1024),
         };
 
         heap
@@ -253,6 +277,24 @@ impl Heap {
                 let _ = bigint.take();
             }
         }
+        for object in self.objects.iter_mut() {
+            let Some(data) = object else {
+				continue;
+			};
+            let marked = data.bits.marked.replace(true);
+            if !marked {
+                let _ = object.take();
+            }
+        }
+        for function in self.functions.iter_mut() {
+            let Some(data) = function else {
+				continue;
+			};
+            let marked = data.bits.marked.replace(true);
+            if !marked {
+                let _ = function.take();
+            }
+        }
         while self.objects.last().is_none() {
             self.objects.pop();
         }
@@ -268,6 +310,12 @@ impl Heap {
         while self.bigints.last().is_none() {
             self.bigints.pop();
         }
+        while self.objects.last().is_none() {
+            self.objects.pop();
+        }
+        while self.functions.last().is_none() {
+            self.functions.pop();
+        }
         start_the_world();
     }
 }
@@ -281,6 +329,7 @@ impl HeapTrace for Value {
             &Value::BigInt(handle) => heap.bigints[handle.id as usize].trace(heap),
             &Value::Object(handle) => heap.objects[handle.id as usize].trace(heap),
             &Value::ArrayObject(handle) => heap.arrays[handle.id as usize].trace(heap),
+            &Value::Function(handle) => heap.functions[handle.id as usize].trace(heap),
             _ => {}
         }
     }
@@ -293,6 +342,7 @@ impl HeapTrace for Value {
             &Value::BigInt(handle) => heap.bigints[handle.id as usize].root(heap),
             &Value::Object(handle) => heap.objects[handle.id as usize].root(heap),
             &Value::ArrayObject(handle) => heap.arrays[handle.id as usize].root(heap),
+            &Value::Function(handle) => heap.functions[handle.id as usize].root(heap),
             _ => {}
         }
     }
@@ -305,6 +355,7 @@ impl HeapTrace for Value {
             &Value::BigInt(handle) => heap.bigints[handle.id as usize].unroot(heap),
             &Value::Object(handle) => heap.objects[handle.id as usize].unroot(heap),
             &Value::ArrayObject(handle) => heap.arrays[handle.id as usize].unroot(heap),
+            &Value::Function(handle) => heap.functions[handle.id as usize].unroot(heap),
             _ => {}
         }
     }
