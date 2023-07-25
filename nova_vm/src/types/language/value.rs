@@ -125,6 +125,14 @@ impl Value {
         matches!(self, Value::Symbol(_))
     }
 
+    pub fn is_empty_string(self) -> bool {
+        if let Value::SmallString(s) = self {
+            s.len() == 0
+        } else {
+            false
+        }
+    }
+
     /// 7.1.1 ToPrimitive ( input [ , preferredType ] )
     /// https://tc39.es/ecma262/#sec-toprimitive
     pub fn to_primitive(
@@ -197,12 +205,13 @@ impl Value {
         }
 
         // 2. If argument is one of undefined, null, +0𝔽, -0𝔽, NaN, 0ℤ, or the empty String, return false.
-        // TODO: checks for 0ℤ and empty String
+        // TODO: checks for 0ℤ
         if argument.is_undefined()
             || argument.is_null()
             || argument.is_pos_zero(agent)
             || argument.is_neg_zero(agent)
             || argument.is_nan(agent)
+            || argument.is_empty_string()
         {
             return Ok(false.into());
         }
