@@ -14,6 +14,11 @@ impl SmallInteger {
     pub const MIN: i64 = -(2 as i64).pow(53) / 2 + 1;
     pub const MAX: i64 = (2 as i64).pow(53) / 2 - 1;
 
+    #[inline]
+    pub fn into_i64(self) -> i64 {
+        self.into()
+    }
+
     pub(crate) fn from_i64_unchecked(value: i64) -> SmallInteger {
         debug_assert!(value >= Self::MIN && value <= Self::MAX);
         let bytes = i64::to_ne_bytes(value);

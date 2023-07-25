@@ -32,7 +32,7 @@ use self::{
         BuiltinObjectIndexes, FIRST_CONSTRUCTOR_INDEX, LAST_BUILTIN_OBJECT_INDEX,
         LAST_WELL_KNOWN_SYMBOL_INDEX,
     },
-    indexes::{FunctionIndex, NumberIndex, ObjectIndex, StringIndex},
+    indexes::{BaseIndex, FunctionIndex, NumberIndex, ObjectIndex, StringIndex},
     math::initialize_math_object,
     number::{initialize_number_heap, NumberHeapData},
     object::{
@@ -42,7 +42,7 @@ use self::{
     string::{initialize_string_heap, StringHeapData},
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
-use crate::types::Value;
+use crate::types::{Number, String, Value};
 use wtf8::Wtf8;
 
 #[derive(Debug)]
@@ -64,31 +64,62 @@ pub struct Heap {
     pub(crate) symbols: Vec<Option<SymbolHeapData>>,
 }
 
-/// Creates a [`Value`] from the given data. Allocating the data is **not**
-/// guaranteed.
-pub trait CreateHeapData<T> {
-    fn create(&mut self, data: T) -> Value;
+pub trait CreateHeapData<T, F> {
+    /// Creates a [`Value`] from the given data. Allocating the data is **not**
+    /// guaranteed.
+    fn create(&mut self, data: T) -> F;
 }
 
-impl CreateHeapData<f64> for Heap {
-    fn create(&mut self, data: f64) -> Value {
+pub trait GetHeapData<'a, T, F: 'a> {
+    fn get(&'a self, handle: BaseIndex<T>) -> F;
+}
+
+impl CreateHeapData<f64, Number> for Heap {
+    fn create(&mut self, data: f64) -> Number {
         if let Ok(value) = Value::try_from(data) {
-            value
+            Number::new(value)
+        } else if data as f32 as f64 == data {
+            Number::new(Value::Float(data as f32))
         } else {
             let id = self.alloc_number(data);
-            Value::Number(id)
+            Value::Number(id).try_into().unwrap()
         }
     }
 }
 
-impl CreateHeapData<&str> for Heap {
-    fn create(&mut self, data: &str) -> Value {
-        if let Ok(value) = Value::try_from(data) {
+impl<'a> GetHeapData<'a, NumberHeapData, f64> for Heap {
+    fn get(&'a self, id: NumberIndex) -> f64 {
+        self.numbers
+            .get(id.into_index())
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .data
+    }
+}
+
+impl CreateHeapData<&str, String> for Heap {
+    fn create(&mut self, data: &str) -> String {
+        if let Ok(value) = String::try_from(data) {
             value
         } else {
             let id = self.alloc_string(data);
-            Value::String(id)
+            Value::String(id).try_into().unwrap()
         }
+    }
+}
+
+impl<'a> GetHeapData<'a, StringHeapData, &'a Wtf8> for Heap {
+    fn get(&'a self, id: StringIndex) -> &'a Wtf8 {
+        let data = self
+            .strings
+            .get(id.into_index())
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .unwrap();
+        &data.data.slice(0, data.data.len())
     }
 }
 

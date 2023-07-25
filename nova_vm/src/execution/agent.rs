@@ -41,4 +41,20 @@ impl Agent<'_, '_> {
     pub fn current_realm(&self) -> &mut Realm {
         todo!()
     }
+
+    /// 5.2.3.2 Throw an Exception
+    /// https://tc39.es/ecma262/#sec-throw-an-exception
+    pub fn throw_exception(&mut self, kind: ExceptionType, message: &'static str) -> () {
+        todo!()
+    }
+}
+
+#[derive(Debug)]
+pub enum ExceptionType {
+    EvalError,
+    RangeError,
+    ReferenceError,
+    SyntaxError,
+    TypeError,
+    UriError,
 }
