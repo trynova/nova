@@ -1,7 +1,6 @@
 use crate::{
     execution::JsResult,
     heap::{
-        function::JsBindingFunction,
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, Heap,
     },
@@ -31,7 +30,7 @@ impl ObjectEntry {
         name: &str,
         length: u8,
         uses_arguments: bool,
-        binding: JsBindingFunction,
+        // behaviour: Behaviour,
     ) -> Self {
         let key = PropertyKey::from_str(heap, name);
         let name = match key {
@@ -40,7 +39,7 @@ impl ObjectEntry {
             PropertyKey::String(idx) => Value::String(idx),
             PropertyKey::Symbol(idx) => Value::Symbol(idx),
         };
-        let func_index = heap.create_function(name, length, uses_arguments, binding);
+        let func_index = heap.create_function(name, length, uses_arguments);
         let value = PropertyDescriptor::rwxh(Value::Function(func_index));
         ObjectEntry { key, value }
     }
@@ -51,11 +50,11 @@ impl ObjectEntry {
         symbol_index: SymbolIndex,
         length: u8,
         uses_arguments: bool,
-        binding: JsBindingFunction,
+        // behaviour: Behaviour,
     ) -> Self {
         let name = Value::from_str(heap, name);
         let key = PropertyKey::Symbol(symbol_index);
-        let func_index = heap.create_function(name, length, uses_arguments, binding);
+        let func_index = heap.create_function(name, length, uses_arguments);
         let value = PropertyDescriptor::roxh(Value::Function(func_index));
         ObjectEntry { key, value }
     }
@@ -226,7 +225,7 @@ impl PropertyDescriptor {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ObjectHeapData {
-    pub(crate) _extensible: bool,
+    pub(crate) extensible: bool,
     // TODO: It's probably not necessary to have a whole Value here.
     // A prototype can only be set to be null or an object, meaning that most of the
     // possible Value options are impossible.
@@ -246,7 +245,7 @@ impl ObjectHeapData {
         values: ElementsVector,
     ) -> Self {
         Self {
-            _extensible: extensible,
+            extensible,
             // TODO: Number, Boolean, etc. objects exist. These can all be
             // modeled with their own heap vector or alternatively by adding
             // a [[PrimitiveValue]] field to objects: Normally this field is None
@@ -263,56 +262,32 @@ impl ObjectHeapData {
 
 pub fn initialize_object_heap(heap: &mut Heap) {
     let entries = vec![
-        ObjectEntry::new_prototype_function_entry(heap, "assign", 1, true, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "create", 2, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "defineProperties", 2, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "defineProperty", 3, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "entries", 1, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "freeze", 1, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "fromEntries", 1, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(
-            heap,
-            "getOwnPropertyDescriptor",
-            2,
-            false,
-            object_todo,
-        ),
-        ObjectEntry::new_prototype_function_entry(
-            heap,
-            "getOwnPropertyDescriptors",
-            1,
-            false,
-            object_todo,
-        ),
-        ObjectEntry::new_prototype_function_entry(
-            heap,
-            "getOwnPropertyNames",
-            1,
-            false,
-            object_todo,
-        ),
-        ObjectEntry::new_prototype_function_entry(
-            heap,
-            "getOwnPropertySymbols",
-            1,
-            false,
-            object_todo,
-        ),
-        ObjectEntry::new_prototype_function_entry(heap, "getPrototypeOf", 1, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "hasOwn", 2, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "is", 1, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "isExtensible", 1, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "isFrozen", 1, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "isSealed", 1, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "keys", 1, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "preventExtensions", 1, false, object_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "assign", 1, true),
+        ObjectEntry::new_prototype_function_entry(heap, "create", 2, false),
+        ObjectEntry::new_prototype_function_entry(heap, "defineProperties", 2, false),
+        ObjectEntry::new_prototype_function_entry(heap, "defineProperty", 3, false),
+        ObjectEntry::new_prototype_function_entry(heap, "entries", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "freeze", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "fromEntries", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "getOwnPropertyDescriptor", 2, false),
+        ObjectEntry::new_prototype_function_entry(heap, "getOwnPropertyDescriptors", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "getOwnPropertyNames", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "getOwnPropertySymbols", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "getPrototypeOf", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "hasOwn", 2, false),
+        ObjectEntry::new_prototype_function_entry(heap, "is", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "isExtensible", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "isFrozen", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "isSealed", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "keys", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "preventExtensions", 1, false),
         ObjectEntry::new_constructor_prototype_entry(
             heap,
             BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
         ),
-        ObjectEntry::new_prototype_function_entry(heap, "seal", 1, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "setPrototypeOf", 2, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "values", 1, false, object_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "seal", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "setPrototypeOf", 2, false),
+        ObjectEntry::new_prototype_function_entry(heap, "values", 1, false),
     ];
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ObjectConstructorIndex,
@@ -328,7 +303,7 @@ pub fn initialize_object_heap(heap: &mut Heap) {
             // uses_arguments: false,
             // bound: None,
             // visible: None,
-            binding: object_constructor_binding,
+            initial_name: Value::Null,
         });
     let entries = vec![
         ObjectEntry::new(
@@ -337,18 +312,12 @@ pub fn initialize_object_heap(heap: &mut Heap) {
                 BuiltinObjectIndexes::ObjectConstructorIndex,
             ))),
         ),
-        ObjectEntry::new_prototype_function_entry(heap, "hasOwnProperty", 1, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "isPrototypeOf", 1, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(
-            heap,
-            "propertyIsEnumerable",
-            1,
-            false,
-            object_todo,
-        ),
-        ObjectEntry::new_prototype_function_entry(heap, "toLocaleString", 0, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, object_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false, object_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "hasOwnProperty", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "isPrototypeOf", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "propertyIsEnumerable", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "toLocaleString", 0, false),
+        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
+        ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false),
     ];
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ObjectConstructorIndex,

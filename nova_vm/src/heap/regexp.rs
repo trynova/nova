@@ -30,7 +30,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
         ObjectEntry::new(
             PropertyKey::Symbol(WellKnownSymbolIndexes::Species.into()),
             PropertyDescriptor::ReadOnly {
-                get: heap.create_function(species_function_name, 0, false, regexp_species),
+                get: heap.create_function(species_function_name, 0, false),
                 enumerable: false,
                 configurable: true,
             },
@@ -50,7 +50,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
             // uses_arguments: false,
             // bound: None,
             // visible: None,
-            binding: regexp_constructor_binding,
+            initial_name: Value::Null,
         });
     let entries = vec![
         ObjectEntry::new(
@@ -60,7 +60,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
             ))),
         ),
         // TODO: Write out all the getters
-        ObjectEntry::new_prototype_function_entry(heap, "exec", 1, false, regexp_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "exec", 1, false),
         // TODO: These symbol function properties are actually rwxh, this helper generates roxh instead.
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
@@ -68,7 +68,6 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
             WellKnownSymbolIndexes::Match.into(),
             1,
             false,
-            regexp_todo,
         ),
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
@@ -76,7 +75,6 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
             WellKnownSymbolIndexes::MatchAll.into(),
             1,
             false,
-            regexp_todo,
         ),
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
@@ -84,7 +82,6 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
             WellKnownSymbolIndexes::Replace.into(),
             2,
             false,
-            regexp_todo,
         ),
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
@@ -92,7 +89,6 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
             WellKnownSymbolIndexes::Search.into(),
             1,
             false,
-            regexp_todo,
         ),
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
@@ -100,10 +96,9 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
             WellKnownSymbolIndexes::Split.into(),
             2,
             false,
-            regexp_todo,
         ),
-        ObjectEntry::new_prototype_function_entry(heap, "test", 1, false, regexp_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, regexp_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "test", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
     ];
     heap.insert_builtin_object(
         BuiltinObjectIndexes::RegExpPrototypeIndex,

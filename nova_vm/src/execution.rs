@@ -10,4 +10,4 @@ pub use environments::{
     PrivateEnvironment,
 };
 pub use execution_context::{ECMAScriptCode, ExecutionContext, ScriptOrModule};
-pub use realm::Realm;
+pub use realm::{Intrinsics, Realm};

@@ -38,7 +38,7 @@ pub fn initialize_error_heap(heap: &mut Heap) {
             // uses_arguments: false,
             // bound: None,
             // visible: None,
-            binding: error_constructor_binding,
+            initial_name: Value::Null,
         });
     let entries = vec![
         ObjectEntry::new(
@@ -55,7 +55,7 @@ pub fn initialize_error_heap(heap: &mut Heap) {
             PropertyKey::from_str(heap, "name"),
             PropertyDescriptor::rwx(Value::from_str(heap, "Error")),
         ),
-        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, error_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
     ];
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ErrorPrototypeIndex,

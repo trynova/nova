@@ -31,7 +31,7 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
             // uses_arguments: false,
             // bound: None,
             // visible: None,
-            binding: boolean_constructor_binding,
+            initial_name: Value::Null,
         });
     let entries = vec![
         ObjectEntry::new(
@@ -40,8 +40,8 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
                 BuiltinObjectIndexes::BooleanConstructorIndex,
             ))),
         ),
-        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, boolean_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false, boolean_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
+        ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false),
     ];
     heap.insert_builtin_object(
         BuiltinObjectIndexes::BooleanPrototypeIndex,

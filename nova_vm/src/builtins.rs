@@ -7,7 +7,7 @@ pub mod ordinary;
 pub use array::ArrayConstructor;
 pub use builtin_function::{
     create_builtin_function, todo_builtin, ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs,
-    RegularFn as JsFunction,
+    ConstructorFn, RegularFn as JsFunction, RegularFn,
 };
 pub use ecmascript_function::ECMAScriptFunction;
 pub use number::NumberConstructor;

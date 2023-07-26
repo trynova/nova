@@ -10,8 +10,8 @@
 
 use super::indexes::{FunctionIndex, ObjectIndex, SymbolIndex};
 
-#[derive(Debug, Clone, Copy)]
 #[repr(u32)]
+#[derive(Debug, Clone, Copy)]
 pub enum BuiltinObjectIndexes {
     // Fundamental objects
     ObjectPrototypeIndex,
@@ -145,6 +145,12 @@ impl Into<FunctionIndex> for BuiltinObjectIndexes {
         // We do not allow more than 16 777 216 functions to exist.
         assert!(self as u32 <= u32::pow(2, 24));
         FunctionIndex::from_u32_index(self as u32)
+    }
+}
+
+impl Default for BuiltinObjectIndexes {
+    fn default() -> Self {
+        Self::ObjectPrototypeIndex
     }
 }
 

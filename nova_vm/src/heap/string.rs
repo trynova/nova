@@ -37,7 +37,7 @@ pub fn initialize_string_heap(heap: &mut Heap) {
             // uses_arguments: false,
             // bound: None,
             // visible: None,
-            binding: string_constructor_binding,
+            initial_name: Value::Null,
         });
     heap.insert_builtin_object(
         BuiltinObjectIndexes::StringPrototypeIndex,

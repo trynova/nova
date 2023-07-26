@@ -32,10 +32,10 @@ pub fn initialize_number_heap(heap: &mut Heap) {
             PropertyKey::from_str(heap, "EPSILON"),
             PropertyDescriptor::roh(Value::from_f64(heap, f64::EPSILON)),
         ),
-        ObjectEntry::new_prototype_function_entry(heap, "isFinite", 1, false, number_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "isInteger", 1, false, number_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "isNan", 1, false, number_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "isSafeInteger", 1, false, number_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "isFinite", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "isInteger", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "isNan", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "isSafeInteger", 1, false),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MAX_SAFE_INTEGER"),
             PropertyDescriptor::roh(Value::from_f64(heap, 9007199254740991.0)),
@@ -60,8 +60,8 @@ pub fn initialize_number_heap(heap: &mut Heap) {
             PropertyKey::from_str(heap, "NEGATIVE_INFINITY"),
             PropertyDescriptor::roh(Value::from(f32::NEG_INFINITY)),
         ),
-        ObjectEntry::new_prototype_function_entry(heap, "parseFloat", 1, false, number_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "parseInt", 2, false, number_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "parseFloat", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "parseInt", 2, false),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "POSITIVE_INFINITY"),
             PropertyDescriptor::roh(Value::from(f32::INFINITY)),
@@ -85,7 +85,7 @@ pub fn initialize_number_heap(heap: &mut Heap) {
             // uses_arguments: false,
             // bound: None,
             // visible: None,
-            binding: number_constructor_binding,
+            initial_name: Value::Null,
         });
     let entries = vec![
         ObjectEntry::new(
@@ -94,12 +94,12 @@ pub fn initialize_number_heap(heap: &mut Heap) {
                 BuiltinObjectIndexes::NumberConstructorIndex,
             ))),
         ),
-        ObjectEntry::new_prototype_function_entry(heap, "toExponential", 1, false, number_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "toExponential", 1, false, number_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "toLocaleString", 0, false, number_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "toPrecision", 1, false, number_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, number_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false, number_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "toExponential", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "toExponential", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "toLocaleString", 0, false),
+        ObjectEntry::new_prototype_function_entry(heap, "toPrecision", 1, false),
+        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
+        ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false),
     ];
     heap.insert_builtin_object(
         BuiltinObjectIndexes::NumberPrototypeIndex,

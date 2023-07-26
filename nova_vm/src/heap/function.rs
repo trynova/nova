@@ -1,4 +1,5 @@
 use crate::{
+    builtins::Behaviour,
     execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
@@ -13,13 +14,14 @@ use super::{
     object::{ObjectEntry, PropertyKey},
 };
 
-pub type JsBindingFunction = fn(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value>;
-
 #[derive(Debug, Clone)]
 pub(crate) struct FunctionHeapData {
     pub(super) object_index: ObjectIndex,
     pub(super) length: u8,
-    pub(super) binding: JsBindingFunction,
+    pub(crate) initial_name: Value,
+    // pub(crate) behaviour: Behaviour,
+    // TODO: Should we create a `BoundFunctionHeapData` for an exotic object
+    //       that allows setting fields and other deoptimizations?
     // pub(super) uses_arguments: bool,
     // pub(super) bound: Option<Box<[Value]>>,
     // pub(super) visible: Option<Vec<Value>>,
@@ -45,26 +47,25 @@ pub fn initialize_function_heap(heap: &mut Heap) {
             // uses_arguments: false,
             // bound: None,
             // visible: None,
-            binding: function_constructor_binding,
+            initial_name: Value::Null,
         });
     let entries = vec![
-        ObjectEntry::new_prototype_function_entry(heap, "apply", 2, false, function_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "bind", 1, true, function_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "call", 1, true, function_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "apply", 2, false),
+        ObjectEntry::new_prototype_function_entry(heap, "bind", 1, true),
+        ObjectEntry::new_prototype_function_entry(heap, "call", 1, true),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
             PropertyDescriptor::rwx(Value::Function(get_constructor_index(
                 BuiltinObjectIndexes::FunctionConstructorIndex,
             ))),
         ),
-        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, function_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
             "hasInstance",
             WellKnownSymbolIndexes::HasInstance.into(),
             1,
             false,
-            function_todo,
         ),
     ];
     // NOTE: According to ECMAScript spec https://tc39.es/ecma262/#sec-properties-of-the-function-prototype-object
