@@ -138,7 +138,7 @@ impl Value {
 
     pub fn is_empty_string(self) -> bool {
         if let Value::SmallString(s) = self {
-            s.len() == 0
+            s.is_empty()
         } else {
             false
         }
