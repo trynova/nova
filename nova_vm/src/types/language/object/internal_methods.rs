@@ -1,29 +1,40 @@
 use super::{Object, PropertyKey};
 use crate::{
     builtins::ArgumentsList,
-    execution::JsResult,
+    execution::{Agent, JsResult},
     types::{PropertyDescriptor, Value},
 };
 
-pub type GetPrototypeOf = fn(object: Object) -> JsResult<Object>;
-pub type SetPrototypeOf = fn(object: Object, prototype: Option<Object>) -> JsResult<bool>;
-pub type IsExtensible = fn(object: Object) -> JsResult<bool>;
-pub type PreventExtensions = fn(object: Object) -> JsResult<bool>;
-pub type GetOwnProperty = fn(object: Object, property_key: PropertyKey) -> JsResult<()>;
+pub type GetPrototypeOf = fn(agent: &mut Agent, object: Object) -> Option<Object>;
+pub type SetPrototypeOf =
+    fn(agent: &mut Agent, object: Object, prototype: Option<Object>) -> JsResult<bool>;
+pub type IsExtensible = fn(agent: &mut Agent, object: Object) -> JsResult<bool>;
+pub type PreventExtensions = fn(agent: &mut Agent, object: Object) -> JsResult<bool>;
+pub type GetOwnProperty =
+    fn(agent: &mut Agent, object: Object, property_key: PropertyKey) -> JsResult<()>;
 pub type DefineOwnProperty = fn(
+    agent: &mut Agent,
     object: Object,
     property_key: PropertyKey,
     property_descriptor: PropertyDescriptor,
-) -> JsResult<PropertyDescriptor>;
-pub type HasProperty = fn(object: Object, property_key: PropertyKey) -> JsResult<bool>;
-pub type Get = fn(object: Object, property_key: PropertyKey, receiver: Value) -> JsResult<Value>;
+) -> bool;
+pub type HasProperty =
+    fn(agent: &mut Agent, object: Object, property_key: PropertyKey) -> JsResult<bool>;
+pub type Get = fn(
+    agent: &mut Agent,
+    object: Object,
+    property_key: PropertyKey,
+    receiver: Value,
+) -> JsResult<Value>;
 pub type Set =
     fn(object: Object, property_key: PropertyKey, value: Value, receiver: Value) -> JsResult<bool>;
-pub type Delete = fn(object: Object, property_key: PropertyKey) -> JsResult<bool>;
-pub type OwnPropertyKeys = fn(object: Object) -> JsResult<Vec<PropertyKey>>;
+pub type Delete =
+    fn(agent: &mut Agent, object: Object, property_key: PropertyKey) -> JsResult<bool>;
+pub type OwnPropertyKeys = fn(agent: &mut Agent, object: Object) -> JsResult<Vec<PropertyKey>>;
 pub type Call =
     fn(object: Object, this_value: Value, arguments_list: ArgumentsList) -> JsResult<Value>;
-pub type Construct = fn(object: Object, arguments_list: ArgumentsList) -> JsResult<Object>;
+pub type Construct =
+    fn(agent: &mut Agent, object: Object, arguments_list: ArgumentsList) -> JsResult<Object>;
 
 /// 6.1.7.2 Object Internal Methods and Internal Slots
 /// https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots

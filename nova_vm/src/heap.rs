@@ -11,6 +11,7 @@ mod symbol;
 pub use array::ArrayHeapData;
 pub use bigint::BigIntHeapData;
 pub use function::FunctionHeapData;
+pub use heap_constants::BuiltinObjectIndexes;
 pub use number::NumberHeapData;
 pub use object::ObjectHeapData;
 pub use string::StringHeapData;
@@ -150,6 +151,25 @@ impl<'a> GetHeapData<'a, FunctionHeapData, &'a FunctionHeapData> for Heap {
             .as_ref()
             .unwrap()
             .as_ref()
+            .unwrap()
+    }
+}
+
+impl CreateHeapData<ObjectHeapData, Object> for Heap {
+    fn create(&mut self, data: ObjectHeapData) -> Object {
+        let id: usize = self.functions.len();
+        self.objects.push(Some(data));
+        Object::new(Value::Object(Handle::new(id as u32)))
+    }
+}
+
+impl<'a> GetHeapData<'a, ObjectHeapData, &'a mut ObjectHeapData> for Heap {
+    fn get(&'a self, handle: Handle<ObjectHeapData>) -> &'a mut ObjectHeapData {
+        self.objects
+            .get_mut(handle.id as usize)
+            .as_ref()
+            .unwrap()
+            .as_mut()
             .unwrap()
     }
 }

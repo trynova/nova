@@ -9,6 +9,7 @@
 // +==================================================================+
 
 #[repr(u32)]
+#[derive(Debug, Clone, Copy)]
 pub enum BuiltinObjectIndexes {
     // Fundamental objects
     ObjectPrototypeIndex,
@@ -129,6 +130,12 @@ pub enum BuiltinObjectIndexes {
 
     // Reflection
     ProxyConstructorIndex,
+}
+
+impl Default for BuiltinObjectIndexes {
+    fn default() -> Self {
+        Self::ObjectPrototypeIndex
+    }
 }
 
 pub const LAST_BUILTIN_OBJECT_INDEX: u32 = BuiltinObjectIndexes::ProxyConstructorIndex as u32;

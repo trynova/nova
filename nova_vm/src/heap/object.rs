@@ -1,16 +1,19 @@
-use crate::heap::{heap_trace::HeapTrace, Heap, HeapBits};
+use crate::{
+    heap::{heap_trace::HeapTrace, Heap, HeapBits},
+    types::PropertyDescriptor,
+};
 
 #[derive(Debug, Clone)]
 pub struct ObjectHeapData {
     pub(crate) bits: HeapBits,
-    pub(crate) _extensible: bool,
+    pub(crate) extensible: bool,
     // TODO: It's probably not necessary to have a whole data descriptor here.
     // A prototype can only be set to be null or an object, meaning that most of the
     // possible Value options are impossible.
     // We could possibly do with just a `Option<ObjectIndex>` but it would cause issues
     // with functions and possible other special object cases we want to track with partially
     // separate heap fields later down the line.
-    // pub(crate) prototype: PropertyDescriptor,
+    pub(crate) prototype: PropertyDescriptor,
     // pub(crate) entries: Vec<ObjectEntry>,
 }
 

@@ -5,7 +5,7 @@ use crate::{
 
 /// 6.2.6 The Property Descriptor Specification Type
 /// https://tc39.es/ecma262/#sec-property-descriptor-specification-type
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 pub struct PropertyDescriptor {
     /// [[Value]]
     pub value: Option<Value>,
