@@ -302,7 +302,7 @@ impl Value {
     /// https://tc39.es/ecma262/#sec-tointegerorinfinity
     // TODO: Should we add another [`Value`] newtype for IntegerOrInfinity?
     pub fn to_integer_or_infinty(self, agent: &mut Agent) -> JsResult<Number> {
-        let argument = self;
+        let argument: Value = self;
 
         // 1. Let number be ? ToNumber(argument).
         let number = argument.to_number(agent)?;
@@ -323,7 +323,7 @@ impl Value {
         }
 
         // 5. Return truncate(ℝ(number)).
-        Ok(Number::from(number.truncate(agent)))
+        Ok(number.truncate(agent))
     }
 
     /// 7.1.6 ToInt32 ( argument )
@@ -340,14 +340,14 @@ impl Value {
         }
 
         // 3. Let int be truncate(ℝ(number)).
-        let int = number.truncate(agent);
+        let int = number.truncate(agent).into_f64(agent);
 
         // 4. Let int32bit be int modulo 2^32.
-        let int32bit = int % 2i64.pow(32);
+        let int32bit = int % 2f64.powf(32.0);
 
         // 5. If int32bit ≥ 2^31, return 𝔽(int32bit - 2^32); otherwise return 𝔽(int32bit).
-        Ok(if int32bit >= 2i64.pow(32) {
-            int32bit - 2i64.pow(32)
+        Ok(if int32bit >= 2f64.powf(32.0) {
+            int32bit - 2f64.powf(32.0)
         } else {
             int32bit
         } as i32)
@@ -367,10 +367,10 @@ impl Value {
         }
 
         // 3. Let int be truncate(ℝ(number)).
-        let int = number.truncate(agent);
+        let int = number.truncate(agent).into_f64(agent);
 
         // 4. Let int32bit be int modulo 2^32.
-        let int32bit = int % 2i64.pow(32);
+        let int32bit = int % 2f64.powf(32.0);
 
         // 5. Return 𝔽(int32bit).
         Ok(int32bit as u32)
@@ -390,14 +390,14 @@ impl Value {
         }
 
         // 3. Let int be truncate(ℝ(number)).
-        let int = number.truncate(agent);
+        let int = number.truncate(agent).into_f64(agent);
 
         // 4. Let int16bit be int modulo 2^16.
-        let int16bit = int % 2i64.pow(16);
+        let int16bit = int % 2f64.powf(16.0);
 
         // 5. If int16bit ≥ 2^15, return 𝔽(int16bit - 2^16); otherwise return 𝔽(int16bit).
-        Ok(if int16bit >= 2i64.pow(15) {
-            int16bit - 2i64.pow(16)
+        Ok(if int16bit >= 2f64.powf(15.0) {
+            int16bit - 2f64.powf(16.0)
         } else {
             int16bit
         } as i16)
@@ -417,10 +417,10 @@ impl Value {
         }
 
         // 3. Let int be truncate(ℝ(number)).
-        let int = number.truncate(agent);
+        let int = number.truncate(agent).into_f64(agent);
 
         // 4. Let int16bit be int modulo 2^16.
-        let int16bit = int % 2i64.pow(16);
+        let int16bit = int % 2f64.powf(16.0);
 
         // Return 𝔽(int16bit).
         Ok(int16bit as i16)
@@ -440,14 +440,14 @@ impl Value {
         }
 
         // 3. Let int be truncate(ℝ(number)).
-        let int = number.truncate(agent);
+        let int = number.truncate(agent).into_f64(agent);
 
         // 4. Let int8bit be int modulo 2^8.
-        let int8bit = int % 2i64.pow(8);
+        let int8bit = int % 2f64.powf(8.0);
 
         // 5. If int8bit ≥ 2^7, return 𝔽(int8bit - 2^8); otherwise return 𝔽(int8bit).
-        Ok(if int8bit >= 2i64.pow(7) {
-            int8bit - 2i64.pow(8)
+        Ok(if int8bit >= 2f64.powf(7.0) {
+            int8bit - 2f64.powf(8.0)
         } else {
             int8bit
         } as i8)
@@ -467,10 +467,10 @@ impl Value {
         }
 
         // 3. Let int be truncate(ℝ(number)).
-        let int = number.truncate(agent);
+        let int = number.truncate(agent).into_f64(agent);
 
         // 4. Let int8bit be int modulo 2^8.
-        let int8bit = int % 2i64.pow(8);
+        let int8bit = int % 2f64.powf(8.0);
 
         // 5. Return 𝔽(int8bit).
         Ok(int8bit as u8)

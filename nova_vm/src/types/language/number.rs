@@ -181,15 +181,18 @@ impl Number {
     }
 
     /// https://tc39.es/ecma262/#eqn-truncate
-    ///
-    /// Guaranteed to be in the valid [`Value::IntegerNumber`] range.
-    pub fn truncate(self, agent: &mut Agent) -> i64 {
+    pub fn truncate(self, agent: &mut Agent) -> Number {
         let x = self.into_value();
 
         match x {
-            Value::Number(n) => agent.current_realm().borrow().heap.get(n).trunc() as i64,
-            Value::IntegerNumber(n) => n.into_i64(),
-            Value::FloatNumber(n) => n.trunc() as i64,
+            Value::Number(n) => {
+                let realm = agent.current_realm();
+                let mut realm = realm.borrow_mut();
+                let n = realm.heap.get(n).trunc();
+                realm.heap.create(n)
+            }
+            Value::IntegerNumber(_) => self,
+            Value::FloatNumber(n) => n.trunc().into(),
             _ => unreachable!(),
         }
     }
