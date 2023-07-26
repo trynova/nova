@@ -36,6 +36,11 @@ impl SmallString {
         return &self.bytes;
     }
 
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        matches!(self.bytes, [0, 0, 0, 0, 0, 0, 0])
+    }
+
     pub(crate) fn from_str_unchecked(string: &str) -> Self {
         let string_bytes = string.as_bytes();
 
