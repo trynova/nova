@@ -33,9 +33,9 @@ impl PropertyDescriptor {
         // 1. If Desc is undefined, return false.
         match (self.get, self.set) {
             // 2. If Desc has a [[Get]] field, return true.
+            (Some(_), _) => true,
             // 3. If Desc has a [[Set]] field, return true.
-            (Some(_), Some(_)) => true,
-
+            (_, Some(_)) => true,
             // 4. Return false.
             _ => false,
         }
@@ -47,8 +47,9 @@ impl PropertyDescriptor {
         // 1. If Desc is undefined, return false.
         match (self.value, self.writable) {
             // 2. If Desc has a [[Value]] field, return true.
+            (Some(_), _) => true,
             // 3. If Desc has a [[Writable]] field, return true.
-            (Some(_), Some(_)) => true,
+            (_, Some(_)) => true,
             // 4. Return false.
             _ => false,
         }
