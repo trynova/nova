@@ -1,6 +1,7 @@
 use super::{
     builtin_function::{define_builtin_function, define_builtin_property},
-    create_builtin_function, todo_builtin, ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs,
+    create_builtin_function, ordinary, todo_builtin, ArgumentsList, Behaviour, Builtin,
+    BuiltinFunctionArgs,
 };
 use crate::{
     execution::{Agent, Intrinsics, JsResult, Realm},
@@ -14,7 +15,7 @@ pub struct NumberConstructor;
 impl Builtin for NumberConstructor {
     fn create<'a>(realm: &'a mut Realm<'a, 'a>) -> JsResult<Object> {
         let object: Object = create_builtin_function(
-            Behaviour::Regular(NumberConstructor::behaviour),
+            Behaviour::Constructor(Self::behaviour),
             BuiltinFunctionArgs {
                 length: 1,
                 name: "Number",
@@ -176,11 +177,45 @@ impl Builtin for NumberConstructor {
 }
 
 impl NumberConstructor {
+    /// 21.1.1.1 Number ( value )
+    /// https://tc39.es/ecma262/#sec-number-constructor-number-value
     fn behaviour(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
+        new_target: Option<Object>,
     ) -> JsResult<Value> {
+        let value = arguments.get(0);
+
+        // 1. If value is present, then
+        let n = if !value.is_undefined() {
+            // a. Let prim be ? ToNumeric(value).
+            let prim = value.to_numeric(agent)?;
+
+            // b. If prim is a BigInt, let n be 𝔽(ℝ(prim)).
+            if prim.is_bigint() {
+                todo!()
+            }
+            // c. Otherwise, let n be prim.
+            else {
+                prim
+            }
+        }
+        // 2. Else,
+        else {
+            // a. Let n be +0𝔽.
+            Value::from(0)
+        };
+
+        // 3. If NewTarget is undefined, return n.
+        let Some(new_target) = new_target else {
+            return Ok(n);
+        };
+
         todo!();
+
+        // 4. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%Number.prototype%", « [[NumberData]] »).
+        // 5. Set O.[[NumberData]] to n.
+        // 6. Return O.
     }
 }

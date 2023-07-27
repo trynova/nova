@@ -1,7 +1,7 @@
 use super::{heap_trace::HeapTrace, Handle, HeapBits, ObjectHeapData};
 use crate::{
-    builtins::{Behaviour, JsFunction},
-    types::{Object, Value},
+    builtins::{todo_builtin, Behaviour},
+    types::Value,
     Heap,
 };
 
@@ -19,10 +19,22 @@ pub struct FunctionHeapData {
     // pub(super) visible: Option<Vec<Value>>,
 }
 
+impl FunctionHeapData {
+    pub fn dummy() -> Self {
+        Self {
+            bits: HeapBits::new(),
+            object: Handle::new(0),
+            initial_name: Value::Null,
+            length: 0,
+            behaviour: Behaviour::Regular(todo_builtin),
+        }
+    }
+}
+
 impl HeapTrace for Option<FunctionHeapData> {
     fn trace(&self, heap: &Heap) {
         assert!(self.is_some());
-        heap.objects[self.as_ref().unwrap().object.id as usize].trace(heap);
+        heap.objects[self.as_ref().unwrap().object.id.get() as usize].trace(heap);
     }
     fn root(&self, _heap: &Heap) {
         assert!(self.is_some());

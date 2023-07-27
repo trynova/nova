@@ -7,6 +7,13 @@ use crate::{
 #[derive(Debug)]
 pub struct ArgumentsList<'a>(&'a [Value]);
 
+impl ArgumentsList<'_> {
+    #[inline]
+    pub fn get(&self, index: usize) -> Value {
+        *self.0.get(index).unwrap_or(&Value::Undefined)
+    }
+}
+
 pub type RegularFn = fn(&mut Agent, Value, ArgumentsList<'_>) -> JsResult<Value>;
 pub type ConstructorFn =
     fn(&mut Agent, Value, ArgumentsList<'_>, Option<Object>) -> JsResult<Value>;
@@ -76,6 +83,7 @@ pub fn create_builtin_function<'a, 'b: 'a>(
         // 8. Set func.[[Realm]] to realm.
         // NOTE: Heap data is implicitly attached to the Realm so I don't think
         //       this matters.
+		entries: Vec::new(),
     });
 
     let initial_name = realm.heap.create(args.name).into_value();
@@ -83,8 +91,8 @@ pub fn create_builtin_function<'a, 'b: 'a>(
         bits: HeapBits::new(),
         object: object.into_object_handle().unwrap(),
         behaviour,
-        // 9. Set func.[[InitialName]] to null.
-        // TODO: This is non-standard.
+        // TODO: 9. Set func.[[InitialName]] to null.
+        // NOTE: This is non-standard.
         initial_name,
         // 10. Perform SetFunctionLength(func, length).
         length: args.length as i64,

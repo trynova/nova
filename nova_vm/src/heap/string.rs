@@ -8,6 +8,13 @@ pub struct StringHeapData {
 }
 
 impl StringHeapData {
+    pub fn dummy() -> Self {
+        Self {
+            bits: HeapBits::new(),
+            data: Wtf8Buf::new(),
+        }
+    }
+
     pub fn from_str(str: &str) -> Self {
         StringHeapData {
             bits: HeapBits::new(),

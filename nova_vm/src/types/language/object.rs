@@ -1,6 +1,7 @@
 mod data;
 mod internal_methods;
 mod property_key;
+mod property_storage;
 
 use crate::{
     builtins::ordinary,
@@ -9,10 +10,11 @@ use crate::{
     types::PropertyDescriptor,
 };
 
-use super::{Function, Value};
+use super::Value;
 pub use data::ObjectData;
 pub use internal_methods::InternalMethods;
 pub use property_key::PropertyKey;
+pub use property_storage::PropertyStorage;
 
 /// 6.1.7 The Object Type
 /// https://tc39.es/ecma262/#sec-object-type
@@ -50,6 +52,7 @@ impl Object {
         }
     }
 
+    /// [[Extensible]]
     pub fn extensible(self, agent: &mut Agent) -> bool {
         let object = self.into_value();
 
@@ -61,6 +64,25 @@ impl Object {
         }
     }
 
+    /// [[Extensible]]
+    pub fn set_extensible(self, agent: &mut Agent, value: bool) {
+        let object = self.into_value();
+
+        match object {
+            Value::Object(object) => {
+                let realm = agent.current_realm();
+                let mut realm = realm.borrow_mut();
+                let object = realm.heap.get_mut(object);
+                object.extensible = true;
+            }
+            // TODO: Correct object/function impl
+            Value::ArrayObject(_) => {}
+            Value::Function(_) => {}
+            _ => unreachable!(),
+        }
+    }
+
+    /// [[Prototype]]
     pub fn prototype(self, agent: &mut Agent) -> Option<Object> {
         let object = self.into_value();
 
@@ -77,15 +99,15 @@ impl Object {
         }
     }
 
-    // TODO: Is there a spec variant of this?
+    /// [[Prototype]]
     pub fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         let object = self.into_value();
 
         match object {
             Value::Object(object) => {
                 let realm = agent.current_realm();
-                let realm = realm.borrow_mut();
-                let object = realm.heap.get(object);
+                let mut realm = realm.borrow_mut();
+                let object = realm.heap.get_mut(object);
                 object.prototype.value = prototype.map(|object| object.into_value());
             }
             Value::ArrayObject(_) => todo!(),
@@ -97,6 +119,10 @@ impl Object {
     pub fn internal_methods<'a>(self, agent: &mut Agent) -> &'a InternalMethods {
         // TODO: Logic for fetching methods for objects/anything else.
         &ordinary::METHODS
+    }
+
+    pub fn property_storage(self) -> PropertyStorage {
+        PropertyStorage::new(self)
     }
 
     /// /// 7.3.9 DefinePropertyOrThrow ( O, P, desc )

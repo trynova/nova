@@ -8,6 +8,15 @@ pub struct BigIntHeapData {
     pub(super) data: BigInt,
 }
 
+impl BigIntHeapData {
+    pub fn dummy() -> Self {
+        Self {
+            bits: HeapBits::new(),
+            data: BigInt::default(),
+        }
+    }
+}
+
 impl HeapTrace for Option<BigIntHeapData> {
     fn trace(&self, _heap: &Heap) {}
 

@@ -7,11 +7,20 @@ pub struct SymbolHeapData {
     pub(super) descriptor: Option<Handle<StringHeapData>>,
 }
 
+impl SymbolHeapData {
+    pub fn dummy() -> Self {
+        Self {
+            bits: HeapBits::new(),
+            descriptor: None,
+        }
+    }
+}
+
 impl HeapTrace for Option<SymbolHeapData> {
     fn trace(&self, heap: &Heap) {
         assert!(self.is_some());
         if let Some(handle) = self.as_ref().unwrap().descriptor {
-            heap.strings[handle.id as usize].trace(heap);
+            heap.strings[handle.id.get() as usize].trace(heap);
         }
     }
     fn root(&self, _heap: &Heap) {

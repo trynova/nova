@@ -1,21 +1,33 @@
-use super::heap_trace::HeapTrace;
+use super::{heap_trace::HeapTrace, Handle, ObjectHeapData};
 use crate::{
     heap::{Heap, HeapBits},
-    types::Value,
+    types::{Object, Value},
 };
 
 #[derive(Debug, Clone)]
 pub struct ArrayHeapData {
     pub(super) bits: HeapBits,
-    pub(super) object_index: u32,
+    pub(super) object: Option<Handle<ObjectHeapData>>,
     // TODO: Use SmallVec<[Value; 4]>
     pub(super) elements: Vec<Option<Value>>,
+}
+
+impl ArrayHeapData {
+    pub fn dummy() -> Self {
+        Self {
+            bits: HeapBits::new(),
+            object: None,
+            elements: Vec::new(),
+        }
+    }
 }
 
 impl HeapTrace for Option<ArrayHeapData> {
     fn trace(&self, heap: &Heap) {
         assert!(self.is_some());
-        heap.objects[self.as_ref().unwrap().object_index as usize].trace(heap);
+        if let Some(object) = self.as_ref().unwrap().object {
+            heap.objects[object.id.get() as usize].trace(heap);
+        }
     }
     fn root(&self, _heap: &Heap) {
         assert!(self.is_some());

@@ -19,22 +19,28 @@ pub use symbol::SymbolHeapData;
 
 use self::heap_trace::HeapTrace;
 use crate::types::{Function, Number, Object, String, Value};
-use std::{cell::Cell, marker::PhantomData};
+use std::{cell::Cell, marker::PhantomData, num::NonZeroU32};
 use wtf8::{Wtf8, Wtf8Buf};
 
 /// A handle to GC-managed memory.
 #[derive(Clone)]
 pub struct Handle<T: 'static> {
-    id: u32,
+    id: NonZeroU32,
     _marker: &'static PhantomData<T>,
 }
 
 impl<T: 'static + Clone> Copy for Handle<T> {}
 
+impl<T: 'static> PartialEq for Handle<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
 impl<T: 'static> Handle<T> {
     pub fn new(id: u32) -> Self {
         Self {
-            id,
+            id: NonZeroU32::try_from(id).unwrap(),
             // SAFETY: We hopefully will make sure handles ar esafe.
             _marker: unsafe {
                 std::mem::transmute::<&PhantomData<T>, &'static PhantomData<T>>(
@@ -83,8 +89,9 @@ pub trait CreateHeapData<T, F> {
     fn create(&mut self, data: T) -> F;
 }
 
-pub trait GetHeapData<'a, T, F: 'a> {
-    fn get(&'a self, handle: Handle<T>) -> F;
+pub trait GetHeapData<'a, T, F> {
+    fn get(&'a self, handle: Handle<T>) -> &'a F;
+    fn get_mut(&'a mut self, handle: Handle<T>) -> &'a mut F;
 }
 
 impl CreateHeapData<f64, Number> for Heap {
@@ -100,17 +107,57 @@ impl CreateHeapData<f64, Number> for Heap {
     }
 }
 
-impl<'a> GetHeapData<'a, NumberHeapData, f64> for Heap {
-    fn get(&'a self, handle: Handle<NumberHeapData>) -> f64 {
-        self.numbers
-            .get(handle.id as usize)
-            .as_ref()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .data
-    }
+macro_rules! impl_heap_data {
+    ($table: ident, $in: ty, $out: ty) => {
+        impl<'a> GetHeapData<'a, $in, $out> for Heap {
+            fn get(&'a self, handle: Handle<$in>) -> &'a $out {
+                self.$table
+                    .get(handle.id.get() as usize)
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+            }
+
+            fn get_mut(&'a mut self, handle: Handle<$in>) -> &'a mut $out {
+                self.$table
+                    .get_mut(handle.id.get() as usize)
+                    .unwrap()
+                    .as_mut()
+                    .unwrap()
+            }
+        }
+    };
+    ($table: ident, $in: ty, $out: ty, $accessor: ident) => {
+        impl<'a> GetHeapData<'a, $in, $out> for Heap {
+            fn get(&'a self, handle: Handle<$in>) -> &'a $out {
+                &self
+                    .$table
+                    .get(handle.id.get() as usize)
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .$accessor
+            }
+
+            fn get_mut(&'a mut self, handle: Handle<$in>) -> &'a mut $out {
+                &mut self
+                    .$table
+                    .get_mut(handle.id.get() as usize)
+                    .unwrap()
+                    .as_mut()
+                    .unwrap()
+                    .$accessor
+            }
+        }
+    };
 }
+
+impl_heap_data!(numbers, NumberHeapData, f64, data);
+impl_heap_data!(objects, ObjectHeapData, ObjectHeapData);
+impl_heap_data!(strings, StringHeapData, Wtf8Buf, data);
+impl_heap_data!(functions, FunctionHeapData, FunctionHeapData);
+impl_heap_data!(arrays, ArrayHeapData, ArrayHeapData);
 
 impl CreateHeapData<&str, String> for Heap {
     fn create(&mut self, data: &str) -> String {
@@ -123,19 +170,6 @@ impl CreateHeapData<&str, String> for Heap {
     }
 }
 
-impl<'a> GetHeapData<'a, StringHeapData, &'a Wtf8> for Heap {
-    fn get(&'a self, handle: Handle<StringHeapData>) -> &'a Wtf8 {
-        let data = self
-            .strings
-            .get(handle.id as usize)
-            .as_ref()
-            .unwrap()
-            .as_ref()
-            .unwrap();
-        &data.data.slice(0, data.data.len())
-    }
-}
-
 impl CreateHeapData<FunctionHeapData, Function> for Heap {
     fn create(&mut self, data: FunctionHeapData) -> Function {
         let id = self.functions.len();
@@ -144,33 +178,11 @@ impl CreateHeapData<FunctionHeapData, Function> for Heap {
     }
 }
 
-impl<'a> GetHeapData<'a, FunctionHeapData, &'a FunctionHeapData> for Heap {
-    fn get(&'a self, handle: Handle<FunctionHeapData>) -> &'a FunctionHeapData {
-        self.functions
-            .get(handle.id as usize)
-            .as_ref()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-    }
-}
-
 impl CreateHeapData<ObjectHeapData, Object> for Heap {
     fn create(&mut self, data: ObjectHeapData) -> Object {
         let id: usize = self.functions.len();
         self.objects.push(Some(data));
         Object::new(Value::Object(Handle::new(id as u32)))
-    }
-}
-
-impl<'a> GetHeapData<'a, ObjectHeapData, &'a mut ObjectHeapData> for Heap {
-    fn get(&'a self, handle: Handle<ObjectHeapData>) -> &'a mut ObjectHeapData {
-        self.objects
-            .get_mut(handle.id as usize)
-            .as_ref()
-            .unwrap()
-            .as_mut()
-            .unwrap()
     }
 }
 
@@ -185,6 +197,14 @@ impl Heap {
             arrays: Vec::with_capacity(1024),
             functions: Vec::with_capacity(1024),
         };
+
+        heap.strings.push(Some(StringHeapData::dummy()));
+        heap.symbols.push(Some(SymbolHeapData::dummy()));
+        heap.numbers.push(Some(NumberHeapData::new(0.0)));
+        heap.bigints.push(Some(BigIntHeapData::dummy()));
+        heap.objects.push(Some(ObjectHeapData::dummy()));
+        heap.arrays.push(Some(ArrayHeapData::dummy()));
+        heap.functions.push(Some(FunctionHeapData::dummy()));
 
         heap
     }
@@ -215,35 +235,35 @@ impl Heap {
 
     fn complete_trace(&mut self) -> () {
         // TODO: Consider roots count
-        for object in self.objects.iter() {
+        for object in self.objects.iter().skip(1) {
             let Some(data) = object else {
                 continue;
             };
             data.bits.marked.set(false);
             data.bits.dirty.set(false);
         }
-        for string in self.strings.iter() {
+        for string in self.strings.iter().skip(1) {
             let Some(data) = string else {
                 continue;
             };
             data.bits.marked.set(false);
             data.bits.dirty.set(false);
         }
-        for symbol in self.symbols.iter() {
+        for symbol in self.symbols.iter().skip(1) {
             let Some(data) = symbol else {
                 continue;
             };
             data.bits.marked.set(false);
             data.bits.dirty.set(false);
         }
-        for number in self.numbers.iter() {
+        for number in self.numbers.iter().skip(1) {
             let Some(data) = number else {
                 continue;
             };
             data.bits.marked.set(false);
             data.bits.dirty.set(false);
         }
-        for bigint in self.bigints.iter() {
+        for bigint in self.bigints.iter().skip(1) {
             let Some(data) = bigint else {
                 continue;
             };
@@ -252,7 +272,7 @@ impl Heap {
         }
         stop_the_world();
         // Trace from dirty objects and symbols.
-        for object in self.objects.iter_mut() {
+        for object in self.objects.iter_mut().skip(1) {
             let Some(data) = object else {
                 continue;
             };
@@ -261,7 +281,7 @@ impl Heap {
                 let _ = object.take();
             }
         }
-        for string in self.strings.iter_mut() {
+        for string in self.strings.iter_mut().skip(1) {
             let Some(data) = string else {
                 continue;
             };
@@ -270,7 +290,7 @@ impl Heap {
                 let _ = string.take();
             }
         }
-        for symbol in self.symbols.iter_mut() {
+        for symbol in self.symbols.iter_mut().skip(1) {
             let Some(data) = symbol else {
                 continue;
             };
@@ -279,7 +299,7 @@ impl Heap {
                 let _ = symbol.take();
             }
         }
-        for number in self.numbers.iter_mut() {
+        for number in self.numbers.iter_mut().skip(1) {
             let Some(data) = number else {
                 continue;
             };
@@ -288,7 +308,7 @@ impl Heap {
                 let _ = number.take();
             }
         }
-        for bigint in self.bigints.iter_mut() {
+        for bigint in self.bigints.iter_mut().skip(1) {
             let Some(data) = bigint else {
                 continue;
             };
@@ -297,7 +317,7 @@ impl Heap {
                 let _ = bigint.take();
             }
         }
-        for object in self.objects.iter_mut() {
+        for object in self.objects.iter_mut().skip(1) {
             let Some(data) = object else {
 				continue;
 			};
@@ -306,7 +326,7 @@ impl Heap {
                 let _ = object.take();
             }
         }
-        for function in self.functions.iter_mut() {
+        for function in self.functions.iter_mut().skip(1) {
             let Some(data) = function else {
 				continue;
 			};
@@ -343,39 +363,39 @@ impl Heap {
 impl HeapTrace for Value {
     fn trace(&self, heap: &Heap) {
         match self {
-            &Value::String(handle) => heap.strings[handle.id as usize].trace(heap),
-            &Value::Symbol(handle) => heap.symbols[handle.id as usize].trace(heap),
-            &Value::Number(handle) => heap.numbers[handle.id as usize].trace(heap),
-            &Value::BigInt(handle) => heap.bigints[handle.id as usize].trace(heap),
-            &Value::Object(handle) => heap.objects[handle.id as usize].trace(heap),
-            &Value::ArrayObject(handle) => heap.arrays[handle.id as usize].trace(heap),
-            &Value::Function(handle) => heap.functions[handle.id as usize].trace(heap),
+            &Value::String(handle) => heap.strings[handle.id.get() as usize].trace(heap),
+            &Value::Symbol(handle) => heap.symbols[handle.id.get() as usize].trace(heap),
+            &Value::Number(handle) => heap.numbers[handle.id.get() as usize].trace(heap),
+            &Value::BigInt(handle) => heap.bigints[handle.id.get() as usize].trace(heap),
+            &Value::Object(handle) => heap.objects[handle.id.get() as usize].trace(heap),
+            &Value::ArrayObject(handle) => heap.arrays[handle.id.get() as usize].trace(heap),
+            &Value::Function(handle) => heap.functions[handle.id.get() as usize].trace(heap),
             _ => {}
         }
     }
 
     fn root(&self, heap: &Heap) {
         match self {
-            &Value::String(handle) => heap.strings[handle.id as usize].root(heap),
-            &Value::Symbol(handle) => heap.symbols[handle.id as usize].root(heap),
-            &Value::Number(handle) => heap.numbers[handle.id as usize].root(heap),
-            &Value::BigInt(handle) => heap.bigints[handle.id as usize].root(heap),
-            &Value::Object(handle) => heap.objects[handle.id as usize].root(heap),
-            &Value::ArrayObject(handle) => heap.arrays[handle.id as usize].root(heap),
-            &Value::Function(handle) => heap.functions[handle.id as usize].root(heap),
+            &Value::String(handle) => heap.strings[handle.id.get() as usize].root(heap),
+            &Value::Symbol(handle) => heap.symbols[handle.id.get() as usize].root(heap),
+            &Value::Number(handle) => heap.numbers[handle.id.get() as usize].root(heap),
+            &Value::BigInt(handle) => heap.bigints[handle.id.get() as usize].root(heap),
+            &Value::Object(handle) => heap.objects[handle.id.get() as usize].root(heap),
+            &Value::ArrayObject(handle) => heap.arrays[handle.id.get() as usize].root(heap),
+            &Value::Function(handle) => heap.functions[handle.id.get() as usize].root(heap),
             _ => {}
         }
     }
 
     fn unroot(&self, heap: &Heap) {
         match self {
-            &Value::String(handle) => heap.strings[handle.id as usize].unroot(heap),
-            &Value::Symbol(handle) => heap.symbols[handle.id as usize].unroot(heap),
-            &Value::Number(handle) => heap.numbers[handle.id as usize].unroot(heap),
-            &Value::BigInt(handle) => heap.bigints[handle.id as usize].unroot(heap),
-            &Value::Object(handle) => heap.objects[handle.id as usize].unroot(heap),
-            &Value::ArrayObject(handle) => heap.arrays[handle.id as usize].unroot(heap),
-            &Value::Function(handle) => heap.functions[handle.id as usize].unroot(heap),
+            &Value::String(handle) => heap.strings[handle.id.get() as usize].unroot(heap),
+            &Value::Symbol(handle) => heap.symbols[handle.id.get() as usize].unroot(heap),
+            &Value::Number(handle) => heap.numbers[handle.id.get() as usize].unroot(heap),
+            &Value::BigInt(handle) => heap.bigints[handle.id.get() as usize].unroot(heap),
+            &Value::Object(handle) => heap.objects[handle.id.get() as usize].unroot(heap),
+            &Value::ArrayObject(handle) => heap.arrays[handle.id.get() as usize].unroot(heap),
+            &Value::Function(handle) => heap.functions[handle.id.get() as usize].unroot(heap),
             _ => {}
         }
     }

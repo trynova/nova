@@ -1,5 +1,3 @@
-use std::{cell::RefCell, rc::Rc};
-
 use oxc_span::Atom;
 
 use crate::{

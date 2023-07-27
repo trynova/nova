@@ -25,7 +25,7 @@ impl Reference {
     /// 6.2.5.1 IsPropertyReference ( V )
     /// https://tc39.es/ecma262/#sec-ispropertyreference
     pub fn is_property_reference(self) -> bool {
-        match (self.base) {
+        match self.base {
             // 1. if V.[[Base]] is unresolvable, return false.
             Base::Unresolvable => false,
 

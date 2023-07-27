@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use crate::{
     heap::{heap_trace::HeapTrace, Heap, HeapBits},
-    types::PropertyDescriptor,
+    types::{PropertyDescriptor, PropertyKey},
 };
 
 #[derive(Debug, Clone)]
@@ -14,7 +16,25 @@ pub struct ObjectHeapData {
     // with functions and possible other special object cases we want to track with partially
     // separate heap fields later down the line.
     pub(crate) prototype: PropertyDescriptor,
-    // pub(crate) entries: Vec<ObjectEntry>,
+	// TODO: Consider using detached vectors for keys/descriptors.
+    pub(crate) entries: Vec<ObjectEntry>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ObjectEntry {
+    pub(crate) key: PropertyKey,
+    pub(crate) value: PropertyDescriptor,
+}
+
+impl ObjectHeapData {
+    pub fn dummy() -> Self {
+        Self {
+            bits: HeapBits::new(),
+            extensible: false,
+            prototype: PropertyDescriptor::default(),
+            entries: Vec::new(),
+        }
+    }
 }
 
 impl HeapTrace for Option<ObjectHeapData> {
