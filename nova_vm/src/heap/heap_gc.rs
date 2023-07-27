@@ -32,7 +32,9 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
                 marked.store(true, Ordering::Relaxed);
                 let heap_data = heap.arrays.get(index).unwrap().as_ref().unwrap();
-                queues.push_value(Value::Object(heap_data.object_index));
+                if let Some(object_index) = heap_data.object_index {
+                    queues.push_value(Value::Object(object_index));
+                }
                 let ElementsVector {
                     elements_index,
                     cap,

@@ -7,7 +7,7 @@ use super::Value;
 use crate::{
     builtins::ordinary,
     execution::{agent::ExceptionType, Agent, Intrinsics, JsResult},
-    heap::{indexes::ObjectIndex, GetHeapData},
+    heap::GetHeapData,
     types::PropertyDescriptor,
 };
 
@@ -41,17 +41,6 @@ impl Object {
         self.0
     }
 
-    pub fn into_object_handle(self) -> Option<ObjectIndex> {
-        let object = self.into_value();
-
-        match object {
-            Value::Object(handle) => Some(handle),
-            Value::Function(_) => None,
-            Value::Array(_) => None,
-            _ => unreachable!(),
-        }
-    }
-
     /// [[Extensible]]
     pub fn extensible(self, agent: &mut Agent) -> bool {
         let object = self.into_value();
@@ -83,18 +72,26 @@ impl Object {
     }
 
     /// [[Prototype]]
-    pub fn prototype(self, agent: &mut Agent) -> Option<Object> {
+    pub fn prototype(self, agent: &mut Agent) -> Option<Value> {
         let object = self.into_value();
+        let realm = agent.current_realm();
+        let realm = realm.borrow();
 
         match object {
             Value::Object(object) => {
-                let realm = agent.current_realm();
-                let realm = realm.borrow();
                 let object = realm.heap.get(object);
                 object.prototype.try_into().ok()
             }
-            Value::Array(_) => Some(Intrinsics::array_prototype()),
-            Value::Function(_) => Some(Intrinsics::function_prototype()),
+            Value::Array(array) => {
+                let array = realm.heap.get(array);
+
+                if let Some(object_index) = array.object_index {
+                    Some(realm.heap.get(object_index).prototype)
+                } else {
+                    Some(Intrinsics::array_prototype().into_value())
+                }
+            }
+            Value::Function(_) => Some(Intrinsics::function_prototype().into_value()),
             _ => unreachable!(),
         }
     }

@@ -34,7 +34,8 @@ fn get_prototype_of(agent: &mut Agent, object: Object) -> Option<Object> {
 /// https://tc39.es/ecma262/#sec-ordinarygetprototypeof
 pub fn ordinary_get_prototype_of(agent: &mut Agent, object: Object) -> Option<Object> {
     // 1. Return O.[[Prototype]].
-    object.prototype(agent)
+    // TODO: This is wrong.
+    Some(Object::new(object.prototype(agent).unwrap()))
 }
 
 /// 10.1.2 [[SetPrototypeOf]] ( V )
@@ -60,11 +61,7 @@ pub fn ordinary_set_prototype_of(
 
     // 2. If SameValue(V, current) is true, return true.
     match (prototype, current) {
-        (Some(prototype), Some(current))
-            if prototype
-                .into_value()
-                .same_value(agent, current.into_value()) =>
-        {
+        (Some(prototype), Some(current)) if prototype.into_value().same_value(agent, current) => {
             return Ok(true)
         }
         (None, None) => return Ok(true),
@@ -105,7 +102,8 @@ pub fn ordinary_set_prototype_of(
         }
 
         // ii. Else, set p to p.[[Prototype]].
-        parent_prototype_outer = parent_prototype.prototype(agent);
+        // TODO: This is wrong
+        parent_prototype_outer = Some(Object::new(parent_prototype.prototype(agent).unwrap()));
     }
 
     // 8. Set O.[[Prototype]] to V.
