@@ -7,6 +7,13 @@ use crate::{
 #[derive(Debug)]
 pub struct ArgumentsList<'a>(&'a [Value]);
 
+impl ArgumentsList<'_> {
+    #[inline]
+    pub fn get(&self, index: usize) -> Value {
+        *self.0.get(index).unwrap_or(&Value::Undefined)
+    }
+}
+
 pub type RegularFn = fn(&mut Agent, Value, ArgumentsList<'_>) -> JsResult<Value>;
 pub type ConstructorFn =
     fn(&mut Agent, Value, ArgumentsList<'_>, Option<Object>) -> JsResult<Value>;

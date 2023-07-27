@@ -137,7 +137,7 @@ impl Number {
         let x = self.into_value();
 
         match x {
-            Value::Number(n) => agent.current_realm().borrow().heap.get(n) == f64::INFINITY,
+            Value::Number(n) => *agent.current_realm().borrow().heap.get(n) == f64::INFINITY,
             Value::Integer(_) => false,
             Value::Float(n) => n == f32::INFINITY,
             _ => unreachable!(),
@@ -148,7 +148,7 @@ impl Number {
         let x = self.into_value();
 
         match x {
-            Value::Number(n) => agent.current_realm().borrow().heap.get(n) == f64::NEG_INFINITY,
+            Value::Number(n) => *agent.current_realm().borrow().heap.get(n) == f64::NEG_INFINITY,
             Value::Integer(_) => false,
             Value::Float(n) => n == f32::NEG_INFINITY,
             _ => unreachable!(),
@@ -171,7 +171,7 @@ impl Number {
 
         match x {
             Value::Number(n) => {
-                let n = agent.current_realm().borrow().heap.get(n);
+                let n = *agent.current_realm().borrow().heap.get(n);
                 !n.is_sign_negative() && !n.is_sign_positive()
             }
             Value::Integer(_) => true,
@@ -201,7 +201,7 @@ impl Number {
         let x = self.into_value();
 
         match x {
-            Value::Number(n) => agent.current_realm().borrow().heap.get(n),
+            Value::Number(n) => *agent.current_realm().borrow().heap.get(n),
             Value::Integer(n) => Into::<i64>::into(n) as f64,
             Value::Float(n) => n as f64,
             _ => unreachable!(),
@@ -220,18 +220,18 @@ impl Number {
                     == agent.current_realm().borrow().heap.get(y)
             }
             (Value::Number(x), Value::Integer(y)) => {
-                agent.current_realm().borrow().heap.get(x) == y.into_i64() as f64
+                *agent.current_realm().borrow().heap.get(x) == y.into_i64() as f64
             }
             (Value::Number(x), Value::Float(y)) => {
-                agent.current_realm().borrow().heap.get(x) == y as f64
+                *agent.current_realm().borrow().heap.get(x) == y as f64
             }
             (Value::Integer(x), Value::Number(y)) => {
-                (x.into_i64() as f64) == agent.current_realm().borrow().heap.get(y)
+                (x.into_i64() as f64) == *agent.current_realm().borrow().heap.get(y)
             }
             (Value::Integer(x), Value::Integer(y)) => x.into_i64() == y.into_i64(),
             (Value::Integer(x), Value::Float(y)) => (x.into_i64() as f64) == y as f64,
             (Value::Float(x), Value::Number(y)) => {
-                (x as f64) == agent.current_realm().borrow().heap.get(y)
+                (x as f64) == *agent.current_realm().borrow().heap.get(y)
             }
             (Value::Float(x), Value::Integer(y)) => (x as f64) == y.into_i64() as f64,
             (Value::Float(x), Value::Float(y)) => x == y,
@@ -244,7 +244,7 @@ impl Number {
 
         match x {
             Value::Number(n) => {
-                let n = agent.current_realm().borrow().heap.get(n);
+                let n = *agent.current_realm().borrow().heap.get(n);
                 n % 1.0 == 0.0 && n % 2.0 == 0.0
             }
             Value::Integer(n) => Into::<i64>::into(n) % 2 == 0,
@@ -258,7 +258,7 @@ impl Number {
 
         match x {
             Value::Number(n) => {
-                let n = agent.current_realm().borrow().heap.get(n);
+                let n = *agent.current_realm().borrow().heap.get(n);
                 if n > 0.0 {
                     self
                 } else {
@@ -292,7 +292,7 @@ impl Number {
             Value::Number(n) => {
                 let realm = agent.current_realm();
                 let mut realm = realm.borrow_mut();
-                let value = realm.heap.get(n);
+                let value = *realm.heap.get(n);
                 realm.heap.create(-value)
             }
             Value::Integer(n) => SmallInteger::from_i64_unchecked(-n.into_i64()).into(),
@@ -516,18 +516,18 @@ impl Number {
                     < agent.current_realm().borrow().heap.get(y)
             }
             (Value::Number(x), Value::Integer(y)) => {
-                agent.current_realm().borrow().heap.get(x) < y.into_i64() as f64
+                *agent.current_realm().borrow().heap.get(x) < y.into_i64() as f64
             }
             (Value::Number(x), Value::Float(y)) => {
-                agent.current_realm().borrow().heap.get(x) < y as f64
+                *agent.current_realm().borrow().heap.get(x) < y as f64
             }
             (Value::Integer(x), Value::Number(y)) => {
-                (x.into_i64() as f64) < agent.current_realm().borrow().heap.get(y)
+                (x.into_i64() as f64) < *agent.current_realm().borrow().heap.get(y)
             }
             (Value::Integer(x), Value::Integer(y)) => x.into_i64() < y.into_i64(),
             (Value::Integer(x), Value::Float(y)) => (x.into_i64() as f64) < y as f64,
             (Value::Float(x), Value::Number(y)) => {
-                (x as f64) < agent.current_realm().borrow().heap.get(y)
+                (x as f64) < *agent.current_realm().borrow().heap.get(y)
             }
             (Value::Float(x), Value::Integer(y)) => (x as f64) < y.into_i64() as f64,
             (Value::Float(x), Value::Float(y)) => x < y,

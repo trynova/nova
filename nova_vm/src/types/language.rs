@@ -8,6 +8,6 @@ mod value;
 pub use bigint::BigInt;
 pub use function::Function;
 pub use number::Number;
-pub use object::{InternalMethods, Object, ObjectData, PropertyKey};
+pub use object::{InternalMethods, Object, ObjectData, PropertyKey, PropertyStorage};
 pub use string::String;
 pub use value::Value;

@@ -10,8 +10,11 @@ pub type SetPrototypeOf =
     fn(agent: &mut Agent, object: Object, prototype: Option<Object>) -> JsResult<bool>;
 pub type IsExtensible = fn(agent: &mut Agent, object: Object) -> JsResult<bool>;
 pub type PreventExtensions = fn(agent: &mut Agent, object: Object) -> JsResult<bool>;
-pub type GetOwnProperty =
-    fn(agent: &mut Agent, object: Object, property_key: PropertyKey) -> JsResult<()>;
+pub type GetOwnProperty = fn(
+    agent: &mut Agent,
+    object: Object,
+    property_key: PropertyKey,
+) -> JsResult<Option<PropertyDescriptor>>;
 pub type DefineOwnProperty = fn(
     agent: &mut Agent,
     object: Object,

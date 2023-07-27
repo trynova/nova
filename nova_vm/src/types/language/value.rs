@@ -72,6 +72,12 @@ const _VALUE_SIZE_IS_WORD: () = assert!(size_of::<Value>() == size_of::<usize>()
 // We may also want to keep Option<Value> register sized so that eg. holes in arrays do not start requiring extra bookkeeping.
 const _OPTIONAL_VALUE_SIZE_IS_WORD: () = assert!(size_of::<Option<Value>>() == size_of::<usize>());
 
+impl Default for Value {
+    fn default() -> Self {
+        Value::Undefined
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum PreferredType {
     String,
@@ -389,11 +395,11 @@ impl Value {
         let int = number.truncate(agent).into_f64(agent);
 
         // 4. Let int32bit be int modulo 2^32.
-        let int32bit = int % 2f64.powf(32.0);
+        let int32bit = int % 2f64.powi(32);
 
         // 5. If int32bit ≥ 2^31, return 𝔽(int32bit - 2^32); otherwise return 𝔽(int32bit).
-        Ok(if int32bit >= 2f64.powf(32.0) {
-            int32bit - 2f64.powf(32.0)
+        Ok(if int32bit >= 2f64.powi(32) {
+            int32bit - 2f64.powi(32)
         } else {
             int32bit
         } as i32)
@@ -416,7 +422,7 @@ impl Value {
         let int = number.truncate(agent).into_f64(agent);
 
         // 4. Let int32bit be int modulo 2^32.
-        let int32bit = int % 2f64.powf(32.0);
+        let int32bit = int % 2f64.powi(32);
 
         // 5. Return 𝔽(int32bit).
         Ok(int32bit as u32)
@@ -439,11 +445,11 @@ impl Value {
         let int = number.truncate(agent).into_f64(agent);
 
         // 4. Let int16bit be int modulo 2^16.
-        let int16bit = int % 2f64.powf(16.0);
+        let int16bit = int % 2f64.powi(16);
 
         // 5. If int16bit ≥ 2^15, return 𝔽(int16bit - 2^16); otherwise return 𝔽(int16bit).
-        Ok(if int16bit >= 2f64.powf(15.0) {
-            int16bit - 2f64.powf(16.0)
+        Ok(if int16bit >= 2f64.powi(15) {
+            int16bit - 2f64.powi(16)
         } else {
             int16bit
         } as i16)
@@ -466,7 +472,7 @@ impl Value {
         let int = number.truncate(agent).into_f64(agent);
 
         // 4. Let int16bit be int modulo 2^16.
-        let int16bit = int % 2f64.powf(16.0);
+        let int16bit = int % 2f64.powi(16);
 
         // Return 𝔽(int16bit).
         Ok(int16bit as i16)
@@ -489,11 +495,11 @@ impl Value {
         let int = number.truncate(agent).into_f64(agent);
 
         // 4. Let int8bit be int modulo 2^8.
-        let int8bit = int % 2f64.powf(8.0);
+        let int8bit = int % 2f64.powi(8);
 
         // 5. If int8bit ≥ 2^7, return 𝔽(int8bit - 2^8); otherwise return 𝔽(int8bit).
-        Ok(if int8bit >= 2f64.powf(7.0) {
-            int8bit - 2f64.powf(8.0)
+        Ok(if int8bit >= 2f64.powi(7) {
+            int8bit - 2f64.powi(8)
         } else {
             int8bit
         } as i8)
@@ -516,7 +522,7 @@ impl Value {
         let int = number.truncate(agent).into_f64(agent);
 
         // 4. Let int8bit be int modulo 2^8.
-        let int8bit = int % 2f64.powf(8.0);
+        let int8bit = int % 2f64.powi(8);
 
         // 5. Return 𝔽(int8bit).
         Ok(int8bit as u8)

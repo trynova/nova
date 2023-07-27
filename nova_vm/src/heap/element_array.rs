@@ -4,7 +4,7 @@ use super::{
 };
 use crate::types::Value;
 use core::panic;
-use std::{collections::HashMap, mem::MaybeUninit, num::NonZeroU16};
+use std::{collections::HashMap, mem::MaybeUninit, num::NonZeroU16, vec};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ElementArrayKey {
@@ -821,5 +821,66 @@ impl ElementArrays {
                 len,
             },
         )
+    }
+
+    pub(crate) fn get<'a>(&'a self, vector: ElementsVector) -> () {
+        // match vector.cap {
+        //     ElementArrayKey::E4 => &self
+        //         .e2pow4
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     ElementArrayKey::E6 => &self
+        //         .e2pow6
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     ElementArrayKey::E8 => &self
+        //         .e2pow8
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     ElementArrayKey::E10 => &self
+        //         .e2pow10
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     ElementArrayKey::E12 => &self
+        //         .e2pow12
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     ElementArrayKey::E16 => &self
+        //         .e2pow16
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     ElementArrayKey::E24 => &self
+        //         .e2pow24
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     ElementArrayKey::E32 => &self
+        //         .e2pow32
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     _ => unreachable!(),
     }
 }

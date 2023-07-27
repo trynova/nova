@@ -44,7 +44,7 @@ use self::{
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
 use crate::types::{Function, Number, Object, String, Value};
-use wtf8::Wtf8;
+use wtf8::{Wtf8, Wtf8Buf};
 
 #[derive(Debug)]
 pub struct Heap {
@@ -72,7 +72,8 @@ pub trait CreateHeapData<T, F> {
 }
 
 pub trait GetHeapData<'a, T, F: 'a> {
-    fn get(&'a self, handle: BaseIndex<T>) -> F;
+    fn get(&'a self, id: BaseIndex<T>) -> &'a F;
+    fn get_mut(&'a mut self, id: BaseIndex<T>) -> &'a mut F;
 }
 
 impl CreateHeapData<f64, Number> for Heap {
@@ -88,17 +89,53 @@ impl CreateHeapData<f64, Number> for Heap {
     }
 }
 
-impl<'a> GetHeapData<'a, NumberHeapData, f64> for Heap {
-    fn get(&'a self, id: NumberIndex) -> f64 {
-        self.numbers
-            .get(id.into_index())
-            .as_ref()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .data
-    }
+macro_rules! impl_heap_data {
+    ($table: ident, $in: ty, $out: ty) => {
+        impl<'a> GetHeapData<'a, $in, $out> for Heap {
+            fn get(&'a self, id: BaseIndex<$in>) -> &'a $out {
+                self.$table.get(id.into_index()).unwrap().as_ref().unwrap()
+            }
+
+            fn get_mut(&'a mut self, id: BaseIndex<$in>) -> &'a mut $out {
+                self.$table
+                    .get_mut(id.into_index())
+                    .unwrap()
+                    .as_mut()
+                    .unwrap()
+            }
+        }
+    };
+    ($table: ident, $in: ty, $out: ty, $accessor: ident) => {
+        impl<'a> GetHeapData<'a, $in, $out> for Heap {
+            fn get(&'a self, id: BaseIndex<$in>) -> &'a $out {
+                &self
+                    .$table
+                    .get(id.into_index())
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .$accessor
+            }
+
+            fn get_mut(&'a mut self, id: BaseIndex<$in>) -> &'a mut $out {
+                &mut self
+                    .$table
+                    .get_mut(id.into_index())
+                    .unwrap()
+                    .as_mut()
+                    .unwrap()
+                    .$accessor
+            }
+        }
+    };
 }
+
+impl_heap_data!(numbers, NumberHeapData, f64, data);
+impl_heap_data!(objects, ObjectHeapData, ObjectHeapData);
+impl_heap_data!(strings, StringHeapData, Wtf8Buf, data);
+impl_heap_data!(functions, FunctionHeapData, FunctionHeapData);
+impl_heap_data!(arrays, ArrayHeapData, ArrayHeapData);
 
 impl CreateHeapData<&str, String> for Heap {
     fn create(&mut self, data: &str) -> String {
@@ -111,19 +148,6 @@ impl CreateHeapData<&str, String> for Heap {
     }
 }
 
-impl<'a> GetHeapData<'a, StringHeapData, &'a Wtf8> for Heap {
-    fn get(&'a self, id: StringIndex) -> &'a Wtf8 {
-        let data = self
-            .strings
-            .get(id.into_index())
-            .as_ref()
-            .unwrap()
-            .as_ref()
-            .unwrap();
-        &data.data.slice(0, data.data.len())
-    }
-}
-
 impl CreateHeapData<FunctionHeapData, Function> for Heap {
     fn create(&mut self, data: FunctionHeapData) -> Function {
         self.functions.push(Some(data));
@@ -131,32 +155,10 @@ impl CreateHeapData<FunctionHeapData, Function> for Heap {
     }
 }
 
-impl<'a> GetHeapData<'a, FunctionHeapData, &'a FunctionHeapData> for Heap {
-    fn get(&'a self, id: FunctionIndex) -> &'a FunctionHeapData {
-        self.functions
-            .get(id.into_index())
-            .as_ref()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-    }
-}
-
 impl CreateHeapData<ObjectHeapData, Object> for Heap {
     fn create(&mut self, data: ObjectHeapData) -> Object {
         self.objects.push(Some(data));
         Object::new(Value::Object(ObjectIndex::last(&self.objects)))
-    }
-}
-
-impl<'a> GetHeapData<'a, ObjectHeapData, &'a ObjectHeapData> for Heap {
-    fn get(&'a self, id: ObjectIndex) -> &'a ObjectHeapData {
-        self.objects
-            .get(id.into_index())
-            .as_ref()
-            .unwrap()
-            .as_ref()
-            .unwrap()
     }
 }
 

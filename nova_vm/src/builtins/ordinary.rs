@@ -140,18 +140,65 @@ fn prevent_extensions(agent: &mut Agent, object: Object) -> JsResult<bool> {
 /// https://tc39.es/ecma262/#sec-ordinarypreventextensions
 pub fn ordinary_prevent_extensions(agent: &mut Agent, object: Object) -> bool {
     // 1. Set O.[[Extensible]] to false.
-    todo!();
+    object.set_extensible(agent, false);
 
     // 2. Return true.
-    return true;
+    true
 }
 
-pub fn get_own_property(
+/// 10.1.5 [[GetOwnProperty]] ( P )
+/// https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-getownproperty-p
+fn get_own_property(
     agent: &mut Agent,
     object: Object,
     property_key: PropertyKey,
-) -> JsResult<()> {
-    todo!()
+) -> JsResult<Option<PropertyDescriptor>> {
+    // 1. Return OrdinaryGetOwnProperty(O, P).
+    Ok(ordinary_get_own_property(agent, object, property_key))
+}
+
+/// 10.1.5.1 OrdinaryGetOwnProperty ( O, P )
+/// https://tc39.es/ecma262/#sec-ordinarygetownproperty
+pub fn ordinary_get_own_property(
+    agent: &mut Agent,
+    object: Object,
+    property_key: PropertyKey,
+) -> Option<PropertyDescriptor> {
+    // 1. If O does not have an own property with key P, return undefined.
+    // 3. Let X be O's own property whose key is P.
+    let x = object.property_storage().get(agent, property_key)?;
+
+    // 2. Let D be a newly created Property Descriptor with no fields.
+    let mut descriptor = PropertyDescriptor::default();
+
+    // 4. If X is a data property, then
+    if x.is_data_descriptor() {
+        // a. Set D.[[Value]] to the value of X's [[Value]] attribute.
+        descriptor.value = x.value;
+
+        // b. Set D.[[Writable]] to the value of X's [[Writable]] attribute.
+        descriptor.writable = x.writable;
+    }
+    // 5. Else,
+    else {
+        // a. Assert: X is an accessor property.
+        debug_assert!(x.is_accessor_descriptor());
+
+        // b. Set D.[[Get]] to the value of X's [[Get]] attribute.
+        descriptor.get = x.get;
+
+        // c. Set D.[[Set]] to the value of X's [[Set]] attribute.
+        descriptor.set = x.set;
+    }
+
+    // 6. Set D.[[Enumerable]] to the value of X's [[Enumerable]] attribute.
+    descriptor.enumerable = x.enumerable;
+
+    // 7. Set D.[[Configurable]] to the value of X's [[Configurable]] attribute.
+    descriptor.configurable = x.configurable;
+
+    // 8. Return D.
+    Some(descriptor)
 }
 
 pub fn define_own_property(

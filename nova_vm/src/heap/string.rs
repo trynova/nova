@@ -14,6 +14,12 @@ pub(crate) struct StringHeapData {
 }
 
 impl StringHeapData {
+    pub fn dummy() -> Self {
+        Self {
+            data: Wtf8Buf::new(),
+        }
+    }
+
     pub fn from_str(str: &str) -> Self {
         StringHeapData {
             data: Wtf8Buf::from_str(str),
