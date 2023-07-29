@@ -589,8 +589,9 @@ else {
         if own_descriptor.writable == Some(false) {return Ok(false);}
 
         // b. If Receiver is not an Object, return false.
-        if !receiver.is_object() {return Ok(false);}
-        let receiver = Object::new(receiver);
+        let Ok(receiver) = Object::try_from(receiver) else {
+			return Ok(false);
+		};
 
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
         let existing_descriptor = ( receiver.internal_methods(agent).get_own_property)(

@@ -6,7 +6,7 @@ mod property_storage;
 use crate::{
     builtins::ordinary,
     execution::{agent::ExceptionType, Agent, Intrinsics, JsResult},
-    heap::{GetHeapData, Handle, ObjectHeapData},
+    heap::{ArrayHeapData, FunctionHeapData, GetHeapData, Handle, ObjectHeapData},
     types::PropertyDescriptor,
 };
 
@@ -19,70 +19,93 @@ pub use property_storage::PropertyStorage;
 /// 6.1.7 The Object Type
 /// https://tc39.es/ecma262/#sec-object-type
 #[derive(Debug, Clone, Copy)]
-pub struct Object(Value);
+pub enum Object {
+    Object(Handle<ObjectHeapData>),
+    Array(Handle<ArrayHeapData>),
+    Function(Handle<FunctionHeapData>),
+}
+
+impl From<Handle<ObjectHeapData>> for Object {
+    fn from(value: Handle<ObjectHeapData>) -> Self {
+        Object::Object(value)
+    }
+}
+
+impl From<Handle<ArrayHeapData>> for Object {
+    fn from(value: Handle<ArrayHeapData>) -> Self {
+        Object::Array(value)
+    }
+}
+
+impl From<Handle<FunctionHeapData>> for Object {
+    fn from(value: Handle<FunctionHeapData>) -> Self {
+        Object::Function(value)
+    }
+}
+
+impl From<Object> for Value {
+    fn from(value: Object) -> Self {
+        match value {
+            Object::Object(x) => Value::Object(x),
+            Object::Array(x) => Value::ArrayObject(x),
+            Object::Function(x) => Value::Function(x),
+        }
+    }
+}
 
 impl TryFrom<Value> for Object {
     type Error = ();
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        if let Value::Object(_) | Value::ArrayObject(_) | Value::Function(_) = value {
-            Ok(Self(value))
-        } else {
-            Err(())
+        match value {
+            Value::Object(x) => Ok(Object::Object(x)),
+            Value::ArrayObject(x) => Ok(Object::Array(x)),
+            Value::Function(x) => Ok(Object::Function(x)),
+            _ => Err(()),
         }
     }
 }
 
 impl Object {
-    pub(crate) fn new(value: Value) -> Self {
-        Self(value)
-    }
-
     pub fn into_value(self) -> Value {
-        self.0
+        self.into()
     }
 
     /// [[Extensible]]
     pub fn extensible(self, agent: &mut Agent) -> bool {
-        let object = self.into_value();
-
-        match object {
-            Value::Object(object) => agent.current_realm().borrow().heap.get(object).extensible,
-            Value::ArrayObject(_) => true,
-            Value::Function(_) => true,
-            _ => unreachable!(),
+        match self {
+            Object::Object(object) => agent.current_realm().borrow().heap.get(object).extensible,
+            Object::Array(_) => true,
+            Object::Function(_) => true,
         }
     }
 
     /// [[Extensible]]
     pub fn set_extensible(self, agent: &mut Agent, value: bool) {
-        let object = self.into_value();
-
-        match object {
-            Value::Object(object) => {
+        match self {
+            Object::Object(object) => {
                 let realm = agent.current_realm();
                 let mut realm = realm.borrow_mut();
                 let object = realm.heap.get_mut(object);
                 object.extensible = true;
             }
             // TODO: Correct object/function impl
-            Value::ArrayObject(_) => {}
-            Value::Function(_) => {}
+            Object::Array(_) => {}
+            Object::Function(_) => {}
             _ => unreachable!(),
         }
     }
 
     /// [[Prototype]]
     pub fn prototype(self, agent: &mut Agent) -> Option<Object> {
-        let object = self.into_value();
         let realm = agent.current_realm();
         let realm = realm.borrow();
 
-        match object {
-            Value::Object(object) => {
+        match self {
+            Object::Object(object) => {
                 let object = realm.heap.get(object);
                 object.prototype.value?.try_into().ok()
             }
-            Value::ArrayObject(array) => {
+            Object::Array(array) => {
                 let array = realm.heap.get(array);
 
                 if let Some(object) = array.object {
@@ -93,25 +116,21 @@ impl Object {
 
                 Some(Intrinsics::array_prototype())
             }
-            Value::Function(_) => Some(Intrinsics::function_prototype()),
-            _ => unreachable!(),
+            Object::Function(_) => Some(Intrinsics::function_prototype()),
         }
     }
 
     /// [[Prototype]]
     pub fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        let object = self.into_value();
-
-        match object {
-            Value::Object(object) => {
+        match self {
+            Object::Object(object) => {
                 let realm = agent.current_realm();
                 let mut realm = realm.borrow_mut();
                 let object = realm.heap.get_mut(object);
                 object.prototype.value = prototype.map(|object| object.into_value());
             }
-            Value::ArrayObject(_) => todo!(),
-            Value::Function(_) => todo!(),
-            _ => unreachable!(),
+            Object::Array(_) => todo!(),
+            Object::Function(_) => todo!(),
         }
     }
 

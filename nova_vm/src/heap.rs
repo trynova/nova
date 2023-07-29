@@ -38,14 +38,14 @@ impl<T: 'static> PartialEq for Handle<T> {
 }
 
 impl<T: 'static> Handle<T> {
-    pub fn new(id: u32) -> Self {
+    /// Id must not be 0.
+    pub const fn new(id: u32) -> Self {
+        debug_assert!(id != 0);
         Self {
-            id: NonZeroU32::try_from(id).unwrap(),
-            // SAFETY: We hopefully will make sure handles ar esafe.
+            id: unsafe { NonZeroU32::new_unchecked(id) },
+            // SAFETY: We hopefully will make sure handles are safe.
             _marker: unsafe {
-                std::mem::transmute::<&PhantomData<T>, &'static PhantomData<T>>(
-                    &PhantomData::default(),
-                )
+                std::mem::transmute::<&PhantomData<T>, &'static PhantomData<T>>(&PhantomData)
             },
         }
     }
@@ -174,7 +174,7 @@ impl CreateHeapData<FunctionHeapData, Function> for Heap {
     fn create(&mut self, data: FunctionHeapData) -> Function {
         let id = self.functions.len();
         self.functions.push(Some(data));
-        Function::new(Value::Function(Handle::new(id as u32)))
+        Function(Handle::new(id as u32))
     }
 }
 
@@ -182,7 +182,7 @@ impl CreateHeapData<ObjectHeapData, Object> for Heap {
     fn create(&mut self, data: ObjectHeapData) -> Object {
         let id: usize = self.functions.len();
         self.objects.push(Some(data));
-        Object::new(Value::Object(Handle::new(id as u32)))
+        Object::Object(Handle::new(id as u32))
     }
 }
 
