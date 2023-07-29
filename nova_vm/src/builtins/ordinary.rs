@@ -16,7 +16,7 @@ pub static METHODS: InternalMethods = InternalMethods {
     get,
     set,
     delete,
-	own_property_keys,
+    own_property_keys,
     // call: todo!(),
     // construct: todo!(),
     call: None,
@@ -227,7 +227,14 @@ pub fn ordinary_define_own_property(
     let extensible = object.extensible(agent);
 
     // 3. Return ValidateAndApplyPropertyDescriptor(O, P, extensible, Desc, current).
-    validate_and_apply_property_descriptor(agent, Some(object), property_key, extensible, descriptor, current)
+    validate_and_apply_property_descriptor(
+        agent,
+        Some(object),
+        property_key,
+        extensible,
+        descriptor,
+        current,
+    )
 }
 
 /// 10.1.6.3 ValidateAndApplyPropertyDescriptor ( O, P, extensible, Desc, current )
@@ -292,7 +299,6 @@ fn validate_and_apply_property_descriptor(
         return Ok(true);
     };
 
-
     // 3. Assert: current is a fully populated Property Descriptor.
     debug_assert!(current.is_fully_populated());
 
@@ -314,11 +320,13 @@ fn validate_and_apply_property_descriptor(
             if descriptor.enumerable != current.enumerable {
                 return Ok(false);
             }
-        } 
+        }
 
         // c. If IsGenericDescriptor(Desc) is false and SameValue(IsAccessorDescriptor(Desc), IsAccessorDescriptor(current))
         //    is false, return false.
-        if !descriptor.is_generic_descriptor() && descriptor.is_accessor_descriptor() != current.is_accessor_descriptor() {
+        if !descriptor.is_generic_descriptor()
+            && descriptor.is_accessor_descriptor() != current.is_accessor_descriptor()
+        {
             return Ok(false);
         }
 
@@ -328,8 +336,11 @@ fn validate_and_apply_property_descriptor(
             //    return false.
             if let Some(desc_get) = descriptor.get {
                 if let Some(cur_get) = current.get {
-                    if !desc_get.into_value().same_value(agent, cur_get.into_value()) {
-                            return Ok(false);
+                    if !desc_get
+                        .into_value()
+                        .same_value(agent, cur_get.into_value())
+                    {
+                        return Ok(false);
                     }
                 } else {
                     return Ok(false);
@@ -340,7 +351,10 @@ fn validate_and_apply_property_descriptor(
             //     false, return false.
             if let Some(desc_set) = descriptor.set {
                 if let Some(cur_set) = current.set {
-                    if !desc_set.into_value().same_value(agent, cur_set.into_value()) {
+                    if !desc_set
+                        .into_value()
+                        .same_value(agent, cur_set.into_value())
+                    {
                         return Ok(false);
                     }
                 } else {
@@ -375,34 +389,46 @@ fn validate_and_apply_property_descriptor(
         if current.is_data_descriptor() && descriptor.is_accessor_descriptor() {
             // i. If Desc has a [[Configurable]] field, let configurable be Desc.[[Configurable]];
             //    else let configurable be current.[[Configurable]].
-            let configurable = descriptor.configurable.unwrap_or_else(|| current.configurable.unwrap());
+            let configurable = descriptor
+                .configurable
+                .unwrap_or_else(|| current.configurable.unwrap());
 
             // ii. If Desc has a [[Enumerable]] field, let enumerable be Desc.[[Enumerable]]; else
             //     let enumerable be current.[[Enumerable]].
-            let enumerable = descriptor.enumerable.unwrap_or_else(|| current.enumerable.unwrap());
+            let enumerable = descriptor
+                .enumerable
+                .unwrap_or_else(|| current.enumerable.unwrap());
 
             // iii. Replace the property named P of object O with an accessor property whose
             //      [[Configurable]] and [[Enumerable]] attributes are set to configurable and
             //      enumerable, respectively, and whose [[Get]] and [[Set]] attributes are set to
             //      the value of the corresponding field in Desc if Desc has that field, or to the
             //      attribute's default value otherwise.
-            object.property_storage().set(agent, property_key, PropertyDescriptor{
-                get: descriptor.get,
-                set: descriptor.set,
-                enumerable: Some(enumerable),
-                configurable: Some(configurable),
-                ..Default::default()
-            });
+            object.property_storage().set(
+                agent,
+                property_key,
+                PropertyDescriptor {
+                    get: descriptor.get,
+                    set: descriptor.set,
+                    enumerable: Some(enumerable),
+                    configurable: Some(configurable),
+                    ..Default::default()
+                },
+            );
         }
         // b. Else if IsAccessorDescriptor(current) is true and IsDataDescriptor(Desc) is true, then
         else if current.is_accessor_descriptor() && descriptor.is_data_descriptor() {
             // i. If Desc has a [[Configurable]] field, let configurable be Desc.[[Configurable]];
             //    else let configurable be current.[[Configurable]].
-            let configurable = descriptor.configurable.unwrap_or_else(|| current.configurable.unwrap());
+            let configurable = descriptor
+                .configurable
+                .unwrap_or_else(|| current.configurable.unwrap());
 
             // ii. If Desc has a [[Enumerable]] field, let enumerable be Desc.[[Enumerable]]; else
             //     let enumerable be current.[[Enumerable]].
-            let enumerable = descriptor.enumerable.unwrap_or_else(|| current.enumerable.unwrap());
+            let enumerable = descriptor
+                .enumerable
+                .unwrap_or_else(|| current.enumerable.unwrap());
 
             // iii. Replace the property named P of object O with a data property whose
             //      [[Configurable]] and [[Enumerable]] attributes are set to configurable and
@@ -415,27 +441,35 @@ fn validate_and_apply_property_descriptor(
             //     .enumerable = enumerable,
             //     .configurable = configurable,
             // });
-            object.property_storage().set(agent, property_key, PropertyDescriptor{
-                value: Some(descriptor.value.unwrap_or(Value::Undefined)),
-                writable: Some(descriptor.writable.unwrap_or(false)),
-                enumerable: Some(enumerable),
-                configurable: Some(configurable),
-                ..Default::default()
-            });
+            object.property_storage().set(
+                agent,
+                property_key,
+                PropertyDescriptor {
+                    value: Some(descriptor.value.unwrap_or(Value::Undefined)),
+                    writable: Some(descriptor.writable.unwrap_or(false)),
+                    enumerable: Some(enumerable),
+                    configurable: Some(configurable),
+                    ..Default::default()
+                },
+            );
         }
         // c. Else,
         else {
             // i. For each field of Desc, set the corresponding attribute of the property named P
             //    of object O to the value of the field.
-            object.property_storage().set(agent, property_key, PropertyDescriptor{
-                value: descriptor.value.or(current.value),
-                writable: Some(descriptor.writable.unwrap_or(false)),
-                get: descriptor.get.or(current.get),
-                set: descriptor.set.or(current.set),
-                enumerable: descriptor.enumerable.or(current.enumerable),
-                configurable: descriptor.configurable.or(current.configurable),
-                ..Default::default()
-            });
+            object.property_storage().set(
+                agent,
+                property_key,
+                PropertyDescriptor {
+                    value: descriptor.value.or(current.value),
+                    writable: Some(descriptor.writable.unwrap_or(false)),
+                    get: descriptor.get.or(current.get),
+                    set: descriptor.set.or(current.set),
+                    enumerable: descriptor.enumerable.or(current.enumerable),
+                    configurable: descriptor.configurable.or(current.configurable),
+                    ..Default::default()
+                },
+            );
         }
     }
 
@@ -445,14 +479,22 @@ fn validate_and_apply_property_descriptor(
 
 /// 10.1.7 [[HasProperty]] ( P )
 /// https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-hasproperty-p
-pub fn has_property(agent: &mut Agent, object: Object, property_key: PropertyKey) -> JsResult<bool> {
+pub fn has_property(
+    agent: &mut Agent,
+    object: Object,
+    property_key: PropertyKey,
+) -> JsResult<bool> {
     // 1. Return ? OrdinaryHasProperty(O, P).
     ordinary_has_property(agent, object, property_key)
 }
 
 /// 10.1.7.1 OrdinaryHasProperty ( O, P )
 /// https://tc39.es/ecma262/#sec-ordinaryhasproperty
-pub fn ordinary_has_property(agent: &mut Agent, object: Object, property_key: PropertyKey) -> JsResult<bool> {
+pub fn ordinary_has_property(
+    agent: &mut Agent,
+    object: Object,
+    property_key: PropertyKey,
+) -> JsResult<bool> {
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
     let has_own = (object.internal_methods(agent).get_own_property)(agent, object, property_key)?;
 
@@ -476,14 +518,24 @@ pub fn ordinary_has_property(agent: &mut Agent, object: Object, property_key: Pr
 
 /// 10.1.8 [[Get]] ( P, Receiver )
 /// https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-get-p-receiver
-fn get(agent: &mut Agent, object: Object, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
+fn get(
+    agent: &mut Agent,
+    object: Object,
+    property_key: PropertyKey,
+    receiver: Value,
+) -> JsResult<Value> {
     // 1. Return ? OrdinaryGet(O, P, Receiver).
     ordinary_get(agent, object, property_key, receiver)
 }
 
 /// 10.1.8.1 OrdinaryGet ( O, P, Receiver )
 /// https://tc39.es/ecma262/#sec-ordinaryget
-pub fn ordinary_get(agent: &mut Agent, object: Object, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
+pub fn ordinary_get(
+    agent: &mut Agent,
+    object: Object,
+    property_key: PropertyKey,
+    receiver: Value,
+) -> JsResult<Value> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let Some(descriptor) = (object.internal_methods(agent).get_own_property)(agent, object, property_key)? else {
         // 2. If desc is undefined, then
@@ -516,10 +568,15 @@ pub fn ordinary_get(agent: &mut Agent, object: Object, property_key: PropertyKey
     todo!()
 }
 
-
 /// 10.1.9 [[Set]] ( P, V, Receiver )
 /// https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-set-p-v-receiver
-fn set(agent: &mut Agent, object: Object, property_key: PropertyKey, value: Value, receiver: Value) -> JsResult<bool> {
+fn set(
+    agent: &mut Agent,
+    object: Object,
+    property_key: PropertyKey,
+    value: Value,
+    receiver: Value,
+) -> JsResult<bool> {
     // 1. Return ? OrdinarySet(O, P, V, Receiver).
     ordinary_set(agent, object, property_key, value, receiver)
 }
@@ -534,7 +591,8 @@ pub fn ordinary_set(
     receiver: Value,
 ) -> JsResult<bool> {
     // 1. Let ownDesc be ? O.[[GetOwnProperty]](P).
-    let own_descriptor = (object.internal_methods(agent).get_own_property)(agent, object, property_key)?;
+    let own_descriptor =
+        (object.internal_methods(agent).get_own_property)(agent, object, property_key)?;
 
     // 2. Return ? OrdinarySetWithOwnDescriptor(O, P, V, Receiver, ownDesc).
     ordinary_set_with_own_descriptor(agent, object, property_key, value, receiver, own_descriptor)
@@ -549,44 +607,46 @@ pub fn ordinary_set_with_own_descriptor(
     value: Value,
     receiver: Value,
     own_descriptor: Option<PropertyDescriptor>,
-) ->JsResult<bool> {
+) -> JsResult<bool> {
     let own_descriptor = if let Some(own_descriptor) = own_descriptor {
         own_descriptor
     } else {
         // 1. If ownDesc is undefined, then
-// a. Let parent be ? O.[[GetPrototypeOf]]().
-let parent = (object.internal_methods(agent).get_prototype_of)(agent, object);
+        // a. Let parent be ? O.[[GetPrototypeOf]]().
+        let parent = (object.internal_methods(agent).get_prototype_of)(agent, object);
 
-// b. If parent is not null, then
-if let Some(parent)  = parent {
-    // i. Return ? parent.[[Set]](P, V, Receiver).
-    return (parent.internal_methods(agent).set)(
-        agent,
-        parent,
-        property_key,
-        value,
-        receiver,
-    );
-}
-// c. Else,
-else {
-    // i. Set ownDesc to the PropertyDescriptor {
-    //      [[Value]]: undefined, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: true
-    //    }.
-    PropertyDescriptor{
-        value: Some(Value::Undefined),
-        writable: Some(true),
-        enumerable: Some(true),
-        configurable: Some(true),
-        ..Default::default()
-    }
-}
+        // b. If parent is not null, then
+        if let Some(parent) = parent {
+            // i. Return ? parent.[[Set]](P, V, Receiver).
+            return (parent.internal_methods(agent).set)(
+                agent,
+                parent,
+                property_key,
+                value,
+                receiver,
+            );
+        }
+        // c. Else,
+        else {
+            // i. Set ownDesc to the PropertyDescriptor {
+            //      [[Value]]: undefined, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: true
+            //    }.
+            PropertyDescriptor {
+                value: Some(Value::Undefined),
+                writable: Some(true),
+                enumerable: Some(true),
+                configurable: Some(true),
+                ..Default::default()
+            }
+        }
     };
 
     // 2. If IsDataDescriptor(ownDesc) is true, then
     if own_descriptor.is_data_descriptor() {
         // a. If ownDesc.[[Writable]] is false, return false.
-        if own_descriptor.writable == Some(false) {return Ok(false);}
+        if own_descriptor.writable == Some(false) {
+            return Ok(false);
+        }
 
         // b. If Receiver is not an Object, return false.
         let Ok(receiver) = Object::try_from(receiver) else {
@@ -594,22 +654,26 @@ else {
 		};
 
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
-        let existing_descriptor = ( receiver.internal_methods(agent).get_own_property)(
-            agent,
-            receiver,
-            property_key,
-        )?;
+        let existing_descriptor =
+            (receiver.internal_methods(agent).get_own_property)(agent, receiver, property_key)?;
 
         // d. If existingDescriptor is not undefined, then
         if let Some(existing_descriptor) = existing_descriptor {
             // i. If IsAccessorDescriptor(existingDescriptor) is true, return false.
-            if existing_descriptor.is_accessor_descriptor() {return Ok(false);}
+            if existing_descriptor.is_accessor_descriptor() {
+                return Ok(false);
+            }
 
             // ii. If existingDescriptor.[[Writable]] is false, return false.
-            if existing_descriptor.writable == Some(false) {return Ok(false);}
+            if existing_descriptor.writable == Some(false) {
+                return Ok(false);
+            }
 
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
-            let value_descriptor = PropertyDescriptor{ value: Some(value), ..Default::default() };
+            let value_descriptor = PropertyDescriptor {
+                value: Some(value),
+                ..Default::default()
+            };
 
             // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
             return (receiver.internal_methods(agent).define_own_property)(
@@ -652,9 +716,14 @@ fn delete(agent: &mut Agent, object: Object, property_key: PropertyKey) -> JsRes
 
 /// 10.1.10.1 OrdinaryDelete ( O, P )
 /// https://tc39.es/ecma262/#sec-ordinarydelete
-pub fn ordinary_delete(agent: &mut Agent, object: Object, property_key: PropertyKey) -> JsResult<bool> {
+pub fn ordinary_delete(
+    agent: &mut Agent,
+    object: Object,
+    property_key: PropertyKey,
+) -> JsResult<bool> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let descriptor = (object.internal_methods(agent).get_own_property)(agent, object, property_key)?;
+    let descriptor =
+        (object.internal_methods(agent).get_own_property)(agent, object, property_key)?;
 
     // 2. If desc is undefined, return true.
     let Some(descriptor) = descriptor else {
@@ -689,12 +758,12 @@ pub fn ordinary_own_property_keys(agent: &mut Agent, object: Object) -> JsResult
 
     // 2. For each own property key P of O such that P is an array index, in ascending numeric
     //    index order, do
-	// for entry in object.property_storage().entries(agent) {
-	// 	if entry.key.is_array_index() {
-	// 		// a. Append P to keys.
-	// 		keys.push(entry.key);
-	// 	}
-	// }
+    // for entry in object.property_storage().entries(agent) {
+    // 	if entry.key.is_array_index() {
+    // 		// a. Append P to keys.
+    // 		keys.push(entry.key);
+    // 	}
+    // }
 
     // for (object.property_storage().hash_map.keys()) |property_key| {
     //     if (property_key.is_array_index()) {
