@@ -25,21 +25,16 @@ impl ArrayHeapData {
 impl HeapTrace for Option<ArrayHeapData> {
     fn trace(&self, heap: &Heap) {
         assert!(self.is_some());
-        if let Some(object) = self.as_ref().unwrap().object {
-            match object.into_value() {
-                Value::Object(object) => {
-                    let object = heap.get(object);
 
-                    if let Some(value) = object.prototype.value {}
-                }
-                Value::ArrayObject(array) => {
-                    let array = heap.get(array);
+        let data = self.as_ref().unwrap();
 
-                    if let Some(object) = array.object {
-						object.internal_methods(agent).
-                    }
-                }
-                _ => unreachable!(),
+        if let Some(object) = data.object {
+            object.into_value().trace(heap);
+        }
+
+        for value in data.elements.iter() {
+            if let Some(value) = value {
+                value.trace(heap);
             }
         }
     }

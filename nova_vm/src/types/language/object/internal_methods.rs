@@ -10,14 +10,17 @@ pub type SetPrototypeOf =
     fn(agent: &mut Agent, object: Object, prototype: Option<Object>) -> JsResult<bool>;
 pub type IsExtensible = fn(agent: &mut Agent, object: Object) -> JsResult<bool>;
 pub type PreventExtensions = fn(agent: &mut Agent, object: Object) -> JsResult<bool>;
-pub type GetOwnProperty =
-    fn(agent: &mut Agent, object: Object, property_key: PropertyKey) -> JsResult<()>;
+pub type GetOwnProperty = fn(
+    agent: &mut Agent,
+    object: Object,
+    property_key: PropertyKey,
+) -> JsResult<Option<PropertyDescriptor>>;
 pub type DefineOwnProperty = fn(
     agent: &mut Agent,
     object: Object,
     property_key: PropertyKey,
     property_descriptor: PropertyDescriptor,
-) -> bool;
+) -> JsResult<bool>;
 pub type HasProperty =
     fn(agent: &mut Agent, object: Object, property_key: PropertyKey) -> JsResult<bool>;
 pub type Get = fn(
@@ -26,8 +29,13 @@ pub type Get = fn(
     property_key: PropertyKey,
     receiver: Value,
 ) -> JsResult<Value>;
-pub type Set =
-    fn(object: Object, property_key: PropertyKey, value: Value, receiver: Value) -> JsResult<bool>;
+pub type Set = fn(
+    agent: &mut Agent,
+    object: Object,
+    property_key: PropertyKey,
+    value: Value,
+    receiver: Value,
+) -> JsResult<bool>;
 pub type Delete =
     fn(agent: &mut Agent, object: Object, property_key: PropertyKey) -> JsResult<bool>;
 pub type OwnPropertyKeys = fn(agent: &mut Agent, object: Object) -> JsResult<Vec<PropertyKey>>;

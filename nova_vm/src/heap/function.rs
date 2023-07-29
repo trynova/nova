@@ -1,14 +1,14 @@
 use super::{heap_trace::HeapTrace, Handle, HeapBits, ObjectHeapData};
 use crate::{
     builtins::{todo_builtin, Behaviour},
-    types::Value,
+    types::{Object, Value},
     Heap,
 };
 
 #[derive(Debug, Clone)]
 pub struct FunctionHeapData {
     pub(crate) bits: HeapBits,
-    pub(crate) object: Handle<ObjectHeapData>,
+    pub(crate) object: Option<Object>,
     pub(crate) initial_name: Value,
     pub(crate) length: i64,
     pub(crate) behaviour: Behaviour,
@@ -23,7 +23,7 @@ impl FunctionHeapData {
     pub fn dummy() -> Self {
         Self {
             bits: HeapBits::new(),
-            object: Handle::new(0),
+            object: None,
             initial_name: Value::Null,
             length: 0,
             behaviour: Behaviour::Regular(todo_builtin),
@@ -34,7 +34,10 @@ impl FunctionHeapData {
 impl HeapTrace for Option<FunctionHeapData> {
     fn trace(&self, heap: &Heap) {
         assert!(self.is_some());
-        heap.objects[self.as_ref().unwrap().object.id.get() as usize].trace(heap);
+
+        if let Some(object) = self.as_ref().unwrap().object {
+            object.into_value().trace(heap);
+        }
     }
     fn root(&self, _heap: &Heap) {
         assert!(self.is_some());

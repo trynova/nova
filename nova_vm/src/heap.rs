@@ -13,7 +13,7 @@ pub use bigint::BigIntHeapData;
 pub use function::FunctionHeapData;
 pub use heap_constants::BuiltinObjectIndexes;
 pub use number::NumberHeapData;
-pub use object::ObjectHeapData;
+pub use object::{ObjectEntry, ObjectHeapData};
 pub use string::StringHeapData;
 pub use symbol::SymbolHeapData;
 
@@ -165,7 +165,7 @@ impl CreateHeapData<&str, String> for Heap {
             value
         } else {
             let id = self.alloc_string(data);
-            String::new(Value::String(Handle::new(id)))
+            String::from(Handle::new(id))
         }
     }
 }

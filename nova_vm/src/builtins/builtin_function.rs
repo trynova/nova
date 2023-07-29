@@ -83,13 +83,13 @@ pub fn create_builtin_function<'a, 'b: 'a>(
         // 8. Set func.[[Realm]] to realm.
         // NOTE: Heap data is implicitly attached to the Realm so I don't think
         //       this matters.
-		entries: Vec::new(),
+        entries: Vec::new(),
     });
 
     let initial_name = realm.heap.create(args.name).into_value();
     let func = realm.heap.create(FunctionHeapData {
         bits: HeapBits::new(),
-        object: object.into_object_handle().unwrap(),
+        object: None,
         behaviour,
         // TODO: 9. Set func.[[InitialName]] to null.
         // NOTE: This is non-standard.

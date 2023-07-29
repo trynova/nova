@@ -93,4 +93,20 @@ impl PropertyDescriptor {
         // 10. Return obj.
         todo!()
     }
+
+    pub fn is_fully_populated(&self) -> bool {
+        ((self.value.is_some() && self.writable.is_some())
+            || (self.get.is_some() && self.set.is_some()))
+            && self.enumerable.is_some()
+            && self.configurable.is_some()
+    }
+
+    pub fn has_fields(&self) -> bool {
+        self.value.is_some()
+            || self.writable.is_some()
+            || self.get.is_some()
+            || self.set.is_some()
+            || self.enumerable.is_some()
+            || self.configurable.is_some()
+    }
 }

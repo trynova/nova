@@ -29,6 +29,11 @@ impl PropertyKey {
         self.0
     }
 
+    pub fn is_array_index(self) -> bool {
+        // TODO: string check
+        matches!(self.into_value(), Value::IntegerNumber(_))
+    }
+
     pub(self) fn is_str_eq_num(s: &str, n: i64) -> bool {
         let (s, mut n) = if s.starts_with("-") {
             if n > 0 {

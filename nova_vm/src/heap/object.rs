@@ -16,7 +16,7 @@ pub struct ObjectHeapData {
     // with functions and possible other special object cases we want to track with partially
     // separate heap fields later down the line.
     pub(crate) prototype: PropertyDescriptor,
-	// TODO: Consider using detached vectors for keys/descriptors.
+    // TODO: Consider using detached vectors for keys/descriptors.
     pub(crate) entries: Vec<ObjectEntry>,
 }
 
@@ -41,47 +41,25 @@ impl HeapTrace for Option<ObjectHeapData> {
     fn trace(&self, heap: &Heap) {
         assert!(self.is_some());
         let data = self.as_ref().unwrap();
+
         let dirty = data.bits.dirty.replace(false);
         let marked = data.bits.marked.replace(true);
+
         if marked && !dirty {
             // Do not keep recursing into already-marked heap values.
             return;
         }
-        // match &data.prototype {
-        //     PropertyDescriptor::Data { value, .. } => value.trace(heap),
-        //     PropertyDescriptor::Blocked { .. } => {}
-        //     PropertyDescriptor::ReadOnly { get, .. } => {
-        //         heap.functions[*get as usize].trace(heap);
-        //     }
-        //     PropertyDescriptor::WriteOnly { set, .. } => {
-        //         heap.functions[*set as usize].trace(heap);
-        //     }
-        //     PropertyDescriptor::ReadWrite { get, set, .. } => {
-        //         heap.functions[*get as usize].trace(heap);
-        //         heap.functions[*set as usize].trace(heap);
-        //     }
-        // }
-        // for reference in data.entries.iter() {
-        //     match reference.key {
-        //         PropertyKey::SmallAsciiString(_) | PropertyKey::Smi(_) => {}
-        //         PropertyKey::String(idx) => heap.strings[idx as usize].trace(heap),
-        //         PropertyKey::Symbol(idx) => heap.symbols[idx as usize].trace(heap),
-        //     }
-        //     match &reference.value {
-        //         PropertyDescriptor::Data { value, .. } => value.trace(heap),
-        //         PropertyDescriptor::Blocked { .. } => {}
-        //         PropertyDescriptor::ReadOnly { get, .. } => {
-        //             heap.functions[*get as usize].trace(heap);
-        //         }
-        //         PropertyDescriptor::WriteOnly { set, .. } => {
-        //             heap.functions[*set as usize].trace(heap);
-        //         }
-        //         PropertyDescriptor::ReadWrite { get, set, .. } => {
-        //             heap.functions[*get as usize].trace(heap);
-        //             heap.functions[*set as usize].trace(heap);
-        //         }
-        //     }
-        // }
+
+        if let Some(value) = data.prototype.value {
+            value.trace(heap);
+        }
+
+        for entry in data.entries.iter() {
+            entry.key.into_value().trace(heap);
+            if let Some(value) = entry.value.value {
+                value.trace(heap);
+            }
+        }
     }
 
     fn root(&self, _heap: &Heap) {
