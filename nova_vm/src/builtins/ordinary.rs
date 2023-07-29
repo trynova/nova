@@ -659,10 +659,9 @@ pub fn ordinary_set_with_own_descriptor(
         }
 
         // b. If Receiver is not an Object, return false.
-        if !receiver.is_object() {
+        let Ok(receiver) = Object::try_from(receiver) else {
             return Ok(false);
-        }
-        let receiver = Object::new(receiver);
+        };
 
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
         let existing_descriptor =

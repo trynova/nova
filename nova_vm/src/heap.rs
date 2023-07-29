@@ -268,7 +268,7 @@ impl Heap {
             // behaviour,
             // bound: None,
             length,
-            object_index: ObjectIndex::last(&self.objects),
+            object_index: Some(ObjectIndex::last(&self.objects)),
             // uses_arguments,
             // visible: None,
             initial_name: Value::Null,
