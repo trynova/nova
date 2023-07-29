@@ -17,7 +17,7 @@ impl SmallString {
             .iter()
             .rev()
             .position(|&x| x != 0)
-            .unwrap_or(7)
+            .map_or(0, |i| 7 - i)
     }
 
     #[inline]

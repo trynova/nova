@@ -1,7 +1,6 @@
 use clap::{Parser as ClapParser, Subcommand};
-use nova_vm::heap::Heap;
-use oxc_ast::SourceType;
 use oxc_parser::Parser;
+use oxc_span::SourceType;
 
 /// A JavaScript engine
 #[derive(Debug, ClapParser)] // requires `derive` feature
