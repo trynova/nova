@@ -1,32 +1,69 @@
 use crate::{
     execution::Agent,
-    heap::GetHeapData,
+    heap::{GetHeapData, Handle, StringHeapData},
     types::{String, Value},
-    SmallString,
+    SmallInteger, SmallString,
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct PropertyKey(Value);
+pub enum PropertyKey {
+    String(Handle<StringHeapData>),
+    SmallString(SmallString),
+    SmallInteger(SmallInteger),
+}
 
-impl Default for PropertyKey {
-    fn default() -> Self {
-        Self(Value::SmallString(SmallString::from_str_unchecked(
-            "unknown",
-        )))
+impl From<Handle<StringHeapData>> for PropertyKey {
+    fn from(value: Handle<StringHeapData>) -> Self {
+        PropertyKey::String(value)
+    }
+}
+
+impl From<SmallString> for PropertyKey {
+    fn from(value: SmallString) -> Self {
+        PropertyKey::SmallString(value)
+    }
+}
+
+impl From<SmallInteger> for PropertyKey {
+    fn from(value: SmallInteger) -> Self {
+        PropertyKey::SmallInteger(value)
+    }
+}
+
+impl From<String> for PropertyKey {
+    fn from(value: String) -> Self {
+        match value {
+            String::String(x) => PropertyKey::String(x),
+            String::SmallString(x) => PropertyKey::SmallString(x),
+        }
+    }
+}
+
+impl TryFrom<Value> for PropertyKey {
+    type Error = ();
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::String(x) => Ok(PropertyKey::String(x)),
+            Value::SmallString(x) => Ok(PropertyKey::SmallString(x)),
+            Value::IntegerNumber(x) => Ok(PropertyKey::SmallInteger(x)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl From<PropertyKey> for Value {
+    fn from(value: PropertyKey) -> Self {
+        match value {
+            PropertyKey::String(x) => Value::String(x),
+            PropertyKey::SmallString(x) => Value::SmallString(x),
+            PropertyKey::SmallInteger(x) => Value::IntegerNumber(x),
+        }
     }
 }
 
 impl PropertyKey {
-    pub(crate) fn new(value: Value) -> Self {
-        debug_assert!(matches!(
-            value,
-            Value::Integer(_) | Value::String(_) | Value::SmallString(_)
-        ));
-        Self(value)
-    }
-
     pub fn into_value(self) -> Value {
-        self.0
+        self.into()
     }
 
     pub fn is_array_index(self) -> bool {
@@ -35,43 +72,20 @@ impl PropertyKey {
     }
 
     pub(self) fn is_str_eq_num(s: &str, n: i64) -> bool {
-        let (s, mut n) = if s.starts_with("-") {
-            if n > 0 {
-                return false;
-            }
-            (&s[1..], -n as usize)
-        } else {
-            if n < 0 {
-                return false;
-            }
-            (s, n as usize)
-        };
-
-        if Some(s.len()) != n.checked_ilog10().map(|n| n as usize) {
-            return false;
-        }
-
-        for c in s.as_bytes().iter().rev() {
-            let code = (n % 10) as u8 + '0' as u8;
-
-            if *c != code {
-                return false;
-            }
-
-            n /= 10;
-        }
-
-        true
+        // TODO: Come up with some advanced algorithm.
+        s == n.to_string()
     }
 
     pub fn equals(self, agent: &mut Agent, y: Self) -> bool {
-        let x = self.into_value();
-        let y = y.into_value();
+        let x = self;
 
         match (x, y) {
             // Assumes the interner is working correctly.
-            (Value::String(s1), Value::String(s2)) => s1 == s2,
-            (Value::String(s), Value::Integer(n)) => {
+            (PropertyKey::String(s1), PropertyKey::String(s2)) => s1 == s2,
+            (PropertyKey::SmallString(s1), PropertyKey::SmallString(s2)) => {
+                s1.as_str() == s2.as_str()
+            }
+            (PropertyKey::String(s), PropertyKey::SmallInteger(n)) => {
                 let realm = agent.current_realm();
                 let realm = realm.borrow();
                 let s = realm.heap.get(s);
@@ -82,24 +96,14 @@ impl PropertyKey {
 
                 Self::is_str_eq_num(s, n.into_i64())
             }
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl From<String> for PropertyKey {
-    fn from(value: String) -> Self {
-        Self(value.into_value())
-    }
-}
-
-impl TryFrom<Value> for PropertyKey {
-    type Error = ();
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        if value.is_string() || value.is_symbol() || value.is_number() {
-            Ok(Self(value))
-        } else {
-            Err(())
+            (PropertyKey::SmallString(s), PropertyKey::SmallInteger(n)) => {
+                Self::is_str_eq_num(s.as_str(), n.into_i64())
+            }
+            (PropertyKey::SmallInteger(n1), PropertyKey::SmallInteger(n2)) => {
+                n1.into_i64() == n2.into_i64()
+            }
+            (PropertyKey::SmallInteger(_), _) => y.equals(agent, self),
+            _ => false,
         }
     }
 }

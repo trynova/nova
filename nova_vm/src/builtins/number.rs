@@ -46,7 +46,7 @@ impl Builtin for NumberConstructor {
             object,
             "MAX_SAFE_INTEGER",
             PropertyDescriptor {
-                value: Some(Number::from(SmallInteger::MAX).into()),
+                value: Some(Number::from(SmallInteger::MAX_NUMBER).into()),
                 writable: Some(false),
                 enumerable: Some(false),
                 configurable: Some(false),
@@ -74,7 +74,7 @@ impl Builtin for NumberConstructor {
             object,
             "MIN_SAFE_INTEGER",
             PropertyDescriptor {
-                value: Some(Number::from(SmallInteger::MIN).into()),
+                value: Some(Number::from(SmallInteger::MIN_NUMBER).into()),
                 writable: Some(false),
                 enumerable: Some(false),
                 configurable: Some(false),

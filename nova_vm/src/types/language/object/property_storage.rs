@@ -6,7 +6,7 @@ use std::{
 use crate::{
     execution::{Agent, Realm},
     heap::GetHeapData,
-    types::{PropertyDescriptor, Value},
+    types::{PropertyDescriptor, String, Value},
 };
 
 use super::{Object, PropertyKey};
@@ -44,7 +44,10 @@ impl PropertyStorage {
                 true
             }
             Value::Array(array) => {
-                if key.equals(agent, PropertyKey::new(Value::try_from("length").unwrap())) {
+                if key.equals(
+                    agent,
+                    PropertyKey::from(String::try_from("length").unwrap()),
+                ) {
                     return true;
                 }
 
