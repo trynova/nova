@@ -1,7 +1,6 @@
 use clap::{Parser as ClapParser, Subcommand};
-use nova_vm::{heap::Heap, VM};
-use oxc_ast::SourceType;
 use oxc_parser::Parser;
+use oxc_span::SourceType;
 
 /// A JavaScript engine
 #[derive(Debug, ClapParser)] // requires `derive` feature
@@ -47,16 +46,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let parser = Parser::new(&allocator, &file, source_type.with_typescript(false));
             let result = parser.parse();
 
-            let mut vm = VM {
-                source: &file,
-                pc: 0,
-                instructions: Vec::new(),
-                heap: Heap::new(),
-            };
+            // let mut vm = VM {
+            //     source: &file,
+            //     pc: 0,
+            //     instructions: Vec::new(),
+            //     heap: Heap::new(),
+            // };
 
-            vm.load_program(result.program);
-            println!("{:?}", vm.instructions);
-            vm.interpret();
+            // vm.load_program(result.program);
+            // println!("{:?}", vm.instructions);
+            // vm.interpret();
         }
     }
 

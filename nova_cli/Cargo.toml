@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.3", features = ["derive"] }
-oxc_parser = "0.0.6"
-oxc_ast = "0.0.6"
+oxc_parser = "0.1.0"
+oxc_ast = "0.1.0"
+oxc_span = "0.1.0"
 nova_vm = { path = "../nova_vm" }
