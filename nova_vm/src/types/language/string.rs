@@ -1,15 +1,54 @@
 use super::Value;
-use crate::{execution::Agent, heap::GetHeapData, SmallString};
+use crate::{
+    execution::Agent,
+    heap::{GetHeapData, Handle, StringHeapData},
+    SmallString,
+};
 
 /// 6.1.4 The String Type
 /// https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type
-#[derive(Debug)]
-pub struct String(Value);
+#[derive(Debug, Clone, Copy)]
+pub enum String {
+    String(Handle<StringHeapData>),
+    SmallString(SmallString),
+}
+
+impl From<Handle<StringHeapData>> for String {
+    fn from(value: Handle<StringHeapData>) -> Self {
+        String::String(value)
+    }
+}
+
+impl From<SmallString> for String {
+    fn from(value: SmallString) -> Self {
+        String::SmallString(value)
+    }
+}
 
 impl TryFrom<&str> for String {
     type Error = ();
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        SmallString::try_from(value).map(|s| String::new(Value::SmallString(s)))
+        SmallString::try_from(value).map(|s| String::SmallString(s))
+    }
+}
+
+impl TryFrom<Value> for String {
+    type Error = ();
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::String(x) => Ok(String::String(x)),
+            Value::SmallString(x) => Ok(String::SmallString(x)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl From<String> for Value {
+    fn from(value: String) -> Self {
+        match value {
+            String::String(x) => Value::String(x),
+            String::SmallString(x) => Value::SmallString(x),
+        }
     }
 }
 
@@ -25,35 +64,26 @@ impl TryFrom<Value> for String {
 }
 
 impl String {
-    pub(crate) fn new(value: Value) -> Self {
-        matches!(value, Value::String(_) | Value::SmallString(_));
-        Self(value)
-    }
-
     pub fn into_value(self) -> Value {
-        self.0
+        self.into()
     }
 
     /// Byte length of the string.
     pub fn len(self, agent: &Agent) -> usize {
-        let s = self.into_value();
-
-        match s {
-            Value::String(s) => agent.current_realm().borrow().heap.get(s).len(),
-            Value::SmallString(s) => s.len(),
-            _ => unreachable!(),
+        match self {
+            String::String(s) => agent.current_realm().borrow().heap.get(s).len(),
+            String::SmallString(s) => s.len(),
         }
     }
 
-    pub fn as_str<'a>(&'a self, agent: &'a Agent) -> Option<&'a str> {
-        match &self.0 {
-            // SAFETY: The immutable reference to the Agent ensures no mutable
+    pub fn as_str<'a>(&'a self, agent: &mut Agent) -> Option<&'a str> {
+        match self {
+            // SAFETY: The mutable reference to the Agent ensures no mutable
             //         access to the realm.
-            Value::String(s) => unsafe {
+            String::String(s) => unsafe {
                 std::mem::transmute(agent.current_realm().borrow().heap.get(*s).as_str())
             },
-            Value::SmallString(s) => Some(s.as_str()),
-            _ => unreachable!(),
+            String::SmallString(s) => Some(s.as_str()),
         }
     }
 

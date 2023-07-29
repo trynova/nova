@@ -20,7 +20,7 @@ pub type DefineOwnProperty = fn(
     object: Object,
     property_key: PropertyKey,
     property_descriptor: PropertyDescriptor,
-) -> bool;
+) -> JsResult<bool>;
 pub type HasProperty =
     fn(agent: &mut Agent, object: Object, property_key: PropertyKey) -> JsResult<bool>;
 pub type Get = fn(

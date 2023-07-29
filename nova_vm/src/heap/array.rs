@@ -19,7 +19,7 @@ use super::{
 pub(crate) struct ArrayHeapData {
     pub object_index: Option<ObjectIndex>,
     // TODO: Use SmallVec<[Value; 4]>
-    pub(super) elements: ElementsVector,
+    pub elements: ElementsVector,
 }
 
 pub fn initialize_array_heap(heap: &mut Heap) {

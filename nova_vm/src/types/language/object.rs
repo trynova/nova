@@ -136,7 +136,7 @@ impl Object {
             self,
             property_key,
             property_descriptor,
-        );
+        )?;
 
         // 2. If success is false, throw a TypeError exception.
         if !success {
@@ -148,5 +148,33 @@ impl Object {
 
         // 3. Return unused.
         Ok(())
+    }
+
+    /// 7.3.5 CreateDataProperty ( O, P, V )
+    /// https://tc39.es/ecma262/#sec-createdataproperty
+    pub fn create_data_property(
+        self: Self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        value: Value,
+    ) -> JsResult<bool> {
+        // 1. Let newDesc be the PropertyDescriptor {
+        //      [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: true
+        //    }.
+        let new_descriptor = PropertyDescriptor {
+            value: Some(value),
+            writable: Some(true),
+            enumerable: Some(true),
+            configurable: Some(true),
+            ..Default::default()
+        };
+
+        // 2. Return ? O.[[DefineOwnProperty]](P, newDesc).
+        (self.internal_methods(agent).define_own_property)(
+            agent,
+            self,
+            property_key,
+            new_descriptor,
+        )
     }
 }

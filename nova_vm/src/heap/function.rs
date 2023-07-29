@@ -16,7 +16,7 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub(crate) struct FunctionHeapData {
-    pub(super) object_index: ObjectIndex,
+    pub(super) object_index: Option<ObjectIndex>,
     pub(super) length: u8,
     pub(crate) initial_name: Value,
     // pub(crate) behaviour: Behaviour,
