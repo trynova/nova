@@ -260,7 +260,7 @@ fn validate_and_apply_property_descriptor(
         let Some(object) = object else {
             return Ok(true);
         };
-        
+
         // c. If IsAccessorDescriptor(Desc) is true, then
         if descriptor.is_accessor_descriptor() {
             // i. Create an own accessor property named P of object O whose [[Get]], [[Set]],
@@ -544,7 +544,7 @@ pub fn ordinary_get(
         let Some(parent) = (object.internal_methods(agent).get_prototype_of)(agent, object) else {
             return Ok(Value::Undefined);
         };
-        
+
         // c. Return ? parent.[[Get]](P, Receiver).
         return (parent.internal_methods(agent).get)(agent, parent, property_key, receiver);
     };
