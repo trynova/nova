@@ -8,7 +8,7 @@ use oxc_parser::Parser;
 use oxc_span::SourceType;
 use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
 
-pub type HostDefined<'ctx> = Option<&'ctx mut dyn Any>;
+pub type HostDefined<'ctx> = &'ctx mut dyn Any;
 
 /// 16.1.4 Script Records
 /// https://tc39.es/ecma262/#sec-script-records
