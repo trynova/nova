@@ -1,7 +1,7 @@
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        FunctionHeapData, HeapBits, ObjectHeapData, PropertyDescriptor,
+        FunctionHeapData, ObjectHeapData, PropertyDescriptor,
     },
     value::{JsResult, Value},
 };
@@ -23,7 +23,6 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
         ));
     heap.functions[get_constructor_index(BuiltinObjectIndexes::BooleanConstructorIndex) as usize] =
         Some(FunctionHeapData {
-            bits: HeapBits::new(),
             object_index: BuiltinObjectIndexes::BooleanConstructorIndex as u32,
             length: 1,
             uses_arguments: false,

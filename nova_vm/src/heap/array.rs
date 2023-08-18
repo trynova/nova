@@ -1,7 +1,7 @@
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        Heap, HeapBits, ObjectHeapData, PropertyDescriptor,
+        Heap, ObjectHeapData, PropertyDescriptor,
     },
     value::{JsResult, Value},
 };
@@ -9,36 +9,14 @@ use crate::{
 use super::{
     function::FunctionHeapData,
     heap_constants::WellKnownSymbolIndexes,
-    heap_trace::HeapTrace,
-    object::{ObjectEntry, PropertyKey},
+    object::{ObjectEntry, PropertyKey}, ElementsVector,
 };
 
 #[derive(Debug)]
 pub(crate) struct ArrayHeapData {
-    pub(super) bits: HeapBits,
     pub(super) object_index: u32,
     // TODO: Use SmallVec<[Value; 4]>
-    pub(super) elements: Vec<Option<Value>>,
-}
-
-impl HeapTrace for Option<ArrayHeapData> {
-    fn trace(&self, heap: &Heap) {
-        assert!(self.is_some());
-        heap.objects[self.as_ref().unwrap().object_index as usize].trace(heap);
-    }
-    fn root(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.root();
-    }
-
-    fn unroot(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.unroot();
-    }
-
-    fn finalize(&mut self, _heap: &Heap) {
-        self.take();
-    }
+    pub(super) elements: ElementsVector,
 }
 
 pub fn initialize_array_heap(heap: &mut Heap) {
@@ -82,7 +60,6 @@ pub fn initialize_array_heap(heap: &mut Heap) {
     ));
     heap.functions[get_constructor_index(BuiltinObjectIndexes::ArrayConstructorIndex) as usize] =
         Some(FunctionHeapData {
-            bits: HeapBits::new(),
             object_index: BuiltinObjectIndexes::ArrayConstructorIndex as u32,
             length: 1,
             uses_arguments: false,

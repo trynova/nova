@@ -2,8 +2,7 @@ use crate::{
     heap::{
         function::JsBindingFunction,
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        heap_trace::HeapTrace,
-        FunctionHeapData, Heap, HeapBits,
+        FunctionHeapData, Heap,
     },
     stack_string::StackString,
     value::{FunctionIndex, JsResult, StringIndex, SymbolIndex, Value},
@@ -221,7 +220,6 @@ impl PropertyDescriptor {
 
 #[derive(Debug)]
 pub(crate) struct ObjectHeapData {
-    pub(crate) bits: HeapBits,
     pub(crate) _extensible: bool,
     // TODO: It's probably not necessary to have a whole data descriptor here.
     // A prototype can only be set to be null or an object, meaning that most of the
@@ -236,7 +234,6 @@ pub(crate) struct ObjectHeapData {
 impl ObjectHeapData {
     pub fn new(extensible: bool, prototype: PropertyDescriptor, entries: Vec<ObjectEntry>) -> Self {
         Self {
-            bits: HeapBits::new(),
             _extensible: extensible,
             // TODO: Number, Boolean, etc. objects exist. These can all be
             // modeled with their own heap vector or alternatively by adding
@@ -249,68 +246,6 @@ impl ObjectHeapData {
             // TODO: Use SmallVec<[T; 4]>
             entries,
         }
-    }
-}
-
-impl HeapTrace for Option<ObjectHeapData> {
-    fn trace(&self, heap: &Heap) {
-        assert!(self.is_some());
-        let data = self.as_ref().unwrap();
-        let dirty = data.bits.dirty.replace(false);
-        let marked = data.bits.marked.replace(true);
-        if marked && !dirty {
-            // Do not keep recursing into already-marked heap values.
-            return;
-        }
-        match &data.prototype {
-            PropertyDescriptor::Data { value, .. } => value.trace(heap),
-            PropertyDescriptor::Blocked { .. } => {}
-            PropertyDescriptor::ReadOnly { get, .. } => {
-                heap.functions[*get as usize].trace(heap);
-            }
-            PropertyDescriptor::WriteOnly { set, .. } => {
-                heap.functions[*set as usize].trace(heap);
-            }
-            PropertyDescriptor::ReadWrite { get, set, .. } => {
-                heap.functions[*get as usize].trace(heap);
-                heap.functions[*set as usize].trace(heap);
-            }
-        }
-        for reference in data.entries.iter() {
-            match reference.key {
-                PropertyKey::SmallAsciiString(_) | PropertyKey::Smi(_) => {}
-                PropertyKey::String(idx) => heap.strings[idx as usize].trace(heap),
-                PropertyKey::Symbol(idx) => heap.symbols[idx as usize].trace(heap),
-            }
-            match &reference.value {
-                PropertyDescriptor::Data { value, .. } => value.trace(heap),
-                PropertyDescriptor::Blocked { .. } => {}
-                PropertyDescriptor::ReadOnly { get, .. } => {
-                    heap.functions[*get as usize].trace(heap);
-                }
-                PropertyDescriptor::WriteOnly { set, .. } => {
-                    heap.functions[*set as usize].trace(heap);
-                }
-                PropertyDescriptor::ReadWrite { get, set, .. } => {
-                    heap.functions[*get as usize].trace(heap);
-                    heap.functions[*set as usize].trace(heap);
-                }
-            }
-        }
-    }
-
-    fn root(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.root();
-    }
-
-    fn unroot(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.unroot();
-    }
-
-    fn finalize(&mut self, _heap: &Heap) {
-        self.take();
     }
 }
 
@@ -416,7 +351,6 @@ pub fn initialize_object_heap(heap: &mut Heap) {
         ));
     heap.functions[get_constructor_index(BuiltinObjectIndexes::ObjectConstructorIndex) as usize] =
         Some(FunctionHeapData {
-            bits: HeapBits::new(),
             object_index: BuiltinObjectIndexes::ObjectConstructorIndex as u32,
             length: 1,
             uses_arguments: false,

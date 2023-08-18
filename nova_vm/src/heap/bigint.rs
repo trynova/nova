@@ -1,17 +1,14 @@
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        FunctionHeapData, Heap, HeapBits, ObjectEntry, ObjectHeapData, PropertyDescriptor,
+        FunctionHeapData, Heap, ObjectEntry, ObjectHeapData, PropertyDescriptor,
         PropertyKey,
     },
     value::{JsResult, Value},
 };
 
-use super::heap_trace::HeapTrace;
-
 #[derive(Debug)]
 pub(crate) struct BigIntHeapData {
-    pub(super) bits: HeapBits,
     pub(super) sign: bool,
     pub(super) len: u32,
     pub(super) parts: Box<[u64]>,
@@ -28,24 +25,6 @@ impl BigIntHeapData {
         } else {
             None
         }
-    }
-}
-
-impl HeapTrace for Option<BigIntHeapData> {
-    fn trace(&self, _heap: &Heap) {}
-
-    fn root(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.root();
-    }
-
-    fn unroot(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.unroot();
-    }
-
-    fn finalize(&mut self, _heap: &Heap) {
-        self.take();
     }
 }
 
@@ -77,7 +56,6 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
         ));
     heap.functions[get_constructor_index(BuiltinObjectIndexes::BigintConstructorIndex) as usize] =
         Some(FunctionHeapData {
-            bits: HeapBits::new(),
             object_index: heap.objects.len() as u32,
             length: 1,
             uses_arguments: false,

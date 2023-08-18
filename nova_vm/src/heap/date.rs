@@ -3,7 +3,7 @@ use std::time::SystemTime;
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        Heap, HeapBits, ObjectHeapData, PropertyDescriptor,
+        Heap, ObjectHeapData, PropertyDescriptor,
     },
     value::{JsResult, Value},
 };
@@ -11,35 +11,13 @@ use crate::{
 use super::{
     function::FunctionHeapData,
     heap_constants::WellKnownSymbolIndexes,
-    heap_trace::HeapTrace,
     object::{ObjectEntry, PropertyKey},
 };
 
 #[derive(Debug)]
 pub(crate) struct DateHeapData {
-    pub(super) bits: HeapBits,
     pub(super) object_index: u32,
     pub(super) _date: SystemTime,
-}
-
-impl HeapTrace for Option<DateHeapData> {
-    fn trace(&self, heap: &Heap) {
-        assert!(self.is_some());
-        heap.objects[self.as_ref().unwrap().object_index as usize].trace(heap);
-    }
-    fn root(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.root();
-    }
-
-    fn unroot(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.unroot();
-    }
-
-    fn finalize(&mut self, _heap: &Heap) {
-        self.take();
-    }
 }
 
 pub fn initialize_date_heap(heap: &mut Heap) {
@@ -58,7 +36,6 @@ pub fn initialize_date_heap(heap: &mut Heap) {
     ));
     heap.functions[get_constructor_index(BuiltinObjectIndexes::DateConstructorIndex) as usize] =
         Some(FunctionHeapData {
-            bits: HeapBits::new(),
             object_index: BuiltinObjectIndexes::DateConstructorIndex as u32,
             length: 1,
             uses_arguments: false,

@@ -1,42 +1,20 @@
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        Heap, HeapBits, ObjectHeapData, PropertyDescriptor,
+        Heap, ObjectHeapData, PropertyDescriptor,
     },
     value::{JsResult, Value},
 };
 
 use super::{
     function::FunctionHeapData,
-    heap_trace::HeapTrace,
     object::{ObjectEntry, PropertyKey},
 };
 
 #[derive(Debug)]
 pub(crate) struct ErrorHeapData {
-    pub(super) bits: HeapBits,
     pub(super) object_index: u32,
     // TODO: stack? name?
-}
-
-impl HeapTrace for Option<ErrorHeapData> {
-    fn trace(&self, heap: &Heap) {
-        assert!(self.is_some());
-        heap.objects[self.as_ref().unwrap().object_index as usize].trace(heap);
-    }
-    fn root(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.root();
-    }
-
-    fn unroot(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.unroot();
-    }
-
-    fn finalize(&mut self, _heap: &Heap) {
-        self.take();
-    }
 }
 
 pub fn initialize_error_heap(heap: &mut Heap) {
@@ -50,7 +28,6 @@ pub fn initialize_error_heap(heap: &mut Heap) {
     ));
     heap.functions[get_constructor_index(BuiltinObjectIndexes::ErrorConstructorIndex) as usize] =
         Some(FunctionHeapData {
-            bits: HeapBits::new(),
             object_index: BuiltinObjectIndexes::ErrorConstructorIndex as u32,
             length: 1,
             uses_arguments: false,

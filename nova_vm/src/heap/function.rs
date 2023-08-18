@@ -1,14 +1,13 @@
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        Heap, HeapBits, ObjectHeapData, PropertyDescriptor,
+        Heap, ObjectHeapData, PropertyDescriptor,
     },
     value::{JsResult, Value},
 };
 
 use super::{
     heap_constants::WellKnownSymbolIndexes,
-    heap_trace::HeapTrace,
     object::{ObjectEntry, PropertyKey},
 };
 
@@ -16,7 +15,6 @@ pub type JsBindingFunction = fn(heap: &mut Heap, this: Value, args: &[Value]) ->
 
 #[derive(Debug)]
 pub(crate) struct FunctionHeapData {
-    pub(super) bits: HeapBits,
     pub(super) object_index: u32,
     pub(super) length: u8,
     pub(super) uses_arguments: bool,
@@ -24,26 +22,6 @@ pub(crate) struct FunctionHeapData {
     pub(super) visible: Option<Vec<Value>>,
     pub(super) binding: JsBindingFunction,
     // TODO: Should name be here as an "internal slot" of sorts?
-}
-
-impl HeapTrace for Option<FunctionHeapData> {
-    fn trace(&self, heap: &Heap) {
-        assert!(self.is_some());
-        heap.objects[self.as_ref().unwrap().object_index as usize].trace(heap);
-    }
-    fn root(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.root();
-    }
-
-    fn unroot(&self, _heap: &Heap) {
-        assert!(self.is_some());
-        self.as_ref().unwrap().bits.unroot();
-    }
-
-    fn finalize(&mut self, _heap: &Heap) {
-        self.take();
-    }
 }
 
 pub fn initialize_function_heap(heap: &mut Heap) {
@@ -59,7 +37,6 @@ pub fn initialize_function_heap(heap: &mut Heap) {
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::FunctionConstructorIndex) as usize] =
         Some(FunctionHeapData {
-            bits: HeapBits::new(),
             object_index: BuiltinObjectIndexes::FunctionConstructorIndex as u32,
             length: 1,
             uses_arguments: false,
