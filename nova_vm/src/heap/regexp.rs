@@ -23,7 +23,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::RegExpConstructorIndex as usize] =
         Some(ObjectHeapData::new(
             true,
-            PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+            Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
             vec![
                 ObjectEntry::new_constructor_prototype_entry(
                     heap,
@@ -50,7 +50,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
         });
     heap.objects[BuiltinObjectIndexes::RegExpPrototypeIndex as usize] = Some(ObjectHeapData::new(
         true,
-        PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
         vec![
             ObjectEntry::new(
                 PropertyKey::from_str(heap, "constructor"),

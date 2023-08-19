@@ -15,7 +15,7 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::BooleanConstructorIndex as usize] =
         Some(ObjectHeapData::new(
             true,
-            PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+            Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
             vec![ObjectEntry::new_constructor_prototype_entry(
                 heap,
                 BuiltinObjectIndexes::BooleanPrototypeIndex as u32,
@@ -32,7 +32,7 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
         });
     heap.objects[BuiltinObjectIndexes::BooleanPrototypeIndex as usize] = Some(ObjectHeapData::new(
         true,
-        PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
         vec![
             ObjectEntry::new(
                 PropertyKey::from_str(heap, "constructor"),

@@ -29,7 +29,7 @@ pub fn initialize_string_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::StringConstructorIndex as usize] =
         Some(ObjectHeapData::new(
             true,
-            PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+            Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
             // TODO: Methods and properties
             Vec::with_capacity(0),
         ));
@@ -44,7 +44,7 @@ pub fn initialize_string_heap(heap: &mut Heap) {
         });
     heap.objects[BuiltinObjectIndexes::StringPrototypeIndex as usize] = Some(ObjectHeapData::new(
         true,
-        PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
         // TODO: Methods and properties
         Vec::with_capacity(0),
     ));

@@ -19,9 +19,7 @@ pub(crate) struct NumberHeapData {
 
 impl NumberHeapData {
     pub(super) fn new(data: f64) -> NumberHeapData {
-        NumberHeapData {
-            data,
-        }
+        NumberHeapData { data }
     }
 
     pub(crate) fn value(&self) -> f64 {
@@ -33,7 +31,7 @@ pub fn initialize_number_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::NumberConstructorIndex as usize] =
         Some(ObjectHeapData::new(
             true,
-            PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+            Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
             vec![
                 ObjectEntry::new(
                     PropertyKey::from_str(heap, "EPSILON"),
@@ -102,7 +100,7 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         });
     heap.objects[BuiltinObjectIndexes::NumberPrototypeIndex as usize] = Some(ObjectHeapData::new(
         true,
-        PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
         vec![
             ObjectEntry::new(
                 PropertyKey::from_str(heap, "constructor"),

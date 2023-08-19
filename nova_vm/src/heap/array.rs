@@ -9,7 +9,8 @@ use crate::{
 use super::{
     function::FunctionHeapData,
     heap_constants::WellKnownSymbolIndexes,
-    object::{ObjectEntry, PropertyKey}, ElementsVector,
+    object::{ObjectEntry, PropertyKey},
+    ElementsVector,
 };
 
 #[derive(Debug)]
@@ -39,7 +40,7 @@ pub fn initialize_array_heap(heap: &mut Heap) {
     let values_key = PropertyKey::from_str(heap, "values");
     heap.objects[BuiltinObjectIndexes::ArrayConstructorIndex as usize] = Some(ObjectHeapData::new(
         true,
-        PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
         vec![
             ObjectEntry::new_prototype_function_entry(heap, "from", 1, false, array_todo),
             ObjectEntry::new_prototype_function_entry(heap, "isArray", 1, false, array_todo),
@@ -69,7 +70,7 @@ pub fn initialize_array_heap(heap: &mut Heap) {
         });
     heap.objects[BuiltinObjectIndexes::ArrayPrototypeIndex as usize] = Some(ObjectHeapData::new(
         true,
-        PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
         vec![
             ObjectEntry::new_prototype_function_entry(heap, "at", 1, false, array_todo),
             ObjectEntry::new_prototype_function_entry(heap, "concat", 1, true, array_todo),

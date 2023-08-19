@@ -9,6 +9,8 @@ use crate::{
 };
 use std::fmt::Debug;
 
+use super::{ElementsVector, EntriesVector};
+
 #[derive(Debug)]
 pub struct ObjectEntry {
     key: PropertyKey,
@@ -227,12 +229,12 @@ pub(crate) struct ObjectHeapData {
     // We could possibly do with just a `Option<ObjectIndex>` but it would cause issues
     // with functions and possible other special object cases we want to track with partially
     // separate heap fields later down the line.
-    pub(crate) prototype: PropertyDescriptor,
-    pub(crate) entries: Vec<ObjectEntry>,
+    pub(crate) prototype: Value,
+    pub(crate) entries: EntriesVector,
 }
 
 impl ObjectHeapData {
-    pub fn new(extensible: bool, prototype: PropertyDescriptor, entries: Vec<ObjectEntry>) -> Self {
+    pub fn new(extensible: bool, prototype: Value, entries: Vec<ObjectEntry>) -> Self {
         Self {
             _extensible: extensible,
             // TODO: Number, Boolean, etc. objects exist. These can all be
@@ -253,7 +255,7 @@ pub fn initialize_object_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::ObjectConstructorIndex as usize] =
         Some(ObjectHeapData::new(
             true,
-            PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+            Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
             vec![
                 ObjectEntry::new_prototype_function_entry(heap, "assign", 1, true, object_todo),
                 ObjectEntry::new_prototype_function_entry(heap, "create", 2, false, object_todo),
@@ -361,7 +363,7 @@ pub fn initialize_object_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::ObjectConstructorIndex as usize] =
         Some(ObjectHeapData::new(
             true,
-            PropertyDescriptor::roh(Value::Null),
+            Value::Null,
             vec![
                 ObjectEntry::new(
                     PropertyKey::from_str(heap, "constructor"),

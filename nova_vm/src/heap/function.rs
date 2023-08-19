@@ -28,7 +28,7 @@ pub fn initialize_function_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::FunctionConstructorIndex as usize] =
         Some(ObjectHeapData::new(
             true,
-            PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+            Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
             vec![ObjectEntry::new_constructor_prototype_entry(
                 heap,
                 BuiltinObjectIndexes::FunctionPrototypeIndex as u32,
@@ -50,7 +50,7 @@ pub fn initialize_function_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::FunctionPrototypeIndex as usize] =
         Some(ObjectHeapData::new(
             true,
-            PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+            Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
             vec![
                 ObjectEntry::new_prototype_function_entry(heap, "apply", 2, false, function_todo),
                 ObjectEntry::new_prototype_function_entry(heap, "bind", 1, true, function_todo),

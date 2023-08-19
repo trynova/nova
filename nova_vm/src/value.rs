@@ -13,7 +13,7 @@ pub type RegExpIndex = u32;
 pub type StringIndex = u32;
 pub type SymbolIndex = u32;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum Value {
     Array(ArrayIndex),

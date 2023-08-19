@@ -1,8 +1,7 @@
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        FunctionHeapData, Heap, ObjectEntry, ObjectHeapData, PropertyDescriptor,
-        PropertyKey,
+        FunctionHeapData, Heap, ObjectEntry, ObjectHeapData, PropertyDescriptor, PropertyKey,
     },
     value::{JsResult, Value},
 };
@@ -32,7 +31,7 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::BigintConstructorIndex as usize] =
         Some(ObjectHeapData::new(
             true,
-            PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+            Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
             vec![
                 ObjectEntry::new_prototype_function_entry(
                     heap,
@@ -65,7 +64,7 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
         });
     heap.objects[BuiltinObjectIndexes::BigintPrototypeIndex as usize] = Some(ObjectHeapData::new(
         true,
-        PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
         vec![
             ObjectEntry::new(
                 PropertyKey::from_str(heap, "constructor"),

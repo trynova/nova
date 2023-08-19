@@ -4,6 +4,7 @@ mod boolean;
 mod date;
 mod error;
 mod function;
+mod heap_bits;
 mod heap_constants;
 mod math;
 mod number;
@@ -11,6 +12,11 @@ mod object;
 mod regexp;
 mod string;
 mod symbol;
+
+use std::{
+    collections::HashMap,
+    num::{NonZeroU16, NonZeroU8},
+};
 
 use self::{
     array::{initialize_array_heap, ArrayHeapData},
@@ -32,7 +38,7 @@ use self::{
     string::{initialize_string_heap, StringHeapData},
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
-use crate::value::Value;
+use crate::value::{FunctionIndex, Value};
 use wtf8::Wtf8;
 
 #[derive(Debug)]
@@ -62,27 +68,138 @@ pub(crate) struct ElementsVector {
     len: u32,
 }
 
+#[derive(Debug)]
+pub(crate) struct EntriesVector {
+    entries_index: u32,
+    cap: ElementArrayKey,
+    len: u32,
+}
+
+#[derive(Debug)]
+pub enum ElementDescriptor {
+    /// ```js
+    /// { value, writable: true, enumerable: true, configurable: true }
+    /// ```
+    WritableEnumerableConfigurableData,
+    /// ```js
+    /// { value, writable: true, enumerable: true, configurable: false }
+    /// ```
+    WritableEnumerableUnconfigurableData,
+    /// ```js
+    /// { value, writable: true, enumerable: false, configurable: true }
+    /// ```
+    WritableUnenumerableConfigurableData,
+    /// ```js
+    /// { value, writable: true, enumerable: false, configurable: false }
+    /// ```
+    WritableUnenumerableUnconfigurableData,
+    /// ```js
+    /// { value, writable: false, enumerable: true, configurable: true }
+    /// ```
+    ReadOnlyEnumerableConfigurableData,
+    /// ```js
+    /// { value, writable: false, enumerable: true, configurable: false }
+    /// ```
+    ReadOnlyEnumerableUnconfigurableData,
+    /// ```js
+    /// { value, writable: false, enumerable: false, configurable: true }
+    /// ```
+    ReadOnlyUnenumerableConfigurableData,
+    /// ```js
+    /// { value, writable: false, enumerable: false, configurable: false }
+    /// ```
+    ReadOnlyUnenumerableUnconfigurableData,
+    // TODO: Is { enumerable, configurable } actually a real case or is that just in the spec?
+    // If it is then a NoReadNoWrite*umerable*onfigurable set of descriptors is needed
+    /// ```js
+    /// { get, enumerable: true, configurable: true }
+    /// ```
+    ReadOnlyEnumerableConfigurableAccessor(u8, NonZeroU16),
+    /// ```js
+    /// { get, enumerable: true, configurable: false }
+    /// ```
+    ReadOnlyEnumerableUnconfigurableAccessor(u8, NonZeroU16),
+    /// ```js
+    /// { get, enumerable: false, configurable: true }
+    /// ```
+    ReadOnlyUnenumerableConfigurableAccessor(u8, NonZeroU16),
+    /// ```js
+    /// { get, enumerable: false, configurable: false }
+    /// ```
+    ReadOnlyUnenumerableUnconfigurableAccessor(u8, NonZeroU16),
+    /// ```js
+    /// { set, enumerable: true, configurable: true }
+    /// ```
+    WriteOnlyEnumerableConfigurableAccessor(u8, NonZeroU16),
+    /// ```js
+    /// { set, enumerable: true, configurable: false }
+    /// ```
+    WriteOnlyEnumerableUnconfigurableAccessor(u8, NonZeroU16),
+    /// ```js
+    /// { set, enumerable: false, configurable: true }
+    /// ```
+    WriteOnlyUnenumerableConfigurableAccessor(u8, NonZeroU16),
+    /// ```js
+    /// { set, enumerable: false, configurable: false }
+    /// ```
+    WriteOnlyUnenumerableUnconfigurableAccessor(u8, NonZeroU16),
+    /// ```js
+    /// { get, set, enumerable: true, configurable: true }
+    /// ```
+    ReadWriteEnumerableConfigurableAccessor(u8, u8, NonZeroU16, NonZeroU16),
+    /// ```js
+    /// { get, set, enumerable: true, configurable: false }
+    /// ```
+    ReadWriteEnumerableUnconfigurableAccessor(u8, u8, NonZeroU16, NonZeroU16),
+    /// ```js
+    /// { get, set, enumerable: false, configurable: true }
+    /// ```
+    ReadWriteUnenumerableConfigurableAccessor(u8, u8, NonZeroU16, NonZeroU16),
+    /// ```js
+    /// { get, set, enumerable: false, configurable: false }
+    /// ```
+    ReadWriteUnenumerableUnconfigurableAccessor(u8, u8, NonZeroU16, NonZeroU16),
+}
+
+union Elements16 {
+    elements: [Option<Value>; usize::pow(2, 4)],
+    entries: (
+        [Option<Value>; usize::pow(2, 3)],
+        [Option<Value>; usize::pow(2, 3)],
+    ),
+}
+
+#[derive(Debug)]
 pub(crate) struct ElementArrays {
     /// up to 16 elements
     e_2_4: Vec<[Option<Value>; usize::pow(2, 4)]>,
+    e_2_4_descriptors: HashMap<u32, HashMap<u8, ElementDescriptor>>,
     /// up to 64 elements
     e_2_6: Vec<[Option<Value>; usize::pow(2, 6)]>,
+    e_2_6_descriptors: HashMap<u32, HashMap<u8, ElementDescriptor>>,
     /// up to 256 elements
     e_2_8: Vec<[Option<Value>; usize::pow(2, 8)]>,
+    e_2_8_descriptors: HashMap<u32, HashMap<u8, ElementDescriptor>>,
     /// up to 1024 elements
     e_2_10: Vec<[Option<Value>; usize::pow(2, 10)]>,
+    e_2_10_descriptors: HashMap<u32, HashMap<u16, ElementDescriptor>>,
     /// up to 4096 elements
     e_2_12: Vec<[Option<Value>; usize::pow(2, 12)]>,
+    e_2_12_descriptors: HashMap<u32, HashMap<u16, ElementDescriptor>>,
     /// up to 65536 elements
     e_2_16: Vec<[Option<Value>; usize::pow(2, 16)]>,
+    e_2_16_descriptors: HashMap<u32, HashMap<u16, ElementDescriptor>>,
     /// up to 16777216 elements
     e_2_24: Vec<[Option<Value>; usize::pow(2, 24)]>,
+    e_2_24_descriptors: HashMap<u32, HashMap<u32, ElementDescriptor>>,
     /// up to 4294967296 elements
     e_2_32: Vec<[Option<Value>; usize::pow(2, 32)]>,
+    e_2_32_descriptors: HashMap<u32, HashMap<u32, ElementDescriptor>>,
 }
 
 #[derive(Debug)]
 pub struct Heap {
+    pub(crate) elements: ElementArrays,
     pub(crate) arrays: Vec<Option<ArrayHeapData>>,
     pub(crate) bigints: Vec<Option<BigIntHeapData>>,
     pub(crate) errors: Vec<Option<ErrorHeapData>>,
@@ -96,12 +213,27 @@ pub struct Heap {
     pub(crate) symbols: Vec<Option<SymbolHeapData>>,
 }
 
-fn stop_the_world() {}
-fn start_the_world() {}
-
 impl Heap {
     pub fn new() -> Heap {
         let mut heap = Heap {
+            elements: ElementArrays {
+                e_2_4: Vec::with_capacity(1024),
+                e_2_4_descriptors: HashMap::new(),
+                e_2_6: Vec::with_capacity(1024),
+                e_2_6_descriptors: HashMap::new(),
+                e_2_8: vec![],
+                e_2_8_descriptors: HashMap::new(),
+                e_2_10: vec![],
+                e_2_10_descriptors: HashMap::new(),
+                e_2_12: vec![],
+                e_2_12_descriptors: HashMap::new(),
+                e_2_16: vec![],
+                e_2_16_descriptors: HashMap::new(),
+                e_2_24: vec![],
+                e_2_24_descriptors: HashMap::new(),
+                e_2_32: vec![],
+                e_2_32_descriptors: HashMap::new(),
+            },
             arrays: Vec::with_capacity(1024),
             bigints: Vec::with_capacity(1024),
             errors: Vec::with_capacity(1024),
@@ -207,9 +339,7 @@ impl Heap {
                     PropertyDescriptor::roxh(name),
                 ),
             ],
-            prototype: PropertyDescriptor::roh(Value::Object(
-                BuiltinObjectIndexes::FunctionPrototypeIndex as u32,
-            )),
+            prototype: Value::Object(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
         };
         self.objects.push(Some(func_object_data));
         let func_data = FunctionHeapData {
@@ -228,9 +358,7 @@ impl Heap {
         let object_data = ObjectHeapData {
             _extensible: true,
             entries,
-            prototype: PropertyDescriptor::roh(Value::Object(
-                BuiltinObjectIndexes::ObjectPrototypeIndex as u32,
-            )),
+            prototype: Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
         };
         self.objects.push(Some(object_data));
         self.objects.len() as u32
@@ -240,7 +368,7 @@ impl Heap {
         let object_data = ObjectHeapData {
             _extensible: true,
             entries,
-            prototype: PropertyDescriptor::roh(Value::Null),
+            prototype: Value::Null,
         };
         self.objects.push(Some(object_data));
         self.objects.len() as u32
