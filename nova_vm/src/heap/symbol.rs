@@ -6,7 +6,10 @@ use crate::{
     value::{JsResult, StringIndex, Value},
 };
 
-use super::object::{ObjectEntry, PropertyKey};
+use super::{
+    object::{ObjectEntry, PropertyKey},
+    ElementArrayKey, ElementsVector,
+};
 
 #[derive(Debug)]
 pub(crate) struct SymbolHeapData {
@@ -67,82 +70,74 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
         descriptor: Some(heap.alloc_string("Symbol.unscopables")),
     });
 
+    let entries = vec![
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "asyncIterator"),
+            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::AsyncIterator as u32)),
+        ),
+        ObjectEntry::new_prototype_function_entry(heap, "for", 1, false, symbol_todo),
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "hasInstance"),
+            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::HasInstance as u32)),
+        ),
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "isConcatSpreadable"),
+            PropertyDescriptor::roh(Value::Symbol(
+                WellKnownSymbolIndexes::IsConcatSpreadable as u32,
+            )),
+        ),
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "iterator"),
+            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Iterator as u32)),
+        ),
+        ObjectEntry::new_prototype_function_entry(heap, "keyFor", 1, false, symbol_todo),
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "Match"),
+            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Match as u32)),
+        ),
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "MatchAll"),
+            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::MatchAll as u32)),
+        ),
+        ObjectEntry::new_constructor_prototype_entry(
+            heap,
+            BuiltinObjectIndexes::SymbolPrototypeIndex as u32,
+        ),
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "Replace"),
+            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Replace as u32)),
+        ),
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "Search"),
+            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Search as u32)),
+        ),
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "Species"),
+            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Species as u32)),
+        ),
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "Split"),
+            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Split as u32)),
+        ),
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "ToPrimitive"),
+            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::ToPrimitive as u32)),
+        ),
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "ToStringTag"),
+            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::ToStringTag as u32)),
+        ),
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "Unscopables"),
+            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Unscopables as u32)),
+        ),
+    ];
     heap.objects[BuiltinObjectIndexes::SymbolConstructorIndex as usize] =
         Some(ObjectHeapData::new(
             true,
             Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-            vec![
-                ObjectEntry::new(
-                    PropertyKey::from_str(heap, "asyncIterator"),
-                    PropertyDescriptor::roh(Value::Symbol(
-                        WellKnownSymbolIndexes::AsyncIterator as u32,
-                    )),
-                ),
-                ObjectEntry::new_prototype_function_entry(heap, "for", 1, false, symbol_todo),
-                ObjectEntry::new(
-                    PropertyKey::from_str(heap, "hasInstance"),
-                    PropertyDescriptor::roh(Value::Symbol(
-                        WellKnownSymbolIndexes::HasInstance as u32,
-                    )),
-                ),
-                ObjectEntry::new(
-                    PropertyKey::from_str(heap, "isConcatSpreadable"),
-                    PropertyDescriptor::roh(Value::Symbol(
-                        WellKnownSymbolIndexes::IsConcatSpreadable as u32,
-                    )),
-                ),
-                ObjectEntry::new(
-                    PropertyKey::from_str(heap, "iterator"),
-                    PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Iterator as u32)),
-                ),
-                ObjectEntry::new_prototype_function_entry(heap, "keyFor", 1, false, symbol_todo),
-                ObjectEntry::new(
-                    PropertyKey::from_str(heap, "Match"),
-                    PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Match as u32)),
-                ),
-                ObjectEntry::new(
-                    PropertyKey::from_str(heap, "MatchAll"),
-                    PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::MatchAll as u32)),
-                ),
-                ObjectEntry::new_constructor_prototype_entry(
-                    heap,
-                    BuiltinObjectIndexes::SymbolPrototypeIndex as u32,
-                ),
-                ObjectEntry::new(
-                    PropertyKey::from_str(heap, "Replace"),
-                    PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Replace as u32)),
-                ),
-                ObjectEntry::new(
-                    PropertyKey::from_str(heap, "Search"),
-                    PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Search as u32)),
-                ),
-                ObjectEntry::new(
-                    PropertyKey::from_str(heap, "Species"),
-                    PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Species as u32)),
-                ),
-                ObjectEntry::new(
-                    PropertyKey::from_str(heap, "Split"),
-                    PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Split as u32)),
-                ),
-                ObjectEntry::new(
-                    PropertyKey::from_str(heap, "ToPrimitive"),
-                    PropertyDescriptor::roh(Value::Symbol(
-                        WellKnownSymbolIndexes::ToPrimitive as u32,
-                    )),
-                ),
-                ObjectEntry::new(
-                    PropertyKey::from_str(heap, "ToStringTag"),
-                    PropertyDescriptor::roh(Value::Symbol(
-                        WellKnownSymbolIndexes::ToStringTag as u32,
-                    )),
-                ),
-                ObjectEntry::new(
-                    PropertyKey::from_str(heap, "Unscopables"),
-                    PropertyDescriptor::roh(Value::Symbol(
-                        WellKnownSymbolIndexes::Unscopables as u32,
-                    )),
-                ),
-            ],
+            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
+            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
         ));
     heap.functions[get_constructor_index(BuiltinObjectIndexes::SymbolConstructorIndex) as usize] =
         Some(FunctionHeapData {
@@ -156,37 +151,39 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
     heap.objects[BuiltinObjectIndexes::SymbolPrototypeIndex as usize] = Some(ObjectHeapData::new(
         true,
         Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
-        vec![
-            ObjectEntry::new(
-                PropertyKey::from_str(heap, "constructor"),
-                PropertyDescriptor::rwx(Value::Function(get_constructor_index(
-                    BuiltinObjectIndexes::SymbolConstructorIndex,
-                ))),
-            ),
-            ObjectEntry::new(
-                PropertyKey::from_str(heap, "description"),
-                // TODO: create description getter function
-                PropertyDescriptor::ReadOnly {
-                    get: 0,
-                    enumerable: false,
-                    configurable: true,
-                },
-            ),
-            ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, symbol_todo),
-            ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false, symbol_todo),
-            ObjectEntry::new_prototype_symbol_function_entry(
-                heap,
-                "[Symbol.toPrimitive]",
-                WellKnownSymbolIndexes::ToPrimitive as u32,
-                1,
-                false,
-                symbol_todo,
-            ),
-            ObjectEntry::new(
-                PropertyKey::Symbol(WellKnownSymbolIndexes::ToStringTag as u32),
-                PropertyDescriptor::roxh(Value::new_string(heap, "Symbol")),
-            ),
-        ],
+        ElementsVector::new(0, ElementArrayKey::from_usize(6), 6),
+        ElementsVector::new(0, ElementArrayKey::from_usize(6), 6),
+        // vec![
+        //     ObjectEntry::new(
+        //         PropertyKey::from_str(heap, "constructor"),
+        //         PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+        //             BuiltinObjectIndexes::SymbolConstructorIndex,
+        //         ))),
+        //     ),
+        //     ObjectEntry::new(
+        //         PropertyKey::from_str(heap, "description"),
+        //         // TODO: create description getter function
+        //         PropertyDescriptor::ReadOnly {
+        //             get: 0,
+        //             enumerable: false,
+        //             configurable: true,
+        //         },
+        //     ),
+        //     ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, symbol_todo),
+        //     ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false, symbol_todo),
+        //     ObjectEntry::new_prototype_symbol_function_entry(
+        //         heap,
+        //         "[Symbol.toPrimitive]",
+        //         WellKnownSymbolIndexes::ToPrimitive as u32,
+        //         1,
+        //         false,
+        //         symbol_todo,
+        //     ),
+        //     ObjectEntry::new(
+        //         PropertyKey::Symbol(WellKnownSymbolIndexes::ToStringTag as u32),
+        //         PropertyDescriptor::roxh(Value::new_string(heap, "Symbol")),
+        //     ),
+        // ],
     ));
 }
 

@@ -7,6 +7,8 @@ use crate::{
 };
 use wtf8::Wtf8Buf;
 
+use super::{ElementArrayKey, ElementsVector};
+
 #[derive(Debug)]
 pub(crate) struct StringHeapData {
     pub(crate) data: Wtf8Buf,
@@ -31,7 +33,8 @@ pub fn initialize_string_heap(heap: &mut Heap) {
             true,
             Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
             // TODO: Methods and properties
-            Vec::with_capacity(0),
+            ElementsVector::new(0, ElementArrayKey::from_usize(0), 0),
+            ElementsVector::new(0, ElementArrayKey::from_usize(0), 0),
         ));
     heap.functions[get_constructor_index(BuiltinObjectIndexes::StringConstructorIndex) as usize] =
         Some(FunctionHeapData {
@@ -46,7 +49,8 @@ pub fn initialize_string_heap(heap: &mut Heap) {
         true,
         Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
         // TODO: Methods and properties
-        Vec::with_capacity(0),
+        ElementsVector::new(0, ElementArrayKey::from_usize(0), 0),
+        ElementsVector::new(0, ElementArrayKey::from_usize(0), 0),
     ));
 }
 

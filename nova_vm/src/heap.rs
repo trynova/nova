@@ -12,7 +12,9 @@ mod object;
 mod regexp;
 mod string;
 mod symbol;
+mod heap_gc;
 
+use core::panic;
 use std::{
     collections::HashMap,
     num::{NonZeroU16, NonZeroU8},
@@ -61,11 +63,40 @@ pub(crate) enum ElementArrayKey {
     E32,
 }
 
+impl ElementArrayKey {
+    pub(crate) fn from_usize(cap: usize) -> Self {
+        if cap < usize::pow(2, 4) {
+            Self::E4
+        } else if cap <= usize::pow(2, 6) {
+            Self::E6
+        } else if cap <= usize::pow(2, 10) {
+            Self::E10
+        } else if cap <= usize::pow(2, 12) {
+            Self::E12
+        } else if cap <= usize::pow(2, 16) {
+            Self::E16
+        } else if cap <= usize::pow(2, 24) {
+            Self::E24
+        } else if cap <= usize::pow(2, 32) {
+            Self::E32
+        } else {
+            panic!("Too large an elements array")
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct ElementsVector {
     elements_index: u32,
     cap: ElementArrayKey,
     len: u32,
+}
+
+impl ElementsVector {
+    pub fn new(elements_index: u32, cap: ElementArrayKey, len: usize) -> Self {
+        let len = len as u32;
+        Self { elements_index, cap, len }
+    }
 }
 
 #[derive(Debug)]
@@ -329,16 +360,15 @@ impl Heap {
     ) -> u32 {
         let func_object_data = ObjectHeapData {
             _extensible: true,
-            entries: vec![
-                ObjectEntry::new(
-                    PropertyKey::from_str(self, "length"),
-                    PropertyDescriptor::roxh(Value::SmiU(length as u32)),
-                ),
-                ObjectEntry::new(
-                    PropertyKey::from_str(self, "name"),
-                    PropertyDescriptor::roxh(name),
-                ),
-            ],
+            keys: ElementsVector::new(0, ElementArrayKey::E8, 2),
+            values: ElementsVector::new(0, ElementArrayKey::E8, 2),
+                // ObjectEntry::new(
+                //     PropertyKey::from_str(self, "length"),
+                //     PropertyDescriptor::roxh(Value::SmiU(length as u32)),
+                // ),
+                // ObjectEntry::new(
+                //     PropertyKey::from_str(self, "name"),
+                //     PropertyDescriptor::roxh(name),
             prototype: Value::Object(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
         };
         self.objects.push(Some(func_object_data));
@@ -357,7 +387,8 @@ impl Heap {
     pub(crate) fn create_object(&mut self, entries: Vec<ObjectEntry>) -> u32 {
         let object_data = ObjectHeapData {
             _extensible: true,
-            entries,
+            keys: ElementsVector::new(0 , ElementArrayKey::from_usize(entries.len()), entries.len()),
+            values: ElementsVector::new(0 , ElementArrayKey::from_usize(entries.len()), entries.len()),
             prototype: Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
         };
         self.objects.push(Some(object_data));
@@ -367,7 +398,8 @@ impl Heap {
     pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> u32 {
         let object_data = ObjectHeapData {
             _extensible: true,
-            entries,
+            keys: ElementsVector::new(0 , ElementArrayKey::from_usize(entries.len()), entries.len()),
+            values: ElementsVector::new(0 , ElementArrayKey::from_usize(entries.len()), entries.len()),
             prototype: Value::Null,
         };
         self.objects.push(Some(object_data));

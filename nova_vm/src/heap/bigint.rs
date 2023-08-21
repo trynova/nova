@@ -6,6 +6,8 @@ use crate::{
     value::{JsResult, Value},
 };
 
+use super::{ElementArrayKey, ElementsVector};
+
 #[derive(Debug)]
 pub(crate) struct BigIntHeapData {
     pub(super) sign: bool,
@@ -28,30 +30,20 @@ impl BigIntHeapData {
 }
 
 pub fn initialize_bigint_heap(heap: &mut Heap) {
+    let entries = vec![
+        ObjectEntry::new_prototype_function_entry(heap, "asIntN", 2, false, bigint_as_int_n),
+        ObjectEntry::new_prototype_function_entry(heap, "asUintN", 2, false, bigint_as_uint_n),
+        ObjectEntry::new_constructor_prototype_entry(
+            heap,
+            BuiltinObjectIndexes::BigintPrototypeIndex as u32,
+        ),
+    ];
     heap.objects[BuiltinObjectIndexes::BigintConstructorIndex as usize] =
         Some(ObjectHeapData::new(
             true,
             Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-            vec![
-                ObjectEntry::new_prototype_function_entry(
-                    heap,
-                    "asIntN",
-                    2,
-                    false,
-                    bigint_as_int_n,
-                ),
-                ObjectEntry::new_prototype_function_entry(
-                    heap,
-                    "asUintN",
-                    2,
-                    false,
-                    bigint_as_uint_n,
-                ),
-                ObjectEntry::new_constructor_prototype_entry(
-                    heap,
-                    BuiltinObjectIndexes::BigintPrototypeIndex as u32,
-                ),
-            ],
+            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
+            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
         ));
     heap.functions[get_constructor_index(BuiltinObjectIndexes::BigintConstructorIndex) as usize] =
         Some(FunctionHeapData {
@@ -62,40 +54,42 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
             visible: None,
             binding: bigint_constructor,
         });
+    let entries = vec![
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "constructor"),
+            PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+                BuiltinObjectIndexes::BigintConstructorIndex,
+            ))),
+        ),
+        ObjectEntry::new_prototype_function_entry(
+            heap,
+            "toLocaleString",
+            0,
+            false,
+            bigint_prototype_to_locale_string,
+        ),
+        ObjectEntry::new_prototype_function_entry(
+            heap,
+            "toString",
+            0,
+            false,
+            bigint_prototype_to_string,
+        ),
+        ObjectEntry::new_prototype_function_entry(
+            heap,
+            "valueOf",
+            0,
+            false,
+            bigint_prototype_value_of,
+        ),
+        // @@ToStringTag
+        // ObjectEntry { key: PropertyKey::Symbol(), PropertyDescriptor }
+    ];
     heap.objects[BuiltinObjectIndexes::BigintPrototypeIndex as usize] = Some(ObjectHeapData::new(
         true,
         Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
-        vec![
-            ObjectEntry::new(
-                PropertyKey::from_str(heap, "constructor"),
-                PropertyDescriptor::rwx(Value::Function(get_constructor_index(
-                    BuiltinObjectIndexes::BigintConstructorIndex,
-                ))),
-            ),
-            ObjectEntry::new_prototype_function_entry(
-                heap,
-                "toLocaleString",
-                0,
-                false,
-                bigint_prototype_to_locale_string,
-            ),
-            ObjectEntry::new_prototype_function_entry(
-                heap,
-                "toString",
-                0,
-                false,
-                bigint_prototype_to_string,
-            ),
-            ObjectEntry::new_prototype_function_entry(
-                heap,
-                "valueOf",
-                0,
-                false,
-                bigint_prototype_value_of,
-            ),
-            // @@ToStringTag
-            // ObjectEntry { key: PropertyKey::Symbol(), PropertyDescriptor }
-        ],
+        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
+        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
     ));
 }
 

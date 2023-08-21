@@ -8,7 +8,7 @@ use crate::{
 
 use super::{
     heap_constants::WellKnownSymbolIndexes,
-    object::{ObjectEntry, PropertyKey},
+    object::{ObjectEntry, PropertyKey}, ElementArrayKey, ElementsVector,
 };
 
 pub type JsBindingFunction = fn(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value>;
@@ -25,14 +25,16 @@ pub(crate) struct FunctionHeapData {
 }
 
 pub fn initialize_function_heap(heap: &mut Heap) {
+    let entries = vec![ObjectEntry::new_constructor_prototype_entry(
+        heap,
+        BuiltinObjectIndexes::FunctionPrototypeIndex as u32,
+    )];
     heap.objects[BuiltinObjectIndexes::FunctionConstructorIndex as usize] =
         Some(ObjectHeapData::new(
             true,
             Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-            vec![ObjectEntry::new_constructor_prototype_entry(
-                heap,
-                BuiltinObjectIndexes::FunctionPrototypeIndex as u32,
-            )],
+            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
+            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
         ));
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::FunctionConstructorIndex) as usize] =
@@ -47,36 +49,32 @@ pub fn initialize_function_heap(heap: &mut Heap) {
     // NOTE: According to ECMAScript spec https://tc39.es/ecma262/#sec-properties-of-the-function-prototype-object
     // the %Function.prototype% object should itself be a function that always returns undefined. This is not
     // upheld here and we probably do not care. It's seemingly the only prototype that is a function.
+    let entries = vec![
+        ObjectEntry::new_prototype_function_entry(heap, "apply", 2, false, function_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "bind", 1, true, function_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "call", 1, true, function_todo),
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "constructor"),
+            PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+                BuiltinObjectIndexes::FunctionConstructorIndex,
+            ))),
+        ),
+        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, function_todo),
+        ObjectEntry::new_prototype_symbol_function_entry(
+            heap,
+            "hasInstance",
+            WellKnownSymbolIndexes::HasInstance as u32,
+            1,
+            false,
+            function_todo,
+        ),
+    ];
     heap.objects[BuiltinObjectIndexes::FunctionPrototypeIndex as usize] =
         Some(ObjectHeapData::new(
             true,
             Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
-            vec![
-                ObjectEntry::new_prototype_function_entry(heap, "apply", 2, false, function_todo),
-                ObjectEntry::new_prototype_function_entry(heap, "bind", 1, true, function_todo),
-                ObjectEntry::new_prototype_function_entry(heap, "call", 1, true, function_todo),
-                ObjectEntry::new(
-                    PropertyKey::from_str(heap, "constructor"),
-                    PropertyDescriptor::rwx(Value::Function(get_constructor_index(
-                        BuiltinObjectIndexes::FunctionConstructorIndex,
-                    ))),
-                ),
-                ObjectEntry::new_prototype_function_entry(
-                    heap,
-                    "toString",
-                    0,
-                    false,
-                    function_todo,
-                ),
-                ObjectEntry::new_prototype_symbol_function_entry(
-                    heap,
-                    "hasInstance",
-                    WellKnownSymbolIndexes::HasInstance as u32,
-                    1,
-                    false,
-                    function_todo,
-                ),
-            ],
+            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
+            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
         ));
 }
 
