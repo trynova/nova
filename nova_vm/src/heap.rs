@@ -207,28 +207,28 @@ union Elements16 {
 #[derive(Debug)]
 pub(crate) struct ElementArrays {
     /// up to 16 elements
-    e_2_4: Vec<[Option<Value>; usize::pow(2, 4)]>,
+    e_2_4: Vec<Option<[Option<Value>; usize::pow(2, 4)]>>,
     e_2_4_descriptors: HashMap<u32, HashMap<u8, ElementDescriptor>>,
     /// up to 64 elements
-    e_2_6: Vec<[Option<Value>; usize::pow(2, 6)]>,
+    e_2_6: Vec<Option<[Option<Value>; usize::pow(2, 6)]>>,
     e_2_6_descriptors: HashMap<u32, HashMap<u8, ElementDescriptor>>,
     /// up to 256 elements
-    e_2_8: Vec<[Option<Value>; usize::pow(2, 8)]>,
+    e_2_8: Vec<Option<[Option<Value>; usize::pow(2, 8)]>>,
     e_2_8_descriptors: HashMap<u32, HashMap<u8, ElementDescriptor>>,
     /// up to 1024 elements
-    e_2_10: Vec<[Option<Value>; usize::pow(2, 10)]>,
+    e_2_10: Vec<Option<[Option<Value>; usize::pow(2, 10)]>>,
     e_2_10_descriptors: HashMap<u32, HashMap<u16, ElementDescriptor>>,
     /// up to 4096 elements
-    e_2_12: Vec<[Option<Value>; usize::pow(2, 12)]>,
+    e_2_12: Vec<Option<[Option<Value>; usize::pow(2, 12)]>>,
     e_2_12_descriptors: HashMap<u32, HashMap<u16, ElementDescriptor>>,
     /// up to 65536 elements
-    e_2_16: Vec<[Option<Value>; usize::pow(2, 16)]>,
+    e_2_16: Vec<Option<[Option<Value>; usize::pow(2, 16)]>>,
     e_2_16_descriptors: HashMap<u32, HashMap<u16, ElementDescriptor>>,
     /// up to 16777216 elements
-    e_2_24: Vec<[Option<Value>; usize::pow(2, 24)]>,
+    e_2_24: Vec<Option<[Option<Value>; usize::pow(2, 24)]>>,
     e_2_24_descriptors: HashMap<u32, HashMap<u32, ElementDescriptor>>,
     /// up to 4294967296 elements
-    e_2_32: Vec<[Option<Value>; usize::pow(2, 32)]>,
+    e_2_32: Vec<Option<[Option<Value>; usize::pow(2, 32)]>>,
     e_2_32_descriptors: HashMap<u32, HashMap<u32, ElementDescriptor>>,
 }
 

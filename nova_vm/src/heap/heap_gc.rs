@@ -209,6 +209,7 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     .e_2_4
                     .get(index)
                     .unwrap()
+                    .unwrap()
                     .iter()
                     .for_each(|&value| {
                         if let Some(value) = value {
@@ -230,6 +231,7 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 heap.elements
                     .e_2_6
                     .get(index)
+                    .unwrap()
                     .unwrap()
                     .iter()
                     .for_each(|&value| {
@@ -253,6 +255,7 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     .e_2_8
                     .get(index)
                     .unwrap()
+                    .unwrap()
                     .iter()
                     .for_each(|&value| {
                         if let Some(value) = value {
@@ -274,6 +277,7 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 heap.elements
                     .e_2_10
                     .get(index)
+                    .unwrap()
                     .unwrap()
                     .iter()
                     .for_each(|&value| {
@@ -297,6 +301,7 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     .e_2_12
                     .get(index)
                     .unwrap()
+                    .unwrap()
                     .iter()
                     .for_each(|&value| {
                         if let Some(value) = value {
@@ -318,6 +323,7 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 heap.elements
                     .e_2_16
                     .get(index)
+                    .unwrap()
                     .unwrap()
                     .iter()
                     .for_each(|&value| {
@@ -341,6 +347,7 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     .e_2_24
                     .get(index)
                     .unwrap()
+                    .unwrap()
                     .iter()
                     .for_each(|&value| {
                         if let Some(value) = value {
@@ -363,6 +370,7 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     .e_2_32
                     .get(index)
                     .unwrap()
+                    .unwrap()
                     .iter()
                     .for_each(|&value| {
                         if let Some(value) = value {
@@ -377,5 +385,112 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
 }
 
 fn sweep(heap: &mut Heap, bits: &HeapBits) {
-    heap.strings[0] = None;
+    bits.e_2_4.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.elements.e_2_4.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.e_2_6.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.elements.e_2_6.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.e_2_8.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.elements.e_2_8.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.e_2_10.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.elements.e_2_10.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.e_2_12.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.elements.e_2_12.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.e_2_16.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.elements.e_2_16.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.e_2_24.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.elements.e_2_24.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.e_2_32.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.elements.e_2_32.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.arrays.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.arrays.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.bigints.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.bigints.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.dates.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.dates.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.errors.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.errors.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.functions.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.functions.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.numbers.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.numbers.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.objects.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.objects.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.regexps.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.regexps.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.strings.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.strings.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
+    bits.symbols.iter().enumerate().for_each(|(index, bit)| {
+        if !bit.load(Ordering::Acquire) {
+            let reference = heap.symbols.get_mut(index).unwrap();
+            reference.take();
+        }
+    });
 }
