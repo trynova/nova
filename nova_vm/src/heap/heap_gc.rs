@@ -2,7 +2,10 @@ use std::sync::atomic::Ordering;
 
 use crate::value::Value;
 
-use super::{Heap, heap_bits::{HeapBits, WorkQueues}, ElementsVector, ElementArrayKey, symbol};
+use super::{
+    heap_bits::{HeapBits, WorkQueues},
+    symbol, ElementArrayKey, ElementsVector, Heap,
+};
 
 pub(crate) fn heap_gc(heap: &mut Heap) {
     let bits = HeapBits::new(heap);
@@ -25,7 +28,11 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 marked.store(true, Ordering::Relaxed);
                 let heap_data = heap.arrays.get(index).unwrap().as_ref().unwrap();
                 queues.push_value(Value::Object(heap_data.object_index));
-                let ElementsVector { elements_index, cap, .. } = &heap_data.elements;
+                let ElementsVector {
+                    elements_index,
+                    cap,
+                    ..
+                } = &heap_data.elements;
                 match cap {
                     ElementArrayKey::E4 => queues.e_2_4.push(*elements_index),
                     ElementArrayKey::E6 => queues.e_2_6.push(*elements_index),
@@ -114,7 +121,11 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
                 marked.store(true, Ordering::Relaxed);
                 let heap_data = heap.objects.get(index).unwrap().as_ref().unwrap();
-                let ElementsVector { elements_index, cap, .. } = &heap_data.keys;
+                let ElementsVector {
+                    elements_index,
+                    cap,
+                    ..
+                } = &heap_data.keys;
                 match cap {
                     ElementArrayKey::E4 => queues.e_2_4.push(*elements_index),
                     ElementArrayKey::E6 => queues.e_2_6.push(*elements_index),
@@ -125,7 +136,11 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     ElementArrayKey::E24 => queues.e_2_24.push(*elements_index),
                     ElementArrayKey::E32 => queues.e_2_32.push(*elements_index),
                 }
-                let ElementsVector { elements_index, cap, .. } = &heap_data.values;
+                let ElementsVector {
+                    elements_index,
+                    cap,
+                    ..
+                } = &heap_data.values;
                 match cap {
                     ElementArrayKey::E4 => queues.e_2_4.push(*elements_index),
                     ElementArrayKey::E6 => queues.e_2_6.push(*elements_index),
@@ -190,11 +205,16 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements.e_2_4.get(index).unwrap().iter().for_each(|&value| {
-                    if let Some(value) = value {
-                        queues.push_value(value)
-                    }
-                });
+                heap.elements
+                    .e_2_4
+                    .get(index)
+                    .unwrap()
+                    .iter()
+                    .for_each(|&value| {
+                        if let Some(value) = value {
+                            queues.push_value(value)
+                        }
+                    });
             }
         });
         let mut e_2_6: Box<[u32]> = queues.e_2_6.drain(..).collect();
@@ -207,11 +227,16 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements.e_2_6.get(index).unwrap().iter().for_each(|&value| {
-                    if let Some(value) = value {
-                        queues.push_value(value)
-                    }
-                });
+                heap.elements
+                    .e_2_6
+                    .get(index)
+                    .unwrap()
+                    .iter()
+                    .for_each(|&value| {
+                        if let Some(value) = value {
+                            queues.push_value(value)
+                        }
+                    });
             }
         });
         let mut e_2_8: Box<[u32]> = queues.e_2_8.drain(..).collect();
@@ -224,11 +249,16 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements.e_2_8.get(index).unwrap().iter().for_each(|&value| {
-                    if let Some(value) = value {
-                        queues.push_value(value)
-                    }
-                });
+                heap.elements
+                    .e_2_8
+                    .get(index)
+                    .unwrap()
+                    .iter()
+                    .for_each(|&value| {
+                        if let Some(value) = value {
+                            queues.push_value(value)
+                        }
+                    });
             }
         });
         let mut e_2_10: Box<[u32]> = queues.e_2_10.drain(..).collect();
@@ -241,11 +271,16 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements.e_2_10.get(index).unwrap().iter().for_each(|&value| {
-                    if let Some(value) = value {
-                        queues.push_value(value)
-                    }
-                });
+                heap.elements
+                    .e_2_10
+                    .get(index)
+                    .unwrap()
+                    .iter()
+                    .for_each(|&value| {
+                        if let Some(value) = value {
+                            queues.push_value(value)
+                        }
+                    });
             }
         });
         let mut e_2_12: Box<[u32]> = queues.e_2_12.drain(..).collect();
@@ -258,11 +293,16 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements.e_2_12.get(index).unwrap().iter().for_each(|&value| {
-                    if let Some(value) = value {
-                        queues.push_value(value)
-                    }
-                });
+                heap.elements
+                    .e_2_12
+                    .get(index)
+                    .unwrap()
+                    .iter()
+                    .for_each(|&value| {
+                        if let Some(value) = value {
+                            queues.push_value(value)
+                        }
+                    });
             }
         });
         let mut e_2_16: Box<[u32]> = queues.e_2_16.drain(..).collect();
@@ -275,11 +315,16 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements.e_2_16.get(index).unwrap().iter().for_each(|&value| {
-                    if let Some(value) = value {
-                        queues.push_value(value)
-                    }
-                });
+                heap.elements
+                    .e_2_16
+                    .get(index)
+                    .unwrap()
+                    .iter()
+                    .for_each(|&value| {
+                        if let Some(value) = value {
+                            queues.push_value(value)
+                        }
+                    });
             }
         });
         let mut e_2_24: Box<[u32]> = queues.e_2_24.drain(..).collect();
@@ -292,11 +337,16 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements.e_2_24.get(index).unwrap().iter().for_each(|&value| {
-                    if let Some(value) = value {
-                        queues.push_value(value)
-                    }
-                });
+                heap.elements
+                    .e_2_24
+                    .get(index)
+                    .unwrap()
+                    .iter()
+                    .for_each(|&value| {
+                        if let Some(value) = value {
+                            queues.push_value(value)
+                        }
+                    });
             }
         });
         let mut e_2_32: Box<[u32]> = queues.e_2_32.drain(..).collect();
@@ -309,11 +359,16 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements.e_2_32.get(index).unwrap().iter().for_each(|&value| {
-                    if let Some(value) = value {
-                        queues.push_value(value)
-                    }
-                });
+                heap.elements
+                    .e_2_32
+                    .get(index)
+                    .unwrap()
+                    .iter()
+                    .for_each(|&value| {
+                        if let Some(value) = value {
+                            queues.push_value(value)
+                        }
+                    });
             }
         });
     }

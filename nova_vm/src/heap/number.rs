@@ -2,7 +2,7 @@ use std::vec;
 
 use super::{
     object::{ObjectEntry, PropertyKey},
-    Heap, ElementArrayKey, ElementsVector,
+    ElementArrayKey, ElementsVector, Heap,
 };
 use crate::{
     heap::{

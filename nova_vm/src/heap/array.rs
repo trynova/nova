@@ -10,7 +10,7 @@ use super::{
     function::FunctionHeapData,
     heap_constants::WellKnownSymbolIndexes,
     object::{ObjectEntry, PropertyKey},
-    ElementsVector, ElementArrayKey,
+    ElementArrayKey, ElementsVector,
 };
 
 #[derive(Debug)]

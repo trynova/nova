@@ -9,7 +9,8 @@ use crate::{
 use super::{
     function::FunctionHeapData,
     heap_constants::WellKnownSymbolIndexes,
-    object::{ObjectEntry, PropertyKey}, ElementArrayKey, ElementsVector,
+    object::{ObjectEntry, PropertyKey},
+    ElementArrayKey, ElementsVector,
 };
 
 #[derive(Debug)]

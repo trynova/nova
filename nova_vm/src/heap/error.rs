@@ -8,7 +8,8 @@ use crate::{
 
 use super::{
     function::FunctionHeapData,
-    object::{ObjectEntry, PropertyKey}, ElementArrayKey, ElementsVector,
+    object::{ObjectEntry, PropertyKey},
+    ElementArrayKey, ElementsVector,
 };
 
 #[derive(Debug)]

@@ -6,13 +6,13 @@ mod error;
 mod function;
 mod heap_bits;
 mod heap_constants;
+mod heap_gc;
 mod math;
 mod number;
 mod object;
 mod regexp;
 mod string;
 mod symbol;
-mod heap_gc;
 
 use core::panic;
 use std::{
@@ -95,7 +95,11 @@ pub(crate) struct ElementsVector {
 impl ElementsVector {
     pub fn new(elements_index: u32, cap: ElementArrayKey, len: usize) -> Self {
         let len = len as u32;
-        Self { elements_index, cap, len }
+        Self {
+            elements_index,
+            cap,
+            len,
+        }
     }
 }
 
@@ -362,13 +366,13 @@ impl Heap {
             _extensible: true,
             keys: ElementsVector::new(0, ElementArrayKey::E8, 2),
             values: ElementsVector::new(0, ElementArrayKey::E8, 2),
-                // ObjectEntry::new(
-                //     PropertyKey::from_str(self, "length"),
-                //     PropertyDescriptor::roxh(Value::SmiU(length as u32)),
-                // ),
-                // ObjectEntry::new(
-                //     PropertyKey::from_str(self, "name"),
-                //     PropertyDescriptor::roxh(name),
+            // ObjectEntry::new(
+            //     PropertyKey::from_str(self, "length"),
+            //     PropertyDescriptor::roxh(Value::SmiU(length as u32)),
+            // ),
+            // ObjectEntry::new(
+            //     PropertyKey::from_str(self, "name"),
+            //     PropertyDescriptor::roxh(name),
             prototype: Value::Object(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
         };
         self.objects.push(Some(func_object_data));
@@ -387,8 +391,12 @@ impl Heap {
     pub(crate) fn create_object(&mut self, entries: Vec<ObjectEntry>) -> u32 {
         let object_data = ObjectHeapData {
             _extensible: true,
-            keys: ElementsVector::new(0 , ElementArrayKey::from_usize(entries.len()), entries.len()),
-            values: ElementsVector::new(0 , ElementArrayKey::from_usize(entries.len()), entries.len()),
+            keys: ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
+            values: ElementsVector::new(
+                0,
+                ElementArrayKey::from_usize(entries.len()),
+                entries.len(),
+            ),
             prototype: Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
         };
         self.objects.push(Some(object_data));
@@ -398,8 +406,12 @@ impl Heap {
     pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> u32 {
         let object_data = ObjectHeapData {
             _extensible: true,
-            keys: ElementsVector::new(0 , ElementArrayKey::from_usize(entries.len()), entries.len()),
-            values: ElementsVector::new(0 , ElementArrayKey::from_usize(entries.len()), entries.len()),
+            keys: ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
+            values: ElementsVector::new(
+                0,
+                ElementArrayKey::from_usize(entries.len()),
+                entries.len(),
+            ),
             prototype: Value::Null,
         };
         self.objects.push(Some(object_data));

@@ -9,7 +9,7 @@ use crate::{
 };
 use std::{fmt::Debug, vec};
 
-use super::{ElementsVector, EntriesVector, ElementArrayKey};
+use super::{ElementArrayKey, ElementsVector, EntriesVector};
 
 #[derive(Debug)]
 pub struct ObjectEntry {

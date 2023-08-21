@@ -8,7 +8,8 @@ use crate::{
 
 use super::{
     heap_constants::WellKnownSymbolIndexes,
-    object::{ObjectEntry, PropertyKey}, ElementArrayKey, ElementsVector,
+    object::{ObjectEntry, PropertyKey},
+    ElementArrayKey, ElementsVector,
 };
 
 pub type JsBindingFunction = fn(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value>;

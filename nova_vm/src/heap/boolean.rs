@@ -8,7 +8,7 @@ use crate::{
 
 use super::{
     object::{ObjectEntry, PropertyKey},
-    Heap, ElementArrayKey, ElementsVector,
+    ElementArrayKey, ElementsVector, Heap,
 };
 
 pub fn initialize_boolean_heap(heap: &mut Heap) {

@@ -11,7 +11,8 @@ use crate::{
 use super::{
     function::FunctionHeapData,
     heap_constants::WellKnownSymbolIndexes,
-    object::{ObjectEntry, PropertyKey}, ElementsVector, ElementArrayKey,
+    object::{ObjectEntry, PropertyKey},
+    ElementArrayKey, ElementsVector,
 };
 
 #[derive(Debug)]
