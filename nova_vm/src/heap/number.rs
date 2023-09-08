@@ -2,12 +2,12 @@ use std::vec;
 
 use super::{
     object::{ObjectEntry, PropertyKey},
-    ElementArrayKey, ElementsVector, Heap,
+    Heap,
 };
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        FunctionHeapData, ObjectHeapData, PropertyDescriptor,
+        FunctionHeapData, PropertyDescriptor,
     },
     value::{JsResult, Value},
 };
@@ -72,13 +72,12 @@ pub fn initialize_number_heap(heap: &mut Heap) {
             BuiltinObjectIndexes::NumberPrototypeIndex as u32,
         ),
     ];
-    heap.objects[BuiltinObjectIndexes::NumberConstructorIndex as usize] =
-        Some(ObjectHeapData::new(
-            true,
-            Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ));
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::NumberConstructorIndex,
+        true,
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        entries,
+    );
     heap.functions[get_constructor_index(BuiltinObjectIndexes::NumberConstructorIndex) as usize] =
         Some(FunctionHeapData {
             object_index: BuiltinObjectIndexes::NumberConstructorIndex as u32,
@@ -102,12 +101,12 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, number_todo),
         ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false, number_todo),
     ];
-    heap.objects[BuiltinObjectIndexes::NumberPrototypeIndex as usize] = Some(ObjectHeapData::new(
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::NumberPrototypeIndex,
         true,
         Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-    ));
+        entries,
+    );
 }
 
 fn number_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {

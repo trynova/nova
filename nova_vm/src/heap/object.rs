@@ -9,12 +9,12 @@ use crate::{
 };
 use std::{fmt::Debug, vec};
 
-use super::{ElementArrayKey, ElementsVector, EntriesVector};
+use super::element_array::ElementsVector;
 
 #[derive(Debug)]
 pub struct ObjectEntry {
-    key: PropertyKey,
-    value: PropertyDescriptor,
+    pub(crate) key: PropertyKey,
+    pub(crate) value: PropertyDescriptor,
 }
 
 impl ObjectEntry {
@@ -310,13 +310,12 @@ pub fn initialize_object_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "setPrototypeOf", 2, false, object_todo),
         ObjectEntry::new_prototype_function_entry(heap, "values", 1, false, object_todo),
     ];
-    heap.objects[BuiltinObjectIndexes::ObjectConstructorIndex as usize] =
-        Some(ObjectHeapData::new(
-            true,
-            Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ));
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::ObjectConstructorIndex,
+        true,
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        entries,
+    );
     heap.functions[get_constructor_index(BuiltinObjectIndexes::ObjectConstructorIndex) as usize] =
         Some(FunctionHeapData {
             object_index: BuiltinObjectIndexes::ObjectConstructorIndex as u32,
@@ -346,13 +345,12 @@ pub fn initialize_object_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, object_todo),
         ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false, object_todo),
     ];
-    heap.objects[BuiltinObjectIndexes::ObjectConstructorIndex as usize] =
-        Some(ObjectHeapData::new(
-            true,
-            Value::Null,
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ));
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::ObjectConstructorIndex,
+        true,
+        Value::Null,
+        entries,
+    );
 }
 
 fn object_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {

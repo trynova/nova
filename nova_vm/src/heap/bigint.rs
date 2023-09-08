@@ -1,12 +1,10 @@
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        FunctionHeapData, Heap, ObjectEntry, ObjectHeapData, PropertyDescriptor, PropertyKey,
+        FunctionHeapData, Heap, ObjectEntry, PropertyDescriptor, PropertyKey,
     },
     value::{JsResult, Value},
 };
-
-use super::{ElementArrayKey, ElementsVector};
 
 #[derive(Debug)]
 pub(crate) struct BigIntHeapData {
@@ -38,13 +36,12 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
             BuiltinObjectIndexes::BigintPrototypeIndex as u32,
         ),
     ];
-    heap.objects[BuiltinObjectIndexes::BigintConstructorIndex as usize] =
-        Some(ObjectHeapData::new(
-            true,
-            Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ));
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::BigintConstructorIndex,
+        true,
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        entries,
+    );
     heap.functions[get_constructor_index(BuiltinObjectIndexes::BigintConstructorIndex) as usize] =
         Some(FunctionHeapData {
             object_index: heap.objects.len() as u32,
@@ -85,12 +82,12 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
         // @@ToStringTag
         // ObjectEntry { key: PropertyKey::Symbol(), PropertyDescriptor }
     ];
-    heap.objects[BuiltinObjectIndexes::BigintPrototypeIndex as usize] = Some(ObjectHeapData::new(
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::BigintPrototypeIndex,
         true,
         Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-    ));
+        entries,
+    );
 }
 
 fn bigint_constructor(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value> {

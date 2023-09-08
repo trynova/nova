@@ -7,10 +7,10 @@ use crate::{
 };
 
 use super::{
+    element_array::ElementsVector,
     function::FunctionHeapData,
     heap_constants::WellKnownSymbolIndexes,
     object::{ObjectEntry, PropertyKey},
-    ElementArrayKey, ElementsVector,
 };
 
 #[derive(Debug)]
@@ -55,12 +55,12 @@ pub fn initialize_array_heap(heap: &mut Heap) {
             },
         ),
     ];
-    heap.objects[BuiltinObjectIndexes::ArrayConstructorIndex as usize] = Some(ObjectHeapData::new(
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::ArrayConstructorIndex,
         true,
         Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-    ));
+        entries,
+    );
     heap.functions[get_constructor_index(BuiltinObjectIndexes::ArrayConstructorIndex) as usize] =
         Some(FunctionHeapData {
             object_index: BuiltinObjectIndexes::ArrayConstructorIndex as u32,
@@ -161,12 +161,12 @@ pub fn initialize_array_heap(heap: &mut Heap) {
             ]))),
         ),
     ];
-    heap.objects[BuiltinObjectIndexes::ArrayPrototypeIndex as usize] = Some(ObjectHeapData::new(
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::ArrayPrototypeIndex,
         true,
         Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-    ));
+        entries,
+    );
 }
 
 fn array_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {

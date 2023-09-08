@@ -1,7 +1,7 @@
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        Heap, ObjectHeapData, PropertyDescriptor,
+        Heap, PropertyDescriptor,
     },
     value::{JsResult, Value},
 };
@@ -9,7 +9,6 @@ use crate::{
 use super::{
     function::FunctionHeapData,
     object::{ObjectEntry, PropertyKey},
-    ElementArrayKey, ElementsVector,
 };
 
 #[derive(Debug)]
@@ -23,12 +22,12 @@ pub fn initialize_error_heap(heap: &mut Heap) {
         heap,
         BuiltinObjectIndexes::ErrorPrototypeIndex as u32,
     )];
-    heap.objects[BuiltinObjectIndexes::ErrorConstructorIndex as usize] = Some(ObjectHeapData::new(
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::ErrorConstructorIndex,
         true,
         Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-    ));
+        entries,
+    );
     heap.functions[get_constructor_index(BuiltinObjectIndexes::ErrorConstructorIndex) as usize] =
         Some(FunctionHeapData {
             object_index: BuiltinObjectIndexes::ErrorConstructorIndex as u32,
@@ -55,12 +54,12 @@ pub fn initialize_error_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, error_todo),
     ];
-    heap.objects[BuiltinObjectIndexes::ErrorPrototypeIndex as usize] = Some(ObjectHeapData::new(
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::ErrorPrototypeIndex,
         true,
         Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-    ));
+        entries,
+    );
 }
 
 fn error_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {

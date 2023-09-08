@@ -1,15 +1,12 @@
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes, WellKnownSymbolIndexes},
-        FunctionHeapData, Heap, ObjectHeapData, PropertyDescriptor,
+        FunctionHeapData, Heap, PropertyDescriptor,
     },
     value::{JsResult, StringIndex, Value},
 };
 
-use super::{
-    object::{ObjectEntry, PropertyKey},
-    ElementArrayKey, ElementsVector,
-};
+use super::object::{ObjectEntry, PropertyKey};
 
 #[derive(Debug)]
 pub(crate) struct SymbolHeapData {
@@ -132,13 +129,12 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
             PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Unscopables as u32)),
         ),
     ];
-    heap.objects[BuiltinObjectIndexes::SymbolConstructorIndex as usize] =
-        Some(ObjectHeapData::new(
-            true,
-            Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ));
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::SymbolConstructorIndex,
+        true,
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        entries,
+    );
     heap.functions[get_constructor_index(BuiltinObjectIndexes::SymbolConstructorIndex) as usize] =
         Some(FunctionHeapData {
             object_index: BuiltinObjectIndexes::SymbolConstructorIndex as u32,
@@ -148,43 +144,43 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
             visible: None,
             binding: symbol_constructor_binding,
         });
-    heap.objects[BuiltinObjectIndexes::SymbolPrototypeIndex as usize] = Some(ObjectHeapData::new(
+    let entries = vec![
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "constructor"),
+            PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+                BuiltinObjectIndexes::SymbolConstructorIndex,
+            ))),
+        ),
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "description"),
+            // TODO: create description getter function
+            PropertyDescriptor::ReadOnly {
+                get: 0,
+                enumerable: false,
+                configurable: true,
+            },
+        ),
+        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, symbol_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false, symbol_todo),
+        ObjectEntry::new_prototype_symbol_function_entry(
+            heap,
+            "[Symbol.toPrimitive]",
+            WellKnownSymbolIndexes::ToPrimitive as u32,
+            1,
+            false,
+            symbol_todo,
+        ),
+        ObjectEntry::new(
+            PropertyKey::Symbol(WellKnownSymbolIndexes::ToStringTag as u32),
+            PropertyDescriptor::roxh(Value::new_string(heap, "Symbol")),
+        ),
+    ];
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::SymbolPrototypeIndex,
         true,
         Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
-        ElementsVector::new(0, ElementArrayKey::from_usize(6), 6),
-        ElementsVector::new(0, ElementArrayKey::from_usize(6), 6),
-        // vec![
-        //     ObjectEntry::new(
-        //         PropertyKey::from_str(heap, "constructor"),
-        //         PropertyDescriptor::rwx(Value::Function(get_constructor_index(
-        //             BuiltinObjectIndexes::SymbolConstructorIndex,
-        //         ))),
-        //     ),
-        //     ObjectEntry::new(
-        //         PropertyKey::from_str(heap, "description"),
-        //         // TODO: create description getter function
-        //         PropertyDescriptor::ReadOnly {
-        //             get: 0,
-        //             enumerable: false,
-        //             configurable: true,
-        //         },
-        //     ),
-        //     ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, symbol_todo),
-        //     ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false, symbol_todo),
-        //     ObjectEntry::new_prototype_symbol_function_entry(
-        //         heap,
-        //         "[Symbol.toPrimitive]",
-        //         WellKnownSymbolIndexes::ToPrimitive as u32,
-        //         1,
-        //         false,
-        //         symbol_todo,
-        //     ),
-        //     ObjectEntry::new(
-        //         PropertyKey::Symbol(WellKnownSymbolIndexes::ToStringTag as u32),
-        //         PropertyDescriptor::roxh(Value::new_string(heap, "Symbol")),
-        //     ),
-        // ],
-    ));
+        entries,
+    );
 }
 
 fn symbol_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {

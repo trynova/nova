@@ -1,13 +1,11 @@
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        FunctionHeapData, Heap, ObjectHeapData, PropertyDescriptor,
+        FunctionHeapData, Heap,
     },
     value::{JsResult, Value},
 };
 use wtf8::Wtf8Buf;
-
-use super::{ElementArrayKey, ElementsVector};
 
 #[derive(Debug)]
 pub(crate) struct StringHeapData {
@@ -28,14 +26,13 @@ impl StringHeapData {
 }
 
 pub fn initialize_string_heap(heap: &mut Heap) {
-    heap.objects[BuiltinObjectIndexes::StringConstructorIndex as usize] =
-        Some(ObjectHeapData::new(
-            true,
-            Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-            // TODO: Methods and properties
-            ElementsVector::new(0, ElementArrayKey::from_usize(0), 0),
-            ElementsVector::new(0, ElementArrayKey::from_usize(0), 0),
-        ));
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::StringConstructorIndex,
+        true,
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        // TODO: Methods and properties
+        Vec::with_capacity(0),
+    );
     heap.functions[get_constructor_index(BuiltinObjectIndexes::StringConstructorIndex) as usize] =
         Some(FunctionHeapData {
             object_index: BuiltinObjectIndexes::StringConstructorIndex as u32,
@@ -45,13 +42,13 @@ pub fn initialize_string_heap(heap: &mut Heap) {
             visible: None,
             binding: string_constructor_binding,
         });
-    heap.objects[BuiltinObjectIndexes::StringPrototypeIndex as usize] = Some(ObjectHeapData::new(
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::StringPrototypeIndex,
         true,
         Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
         // TODO: Methods and properties
-        ElementsVector::new(0, ElementArrayKey::from_usize(0), 0),
-        ElementsVector::new(0, ElementArrayKey::from_usize(0), 0),
-    ));
+        Vec::with_capacity(0),
+    );
 }
 
 fn string_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {

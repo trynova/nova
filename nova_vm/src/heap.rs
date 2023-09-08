@@ -2,6 +2,7 @@ mod array;
 mod bigint;
 mod boolean;
 mod date;
+mod element_array;
 mod error;
 mod function;
 mod heap_bits;
@@ -14,17 +15,16 @@ mod regexp;
 mod string;
 mod symbol;
 
-use core::panic;
-use std::{
-    collections::HashMap,
-    num::{NonZeroU16, NonZeroU8},
-};
-
 use self::{
     array::{initialize_array_heap, ArrayHeapData},
     bigint::{initialize_bigint_heap, BigIntHeapData},
     boolean::initialize_boolean_heap,
     date::{initialize_date_heap, DateHeapData},
+    element_array::{
+        ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16, ElementArray2Pow24,
+        ElementArray2Pow32, ElementArray2Pow4, ElementArray2Pow6, ElementArray2Pow8, ElementArrays,
+        ElementsVector,
+    },
     error::{initialize_error_heap, ErrorHeapData},
     function::{initialize_function_heap, FunctionHeapData, JsBindingFunction},
     heap_constants::{
@@ -40,200 +40,14 @@ use self::{
     string::{initialize_string_heap, StringHeapData},
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
-use crate::value::{FunctionIndex, Value};
+use crate::value::Value;
 use wtf8::Wtf8;
 
 #[derive(Debug)]
-pub(crate) enum ElementArrayKey {
-    /// up to 16 elements
-    E4,
-    /// up to 64 elements
-    E6,
-    /// up to 256 elements
-    E8,
-    /// up to 1024 elements
-    E10,
-    /// up to 4096 elements
-    E12,
-    /// up to 65536 elements
-    E16,
-    /// up to 16777216 elements
-    E24,
-    /// up to 4294967296 elements
-    E32,
-}
-
-impl ElementArrayKey {
-    pub(crate) fn from_usize(cap: usize) -> Self {
-        if cap < usize::pow(2, 4) {
-            Self::E4
-        } else if cap <= usize::pow(2, 6) {
-            Self::E6
-        } else if cap <= usize::pow(2, 10) {
-            Self::E10
-        } else if cap <= usize::pow(2, 12) {
-            Self::E12
-        } else if cap <= usize::pow(2, 16) {
-            Self::E16
-        } else if cap <= usize::pow(2, 24) {
-            Self::E24
-        } else if cap <= usize::pow(2, 32) {
-            Self::E32
-        } else {
-            panic!("Too large an elements array")
-        }
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct ElementsVector {
-    elements_index: u32,
-    cap: ElementArrayKey,
-    len: u32,
-}
-
-impl ElementsVector {
-    pub fn new(elements_index: u32, cap: ElementArrayKey, len: usize) -> Self {
-        let len = len as u32;
-        Self {
-            elements_index,
-            cap,
-            len,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct EntriesVector {
-    entries_index: u32,
-    cap: ElementArrayKey,
-    len: u32,
-}
-
-#[derive(Debug)]
-pub enum ElementDescriptor {
-    /// ```js
-    /// { value, writable: true, enumerable: true, configurable: true }
-    /// ```
-    WritableEnumerableConfigurableData,
-    /// ```js
-    /// { value, writable: true, enumerable: true, configurable: false }
-    /// ```
-    WritableEnumerableUnconfigurableData,
-    /// ```js
-    /// { value, writable: true, enumerable: false, configurable: true }
-    /// ```
-    WritableUnenumerableConfigurableData,
-    /// ```js
-    /// { value, writable: true, enumerable: false, configurable: false }
-    /// ```
-    WritableUnenumerableUnconfigurableData,
-    /// ```js
-    /// { value, writable: false, enumerable: true, configurable: true }
-    /// ```
-    ReadOnlyEnumerableConfigurableData,
-    /// ```js
-    /// { value, writable: false, enumerable: true, configurable: false }
-    /// ```
-    ReadOnlyEnumerableUnconfigurableData,
-    /// ```js
-    /// { value, writable: false, enumerable: false, configurable: true }
-    /// ```
-    ReadOnlyUnenumerableConfigurableData,
-    /// ```js
-    /// { value, writable: false, enumerable: false, configurable: false }
-    /// ```
-    ReadOnlyUnenumerableUnconfigurableData,
-    // TODO: Is { enumerable, configurable } actually a real case or is that just in the spec?
-    // If it is then a NoReadNoWrite*umerable*onfigurable set of descriptors is needed
-    /// ```js
-    /// { get, enumerable: true, configurable: true }
-    /// ```
-    ReadOnlyEnumerableConfigurableAccessor(u8, NonZeroU16),
-    /// ```js
-    /// { get, enumerable: true, configurable: false }
-    /// ```
-    ReadOnlyEnumerableUnconfigurableAccessor(u8, NonZeroU16),
-    /// ```js
-    /// { get, enumerable: false, configurable: true }
-    /// ```
-    ReadOnlyUnenumerableConfigurableAccessor(u8, NonZeroU16),
-    /// ```js
-    /// { get, enumerable: false, configurable: false }
-    /// ```
-    ReadOnlyUnenumerableUnconfigurableAccessor(u8, NonZeroU16),
-    /// ```js
-    /// { set, enumerable: true, configurable: true }
-    /// ```
-    WriteOnlyEnumerableConfigurableAccessor(u8, NonZeroU16),
-    /// ```js
-    /// { set, enumerable: true, configurable: false }
-    /// ```
-    WriteOnlyEnumerableUnconfigurableAccessor(u8, NonZeroU16),
-    /// ```js
-    /// { set, enumerable: false, configurable: true }
-    /// ```
-    WriteOnlyUnenumerableConfigurableAccessor(u8, NonZeroU16),
-    /// ```js
-    /// { set, enumerable: false, configurable: false }
-    /// ```
-    WriteOnlyUnenumerableUnconfigurableAccessor(u8, NonZeroU16),
-    /// ```js
-    /// { get, set, enumerable: true, configurable: true }
-    /// ```
-    ReadWriteEnumerableConfigurableAccessor(u8, u8, NonZeroU16, NonZeroU16),
-    /// ```js
-    /// { get, set, enumerable: true, configurable: false }
-    /// ```
-    ReadWriteEnumerableUnconfigurableAccessor(u8, u8, NonZeroU16, NonZeroU16),
-    /// ```js
-    /// { get, set, enumerable: false, configurable: true }
-    /// ```
-    ReadWriteUnenumerableConfigurableAccessor(u8, u8, NonZeroU16, NonZeroU16),
-    /// ```js
-    /// { get, set, enumerable: false, configurable: false }
-    /// ```
-    ReadWriteUnenumerableUnconfigurableAccessor(u8, u8, NonZeroU16, NonZeroU16),
-}
-
-union Elements16 {
-    elements: [Option<Value>; usize::pow(2, 4)],
-    entries: (
-        [Option<Value>; usize::pow(2, 3)],
-        [Option<Value>; usize::pow(2, 3)],
-    ),
-}
-
-#[derive(Debug)]
-pub(crate) struct ElementArrays {
-    /// up to 16 elements
-    e_2_4: Vec<Option<[Option<Value>; usize::pow(2, 4)]>>,
-    e_2_4_descriptors: HashMap<u32, HashMap<u8, ElementDescriptor>>,
-    /// up to 64 elements
-    e_2_6: Vec<Option<[Option<Value>; usize::pow(2, 6)]>>,
-    e_2_6_descriptors: HashMap<u32, HashMap<u8, ElementDescriptor>>,
-    /// up to 256 elements
-    e_2_8: Vec<Option<[Option<Value>; usize::pow(2, 8)]>>,
-    e_2_8_descriptors: HashMap<u32, HashMap<u8, ElementDescriptor>>,
-    /// up to 1024 elements
-    e_2_10: Vec<Option<[Option<Value>; usize::pow(2, 10)]>>,
-    e_2_10_descriptors: HashMap<u32, HashMap<u16, ElementDescriptor>>,
-    /// up to 4096 elements
-    e_2_12: Vec<Option<[Option<Value>; usize::pow(2, 12)]>>,
-    e_2_12_descriptors: HashMap<u32, HashMap<u16, ElementDescriptor>>,
-    /// up to 65536 elements
-    e_2_16: Vec<Option<[Option<Value>; usize::pow(2, 16)]>>,
-    e_2_16_descriptors: HashMap<u32, HashMap<u16, ElementDescriptor>>,
-    /// up to 16777216 elements
-    e_2_24: Vec<Option<[Option<Value>; usize::pow(2, 24)]>>,
-    e_2_24_descriptors: HashMap<u32, HashMap<u32, ElementDescriptor>>,
-    /// up to 4294967296 elements
-    e_2_32: Vec<Option<[Option<Value>; usize::pow(2, 32)]>>,
-    e_2_32_descriptors: HashMap<u32, HashMap<u32, ElementDescriptor>>,
-}
-
-#[derive(Debug)]
 pub struct Heap {
+    /// ElementsArrays is where all element arrays live;
+    /// Element arrays are static arrays of Values plus
+    /// a HashMap of possible property descriptors.
     pub(crate) elements: ElementArrays,
     pub(crate) arrays: Vec<Option<ArrayHeapData>>,
     pub(crate) bigints: Vec<Option<BigIntHeapData>>,
@@ -252,22 +66,14 @@ impl Heap {
     pub fn new() -> Heap {
         let mut heap = Heap {
             elements: ElementArrays {
-                e_2_4: Vec::with_capacity(1024),
-                e_2_4_descriptors: HashMap::new(),
-                e_2_6: Vec::with_capacity(1024),
-                e_2_6_descriptors: HashMap::new(),
-                e_2_8: vec![],
-                e_2_8_descriptors: HashMap::new(),
-                e_2_10: vec![],
-                e_2_10_descriptors: HashMap::new(),
-                e_2_12: vec![],
-                e_2_12_descriptors: HashMap::new(),
-                e_2_16: vec![],
-                e_2_16_descriptors: HashMap::new(),
-                e_2_24: vec![],
-                e_2_24_descriptors: HashMap::new(),
-                e_2_32: vec![],
-                e_2_32_descriptors: HashMap::new(),
+                e2pow4: ElementArray2Pow4::with_capacity(1024),
+                e2pow6: ElementArray2Pow6::with_capacity(1024),
+                e2pow8: ElementArray2Pow8::default(),
+                e2pow10: ElementArray2Pow10::default(),
+                e2pow12: ElementArray2Pow12::default(),
+                e2pow16: ElementArray2Pow16::default(),
+                e2pow24: ElementArray2Pow24::default(),
+                e2pow32: ElementArray2Pow32::default(),
             },
             arrays: Vec::with_capacity(1024),
             bigints: Vec::with_capacity(1024),
@@ -362,17 +168,22 @@ impl Heap {
         uses_arguments: bool,
         binding: JsBindingFunction,
     ) -> u32 {
+        let entries = vec![
+            ObjectEntry::new(
+                PropertyKey::from_str(self, "length"),
+                PropertyDescriptor::roxh(Value::SmiU(length as u32)),
+            ),
+            ObjectEntry::new(
+                PropertyKey::from_str(self, "name"),
+                PropertyDescriptor::roxh(name),
+            ),
+        ];
+        let (keys, values): (ElementsVector, ElementsVector) =
+            self.elements.create_object_entries(entries);
         let func_object_data = ObjectHeapData {
             _extensible: true,
-            keys: ElementsVector::new(0, ElementArrayKey::E8, 2),
-            values: ElementsVector::new(0, ElementArrayKey::E8, 2),
-            // ObjectEntry::new(
-            //     PropertyKey::from_str(self, "length"),
-            //     PropertyDescriptor::roxh(Value::SmiU(length as u32)),
-            // ),
-            // ObjectEntry::new(
-            //     PropertyKey::from_str(self, "name"),
-            //     PropertyDescriptor::roxh(name),
+            keys,
+            values,
             prototype: Value::Object(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
         };
         self.objects.push(Some(func_object_data));
@@ -389,14 +200,11 @@ impl Heap {
     }
 
     pub(crate) fn create_object(&mut self, entries: Vec<ObjectEntry>) -> u32 {
+        let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             _extensible: true,
-            keys: ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-            values: ElementsVector::new(
-                0,
-                ElementArrayKey::from_usize(entries.len()),
-                entries.len(),
-            ),
+            keys,
+            values,
             prototype: Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
         };
         self.objects.push(Some(object_data));
@@ -404,17 +212,32 @@ impl Heap {
     }
 
     pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> u32 {
+        let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             _extensible: true,
-            keys: ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-            values: ElementsVector::new(
-                0,
-                ElementArrayKey::from_usize(entries.len()),
-                entries.len(),
-            ),
+            keys,
+            values,
             prototype: Value::Null,
         };
         self.objects.push(Some(object_data));
+        self.objects.len() as u32
+    }
+
+    pub(crate) fn insert_builtin_object(
+        &mut self,
+        index: BuiltinObjectIndexes,
+        extensible: bool,
+        prototype: Value,
+        entries: Vec<ObjectEntry>,
+    ) -> u32 {
+        let (keys, values) = self.elements.create_object_entries(entries);
+        let object_data = ObjectHeapData {
+            _extensible: extensible,
+            keys,
+            values,
+            prototype,
+        };
+        self.objects[index as usize] = Some(object_data);
         self.objects.len() as u32
     }
 }

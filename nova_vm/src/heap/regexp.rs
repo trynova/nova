@@ -1,7 +1,7 @@
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        Heap, ObjectHeapData, PropertyDescriptor,
+        Heap, PropertyDescriptor,
     },
     value::{JsResult, Value},
 };
@@ -10,7 +10,6 @@ use super::{
     function::FunctionHeapData,
     heap_constants::WellKnownSymbolIndexes,
     object::{ObjectEntry, PropertyKey},
-    ElementArrayKey, ElementsVector,
 };
 
 #[derive(Debug)]
@@ -35,13 +34,12 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
             },
         ),
     ];
-    heap.objects[BuiltinObjectIndexes::RegExpConstructorIndex as usize] =
-        Some(ObjectHeapData::new(
-            true,
-            Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ));
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::RegExpConstructorIndex,
+        true,
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        entries,
+    );
     heap.functions[get_constructor_index(BuiltinObjectIndexes::RegExpConstructorIndex) as usize] =
         Some(FunctionHeapData {
             object_index: BuiltinObjectIndexes::RegExpConstructorIndex as u32,
@@ -104,12 +102,12 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "test", 1, false, regexp_todo),
         ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, regexp_todo),
     ];
-    heap.objects[BuiltinObjectIndexes::RegExpPrototypeIndex as usize] = Some(ObjectHeapData::new(
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::RegExpPrototypeIndex,
         true,
         Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-    ));
+        entries,
+    );
 }
 
 fn regexp_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {

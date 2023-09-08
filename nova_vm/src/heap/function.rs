@@ -1,7 +1,7 @@
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        Heap, ObjectHeapData, PropertyDescriptor,
+        Heap, PropertyDescriptor,
     },
     value::{JsResult, Value},
 };
@@ -9,7 +9,6 @@ use crate::{
 use super::{
     heap_constants::WellKnownSymbolIndexes,
     object::{ObjectEntry, PropertyKey},
-    ElementArrayKey, ElementsVector,
 };
 
 pub type JsBindingFunction = fn(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value>;
@@ -30,13 +29,12 @@ pub fn initialize_function_heap(heap: &mut Heap) {
         heap,
         BuiltinObjectIndexes::FunctionPrototypeIndex as u32,
     )];
-    heap.objects[BuiltinObjectIndexes::FunctionConstructorIndex as usize] =
-        Some(ObjectHeapData::new(
-            true,
-            Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ));
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::FunctionConstructorIndex,
+        true,
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        entries,
+    );
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::FunctionConstructorIndex) as usize] =
         Some(FunctionHeapData {
@@ -47,9 +45,6 @@ pub fn initialize_function_heap(heap: &mut Heap) {
             visible: None,
             binding: function_constructor_binding,
         });
-    // NOTE: According to ECMAScript spec https://tc39.es/ecma262/#sec-properties-of-the-function-prototype-object
-    // the %Function.prototype% object should itself be a function that always returns undefined. This is not
-    // upheld here and we probably do not care. It's seemingly the only prototype that is a function.
     let entries = vec![
         ObjectEntry::new_prototype_function_entry(heap, "apply", 2, false, function_todo),
         ObjectEntry::new_prototype_function_entry(heap, "bind", 1, true, function_todo),
@@ -70,13 +65,15 @@ pub fn initialize_function_heap(heap: &mut Heap) {
             function_todo,
         ),
     ];
-    heap.objects[BuiltinObjectIndexes::FunctionPrototypeIndex as usize] =
-        Some(ObjectHeapData::new(
-            true,
-            Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-            ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ));
+    // NOTE: According to ECMAScript spec https://tc39.es/ecma262/#sec-properties-of-the-function-prototype-object
+    // the %Function.prototype% object should itself be a function that always returns undefined. This is not
+    // upheld here and we probably do not care. It's seemingly the only prototype that is a function.
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::FunctionPrototypeIndex,
+        true,
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        entries,
+    );
 }
 
 fn function_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {

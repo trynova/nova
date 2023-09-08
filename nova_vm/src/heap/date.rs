@@ -3,7 +3,7 @@ use std::time::SystemTime;
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        Heap, ObjectHeapData, PropertyDescriptor,
+        Heap, PropertyDescriptor,
     },
     value::{JsResult, Value},
 };
@@ -12,7 +12,6 @@ use super::{
     function::FunctionHeapData,
     heap_constants::WellKnownSymbolIndexes,
     object::{ObjectEntry, PropertyKey},
-    ElementArrayKey, ElementsVector,
 };
 
 #[derive(Debug)]
@@ -31,12 +30,12 @@ pub fn initialize_date_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new_prototype_function_entry(heap, "UTC", 7, false, date_todo),
     ];
-    heap.objects[BuiltinObjectIndexes::DateConstructorIndex as usize] = Some(ObjectHeapData::new(
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::DateConstructorIndex,
         true,
         Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-    ));
+        entries,
+    );
     heap.functions[get_constructor_index(BuiltinObjectIndexes::DateConstructorIndex) as usize] =
         Some(FunctionHeapData {
             object_index: BuiltinObjectIndexes::DateConstructorIndex as u32,
@@ -104,12 +103,12 @@ pub fn initialize_date_heap(heap: &mut Heap) {
             date_todo,
         ),
     ];
-    heap.objects[BuiltinObjectIndexes::DatePrototypeIndex as usize] = Some(ObjectHeapData::new(
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::DatePrototypeIndex,
         true,
         Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-        ElementsVector::new(0, ElementArrayKey::from_usize(entries.len()), entries.len()),
-    ));
+        entries,
+    );
 }
 
 fn date_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {

@@ -4,7 +4,7 @@ use crate::value::Value;
 
 use super::{
     heap_bits::{HeapBits, WorkQueues},
-    symbol, ElementArrayKey, ElementsVector, Heap,
+    ElementsVector, Heap, element_array::ElementArrayKey,
 };
 
 pub(crate) fn heap_gc(heap: &mut Heap) {
@@ -206,7 +206,8 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
                 marked.store(true, Ordering::Relaxed);
                 heap.elements
-                    .e_2_4
+                    .e2pow4
+                    .values
                     .get(index)
                     .unwrap()
                     .unwrap()
@@ -229,7 +230,8 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
                 marked.store(true, Ordering::Relaxed);
                 heap.elements
-                    .e_2_6
+                    .e2pow6
+                    .values
                     .get(index)
                     .unwrap()
                     .unwrap()
@@ -252,7 +254,8 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
                 marked.store(true, Ordering::Relaxed);
                 heap.elements
-                    .e_2_8
+                    .e2pow8
+                    .values
                     .get(index)
                     .unwrap()
                     .unwrap()
@@ -275,7 +278,8 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
                 marked.store(true, Ordering::Relaxed);
                 heap.elements
-                    .e_2_10
+                    .e2pow10
+                    .values
                     .get(index)
                     .unwrap()
                     .unwrap()
@@ -298,7 +302,8 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
                 marked.store(true, Ordering::Relaxed);
                 heap.elements
-                    .e_2_12
+                    .e2pow12
+                    .values
                     .get(index)
                     .unwrap()
                     .unwrap()
@@ -321,7 +326,8 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
                 marked.store(true, Ordering::Relaxed);
                 heap.elements
-                    .e_2_16
+                    .e2pow16
+                    .values
                     .get(index)
                     .unwrap()
                     .unwrap()
@@ -344,7 +350,8 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
                 marked.store(true, Ordering::Relaxed);
                 heap.elements
-                    .e_2_24
+                    .e2pow24
+                    .values
                     .get(index)
                     .unwrap()
                     .unwrap()
@@ -367,7 +374,8 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
                 marked.store(true, Ordering::Relaxed);
                 heap.elements
-                    .e_2_32
+                    .e2pow32
+                    .values
                     .get(index)
                     .unwrap()
                     .unwrap()
@@ -387,49 +395,49 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
 fn sweep(heap: &mut Heap, bits: &HeapBits) {
     bits.e_2_4.iter().enumerate().for_each(|(index, bit)| {
         if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e_2_4.get_mut(index).unwrap();
+            let reference = heap.elements.e2pow4.values.get_mut(index).unwrap();
             reference.take();
         }
     });
     bits.e_2_6.iter().enumerate().for_each(|(index, bit)| {
         if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e_2_6.get_mut(index).unwrap();
+            let reference = heap.elements.e2pow6.values.get_mut(index).unwrap();
             reference.take();
         }
     });
     bits.e_2_8.iter().enumerate().for_each(|(index, bit)| {
         if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e_2_8.get_mut(index).unwrap();
+            let reference = heap.elements.e2pow8.values.get_mut(index).unwrap();
             reference.take();
         }
     });
     bits.e_2_10.iter().enumerate().for_each(|(index, bit)| {
         if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e_2_10.get_mut(index).unwrap();
+            let reference = heap.elements.e2pow10.values.get_mut(index).unwrap();
             reference.take();
         }
     });
     bits.e_2_12.iter().enumerate().for_each(|(index, bit)| {
         if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e_2_12.get_mut(index).unwrap();
+            let reference = heap.elements.e2pow12.values.get_mut(index).unwrap();
             reference.take();
         }
     });
     bits.e_2_16.iter().enumerate().for_each(|(index, bit)| {
         if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e_2_16.get_mut(index).unwrap();
+            let reference = heap.elements.e2pow16.values.get_mut(index).unwrap();
             reference.take();
         }
     });
     bits.e_2_24.iter().enumerate().for_each(|(index, bit)| {
         if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e_2_24.get_mut(index).unwrap();
+            let reference = heap.elements.e2pow24.values.get_mut(index).unwrap();
             reference.take();
         }
     });
     bits.e_2_32.iter().enumerate().for_each(|(index, bit)| {
         if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e_2_32.get_mut(index).unwrap();
+            let reference = heap.elements.e2pow32.values.get_mut(index).unwrap();
             reference.take();
         }
     });
