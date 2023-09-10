@@ -6,7 +6,9 @@ use crate::{
     value::{JsResult, Value},
 };
 
-#[derive(Debug)]
+use super::indexes::{ErrorIndex, ObjectIndex};
+
+#[derive(Debug, Clone)]
 pub(crate) struct BigIntHeapData {
     pub(super) sign: bool,
     pub(super) len: u32,
@@ -33,18 +35,19 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "asUintN", 2, false, bigint_as_uint_n),
         ObjectEntry::new_constructor_prototype_entry(
             heap,
-            BuiltinObjectIndexes::BigintPrototypeIndex as u32,
+            BuiltinObjectIndexes::BigintPrototypeIndex.into(),
         ),
     ];
     heap.insert_builtin_object(
         BuiltinObjectIndexes::BigintConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
         entries,
     );
-    heap.functions[get_constructor_index(BuiltinObjectIndexes::BigintConstructorIndex) as usize] =
+    heap.functions
+        [get_constructor_index(BuiltinObjectIndexes::BigintConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: heap.objects.len() as u32,
+            object_index: ObjectIndex::last(&heap.objects),
             length: 1,
             uses_arguments: false,
             bound: None,
@@ -85,7 +88,7 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::BigintPrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
         entries,
     );
 }
@@ -93,7 +96,7 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
 fn bigint_constructor(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value> {
     if !this.is_undefined() {
         // TODO: Throw TypeError
-        return Err(Value::Error(0));
+        return Err(Value::Error(ErrorIndex::from_index(0)));
     } else {
         return Ok(Value::SmallBigInt(3));
     }

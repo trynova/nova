@@ -5,11 +5,14 @@ use crate::{
         FunctionHeapData, Heap,
     },
     stack_string::StackString,
-    value::{FunctionIndex, JsResult, StringIndex, SymbolIndex, Value},
+    value::{JsResult, Value},
 };
 use std::{fmt::Debug, vec};
 
-use super::element_array::ElementsVector;
+use super::{
+    element_array::ElementsVector,
+    indexes::{FunctionIndex, ObjectIndex, StringIndex, SymbolIndex},
+};
 
 #[derive(Debug)]
 pub struct ObjectEntry {
@@ -44,7 +47,7 @@ impl ObjectEntry {
     pub(crate) fn new_prototype_symbol_function_entry(
         heap: &mut Heap,
         name: &str,
-        symbol_index: u32,
+        symbol_index: SymbolIndex,
         length: u8,
         uses_arguments: bool,
         binding: JsBindingFunction,
@@ -56,7 +59,7 @@ impl ObjectEntry {
         ObjectEntry { key, value }
     }
 
-    pub(crate) fn new_constructor_prototype_entry(heap: &mut Heap, idx: u32) -> Self {
+    pub(crate) fn new_constructor_prototype_entry(heap: &mut Heap, idx: ObjectIndex) -> Self {
         ObjectEntry {
             key: PropertyKey::from_str(heap, "prototype"),
             value: PropertyDescriptor::Data {
@@ -126,7 +129,7 @@ pub enum PropertyDescriptor {
 
 impl PropertyDescriptor {
     #[inline(always)]
-    pub const fn prototype_slot(idx: u32) -> Self {
+    pub const fn prototype_slot(idx: ObjectIndex) -> Self {
         Self::Data {
             value: Value::Object(idx),
             writable: false,
@@ -220,7 +223,7 @@ impl PropertyDescriptor {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct ObjectHeapData {
     pub(crate) _extensible: bool,
     // TODO: It's probably not necessary to have a whole data descriptor here.
@@ -304,7 +307,7 @@ pub fn initialize_object_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "preventExtensions", 1, false, object_todo),
         ObjectEntry::new_constructor_prototype_entry(
             heap,
-            BuiltinObjectIndexes::ObjectPrototypeIndex as u32,
+            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "seal", 1, false, object_todo),
         ObjectEntry::new_prototype_function_entry(heap, "setPrototypeOf", 2, false, object_todo),
@@ -313,12 +316,13 @@ pub fn initialize_object_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ObjectConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
         entries,
     );
-    heap.functions[get_constructor_index(BuiltinObjectIndexes::ObjectConstructorIndex) as usize] =
+    heap.functions
+        [get_constructor_index(BuiltinObjectIndexes::ObjectConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::ObjectConstructorIndex as u32,
+            object_index: BuiltinObjectIndexes::ObjectConstructorIndex.into(),
             length: 1,
             uses_arguments: false,
             bound: None,
@@ -354,7 +358,7 @@ pub fn initialize_object_heap(heap: &mut Heap) {
 }
 
 fn object_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
-    Ok(Value::Object(0))
+    Ok(Value::Object(ObjectIndex::from_index(0)))
 }
 
 fn object_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {

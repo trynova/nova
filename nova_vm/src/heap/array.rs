@@ -1,7 +1,7 @@
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        Heap, ObjectHeapData, PropertyDescriptor,
+        Heap, PropertyDescriptor,
     },
     value::{JsResult, Value},
 };
@@ -10,12 +10,13 @@ use super::{
     element_array::ElementsVector,
     function::FunctionHeapData,
     heap_constants::WellKnownSymbolIndexes,
+    indexes::{FunctionIndex, ObjectIndex},
     object::{ObjectEntry, PropertyKey},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct ArrayHeapData {
-    pub(super) object_index: u32,
+    pub(super) object_index: ObjectIndex,
     // TODO: Use SmallVec<[Value; 4]>
     pub(super) elements: ElementsVector,
 }
@@ -44,10 +45,10 @@ pub fn initialize_array_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "of", 0, true, array_todo),
         ObjectEntry::new_constructor_prototype_entry(
             heap,
-            BuiltinObjectIndexes::ArrayPrototypeIndex as u32,
+            BuiltinObjectIndexes::ArrayPrototypeIndex.into(),
         ),
         ObjectEntry::new(
-            PropertyKey::Symbol(WellKnownSymbolIndexes::Species as u32),
+            PropertyKey::Symbol(WellKnownSymbolIndexes::Species.into()),
             PropertyDescriptor::ReadOnly {
                 get: heap.create_function(species_function_name, 0, false, array_species),
                 enumerable: false,
@@ -58,12 +59,13 @@ pub fn initialize_array_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ArrayConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
         entries,
     );
-    heap.functions[get_constructor_index(BuiltinObjectIndexes::ArrayConstructorIndex) as usize] =
+    heap.functions
+        [get_constructor_index(BuiltinObjectIndexes::ArrayConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::ArrayConstructorIndex as u32,
+            object_index: BuiltinObjectIndexes::ArrayConstructorIndex.into(),
             length: 1,
             uses_arguments: false,
             bound: None,
@@ -119,13 +121,13 @@ pub fn initialize_array_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
             "[Symbol.iterator]",
-            WellKnownSymbolIndexes::Iterator as u32,
+            WellKnownSymbolIndexes::Iterator.into(),
             0,
             false,
             array_todo,
         ),
         ObjectEntry::new(
-            PropertyKey::Symbol(WellKnownSymbolIndexes::Unscopables as u32),
+            PropertyKey::Symbol(WellKnownSymbolIndexes::Unscopables.into()),
             PropertyDescriptor::roxh(Value::Object(heap.create_object(vec![
                 ObjectEntry::new(at_key, PropertyDescriptor::rwx(Value::Boolean(true))),
                 ObjectEntry::new(
@@ -164,13 +166,13 @@ pub fn initialize_array_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ArrayPrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
         entries,
     );
 }
 
 fn array_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    Ok(Value::Function(0))
+    Ok(Value::Function(FunctionIndex::from_index(0)))
 }
 
 fn array_species(_heap: &mut Heap, this: Value, _args: &[Value]) -> JsResult<Value> {

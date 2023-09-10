@@ -9,12 +9,13 @@ use crate::{
 use super::{
     function::FunctionHeapData,
     heap_constants::WellKnownSymbolIndexes,
+    indexes::{FunctionIndex, ObjectIndex},
     object::{ObjectEntry, PropertyKey},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct RegExpHeapData {
-    pub(super) object_index: u32,
+    pub(super) object_index: ObjectIndex,
     // pub(super) _regex: RegExp,
 }
 
@@ -23,10 +24,10 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
     let entries = vec![
         ObjectEntry::new_constructor_prototype_entry(
             heap,
-            BuiltinObjectIndexes::RegExpPrototypeIndex as u32,
+            BuiltinObjectIndexes::RegExpPrototypeIndex.into(),
         ),
         ObjectEntry::new(
-            PropertyKey::Symbol(WellKnownSymbolIndexes::Species as u32),
+            PropertyKey::Symbol(WellKnownSymbolIndexes::Species.into()),
             PropertyDescriptor::ReadOnly {
                 get: heap.create_function(species_function_name, 0, false, regexp_species),
                 enumerable: false,
@@ -37,12 +38,13 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::RegExpConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
         entries,
     );
-    heap.functions[get_constructor_index(BuiltinObjectIndexes::RegExpConstructorIndex) as usize] =
+    heap.functions
+        [get_constructor_index(BuiltinObjectIndexes::RegExpConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::RegExpConstructorIndex as u32,
+            object_index: BuiltinObjectIndexes::RegExpConstructorIndex.into(),
             length: 1,
             uses_arguments: false,
             bound: None,
@@ -62,7 +64,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
             "[Symbol.match]",
-            WellKnownSymbolIndexes::Match as u32,
+            WellKnownSymbolIndexes::Match.into(),
             1,
             false,
             regexp_todo,
@@ -70,7 +72,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
             "[Symbol.matchAll]",
-            WellKnownSymbolIndexes::MatchAll as u32,
+            WellKnownSymbolIndexes::MatchAll.into(),
             1,
             false,
             regexp_todo,
@@ -78,7 +80,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
             "[Symbol.replace]",
-            WellKnownSymbolIndexes::Replace as u32,
+            WellKnownSymbolIndexes::Replace.into(),
             2,
             false,
             regexp_todo,
@@ -86,7 +88,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
             "[Symbol.search]",
-            WellKnownSymbolIndexes::Search as u32,
+            WellKnownSymbolIndexes::Search.into(),
             1,
             false,
             regexp_todo,
@@ -94,7 +96,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
             "[Symbol.split]",
-            WellKnownSymbolIndexes::Split as u32,
+            WellKnownSymbolIndexes::Split.into(),
             2,
             false,
             regexp_todo,
@@ -105,13 +107,13 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::RegExpPrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
         entries,
     );
 }
 
 fn regexp_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    Ok(Value::Function(0))
+    Ok(Value::Function(FunctionIndex::from_index(0)))
 }
 
 fn regexp_species(_heap: &mut Heap, this: Value, _args: &[Value]) -> JsResult<Value> {

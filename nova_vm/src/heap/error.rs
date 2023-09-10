@@ -8,29 +8,31 @@ use crate::{
 
 use super::{
     function::FunctionHeapData,
+    indexes::{FunctionIndex, ObjectIndex},
     object::{ObjectEntry, PropertyKey},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct ErrorHeapData {
-    pub(super) object_index: u32,
+    pub(super) object_index: ObjectIndex,
     // TODO: stack? name?
 }
 
 pub fn initialize_error_heap(heap: &mut Heap) {
     let entries = vec![ObjectEntry::new_constructor_prototype_entry(
         heap,
-        BuiltinObjectIndexes::ErrorPrototypeIndex as u32,
+        BuiltinObjectIndexes::ErrorPrototypeIndex.into(),
     )];
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ErrorConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
         entries,
     );
-    heap.functions[get_constructor_index(BuiltinObjectIndexes::ErrorConstructorIndex) as usize] =
+    heap.functions
+        [get_constructor_index(BuiltinObjectIndexes::ErrorConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::ErrorConstructorIndex as u32,
+            object_index: BuiltinObjectIndexes::ErrorConstructorIndex.into(),
             length: 1,
             uses_arguments: false,
             bound: None,
@@ -57,13 +59,13 @@ pub fn initialize_error_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ErrorPrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
         entries,
     );
 }
 
 fn error_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
-    Ok(Value::Function(0))
+    Ok(Value::Function(FunctionIndex::from_index(0)))
 }
 
 fn error_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {

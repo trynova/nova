@@ -15,6 +15,8 @@ use oxc_ast::{
 use std::fmt::Debug;
 use value::{JsResult, Value};
 
+use crate::heap::indexes::StringIndex;
+
 /// https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-ecmascript-language-types
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Type {
@@ -113,7 +115,7 @@ impl<'a> VM<'a> {
                 }
                 Instruction::LoadString => {
                     let addr = *iter.next().unwrap() as usize;
-                    memory[addr] = Value::HeapString(*iter.next().unwrap() as u32);
+                    memory[addr] = Value::HeapString(StringIndex::from_u32(*iter.next().unwrap()));
                 }
                 Instruction::CopyValue => {
                     let addr = *iter.next().unwrap() as usize;
@@ -310,7 +312,7 @@ impl<'a> VM<'a> {
 
                 self.instructions.push(Instruction::LoadString.into());
                 self.instructions.push(addr);
-                self.instructions.push(string_idx as u32);
+                self.instructions.push(string_idx.into_u32());
             }
             Expression::ParenthesizedExpression(data) => {
                 return self.build_expr(addr, &data.expression, env);

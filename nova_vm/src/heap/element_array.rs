@@ -1,7 +1,10 @@
-use super::object::{ObjectEntry, PropertyDescriptor, PropertyKey};
+use super::{
+    indexes::{ElementIndex, FunctionIndex},
+    object::{ObjectEntry, PropertyDescriptor, PropertyKey},
+};
 use crate::value::Value;
 use core::panic;
-use std::{collections::HashMap, num::NonZeroU16};
+use std::{collections::HashMap, mem::MaybeUninit, num::NonZeroU16};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ElementArrayKey {
@@ -47,9 +50,9 @@ impl From<usize> for ElementArrayKey {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct ElementsVector {
-    pub(crate) elements_index: u32,
+    pub(crate) elements_index: ElementIndex,
     pub(crate) cap: ElementArrayKey,
     pub(crate) len: u32,
 }
@@ -187,10 +190,9 @@ impl ElementDescriptor {
                 enumerable,
                 configurable,
             } => {
-                let [a, b, top, overflow_top] = get.to_le_bytes();
-                assert!(overflow_top == 0, "Too many functions");
-                let bottom = u16::from_le_bytes([a, b]);
-                let bottom = NonZeroU16::new(bottom).unwrap();
+                let get = get.into_u32();
+                let top = (get >> 16) as u8;
+                let bottom = NonZeroU16::new(get as u16).unwrap();
                 match (enumerable, configurable) {
                     (true, true) => (
                         Some(ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor(
@@ -225,10 +227,9 @@ impl ElementDescriptor {
                 enumerable,
                 configurable,
             } => {
-                let [a, b, top, overflow_top] = set.to_le_bytes();
-                assert!(overflow_top == 0, "Too many functions");
-                let bottom = u16::from_le_bytes([a, b]);
-                let bottom = NonZeroU16::new(bottom).unwrap();
+                let set = set.into_u32();
+                let top = (set >> 16) as u8;
+                let bottom = NonZeroU16::new(set as u16).unwrap();
                 match (enumerable, configurable) {
                     (true, true) => (
                         Some(ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor(
@@ -268,14 +269,12 @@ impl ElementDescriptor {
                 enumerable,
                 configurable,
             } => {
-                let [a, b, get_top, overflow_top] = get.to_le_bytes();
-                assert!(overflow_top == 0, "Too many functions");
-                let get_bottom = u16::from_le_bytes([a, b]);
-                let get_bottom = NonZeroU16::new(get_bottom).unwrap();
-                let [a, b, set_top, overflow_top] = set.to_le_bytes();
-                assert!(overflow_top == 0, "Too many functions");
-                let set_bottom = u16::from_le_bytes([a, b]);
-                let set_bottom = NonZeroU16::new(set_bottom).unwrap();
+                let get = get.into_u32();
+                let get_top = (get >> 16) as u8;
+                let get_bottom = NonZeroU16::new(get as u16).unwrap();
+                let set = set.into_u32();
+                let set_top = (set >> 16) as u8;
+                let set_bottom = NonZeroU16::new(set as u16).unwrap();
                 match (enumerable, configurable) {
                     (true, true) => (
                         Some(ElementDescriptor::ReadWriteEnumerableConfigurableAccessor(
@@ -311,13 +310,85 @@ impl ElementDescriptor {
             }
         }
     }
+
+    pub fn getter_index(&self) -> Option<FunctionIndex> {
+        match self {
+            ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor(get_top, get_bottom)
+            | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor(get_top, get_bottom)
+            | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor(get_top, get_bottom)
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor(get_top, get_bottom)
+            | ElementDescriptor::ReadWriteEnumerableConfigurableAccessor(
+                get_top,
+                _,
+                get_bottom,
+                _,
+            )
+            | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor(
+                get_top,
+                _,
+                get_bottom,
+                _,
+            )
+            | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor(
+                get_top,
+                _,
+                get_bottom,
+                _,
+            )
+            | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor(
+                get_top,
+                _,
+                get_bottom,
+                _,
+            ) => Some(FunctionIndex::from_u32(
+                (*get_top as u32) << 16 + get_bottom.get() as u32,
+            )),
+            _ => None,
+        }
+    }
+
+    pub fn setter_index(&self) -> Option<FunctionIndex> {
+        match self {
+            ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor(set_top, set_bottom)
+            | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor(set_top, set_bottom)
+            | ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor(set_top, set_bottom)
+            | ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor(set_top, set_bottom)
+            | ElementDescriptor::ReadWriteEnumerableConfigurableAccessor(
+                _,
+                set_top,
+                _,
+                set_bottom,
+            )
+            | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor(
+                _,
+                set_top,
+                _,
+                set_bottom,
+            )
+            | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor(
+                _,
+                set_top,
+                _,
+                set_bottom,
+            )
+            | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor(
+                _,
+                set_top,
+                _,
+                set_bottom,
+            ) => Some(FunctionIndex::from_u32(
+                (*set_top as u32) << 16 + set_bottom.get() as u32,
+            )),
+            _ => None,
+        }
+    }
 }
 
 /// Element arrays of up to 16 elements
 #[derive(Debug)]
 pub(crate) struct ElementArray2Pow4 {
     pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 4)]>>,
-    pub(crate) descriptors: HashMap<u32, HashMap<u32, ElementDescriptor>>,
+    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow4 {
@@ -342,7 +413,7 @@ impl ElementArray2Pow4 {
 #[derive(Debug)]
 pub(crate) struct ElementArray2Pow6 {
     pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 6)]>>,
-    pub(crate) descriptors: HashMap<u32, HashMap<u32, ElementDescriptor>>,
+    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow6 {
@@ -367,7 +438,7 @@ impl ElementArray2Pow6 {
 #[derive(Debug)]
 pub(crate) struct ElementArray2Pow8 {
     pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 8)]>>,
-    pub(crate) descriptors: HashMap<u32, HashMap<u32, ElementDescriptor>>,
+    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow8 {
@@ -392,7 +463,7 @@ impl ElementArray2Pow8 {
 #[derive(Debug)]
 pub(crate) struct ElementArray2Pow10 {
     pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 10)]>>,
-    pub(crate) descriptors: HashMap<u32, HashMap<u32, ElementDescriptor>>,
+    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow10 {
@@ -417,7 +488,7 @@ impl ElementArray2Pow10 {
 #[derive(Debug)]
 pub(crate) struct ElementArray2Pow12 {
     pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 12)]>>,
-    pub(crate) descriptors: HashMap<u32, HashMap<u32, ElementDescriptor>>,
+    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow12 {
@@ -442,7 +513,7 @@ impl ElementArray2Pow12 {
 #[derive(Debug)]
 pub(crate) struct ElementArray2Pow16 {
     pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 16)]>>,
-    pub(crate) descriptors: HashMap<u32, HashMap<u32, ElementDescriptor>>,
+    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow16 {
@@ -467,7 +538,7 @@ impl ElementArray2Pow16 {
 #[derive(Debug)]
 pub(crate) struct ElementArray2Pow24 {
     pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 24)]>>,
-    pub(crate) descriptors: HashMap<u32, HashMap<u32, ElementDescriptor>>,
+    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow24 {
@@ -492,7 +563,7 @@ impl ElementArray2Pow24 {
 #[derive(Debug)]
 pub(crate) struct ElementArray2Pow32 {
     pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 32)]>>,
-    pub(crate) descriptors: HashMap<u32, HashMap<u32, ElementDescriptor>>,
+    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow32 {
@@ -539,87 +610,167 @@ impl ElementArrays {
         key: ElementArrayKey,
         vector: Vec<Option<Value>>,
         desciptors: Option<HashMap<u32, ElementDescriptor>>,
-    ) -> u32 {
+    ) -> ElementIndex {
         match key {
             ElementArrayKey::E4 => {
-                let array: [Option<Value>; usize::pow(2, 4)] = [None; usize::pow(2, 4)];
-                array.as_slice().clone_from(&vector.as_slice());
-                self.e2pow4.values.push(Some(array));
-                let length = self.e2pow4.values.len() as u32;
+                self.e2pow4.values.reserve(1);
+                // SAFETY: We reserved an extra slot successfully.
+                unsafe {
+                    self.e2pow4.values.set_len(self.e2pow4.values.len() + 1);
+                    let last = std::mem::transmute::<
+                        _,
+                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 4)]>,
+                    >(self.e2pow4.values.last_mut().unwrap());
+                    let length = vector.len();
+                    let last_slice = last.assume_init_mut().as_mut_slice();
+                    last_slice[0..length].copy_from_slice(&vector.as_slice());
+                    last_slice[vector.len()..].fill(None)
+                };
+                let index = ElementIndex::last(&self.e2pow4.values);
                 if let Some(descriptors) = desciptors {
-                    self.e2pow4.descriptors.insert(length, descriptors);
+                    self.e2pow4.descriptors.insert(index, descriptors);
                 }
-                length
+                index
             }
             ElementArrayKey::E6 => {
-                let array: [Option<Value>; usize::pow(2, 6)] = [None; usize::pow(2, 6)];
-                array.as_slice().clone_from(&vector.as_slice());
-                self.e2pow6.values.push(Some(array));
-                let length = self.e2pow6.values.len() as u32;
+                self.e2pow6.values.reserve(1);
+                // SAFETY: We reserved an extra slot successfully.
+                unsafe {
+                    self.e2pow6.values.set_len(self.e2pow6.values.len() + 1);
+                    let last = std::mem::transmute::<
+                        _,
+                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 6)]>,
+                    >(self.e2pow6.values.last_mut().unwrap());
+                    let length = vector.len();
+                    let last_slice = last.assume_init_mut().as_mut_slice();
+                    last_slice[0..length].copy_from_slice(vector.as_slice());
+                    last_slice[vector.len()..].fill(None)
+                };
+                let index = ElementIndex::last(&self.e2pow6.values);
                 if let Some(descriptors) = desciptors {
-                    self.e2pow6.descriptors.insert(length, descriptors);
+                    self.e2pow6.descriptors.insert(index, descriptors);
                 }
-                length
+                index
             }
             ElementArrayKey::E8 => {
-                let array: [Option<Value>; usize::pow(2, 8)] = [None; usize::pow(2, 8)];
-                array.as_slice().clone_from(&vector.as_slice());
-                self.e2pow8.values.push(Some(array));
-                let length = self.e2pow8.values.len() as u32;
+                self.e2pow8.values.reserve(1);
+                // SAFETY: We reserved an extra slot successfully.
+                unsafe {
+                    self.e2pow8.values.set_len(self.e2pow8.values.len() + 1);
+                    let last = std::mem::transmute::<
+                        _,
+                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 8)]>,
+                    >(self.e2pow8.values.last_mut().unwrap());
+                    let length = vector.len();
+                    let last_slice = last.assume_init_mut().as_mut_slice();
+                    last_slice[0..length].copy_from_slice(vector.as_slice());
+                    last_slice[vector.len()..].fill(None)
+                };
+                let index = ElementIndex::last(&self.e2pow8.values);
                 if let Some(descriptors) = desciptors {
-                    self.e2pow8.descriptors.insert(length, descriptors);
+                    self.e2pow8.descriptors.insert(index, descriptors);
                 }
-                length
+                index
             }
             ElementArrayKey::E10 => {
-                let array: [Option<Value>; usize::pow(2, 10)] = [None; usize::pow(2, 10)];
-                array.as_slice().clone_from(&vector.as_slice());
-                self.e2pow10.values.push(Some(array));
-                let length = self.e2pow10.values.len() as u32;
+                self.e2pow10.values.reserve(1);
+                // SAFETY: We reserved an extra slot successfully.
+                unsafe {
+                    self.e2pow10.values.set_len(self.e2pow10.values.len() + 1);
+                    let last = std::mem::transmute::<
+                        _,
+                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 10)]>,
+                    >(self.e2pow10.values.last_mut().unwrap());
+                    let length = vector.len();
+                    let last_slice = last.assume_init_mut().as_mut_slice();
+                    last_slice[0..length].copy_from_slice(vector.as_slice());
+                    last_slice[vector.len()..].fill(None)
+                };
+                let index = ElementIndex::last(&self.e2pow10.values);
                 if let Some(descriptors) = desciptors {
-                    self.e2pow10.descriptors.insert(length, descriptors);
+                    self.e2pow10.descriptors.insert(index, descriptors);
                 }
-                length
+                index
             }
             ElementArrayKey::E12 => {
-                let array: [Option<Value>; usize::pow(2, 12)] = [None; usize::pow(2, 12)];
-                array.as_slice().clone_from(&vector.as_slice());
-                self.e2pow12.values.push(Some(array));
-                let length = self.e2pow12.values.len() as u32;
+                self.e2pow12.values.reserve(1);
+                // SAFETY: We reserved an extra slot successfully.
+                unsafe {
+                    self.e2pow12.values.set_len(self.e2pow12.values.len() + 1);
+                    let last = std::mem::transmute::<
+                        _,
+                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 12)]>,
+                    >(self.e2pow12.values.last_mut().unwrap());
+                    let length = vector.len();
+                    let last_slice = last.assume_init_mut().as_mut_slice();
+                    last_slice[0..length].copy_from_slice(vector.as_slice());
+                    last_slice[vector.len()..].fill(None)
+                };
+                let index = ElementIndex::last(&self.e2pow12.values);
                 if let Some(descriptors) = desciptors {
-                    self.e2pow12.descriptors.insert(length, descriptors);
+                    self.e2pow12.descriptors.insert(index, descriptors);
                 }
-                length
+                index
             }
             ElementArrayKey::E16 => {
-                let array: [Option<Value>; usize::pow(2, 16)] = [None; usize::pow(2, 16)];
-                array.as_slice().clone_from(&vector.as_slice());
-                self.e2pow16.values.push(Some(array));
-                let length = self.e2pow16.values.len() as u32;
+                self.e2pow16.values.reserve(1);
+                // SAFETY: We reserved an extra slot successfully.
+                unsafe {
+                    self.e2pow16.values.set_len(self.e2pow16.values.len() + 1);
+                    let last = std::mem::transmute::<
+                        _,
+                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 12)]>,
+                    >(self.e2pow16.values.last_mut().unwrap());
+                    let length = vector.len();
+                    let last_slice = last.assume_init_mut().as_mut_slice();
+                    last_slice[0..length].copy_from_slice(vector.as_slice());
+                    last_slice[vector.len()..].fill(None)
+                };
+                let index = ElementIndex::last(&self.e2pow16.values);
                 if let Some(descriptors) = desciptors {
-                    self.e2pow16.descriptors.insert(length, descriptors);
+                    self.e2pow16.descriptors.insert(index, descriptors);
                 }
-                length
+                index
             }
             ElementArrayKey::E24 => {
-                let array: [Option<Value>; usize::pow(2, 24)] = [None; usize::pow(2, 24)];
-                array.as_slice().clone_from(&vector.as_slice());
-                self.e2pow24.values.push(Some(array));
-                let length = self.e2pow24.values.len() as u32;
+                self.e2pow24.values.reserve(1);
+                // SAFETY: We reserved an extra slot successfully.
+                unsafe {
+                    self.e2pow24.values.set_len(self.e2pow24.values.len() + 1);
+                    let last = std::mem::transmute::<
+                        _,
+                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 12)]>,
+                    >(self.e2pow24.values.last_mut().unwrap());
+                    let length = vector.len();
+                    let last_slice = last.assume_init_mut().as_mut_slice();
+                    last_slice[0..length].copy_from_slice(vector.as_slice());
+                    last_slice[vector.len()..].fill(None)
+                };
+                let index = ElementIndex::last(&self.e2pow24.values);
                 if let Some(descriptors) = desciptors {
-                    self.e2pow24.descriptors.insert(length, descriptors);
+                    self.e2pow24.descriptors.insert(index, descriptors);
                 }
-                length
+                index
             }
             ElementArrayKey::E32 => {
-                let array: [Option<Value>; usize::pow(2, 32)] = [None; usize::pow(2, 32)];
-                array.as_slice().clone_from(&vector.as_slice());
-                self.e2pow32.values.push(Some(array));
-                let length = self.e2pow32.values.len() as u32;
+                self.e2pow32.values.reserve(1);
+                // SAFETY: We reserved an extra slot successfully.
+                unsafe {
+                    self.e2pow32.values.set_len(self.e2pow32.values.len() + 1);
+                    let last = std::mem::transmute::<
+                        _,
+                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 12)]>,
+                    >(self.e2pow32.values.last_mut().unwrap());
+                    let length = vector.len();
+                    let last_slice = last.assume_init_mut().as_mut_slice();
+                    last_slice[0..length].copy_from_slice(vector.as_slice());
+                    last_slice[vector.len()..].fill(None)
+                };
+                let index = ElementIndex::last(&self.e2pow32.values);
                 if let Some(descriptors) = desciptors {
-                    self.e2pow32.descriptors.insert(length, descriptors);
+                    self.e2pow32.descriptors.insert(index, descriptors);
                 }
-                length
+                index
             }
         }
     }
@@ -646,7 +797,7 @@ impl ElementArrays {
             values.push(maybe_value);
             if let Some(descriptor) = maybe_descriptor {
                 if descriptors.is_none() {
-                    descriptors = Default::default();
+                    descriptors = Some(Default::default());
                 }
                 descriptors
                     .as_mut()

@@ -8,6 +8,9 @@
 // | First the list of built-in prototypes and non-prototypal objects |
 // +==================================================================+
 
+use super::indexes::{FunctionIndex, ObjectIndex, SymbolIndex};
+
+#[derive(Debug, Clone, Copy)]
 #[repr(u32)]
 pub enum BuiltinObjectIndexes {
     // Fundamental objects
@@ -131,13 +134,28 @@ pub enum BuiltinObjectIndexes {
     ProxyConstructorIndex,
 }
 
+impl Into<ObjectIndex> for BuiltinObjectIndexes {
+    fn into(self) -> ObjectIndex {
+        ObjectIndex::from_u32_index(self as u32)
+    }
+}
+
+impl Into<FunctionIndex> for BuiltinObjectIndexes {
+    fn into(self) -> FunctionIndex {
+        // We do not allow more than 16 777 216 functions to exist.
+        assert!(self as u32 <= u32::pow(2, 24));
+        FunctionIndex::from_u32_index(self as u32)
+    }
+}
+
 pub const LAST_BUILTIN_OBJECT_INDEX: u32 = BuiltinObjectIndexes::ProxyConstructorIndex as u32;
 pub const FIRST_CONSTRUCTOR_INDEX: u32 = BuiltinObjectIndexes::ObjectConstructorIndex as u32;
 
-pub const fn get_constructor_index(object_index: BuiltinObjectIndexes) -> u32 {
-    object_index as u32 - FIRST_CONSTRUCTOR_INDEX
+pub const fn get_constructor_index(object_index: BuiltinObjectIndexes) -> FunctionIndex {
+    FunctionIndex::from_u32_index(object_index as u32 - FIRST_CONSTRUCTOR_INDEX)
 }
 
+#[derive(Debug, Clone, Copy)]
 #[repr(u32)]
 pub enum WellKnownSymbolIndexes {
     AsyncIterator,
@@ -153,6 +171,12 @@ pub enum WellKnownSymbolIndexes {
     ToPrimitive,
     ToStringTag,
     Unscopables,
+}
+
+impl Into<SymbolIndex> for WellKnownSymbolIndexes {
+    fn into(self) -> SymbolIndex {
+        SymbolIndex::from_u32_index(self as u32)
+    }
 }
 
 pub const LAST_WELL_KNOWN_SYMBOL_INDEX: u32 = WellKnownSymbolIndexes::Unscopables as u32;

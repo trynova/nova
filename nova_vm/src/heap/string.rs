@@ -7,7 +7,7 @@ use crate::{
 };
 use wtf8::Wtf8Buf;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct StringHeapData {
     pub(crate) data: Wtf8Buf,
 }
@@ -29,13 +29,14 @@ pub fn initialize_string_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::StringConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
         // TODO: Methods and properties
         Vec::with_capacity(0),
     );
-    heap.functions[get_constructor_index(BuiltinObjectIndexes::StringConstructorIndex) as usize] =
+    heap.functions
+        [get_constructor_index(BuiltinObjectIndexes::StringConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::StringConstructorIndex as u32,
+            object_index: BuiltinObjectIndexes::StringConstructorIndex.into(),
             length: 1,
             uses_arguments: false,
             bound: None,
@@ -45,7 +46,7 @@ pub fn initialize_string_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::StringPrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
         // TODO: Methods and properties
         Vec::with_capacity(0),
     );

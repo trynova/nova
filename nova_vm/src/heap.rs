@@ -8,6 +8,7 @@ mod function;
 mod heap_bits;
 mod heap_constants;
 mod heap_gc;
+pub(crate) mod indexes;
 mod math;
 mod number;
 mod object;
@@ -31,6 +32,7 @@ use self::{
         BuiltinObjectIndexes, FIRST_CONSTRUCTOR_INDEX, LAST_BUILTIN_OBJECT_INDEX,
         LAST_WELL_KNOWN_SYMBOL_INDEX,
     },
+    indexes::{FunctionIndex, NumberIndex, ObjectIndex, StringIndex},
     math::initialize_math_object,
     number::{initialize_number_heap, NumberHeapData},
     object::{
@@ -137,28 +139,28 @@ impl Heap {
         heap
     }
 
-    pub(crate) fn alloc_string(&mut self, message: &str) -> u32 {
+    pub(crate) fn alloc_string(&mut self, message: &str) -> StringIndex {
         let found = self.strings.iter().position(|opt| {
             opt.as_ref()
                 .map_or(false, |data| data.data == Wtf8::from_str(message))
         });
         if let Some(idx) = found {
-            return idx as u32;
+            return StringIndex::from_index(idx);
         }
         let data = StringHeapData::from_str(message);
         let found = self.strings.iter().position(|opt| opt.is_none());
         if let Some(idx) = found {
             self.strings[idx].replace(data);
-            idx as u32
+            StringIndex::from_index(idx)
         } else {
             self.strings.push(Some(data));
-            self.strings.len() as u32
+            StringIndex::last(&self.strings)
         }
     }
 
-    pub(crate) fn alloc_number(&mut self, number: f64) -> u32 {
+    pub(crate) fn alloc_number(&mut self, number: f64) -> NumberIndex {
         self.numbers.push(Some(NumberHeapData::new(number)));
-        self.numbers.len() as u32
+        NumberIndex::last(&self.numbers)
     }
 
     pub(crate) fn create_function(
@@ -167,7 +169,7 @@ impl Heap {
         length: u8,
         uses_arguments: bool,
         binding: JsBindingFunction,
-    ) -> u32 {
+    ) -> FunctionIndex {
         let entries = vec![
             ObjectEntry::new(
                 PropertyKey::from_str(self, "length"),
@@ -184,34 +186,35 @@ impl Heap {
             _extensible: true,
             keys,
             values,
-            prototype: Value::Object(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+            prototype: Value::Object(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
         };
         self.objects.push(Some(func_object_data));
         let func_data = FunctionHeapData {
             binding,
             bound: None,
             length,
-            object_index: self.objects.len() as u32,
+            object_index: ObjectIndex::last(&self.objects),
             uses_arguments,
             visible: None,
         };
+        let index = FunctionIndex::from_index(self.functions.len());
         self.functions.push(Some(func_data));
-        self.functions.len() as u32
+        index
     }
 
-    pub(crate) fn create_object(&mut self, entries: Vec<ObjectEntry>) -> u32 {
+    pub(crate) fn create_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             _extensible: true,
             keys,
             values,
-            prototype: Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+            prototype: Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
         };
         self.objects.push(Some(object_data));
-        self.objects.len() as u32
+        ObjectIndex::last(&self.objects)
     }
 
-    pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> u32 {
+    pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             _extensible: true,
@@ -220,7 +223,7 @@ impl Heap {
             prototype: Value::Null,
         };
         self.objects.push(Some(object_data));
-        self.objects.len() as u32
+        ObjectIndex::last(&self.objects)
     }
 
     pub(crate) fn insert_builtin_object(
@@ -229,7 +232,7 @@ impl Heap {
         extensible: bool,
         prototype: Value,
         entries: Vec<ObjectEntry>,
-    ) -> u32 {
+    ) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             _extensible: extensible,
@@ -238,7 +241,7 @@ impl Heap {
             prototype,
         };
         self.objects[index as usize] = Some(object_data);
-        self.objects.len() as u32
+        ObjectIndex::last(&self.objects)
     }
 }
 

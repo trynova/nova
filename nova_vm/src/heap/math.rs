@@ -60,7 +60,7 @@ pub(super) fn initialize_math_object(heap: &mut Heap) {
         ObjectEntry::new_frozen_entry(heap, "SQRT1_2", sqrt1_2),
         ObjectEntry::new_frozen_entry(heap, "SQRT2", sqrt2),
         ObjectEntry::new(
-            PropertyKey::Symbol(WellKnownSymbolIndexes::ToStringTag as u32),
+            PropertyKey::Symbol(WellKnownSymbolIndexes::ToStringTag.into()),
             PropertyDescriptor::roxh(Value::new_string(heap, "Math")),
         ),
         abs,

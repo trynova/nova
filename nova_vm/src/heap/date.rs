@@ -11,12 +11,13 @@ use crate::{
 use super::{
     function::FunctionHeapData,
     heap_constants::WellKnownSymbolIndexes,
+    indexes::{FunctionIndex, ObjectIndex},
     object::{ObjectEntry, PropertyKey},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct DateHeapData {
-    pub(super) object_index: u32,
+    pub(super) object_index: ObjectIndex,
     pub(super) _date: SystemTime,
 }
 
@@ -26,19 +27,20 @@ pub fn initialize_date_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "parse", 1, false, date_todo),
         ObjectEntry::new_constructor_prototype_entry(
             heap,
-            BuiltinObjectIndexes::DatePrototypeIndex as u32,
+            BuiltinObjectIndexes::DatePrototypeIndex.into(),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "UTC", 7, false, date_todo),
     ];
     heap.insert_builtin_object(
         BuiltinObjectIndexes::DateConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
         entries,
     );
-    heap.functions[get_constructor_index(BuiltinObjectIndexes::DateConstructorIndex) as usize] =
+    heap.functions
+        [get_constructor_index(BuiltinObjectIndexes::DateConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::DateConstructorIndex as u32,
+            object_index: BuiltinObjectIndexes::DateConstructorIndex.into(),
             length: 1,
             uses_arguments: false,
             bound: None,
@@ -97,7 +99,7 @@ pub fn initialize_date_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
             "[Symbol.toPrimitive]",
-            WellKnownSymbolIndexes::ToPrimitive as u32,
+            WellKnownSymbolIndexes::ToPrimitive.into(),
             1,
             false,
             date_todo,
@@ -106,13 +108,13 @@ pub fn initialize_date_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::DatePrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
         entries,
     );
 }
 
 fn date_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    Ok(Value::Function(0))
+    Ok(Value::Function(FunctionIndex::from_index(0)))
 }
 
 fn date_todo(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {

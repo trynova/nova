@@ -12,7 +12,7 @@ use crate::{
     value::{JsResult, Value},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct NumberHeapData {
     pub(super) data: f64,
 }
@@ -69,18 +69,19 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new_constructor_prototype_entry(
             heap,
-            BuiltinObjectIndexes::NumberPrototypeIndex as u32,
+            BuiltinObjectIndexes::NumberPrototypeIndex.into(),
         ),
     ];
     heap.insert_builtin_object(
         BuiltinObjectIndexes::NumberConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
         entries,
     );
-    heap.functions[get_constructor_index(BuiltinObjectIndexes::NumberConstructorIndex) as usize] =
+    heap.functions
+        [get_constructor_index(BuiltinObjectIndexes::NumberConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::NumberConstructorIndex as u32,
+            object_index: BuiltinObjectIndexes::NumberConstructorIndex.into(),
             length: 1,
             uses_arguments: false,
             bound: None,
@@ -104,7 +105,7 @@ pub fn initialize_number_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::NumberPrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
         entries,
     );
 }

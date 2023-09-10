@@ -2,7 +2,13 @@ use std::sync::atomic::AtomicBool;
 
 use crate::value::Value;
 
-use super::Heap;
+use super::{
+    indexes::{
+        ArrayIndex, BigIntIndex, DateIndex, ElementIndex, ErrorIndex, FunctionIndex, NumberIndex,
+        ObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
+    },
+    Heap,
+};
 
 pub(crate) struct HeapBits {
     pub e_2_4: Box<[AtomicBool]>,
@@ -26,24 +32,24 @@ pub(crate) struct HeapBits {
 }
 
 pub(crate) struct WorkQueues {
-    pub e_2_4: Vec<u32>,
-    pub e_2_6: Vec<u32>,
-    pub e_2_8: Vec<u32>,
-    pub e_2_10: Vec<u32>,
-    pub e_2_12: Vec<u32>,
-    pub e_2_16: Vec<u32>,
-    pub e_2_24: Vec<u32>,
-    pub e_2_32: Vec<u32>,
-    pub arrays: Vec<u32>,
-    pub bigints: Vec<u32>,
-    pub errors: Vec<u32>,
-    pub functions: Vec<u32>,
-    pub dates: Vec<u32>,
-    pub numbers: Vec<u32>,
-    pub objects: Vec<u32>,
-    pub regexps: Vec<u32>,
-    pub strings: Vec<u32>,
-    pub symbols: Vec<u32>,
+    pub e_2_4: Vec<ElementIndex>,
+    pub e_2_6: Vec<ElementIndex>,
+    pub e_2_8: Vec<ElementIndex>,
+    pub e_2_10: Vec<ElementIndex>,
+    pub e_2_12: Vec<ElementIndex>,
+    pub e_2_16: Vec<ElementIndex>,
+    pub e_2_24: Vec<ElementIndex>,
+    pub e_2_32: Vec<ElementIndex>,
+    pub arrays: Vec<ArrayIndex>,
+    pub bigints: Vec<BigIntIndex>,
+    pub errors: Vec<ErrorIndex>,
+    pub functions: Vec<FunctionIndex>,
+    pub dates: Vec<DateIndex>,
+    pub numbers: Vec<NumberIndex>,
+    pub objects: Vec<ObjectIndex>,
+    pub regexps: Vec<RegExpIndex>,
+    pub strings: Vec<StringIndex>,
+    pub symbols: Vec<SymbolIndex>,
 }
 
 impl HeapBits {

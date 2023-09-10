@@ -3,8 +3,13 @@ use std::sync::atomic::Ordering;
 use crate::value::Value;
 
 use super::{
+    element_array::ElementArrayKey,
     heap_bits::{HeapBits, WorkQueues},
-    ElementsVector, Heap, element_array::ElementArrayKey,
+    indexes::{
+        ArrayIndex, DateIndex, ElementIndex, ErrorIndex, FunctionIndex, ObjectIndex, RegExpIndex,
+        StringIndex, SymbolIndex,
+    },
+    ElementsVector, Heap,
 };
 
 pub(crate) fn heap_gc(heap: &mut Heap) {
@@ -16,10 +21,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
     });
 
     while !queues.is_empty() {
-        let mut arrays: Box<[u32]> = queues.arrays.drain(..).collect();
+        let mut arrays: Box<[ArrayIndex]> = queues.arrays.drain(..).collect();
         arrays.sort();
         arrays.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.arrays.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
@@ -45,11 +50,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
             }
         });
-        // bigints
-        let mut errors: Box<[u32]> = queues.errors.drain(..).collect();
+        let mut errors: Box<[ErrorIndex]> = queues.errors.drain(..).collect();
         errors.sort();
         errors.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.errors.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
@@ -60,10 +64,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 queues.objects.push(data.object_index);
             }
         });
-        let mut functions: Box<[u32]> = queues.functions.drain(..).collect();
+        let mut functions: Box<[FunctionIndex]> = queues.functions.drain(..).collect();
         functions.sort();
         functions.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.functions.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
@@ -84,10 +88,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
             }
         });
-        let mut dates: Box<[u32]> = queues.dates.drain(..).collect();
+        let mut dates: Box<[DateIndex]> = queues.dates.drain(..).collect();
         dates.sort();
         dates.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.dates.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
@@ -98,22 +102,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 queues.objects.push(data.object_index);
             }
         });
-        let mut strings: Box<[u32]> = queues.strings.drain(..).collect();
-        strings.sort();
-        strings.iter().for_each(|&idx| {
-            let index = idx as usize;
-            if let Some(marked) = bits.strings.get(index) {
-                if marked.load(Ordering::Acquire) {
-                    // Already marked, ignore
-                    return;
-                }
-                marked.store(true, Ordering::Relaxed);
-            }
-        });
-        let mut objects: Box<[u32]> = queues.objects.drain(..).collect();
+        let mut objects: Box<[ObjectIndex]> = queues.objects.drain(..).collect();
         objects.sort();
         objects.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.objects.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
@@ -153,10 +145,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
             }
         });
-        let mut regexps: Box<[u32]> = queues.regexps.drain(..).collect();
+        let mut regexps: Box<[RegExpIndex]> = queues.regexps.drain(..).collect();
         regexps.sort();
         regexps.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.regexps.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
@@ -167,10 +159,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 queues.objects.push(data.object_index);
             }
         });
-        let mut strings: Box<[u32]> = queues.strings.drain(..).collect();
+        let mut strings: Box<[StringIndex]> = queues.strings.drain(..).collect();
         strings.sort();
         strings.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.strings.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
@@ -179,10 +171,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 marked.store(true, Ordering::Relaxed);
             }
         });
-        let mut symbols: Box<[u32]> = queues.symbols.drain(..).collect();
+        let mut symbols: Box<[SymbolIndex]> = queues.symbols.drain(..).collect();
         symbols.sort();
         symbols.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.symbols.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
@@ -195,10 +187,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
             }
         });
-        let mut e_2_4: Box<[u32]> = queues.e_2_4.drain(..).collect();
+        let mut e_2_4: Box<[ElementIndex]> = queues.e_2_4.drain(..).collect();
         e_2_4.sort();
         e_2_4.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.e_2_4.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
@@ -219,10 +211,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     });
             }
         });
-        let mut e_2_6: Box<[u32]> = queues.e_2_6.drain(..).collect();
+        let mut e_2_6: Box<[ElementIndex]> = queues.e_2_6.drain(..).collect();
         e_2_6.sort();
         e_2_6.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.e_2_6.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
@@ -243,10 +235,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     });
             }
         });
-        let mut e_2_8: Box<[u32]> = queues.e_2_8.drain(..).collect();
+        let mut e_2_8: Box<[ElementIndex]> = queues.e_2_8.drain(..).collect();
         e_2_8.sort();
         e_2_8.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.e_2_8.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
@@ -267,10 +259,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     });
             }
         });
-        let mut e_2_10: Box<[u32]> = queues.e_2_10.drain(..).collect();
+        let mut e_2_10: Box<[ElementIndex]> = queues.e_2_10.drain(..).collect();
         e_2_10.sort();
         e_2_10.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.e_2_10.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
@@ -291,10 +283,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     });
             }
         });
-        let mut e_2_12: Box<[u32]> = queues.e_2_12.drain(..).collect();
+        let mut e_2_12: Box<[ElementIndex]> = queues.e_2_12.drain(..).collect();
         e_2_12.sort();
         e_2_12.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.e_2_12.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
@@ -315,10 +307,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     });
             }
         });
-        let mut e_2_16: Box<[u32]> = queues.e_2_16.drain(..).collect();
+        let mut e_2_16: Box<[ElementIndex]> = queues.e_2_16.drain(..).collect();
         e_2_16.sort();
         e_2_16.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.e_2_16.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
@@ -339,10 +331,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     });
             }
         });
-        let mut e_2_24: Box<[u32]> = queues.e_2_24.drain(..).collect();
+        let mut e_2_24: Box<[ElementIndex]> = queues.e_2_24.drain(..).collect();
         e_2_24.sort();
         e_2_24.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.e_2_24.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
@@ -363,10 +355,10 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                     });
             }
         });
-        let mut e_2_32: Box<[u32]> = queues.e_2_32.drain(..).collect();
+        let mut e_2_32: Box<[ElementIndex]> = queues.e_2_32.drain(..).collect();
         e_2_32.sort();
         e_2_32.iter().for_each(|&idx| {
-            let index = idx as usize;
+            let index = idx.into_index();
             if let Some(marked) = bits.e_2_32.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore

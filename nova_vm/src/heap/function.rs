@@ -8,14 +8,15 @@ use crate::{
 
 use super::{
     heap_constants::WellKnownSymbolIndexes,
+    indexes::{FunctionIndex, ObjectIndex},
     object::{ObjectEntry, PropertyKey},
 };
 
 pub type JsBindingFunction = fn(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct FunctionHeapData {
-    pub(super) object_index: u32,
+    pub(super) object_index: ObjectIndex,
     pub(super) length: u8,
     pub(super) uses_arguments: bool,
     pub(super) bound: Option<Box<[Value]>>,
@@ -27,18 +28,18 @@ pub(crate) struct FunctionHeapData {
 pub fn initialize_function_heap(heap: &mut Heap) {
     let entries = vec![ObjectEntry::new_constructor_prototype_entry(
         heap,
-        BuiltinObjectIndexes::FunctionPrototypeIndex as u32,
+        BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
     )];
     heap.insert_builtin_object(
         BuiltinObjectIndexes::FunctionConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
         entries,
     );
     heap.functions
-        [get_constructor_index(BuiltinObjectIndexes::FunctionConstructorIndex) as usize] =
+        [get_constructor_index(BuiltinObjectIndexes::FunctionConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::FunctionConstructorIndex as u32,
+            object_index: BuiltinObjectIndexes::FunctionConstructorIndex.into(),
             length: 1,
             uses_arguments: false,
             bound: None,
@@ -59,7 +60,7 @@ pub fn initialize_function_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
             "hasInstance",
-            WellKnownSymbolIndexes::HasInstance as u32,
+            WellKnownSymbolIndexes::HasInstance.into(),
             1,
             false,
             function_todo,
@@ -71,13 +72,13 @@ pub fn initialize_function_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::FunctionPrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
         entries,
     );
 }
 
 fn function_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
-    Ok(Value::Function(0))
+    Ok(Value::Function(FunctionIndex::from_index(0)))
 }
 
 fn function_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {

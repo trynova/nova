@@ -14,17 +14,18 @@ use super::{
 pub fn initialize_boolean_heap(heap: &mut Heap) {
     let entries = vec![ObjectEntry::new_constructor_prototype_entry(
         heap,
-        BuiltinObjectIndexes::BooleanPrototypeIndex as u32,
+        BuiltinObjectIndexes::BooleanPrototypeIndex.into(),
     )];
     heap.insert_builtin_object(
         BuiltinObjectIndexes::BooleanConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
         entries,
     );
-    heap.functions[get_constructor_index(BuiltinObjectIndexes::BooleanConstructorIndex) as usize] =
+    heap.functions
+        [get_constructor_index(BuiltinObjectIndexes::BooleanConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::BooleanConstructorIndex as u32,
+            object_index: BuiltinObjectIndexes::BooleanConstructorIndex.into(),
             length: 1,
             uses_arguments: false,
             bound: None,
@@ -44,7 +45,7 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::BooleanPrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
         entries,
     );
 }
