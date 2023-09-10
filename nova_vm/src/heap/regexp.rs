@@ -45,7 +45,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::RegExpConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::RegExpConstructorIndex.into(),
+            object_index: Some(BuiltinObjectIndexes::RegExpConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
             // bound: None,

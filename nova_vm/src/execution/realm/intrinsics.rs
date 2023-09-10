@@ -12,58 +12,42 @@ pub struct Intrinsics;
 impl Intrinsics {
     /// %Array%
     pub const fn array() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::ArrayConstructorIndex.into(),
-        ))
+        Object::Function(BuiltinObjectIndexes::ArrayConstructorIndex.into())
     }
 
     /// %Array.prototype%
     pub const fn array_prototype() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::ArrayPrototypeIndex.into(),
-        ))
+        Object::Object(BuiltinObjectIndexes::ArrayPrototypeIndex.into())
     }
 
     /// %BigInt%
     pub const fn big_int() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::BigintConstructorIndex.into(),
-        ))
+        Object::Function(BuiltinObjectIndexes::BigintConstructorIndex.into())
     }
 
     /// %BigInt.prototype%
     pub const fn big_int_prototype() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::BigintPrototypeIndex.into(),
-        ))
+        Object::Object(BuiltinObjectIndexes::BigintPrototypeIndex.into())
     }
 
     /// %Boolean%
     pub const fn boolean() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::BooleanConstructorIndex.into(),
-        ))
+        Object::Function(BuiltinObjectIndexes::BooleanConstructorIndex.into())
     }
 
     /// %Boolean.prototype%
     pub const fn boolean_prototype() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::BooleanPrototypeIndex.into(),
-        ))
+        Object::Object(BuiltinObjectIndexes::BooleanPrototypeIndex.into())
     }
 
     /// %Error%
     pub const fn error() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::ErrorConstructorIndex.into(),
-        ))
+        Object::Function(BuiltinObjectIndexes::ErrorConstructorIndex.into())
     }
 
     /// %Error.prototype%
     pub const fn error_prototype() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::ErrorPrototypeIndex.into(),
-        ))
+        Object::Object(BuiltinObjectIndexes::ErrorPrototypeIndex.into())
     }
 
     /// %eval%
@@ -73,9 +57,7 @@ impl Intrinsics {
 
     /// %EvalError%
     pub const fn eval_error() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::ArrayConstructorIndex.into(),
-        ))
+        Object::Function(BuiltinObjectIndexes::ArrayConstructorIndex.into())
     }
 
     /// %EvalError.prototype%
@@ -85,16 +67,15 @@ impl Intrinsics {
 
     /// %Function%
     pub const fn function() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::FunctionConstructorIndex.into(),
-        ))
+        Object::Function(BuiltinObjectIndexes::FunctionConstructorIndex.into())
     }
 
     /// %Function.prototype%
     pub const fn function_prototype() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
-        ))
+        // Note: This is not spec-compliant. Function prototype should
+        // be a function that always returns undefined no matter how
+        // it is called. That's stupid so we do not have that.
+        Object::Object(BuiltinObjectIndexes::FunctionPrototypeIndex.into())
     }
 
     /// %isFinite%
@@ -109,35 +90,27 @@ impl Intrinsics {
 
     /// %Math%
     pub const fn math() -> Object {
-        Object::new(Value::Object(BuiltinObjectIndexes::MathObjectIndex.into()))
+        Object::Object(BuiltinObjectIndexes::MathObjectIndex.into())
     }
 
     /// %Number%
     pub const fn number() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::NumberConstructorIndex.into(),
-        ))
+        Object::Function(BuiltinObjectIndexes::NumberConstructorIndex.into())
     }
 
     /// %Number.prototype%
     pub const fn number_prototype() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::NumberPrototypeIndex.into(),
-        ))
+        Object::Object(BuiltinObjectIndexes::NumberPrototypeIndex.into())
     }
 
     /// %Object%
     pub const fn object() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::ObjectConstructorIndex.into(),
-        ))
+        Object::Function(BuiltinObjectIndexes::ObjectConstructorIndex.into())
     }
 
     /// %Object.prototype%
     pub const fn object_prototype() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
-        ))
+        Object::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into())
     }
 
     /// %Object.prototype.toString%
@@ -172,30 +145,22 @@ impl Intrinsics {
 
     /// %String%
     pub const fn string() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::StringConstructorIndex.into(),
-        ))
+        Object::Function(BuiltinObjectIndexes::StringConstructorIndex.into())
     }
 
     /// %String.prototype%
     pub const fn string_prototype() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::StringPrototypeIndex.into(),
-        ))
+        Object::Object(BuiltinObjectIndexes::StringPrototypeIndex.into())
     }
 
     /// %Symbol%
     pub const fn symbol() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::SymbolConstructorIndex.into(),
-        ))
+        Object::Function(BuiltinObjectIndexes::SymbolConstructorIndex.into())
     }
 
     /// %Symbol.prototype%
     pub const fn symbol_prototype() -> Object {
-        Object::new(Value::Object(
-            BuiltinObjectIndexes::SymbolPrototypeIndex.into(),
-        ))
+        Object::Object(BuiltinObjectIndexes::SymbolPrototypeIndex.into())
     }
 
     /// %SyntaxError%

@@ -142,7 +142,7 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::SymbolConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::SymbolConstructorIndex.into(),
+            object_index: Some(BuiltinObjectIndexes::SymbolConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
             // bound: None,

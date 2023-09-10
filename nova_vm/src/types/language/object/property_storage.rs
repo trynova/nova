@@ -64,7 +64,7 @@ impl PropertyStorage {
                     }
                 }
 
-                if let Some(object) = array.object {
+                if let Some(object) = array.object_index {
                     return object.property_storage().has(agent, key);
                 }
 

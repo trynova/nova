@@ -50,7 +50,7 @@ impl From<Object> for Value {
     fn from(value: Object) -> Self {
         match value {
             Object::Object(x) => Value::Object(x),
-            Object::Array(x) => Value::ArrayObject(x),
+            Object::Array(x) => Value::Array(x),
             Object::Function(x) => Value::Function(x),
         }
     }

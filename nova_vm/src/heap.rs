@@ -151,14 +151,14 @@ impl CreateHeapData<&str, String> for Heap {
 impl CreateHeapData<FunctionHeapData, Function> for Heap {
     fn create(&mut self, data: FunctionHeapData) -> Function {
         self.functions.push(Some(data));
-        Function::new(Value::Function(FunctionIndex::last(&self.functions)))
+        Function(FunctionIndex::last(&self.functions))
     }
 }
 
 impl CreateHeapData<ObjectHeapData, Object> for Heap {
     fn create(&mut self, data: ObjectHeapData) -> Object {
         self.objects.push(Some(data));
-        Object::new(Value::Object(ObjectIndex::last(&self.objects)))
+        Object::Object(ObjectIndex::last(&self.objects))
     }
 }
 

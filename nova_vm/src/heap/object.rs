@@ -300,7 +300,7 @@ pub fn initialize_object_heap(heap: &mut Heap) {
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::ObjectConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::ObjectConstructorIndex.into(),
+            object_index: Some(BuiltinObjectIndexes::ObjectConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
             // bound: None,

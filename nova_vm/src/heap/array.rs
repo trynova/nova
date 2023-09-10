@@ -66,7 +66,7 @@ pub fn initialize_array_heap(heap: &mut Heap) {
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::ArrayConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::ArrayConstructorIndex.into(),
+            object_index: Some(BuiltinObjectIndexes::ArrayConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
             // bound: None,

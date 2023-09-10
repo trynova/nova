@@ -1,19 +1,19 @@
 use crate::{
     execution::Agent,
-    heap::{GetHeapData, Handle, StringHeapData},
+    heap::{indexes::StringIndex, GetHeapData},
     types::{String, Value},
     SmallInteger, SmallString,
 };
 
 #[derive(Debug, Clone, Copy)]
 pub enum PropertyKey {
-    String(Handle<StringHeapData>),
+    String(StringIndex),
     SmallString(SmallString),
     SmallInteger(SmallInteger),
 }
 
-impl From<Handle<StringHeapData>> for PropertyKey {
-    fn from(value: Handle<StringHeapData>) -> Self {
+impl From<StringIndex> for PropertyKey {
+    fn from(value: StringIndex) -> Self {
         PropertyKey::String(value)
     }
 }
@@ -45,7 +45,7 @@ impl TryFrom<Value> for PropertyKey {
         match value {
             Value::String(x) => Ok(PropertyKey::String(x)),
             Value::SmallString(x) => Ok(PropertyKey::SmallString(x)),
-            Value::IntegerNumber(x) => Ok(PropertyKey::SmallInteger(x)),
+            Value::Integer(x) => Ok(PropertyKey::SmallInteger(x)),
             _ => Err(()),
         }
     }
@@ -56,7 +56,7 @@ impl From<PropertyKey> for Value {
         match value {
             PropertyKey::String(x) => Value::String(x),
             PropertyKey::SmallString(x) => Value::SmallString(x),
-            PropertyKey::SmallInteger(x) => Value::IntegerNumber(x),
+            PropertyKey::SmallInteger(x) => Value::Integer(x),
         }
     }
 }
@@ -68,7 +68,7 @@ impl PropertyKey {
 
     pub fn is_array_index(self) -> bool {
         // TODO: string check
-        matches!(self.into_value(), Value::IntegerNumber(_))
+        matches!(self.into_value(), Value::Integer(_))
     }
 
     pub(self) fn is_str_eq_num(s: &str, n: i64) -> bool {

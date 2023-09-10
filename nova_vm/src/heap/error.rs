@@ -33,7 +33,7 @@ pub fn initialize_error_heap(heap: &mut Heap) {
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::ErrorConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::ErrorConstructorIndex.into(),
+            object_index: Some(BuiltinObjectIndexes::ErrorConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
             // bound: None,

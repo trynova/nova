@@ -1,7 +1,7 @@
 use super::Value;
 use crate::{
     execution::Agent,
-    heap::{GetHeapData, Handle, StringHeapData},
+    heap::{indexes::StringIndex, GetHeapData},
     SmallString,
 };
 
@@ -9,12 +9,12 @@ use crate::{
 /// https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type
 #[derive(Debug, Clone, Copy)]
 pub enum String {
-    String(Handle<StringHeapData>),
+    String(StringIndex),
     SmallString(SmallString),
 }
 
-impl From<Handle<StringHeapData>> for String {
-    fn from(value: Handle<StringHeapData>) -> Self {
+impl From<StringIndex> for String {
+    fn from(value: StringIndex) -> Self {
         String::String(value)
     }
 }
@@ -48,17 +48,6 @@ impl From<String> for Value {
         match value {
             String::String(x) => Value::String(x),
             String::SmallString(x) => Value::SmallString(x),
-        }
-    }
-}
-
-impl TryFrom<Value> for String {
-    type Error = ();
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        if matches!(value, Value::String(_) | Value::SmallString(_)) {
-            Ok(String(value))
-        } else {
-            Err(())
         }
     }
 }

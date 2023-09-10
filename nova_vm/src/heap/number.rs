@@ -80,7 +80,7 @@ pub fn initialize_number_heap(heap: &mut Heap) {
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::NumberConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::NumberConstructorIndex.into(),
+            object_index: Some(BuiltinObjectIndexes::NumberConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
             // bound: None,

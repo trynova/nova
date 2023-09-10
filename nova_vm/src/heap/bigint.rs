@@ -38,7 +38,7 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::BigintConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: ObjectIndex::last(&heap.objects),
+            object_index: Some(ObjectIndex::last(&heap.objects)),
             length: 1,
             // uses_arguments: false,
             // bound: None,

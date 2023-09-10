@@ -38,7 +38,7 @@ pub fn initialize_string_heap(heap: &mut Heap) {
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::StringConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::StringConstructorIndex.into(),
+            object_index: Some(BuiltinObjectIndexes::StringConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
             // bound: None,

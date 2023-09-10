@@ -26,7 +26,7 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::BooleanConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::BooleanConstructorIndex.into(),
+            object_index: Some(BuiltinObjectIndexes::BooleanConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
             // bound: None,

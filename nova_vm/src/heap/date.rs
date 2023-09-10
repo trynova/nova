@@ -41,7 +41,7 @@ pub fn initialize_date_heap(heap: &mut Heap) {
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::DateConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::DateConstructorIndex.into(),
+            object_index: Some(BuiltinObjectIndexes::DateConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
             // bound: None,

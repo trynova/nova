@@ -1,10 +1,9 @@
-use crate::heap::{FunctionHeapData, Handle};
-
 use super::{Object, Value};
+use crate::heap::indexes::FunctionIndex;
 
 /// https://tc39.es/ecma262/#function-object
 #[derive(Clone, Copy)]
-pub struct Function(pub Handle<FunctionHeapData>);
+pub struct Function(pub FunctionIndex);
 
 impl std::fmt::Debug for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -12,8 +11,8 @@ impl std::fmt::Debug for Function {
     }
 }
 
-impl From<Handle<FunctionHeapData>> for Function {
-    fn from(value: Handle<FunctionHeapData>) -> Self {
+impl From<FunctionIndex> for Function {
+    fn from(value: FunctionIndex) -> Self {
         Function(value)
     }
 }

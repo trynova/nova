@@ -95,7 +95,7 @@ pub fn create_builtin_function<'a, 'b: 'a>(
     //     a. Perform SetFunctionName(func, name, prefix).
 
     // 13. Return func.
-    Function::new(Value::Function(func))
+    Function(func)
 }
 
 pub fn define_builtin_function<'a, 'b>(

@@ -42,7 +42,7 @@ pub fn initialize_function_heap(heap: &mut Heap) {
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::FunctionConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::FunctionConstructorIndex.into(),
+            object_index: Some(BuiltinObjectIndexes::FunctionConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
             // bound: None,
