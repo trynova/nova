@@ -1,6 +1,9 @@
 use crate::{
-    heap::BuiltinObjectIndexes,
-    types::{Object, Value},
+    heap::{
+        indexes::{FunctionIndex, ObjectIndex},
+        BuiltinObjectIndexes,
+    },
+    types::Object,
 };
 
 // TODO: We should probably consider lazily loading intrinsics. This would
@@ -12,42 +15,58 @@ pub struct Intrinsics;
 impl Intrinsics {
     /// %Array%
     pub const fn array() -> Object {
-        Object::Function(BuiltinObjectIndexes::ArrayConstructorIndex.into())
+        Object::Function(FunctionIndex::from_u32_index(
+            BuiltinObjectIndexes::ArrayConstructorIndex as u32,
+        ))
     }
 
     /// %Array.prototype%
     pub const fn array_prototype() -> Object {
-        Object::Object(BuiltinObjectIndexes::ArrayPrototypeIndex.into())
+        Object::Object(ObjectIndex::from_u32_index(
+            BuiltinObjectIndexes::ArrayPrototypeIndex as u32,
+        ))
     }
 
     /// %BigInt%
     pub const fn big_int() -> Object {
-        Object::Function(BuiltinObjectIndexes::BigintConstructorIndex.into())
+        Object::Function(FunctionIndex::from_u32_index(
+            BuiltinObjectIndexes::BigintConstructorIndex as u32,
+        ))
     }
 
     /// %BigInt.prototype%
     pub const fn big_int_prototype() -> Object {
-        Object::Object(BuiltinObjectIndexes::BigintPrototypeIndex.into())
+        Object::Object(ObjectIndex::from_u32_index(
+            BuiltinObjectIndexes::BigintPrototypeIndex as u32,
+        ))
     }
 
     /// %Boolean%
     pub const fn boolean() -> Object {
-        Object::Function(BuiltinObjectIndexes::BooleanConstructorIndex.into())
+        Object::Function(FunctionIndex::from_u32_index(
+            BuiltinObjectIndexes::BooleanConstructorIndex as u32,
+        ))
     }
 
     /// %Boolean.prototype%
     pub const fn boolean_prototype() -> Object {
-        Object::Object(BuiltinObjectIndexes::BooleanPrototypeIndex.into())
+        Object::Object(ObjectIndex::from_u32_index(
+            BuiltinObjectIndexes::BooleanPrototypeIndex as u32,
+        ))
     }
 
     /// %Error%
     pub const fn error() -> Object {
-        Object::Function(BuiltinObjectIndexes::ErrorConstructorIndex.into())
+        Object::Function(FunctionIndex::from_u32_index(
+            BuiltinObjectIndexes::ErrorConstructorIndex as u32,
+        ))
     }
 
     /// %Error.prototype%
     pub const fn error_prototype() -> Object {
-        Object::Object(BuiltinObjectIndexes::ErrorPrototypeIndex.into())
+        Object::Object(ObjectIndex::from_u32_index(
+            BuiltinObjectIndexes::ErrorPrototypeIndex as u32,
+        ))
     }
 
     /// %eval%
@@ -57,7 +76,9 @@ impl Intrinsics {
 
     /// %EvalError%
     pub const fn eval_error() -> Object {
-        Object::Function(BuiltinObjectIndexes::ArrayConstructorIndex.into())
+        Object::Function(FunctionIndex::from_u32_index(
+            BuiltinObjectIndexes::ArrayConstructorIndex as u32,
+        ))
     }
 
     /// %EvalError.prototype%
@@ -67,7 +88,9 @@ impl Intrinsics {
 
     /// %Function%
     pub const fn function() -> Object {
-        Object::Function(BuiltinObjectIndexes::FunctionConstructorIndex.into())
+        Object::Function(FunctionIndex::from_u32_index(
+            BuiltinObjectIndexes::FunctionConstructorIndex as u32,
+        ))
     }
 
     /// %Function.prototype%
@@ -75,7 +98,9 @@ impl Intrinsics {
         // Note: This is not spec-compliant. Function prototype should
         // be a function that always returns undefined no matter how
         // it is called. That's stupid so we do not have that.
-        Object::Object(BuiltinObjectIndexes::FunctionPrototypeIndex.into())
+        Object::Object(ObjectIndex::from_u32_index(
+            BuiltinObjectIndexes::FunctionPrototypeIndex as u32,
+        ))
     }
 
     /// %isFinite%
@@ -90,27 +115,37 @@ impl Intrinsics {
 
     /// %Math%
     pub const fn math() -> Object {
-        Object::Object(BuiltinObjectIndexes::MathObjectIndex.into())
+        Object::Object(ObjectIndex::from_u32_index(
+            BuiltinObjectIndexes::MathObjectIndex as u32,
+        ))
     }
 
     /// %Number%
     pub const fn number() -> Object {
-        Object::Function(BuiltinObjectIndexes::NumberConstructorIndex.into())
+        Object::Function(FunctionIndex::from_u32_index(
+            BuiltinObjectIndexes::NumberConstructorIndex as u32,
+        ))
     }
 
     /// %Number.prototype%
     pub const fn number_prototype() -> Object {
-        Object::Object(BuiltinObjectIndexes::NumberPrototypeIndex.into())
+        Object::Object(ObjectIndex::from_u32_index(
+            BuiltinObjectIndexes::NumberPrototypeIndex as u32,
+        ))
     }
 
     /// %Object%
     pub const fn object() -> Object {
-        Object::Function(BuiltinObjectIndexes::ObjectConstructorIndex.into())
+        Object::Function(FunctionIndex::from_u32_index(
+            BuiltinObjectIndexes::ObjectConstructorIndex as u32,
+        ))
     }
 
     /// %Object.prototype%
     pub const fn object_prototype() -> Object {
-        Object::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into())
+        Object::Object(ObjectIndex::from_u32_index(
+            BuiltinObjectIndexes::ObjectPrototypeIndex as u32,
+        ))
     }
 
     /// %Object.prototype.toString%
@@ -145,22 +180,30 @@ impl Intrinsics {
 
     /// %String%
     pub const fn string() -> Object {
-        Object::Function(BuiltinObjectIndexes::StringConstructorIndex.into())
+        Object::Function(FunctionIndex::from_u32_index(
+            BuiltinObjectIndexes::StringConstructorIndex as u32,
+        ))
     }
 
     /// %String.prototype%
     pub const fn string_prototype() -> Object {
-        Object::Object(BuiltinObjectIndexes::StringPrototypeIndex.into())
+        Object::Object(ObjectIndex::from_u32_index(
+            BuiltinObjectIndexes::StringPrototypeIndex as u32,
+        ))
     }
 
     /// %Symbol%
     pub const fn symbol() -> Object {
-        Object::Function(BuiltinObjectIndexes::SymbolConstructorIndex.into())
+        Object::Function(FunctionIndex::from_u32_index(
+            BuiltinObjectIndexes::SymbolConstructorIndex as u32,
+        ))
     }
 
     /// %Symbol.prototype%
     pub const fn symbol_prototype() -> Object {
-        Object::Object(BuiltinObjectIndexes::SymbolPrototypeIndex.into())
+        Object::Object(ObjectIndex::from_u32_index(
+            BuiltinObjectIndexes::SymbolPrototypeIndex as u32,
+        ))
     }
 
     /// %SyntaxError%

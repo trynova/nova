@@ -12,7 +12,7 @@ use super::{
     ElementsVector, Heap,
 };
 
-pub(crate) fn heap_gc(heap: &mut Heap) {
+pub fn heap_gc(heap: &mut Heap) {
     let bits = HeapBits::new(heap);
     let mut queues = WorkQueues::new(heap);
 

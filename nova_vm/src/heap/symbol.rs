@@ -13,7 +13,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct SymbolHeapData {
+pub struct SymbolHeapData {
     pub(super) descriptor: Option<StringIndex>,
 }
 

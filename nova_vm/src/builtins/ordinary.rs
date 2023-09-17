@@ -3,8 +3,6 @@ use crate::{
     types::{InternalMethods, Object, PropertyDescriptor, PropertyKey, Value},
 };
 
-use super::ArgumentsList;
-
 /// 10.1 Ordinary Object Internal Methods and Internal Slots
 /// https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots
 pub static METHODS: InternalMethods = InternalMethods {
@@ -37,7 +35,7 @@ fn get_prototype_of(agent: &mut Agent, object: Object) -> Option<Object> {
 pub fn ordinary_get_prototype_of(agent: &mut Agent, object: Object) -> Option<Object> {
     // 1. Return O.[[Prototype]].
     // TODO: This is wrong.
-    Some(Object::new(object.prototype(agent).unwrap()))
+    Some(Object::try_from(object.prototype(agent).unwrap()).unwrap())
 }
 
 /// 10.1.2 [[SetPrototypeOf]] ( V )
@@ -105,7 +103,8 @@ pub fn ordinary_set_prototype_of(
 
         // ii. Else, set p to p.[[Prototype]].
         // TODO: This is wrong
-        parent_prototype_outer = Some(Object::new(parent_prototype.prototype(agent).unwrap()));
+        parent_prototype_outer =
+            Some(Object::try_from(parent_prototype.prototype(agent).unwrap()).unwrap());
     }
 
     // 8. Set O.[[Prototype]] to V.
@@ -686,12 +685,8 @@ pub fn ordinary_set_with_own_descriptor(
             };
 
             // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
-            return Ok((receiver.internal_methods(agent).define_own_property)(
-                agent,
-                receiver,
-                property_key,
-                value_descriptor,
-            ));
+            let define_own_property = receiver.internal_methods(agent).define_own_property;
+            return define_own_property(agent, receiver, property_key, value_descriptor);
         }
         // e. Else,
         else {

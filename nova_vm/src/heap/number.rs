@@ -12,7 +12,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct NumberHeapData {
+pub struct NumberHeapData {
     pub(super) data: f64,
 }
 
@@ -21,7 +21,7 @@ impl NumberHeapData {
         NumberHeapData { data }
     }
 
-    pub(crate) fn value(&self) -> f64 {
+    pub fn value(&self) -> f64 {
         self.data
     }
 }

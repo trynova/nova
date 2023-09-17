@@ -1,4 +1,4 @@
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct SmallString {
     bytes: [u8; 7],
 }
@@ -41,7 +41,7 @@ impl SmallString {
         matches!(self.bytes, [0, 0, 0, 0, 0, 0, 0])
     }
 
-    pub(crate) fn from_str_unchecked(string: &str) -> Self {
+    pub fn from_str_unchecked(string: &str) -> Self {
         let string_bytes = string.as_bytes();
 
         // We have only 7 bytes to work with, and we cannot tell apart

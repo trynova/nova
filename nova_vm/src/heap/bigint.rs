@@ -10,12 +10,12 @@ use crate::{
 use num_bigint_dig::BigInt;
 
 #[derive(Debug, Clone)]
-pub(crate) struct BigIntHeapData {
+pub struct BigIntHeapData {
     pub(super) data: BigInt,
 }
 
 impl BigIntHeapData {
-    pub(crate) fn try_into_f64(&self) -> Option<f64> {
+    pub fn try_into_f64(&self) -> Option<f64> {
         None
     }
 }

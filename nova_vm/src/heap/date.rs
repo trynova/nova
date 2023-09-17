@@ -17,7 +17,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct DateHeapData {
+pub struct DateHeapData {
     pub(super) object_index: ObjectIndex,
     pub(super) _date: SystemTime,
 }

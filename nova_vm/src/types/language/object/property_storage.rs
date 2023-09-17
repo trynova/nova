@@ -15,7 +15,7 @@ use super::{Object, PropertyKey};
 pub struct PropertyStorage(Object);
 
 impl PropertyStorage {
-    pub(crate) fn new(object: Object) -> Self {
+    pub fn new(object: Object) -> Self {
         Self(object)
     }
 
@@ -55,20 +55,18 @@ impl PropertyStorage {
                 let realm = realm.borrow();
                 let array = realm.heap.get(array);
 
-                if let Value::Integer(number) = key.into_value() {
-                    if let Some(_) = TryInto::<usize>::try_into(number.into_i64())
-                        .map(|idx| array.elements.get(idx))
-                        .ok()
-                    {
-                        return true;
-                    }
+                if key.is_array_index() {
+                    return realm.heap.elements.has(array.elements, key.into_value());
                 }
 
                 if let Some(object) = array.object_index {
-                    return object.property_storage().has(agent, key);
+                    realm
+                        .heap
+                        .elements
+                        .has(object.get(&realm.heap).keys, key.into_value())
+                } else {
+                    false
                 }
-
-                false
             }
             Value::Function(_) => todo!(),
             _ => unreachable!(),

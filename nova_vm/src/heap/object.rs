@@ -18,16 +18,16 @@ use super::{
 
 #[derive(Debug)]
 pub struct ObjectEntry {
-    pub(crate) key: PropertyKey,
-    pub(crate) value: PropertyDescriptor,
+    pub key: PropertyKey,
+    pub value: PropertyDescriptor,
 }
 
 impl ObjectEntry {
-    pub(crate) fn new(key: PropertyKey, value: PropertyDescriptor) -> Self {
+    pub fn new(key: PropertyKey, value: PropertyDescriptor) -> Self {
         ObjectEntry { key, value }
     }
 
-    pub(crate) fn new_prototype_function_entry(
+    pub fn new_prototype_function_entry(
         heap: &mut Heap,
         name: &str,
         length: u8,
@@ -46,7 +46,7 @@ impl ObjectEntry {
         ObjectEntry { key, value }
     }
 
-    pub(crate) fn new_prototype_symbol_function_entry(
+    pub fn new_prototype_symbol_function_entry(
         heap: &mut Heap,
         name: &str,
         symbol_index: SymbolIndex,
@@ -61,7 +61,7 @@ impl ObjectEntry {
         ObjectEntry { key, value }
     }
 
-    pub(crate) fn new_constructor_prototype_entry(heap: &mut Heap, idx: ObjectIndex) -> Self {
+    pub fn new_constructor_prototype_entry(heap: &mut Heap, idx: ObjectIndex) -> Self {
         ObjectEntry {
             key: PropertyKey::from_str(heap, "prototype"),
             value: PropertyDescriptor::Data {
@@ -73,7 +73,7 @@ impl ObjectEntry {
         }
     }
 
-    pub(crate) fn new_frozen_entry(heap: &mut Heap, key: &str, value: Value) -> Self {
+    pub fn new_frozen_entry(heap: &mut Heap, key: &str, value: Value) -> Self {
         ObjectEntry {
             key: PropertyKey::from_str(heap, key),
             value: PropertyDescriptor::roh(value),
@@ -226,17 +226,17 @@ impl PropertyDescriptor {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ObjectHeapData {
-    pub(crate) extensible: bool,
+pub struct ObjectHeapData {
+    pub extensible: bool,
     // TODO: It's probably not necessary to have a whole Value here.
     // A prototype can only be set to be null or an object, meaning that most of the
     // possible Value options are impossible.
     // We could possibly do with just a `Option<ObjectIndex>` but it would cause issues
     // with functions and possible other special object cases we want to track with partially
     // separate heap fields later down the line.
-    pub(crate) prototype: Value,
-    pub(crate) keys: ElementsVector,
-    pub(crate) values: ElementsVector,
+    pub prototype: Value,
+    pub keys: ElementsVector,
+    pub values: ElementsVector,
 }
 
 impl ObjectHeapData {
@@ -259,6 +259,11 @@ impl ObjectHeapData {
             keys,
             values,
         }
+    }
+
+    pub fn has(&self, heap: &Heap, key: Value) -> bool {
+        debug_assert!(key.is_string() || key.is_number() || key.is_symbol());
+        heap.elements.has(self.keys, key)
     }
 }
 

@@ -9,8 +9,8 @@ use crate::{
 use wtf8::Wtf8Buf;
 
 #[derive(Debug, Clone)]
-pub(crate) struct StringHeapData {
-    pub(crate) data: Wtf8Buf,
+pub struct StringHeapData {
+    pub data: Wtf8Buf,
 }
 
 impl StringHeapData {

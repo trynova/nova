@@ -15,7 +15,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct RegExpHeapData {
+pub struct RegExpHeapData {
     pub(super) object_index: ObjectIndex,
     // pub(super) _regex: RegExp,
 }

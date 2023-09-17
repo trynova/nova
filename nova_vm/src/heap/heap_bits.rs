@@ -10,7 +10,7 @@ use super::{
     Heap,
 };
 
-pub(crate) struct HeapBits {
+pub struct HeapBits {
     pub e_2_4: Box<[AtomicBool]>,
     pub e_2_6: Box<[AtomicBool]>,
     pub e_2_8: Box<[AtomicBool]>,
@@ -31,7 +31,7 @@ pub(crate) struct HeapBits {
     pub symbols: Box<[AtomicBool]>,
 }
 
-pub(crate) struct WorkQueues {
+pub struct WorkQueues {
     pub e_2_4: Vec<ElementIndex>,
     pub e_2_6: Vec<ElementIndex>,
     pub e_2_8: Vec<ElementIndex>,
@@ -53,7 +53,7 @@ pub(crate) struct WorkQueues {
 }
 
 impl HeapBits {
-    pub(crate) fn new(heap: &Heap) -> Self {
+    pub fn new(heap: &Heap) -> Self {
         Self {
             e_2_4: Vec::with_capacity(heap.elements.e2pow4.values.len()).into_boxed_slice(),
             e_2_6: Vec::with_capacity(heap.elements.e2pow6.values.len()).into_boxed_slice(),
@@ -78,7 +78,7 @@ impl HeapBits {
 }
 
 impl WorkQueues {
-    pub(crate) fn new(heap: &Heap) -> Self {
+    pub fn new(heap: &Heap) -> Self {
         Self {
             e_2_4: Vec::with_capacity(heap.elements.e2pow4.values.len() / 4),
             e_2_6: Vec::with_capacity(heap.elements.e2pow6.values.len() / 4),
@@ -101,7 +101,7 @@ impl WorkQueues {
         }
     }
 
-    pub(crate) fn push_value(&mut self, value: Value) {
+    pub fn push_value(&mut self, value: Value) {
         match value {
             Value::Array(idx) => self.arrays.push(idx),
             // Value::BigIntObject(_) => todo!(),
@@ -128,7 +128,7 @@ impl WorkQueues {
         }
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.e_2_4.is_empty()
             && self.e_2_6.is_empty()
             && self.e_2_8.is_empty()

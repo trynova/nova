@@ -22,7 +22,7 @@ impl SmallInteger {
         self.into()
     }
 
-    pub(crate) fn from_i64_unchecked(value: i64) -> SmallInteger {
+    pub fn from_i64_unchecked(value: i64) -> SmallInteger {
         debug_assert!(value >= Self::MIN_NUMBER && value <= Self::MAX_NUMBER);
         let bytes = i64::to_ne_bytes(value);
 

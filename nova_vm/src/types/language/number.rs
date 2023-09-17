@@ -60,7 +60,7 @@ impl TryFrom<Value> for Number {
 }
 
 impl Number {
-    pub(crate) fn new(value: Value) -> Self {
+    pub fn new(value: Value) -> Self {
         debug_assert!(matches!(
             value,
             Value::Number(_) | Value::Integer(_) | Value::Float(_)

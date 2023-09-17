@@ -16,7 +16,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ArrayHeapData {
+pub struct ArrayHeapData {
     pub object_index: Option<ObjectIndex>,
     // TODO: Use SmallVec<[Value; 4]>
     pub elements: ElementsVector,

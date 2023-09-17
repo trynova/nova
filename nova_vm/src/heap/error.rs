@@ -14,7 +14,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ErrorHeapData {
+pub struct ErrorHeapData {
     pub(super) object_index: ObjectIndex,
     // TODO: stack? name?
 }

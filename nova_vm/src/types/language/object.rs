@@ -194,11 +194,7 @@ impl Object {
         };
 
         // 2. Return ? O.[[DefineOwnProperty]](P, newDesc).
-        Ok(self.internal_methods(agent).define_own_property)(
-            agent,
-            self,
-            property_key,
-            new_descriptor,
-        )
+        let define_own_property = self.internal_methods(agent).define_own_property;
+        define_own_property(agent, self, property_key, new_descriptor)
     }
 }

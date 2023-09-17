@@ -8,7 +8,7 @@ mod function;
 mod heap_bits;
 mod heap_constants;
 mod heap_gc;
-pub(crate) mod indexes;
+pub mod indexes;
 mod math;
 mod number;
 mod object;
@@ -16,7 +16,7 @@ mod regexp;
 mod string;
 mod symbol;
 
-pub(crate) use self::heap_constants::BuiltinObjectIndexes;
+pub use self::heap_constants::BuiltinObjectIndexes;
 
 use self::{
     array::{initialize_array_heap, ArrayHeapData},
@@ -51,18 +51,18 @@ pub struct Heap {
     /// ElementsArrays is where all element arrays live;
     /// Element arrays are static arrays of Values plus
     /// a HashMap of possible property descriptors.
-    pub(crate) elements: ElementArrays,
-    pub(crate) arrays: Vec<Option<ArrayHeapData>>,
-    pub(crate) bigints: Vec<Option<BigIntHeapData>>,
-    pub(crate) errors: Vec<Option<ErrorHeapData>>,
-    pub(crate) functions: Vec<Option<FunctionHeapData>>,
-    pub(crate) dates: Vec<Option<DateHeapData>>,
-    pub(crate) globals: Vec<Value>,
-    pub(crate) numbers: Vec<Option<NumberHeapData>>,
-    pub(crate) objects: Vec<Option<ObjectHeapData>>,
-    pub(crate) regexps: Vec<Option<RegExpHeapData>>,
-    pub(crate) strings: Vec<Option<StringHeapData>>,
-    pub(crate) symbols: Vec<Option<SymbolHeapData>>,
+    pub elements: ElementArrays,
+    pub arrays: Vec<Option<ArrayHeapData>>,
+    pub bigints: Vec<Option<BigIntHeapData>>,
+    pub errors: Vec<Option<ErrorHeapData>>,
+    pub functions: Vec<Option<FunctionHeapData>>,
+    pub dates: Vec<Option<DateHeapData>>,
+    pub globals: Vec<Value>,
+    pub numbers: Vec<Option<NumberHeapData>>,
+    pub objects: Vec<Option<ObjectHeapData>>,
+    pub regexps: Vec<Option<RegExpHeapData>>,
+    pub strings: Vec<Option<StringHeapData>>,
+    pub symbols: Vec<Option<SymbolHeapData>>,
 }
 
 pub trait CreateHeapData<T, F> {
@@ -214,7 +214,7 @@ impl Heap {
         heap
     }
 
-    pub(crate) fn alloc_string(&mut self, message: &str) -> StringIndex {
+    pub fn alloc_string(&mut self, message: &str) -> StringIndex {
         let found = self.strings.iter().position(|opt| {
             opt.as_ref()
                 .map_or(false, |data| data.data == Wtf8::from_str(message))
@@ -233,12 +233,12 @@ impl Heap {
         }
     }
 
-    pub(crate) fn alloc_number(&mut self, number: f64) -> NumberIndex {
+    pub fn alloc_number(&mut self, number: f64) -> NumberIndex {
         self.numbers.push(Some(NumberHeapData::new(number)));
         NumberIndex::last(&self.numbers)
     }
 
-    pub(crate) fn create_function(
+    pub fn create_function(
         &mut self,
         name: Value,
         length: u8,
@@ -278,7 +278,7 @@ impl Heap {
         index
     }
 
-    pub(crate) fn create_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
+    pub fn create_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -290,7 +290,7 @@ impl Heap {
         ObjectIndex::last(&self.objects)
     }
 
-    pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
+    pub fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -302,7 +302,7 @@ impl Heap {
         ObjectIndex::last(&self.objects)
     }
 
-    pub(crate) fn create_object_with_prototype(&mut self, prototype: Value) -> ObjectIndex {
+    pub fn create_object_with_prototype(&mut self, prototype: Value) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(vec![]);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -314,7 +314,7 @@ impl Heap {
         ObjectIndex::last(&self.objects)
     }
 
-    pub(crate) fn insert_builtin_object(
+    pub fn insert_builtin_object(
         &mut self,
         index: BuiltinObjectIndexes,
         extensible: bool,

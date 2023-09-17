@@ -13,7 +13,7 @@ use super::{BigInt, Number};
 
 /// 6.1 ECMAScript Language Types
 /// https://tc39.es/ecma262/#sec-ecmascript-language-types
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Value {
     /// 6.1.1 The Undefined Type
     /// https://tc39.es/ecma262/#sec-ecmascript-language-types-undefined-type
