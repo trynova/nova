@@ -1,7 +1,7 @@
 use crate::{
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        FunctionHeapData, HeapBits, ObjectHeapData, PropertyDescriptor,
+        FunctionHeapData, PropertyDescriptor,
     },
     value::{JsResult, Value},
 };
@@ -12,39 +12,42 @@ use super::{
 };
 
 pub fn initialize_boolean_heap(heap: &mut Heap) {
-    heap.objects[BuiltinObjectIndexes::BooleanConstructorIndex as usize] =
-        Some(ObjectHeapData::new(
-            true,
-            PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::FunctionPrototypeIndex as u32),
-            vec![ObjectEntry::new_constructor_prototype_entry(
-                heap,
-                BuiltinObjectIndexes::BooleanPrototypeIndex as u32,
-            )],
-        ));
-    heap.functions[get_constructor_index(BuiltinObjectIndexes::BooleanConstructorIndex) as usize] =
+    let entries = vec![ObjectEntry::new_constructor_prototype_entry(
+        heap,
+        BuiltinObjectIndexes::BooleanPrototypeIndex.into(),
+    )];
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::BooleanConstructorIndex,
+        true,
+        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
+        entries,
+    );
+    heap.functions
+        [get_constructor_index(BuiltinObjectIndexes::BooleanConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            bits: HeapBits::new(),
-            object_index: BuiltinObjectIndexes::BooleanConstructorIndex as u32,
+            object_index: BuiltinObjectIndexes::BooleanConstructorIndex.into(),
             length: 1,
             uses_arguments: false,
             bound: None,
             visible: None,
             binding: boolean_constructor_binding,
         });
-    heap.objects[BuiltinObjectIndexes::BooleanPrototypeIndex as usize] = Some(ObjectHeapData::new(
+    let entries = vec![
+        ObjectEntry::new(
+            PropertyKey::from_str(heap, "constructor"),
+            PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+                BuiltinObjectIndexes::BooleanConstructorIndex,
+            ))),
+        ),
+        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, boolean_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false, boolean_todo),
+    ];
+    heap.insert_builtin_object(
+        BuiltinObjectIndexes::BooleanPrototypeIndex,
         true,
-        PropertyDescriptor::prototype_slot(BuiltinObjectIndexes::ObjectPrototypeIndex as u32),
-        vec![
-            ObjectEntry::new(
-                PropertyKey::from_str(heap, "constructor"),
-                PropertyDescriptor::rwx(Value::Function(get_constructor_index(
-                    BuiltinObjectIndexes::BooleanConstructorIndex,
-                ))),
-            ),
-            ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, boolean_todo),
-            ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false, boolean_todo),
-        ],
-    ));
+        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
+        entries,
+    );
 }
 
 fn boolean_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {

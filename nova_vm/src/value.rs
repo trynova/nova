@@ -1,19 +1,17 @@
-use crate::{heap::Heap, stack_string::StackString, Type, VM};
+use crate::{
+    heap::{
+        indexes::{
+            ArrayIndex, BigIntIndex, DateIndex, ErrorIndex, FunctionIndex, NumberIndex,
+            ObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
+        },
+        Heap,
+    },
+    stack_string::StackString,
+    Type, VM,
+};
 use std::{fmt::Debug, mem::size_of};
 
-// TODO(@aapoalas): Use transparent struct (u32)'s to ensure proper indexing.
-pub type ArrayIndex = u32;
-pub type BigIntIndex = u32;
-pub type DateIndex = u32;
-pub type ErrorIndex = u32;
-pub type FunctionIndex = u32;
-pub type NumberIndex = u32;
-pub type ObjectIndex = u32;
-pub type RegExpIndex = u32;
-pub type StringIndex = u32;
-pub type SymbolIndex = u32;
-
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum Value {
     Array(ArrayIndex),
@@ -123,13 +121,13 @@ impl Value {
                 Value::SmallBigInt(that) | Value::Smi(that),
             ) => *this == *that as u32,
             (&Value::HeapBigInt(x), &Value::HeapNumber(y)) => {
-                let big_int = &vm.heap.bigints[x as usize];
-                let number = &vm.heap.numbers[y as usize];
+                let big_int = &vm.heap.bigints[x.into_index()];
+                let number = &vm.heap.numbers[y.into_index()];
                 big_int.as_ref().unwrap().try_into_f64() == Some(number.as_ref().unwrap().value())
             }
             (&Value::HeapNumber(x), &Value::HeapBigInt(y)) => {
-                let big_int = &vm.heap.bigints[y as usize];
-                let number = &vm.heap.numbers[x as usize];
+                let big_int = &vm.heap.bigints[y.into_index()];
+                let number = &vm.heap.numbers[x.into_index()];
                 big_int.as_ref().unwrap().try_into_f64() == Some(number.as_ref().unwrap().value())
             }
             (Value::HeapNumber(_), Value::HeapString(_)) => todo!("use ToNumber() intrinsics"),
@@ -184,8 +182,8 @@ impl Value {
 
             (Value::HeapNumber(n1), Value::HeapNumber(n2)) => {
                 n1 == n2
-                    || vm.heap.numbers[*n1 as usize].as_ref().unwrap().value()
-                        == vm.heap.numbers[*n2 as usize].as_ref().unwrap().value()
+                    || vm.heap.numbers[n1.into_index()].as_ref().unwrap().value()
+                        == vm.heap.numbers[n2.into_index()].as_ref().unwrap().value()
             }
 
             // https://tc39.es/ecma262/multipage/abstract-operations.html#sec-samevaluenonnumber
@@ -193,8 +191,8 @@ impl Value {
             (Value::HeapBigInt(n1), Value::HeapBigInt(n2)) => n1 == n2,
             (Value::HeapString(s1), Value::HeapString(s2)) => {
                 s1 == s2
-                    || vm.heap.strings[*s1 as usize].as_ref().unwrap().data
-                        == vm.heap.strings[*s2 as usize].as_ref().unwrap().data
+                    || vm.heap.strings[s1.into_index()].as_ref().unwrap().data
+                        == vm.heap.strings[s2.into_index()].as_ref().unwrap().data
             }
             (Value::Boolean(b1), Value::Boolean(b2)) => b1 == b2,
             // TODO: implement x is y procedures
@@ -263,7 +261,7 @@ impl Value {
 
     pub fn try_into_f64(&self, vm: &mut VM) -> JsResult<f64> {
         match self {
-            &Value::HeapNumber(n) => Ok(vm.heap.numbers[n as usize].as_ref().unwrap().value()),
+            &Value::HeapNumber(n) => Ok(vm.heap.numbers[n.into_index()].as_ref().unwrap().value()),
             &Value::Smi(n) => Ok(n as f64),
             &Value::SmiU(n) => Ok(n as f64),
             Value::Infinity => Ok(f64::INFINITY),

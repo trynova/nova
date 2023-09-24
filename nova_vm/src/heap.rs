@@ -2,10 +2,13 @@ mod array;
 mod bigint;
 mod boolean;
 mod date;
+mod element_array;
 mod error;
 mod function;
+mod heap_bits;
 mod heap_constants;
-mod heap_trace;
+mod heap_gc;
+pub(crate) mod indexes;
 mod math;
 mod number;
 mod object;
@@ -18,13 +21,18 @@ use self::{
     bigint::{initialize_bigint_heap, BigIntHeapData},
     boolean::initialize_boolean_heap,
     date::{initialize_date_heap, DateHeapData},
+    element_array::{
+        ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16, ElementArray2Pow24,
+        ElementArray2Pow32, ElementArray2Pow4, ElementArray2Pow6, ElementArray2Pow8, ElementArrays,
+        ElementsVector,
+    },
     error::{initialize_error_heap, ErrorHeapData},
     function::{initialize_function_heap, FunctionHeapData, JsBindingFunction},
     heap_constants::{
         BuiltinObjectIndexes, FIRST_CONSTRUCTOR_INDEX, LAST_BUILTIN_OBJECT_INDEX,
         LAST_WELL_KNOWN_SYMBOL_INDEX,
     },
-    heap_trace::HeapTrace,
+    indexes::{FunctionIndex, NumberIndex, ObjectIndex, StringIndex},
     math::initialize_math_object,
     number::{initialize_number_heap, NumberHeapData},
     object::{
@@ -35,11 +43,14 @@ use self::{
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
 use crate::value::Value;
-use std::cell::Cell;
 use wtf8::Wtf8;
 
 #[derive(Debug)]
 pub struct Heap {
+    /// ElementsArrays is where all element arrays live;
+    /// Element arrays are static arrays of Values plus
+    /// a HashMap of possible property descriptors.
+    pub(crate) elements: ElementArrays,
     pub(crate) arrays: Vec<Option<ArrayHeapData>>,
     pub(crate) bigints: Vec<Option<BigIntHeapData>>,
     pub(crate) errors: Vec<Option<ErrorHeapData>>,
@@ -53,12 +64,19 @@ pub struct Heap {
     pub(crate) symbols: Vec<Option<SymbolHeapData>>,
 }
 
-fn stop_the_world() {}
-fn start_the_world() {}
-
 impl Heap {
     pub fn new() -> Heap {
         let mut heap = Heap {
+            elements: ElementArrays {
+                e2pow4: ElementArray2Pow4::with_capacity(1024),
+                e2pow6: ElementArray2Pow6::with_capacity(1024),
+                e2pow8: ElementArray2Pow8::default(),
+                e2pow10: ElementArray2Pow10::default(),
+                e2pow12: ElementArray2Pow12::default(),
+                e2pow16: ElementArray2Pow16::default(),
+                e2pow24: ElementArray2Pow24::default(),
+                e2pow32: ElementArray2Pow32::default(),
+            },
             arrays: Vec::with_capacity(1024),
             bigints: Vec::with_capacity(1024),
             errors: Vec::with_capacity(1024),
@@ -121,28 +139,28 @@ impl Heap {
         heap
     }
 
-    pub(crate) fn alloc_string(&mut self, message: &str) -> u32 {
+    pub(crate) fn alloc_string(&mut self, message: &str) -> StringIndex {
         let found = self.strings.iter().position(|opt| {
             opt.as_ref()
                 .map_or(false, |data| data.data == Wtf8::from_str(message))
         });
         if let Some(idx) = found {
-            return idx as u32;
+            return StringIndex::from_index(idx);
         }
         let data = StringHeapData::from_str(message);
         let found = self.strings.iter().position(|opt| opt.is_none());
         if let Some(idx) = found {
             self.strings[idx].replace(data);
-            idx as u32
+            StringIndex::from_index(idx)
         } else {
             self.strings.push(Some(data));
-            self.strings.len() as u32
+            StringIndex::last(&self.strings)
         }
     }
 
-    pub(crate) fn alloc_number(&mut self, number: f64) -> u32 {
+    pub(crate) fn alloc_number(&mut self, number: f64) -> NumberIndex {
         self.numbers.push(Some(NumberHeapData::new(number)));
-        self.numbers.len() as u32
+        NumberIndex::last(&self.numbers)
     }
 
     pub(crate) fn create_function(
@@ -151,394 +169,81 @@ impl Heap {
         length: u8,
         uses_arguments: bool,
         binding: JsBindingFunction,
-    ) -> u32 {
+    ) -> FunctionIndex {
+        let entries = vec![
+            ObjectEntry::new(
+                PropertyKey::from_str(self, "length"),
+                PropertyDescriptor::roxh(Value::SmiU(length as u32)),
+            ),
+            ObjectEntry::new(
+                PropertyKey::from_str(self, "name"),
+                PropertyDescriptor::roxh(name),
+            ),
+        ];
+        let (keys, values): (ElementsVector, ElementsVector) =
+            self.elements.create_object_entries(entries);
         let func_object_data = ObjectHeapData {
             _extensible: true,
-            bits: HeapBits::new(),
-            entries: vec![
-                ObjectEntry::new(
-                    PropertyKey::from_str(self, "length"),
-                    PropertyDescriptor::roxh(Value::SmiU(length as u32)),
-                ),
-                ObjectEntry::new(
-                    PropertyKey::from_str(self, "name"),
-                    PropertyDescriptor::roxh(name),
-                ),
-            ],
-            prototype: PropertyDescriptor::roh(Value::Object(
-                BuiltinObjectIndexes::FunctionPrototypeIndex as u32,
-            )),
+            keys,
+            values,
+            prototype: Value::Object(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
         };
         self.objects.push(Some(func_object_data));
         let func_data = FunctionHeapData {
             binding,
-            bits: HeapBits::new(),
             bound: None,
             length,
-            object_index: self.objects.len() as u32,
+            object_index: ObjectIndex::last(&self.objects),
             uses_arguments,
             visible: None,
         };
+        let index = FunctionIndex::from_index(self.functions.len());
         self.functions.push(Some(func_data));
-        self.functions.len() as u32
+        index
     }
 
-    pub(crate) fn create_object(&mut self, entries: Vec<ObjectEntry>) -> u32 {
+    pub(crate) fn create_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
+        let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             _extensible: true,
-            bits: HeapBits::new(),
-            entries,
-            prototype: PropertyDescriptor::roh(Value::Object(
-                BuiltinObjectIndexes::ObjectPrototypeIndex as u32,
-            )),
+            keys,
+            values,
+            prototype: Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
         };
         self.objects.push(Some(object_data));
-        self.objects.len() as u32
+        ObjectIndex::last(&self.objects)
     }
 
-    pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> u32 {
+    pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
+        let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             _extensible: true,
-            bits: HeapBits::new(),
-            entries,
-            prototype: PropertyDescriptor::roh(Value::Null),
+            keys,
+            values,
+            prototype: Value::Null,
         };
         self.objects.push(Some(object_data));
-        self.objects.len() as u32
+        ObjectIndex::last(&self.objects)
     }
 
-    fn partial_trace(&mut self) -> () {
-        // TODO: Consider roots count
-        for global in self.globals.iter() {
-            global.trace(self);
-        }
-        for error in self.errors.iter() {
-            let Some(data) = error else {
-                continue;
-            };
-            let marked = data.bits.marked.take();
-            data.bits.marked.set(marked);
-            if !marked {
-                continue;
-            }
-            let dirty = data.bits.dirty.take();
-            data.bits.dirty.set(dirty);
-            if dirty {
-                error.trace(self);
-            }
-        }
-        for function in self.functions.iter() {
-            let Some(data) = function else {
-                continue;
-            };
-            let marked = data.bits.marked.take();
-            data.bits.marked.set(marked);
-            if !marked {
-                continue;
-            }
-            let dirty = data.bits.dirty.take();
-            data.bits.dirty.set(dirty);
-            if dirty {
-                function.trace(self);
-            }
-        }
-        for object in self.objects.iter() {
-            let Some(data) = object else {
-                continue;
-            };
-            let marked = data.bits.marked.take();
-            data.bits.marked.set(marked);
-            if !marked {
-                continue;
-            }
-            let dirty = data.bits.dirty.take();
-            data.bits.dirty.set(dirty);
-            if dirty {
-                object.trace(self);
-            }
-        }
-        for symbol in self.symbols.iter() {
-            let Some(data) = symbol else {
-                continue;
-            };
-            let marked = data.bits.marked.take();
-            data.bits.marked.set(marked);
-            if !marked {
-                continue;
-            }
-            let dirty = data.bits.dirty.take();
-            data.bits.dirty.set(dirty);
-            if dirty {
-                symbol.trace(self);
-            }
-        }
-        stop_the_world();
-        // Repeat above tracing to check for mutations that happened while we were tracing.
-        for object in self.objects.iter_mut() {
-            let Some(data) = object else {
-                continue;
-            };
-            let marked = data.bits.marked.replace(true);
-            if !marked {
-                let _ = object.take();
-            }
-        }
-        for string in self.strings.iter_mut() {
-            let Some(data) = string else {
-                continue;
-            };
-            let marked = data.bits.marked.replace(true);
-            if !marked {
-                let _ = string.take();
-            }
-        }
-        for symbol in self.symbols.iter_mut() {
-            let Some(data) = symbol else {
-                continue;
-            };
-            let marked = data.bits.marked.replace(true);
-            if !marked {
-                let _ = symbol.take();
-            }
-        }
-        for number in self.numbers.iter_mut() {
-            let Some(data) = number else {
-                continue;
-            };
-            let marked = data.bits.marked.replace(true);
-            if !marked {
-                let _ = number.take();
-            }
-        }
-        for bigint in self.bigints.iter_mut() {
-            let Some(data) = bigint else {
-                continue;
-            };
-            let marked = data.bits.marked.replace(true);
-            if !marked {
-                let _ = bigint.take();
-            }
-        }
-        while self.objects.last().is_none() {
-            self.objects.pop();
-        }
-        while self.strings.last().is_none() {
-            self.strings.pop();
-        }
-        while self.symbols.last().is_none() {
-            self.symbols.pop();
-        }
-        while self.numbers.last().is_none() {
-            self.numbers.pop();
-        }
-        while self.bigints.last().is_none() {
-            self.bigints.pop();
-        }
-        start_the_world();
-    }
-
-    fn complete_trace(&mut self) -> () {
-        // TODO: Consider roots count
-        for error in self.errors.iter() {
-            let Some(data) = error else {
-                continue;
-            };
-            data.bits.marked.set(false);
-            data.bits.dirty.set(false);
-        }
-        for function in self.functions.iter() {
-            let Some(data) = function else {
-                continue;
-            };
-            data.bits.marked.set(false);
-            data.bits.dirty.set(false);
-        }
-        for object in self.objects.iter() {
-            let Some(data) = object else {
-                continue;
-            };
-            data.bits.marked.set(false);
-            data.bits.dirty.set(false);
-        }
-        for string in self.strings.iter() {
-            let Some(data) = string else {
-                continue;
-            };
-            data.bits.marked.set(false);
-            data.bits.dirty.set(false);
-        }
-        for symbol in self.symbols.iter() {
-            let Some(data) = symbol else {
-                continue;
-            };
-            data.bits.marked.set(false);
-            data.bits.dirty.set(false);
-        }
-        for number in self.numbers.iter() {
-            let Some(data) = number else {
-                continue;
-            };
-            data.bits.marked.set(false);
-            data.bits.dirty.set(false);
-        }
-        for bigint in self.bigints.iter() {
-            let Some(data) = bigint else {
-                continue;
-            };
-            data.bits.marked.set(false);
-            data.bits.dirty.set(false);
-        }
-        for global in self.globals.iter() {
-            global.trace(self);
-        }
-        stop_the_world();
-        // Trace from dirty objects and symbols.
-        for object in self.objects.iter_mut() {
-            let Some(data) = object else {
-                continue;
-            };
-            let marked = data.bits.marked.replace(true);
-            if !marked {
-                let _ = object.take();
-            }
-        }
-        for string in self.strings.iter_mut() {
-            let Some(data) = string else {
-                continue;
-            };
-            let marked = data.bits.marked.replace(true);
-            if !marked {
-                let _ = string.take();
-            }
-        }
-        for symbol in self.symbols.iter_mut() {
-            let Some(data) = symbol else {
-                continue;
-            };
-            let marked = data.bits.marked.replace(true);
-            if !marked {
-                let _ = symbol.take();
-            }
-        }
-        for number in self.numbers.iter_mut() {
-            let Some(data) = number else {
-                continue;
-            };
-            let marked = data.bits.marked.replace(true);
-            if !marked {
-                let _ = number.take();
-            }
-        }
-        for bigint in self.bigints.iter_mut() {
-            let Some(data) = bigint else {
-                continue;
-            };
-            let marked = data.bits.marked.replace(true);
-            if !marked {
-                let _ = bigint.take();
-            }
-        }
-        while self.objects.last().is_none() {
-            self.objects.pop();
-        }
-        while self.strings.last().is_none() {
-            self.strings.pop();
-        }
-        while self.symbols.last().is_none() {
-            self.symbols.pop();
-        }
-        while self.numbers.last().is_none() {
-            self.numbers.pop();
-        }
-        while self.bigints.last().is_none() {
-            self.bigints.pop();
-        }
-        start_the_world();
+    pub(crate) fn insert_builtin_object(
+        &mut self,
+        index: BuiltinObjectIndexes,
+        extensible: bool,
+        prototype: Value,
+        entries: Vec<ObjectEntry>,
+    ) -> ObjectIndex {
+        let (keys, values) = self.elements.create_object_entries(entries);
+        let object_data = ObjectHeapData {
+            _extensible: extensible,
+            keys,
+            values,
+            prototype,
+        };
+        self.objects[index as usize] = Some(object_data);
+        ObjectIndex::last(&self.objects)
     }
 }
-
-impl HeapTrace for Value {
-    fn trace(&self, heap: &Heap) {
-        match self {
-            &Value::Error(idx) => heap.errors[idx as usize].trace(heap),
-            &Value::Function(idx) => heap.functions[idx as usize].trace(heap),
-            &Value::HeapBigInt(idx) => heap.bigints[idx as usize].trace(heap),
-            &Value::HeapNumber(idx) => heap.numbers[idx as usize].trace(heap),
-            &Value::HeapString(idx) => heap.strings[idx as usize].trace(heap),
-            &Value::Object(idx) => heap.objects[idx as usize].trace(heap),
-            &Value::Symbol(idx) => heap.symbols[idx as usize].trace(heap),
-            _ => {}
-        }
-    }
-
-    fn root(&self, heap: &Heap) {
-        match self {
-            &Value::Error(idx) => heap.errors[idx as usize].root(heap),
-            &Value::Function(idx) => heap.functions[idx as usize].root(heap),
-            &Value::HeapBigInt(idx) => heap.bigints[idx as usize].root(heap),
-            &Value::HeapNumber(idx) => heap.numbers[idx as usize].root(heap),
-            &Value::HeapString(idx) => heap.strings[idx as usize].root(heap),
-            &Value::Object(idx) => heap.objects[idx as usize].root(heap),
-            &Value::Symbol(idx) => heap.symbols[idx as usize].root(heap),
-            _ => {}
-        }
-    }
-
-    fn unroot(&self, heap: &Heap) {
-        match self {
-            &Value::Error(idx) => heap.errors[idx as usize].unroot(heap),
-            &Value::Function(idx) => heap.functions[idx as usize].unroot(heap),
-            &Value::HeapBigInt(idx) => heap.bigints[idx as usize].unroot(heap),
-            &Value::HeapNumber(idx) => heap.numbers[idx as usize].unroot(heap),
-            &Value::HeapString(idx) => heap.strings[idx as usize].unroot(heap),
-            &Value::Object(idx) => heap.objects[idx as usize].unroot(heap),
-            &Value::Symbol(idx) => heap.symbols[idx as usize].unroot(heap),
-            _ => {}
-        }
-    }
-
-    fn finalize(&mut self, _heap: &Heap) {
-        unreachable!("Finalize should never be called on a Value in stack");
-    }
-}
-
-// TODO: Change to using vectors of u8 bitfields for mark and dirty bits.
-#[derive(Debug)]
-pub struct HeapBits {
-    marked: Cell<bool>,
-    _weak_marked: Cell<bool>,
-    dirty: Cell<bool>,
-    // TODO: Consider removing roots entirely and only using globals.
-    // Roots are useful for stack allocated Values, as they can just
-    // mark their holding of the value. But they're not particularly great
-    // from a GC standpoint, probably.
-    roots: Cell<u8>,
-}
-
-impl HeapBits {
-    pub fn new() -> Self {
-        HeapBits {
-            marked: Cell::new(false),
-            _weak_marked: Cell::new(false),
-            dirty: Cell::new(false),
-            roots: Cell::new(0),
-        }
-    }
-
-    fn root(&self) {
-        let roots = self.roots.replace(1);
-        assert!(roots != u8::MAX);
-        self.roots.replace(roots + 1);
-    }
-
-    fn unroot(&self) {
-        let roots = self.roots.replace(1);
-        assert!(roots != 0);
-        self.roots.replace(roots - 1);
-    }
-}
-
-unsafe impl Sync for HeapBits {}
 
 #[test]
 fn init_heap() {
