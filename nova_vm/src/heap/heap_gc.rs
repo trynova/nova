@@ -10,6 +10,32 @@ use super::{
 use crate::ecmascript::types::Value;
 use std::sync::atomic::Ordering;
 
+fn collect_elements(queues: &mut WorkQueues, elements: &ElementsVector) {
+    let ElementsVector {
+        elements_index,
+        cap,
+        ..
+    } = &elements;
+    match cap {
+        ElementArrayKey::E4 => queues.e_2_4.push(*elements_index),
+        ElementArrayKey::E6 => queues.e_2_6.push(*elements_index),
+        ElementArrayKey::E8 => queues.e_2_8.push(*elements_index),
+        ElementArrayKey::E10 => queues.e_2_10.push(*elements_index),
+        ElementArrayKey::E12 => queues.e_2_12.push(*elements_index),
+        ElementArrayKey::E16 => queues.e_2_16.push(*elements_index),
+        ElementArrayKey::E24 => queues.e_2_24.push(*elements_index),
+        ElementArrayKey::E32 => queues.e_2_32.push(*elements_index),
+    }
+}
+
+fn collect_values(queues: &mut WorkQueues, values: &[Option<Value>]) {
+    values.iter().for_each(|maybe_value| {
+        if let Some(value) = maybe_value {
+            queues.push_value(*value);
+        }
+    });
+}
+
 pub fn heap_gc(heap: &mut Heap) {
     let bits = HeapBits::new(heap);
     let mut queues = WorkQueues::new(heap);
@@ -33,21 +59,7 @@ pub fn heap_gc(heap: &mut Heap) {
                 if let Some(object_index) = heap_data.object_index {
                     queues.push_value(Value::Object(object_index));
                 }
-                let ElementsVector {
-                    elements_index,
-                    cap,
-                    ..
-                } = &heap_data.elements;
-                match cap {
-                    ElementArrayKey::E4 => queues.e_2_4.push(*elements_index),
-                    ElementArrayKey::E6 => queues.e_2_6.push(*elements_index),
-                    ElementArrayKey::E8 => queues.e_2_8.push(*elements_index),
-                    ElementArrayKey::E10 => queues.e_2_10.push(*elements_index),
-                    ElementArrayKey::E12 => queues.e_2_12.push(*elements_index),
-                    ElementArrayKey::E16 => queues.e_2_16.push(*elements_index),
-                    ElementArrayKey::E24 => queues.e_2_24.push(*elements_index),
-                    ElementArrayKey::E32 => queues.e_2_32.push(*elements_index),
-                }
+                collect_elements(&mut queues, &heap_data.elements);
             }
         });
         let mut errors: Box<[ErrorIndex]> = queues.errors.drain(..).collect();
@@ -64,11 +76,12 @@ pub fn heap_gc(heap: &mut Heap) {
                 queues.objects.push(data.object_index);
             }
         });
-        let mut functions: Box<[BuiltinFunctionIndex]> = queues.functions.drain(..).collect();
-        functions.sort();
-        functions.iter().for_each(|&idx| {
+        let mut builtin_functions: Box<[BuiltinFunctionIndex]> =
+            queues.builtin_functions.drain(..).collect();
+        builtin_functions.sort();
+        builtin_functions.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if let Some(marked) = bits.functions.get(index) {
+            if let Some(marked) = bits.builtin_functions.get(index) {
                 if marked.load(Ordering::Acquire) {
                     // Already marked, ignore
                     return;
@@ -78,16 +91,6 @@ pub fn heap_gc(heap: &mut Heap) {
                 if let Some(object_index) = data.object_index {
                     queues.objects.push(object_index);
                 }
-                // if let Some(bound) = &data.bound {
-                //     bound.iter().for_each(|&value| {
-                //         queues.push_value(value);
-                //     })
-                // }
-                // if let Some(visible) = &data.visible {
-                //     visible.iter().for_each(|&value| {
-                //         queues.push_value(value);
-                //     })
-                // }
             }
         });
         let mut dates: Box<[DateIndex]> = queues.dates.drain(..).collect();
@@ -115,36 +118,8 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 marked.store(true, Ordering::Relaxed);
                 let heap_data = heap.objects.get(index).unwrap().as_ref().unwrap();
-                let ElementsVector {
-                    elements_index,
-                    cap,
-                    ..
-                } = &heap_data.keys;
-                match cap {
-                    ElementArrayKey::E4 => queues.e_2_4.push(*elements_index),
-                    ElementArrayKey::E6 => queues.e_2_6.push(*elements_index),
-                    ElementArrayKey::E8 => queues.e_2_8.push(*elements_index),
-                    ElementArrayKey::E10 => queues.e_2_10.push(*elements_index),
-                    ElementArrayKey::E12 => queues.e_2_12.push(*elements_index),
-                    ElementArrayKey::E16 => queues.e_2_16.push(*elements_index),
-                    ElementArrayKey::E24 => queues.e_2_24.push(*elements_index),
-                    ElementArrayKey::E32 => queues.e_2_32.push(*elements_index),
-                }
-                let ElementsVector {
-                    elements_index,
-                    cap,
-                    ..
-                } = &heap_data.values;
-                match cap {
-                    ElementArrayKey::E4 => queues.e_2_4.push(*elements_index),
-                    ElementArrayKey::E6 => queues.e_2_6.push(*elements_index),
-                    ElementArrayKey::E8 => queues.e_2_8.push(*elements_index),
-                    ElementArrayKey::E10 => queues.e_2_10.push(*elements_index),
-                    ElementArrayKey::E12 => queues.e_2_12.push(*elements_index),
-                    ElementArrayKey::E16 => queues.e_2_16.push(*elements_index),
-                    ElementArrayKey::E24 => queues.e_2_24.push(*elements_index),
-                    ElementArrayKey::E32 => queues.e_2_32.push(*elements_index),
-                }
+                collect_elements(&mut queues, &heap_data.keys);
+                collect_elements(&mut queues, &heap_data.values);
             }
         });
         let mut regexps: Box<[RegExpIndex]> = queues.regexps.drain(..).collect();
@@ -199,18 +174,17 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements
-                    .e2pow4
-                    .values
-                    .get(index)
-                    .unwrap()
-                    .unwrap()
-                    .iter()
-                    .for_each(|&value| {
-                        if let Some(value) = value {
-                            queues.push_value(value)
-                        }
-                    });
+                collect_values(
+                    &mut queues,
+                    heap.elements
+                        .e2pow4
+                        .values
+                        .get(index)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice(),
+                )
             }
         });
         let mut e_2_6: Box<[ElementIndex]> = queues.e_2_6.drain(..).collect();
@@ -223,18 +197,17 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements
-                    .e2pow6
-                    .values
-                    .get(index)
-                    .unwrap()
-                    .unwrap()
-                    .iter()
-                    .for_each(|&value| {
-                        if let Some(value) = value {
-                            queues.push_value(value)
-                        }
-                    });
+                collect_values(
+                    &mut queues,
+                    heap.elements
+                        .e2pow6
+                        .values
+                        .get(index)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice(),
+                );
             }
         });
         let mut e_2_8: Box<[ElementIndex]> = queues.e_2_8.drain(..).collect();
@@ -247,18 +220,17 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements
-                    .e2pow8
-                    .values
-                    .get(index)
-                    .unwrap()
-                    .unwrap()
-                    .iter()
-                    .for_each(|&value| {
-                        if let Some(value) = value {
-                            queues.push_value(value)
-                        }
-                    });
+                collect_values(
+                    &mut queues,
+                    heap.elements
+                        .e2pow8
+                        .values
+                        .get(index)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice(),
+                );
             }
         });
         let mut e_2_10: Box<[ElementIndex]> = queues.e_2_10.drain(..).collect();
@@ -271,18 +243,17 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements
-                    .e2pow10
-                    .values
-                    .get(index)
-                    .unwrap()
-                    .unwrap()
-                    .iter()
-                    .for_each(|&value| {
-                        if let Some(value) = value {
-                            queues.push_value(value)
-                        }
-                    });
+                collect_values(
+                    &mut queues,
+                    heap.elements
+                        .e2pow10
+                        .values
+                        .get(index)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice(),
+                );
             }
         });
         let mut e_2_12: Box<[ElementIndex]> = queues.e_2_12.drain(..).collect();
@@ -295,18 +266,17 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements
-                    .e2pow12
-                    .values
-                    .get(index)
-                    .unwrap()
-                    .unwrap()
-                    .iter()
-                    .for_each(|&value| {
-                        if let Some(value) = value {
-                            queues.push_value(value)
-                        }
-                    });
+                collect_values(
+                    &mut queues,
+                    heap.elements
+                        .e2pow12
+                        .values
+                        .get(index)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice(),
+                );
             }
         });
         let mut e_2_16: Box<[ElementIndex]> = queues.e_2_16.drain(..).collect();
@@ -319,18 +289,17 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements
-                    .e2pow16
-                    .values
-                    .get(index)
-                    .unwrap()
-                    .unwrap()
-                    .iter()
-                    .for_each(|&value| {
-                        if let Some(value) = value {
-                            queues.push_value(value)
-                        }
-                    });
+                collect_values(
+                    &mut queues,
+                    heap.elements
+                        .e2pow16
+                        .values
+                        .get(index)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice(),
+                );
             }
         });
         let mut e_2_24: Box<[ElementIndex]> = queues.e_2_24.drain(..).collect();
@@ -343,18 +312,17 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements
-                    .e2pow24
-                    .values
-                    .get(index)
-                    .unwrap()
-                    .unwrap()
-                    .iter()
-                    .for_each(|&value| {
-                        if let Some(value) = value {
-                            queues.push_value(value)
-                        }
-                    });
+                collect_values(
+                    &mut queues,
+                    heap.elements
+                        .e2pow24
+                        .values
+                        .get(index)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice(),
+                );
             }
         });
         let mut e_2_32: Box<[ElementIndex]> = queues.e_2_32.drain(..).collect();
@@ -367,18 +335,17 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                heap.elements
-                    .e2pow32
-                    .values
-                    .get(index)
-                    .unwrap()
-                    .unwrap()
-                    .iter()
-                    .for_each(|&value| {
-                        if let Some(value) = value {
-                            queues.push_value(value)
-                        }
-                    });
+                collect_values(
+                    &mut queues,
+                    heap.elements
+                        .e2pow32
+                        .values
+                        .get(index)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice(),
+                );
             }
         });
     }
@@ -387,112 +354,201 @@ pub fn heap_gc(heap: &mut Heap) {
 }
 
 fn sweep(heap: &mut Heap, bits: &HeapBits) {
-    bits.e_2_4.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e2pow4.values.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.e_2_4.iter();
+    heap.elements.e2pow4.values.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.e_2_6.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e2pow6.values.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.e_2_4.iter();
+    heap.elements.e2pow6.values.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.e_2_8.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e2pow8.values.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.e_2_6.iter();
+    heap.elements.e2pow6.values.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.e_2_10.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e2pow10.values.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.e_2_8.iter();
+    heap.elements.e2pow10.values.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.e_2_12.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e2pow12.values.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.e_2_10.iter();
+    heap.elements.e2pow12.values.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.e_2_16.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e2pow16.values.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.e_2_16.iter();
+    heap.elements.e2pow16.values.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.e_2_24.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e2pow24.values.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.e_2_24.iter();
+    heap.elements.e2pow24.values.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.e_2_32.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.elements.e2pow32.values.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.e_2_32.iter();
+    heap.elements.e2pow32.values.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.arrays.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.arrays.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.e_2_32.iter();
+    heap.elements.e2pow32.values.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.bigints.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.bigints.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.modules.iter();
+    heap.modules.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.dates.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.dates.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.realms.iter();
+    heap.realms.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.errors.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.errors.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.scripts.iter();
+    heap.scripts.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.functions.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.builtin_functions.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.declarative_environments.iter();
+    heap.environments.declarative.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.numbers.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.numbers.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.function_environments.iter();
+    heap.environments.function.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.objects.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.objects.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.global_environments.iter();
+    heap.environments.global.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.regexps.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.regexps.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.object_environments.iter();
+    heap.environments.object.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.strings.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.strings.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.arrays.iter();
+    heap.arrays.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
-    bits.symbols.iter().enumerate().for_each(|(index, bit)| {
-        if !bit.load(Ordering::Acquire) {
-            let reference = heap.symbols.get_mut(index).unwrap();
-            reference.take();
-        }
+    let mut iter = bits.array_buffers.iter();
+    heap.array_buffers.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
     });
+    let mut iter = bits.bigints.iter();
+    heap.bigints.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
+    });
+    let mut iter = bits.errors.iter();
+    heap.errors.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
+    });
+    let mut iter = bits.bound_functions.iter();
+    heap.bound_functions.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
+    });
+    let mut iter = bits.builtin_functions.iter();
+    heap.builtin_functions.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
+    });
+    let mut iter = bits.ecmascript_functions.iter();
+    heap.ecmascript_functions.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
+    });
+    let mut iter = bits.dates.iter();
+    heap.dates.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
+    });
+    let mut iter = bits.numbers.iter();
+    heap.numbers.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
+    });
+    let mut iter = bits.objects.iter();
+    heap.objects.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
+    });
+    let mut iter = bits.regexps.iter();
+    heap.regexps.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
+    });
+    let mut iter = bits.strings.iter();
+    heap.strings.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
+    });
+    let mut iter = bits.symbols.iter();
+    heap.symbols.retain_mut(|_vec| {
+        iter.next()
+            .map(|bit| bit.load(Ordering::Relaxed))
+            .unwrap_or(true)
+    });
+
+    compact(heap);
+}
+
+fn compact(heap: &mut Heap) {
+    let mut object_compactions = Vec::<(u32, u32)>::with_capacity(heap.objects.len() / 5);
+    let mut last_none_start_index: Option<u32> = None;
+    let mut none_count: u32 = 0;
+    for index in 0..(heap.objects.len() + 1) {
+        if let Some(None) = heap.objects.get(index) {
+            match last_none_start_index {
+                Some(_) => none_count += 1,
+                None => {
+                    last_none_start_index = Some(index as u32);
+                    none_count = 1;
+                }
+            }
+        } else if let Some(start_index) = last_none_start_index {
+            object_compactions.push((start_index, none_count));
+            last_none_start_index = None;
+            none_count = 0;
+        }
+    }
 }

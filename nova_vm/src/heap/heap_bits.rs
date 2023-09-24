@@ -1,14 +1,29 @@
 use super::{
     indexes::{
-        ArrayBufferIndex, ArrayIndex, BigIntIndex, BuiltinFunctionIndex, DateIndex, ElementIndex,
-        ErrorIndex, NumberIndex, ObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
+        ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
+        DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, NumberIndex, ObjectIndex,
+        RegExpIndex, StringIndex, SymbolIndex,
     },
     Heap,
 };
-use crate::ecmascript::types::Value;
+use crate::ecmascript::{
+    execution::{
+        DeclarativeEnvironmentIndex, FunctionEnvironmentIndex, GlobalEnvironmentIndex,
+        ObjectEnvironmentIndex, RealmIdentifier,
+    },
+    scripts_and_modules::{module::ModuleIdentifier, script::ScriptIdentifier},
+    types::Value,
+};
 use std::sync::atomic::AtomicBool;
 
 pub struct HeapBits {
+    pub modules: Box<[AtomicBool]>,
+    pub scripts: Box<[AtomicBool]>,
+    pub realms: Box<[AtomicBool]>,
+    pub declarative_environments: Box<[AtomicBool]>,
+    pub function_environments: Box<[AtomicBool]>,
+    pub global_environments: Box<[AtomicBool]>,
+    pub object_environments: Box<[AtomicBool]>,
     pub e_2_4: Box<[AtomicBool]>,
     pub e_2_6: Box<[AtomicBool]>,
     pub e_2_8: Box<[AtomicBool]>,
@@ -20,9 +35,11 @@ pub struct HeapBits {
     pub arrays: Box<[AtomicBool]>,
     pub array_buffers: Box<[AtomicBool]>,
     pub bigints: Box<[AtomicBool]>,
-    pub errors: Box<[AtomicBool]>,
-    pub functions: Box<[AtomicBool]>,
+    pub bound_functions: Box<[AtomicBool]>,
+    pub builtin_functions: Box<[AtomicBool]>,
+    pub ecmascript_functions: Box<[AtomicBool]>,
     pub dates: Box<[AtomicBool]>,
+    pub errors: Box<[AtomicBool]>,
     pub numbers: Box<[AtomicBool]>,
     pub objects: Box<[AtomicBool]>,
     pub regexps: Box<[AtomicBool]>,
@@ -31,6 +48,13 @@ pub struct HeapBits {
 }
 
 pub struct WorkQueues {
+    pub modules: Vec<ModuleIdentifier>,
+    pub scripts: Vec<ScriptIdentifier>,
+    pub realms: Vec<RealmIdentifier>,
+    pub declarative_environments: Vec<DeclarativeEnvironmentIndex>,
+    pub function_environments: Vec<FunctionEnvironmentIndex>,
+    pub global_environments: Vec<GlobalEnvironmentIndex>,
+    pub object_environments: Vec<ObjectEnvironmentIndex>,
     pub e_2_4: Vec<ElementIndex>,
     pub e_2_6: Vec<ElementIndex>,
     pub e_2_8: Vec<ElementIndex>,
@@ -43,7 +67,9 @@ pub struct WorkQueues {
     pub array_buffers: Vec<ArrayBufferIndex>,
     pub bigints: Vec<BigIntIndex>,
     pub errors: Vec<ErrorIndex>,
-    pub functions: Vec<BuiltinFunctionIndex>,
+    pub bound_functions: Vec<BoundFunctionIndex>,
+    pub builtin_functions: Vec<BuiltinFunctionIndex>,
+    pub ecmascript_functions: Vec<ECMAScriptFunctionIndex>,
     pub dates: Vec<DateIndex>,
     pub numbers: Vec<NumberIndex>,
     pub objects: Vec<ObjectIndex>,
@@ -55,6 +81,17 @@ pub struct WorkQueues {
 impl HeapBits {
     pub fn new(heap: &Heap) -> Self {
         Self {
+            modules: Vec::with_capacity(heap.modules.len()).into_boxed_slice(),
+            scripts: Vec::with_capacity(heap.scripts.len()).into_boxed_slice(),
+            realms: Vec::with_capacity(heap.realms.len()).into_boxed_slice(),
+            declarative_environments: Vec::with_capacity(heap.environments.declarative.len())
+                .into_boxed_slice(),
+            function_environments: Vec::with_capacity(heap.environments.function.len())
+                .into_boxed_slice(),
+            global_environments: Vec::with_capacity(heap.environments.global.len())
+                .into_boxed_slice(),
+            object_environments: Vec::with_capacity(heap.environments.object.len())
+                .into_boxed_slice(),
             e_2_4: Vec::with_capacity(heap.elements.e2pow4.values.len()).into_boxed_slice(),
             e_2_6: Vec::with_capacity(heap.elements.e2pow6.values.len()).into_boxed_slice(),
             e_2_8: Vec::with_capacity(heap.elements.e2pow8.values.len()).into_boxed_slice(),
@@ -67,7 +104,10 @@ impl HeapBits {
             array_buffers: Vec::with_capacity(heap.array_buffers.len()).into_boxed_slice(),
             bigints: Vec::with_capacity(heap.bigints.len()).into_boxed_slice(),
             errors: Vec::with_capacity(heap.errors.len()).into_boxed_slice(),
-            functions: Vec::with_capacity(heap.builtin_functions.len()).into_boxed_slice(),
+            bound_functions: Vec::with_capacity(heap.bound_functions.len()).into_boxed_slice(),
+            builtin_functions: Vec::with_capacity(heap.builtin_functions.len()).into_boxed_slice(),
+            ecmascript_functions: Vec::with_capacity(heap.ecmascript_functions.len())
+                .into_boxed_slice(),
             dates: Vec::with_capacity(heap.dates.len()).into_boxed_slice(),
             numbers: Vec::with_capacity(heap.numbers.len()).into_boxed_slice(),
             objects: Vec::with_capacity(heap.objects.len()).into_boxed_slice(),
@@ -81,6 +121,13 @@ impl HeapBits {
 impl WorkQueues {
     pub fn new(heap: &Heap) -> Self {
         Self {
+            modules: Vec::with_capacity(heap.modules.len() / 4),
+            scripts: Vec::with_capacity(heap.scripts.len() / 4),
+            realms: Vec::with_capacity(heap.realms.len() / 4),
+            declarative_environments: Vec::with_capacity(heap.environments.declarative.len() / 4),
+            function_environments: Vec::with_capacity(heap.environments.function.len() / 4),
+            global_environments: Vec::with_capacity(heap.environments.global.len() / 4),
+            object_environments: Vec::with_capacity(heap.environments.object.len() / 4),
             e_2_4: Vec::with_capacity(heap.elements.e2pow4.values.len() / 4),
             e_2_6: Vec::with_capacity(heap.elements.e2pow6.values.len() / 4),
             e_2_8: Vec::with_capacity(heap.elements.e2pow8.values.len() / 4),
@@ -93,7 +140,9 @@ impl WorkQueues {
             array_buffers: Vec::with_capacity(heap.array_buffers.len() / 4),
             bigints: Vec::with_capacity(heap.bigints.len() / 4),
             errors: Vec::with_capacity(heap.errors.len() / 4),
-            functions: Vec::with_capacity(heap.builtin_functions.len() / 4),
+            bound_functions: Vec::with_capacity(heap.bound_functions.len() / 4),
+            builtin_functions: Vec::with_capacity(heap.builtin_functions.len() / 4),
+            ecmascript_functions: Vec::with_capacity(heap.ecmascript_functions.len() / 4),
             dates: Vec::with_capacity(heap.dates.len() / 4),
             numbers: Vec::with_capacity(heap.numbers.len() / 4),
             objects: Vec::with_capacity(heap.objects.len() / 4),
@@ -134,7 +183,13 @@ impl WorkQueues {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.e_2_4.is_empty()
+        self.modules.is_empty()
+            && self.scripts.is_empty()
+            && self.realms.is_empty()
+            && self.declarative_environments.is_empty()
+            && self.function_environments.is_empty()
+            && self.object_environments.is_empty()
+            && self.e_2_4.is_empty()
             && self.e_2_6.is_empty()
             && self.e_2_8.is_empty()
             && self.e_2_10.is_empty()
@@ -146,8 +201,10 @@ impl WorkQueues {
             && self.array_buffers.is_empty()
             && self.bigints.is_empty()
             && self.errors.is_empty()
-            && self.functions.is_empty()
             && self.dates.is_empty()
+            && self.bound_functions.is_empty()
+            && self.builtin_functions.is_empty()
+            && self.ecmascript_functions.is_empty()
             && self.numbers.is_empty()
             && self.objects.is_empty()
             && self.regexps.is_empty()

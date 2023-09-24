@@ -7,8 +7,8 @@ mod realm;
 pub use agent::{Agent, JsResult};
 pub use default_host_hooks::DefaultHostHooks;
 pub(crate) use environments::{
-    EnvironmentIndex, Environments, GlobalEnvironment, GlobalEnvironmentIndex,
-    PrivateEnvironmentIndex,
+    DeclarativeEnvironmentIndex, EnvironmentIndex, Environments, FunctionEnvironmentIndex,
+    GlobalEnvironment, GlobalEnvironmentIndex, ObjectEnvironmentIndex, PrivateEnvironmentIndex,
 };
 pub(crate) use execution_context::{ECMAScriptCode, ExecutionContext};
 pub use realm::create_realm;

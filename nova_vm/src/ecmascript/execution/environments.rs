@@ -108,10 +108,10 @@ pub(crate) enum EnvironmentIndex {
 
 #[derive(Debug)]
 pub struct Environments {
-    declarative: Vec<Option<DeclarativeEnvironment>>,
-    function: Vec<Option<FunctionEnvironment>>,
-    global: Vec<Option<GlobalEnvironment>>,
-    object: Vec<Option<ObjectEnvironment>>,
+    pub(crate) declarative: Vec<Option<DeclarativeEnvironment>>,
+    pub(crate) function: Vec<Option<FunctionEnvironment>>,
+    pub(crate) global: Vec<Option<GlobalEnvironment>>,
+    pub(crate) object: Vec<Option<ObjectEnvironment>>,
 }
 
 impl Default for Environments {

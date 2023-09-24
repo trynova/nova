@@ -13,7 +13,7 @@ pub(crate) use function::{
 pub use number::{Number, NumberHeapData};
 pub use object::{
     InternalMethods, Object, ObjectHeapData, OrdinaryObject, OrdinaryObjectInternalSlots,
-    PropertyKey, PropertyStorage,
+    PropertyKey,
 };
 pub use string::{String, StringHeapData};
 pub use value::Value;

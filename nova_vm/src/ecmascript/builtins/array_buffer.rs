@@ -14,7 +14,7 @@ use crate::{
     },
     heap::{indexes::ArrayBufferIndex, GetHeapData},
 };
-pub use abstract_operations::*;
+
 pub use data::ArrayBufferHeapData;
 use std::ops::Deref;
 
