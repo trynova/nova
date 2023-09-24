@@ -1,32 +1,39 @@
-use super::Value;
+use super::{
+    value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
+    Value,
+};
 use crate::{
     execution::{Agent, JsResult},
-    heap::{CreateHeapData, GetHeapData},
+    heap::{indexes::NumberIndex, CreateHeapData, GetHeapData},
     SmallInteger,
 };
 
 /// 6.1.6.1 The Number Type
 /// https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type
 #[derive(Clone, Copy)]
-pub struct Number(Value);
+#[repr(u8)]
+pub enum Number {
+    Number(NumberIndex) = NUMBER_DISCRIMINANT,
+    // 56-bit signed integer.
+    Integer(SmallInteger) = INTEGER_DISCRIMINANT,
+    Float(f32) = FLOAT_DISCRIMINANT,
+}
 
 impl std::fmt::Debug for Number {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.0)
+        write!(f, "{:?}", self)
     }
 }
 
 impl From<SmallInteger> for Number {
     fn from(value: SmallInteger) -> Self {
-        Number(Value::Integer(value))
+        Number::Integer(value)
     }
 }
 
 impl From<i32> for Number {
     fn from(value: i32) -> Self {
-        Number(Value::Integer(SmallInteger::from_i64_unchecked(
-            value as i64,
-        )))
+        Number::Integer(SmallInteger::from_i64_unchecked(value as i64))
     }
 }
 
@@ -35,13 +42,13 @@ impl From<i64> for Number {
         let n = value
             .min(SmallInteger::MAX_NUMBER)
             .max(SmallInteger::MIN_NUMBER);
-        Number(Value::Integer(SmallInteger::from_i64_unchecked(n)))
+        Number::Integer(SmallInteger::from_i64_unchecked(n))
     }
 }
 
 impl From<f32> for Number {
     fn from(value: f32) -> Self {
-        Number(Value::Float(value))
+        Number::Float(value)
     }
 }
 
@@ -52,7 +59,8 @@ impl TryFrom<Value> for Number {
             value,
             Value::Number(_) | Value::Integer(_) | Value::Float(_)
         ) {
-            Ok(Number(value))
+            // SAFETY: Sub-enum.
+            Ok(unsafe { std::mem::transmute::<Value, Number>(value) })
         } else {
             Err(())
         }
@@ -65,7 +73,8 @@ impl Number {
             value,
             Value::Number(_) | Value::Integer(_) | Value::Float(_)
         ));
-        Self(value)
+        // SAFETY: Sub-enum.
+        unsafe { std::mem::transmute::<Value, Number>(value) }
     }
 
     pub fn nan() -> Self {
@@ -89,7 +98,8 @@ impl Number {
     }
 
     pub fn into_value(self) -> Value {
-        self.0
+        // SAFETY: Sub-enum.
+        unsafe { std::mem::transmute::<Number, Value>(self) }
     }
 
     pub fn is_nan(self, agent: &mut Agent) -> bool {
@@ -269,9 +279,9 @@ impl Number {
             }
             Value::Integer(n) => {
                 let n = n.into_i64();
-                Number(Value::Integer(SmallInteger::from_i64_unchecked(n.abs())))
+                Number::Integer(SmallInteger::from_i64_unchecked(n.abs()))
             }
-            Value::Float(n) => Number(Value::Float(n.abs())),
+            Value::Float(n) => Number::Float(n.abs()),
             _ => unreachable!(),
         }
     }

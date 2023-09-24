@@ -4,7 +4,7 @@ use crate::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, PropertyDescriptor,
     },
-    types::Value,
+    types::{Object, Value},
 };
 
 use super::{
@@ -20,7 +20,9 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::BooleanConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
+        Some(Object::Function(
+            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+        )),
         entries,
     );
     heap.functions
@@ -46,7 +48,9 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::BooleanPrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
+        Some(Object::Object(
+            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
+        )),
         entries,
     );
 }

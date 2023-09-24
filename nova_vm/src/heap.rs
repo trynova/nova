@@ -261,7 +261,9 @@ impl Heap {
             extensible: true,
             keys,
             values,
-            prototype: Value::Object(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
+            prototype: Some(Object::Object(
+                BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+            )),
         };
         self.objects.push(Some(func_object_data));
         let func_data = FunctionHeapData {
@@ -284,7 +286,9 @@ impl Heap {
             extensible: true,
             keys,
             values,
-            prototype: Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
+            prototype: Some(Object::Object(
+                BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
+            )),
         };
         self.objects.push(Some(object_data));
         ObjectIndex::last(&self.objects)
@@ -296,19 +300,19 @@ impl Heap {
             extensible: true,
             keys,
             values,
-            prototype: Value::Null,
+            prototype: None,
         };
         self.objects.push(Some(object_data));
         ObjectIndex::last(&self.objects)
     }
 
-    pub fn create_object_with_prototype(&mut self, prototype: Value) -> ObjectIndex {
+    pub fn create_object_with_prototype(&mut self, prototype: Object) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(vec![]);
         let object_data = ObjectHeapData {
             extensible: true,
             keys,
             values,
-            prototype,
+            prototype: Some(prototype),
         };
         self.objects.push(Some(object_data));
         ObjectIndex::last(&self.objects)
@@ -318,7 +322,7 @@ impl Heap {
         &mut self,
         index: BuiltinObjectIndexes,
         extensible: bool,
-        prototype: Value,
+        prototype: Option<Object>,
         entries: Vec<ObjectEntry>,
     ) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);

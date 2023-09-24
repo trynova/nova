@@ -6,7 +6,7 @@ use crate::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, Heap,
     },
-    types::Value,
+    types::{Object, Value},
     SmallString,
 };
 use std::{fmt::Debug, vec};
@@ -228,13 +228,7 @@ impl PropertyDescriptor {
 #[derive(Debug, Clone, Copy)]
 pub struct ObjectHeapData {
     pub extensible: bool,
-    // TODO: It's probably not necessary to have a whole Value here.
-    // A prototype can only be set to be null or an object, meaning that most of the
-    // possible Value options are impossible.
-    // We could possibly do with just a `Option<ObjectIndex>` but it would cause issues
-    // with functions and possible other special object cases we want to track with partially
-    // separate heap fields later down the line.
-    pub prototype: Value,
+    pub prototype: Option<Object>,
     pub keys: ElementsVector,
     pub values: ElementsVector,
 }
@@ -246,6 +240,12 @@ impl ObjectHeapData {
         keys: ElementsVector,
         values: ElementsVector,
     ) -> Self {
+        let prototype = if prototype.is_null() {
+            None
+        } else {
+            // TODO: Throw error.
+            Some(Object::try_from(prototype).unwrap())
+        };
         Self {
             extensible,
             // TODO: Number, Boolean, etc. objects exist. These can all be
@@ -299,7 +299,9 @@ pub fn initialize_object_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ObjectConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
+        Some(Object::Function(
+            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+        )),
         entries,
     );
     heap.functions
@@ -329,7 +331,7 @@ pub fn initialize_object_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ObjectConstructorIndex,
         true,
-        Value::Null,
+        None,
         entries,
     );
 }

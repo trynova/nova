@@ -41,6 +41,12 @@ impl SmallString {
         matches!(self.bytes, [0, 0, 0, 0, 0, 0, 0])
     }
 
+    pub const fn new_empty() -> Self {
+        Self {
+            bytes: [0, 0, 0, 0, 0, 0, 0],
+        }
+    }
+
     pub fn from_str_unchecked(string: &str) -> Self {
         let string_bytes = string.as_bytes();
 

@@ -4,7 +4,7 @@ use crate::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, Heap,
     },
-    types::Value,
+    types::{Object, Value},
 };
 use wtf8::Wtf8Buf;
 
@@ -31,7 +31,9 @@ pub fn initialize_string_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::StringConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
+        Some(Object::Function(
+            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+        )),
         // TODO: Methods and properties
         Vec::with_capacity(0),
     );
@@ -48,7 +50,9 @@ pub fn initialize_string_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::StringPrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
+        Some(Object::Object(
+            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
+        )),
         // TODO: Methods and properties
         Vec::with_capacity(0),
     );

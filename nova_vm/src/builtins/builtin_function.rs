@@ -76,9 +76,7 @@ pub fn create_builtin_function<'a, 'b: 'a>(
     // 8. Set func.[[Realm]] to realm.
     // NOTE: Heap data is implicitly attached to the Realm so I don't think
     //       this matters.
-    let object = realm
-        .heap
-        .create_object_with_prototype(prototype.into_value());
+    let object = realm.heap.create_object_with_prototype(prototype);
 
     // 9. Set func.[[InitialName]] to null.
     // TODO: This is non-standard.

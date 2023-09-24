@@ -5,7 +5,7 @@ use crate::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, Heap, ObjectEntry, PropertyDescriptor, PropertyKey,
     },
-    types::Value,
+    types::{Object, Value},
 };
 use num_bigint_dig::BigInt;
 
@@ -32,7 +32,9 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::BigintConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
+        Some(Object::Function(
+            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+        )),
         entries,
     );
     heap.functions
@@ -61,7 +63,9 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::BigintPrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
+        Some(Object::Object(
+            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
+        )),
         entries,
     );
 }

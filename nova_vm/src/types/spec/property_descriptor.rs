@@ -1,6 +1,6 @@
 use crate::{
     execution::{Agent, JsResult},
-    types::{Object, Value},
+    types::{Function, Object, Value},
 };
 
 /// 6.2.6 The Property Descriptor Specification Type
@@ -14,10 +14,10 @@ pub struct PropertyDescriptor {
     pub writable: Option<bool>,
 
     /// [[Get]]
-    pub get: Option<Object>,
+    pub get: Option<Function>,
 
     /// [[Set]]
-    pub set: Option<Object>,
+    pub set: Option<Function>,
 
     /// [[Enumerable]]
     pub enumerable: Option<bool>,

@@ -14,10 +14,11 @@ use super::{BigInt, Number};
 /// 6.1 ECMAScript Language Types
 /// https://tc39.es/ecma262/#sec-ecmascript-language-types
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(u8)]
 pub enum Value {
     /// 6.1.1 The Undefined Type
     /// https://tc39.es/ecma262/#sec-ecmascript-language-types-undefined-type
-    Undefined,
+    Undefined = 1,
 
     /// 6.1.2 The Null Type
     /// https://tc39.es/ecma262/#sec-ecmascript-language-types-null-type
@@ -83,6 +84,43 @@ pub enum PreferredType {
     String,
     Number,
 }
+const fn value_discriminant(value: Value) -> u8 {
+    // SAFETY: Because `Self` is marked `repr(u8)`, its layout is a `repr(C)` `union`
+    // between `repr(C)` structs, each of which has the `u8` discriminant as its first
+    // field, so we can read the discriminant without offsetting the pointer.
+    unsafe { *(&value as *const Value).cast::<u8>() }
+}
+
+pub(crate) const UNDEFINED_DISCRIMINANT: u8 = value_discriminant(Value::Undefined);
+pub(crate) const NULL_DISCRIMINANT: u8 = value_discriminant(Value::Null);
+pub(crate) const BOOLEAN_DISCRIMINANT: u8 = value_discriminant(Value::Boolean(true));
+pub(crate) const STRING_DISCRIMINANT: u8 =
+    value_discriminant(Value::String(StringIndex::from_u32_index(0)));
+pub(crate) const SMALL_STRING_DISCRIMINANT: u8 =
+    value_discriminant(Value::SmallString(SmallString::new_empty()));
+pub(crate) const SYMBOL_DISCRIMINANT: u8 =
+    value_discriminant(Value::Symbol(SymbolIndex::from_u32_index(0)));
+pub(crate) const NUMBER_DISCRIMINANT: u8 =
+    value_discriminant(Value::Number(NumberIndex::from_u32_index(0)));
+pub(crate) const INTEGER_DISCRIMINANT: u8 =
+    value_discriminant(Value::Integer(SmallInteger::zero()));
+pub(crate) const FLOAT_DISCRIMINANT: u8 = value_discriminant(Value::Float(0f32));
+pub(crate) const BIGINT_DISCRIMINANT: u8 =
+    value_discriminant(Value::BigInt(BigIntIndex::from_u32_index(0)));
+pub(crate) const SMALL_BIGINT_DISCRIMINANT: u8 =
+    value_discriminant(Value::SmallBigInt(SmallInteger::zero()));
+pub(crate) const OBJECT_DISCRIMINANT: u8 =
+    value_discriminant(Value::Object(ObjectIndex::from_u32_index(0)));
+pub(crate) const ARRAY_DISCRIMINANT: u8 =
+    value_discriminant(Value::Array(ArrayIndex::from_u32_index(0)));
+pub(crate) const DATE_DISCRIMINANT: u8 =
+    value_discriminant(Value::Date(DateIndex::from_u32_index(0)));
+pub(crate) const ERROR_DISCRIMINANT: u8 =
+    value_discriminant(Value::Error(ErrorIndex::from_u32_index(0)));
+pub(crate) const FUNCTION_DISCRIMINANT: u8 =
+    value_discriminant(Value::Function(FunctionIndex::from_u32_index(0)));
+pub(crate) const REGEXP_DISCRIMINANT: u8 =
+    value_discriminant(Value::RegExp(RegExpIndex::from_u32_index(0)));
 
 impl Value {
     pub fn from_str(heap: &mut Heap, message: &str) -> Value {

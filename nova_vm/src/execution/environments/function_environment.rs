@@ -1,16 +1,18 @@
 use super::{DeclarativeEnvironment, Environment};
-use crate::types::Value;
-use std::{cell::RefCell, rc::Rc};
+use crate::{
+    heap::indexes::FunctionIndex,
+    types::{Object, Value},
+};
 
 #[derive(Debug)]
 pub enum ThisBindingStatus {
+    /// Function is an ArrowFunction and does not have a local `this` value.
     Lexical,
+    /// Function is a normal function and does not have a bound `this` value.
     Initialized,
+    /// Function is a normal function and has a bound `this` value.
     Uninitialized,
 }
-
-#[derive(Debug)]
-struct ECMAScriptFunction;
 
 /// 9.1.1.3 Function Environment Records
 /// https://tc39.es/ecma262/#sec-function-environment-records
@@ -23,15 +25,13 @@ pub struct FunctionEnvironment {
     this_binding_status: ThisBindingStatus,
 
     /// [[FunctionObject]]
-    function_object: ECMAScriptFunction,
+    function_object: FunctionIndex,
 
     /// [[NewTarget]]
-    new_target: Option<Value>,
+    new_target: Option<Object>,
 
     /// [[OuterEnv]]
     outer_env: Option<Environment>,
 
-    // NOTE: This is how we implement the spec's inheritance of function
-    //       environments.
-    declarative_environment: Rc<RefCell<DeclarativeEnvironment>>,
+    declarative_environment: DeclarativeEnvironment,
 }

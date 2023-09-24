@@ -3,12 +3,18 @@ mod internal_methods;
 mod property_key;
 mod property_storage;
 
-use super::Value;
+use super::{
+    value::{
+        ARRAY_DISCRIMINANT, DATE_DISCRIMINANT, ERROR_DISCRIMINANT, FUNCTION_DISCRIMINANT,
+        OBJECT_DISCRIMINANT, REGEXP_DISCRIMINANT,
+    },
+    Value,
+};
 use crate::{
     builtins::ordinary,
     execution::{agent::ExceptionType, Agent, Intrinsics, JsResult},
     heap::{
-        indexes::{ArrayIndex, FunctionIndex, ObjectIndex},
+        indexes::{ArrayIndex, DateIndex, ErrorIndex, FunctionIndex, ObjectIndex, RegExpIndex},
         GetHeapData,
     },
     types::PropertyDescriptor,
@@ -21,11 +27,17 @@ pub use property_storage::PropertyStorage;
 
 /// 6.1.7 The Object Type
 /// https://tc39.es/ecma262/#sec-object-type
+///
+/// In Nova
 #[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub enum Object {
-    Object(ObjectIndex),
-    Array(ArrayIndex),
-    Function(FunctionIndex),
+    Object(ObjectIndex) = OBJECT_DISCRIMINANT,
+    // Date(DateIndex) = DATE_DISCRIMINANT,
+    // Error(ErrorIndex) = ERROR_DISCRIMINANT,
+    Array(ArrayIndex) = ARRAY_DISCRIMINANT,
+    Function(FunctionIndex) = FUNCTION_DISCRIMINANT,
+    //RegExp(RegExpIndex) = REGEXP_DISCRIMINANT,
 }
 
 impl From<ObjectIndex> for Object {
@@ -48,11 +60,8 @@ impl From<FunctionIndex> for Object {
 
 impl From<Object> for Value {
     fn from(value: Object) -> Self {
-        match value {
-            Object::Object(x) => Value::Object(x),
-            Object::Array(x) => Value::Array(x),
-            Object::Function(x) => Value::Function(x),
-        }
+        // SAFETY: Sub-enum.
+        unsafe { std::mem::transmute::<Object, Value>(value) }
     }
 }
 
@@ -106,13 +115,14 @@ impl Object {
         match self {
             Object::Object(object) => {
                 let object = realm.heap.get(object);
-                object.prototype.try_into().ok()
+                object.prototype.map(|v| v.into_value())
             }
             Object::Array(array) => {
                 let array = realm.heap.get(array);
 
                 if let Some(object_index) = array.object_index {
-                    Some(realm.heap.get(object_index).prototype)
+                    let prototype = realm.heap.get(object_index).prototype;
+                    prototype.map(|v| v.into())
                 } else {
                     Some(Intrinsics::array_prototype().into_value())
                 }
@@ -129,7 +139,7 @@ impl Object {
                 let realm = agent.current_realm();
                 let mut realm = realm.borrow_mut();
                 let object = realm.heap.get_mut(object);
-                object.prototype = prototype.map(|object| object.into_value()).unwrap();
+                object.prototype = prototype;
             }
             Object::Array(_) => todo!(),
             Object::Function(_) => todo!(),
