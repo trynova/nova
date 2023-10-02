@@ -58,6 +58,7 @@ pub struct ElementsVector {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub enum ElementDescriptor {
     /// ```js
     /// { value, writable: true, enumerable: true, configurable: true }

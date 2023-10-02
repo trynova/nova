@@ -1,5 +1,5 @@
 use super::Environment;
-use crate::types::Value;
+use crate::types::{String, Value};
 use std::collections::HashMap;
 
 /// 9.1.1.1 Declarative Environment Records
@@ -7,9 +7,12 @@ use std::collections::HashMap;
 #[derive(Debug)]
 pub struct DeclarativeEnvironment {
     pub outer_env: Option<Environment>,
-    pub bindings: HashMap<&'static str, Binding>,
+    pub bindings: HashMap<String, Binding>,
 }
 
+// TODO: Consider splitting binding this into ValueBinding
+// and BindingOptions. The options can fit a u8 and are fairly
+// often not needed by algorithms.
 #[derive(Debug)]
 pub struct Binding {
     pub value: Option<Value>,
@@ -21,9 +24,9 @@ pub struct Binding {
 impl DeclarativeEnvironment {
     /// 9.1.1.1.1 HasBinding ( N )
     /// https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n
-    pub fn has_binding(self, name: &str) -> bool {
+    pub fn has_binding(self, name: String) -> bool {
         // 1. If envRec has a binding for N, return true.
         // 2. Return false.
-        return self.bindings.contains_key(name);
+        return self.bindings.contains_key(&name);
     }
 }

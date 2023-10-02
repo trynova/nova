@@ -2,7 +2,7 @@ mod array;
 mod bigint;
 mod boolean;
 mod date;
-mod element_array;
+pub mod element_array;
 mod error;
 mod function;
 mod heap_bits;

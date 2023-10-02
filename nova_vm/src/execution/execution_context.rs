@@ -28,7 +28,11 @@ pub struct ECMAScriptCode {
 #[derive(Debug)]
 pub struct ExecutionContext<'ctx, 'host> {
     /// Function
-    pub function: Option<Object>,
+    ///
+    /// > If this execution context is evaluating the code of a function object, then the value
+    /// > of this component is that function object. If the context is evaluating the code of
+    /// > a *Script* or *Module*, the value is **null** (here represented by None).
+    pub function: Option<Function>,
 
     /// Realm
     pub realm: Rc<RefCell<Realm<'ctx, 'host>>>,
