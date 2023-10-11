@@ -60,7 +60,7 @@ pub fn create_builtin_function<'a, 'b: 'a>(
     // 2. If prototype is not present, set prototype to realm.[[Intrinsics]].[[%Function.prototype%]].
     let prototype = args
         .prototype
-        .unwrap_or_else(Intrinsics::function_prototype);
+        .unwrap_or_else(|| realm.intrinsics.function_prototype().into());
 
     // TODO: Steps 3-4
     // 3. Let internalSlotsList be a List containing the names of all the internal slots that 10.3

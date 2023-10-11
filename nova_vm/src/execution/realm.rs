@@ -5,6 +5,8 @@ use crate::{types::Object, Heap};
 pub use intrinsics::Intrinsics;
 use std::{any::Any, cell::RefCell, rc::Rc};
 
+pub struct RealmIdentifier(u32);
+
 /// 9.3 Realms
 /// https://tc39.es/ecma262/#sec-code-realms
 #[derive(Debug)]
@@ -15,7 +17,9 @@ pub struct Realm<'ctx, 'host> {
 
     // NOTE: We will need an rng here at some point.
 
-    // NOTE: [[Intrinsics]] are statically known via the [`Intrinsics`] struct.
+    // [[Intrinsics]]
+    pub intrinsics: Intrinsics,
+
     /// [[GlobalObject]]
     pub global_object: Object,
 

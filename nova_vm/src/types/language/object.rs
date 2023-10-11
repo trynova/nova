@@ -124,10 +124,10 @@ impl Object {
                     let prototype = realm.heap.get(object_index).prototype;
                     prototype.map(|v| v.into())
                 } else {
-                    Some(Intrinsics::array_prototype().into_value())
+                    Some(realm.intrinsics.array_prototype().into_value())
                 }
             }
-            Object::Function(_) => Some(Intrinsics::function_prototype().into_value()),
+            Object::Function(_) => Some(realm.intrinsics.function_prototype().into_value()),
             _ => unreachable!(),
         }
     }

@@ -14,13 +14,14 @@ pub struct NumberConstructor;
 
 impl Builtin for NumberConstructor {
     fn create<'a>(realm: &'a mut Realm<'a, 'a>) -> JsResult<Object> {
+        let prototype = Some(realm.intrinsics.function_prototype());
         let object: Object = create_builtin_function(
             Behaviour::Constructor(Self::behaviour),
             BuiltinFunctionArgs {
                 length: 1,
                 name: "Number",
                 realm: Some(realm),
-                prototype: Some(Intrinsics::function_prototype()),
+                prototype,
                 ..Default::default()
             },
         )
@@ -150,7 +151,7 @@ impl Builtin for NumberConstructor {
             object,
             "prototype",
             PropertyDescriptor {
-                value: Some(Intrinsics::number_prototype().into()),
+                value: Some(realm.intrinsics.number_prototype().into()),
                 writable: Some(false),
                 enumerable: Some(false),
                 configurable: Some(false),
@@ -161,7 +162,7 @@ impl Builtin for NumberConstructor {
         // 21.1.3.1 Number.prototype.constructor
         // https://tc39.es/ecma262/#sec-number.prototype.constructor
         define_builtin_property(
-            Intrinsics::number_prototype(),
+            realm.intrinsics.number_prototype(),
             "constructor",
             PropertyDescriptor {
                 value: Some(object.into_value()),
