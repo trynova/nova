@@ -16,8 +16,8 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct FunctionHeapData {
-    pub(super) object_index: Option<ObjectIndex>,
-    pub(super) length: u8,
+    pub(crate) object_index: Option<ObjectIndex>,
+    pub(crate) length: u8,
     pub initial_name: Value,
     // pub behaviour: Behaviour,
     // TODO: Should we create a `BoundFunctionHeapData` for an exotic object

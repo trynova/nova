@@ -3,6 +3,8 @@ mod internal_methods;
 mod property_key;
 mod property_storage;
 
+use std::array;
+
 use super::{
     value::{
         ARRAY_DISCRIMINANT, DATE_DISCRIMINANT, ERROR_DISCRIMINANT, FUNCTION_DISCRIMINANT,
@@ -18,6 +20,7 @@ use crate::{
         GetHeapData,
     },
     types::PropertyDescriptor,
+    Heap,
 };
 
 pub use data::ObjectData;
@@ -82,29 +85,42 @@ impl Object {
         self.into()
     }
 
-    /// [[Extensible]]
-    pub fn extensible(self, agent: &mut Agent) -> bool {
+    fn get_object_index(self, heap: &Heap) -> ObjectIndex {
         match self {
-            Object::Object(object) => agent.current_realm().borrow().heap.get(object).extensible,
-            Object::Array(_) => true,
-            Object::Function(_) => true,
+            Object::Object(index) => index,
+            Object::Array(array_index) => heap
+                .arrays
+                .get(array_index.into_index())
+                .unwrap()
+                .unwrap()
+                .object_index
+                .unwrap(),
+            Object::Function(function_index) => heap
+                .functions
+                .get(function_index.into_index())
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .object_index
+                .unwrap(),
         }
     }
 
     /// [[Extensible]]
+    pub fn extensible(self, agent: &mut Agent) -> bool {
+        let realm = agent.current_realm();
+        let realm = realm.borrow();
+        let object_index = self.get_object_index(&realm.heap);
+        agent.current_realm().borrow().heap.get(object_index).extensible
+    }
+
+    /// [[Extensible]]
     pub fn set_extensible(self, agent: &mut Agent, value: bool) {
-        match self {
-            Object::Object(object) => {
-                let realm = agent.current_realm();
-                let mut realm = realm.borrow_mut();
-                let object = realm.heap.get_mut(object);
-                object.extensible = true;
-            }
-            // TODO: Correct object/function impl
-            Object::Array(_) => {}
-            Object::Function(_) => {}
-            _ => unreachable!(),
-        }
+        let realm = agent.current_realm();
+        let mut realm = realm.borrow_mut();
+        let object_index = self.get_object_index(&realm.heap);
+        let object = realm.heap.get_mut(object_index);
+        object.extensible = true;
     }
 
     /// [[Prototype]]
@@ -134,17 +150,11 @@ impl Object {
 
     /// [[Prototype]]
     pub fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        match self {
-            Object::Object(object) => {
-                let realm = agent.current_realm();
-                let mut realm = realm.borrow_mut();
-                let object = realm.heap.get_mut(object);
-                object.prototype = prototype;
-            }
-            Object::Array(_) => todo!(),
-            Object::Function(_) => todo!(),
-            _ => unreachable!(),
-        }
+        let realm = agent.current_realm();
+        let mut realm = realm.borrow_mut();
+        let object_index = self.get_object_index(&realm.heap);
+        let object = realm.heap.get_mut(object_index);
+        object.prototype = prototype;
     }
 
     pub fn internal_methods<'a>(self, agent: &mut Agent) -> &'a InternalMethods {
