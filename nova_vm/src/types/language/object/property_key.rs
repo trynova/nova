@@ -86,9 +86,7 @@ impl PropertyKey {
                 s1.as_str() == s2.as_str()
             }
             (PropertyKey::String(s), PropertyKey::SmallInteger(n)) => {
-                let realm = agent.current_realm();
-                let realm = realm.borrow();
-                let s = realm.heap.get(s);
+                let s = agent.heap.get(s);
 
                 let Some(s) = s.as_str() else {
                     return false;

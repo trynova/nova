@@ -27,6 +27,7 @@ pub struct HostHooks {
 /// https://tc39.es/ecma262/#sec-agents
 #[derive(Debug)]
 pub struct Agent<'ctx, 'host> {
+    pub heap: Heap,
     pub options: Options,
     // pre_allocated: PreAllocated,
     pub exception: Option<Value>,

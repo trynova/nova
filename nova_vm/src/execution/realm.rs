@@ -11,8 +11,6 @@ pub struct RealmIdentifier(u32);
 /// https://tc39.es/ecma262/#sec-code-realms
 #[derive(Debug)]
 pub struct Realm<'ctx, 'host> {
-    pub heap: Heap,
-
     pub agent: Rc<RefCell<Agent<'ctx, 'host>>>,
 
     // NOTE: We will need an rng here at some point.

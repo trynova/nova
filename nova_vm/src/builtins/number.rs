@@ -1,3 +1,5 @@
+use std::{borrow::BorrowMut, cell::RefCell, rc::Rc};
+
 use super::{
     builtin_function::{define_builtin_function, define_builtin_property},
     create_builtin_function, ordinary, todo_builtin, ArgumentsList, Behaviour, Builtin,
@@ -13,14 +15,18 @@ use crate::{
 pub struct NumberConstructor;
 
 impl Builtin for NumberConstructor {
-    fn create<'a>(realm: &'a mut Realm<'a, 'a>) -> JsResult<Object> {
+    fn create<'a>(agent: &'a mut Agent<'a, 'a>) -> JsResult<Object> {
+        let mut realm = agent.current_realm();
+        let mut realm = RefCell::borrow_mut(&mut realm);
+
         let prototype = Some(realm.intrinsics.function_prototype());
         let object: Object = create_builtin_function(
+            agent,
             Behaviour::Constructor(Self::behaviour),
             BuiltinFunctionArgs {
                 length: 1,
                 name: "Number",
-                realm: Some(realm),
+                realm: Some(&mut realm),
                 prototype,
                 ..Default::default()
             },
@@ -33,7 +39,7 @@ impl Builtin for NumberConstructor {
             object,
             "EPSILON",
             PropertyDescriptor {
-                value: Some(realm.heap.create(f64::EPSILON).into()),
+                value: Some(agent.heap.create(f64::EPSILON).into()),
                 writable: Some(false),
                 enumerable: Some(false),
                 configurable: Some(false),
@@ -61,7 +67,7 @@ impl Builtin for NumberConstructor {
             object,
             "MAX_VALUE",
             PropertyDescriptor {
-                value: Some(realm.heap.create(f64::MAX).into()),
+                value: Some(agent.heap.create(f64::MAX).into()),
                 writable: Some(false),
                 enumerable: Some(false),
                 configurable: Some(false),
@@ -89,7 +95,7 @@ impl Builtin for NumberConstructor {
             object,
             "MIN_VALUE",
             PropertyDescriptor {
-                value: Some(realm.heap.create(f64::MIN).into()),
+                value: Some(agent.heap.create(f64::MIN).into()),
                 writable: Some(false),
                 enumerable: Some(false),
                 configurable: Some(false),
@@ -139,11 +145,11 @@ impl Builtin for NumberConstructor {
             },
         )?;
 
-        define_builtin_function(object, "isFinite", todo_builtin, 1, realm)?;
-        define_builtin_function(object, "isNaN", todo_builtin, 1, realm)?;
-        define_builtin_function(object, "isSafeInteger", todo_builtin, 1, realm)?;
-        define_builtin_function(object, "parseFloat", todo_builtin, 1, realm)?;
-        define_builtin_function(object, "parseInt", todo_builtin, 2, realm)?;
+        define_builtin_function(agent, object, "isFinite", todo_builtin, 1, &mut realm)?;
+        define_builtin_function(agent, object, "isNaN", todo_builtin, 1, &mut realm)?;
+        define_builtin_function(agent, object, "isSafeInteger", todo_builtin, 1, &mut realm)?;
+        define_builtin_function(agent, object, "parseFloat", todo_builtin, 1, &mut realm)?;
+        define_builtin_function(agent, object, "parseInt", todo_builtin, 2, &mut realm)?;
 
         // 21.1.2.15 Number.prototype
         // https://tc39.es/ecma262/#sec-number.prototype

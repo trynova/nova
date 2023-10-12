@@ -32,9 +32,7 @@ impl PropertyStorage {
 
         match object {
             Value::Object(object) => {
-                let realm = agent.current_realm();
-                let realm = realm.borrow();
-                let keys = &realm.heap.get(object).keys;
+                let keys = &agent.heap.get(object).keys;
                 // realm.heap.elements.get(keys).iter().any(|k| {
                 //     if let Some(value) = k {
                 //         value.equals(agent, key)
@@ -51,19 +49,17 @@ impl PropertyStorage {
                     return true;
                 }
 
-                let realm = agent.current_realm();
-                let realm = realm.borrow();
-                let array = realm.heap.get(array);
+                let array = agent.heap.get(array);
 
                 if key.is_array_index() {
-                    return realm.heap.elements.has(array.elements, key.into_value());
+                    return agent.heap.elements.has(array.elements, key.into_value());
                 }
 
                 if let Some(object) = array.object_index {
-                    realm
+                    agent
                         .heap
                         .elements
-                        .has(object.get(&realm.heap).keys, key.into_value())
+                        .has(object.get(&agent.heap).keys, key.into_value())
                 } else {
                     false
                 }

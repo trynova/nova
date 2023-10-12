@@ -10,10 +10,12 @@ use crate::{
 pub struct ArrayConstructor;
 
 impl Builtin for ArrayConstructor {
-    fn create<'a>(realm: &'a mut Realm<'a, 'a>) -> JsResult<Object> {
+    fn create<'a>(agent: &'a mut Agent<'a, 'a>) -> JsResult<Object> {
+        let realm = agent.current_realm();
         let object = create_builtin_function(
+            agent,
             Behaviour::Regular(Self::behaviour),
-            BuiltinFunctionArgs::new(1, "Array", realm),
+            BuiltinFunctionArgs::new(1, "Array", &mut realm.borrow_mut()),
         );
 
         Ok(object.into_object())

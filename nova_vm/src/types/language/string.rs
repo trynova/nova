@@ -61,7 +61,7 @@ impl String {
     /// Byte length of the string.
     pub fn len(self, agent: &Agent) -> usize {
         match self {
-            String::String(s) => agent.current_realm().borrow().heap.get(s).len(),
+            String::String(s) => agent.heap.get(s).len(),
             String::SmallString(s) => s.len(),
         }
     }
@@ -70,9 +70,7 @@ impl String {
         match self {
             // SAFETY: The mutable reference to the Agent ensures no mutable
             //         access to the realm.
-            String::String(s) => unsafe {
-                std::mem::transmute(agent.current_realm().borrow().heap.get(*s).as_str())
-            },
+            String::String(s) => unsafe { std::mem::transmute(agent.heap.get(*s).as_str()) },
             String::SmallString(s) => Some(s.as_str()),
         }
     }

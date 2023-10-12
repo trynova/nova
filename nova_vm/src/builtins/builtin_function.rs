@@ -2,6 +2,7 @@ use crate::{
     execution::{Agent, Intrinsics, JsResult, Realm},
     heap::CreateHeapData,
     types::{Function, Object, PropertyDescriptor, Value},
+    Heap,
 };
 
 #[derive(Debug)]
@@ -25,7 +26,7 @@ pub enum Behaviour {
 }
 
 pub trait Builtin {
-    fn create<'a>(realm: &'a mut Realm<'a, 'a>) -> JsResult<Object>;
+    fn create<'a>(agent: &'a mut Agent<'a, 'a>) -> JsResult<Object>;
 }
 
 #[derive(Debug, Default)]
@@ -51,9 +52,11 @@ impl<'a, 'ctx: 'a, 'host: 'ctx> BuiltinFunctionArgs<'a, 'ctx, 'host> {
 /// 10.3.3 CreateBuiltinFunction ( behaviour, length, name, additionalInternalSlotsList [ , realm [ , prototype [ , prefix ] ] ] )
 /// https://tc39.es/ecma262/#sec-createbuiltinfunction
 pub fn create_builtin_function<'a, 'b: 'a>(
+    agent: &mut Agent,
     behaviour: Behaviour,
     args: BuiltinFunctionArgs<'a, 'b, 'b>,
 ) -> Function {
+    let heap = &mut agent.heap;
     // 1. If realm is not present, set realm to the current Realm Record.
     let realm = args.realm.unwrap(); // TODO: load record
 
@@ -76,15 +79,15 @@ pub fn create_builtin_function<'a, 'b: 'a>(
     // 8. Set func.[[Realm]] to realm.
     // NOTE: Heap data is implicitly attached to the Realm so I don't think
     //       this matters.
-    let object = realm.heap.create_object_with_prototype(prototype);
+    let object = heap.create_object_with_prototype(prototype);
 
     // 9. Set func.[[InitialName]] to null.
     // TODO: This is non-standard.
-    let initial_name = realm.heap.create(args.name).into_value();
+    let initial_name = heap.create(args.name).into_value();
     // 10. Perform SetFunctionLength(func, length).
     let length = args.length as u8;
     // TODO: Actually set behaviour somewhere
-    let func = realm.heap.create_function(initial_name, length, false);
+    let func = heap.create_function(initial_name, length, false);
 
     // TODO: Steps 11-12
     // 11. If prefix is not present, then
@@ -97,6 +100,7 @@ pub fn create_builtin_function<'a, 'b: 'a>(
 }
 
 pub fn define_builtin_function<'a, 'b>(
+    agent: &mut Agent,
     object: Object,
     name: &'a str,
     behaviour: RegularFn,
@@ -104,6 +108,7 @@ pub fn define_builtin_function<'a, 'b>(
     realm: &'a mut Realm<'b, 'b>,
 ) -> JsResult<()> {
     let function = create_builtin_function(
+        agent,
         Behaviour::Regular(behaviour),
         BuiltinFunctionArgs::new(length, name, realm),
     );

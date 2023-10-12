@@ -108,36 +108,35 @@ impl Object {
 
     /// [[Extensible]]
     pub fn extensible(self, agent: &mut Agent) -> bool {
-        let realm = agent.current_realm();
-        let realm = realm.borrow();
-        let object_index = self.get_object_index(&realm.heap);
-        agent.current_realm().borrow().heap.get(object_index).extensible
+        let heap = &agent.heap;
+        let object_index = self.get_object_index(heap);
+        heap.get(object_index).extensible
     }
 
     /// [[Extensible]]
     pub fn set_extensible(self, agent: &mut Agent, value: bool) {
-        let realm = agent.current_realm();
-        let mut realm = realm.borrow_mut();
-        let object_index = self.get_object_index(&realm.heap);
-        let object = realm.heap.get_mut(object_index);
-        object.extensible = true;
+        let heap = &mut agent.heap;
+        let object_index = self.get_object_index(heap);
+        let object = heap.get_mut(object_index);
+        object.extensible = value;
     }
 
     /// [[Prototype]]
     pub fn prototype(self, agent: &mut Agent) -> Option<Value> {
+        let heap = &agent.heap;
         let realm = agent.current_realm();
         let realm = realm.borrow();
 
         match self {
             Object::Object(object) => {
-                let object = realm.heap.get(object);
+                let object = heap.get(object);
                 object.prototype.map(|v| v.into_value())
             }
             Object::Array(array) => {
-                let array = realm.heap.get(array);
+                let array = heap.get(array);
 
                 if let Some(object_index) = array.object_index {
-                    let prototype = realm.heap.get(object_index).prototype;
+                    let prototype = heap.get(object_index).prototype;
                     prototype.map(|v| v.into())
                 } else {
                     Some(realm.intrinsics.array_prototype().into_value())
@@ -150,10 +149,9 @@ impl Object {
 
     /// [[Prototype]]
     pub fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        let realm = agent.current_realm();
-        let mut realm = realm.borrow_mut();
-        let object_index = self.get_object_index(&realm.heap);
-        let object = realm.heap.get_mut(object_index);
+        let heap = &mut agent.heap;
+        let object_index = self.get_object_index(&heap);
+        let object = heap.get_mut(object_index);
         object.prototype = prototype;
     }
 
