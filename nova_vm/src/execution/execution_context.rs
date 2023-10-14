@@ -1,4 +1,4 @@
-use super::{Environment, PrivateEnvironment};
+use super::{Environment, PrivateEnvironment, RealmIdentifier, PrivateEnvironmentIndex};
 use crate::{execution::Realm, language::Script, types::*};
 use std::{cell::RefCell, rc::Rc};
 
@@ -20,7 +20,7 @@ pub struct ECMAScriptCode {
     pub variable_environment: Environment,
 
     /// PrivateEnvironment
-    pub private_environment: Option<Rc<RefCell<PrivateEnvironment>>>,
+    pub private_environment: Option<PrivateEnvironmentIndex>,
 }
 
 /// 9.4 Execution Contexts
@@ -35,7 +35,7 @@ pub struct ExecutionContext<'ctx, 'host> {
     pub function: Option<Function>,
 
     /// Realm
-    pub realm: Rc<RefCell<Realm<'ctx, 'host>>>,
+    pub realm: RealmIdentifier<'ctx, 'host>,
 
     /// ScriptOrModule
     pub script_or_module: Option<ScriptOrModule<'ctx, 'host>>,

@@ -96,7 +96,6 @@ impl<T: ?Sized> BaseIndex<T> {
     }
 
     pub const fn from_u32_index(value: u32) -> Self {
-        let value = value as u32;
         assert!(value != u32::MAX);
         // SAFETY: Number is not max value and will not overflow to zero.
         // This check is done manually to allow const context.
@@ -115,7 +114,6 @@ impl<T: ?Sized> BaseIndex<T> {
     }
 
     pub const fn from_u32(value: u32) -> Self {
-        let value = value as u32;
         assert!(value != 0);
         // SAFETY: Number is not zero.
         // This check is done manually to allow const context.

@@ -6,8 +6,9 @@ mod realm;
 
 pub use agent::{Agent, JsResult};
 pub use environments::{
-    DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment, ObjectEnvironment,
-    PrivateEnvironment,
+    DeclarativeEnvironment, DeclarativeEnvironmentIndex, Environment, FunctionEnvironment,
+    FunctionEnvironmentIndex, GlobalEnvironment, GlobalEnvironmentIndex, ObjectEnvironment,
+    ObjectEnvironmentIndex, PrivateEnvironment, PrivateEnvironmentIndex,
 };
 pub use execution_context::{ECMAScriptCode, ExecutionContext, ScriptOrModule};
-pub use realm::{Intrinsics, Realm};
+pub use realm::{Intrinsics, Realm, RealmIdentifier};

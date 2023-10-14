@@ -1,4 +1,4 @@
-use super::{ExecutionContext, Realm};
+use super::{ExecutionContext, Realm, RealmIdentifier};
 use crate::{
     types::{Object, Symbol, Value},
     Heap,
@@ -34,12 +34,13 @@ pub struct Agent<'ctx, 'host> {
     pub symbol_id: usize,
     pub global_symbol_registry: HashMap<&'static str, Symbol>,
     pub host_hooks: HostHooks,
+    pub realms: Vec<Realm<'ctx, 'host>>,
     pub execution_context_stack: Vec<ExecutionContext<'ctx, 'host>>,
 }
 
 impl<'ctx, 'host> Agent<'ctx, 'host> {
-    pub fn current_realm(&self) -> Rc<RefCell<Realm<'ctx, 'host>>> {
-        self.execution_context_stack.last().unwrap().realm.clone()
+    pub fn current_realm(&self) -> RealmIdentifier<'ctx, 'host> {
+        self.execution_context_stack.last().unwrap().realm
     }
 
     /// 5.2.3.2 Throw an Exception

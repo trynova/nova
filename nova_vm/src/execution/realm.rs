@@ -1,11 +1,12 @@
 mod intrinsics;
 
-use super::{Agent, GlobalEnvironment};
-use crate::{types::Object, Heap};
+use super::{environments::global_environment::GlobalEnvironmentIndex, Agent};
+use crate::types::Object;
 pub use intrinsics::Intrinsics;
-use std::{any::Any, cell::RefCell, rc::Rc};
+use std::{any::Any, cell::RefCell, rc::Rc, marker::PhantomData};
 
-pub struct RealmIdentifier(u32);
+#[derive(Debug, Clone, Copy)]
+pub struct RealmIdentifier<'ctx, 'host>(u32, PhantomData<Realm<'ctx, 'host>>);
 
 /// 9.3 Realms
 /// https://tc39.es/ecma262/#sec-code-realms
@@ -22,7 +23,7 @@ pub struct Realm<'ctx, 'host> {
     pub global_object: Object,
 
     /// [[GlobalEnv]]
-    pub global_env: Rc<RefCell<GlobalEnvironment>>,
+    pub global_env: GlobalEnvironmentIndex,
 
     /// [[HostDefined]]
     pub host_defined: Option<Rc<RefCell<dyn Any>>>,

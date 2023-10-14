@@ -1,5 +1,21 @@
 use crate::types::{Function, String, Value};
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{collections::HashMap, marker::PhantomData, num::NonZeroU32};
+
+#[derive(Debug, Clone, Copy)]
+pub struct PrivateEnvironmentIndex(NonZeroU32, PhantomData<PrivateEnvironment>);
+
+impl PrivateEnvironmentIndex {
+    pub const fn from_u32_index(value: u32) -> Self {
+        assert!(value != u32::MAX);
+        // SAFETY: Number is not max value and will not overflow to zero.
+        // This check is done manually to allow const context.
+        Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
+    }
+
+    pub const fn into_index(self) -> usize {
+        self.0.get() as usize - 1
+    }
+}
 
 #[derive(Debug)]
 pub enum PrivateElement {
@@ -14,7 +30,7 @@ pub enum PrivateElement {
 #[derive(Debug)]
 pub struct PrivateEnvironment {
     /// [[OuterPrivateEnvironment]]
-    outer_private_environment: Option<Rc<RefCell<PrivateEnvironment>>>,
+    outer_private_environment: Option<PrivateEnvironmentIndex>,
 
     /// [[Names]]
     names: HashMap<String, PrivateElement>, // TODO: Implement private names

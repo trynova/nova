@@ -1,5 +1,5 @@
 use crate::{
-    execution::{ECMAScriptCode, Environment, ExecutionContext, Realm, ScriptOrModule},
+    execution::{ECMAScriptCode, Environment, ExecutionContext, Realm, ScriptOrModule, RealmIdentifier},
     types::Value,
 };
 use oxc_allocator::Allocator;
@@ -15,7 +15,7 @@ pub type HostDefined<'ctx> = &'ctx mut dyn Any;
 #[derive(Debug)]
 pub struct Script<'ctx, 'host> {
     /// [[Realm]]
-    pub realm: Rc<RefCell<Realm<'ctx, 'host>>>,
+    pub realm: RealmIdentifier<'ctx, 'host>,
 
     /// [[ECMAScriptCode]]
     pub ecmascript_code: Rc<Program<'host>>,
@@ -37,7 +37,7 @@ impl<'ctx, 'host: 'ctx> Script<'ctx, 'host> {
     pub fn parse(
         allocator: &'host Allocator,
         source_text: &'host str,
-        realm: Rc<RefCell<Realm<'ctx, 'host>>>,
+        realm: RealmIdentifier<'ctx, 'host>,
         host_defined: Option<HostDefined<'host>>,
     ) -> ScriptOrErrors<'ctx, 'host> {
         // 1. Let script be ParseText(sourceText, Script).

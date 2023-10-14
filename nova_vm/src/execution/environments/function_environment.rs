@@ -1,10 +1,26 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, num::NonZeroU32, marker::PhantomData};
 
 use super::{declarative_environment::Binding, Environment};
 use crate::{
     heap::indexes::FunctionIndex,
     types::{Object, String, Value},
 };
+
+#[derive(Debug, Clone, Copy)]
+pub struct FunctionEnvironmentIndex(NonZeroU32, PhantomData<FunctionEnvironment>);
+
+impl FunctionEnvironmentIndex {
+    pub const fn from_u32_index(value: u32) -> Self {
+        assert!(value != u32::MAX);
+        // SAFETY: Number is not max value and will not overflow to zero.
+        // This check is done manually to allow const context.
+        Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
+    }
+
+    pub const fn into_index(self) -> usize {
+        self.0.get() as usize - 1
+    }
+}
 
 #[derive(Debug)]
 pub enum ThisBindingStatus {

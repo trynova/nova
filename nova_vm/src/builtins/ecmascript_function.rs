@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use oxc_ast::ast::{FormalParameters, FunctionBody};
 
 use crate::{
-    execution::{Agent, Environment, JsResult, PrivateEnvironment, Realm, ScriptOrModule},
+    execution::{Agent, Environment, JsResult, PrivateEnvironmentIndex, RealmIdentifier, ScriptOrModule},
     types::{Number, Object, PropertyDescriptor, PropertyKey, Value},
 };
 
@@ -28,7 +28,7 @@ pub struct ECMAScriptFunction<'ctx, 'host> {
     pub environment: Environment,
 
     /// [[PrivateEnvironment]]
-    pub private_environment: Option<Rc<RefCell<PrivateEnvironment>>>,
+    pub private_environment: Option<PrivateEnvironmentIndex>,
 
     /// [[FormalParameters]]
     pub formal_parameters: &'host FormalParameters<'host>,
@@ -40,7 +40,7 @@ pub struct ECMAScriptFunction<'ctx, 'host> {
     pub constructor_kind: ConstructorKind,
 
     /// [[Realm]]
-    pub realm: Rc<RefCell<Realm<'ctx, 'host>>>,
+    pub realm: RealmIdentifier<'ctx, 'host>,
 
     /// [[ScriptOrModule]]
     pub script_or_module: ScriptOrModule<'ctx, 'host>,
