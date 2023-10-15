@@ -3,8 +3,8 @@ use std::mem::size_of;
 use crate::{
     execution::{Agent, JsResult},
     heap::indexes::{
-        ArrayIndex, BigIntIndex, DateIndex, ErrorIndex, FunctionIndex, NumberIndex, ObjectIndex,
-        RegExpIndex, StringIndex, SymbolIndex,
+        ArrayBufferIndex, ArrayIndex, BigIntIndex, DateIndex, ErrorIndex, FunctionIndex,
+        NumberIndex, ObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
     },
     Heap, SmallInteger, SmallString,
 };
@@ -56,6 +56,7 @@ pub enum Value {
     // Roughly corresponding to 6.1.7.4 Well-Known Intrinsic Objects
     // https://tc39.es/ecma262/#sec-well-known-intrinsic-objects
     Array(ArrayIndex),
+    ArrayBuffer(ArrayBufferIndex),
     Date(DateIndex),
     Error(ErrorIndex),
     Function(FunctionIndex),
@@ -113,6 +114,8 @@ pub(crate) const OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::Object(ObjectIndex::from_u32_index(0)));
 pub(crate) const ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::Array(ArrayIndex::from_u32_index(0)));
+pub(crate) const ARRAY_BUFFER_DISCRIMINANT: u8 =
+    value_discriminant(Value::ArrayBuffer(ArrayBufferIndex::from_u32_index(0)));
 pub(crate) const DATE_DISCRIMINANT: u8 =
     value_discriminant(Value::Date(DateIndex::from_u32_index(0)));
 pub(crate) const ERROR_DISCRIMINANT: u8 =

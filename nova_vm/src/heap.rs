@@ -1,4 +1,5 @@
 mod array;
+mod array_buffer;
 mod bigint;
 mod boolean;
 mod date;
@@ -17,9 +18,9 @@ mod string;
 mod symbol;
 
 pub use self::heap_constants::BuiltinObjectIndexes;
-
 use self::{
     array::{initialize_array_heap, ArrayHeapData},
+    array_buffer::{initialize_array_buffer_heap, ArrayBufferHeapData},
     bigint::{initialize_bigint_heap, BigIntHeapData},
     boolean::initialize_boolean_heap,
     date::{initialize_date_heap, DateHeapData},
@@ -57,6 +58,7 @@ pub struct Heap {
     /// a HashMap of possible property descriptors.
     pub elements: ElementArrays,
     pub arrays: Vec<Option<ArrayHeapData>>,
+    pub array_buffers: Vec<Option<ArrayBufferHeapData>>,
     pub bigints: Vec<Option<BigIntHeapData>>,
     pub errors: Vec<Option<ErrorHeapData>>,
     pub functions: Vec<Option<FunctionHeapData>>,
@@ -181,6 +183,7 @@ impl Heap {
                 e2pow32: ElementArray2Pow32::default(),
             },
             arrays: Vec::with_capacity(1024),
+            array_buffers: Vec::with_capacity(1024),
             bigints: Vec::with_capacity(1024),
             errors: Vec::with_capacity(1024),
             functions: Vec::with_capacity(1024),
@@ -204,6 +207,7 @@ impl Heap {
             }
         }
         initialize_array_heap(&mut heap);
+        initialize_array_buffer_heap(&mut heap);
         initialize_bigint_heap(&mut heap);
         initialize_boolean_heap(&mut heap);
         initialize_date_heap(&mut heap);

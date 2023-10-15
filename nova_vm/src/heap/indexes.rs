@@ -1,11 +1,11 @@
-use crate::types::Value;
-use crate::Heap;
-
+use super::array_buffer::ArrayBufferHeapData;
 use super::{
     array::ArrayHeapData, bigint::BigIntHeapData, date::DateHeapData, error::ErrorHeapData,
     function::FunctionHeapData, number::NumberHeapData, object::ObjectHeapData,
     regexp::RegExpHeapData, string::StringHeapData, symbol::SymbolHeapData,
 };
+use crate::types::Value;
+use crate::Heap;
 use core::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::{marker::PhantomData, mem::size_of, num::NonZeroU32};
@@ -127,6 +127,7 @@ impl<T: ?Sized> BaseIndex<T> {
 }
 
 pub type ArrayIndex = BaseIndex<ArrayHeapData>;
+pub type ArrayBufferIndex = BaseIndex<ArrayBufferHeapData>;
 pub type BigIntIndex = BaseIndex<BigIntHeapData>;
 pub type DateIndex = BaseIndex<DateHeapData>;
 pub type ErrorIndex = BaseIndex<ErrorHeapData>;
