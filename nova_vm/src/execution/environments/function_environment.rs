@@ -1,4 +1,4 @@
-use std::{collections::HashMap, num::NonZeroU32, marker::PhantomData};
+use std::{collections::HashMap, marker::PhantomData, num::NonZeroU32};
 
 use super::{declarative_environment::Binding, Environment};
 use crate::{

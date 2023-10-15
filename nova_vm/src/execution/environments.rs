@@ -24,3 +24,68 @@ pub enum Environment {
     GlobalEnvironment(GlobalEnvironmentIndex),
     ObjectEnvironment(ObjectEnvironmentIndex),
 }
+
+#[derive(Debug)]
+pub struct Environments {
+    declarative: Vec<Option<DeclarativeEnvironment>>,
+    function: Vec<Option<FunctionEnvironment>>,
+    global: Vec<Option<GlobalEnvironment>>,
+    object: Vec<Option<ObjectEnvironment>>,
+}
+
+impl Default for Environments {
+    fn default() -> Self {
+        Self {
+            declarative: Vec::with_capacity(256),
+            function: Vec::with_capacity(1024),
+            global: Vec::with_capacity(1),
+            object: Vec::with_capacity(1024),
+        }
+    }
+}
+
+impl Environments {
+    pub fn get_declarative_environment<'a>(
+        &'a self,
+        index: DeclarativeEnvironmentIndex,
+    ) -> &'a DeclarativeEnvironment {
+        self.declarative
+            .get(index.into_index())
+            .expect("DeclarativeEnvironmentIndex did not match to any vector index")
+            .as_ref()
+            .expect("DeclarativeEnvironmentIndex pointed to a None")
+    }
+
+    pub fn get_function_environment<'a>(
+        &'a self,
+        index: FunctionEnvironmentIndex,
+    ) -> &'a FunctionEnvironment {
+        self.function
+            .get(index.into_index())
+            .expect("FunctionEnvironmentIndex did not match to any vector index")
+            .as_ref()
+            .expect("FunctionEnvironmentIndex pointed to a None")
+    }
+
+    pub fn get_global_environment<'a>(
+        &'a self,
+        index: GlobalEnvironmentIndex,
+    ) -> &'a GlobalEnvironment {
+        self.global
+            .get(index.into_index())
+            .expect("GlobalEnvironmentIndex did not match to any vector index")
+            .as_ref()
+            .expect("GlobalEnvironmentIndex pointed to a None")
+    }
+
+    pub fn get_object_environment<'a>(
+        &'a self,
+        index: ObjectEnvironmentIndex,
+    ) -> &'a ObjectEnvironment {
+        self.object
+            .get(index.into_index())
+            .expect("ObjectEnvironmentIndex did not match to any vector index")
+            .as_ref()
+            .expect("ObjectEnvironmentIndex pointed to a None")
+    }
+}

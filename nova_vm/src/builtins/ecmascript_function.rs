@@ -3,7 +3,9 @@ use std::{cell::RefCell, rc::Rc};
 use oxc_ast::ast::{FormalParameters, FunctionBody};
 
 use crate::{
-    execution::{Agent, Environment, JsResult, PrivateEnvironmentIndex, RealmIdentifier, ScriptOrModule},
+    execution::{
+        Agent, Environment, JsResult, PrivateEnvironmentIndex, RealmIdentifier, ScriptOrModule,
+    },
     types::{Number, Object, PropertyDescriptor, PropertyKey, Value},
 };
 

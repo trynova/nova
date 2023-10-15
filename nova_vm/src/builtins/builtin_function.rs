@@ -1,5 +1,5 @@
 use crate::{
-    execution::{Agent, Intrinsics, JsResult, Realm},
+    execution::{Agent, Intrinsics, JsResult, Realm, RealmIdentifier},
     heap::CreateHeapData,
     types::{Function, Object, PropertyDescriptor, Value},
     Heap,
@@ -33,13 +33,13 @@ pub trait Builtin {
 pub struct BuiltinFunctionArgs<'a, 'ctx, 'host> {
     pub length: u32,
     pub name: &'a str,
-    pub realm: Option<&'a mut Realm<'ctx, 'host>>,
+    pub realm: Option<RealmIdentifier<'ctx, 'host>>,
     pub prototype: Option<Object>,
     pub prefix: Option<Object>,
 }
 
 impl<'a, 'ctx: 'a, 'host: 'ctx> BuiltinFunctionArgs<'a, 'ctx, 'host> {
-    pub fn new(length: u32, name: &'a str, realm: &'a mut Realm<'ctx, 'host>) -> Self {
+    pub fn new(length: u32, name: &'a str, realm: RealmIdentifier<'ctx, 'host>) -> Self {
         Self {
             length,
             name,
@@ -52,18 +52,22 @@ impl<'a, 'ctx: 'a, 'host: 'ctx> BuiltinFunctionArgs<'a, 'ctx, 'host> {
 /// 10.3.3 CreateBuiltinFunction ( behaviour, length, name, additionalInternalSlotsList [ , realm [ , prototype [ , prefix ] ] ] )
 /// https://tc39.es/ecma262/#sec-createbuiltinfunction
 pub fn create_builtin_function<'a, 'b: 'a>(
-    agent: &mut Agent,
+    agent: &mut Agent<'b, 'b>,
     behaviour: Behaviour,
     args: BuiltinFunctionArgs<'a, 'b, 'b>,
 ) -> Function {
-    let heap = &mut agent.heap;
     // 1. If realm is not present, set realm to the current Realm Record.
-    let realm = args.realm.unwrap(); // TODO: load record
+    let realm_id = args.realm.unwrap_or(agent.current_realm_id());
 
     // 2. If prototype is not present, set prototype to realm.[[Intrinsics]].[[%Function.prototype%]].
-    let prototype = args
-        .prototype
-        .unwrap_or_else(|| realm.intrinsics.function_prototype().into());
+    let prototype = args.prototype.unwrap_or_else(|| {
+        agent
+            .get_realm(realm_id)
+            .intrinsics
+            .function_prototype()
+            .into()
+    });
+    let heap = &mut agent.heap;
 
     // TODO: Steps 3-4
     // 3. Let internalSlotsList be a List containing the names of all the internal slots that 10.3
@@ -100,12 +104,12 @@ pub fn create_builtin_function<'a, 'b: 'a>(
 }
 
 pub fn define_builtin_function<'a, 'b>(
-    agent: &mut Agent,
+    agent: &mut Agent<'b, 'b>,
     object: Object,
     name: &'a str,
     behaviour: RegularFn,
     length: u32,
-    realm: &'a mut Realm<'b, 'b>,
+    realm: RealmIdentifier<'b, 'b>,
 ) -> JsResult<()> {
     let function = create_builtin_function(
         agent,

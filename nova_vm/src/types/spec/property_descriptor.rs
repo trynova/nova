@@ -68,8 +68,7 @@ impl PropertyDescriptor {
     /// 6.2.6.4 FromPropertyDescriptor ( Desc )
     /// https://tc39.es/ecma262/#sec-frompropertydescriptor
     pub fn from_property_descriptor(&self, agent: &mut Agent) -> JsResult<Object> {
-        let realm = agent.current_realm();
-        let realm = realm.borrow_mut();
+        let _realm = agent.current_realm();
 
         // 1. If Desc is undefined, return undefined.
 

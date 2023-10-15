@@ -43,11 +43,15 @@ use self::{
     string::{initialize_string_heap, StringHeapData},
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
-use crate::types::{Function, Number, Object, String, Value};
+use crate::{
+    execution::Environments,
+    types::{Function, Number, Object, String, Value},
+};
 use wtf8::{Wtf8, Wtf8Buf};
 
 #[derive(Debug)]
 pub struct Heap {
+    pub environments: Environments,
     /// ElementsArrays is where all element arrays live;
     /// Element arrays are static arrays of Values plus
     /// a HashMap of possible property descriptors.
@@ -165,6 +169,7 @@ impl CreateHeapData<ObjectHeapData, Object> for Heap {
 impl Heap {
     pub fn new() -> Heap {
         let mut heap = Heap {
+            environments: Default::default(),
             elements: ElementArrays {
                 e2pow4: ElementArray2Pow4::with_capacity(1024),
                 e2pow6: ElementArray2Pow6::with_capacity(1024),

@@ -1,5 +1,8 @@
 use crate::{
-    execution::{ECMAScriptCode, Environment, ExecutionContext, Realm, ScriptOrModule, RealmIdentifier},
+    execution::{
+        Agent, ECMAScriptCode, Environment, ExecutionContext, Realm, RealmIdentifier,
+        ScriptOrModule,
+    },
     types::Value,
 };
 use oxc_allocator::Allocator;
@@ -61,19 +64,13 @@ impl<'ctx, 'host: 'ctx> Script<'ctx, 'host> {
 
     /// 16.1.6 ScriptEvaluation ( scriptRecord )
     /// https://tc39.es/ecma262/#sec-runtime-semantics-scriptevaluation
-    pub fn evaluate(self) -> Value {
+    pub fn evaluate(self, agent: &mut Agent<'ctx, 'host>) -> Value {
         let ecmascript_code = self.ecmascript_code.clone();
-        let realm = self.realm.clone();
-        let agent = {
-            let realm = self.realm.borrow();
-            realm.agent.clone()
-        };
+        let realm_id = self.realm;
+        let realm = agent.get_realm_mut(realm_id);
 
         // 1. Let globalEnv be scriptRecord.[[Realm]].[[GlobalEnv]].
-        let global_env = {
-            let realm = self.realm.borrow();
-            realm.global_env.clone()
-        };
+        let global_env = realm.global_env;
 
         // 2. Let scriptContext be a new ECMAScript code execution context.
         let script_context = ExecutionContext {
@@ -81,7 +78,7 @@ impl<'ctx, 'host: 'ctx> Script<'ctx, 'host> {
             function: None,
 
             // 4. Set the Realm of scriptContext to scriptRecord.[[Realm]].
-            realm,
+            realm: realm_id,
 
             // 5. Set the ScriptOrModule of scriptContext to scriptRecord.
             script_or_module: Some(ScriptOrModule::Script(Rc::new(RefCell::new(self)))),
@@ -101,10 +98,7 @@ impl<'ctx, 'host: 'ctx> Script<'ctx, 'host> {
         // TODO: 9. Suspend the running execution context.
 
         // 10. Push scriptContext onto the execution context stack; scriptContext is now the running execution context.
-        agent
-            .borrow_mut()
-            .execution_context_stack
-            .push(script_context);
+        agent.execution_context_stack.push(script_context);
 
         // 11. Let script be scriptRecord.[[ECMAScriptCode]].
         let script = ecmascript_code.as_ref();
@@ -144,10 +138,10 @@ impl<'ctx, 'host: 'ctx> Script<'ctx, 'host> {
         //         i. Set result to NormalCompletion(undefined).
 
         // 14. Suspend scriptContext and remove it from the execution context stack.
-        _ = agent.borrow_mut().execution_context_stack.pop();
+        _ = agent.execution_context_stack.pop();
 
         // 15. Assert: The execution context stack is not empty.
-        debug_assert!(agent.borrow().execution_context_stack.len() > 0);
+        debug_assert!(agent.execution_context_stack.len() > 0);
 
         // TODO: 16. Resume the context that is now on the top of the execution context stack as the
         //     running execution context.

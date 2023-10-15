@@ -1,4 +1,4 @@
-use super::{Environment, PrivateEnvironment, RealmIdentifier, PrivateEnvironmentIndex};
+use super::{Environment, PrivateEnvironment, PrivateEnvironmentIndex, RealmIdentifier};
 use crate::{execution::Realm, language::Script, types::*};
 use std::{cell::RefCell, rc::Rc};
 

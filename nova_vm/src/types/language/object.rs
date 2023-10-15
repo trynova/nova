@@ -2,21 +2,15 @@ mod data;
 mod internal_methods;
 mod property_key;
 mod property_storage;
-
-use std::array;
-
 use super::{
-    value::{
-        ARRAY_DISCRIMINANT, DATE_DISCRIMINANT, ERROR_DISCRIMINANT, FUNCTION_DISCRIMINANT,
-        OBJECT_DISCRIMINANT, REGEXP_DISCRIMINANT,
-    },
+    value::{ARRAY_DISCRIMINANT, FUNCTION_DISCRIMINANT, OBJECT_DISCRIMINANT},
     Value,
 };
 use crate::{
     builtins::ordinary,
-    execution::{agent::ExceptionType, Agent, Intrinsics, JsResult},
+    execution::{agent::ExceptionType, Agent, JsResult},
     heap::{
-        indexes::{ArrayIndex, DateIndex, ErrorIndex, FunctionIndex, ObjectIndex, RegExpIndex},
+        indexes::{ArrayIndex, FunctionIndex, ObjectIndex},
         GetHeapData,
     },
     types::PropertyDescriptor,
@@ -125,7 +119,6 @@ impl Object {
     pub fn prototype(self, agent: &mut Agent) -> Option<Value> {
         let heap = &agent.heap;
         let realm = agent.current_realm();
-        let realm = realm.borrow();
 
         match self {
             Object::Object(object) => {

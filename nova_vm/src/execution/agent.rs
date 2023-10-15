@@ -39,8 +39,28 @@ pub struct Agent<'ctx, 'host> {
 }
 
 impl<'ctx, 'host> Agent<'ctx, 'host> {
-    pub fn current_realm(&self) -> RealmIdentifier<'ctx, 'host> {
+    pub fn current_realm_id(&self) -> RealmIdentifier<'ctx, 'host> {
         self.execution_context_stack.last().unwrap().realm
+    }
+
+    pub fn current_realm(&self) -> &Realm<'ctx, 'host> {
+        self.get_realm(self.current_realm_id())
+    }
+
+    pub fn current_realm_mut(&mut self) -> &mut Realm<'ctx, 'host> {
+        self.get_realm_mut(self.current_realm_id())
+    }
+
+    pub fn get_realm(&self, id: RealmIdentifier<'ctx, 'host>) -> &Realm<'ctx, 'host> {
+        self.realms
+            .get(id.into_index())
+            .expect("RealmIdentifier did not match a Realm")
+    }
+
+    pub fn get_realm_mut(&mut self, id: RealmIdentifier<'ctx, 'host>) -> &mut Realm<'ctx, 'host> {
+        self.realms
+            .get_mut(id.into_index())
+            .expect("RealmIdentifier did not match a Realm")
     }
 
     /// 5.2.3.2 Throw an Exception

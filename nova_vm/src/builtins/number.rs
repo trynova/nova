@@ -1,14 +1,11 @@
-use std::{borrow::BorrowMut, cell::RefCell, rc::Rc};
-
 use super::{
     builtin_function::{define_builtin_function, define_builtin_property},
-    create_builtin_function, ordinary, todo_builtin, ArgumentsList, Behaviour, Builtin,
-    BuiltinFunctionArgs,
+    create_builtin_function, todo_builtin, ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs,
 };
 use crate::{
-    execution::{Agent, Intrinsics, JsResult, Realm},
-    heap::{BuiltinObjectIndexes, CreateHeapData},
-    types::{Number, Object, PropertyDescriptor, PropertyKey, Value},
+    execution::{Agent, JsResult},
+    heap::CreateHeapData,
+    types::{Number, Object, PropertyDescriptor, Value},
     SmallInteger,
 };
 
@@ -16,18 +13,18 @@ pub struct NumberConstructor;
 
 impl Builtin for NumberConstructor {
     fn create<'a>(agent: &'a mut Agent<'a, 'a>) -> JsResult<Object> {
-        let mut realm = agent.current_realm();
-        let mut realm = RefCell::borrow_mut(&mut realm);
+        let realm_id = agent.current_realm_id();
 
-        let prototype = Some(realm.intrinsics.function_prototype());
+        let function_prototype = agent.current_realm().intrinsics.function_prototype();
+        let number_prototype = agent.current_realm().intrinsics.number_prototype();
         let object: Object = create_builtin_function(
             agent,
             Behaviour::Constructor(Self::behaviour),
             BuiltinFunctionArgs {
                 length: 1,
                 name: "Number",
-                realm: Some(&mut realm),
-                prototype,
+                realm: Some(realm_id),
+                prototype: Some(function_prototype),
                 ..Default::default()
             },
         )
@@ -145,11 +142,11 @@ impl Builtin for NumberConstructor {
             },
         )?;
 
-        define_builtin_function(agent, object, "isFinite", todo_builtin, 1, &mut realm)?;
-        define_builtin_function(agent, object, "isNaN", todo_builtin, 1, &mut realm)?;
-        define_builtin_function(agent, object, "isSafeInteger", todo_builtin, 1, &mut realm)?;
-        define_builtin_function(agent, object, "parseFloat", todo_builtin, 1, &mut realm)?;
-        define_builtin_function(agent, object, "parseInt", todo_builtin, 2, &mut realm)?;
+        define_builtin_function(agent, object, "isFinite", todo_builtin, 1, realm_id)?;
+        define_builtin_function(agent, object, "isNaN", todo_builtin, 1, realm_id)?;
+        define_builtin_function(agent, object, "isSafeInteger", todo_builtin, 1, realm_id)?;
+        define_builtin_function(agent, object, "parseFloat", todo_builtin, 1, realm_id)?;
+        define_builtin_function(agent, object, "parseInt", todo_builtin, 2, realm_id)?;
 
         // 21.1.2.15 Number.prototype
         // https://tc39.es/ecma262/#sec-number.prototype
@@ -157,7 +154,7 @@ impl Builtin for NumberConstructor {
             object,
             "prototype",
             PropertyDescriptor {
-                value: Some(realm.intrinsics.number_prototype().into()),
+                value: Some(number_prototype.into_value()),
                 writable: Some(false),
                 enumerable: Some(false),
                 configurable: Some(false),
@@ -168,7 +165,7 @@ impl Builtin for NumberConstructor {
         // 21.1.3.1 Number.prototype.constructor
         // https://tc39.es/ecma262/#sec-number.prototype.constructor
         define_builtin_property(
-            realm.intrinsics.number_prototype(),
+            number_prototype,
             "constructor",
             PropertyDescriptor {
                 value: Some(object.into_value()),

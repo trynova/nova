@@ -1,6 +1,6 @@
 use super::Environment;
 use crate::types::{String, Value};
-use std::{collections::HashMap, num::NonZeroU32, marker::PhantomData};
+use std::{collections::HashMap, marker::PhantomData, num::NonZeroU32};
 
 #[derive(Debug, Clone, Copy)]
 pub struct DeclarativeEnvironmentIndex(NonZeroU32, PhantomData<DeclarativeEnvironment>);
