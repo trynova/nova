@@ -51,10 +51,10 @@ impl<'ctx, 'host> Vm<'ctx, 'host> {
     }
 
     fn fetch_index(&mut self, executable: &Executable) -> IndexType {
-        let bytes: [u8; std::mem::size_of::<IndexType>()] = [
-            unsafe { std::mem::transmute(self.fetch_instruction(executable).unwrap()) },
-            unsafe { std::mem::transmute(self.fetch_instruction(executable).unwrap()) },
-        ];
-        unsafe { std::mem::transmute(bytes) }
+        let bytes = IndexType::from_ne_bytes([
+            self.fetch_instruction(executable).unwrap() as u8,
+            self.fetch_instruction(executable).unwrap() as u8,
+        ]);
+        bytes as IndexType
     }
 }

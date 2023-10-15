@@ -1,5 +1,5 @@
-use super::{Environment, PrivateEnvironment, PrivateEnvironmentIndex, RealmIdentifier};
-use crate::{execution::Realm, language::Script, types::*};
+use super::{Environment, PrivateEnvironmentIndex, RealmIdentifier};
+use crate::{language::Script, types::*};
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Debug)]

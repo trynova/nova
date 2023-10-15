@@ -1,6 +1,7 @@
 use super::IndexType;
 
 #[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 #[non_exhaustive]
 pub enum Instruction {
     /// Store ApplyStringOrNumericBinaryOperator() as the result value.

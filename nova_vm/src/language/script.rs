@@ -1,7 +1,6 @@
 use crate::{
     execution::{
-        Agent, ECMAScriptCode, Environment, ExecutionContext, Realm, RealmIdentifier,
-        ScriptOrModule,
+        Agent, ECMAScriptCode, Environment, ExecutionContext, RealmIdentifier, ScriptOrModule,
     },
     types::Value,
 };

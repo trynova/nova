@@ -1,12 +1,13 @@
 use super::Instruction;
 use crate::{types::Value, Heap};
 use oxc_span::Atom;
+use std::marker::PhantomData;
 
 pub type IndexType = u16;
 
 #[derive(Debug)]
 pub struct Executable<'ctx> {
-    pub heap: &'ctx mut Heap,
+    pub heap: PhantomData<&'ctx mut Heap>,
     pub instructions: Vec<Instruction>,
     pub constants: Vec<Value>,
     pub identifiers: Vec<Atom>,
@@ -40,7 +41,7 @@ impl<'ctx> Executable<'ctx> {
 
     pub fn add_index(&mut self, index: usize) {
         assert!(index < IndexType::MAX as usize);
-        let bytes: [u8; 2] = unsafe { std::mem::transmute(index as IndexType) };
+        let bytes: [u8; 2] = (index as IndexType).to_ne_bytes();
         self.instructions[index] = unsafe { std::mem::transmute(bytes[0]) };
         self.instructions[index + 1] = unsafe { std::mem::transmute(bytes[0]) };
     }
@@ -54,7 +55,7 @@ impl<'ctx> Executable<'ctx> {
 
     pub fn set_jump_target(&mut self, jump: JumpIndex, index: usize) {
         assert!(index < IndexType::MAX as usize);
-        let bytes: [u8; 2] = unsafe { std::mem::transmute(index as IndexType) };
+        let bytes: [u8; 2] = (index as IndexType).to_ne_bytes();
         self.instructions[jump.index] = unsafe { std::mem::transmute(bytes[0]) };
         self.instructions[jump.index + 1] = unsafe { std::mem::transmute(bytes[0]) };
     }
