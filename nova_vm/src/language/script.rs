@@ -1,6 +1,6 @@
 use crate::{
     execution::{
-        Agent, ECMAScriptCode, Environment, ExecutionContext, RealmIdentifier, ScriptOrModule,
+        Agent, ECMAScriptCode, EnvironmentIndex, ExecutionContext, RealmIdentifier, ScriptOrModule,
     },
     types::Value,
 };
@@ -84,10 +84,10 @@ impl<'ctx, 'host: 'ctx> Script<'ctx, 'host> {
 
             ecmascript_code: Some(ECMAScriptCode {
                 // 6. Set the VariableEnvironment of scriptContext to globalEnv.
-                variable_environment: Environment::GlobalEnvironment(global_env.clone()),
+                variable_environment: EnvironmentIndex::GlobalEnvironment(global_env.clone()),
 
                 // 7. Set the LexicalEnvironment of scriptContext to globalEnv.
-                lexical_environment: Environment::GlobalEnvironment(global_env.clone()),
+                lexical_environment: EnvironmentIndex::GlobalEnvironment(global_env.clone()),
 
                 // 8. Set the PrivateEnvironment of scriptContext to null.
                 private_environment: None,

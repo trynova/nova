@@ -1,4 +1,4 @@
-use super::Environment;
+use super::EnvironmentIndex;
 use crate::types::{String, Value};
 use std::{collections::HashMap, marker::PhantomData, num::NonZeroU32};
 
@@ -22,7 +22,7 @@ impl DeclarativeEnvironmentIndex {
 /// https://tc39.es/ecma262/#sec-declarative-environment-records
 #[derive(Debug)]
 pub struct DeclarativeEnvironment {
-    pub outer_env: Option<Environment>,
+    pub outer_env: Option<EnvironmentIndex>,
     pub bindings: HashMap<String, Binding>,
 }
 

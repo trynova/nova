@@ -1,5 +1,5 @@
 use crate::{
-    execution::Environment,
+    execution::EnvironmentIndex,
     types::{Symbol, Value},
 };
 use oxc_span::Atom;
@@ -53,7 +53,7 @@ impl Reference {
 #[derive(Debug)]
 pub enum Base {
     Value(Value),
-    Environment(Environment),
+    Environment(EnvironmentIndex),
     Unresolvable,
 }
 

@@ -4,7 +4,7 @@ use oxc_ast::ast::{FormalParameters, FunctionBody};
 
 use crate::{
     execution::{
-        Agent, Environment, JsResult, PrivateEnvironmentIndex, RealmIdentifier, ScriptOrModule,
+        Agent, EnvironmentIndex, JsResult, PrivateEnvironmentIndex, RealmIdentifier, ScriptOrModule,
     },
     types::{Number, Object, PropertyDescriptor, PropertyKey, Value},
 };
@@ -27,7 +27,7 @@ pub enum ThisMode {
 #[derive(Debug, Clone)]
 pub struct ECMAScriptFunction<'ctx, 'host> {
     /// [[Environment]]
-    pub environment: Environment,
+    pub environment: EnvironmentIndex,
 
     /// [[PrivateEnvironment]]
     pub private_environment: Option<PrivateEnvironmentIndex>,

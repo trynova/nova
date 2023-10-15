@@ -17,7 +17,7 @@ pub use private_environment::{PrivateEnvironment, PrivateEnvironmentIndex};
 /// https://tc39.es/ecma262/#sec-the-environment-record-type-hierarchy
 #[derive(Debug, Clone)]
 #[repr(u8)]
-pub enum Environment {
+pub enum EnvironmentIndex {
     // Leave 0 for None option
     DeclarativeEnvironment(DeclarativeEnvironmentIndex) = 1,
     FunctionEnvironment(FunctionEnvironmentIndex),

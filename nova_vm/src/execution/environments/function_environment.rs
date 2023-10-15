@@ -1,6 +1,6 @@
 use std::{collections::HashMap, marker::PhantomData, num::NonZeroU32};
 
-use super::{declarative_environment::Binding, Environment};
+use super::{declarative_environment::Binding, EnvironmentIndex};
 use crate::{
     heap::indexes::FunctionIndex,
     types::{Object, String, Value},
@@ -53,7 +53,7 @@ pub struct FunctionEnvironment {
     new_target: Option<Object>,
 
     /// [[OuterEnv]]
-    outer_env: Option<Environment>,
+    outer_env: Option<EnvironmentIndex>,
 
     /// Per https://tc39.es/ecma262/#sec-the-environment-record-type-hierarchy:
     /// > A _Function Environment Record_ is a _Declarative Environment Record_ [...]

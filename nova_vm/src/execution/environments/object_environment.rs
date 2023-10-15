@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, num::NonZeroU32};
 
-use super::Environment;
+use super::EnvironmentIndex;
 use crate::types::Object;
 
 #[derive(Debug, Clone, Copy)]
@@ -30,5 +30,5 @@ pub struct ObjectEnvironment {
     is_with_environment: bool,
 
     /// [[OuterEnv]]
-    outer_env: Option<Environment>,
+    outer_env: Option<EnvironmentIndex>,
 }

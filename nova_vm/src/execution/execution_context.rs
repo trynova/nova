@@ -1,4 +1,4 @@
-use super::{Environment, PrivateEnvironmentIndex, RealmIdentifier};
+use super::{EnvironmentIndex, PrivateEnvironmentIndex, RealmIdentifier};
 use crate::{language::Script, types::*};
 use std::{cell::RefCell, rc::Rc};
 
@@ -14,10 +14,10 @@ pub enum ScriptOrModule<'ctx, 'host> {
 #[derive(Debug)]
 pub struct ECMAScriptCode {
     /// LexicalEnvironment
-    pub lexical_environment: Environment,
+    pub lexical_environment: EnvironmentIndex,
 
     /// VariableEnvironment
-    pub variable_environment: Environment,
+    pub variable_environment: EnvironmentIndex,
 
     /// PrivateEnvironment
     pub private_environment: Option<PrivateEnvironmentIndex>,
