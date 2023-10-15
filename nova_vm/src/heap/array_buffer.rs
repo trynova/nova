@@ -139,7 +139,7 @@ impl BackingStore {
         }
     }
 
-    fn as_mut_ptr(&mut self, byte_offset: u32) -> Option<*mut u8> {
+    fn as_mut_ptr(&self, byte_offset: u32) -> Option<*mut u8> {
         if byte_offset >= self.byte_length {
             None
         } else if let Some(data) = self.ptr {
@@ -177,16 +177,24 @@ impl BackingStore {
         }
     }
 
-    pub fn set_from<T: Viewable>(&mut self, src: &BackingStore, offset: u32) {
-        debug_assert!(self.view_len::<T>(offset) >= src.view_len::<T>(0));
-        let byte_length = src.len();
+    pub fn set_from<T: Viewable>(
+        &self,
+        dst_offset: u32,
+        src: &BackingStore,
+        src_offset: u32,
+        count: u32,
+    ) {
+        let size = std::mem::size_of::<T>() as u32;
+        let byte_length = count * size;
         if byte_length == 0 {
             return;
         }
-        let size = std::mem::size_of::<T>() as u32;
-        let byte_offset = offset * size;
-        let src_ptr = src.as_ptr(0);
-        let dst_ptr = self.as_mut_ptr(byte_offset);
+        let dst_byte_offset = dst_offset * size;
+        let src_byte_offset = src_offset * size;
+        debug_assert!(dst_byte_offset + byte_length <= self.byte_length);
+        debug_assert!(src_byte_offset + byte_length <= src.byte_length);
+        let src_ptr = src.as_ptr(src_byte_offset);
+        let dst_ptr = self.as_mut_ptr(dst_byte_offset);
         if let (Some(src), Some(dst)) = (src_ptr, dst_ptr) {
             // SAFETY: Source buffer length is valid, destination buffer
             // is likewise at least equal in length to source, and both
@@ -357,4 +365,29 @@ fn backing_store_resize() {
             assert_eq!(ptr.add(i).read(), 0);
         }
     }
+}
+
+#[test]
+fn backing_store_set_from() {
+    let mut bs = BackingStore::new(8);
+    for i in 0..8 {
+        bs.set::<u8>(i as u32, i + 1);
+    }
+    assert_eq!(bs.get::<u8>(0), Some(1));
+    assert_eq!(bs.get::<u8>(1), Some(2));
+    assert_eq!(bs.get::<u8>(2), Some(3));
+    assert_eq!(bs.get::<u8>(3), Some(4));
+    assert_eq!(bs.get::<u8>(4), Some(5));
+    assert_eq!(bs.get::<u8>(5), Some(6));
+    assert_eq!(bs.get::<u8>(6), Some(7));
+    assert_eq!(bs.get::<u8>(7), Some(8));
+    bs.set_from::<u8>(0, &bs, 4, 4);
+    assert_eq!(bs.get::<u8>(0), Some(5));
+    assert_eq!(bs.get::<u8>(1), Some(6));
+    assert_eq!(bs.get::<u8>(2), Some(7));
+    assert_eq!(bs.get::<u8>(3), Some(8));
+    assert_eq!(bs.get::<u8>(4), Some(5));
+    assert_eq!(bs.get::<u8>(5), Some(6));
+    assert_eq!(bs.get::<u8>(6), Some(7));
+    assert_eq!(bs.get::<u8>(7), Some(8));
 }
