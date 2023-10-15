@@ -139,7 +139,7 @@ impl BackingStore {
         }
     }
 
-    fn as_mut_ptr(&self, byte_offset: u32) -> Option<*mut u8> {
+    fn as_mut_ptr(&mut self, byte_offset: u32) -> Option<*mut u8> {
         if byte_offset >= self.byte_length {
             None
         } else if let Some(data) = self.ptr {
@@ -178,7 +178,7 @@ impl BackingStore {
     }
 
     pub fn set_from<T: Viewable>(
-        &self,
+        &mut self,
         dst_offset: u32,
         src: &BackingStore,
         src_offset: u32,
@@ -199,7 +199,27 @@ impl BackingStore {
             // SAFETY: Source buffer length is valid, destination buffer
             // is likewise at least equal in length to source, and both
             // are properly aligned for bytes.
-            unsafe { std::ptr::copy::<u8>(src, dst, byte_length as usize) }
+            unsafe { dst.copy_from_nonoverlapping(src, byte_length as usize) }
+        }
+    }
+
+    pub fn copy_within<T: Viewable>(&mut self, dst_offset: u32, src_offset: u32, count: u32) {
+        let size = std::mem::size_of::<T>() as u32;
+        let byte_length = count * size;
+        if byte_length == 0 {
+            return;
+        }
+        let dst_byte_offset = dst_offset * size;
+        let src_byte_offset = src_offset * size;
+        debug_assert!(dst_byte_offset + byte_length <= self.byte_length);
+        debug_assert!(src_byte_offset + byte_length <= self.byte_length);
+        if let Some(ptr) = self.as_mut_ptr(0) {
+            // SAFETY: Buffer is valid for reads and writes of u8 for the whole length.
+            let slice = unsafe { std::slice::from_raw_parts_mut(ptr, self.byte_length as usize) };
+            slice.copy_within(
+                (src_byte_offset as usize)..(src_byte_offset + byte_length) as usize,
+                dst_byte_offset as usize,
+            );
         }
     }
 }
@@ -370,6 +390,47 @@ fn backing_store_resize() {
 #[test]
 fn backing_store_set_from() {
     let mut bs = BackingStore::new(8);
+    let mut bs2 = BackingStore::new(8);
+    for i in 0..8 {
+        assert_eq!(bs.get::<u8>(0), Some(0));
+        bs2.set::<u8>(i as u32, i + 1);
+    }
+    assert_eq!(bs2.get::<u8>(0), Some(1));
+    assert_eq!(bs2.get::<u8>(1), Some(2));
+    assert_eq!(bs2.get::<u8>(2), Some(3));
+    assert_eq!(bs2.get::<u8>(3), Some(4));
+    assert_eq!(bs2.get::<u8>(4), Some(5));
+    assert_eq!(bs2.get::<u8>(5), Some(6));
+    assert_eq!(bs2.get::<u8>(6), Some(7));
+    assert_eq!(bs2.get::<u8>(7), Some(8));
+    bs.set_from::<u8>(0, &bs2, 4, 4);
+    assert_eq!(bs.get::<u8>(0), Some(5));
+    assert_eq!(bs.get::<u8>(1), Some(6));
+    assert_eq!(bs.get::<u8>(2), Some(7));
+    assert_eq!(bs.get::<u8>(3), Some(8));
+    assert_eq!(bs.get::<u8>(4), Some(0));
+    assert_eq!(bs.get::<u8>(5), Some(0));
+    assert_eq!(bs.get::<u8>(6), Some(0));
+    assert_eq!(bs.get::<u8>(7), Some(0));
+
+    // Reset
+    for i in 0..8 {
+        bs.set::<u8>(i as u32, i + 1);
+    }
+    bs.copy_within::<u8>(2, 4, 4);
+    assert_eq!(bs.get::<u8>(0), Some(1));
+    assert_eq!(bs.get::<u8>(1), Some(2));
+    assert_eq!(bs.get::<u8>(2), Some(5));
+    assert_eq!(bs.get::<u8>(3), Some(6));
+    assert_eq!(bs.get::<u8>(4), Some(7));
+    assert_eq!(bs.get::<u8>(5), Some(8));
+    assert_eq!(bs.get::<u8>(6), Some(7));
+    assert_eq!(bs.get::<u8>(7), Some(8));
+}
+
+#[test]
+fn backing_store_copy_within() {
+    let mut bs = BackingStore::new(8);
     for i in 0..8 {
         bs.set::<u8>(i as u32, i + 1);
     }
@@ -381,13 +442,27 @@ fn backing_store_set_from() {
     assert_eq!(bs.get::<u8>(5), Some(6));
     assert_eq!(bs.get::<u8>(6), Some(7));
     assert_eq!(bs.get::<u8>(7), Some(8));
-    bs.set_from::<u8>(0, &bs, 4, 4);
+    bs.copy_within::<u8>(0, 4, 4);
     assert_eq!(bs.get::<u8>(0), Some(5));
     assert_eq!(bs.get::<u8>(1), Some(6));
     assert_eq!(bs.get::<u8>(2), Some(7));
     assert_eq!(bs.get::<u8>(3), Some(8));
     assert_eq!(bs.get::<u8>(4), Some(5));
     assert_eq!(bs.get::<u8>(5), Some(6));
+    assert_eq!(bs.get::<u8>(6), Some(7));
+    assert_eq!(bs.get::<u8>(7), Some(8));
+
+    // Reset
+    for i in 0..8 {
+        bs.set::<u8>(i as u32, i + 1);
+    }
+    bs.copy_within::<u8>(2, 4, 4);
+    assert_eq!(bs.get::<u8>(0), Some(1));
+    assert_eq!(bs.get::<u8>(1), Some(2));
+    assert_eq!(bs.get::<u8>(2), Some(5));
+    assert_eq!(bs.get::<u8>(3), Some(6));
+    assert_eq!(bs.get::<u8>(4), Some(7));
+    assert_eq!(bs.get::<u8>(5), Some(8));
     assert_eq!(bs.get::<u8>(6), Some(7));
     assert_eq!(bs.get::<u8>(7), Some(8));
 }
