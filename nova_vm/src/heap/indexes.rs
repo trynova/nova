@@ -1,4 +1,5 @@
-use crate::value::Value;
+use crate::types::Value;
+use crate::Heap;
 
 use super::{
     array::ArrayHeapData, bigint::BigIntHeapData, date::DateHeapData, error::ErrorHeapData,
@@ -15,7 +16,7 @@ use std::{marker::PhantomData, mem::size_of, num::NonZeroU32};
 ///
 /// This index implies a tracing reference count from this
 /// struct to T at the given index.
-pub(crate) struct BaseIndex<T: ?Sized>(NonZeroU32, PhantomData<T>);
+pub struct BaseIndex<T: ?Sized>(NonZeroU32, PhantomData<T>);
 
 const _INDEX_SIZE_IS_U32: () = assert!(size_of::<BaseIndex<()>>() == size_of::<u32>());
 const _OPTION_INDEX_SIZE_IS_U32: () =
@@ -95,7 +96,6 @@ impl<T: ?Sized> BaseIndex<T> {
     }
 
     pub const fn from_u32_index(value: u32) -> Self {
-        let value = value as u32;
         assert!(value != u32::MAX);
         // SAFETY: Number is not max value and will not overflow to zero.
         // This check is done manually to allow const context.
@@ -114,7 +114,6 @@ impl<T: ?Sized> BaseIndex<T> {
     }
 
     pub const fn from_u32(value: u32) -> Self {
-        let value = value as u32;
         assert!(value != 0);
         // SAFETY: Number is not zero.
         // This check is done manually to allow const context.
@@ -127,14 +126,24 @@ impl<T: ?Sized> BaseIndex<T> {
     }
 }
 
-pub(crate) type ArrayIndex = BaseIndex<ArrayHeapData>;
-pub(crate) type BigIntIndex = BaseIndex<BigIntHeapData>;
-pub(crate) type DateIndex = BaseIndex<DateHeapData>;
-pub(crate) type ErrorIndex = BaseIndex<ErrorHeapData>;
-pub(crate) type FunctionIndex = BaseIndex<FunctionHeapData>;
-pub(crate) type NumberIndex = BaseIndex<NumberHeapData>;
-pub(crate) type ObjectIndex = BaseIndex<ObjectHeapData>;
-pub(crate) type RegExpIndex = BaseIndex<RegExpHeapData>;
-pub(crate) type StringIndex = BaseIndex<StringHeapData>;
-pub(crate) type SymbolIndex = BaseIndex<SymbolHeapData>;
-pub(crate) type ElementIndex = BaseIndex<[Option<Value>]>;
+pub type ArrayIndex = BaseIndex<ArrayHeapData>;
+pub type BigIntIndex = BaseIndex<BigIntHeapData>;
+pub type DateIndex = BaseIndex<DateHeapData>;
+pub type ErrorIndex = BaseIndex<ErrorHeapData>;
+pub type FunctionIndex = BaseIndex<FunctionHeapData>;
+pub type NumberIndex = BaseIndex<NumberHeapData>;
+pub type ObjectIndex = BaseIndex<ObjectHeapData>;
+pub type RegExpIndex = BaseIndex<RegExpHeapData>;
+pub type StringIndex = BaseIndex<StringHeapData>;
+pub type SymbolIndex = BaseIndex<SymbolHeapData>;
+pub type ElementIndex = BaseIndex<[Option<Value>]>;
+
+impl ObjectIndex {
+    pub fn get<'a>(self, heap: &'a Heap) -> &'a ObjectHeapData {
+        heap.objects
+            .get(self.into_index())
+            .unwrap()
+            .as_ref()
+            .unwrap()
+    }
+}

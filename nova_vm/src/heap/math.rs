@@ -1,4 +1,4 @@
-use crate::value::{JsResult, Value};
+use crate::{execution::JsResult, types::Value};
 
 use super::{
     heap_constants::WellKnownSymbolIndexes,
@@ -15,41 +15,41 @@ pub(super) fn initialize_math_object(heap: &mut Heap) {
     let pi = Value::from_f64(heap, std::f64::consts::PI);
     let sqrt1_2 = Value::from_f64(heap, std::f64::consts::FRAC_1_SQRT_2);
     let sqrt2 = Value::from_f64(heap, std::f64::consts::SQRT_2);
-    let abs = ObjectEntry::new_prototype_function_entry(heap, "abs", 1, false, math_todo);
-    let acos = ObjectEntry::new_prototype_function_entry(heap, "acos", 1, false, math_todo);
-    let acosh = ObjectEntry::new_prototype_function_entry(heap, "acosh", 1, false, math_todo);
-    let asin = ObjectEntry::new_prototype_function_entry(heap, "asin", 1, false, math_todo);
-    let asinh = ObjectEntry::new_prototype_function_entry(heap, "asinh", 1, false, math_todo);
-    let atan = ObjectEntry::new_prototype_function_entry(heap, "atan", 1, false, math_todo);
-    let atanh = ObjectEntry::new_prototype_function_entry(heap, "atanh", 1, false, math_todo);
-    let atan2 = ObjectEntry::new_prototype_function_entry(heap, "atan2", 2, false, math_todo);
-    let cbrt = ObjectEntry::new_prototype_function_entry(heap, "cbrt", 1, false, math_todo);
-    let ceil = ObjectEntry::new_prototype_function_entry(heap, "ceil", 1, false, math_todo);
-    let clz32 = ObjectEntry::new_prototype_function_entry(heap, "clz32", 1, false, math_todo);
-    let cos = ObjectEntry::new_prototype_function_entry(heap, "cos", 1, false, math_todo);
-    let cosh = ObjectEntry::new_prototype_function_entry(heap, "cosh", 1, false, math_todo);
-    let exp = ObjectEntry::new_prototype_function_entry(heap, "exp", 1, false, math_todo);
-    let expm1 = ObjectEntry::new_prototype_function_entry(heap, "expm1", 1, false, math_todo);
-    let floor = ObjectEntry::new_prototype_function_entry(heap, "floor", 1, false, math_todo);
-    let fround = ObjectEntry::new_prototype_function_entry(heap, "fround", 1, false, math_todo);
-    let hypot = ObjectEntry::new_prototype_function_entry(heap, "hypot", 2, true, math_todo);
-    let imul = ObjectEntry::new_prototype_function_entry(heap, "imul", 2, false, math_todo);
-    let log = ObjectEntry::new_prototype_function_entry(heap, "log", 1, false, math_todo);
-    let log1p = ObjectEntry::new_prototype_function_entry(heap, "log1p", 1, false, math_todo);
-    let log10 = ObjectEntry::new_prototype_function_entry(heap, "log10", 1, false, math_todo);
-    let log2 = ObjectEntry::new_prototype_function_entry(heap, "log2", 1, false, math_todo);
-    let max = ObjectEntry::new_prototype_function_entry(heap, "max", 2, true, math_todo);
-    let min = ObjectEntry::new_prototype_function_entry(heap, "min", 2, true, math_todo);
-    let pow = ObjectEntry::new_prototype_function_entry(heap, "pow", 2, false, math_todo);
-    let random = ObjectEntry::new_prototype_function_entry(heap, "random", 0, false, math_todo);
-    let round = ObjectEntry::new_prototype_function_entry(heap, "round", 1, false, math_todo);
-    let sign = ObjectEntry::new_prototype_function_entry(heap, "sign", 1, false, math_todo);
-    let sin = ObjectEntry::new_prototype_function_entry(heap, "sin", 1, false, math_todo);
-    let sinh = ObjectEntry::new_prototype_function_entry(heap, "sinh", 1, false, math_todo);
-    let sqrt = ObjectEntry::new_prototype_function_entry(heap, "sqrt", 1, false, math_todo);
-    let tan = ObjectEntry::new_prototype_function_entry(heap, "tan", 1, false, math_todo);
-    let tanh = ObjectEntry::new_prototype_function_entry(heap, "tanh", 1, false, math_todo);
-    let trunc = ObjectEntry::new_prototype_function_entry(heap, "trunc", 1, false, math_todo);
+    let abs = ObjectEntry::new_prototype_function_entry(heap, "abs", 1, false);
+    let acos = ObjectEntry::new_prototype_function_entry(heap, "acos", 1, false);
+    let acosh = ObjectEntry::new_prototype_function_entry(heap, "acosh", 1, false);
+    let asin = ObjectEntry::new_prototype_function_entry(heap, "asin", 1, false);
+    let asinh = ObjectEntry::new_prototype_function_entry(heap, "asinh", 1, false);
+    let atan = ObjectEntry::new_prototype_function_entry(heap, "atan", 1, false);
+    let atanh = ObjectEntry::new_prototype_function_entry(heap, "atanh", 1, false);
+    let atan2 = ObjectEntry::new_prototype_function_entry(heap, "atan2", 2, false);
+    let cbrt = ObjectEntry::new_prototype_function_entry(heap, "cbrt", 1, false);
+    let ceil = ObjectEntry::new_prototype_function_entry(heap, "ceil", 1, false);
+    let clz32 = ObjectEntry::new_prototype_function_entry(heap, "clz32", 1, false);
+    let cos = ObjectEntry::new_prototype_function_entry(heap, "cos", 1, false);
+    let cosh = ObjectEntry::new_prototype_function_entry(heap, "cosh", 1, false);
+    let exp = ObjectEntry::new_prototype_function_entry(heap, "exp", 1, false);
+    let expm1 = ObjectEntry::new_prototype_function_entry(heap, "expm1", 1, false);
+    let floor = ObjectEntry::new_prototype_function_entry(heap, "floor", 1, false);
+    let fround = ObjectEntry::new_prototype_function_entry(heap, "fround", 1, false);
+    let hypot = ObjectEntry::new_prototype_function_entry(heap, "hypot", 2, true);
+    let imul = ObjectEntry::new_prototype_function_entry(heap, "imul", 2, false);
+    let log = ObjectEntry::new_prototype_function_entry(heap, "log", 1, false);
+    let log1p = ObjectEntry::new_prototype_function_entry(heap, "log1p", 1, false);
+    let log10 = ObjectEntry::new_prototype_function_entry(heap, "log10", 1, false);
+    let log2 = ObjectEntry::new_prototype_function_entry(heap, "log2", 1, false);
+    let max = ObjectEntry::new_prototype_function_entry(heap, "max", 2, true);
+    let min = ObjectEntry::new_prototype_function_entry(heap, "min", 2, true);
+    let pow = ObjectEntry::new_prototype_function_entry(heap, "pow", 2, false);
+    let random = ObjectEntry::new_prototype_function_entry(heap, "random", 0, false);
+    let round = ObjectEntry::new_prototype_function_entry(heap, "round", 1, false);
+    let sign = ObjectEntry::new_prototype_function_entry(heap, "sign", 1, false);
+    let sin = ObjectEntry::new_prototype_function_entry(heap, "sin", 1, false);
+    let sinh = ObjectEntry::new_prototype_function_entry(heap, "sinh", 1, false);
+    let sqrt = ObjectEntry::new_prototype_function_entry(heap, "sqrt", 1, false);
+    let tan = ObjectEntry::new_prototype_function_entry(heap, "tan", 1, false);
+    let tanh = ObjectEntry::new_prototype_function_entry(heap, "tanh", 1, false);
+    let trunc = ObjectEntry::new_prototype_function_entry(heap, "trunc", 1, false);
     let entries = vec![
         ObjectEntry::new_frozen_entry(heap, "E", e),
         ObjectEntry::new_frozen_entry(heap, "LN10", ln10),
@@ -61,7 +61,7 @@ pub(super) fn initialize_math_object(heap: &mut Heap) {
         ObjectEntry::new_frozen_entry(heap, "SQRT2", sqrt2),
         ObjectEntry::new(
             PropertyKey::Symbol(WellKnownSymbolIndexes::ToStringTag.into()),
-            PropertyDescriptor::roxh(Value::new_string(heap, "Math")),
+            PropertyDescriptor::roxh(Value::from_str(heap, "Math")),
         ),
         abs,
         acos,

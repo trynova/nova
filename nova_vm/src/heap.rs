@@ -2,19 +2,21 @@ mod array;
 mod bigint;
 mod boolean;
 mod date;
-mod element_array;
+pub mod element_array;
 mod error;
 mod function;
 mod heap_bits;
 mod heap_constants;
 mod heap_gc;
-pub(crate) mod indexes;
+pub mod indexes;
 mod math;
 mod number;
 mod object;
 mod regexp;
 mod string;
 mod symbol;
+
+pub use self::heap_constants::BuiltinObjectIndexes;
 
 use self::{
     array::{initialize_array_heap, ArrayHeapData},
@@ -27,12 +29,11 @@ use self::{
         ElementsVector,
     },
     error::{initialize_error_heap, ErrorHeapData},
-    function::{initialize_function_heap, FunctionHeapData, JsBindingFunction},
+    function::{initialize_function_heap, FunctionHeapData},
     heap_constants::{
-        BuiltinObjectIndexes, FIRST_CONSTRUCTOR_INDEX, LAST_BUILTIN_OBJECT_INDEX,
-        LAST_WELL_KNOWN_SYMBOL_INDEX,
+        FIRST_CONSTRUCTOR_INDEX, LAST_BUILTIN_OBJECT_INDEX, LAST_WELL_KNOWN_SYMBOL_INDEX,
     },
-    indexes::{FunctionIndex, NumberIndex, ObjectIndex, StringIndex},
+    indexes::{BaseIndex, FunctionIndex, NumberIndex, ObjectIndex, StringIndex},
     math::initialize_math_object,
     number::{initialize_number_heap, NumberHeapData},
     object::{
@@ -42,31 +43,133 @@ use self::{
     string::{initialize_string_heap, StringHeapData},
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
-use crate::value::Value;
-use wtf8::Wtf8;
+use crate::{
+    execution::Environments,
+    types::{Function, Number, Object, String, Value},
+};
+use wtf8::{Wtf8, Wtf8Buf};
 
 #[derive(Debug)]
 pub struct Heap {
+    pub environments: Environments,
     /// ElementsArrays is where all element arrays live;
     /// Element arrays are static arrays of Values plus
     /// a HashMap of possible property descriptors.
-    pub(crate) elements: ElementArrays,
-    pub(crate) arrays: Vec<Option<ArrayHeapData>>,
-    pub(crate) bigints: Vec<Option<BigIntHeapData>>,
-    pub(crate) errors: Vec<Option<ErrorHeapData>>,
-    pub(crate) functions: Vec<Option<FunctionHeapData>>,
-    pub(crate) dates: Vec<Option<DateHeapData>>,
-    pub(crate) globals: Vec<Value>,
-    pub(crate) numbers: Vec<Option<NumberHeapData>>,
-    pub(crate) objects: Vec<Option<ObjectHeapData>>,
-    pub(crate) regexps: Vec<Option<RegExpHeapData>>,
-    pub(crate) strings: Vec<Option<StringHeapData>>,
-    pub(crate) symbols: Vec<Option<SymbolHeapData>>,
+    pub elements: ElementArrays,
+    pub arrays: Vec<Option<ArrayHeapData>>,
+    pub bigints: Vec<Option<BigIntHeapData>>,
+    pub errors: Vec<Option<ErrorHeapData>>,
+    pub functions: Vec<Option<FunctionHeapData>>,
+    pub dates: Vec<Option<DateHeapData>>,
+    pub globals: Vec<Value>,
+    pub numbers: Vec<Option<NumberHeapData>>,
+    pub objects: Vec<Option<ObjectHeapData>>,
+    pub regexps: Vec<Option<RegExpHeapData>>,
+    pub strings: Vec<Option<StringHeapData>>,
+    pub symbols: Vec<Option<SymbolHeapData>>,
+}
+
+pub trait CreateHeapData<T, F> {
+    /// Creates a [`Value`] from the given data. Allocating the data is **not**
+    /// guaranteed.
+    fn create(&mut self, data: T) -> F;
+}
+
+pub trait GetHeapData<'a, T, F: 'a> {
+    fn get(&'a self, id: BaseIndex<T>) -> &'a F;
+    fn get_mut(&'a mut self, id: BaseIndex<T>) -> &'a mut F;
+}
+
+impl CreateHeapData<f64, Number> for Heap {
+    fn create(&mut self, data: f64) -> Number {
+        if let Ok(value) = Value::try_from(data) {
+            Number::new(value)
+        } else if data as f32 as f64 == data {
+            Number::new(Value::Float(data as f32))
+        } else {
+            let id = self.alloc_number(data);
+            Value::Number(id).try_into().unwrap()
+        }
+    }
+}
+
+macro_rules! impl_heap_data {
+    ($table: ident, $in: ty, $out: ty) => {
+        impl<'a> GetHeapData<'a, $in, $out> for Heap {
+            fn get(&'a self, id: BaseIndex<$in>) -> &'a $out {
+                self.$table.get(id.into_index()).unwrap().as_ref().unwrap()
+            }
+
+            fn get_mut(&'a mut self, id: BaseIndex<$in>) -> &'a mut $out {
+                self.$table
+                    .get_mut(id.into_index())
+                    .unwrap()
+                    .as_mut()
+                    .unwrap()
+            }
+        }
+    };
+    ($table: ident, $in: ty, $out: ty, $accessor: ident) => {
+        impl<'a> GetHeapData<'a, $in, $out> for Heap {
+            fn get(&'a self, id: BaseIndex<$in>) -> &'a $out {
+                &self
+                    .$table
+                    .get(id.into_index())
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .$accessor
+            }
+
+            fn get_mut(&'a mut self, id: BaseIndex<$in>) -> &'a mut $out {
+                &mut self
+                    .$table
+                    .get_mut(id.into_index())
+                    .unwrap()
+                    .as_mut()
+                    .unwrap()
+                    .$accessor
+            }
+        }
+    };
+}
+
+impl_heap_data!(numbers, NumberHeapData, f64, data);
+impl_heap_data!(objects, ObjectHeapData, ObjectHeapData);
+impl_heap_data!(strings, StringHeapData, Wtf8Buf, data);
+impl_heap_data!(functions, FunctionHeapData, FunctionHeapData);
+impl_heap_data!(arrays, ArrayHeapData, ArrayHeapData);
+
+impl CreateHeapData<&str, String> for Heap {
+    fn create(&mut self, data: &str) -> String {
+        if let Ok(value) = String::try_from(data) {
+            value
+        } else {
+            let id = self.alloc_string(data);
+            Value::String(id).try_into().unwrap()
+        }
+    }
+}
+
+impl CreateHeapData<FunctionHeapData, Function> for Heap {
+    fn create(&mut self, data: FunctionHeapData) -> Function {
+        self.functions.push(Some(data));
+        Function(FunctionIndex::last(&self.functions))
+    }
+}
+
+impl CreateHeapData<ObjectHeapData, Object> for Heap {
+    fn create(&mut self, data: ObjectHeapData) -> Object {
+        self.objects.push(Some(data));
+        Object::Object(ObjectIndex::last(&self.objects))
+    }
 }
 
 impl Heap {
     pub fn new() -> Heap {
         let mut heap = Heap {
+            environments: Default::default(),
             elements: ElementArrays {
                 e2pow4: ElementArray2Pow4::with_capacity(1024),
                 e2pow6: ElementArray2Pow6::with_capacity(1024),
@@ -100,46 +203,23 @@ impl Heap {
                 heap.functions.push(None);
             }
         }
-        initialize_object_heap(&mut heap);
-        initialize_function_heap(&mut heap);
-        initialize_boolean_heap(&mut heap);
-        initialize_symbol_heap(&mut heap);
-        initialize_error_heap(&mut heap);
-        initialize_number_heap(&mut heap);
-        initialize_bigint_heap(&mut heap);
-        initialize_math_object(&mut heap);
-        initialize_date_heap(&mut heap);
-        initialize_string_heap(&mut heap);
-        initialize_regexp_heap(&mut heap);
         initialize_array_heap(&mut heap);
-        // initialize_typedarray_heap(&mut heap);
-        // initialize_map_heap(&mut heap);
-        // initialize_set_heap(&mut heap);
-        // initialize_weak_map_heap(&mut heap);
-        // initialize_weak_set_heap(&mut heap);
-        // initialize_array_buffer_heap(&mut heap);
-        // initialize_shared_array_buffer_heap(&mut heap);
-        // initialize_data_view_heap(&mut heap);
-        // initialize_json_heap(&mut heap);
-        // initialize_atomics_heap(&mut heap);
-        // initialize_weak_ref_heap(&mut heap);
-        // initialize_finalization_registry_heap(&mut heap);
-        // initialize_iterator_heap(&mut heap);
-        // initialize_async_iterator_heap(&mut heap);
-        // initialize_promise_heap(&mut heap);
-        // initialize_generator_function_heap(&mut heap);
-        // initialize_async_generator_function_heap(&mut heap);
-        // initialize_generator_heap(&mut heap);
-        // initialize_async_generator_heap(&mut heap);
-        // initialize_async_function_heap(&mut heap);
-        // initialize_reflect_heap(&mut heap);
-        // initialize_proxy_heap(&mut heap);
-        // initialize_module_heap(&mut heap);
+        initialize_bigint_heap(&mut heap);
+        initialize_boolean_heap(&mut heap);
+        initialize_date_heap(&mut heap);
+        initialize_error_heap(&mut heap);
+        initialize_function_heap(&mut heap);
+        initialize_math_object(&mut heap);
+        initialize_number_heap(&mut heap);
+        initialize_object_heap(&mut heap);
+        initialize_regexp_heap(&mut heap);
+        initialize_string_heap(&mut heap);
+        initialize_symbol_heap(&mut heap);
 
         heap
     }
 
-    pub(crate) fn alloc_string(&mut self, message: &str) -> StringIndex {
+    pub fn alloc_string(&mut self, message: &str) -> StringIndex {
         let found = self.strings.iter().position(|opt| {
             opt.as_ref()
                 .map_or(false, |data| data.data == Wtf8::from_str(message))
@@ -158,22 +238,22 @@ impl Heap {
         }
     }
 
-    pub(crate) fn alloc_number(&mut self, number: f64) -> NumberIndex {
+    pub fn alloc_number(&mut self, number: f64) -> NumberIndex {
         self.numbers.push(Some(NumberHeapData::new(number)));
         NumberIndex::last(&self.numbers)
     }
 
-    pub(crate) fn create_function(
+    pub fn create_function(
         &mut self,
         name: Value,
         length: u8,
         uses_arguments: bool,
-        binding: JsBindingFunction,
+        // behaviour: Behaviour,
     ) -> FunctionIndex {
         let entries = vec![
             ObjectEntry::new(
                 PropertyKey::from_str(self, "length"),
-                PropertyDescriptor::roxh(Value::SmiU(length as u32)),
+                PropertyDescriptor::roxh(Value::from(length)),
             ),
             ObjectEntry::new(
                 PropertyKey::from_str(self, "name"),
@@ -183,59 +263,76 @@ impl Heap {
         let (keys, values): (ElementsVector, ElementsVector) =
             self.elements.create_object_entries(entries);
         let func_object_data = ObjectHeapData {
-            _extensible: true,
+            extensible: true,
             keys,
             values,
-            prototype: Value::Object(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
+            prototype: Some(Object::Object(
+                BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+            )),
         };
         self.objects.push(Some(func_object_data));
         let func_data = FunctionHeapData {
-            binding,
-            bound: None,
+            // behaviour,
+            // bound: None,
             length,
-            object_index: ObjectIndex::last(&self.objects),
-            uses_arguments,
-            visible: None,
+            object_index: Some(ObjectIndex::last(&self.objects)),
+            // uses_arguments,
+            // visible: None,
+            initial_name: Value::Null,
         };
         let index = FunctionIndex::from_index(self.functions.len());
         self.functions.push(Some(func_data));
         index
     }
 
-    pub(crate) fn create_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
+    pub fn create_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
-            _extensible: true,
+            extensible: true,
             keys,
             values,
-            prototype: Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
+            prototype: Some(Object::Object(
+                BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
+            )),
         };
         self.objects.push(Some(object_data));
         ObjectIndex::last(&self.objects)
     }
 
-    pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
+    pub fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
-            _extensible: true,
+            extensible: true,
             keys,
             values,
-            prototype: Value::Null,
+            prototype: None,
         };
         self.objects.push(Some(object_data));
         ObjectIndex::last(&self.objects)
     }
 
-    pub(crate) fn insert_builtin_object(
+    pub fn create_object_with_prototype(&mut self, prototype: Object) -> ObjectIndex {
+        let (keys, values) = self.elements.create_object_entries(vec![]);
+        let object_data = ObjectHeapData {
+            extensible: true,
+            keys,
+            values,
+            prototype: Some(prototype),
+        };
+        self.objects.push(Some(object_data));
+        ObjectIndex::last(&self.objects)
+    }
+
+    pub fn insert_builtin_object(
         &mut self,
         index: BuiltinObjectIndexes,
         extensible: bool,
-        prototype: Value,
+        prototype: Option<Object>,
         entries: Vec<ObjectEntry>,
     ) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
-            _extensible: extensible,
+            extensible,
             keys,
             values,
             prototype,

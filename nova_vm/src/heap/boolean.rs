@@ -1,9 +1,10 @@
 use crate::{
+    execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, PropertyDescriptor,
     },
-    value::{JsResult, Value},
+    types::{Object, Value},
 };
 
 use super::{
@@ -19,18 +20,20 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::BooleanConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
+        Some(Object::Function(
+            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+        )),
         entries,
     );
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::BooleanConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::BooleanConstructorIndex.into(),
+            object_index: Some(BuiltinObjectIndexes::BooleanConstructorIndex.into()),
             length: 1,
-            uses_arguments: false,
-            bound: None,
-            visible: None,
-            binding: boolean_constructor_binding,
+            // uses_arguments: false,
+            // bound: None,
+            // visible: None,
+            initial_name: Value::Null,
         });
     let entries = vec![
         ObjectEntry::new(
@@ -39,13 +42,15 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
                 BuiltinObjectIndexes::BooleanConstructorIndex,
             ))),
         ),
-        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, boolean_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false, boolean_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
+        ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false),
     ];
     heap.insert_builtin_object(
         BuiltinObjectIndexes::BooleanPrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
+        Some(Object::Object(
+            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
+        )),
         entries,
     );
 }

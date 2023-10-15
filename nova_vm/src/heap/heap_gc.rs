@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering;
 
-use crate::value::Value;
+use crate::types::Value;
 
 use super::{
     element_array::ElementArrayKey,
@@ -12,7 +12,7 @@ use super::{
     ElementsVector, Heap,
 };
 
-pub(crate) fn heap_gc(heap: &mut Heap) {
+pub fn heap_gc(heap: &mut Heap) {
     let bits = HeapBits::new(heap);
     let mut queues = WorkQueues::new(heap);
 
@@ -32,7 +32,9 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
                 marked.store(true, Ordering::Relaxed);
                 let heap_data = heap.arrays.get(index).unwrap().as_ref().unwrap();
-                queues.push_value(Value::Object(heap_data.object_index));
+                if let Some(object_index) = heap_data.object_index {
+                    queues.push_value(Value::Object(object_index));
+                }
                 let ElementsVector {
                     elements_index,
                     cap,
@@ -75,17 +77,19 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 }
                 marked.store(true, Ordering::Relaxed);
                 let data = heap.functions.get(index).unwrap().as_ref().unwrap();
-                queues.objects.push(data.object_index);
-                if let Some(bound) = &data.bound {
-                    bound.iter().for_each(|&value| {
-                        queues.push_value(value);
-                    })
+                if let Some(object_index) = data.object_index {
+                    queues.objects.push(object_index);
                 }
-                if let Some(visible) = &data.visible {
-                    visible.iter().for_each(|&value| {
-                        queues.push_value(value);
-                    })
-                }
+                // if let Some(bound) = &data.bound {
+                //     bound.iter().for_each(|&value| {
+                //         queues.push_value(value);
+                //     })
+                // }
+                // if let Some(visible) = &data.visible {
+                //     visible.iter().for_each(|&value| {
+                //         queues.push_value(value);
+                //     })
+                // }
             }
         });
         let mut dates: Box<[DateIndex]> = queues.dates.drain(..).collect();
@@ -183,7 +187,7 @@ pub(crate) fn heap_gc(heap: &mut Heap) {
                 marked.store(true, Ordering::Relaxed);
                 let data = heap.symbols.get(index).unwrap().as_ref().unwrap();
                 if let Some(string_index) = data.descriptor {
-                    queues.push_value(Value::HeapString(string_index));
+                    queues.push_value(Value::String(string_index));
                 }
             }
         });

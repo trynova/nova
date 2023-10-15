@@ -2,12 +2,12 @@ use super::{
     indexes::{ElementIndex, FunctionIndex},
     object::{ObjectEntry, PropertyDescriptor, PropertyKey},
 };
-use crate::value::Value;
+use crate::{types::Value, Heap};
 use core::panic;
-use std::{collections::HashMap, mem::MaybeUninit, num::NonZeroU16};
+use std::{collections::HashMap, mem::MaybeUninit, num::NonZeroU16, vec};
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ElementArrayKey {
+pub enum ElementArrayKey {
     /// up to 16 elements
     E4,
     /// up to 64 elements
@@ -51,13 +51,14 @@ impl From<usize> for ElementArrayKey {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ElementsVector {
-    pub(crate) elements_index: ElementIndex,
-    pub(crate) cap: ElementArrayKey,
-    pub(crate) len: u32,
+pub struct ElementsVector {
+    pub elements_index: ElementIndex,
+    pub cap: ElementArrayKey,
+    pub len: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub enum ElementDescriptor {
     /// ```js
     /// { value, writable: true, enumerable: true, configurable: true }
@@ -386,9 +387,9 @@ impl ElementDescriptor {
 
 /// Element arrays of up to 16 elements
 #[derive(Debug)]
-pub(crate) struct ElementArray2Pow4 {
-    pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 4)]>>,
-    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow4 {
+    pub values: Vec<Option<[Option<Value>; usize::pow(2, 4)]>>,
+    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow4 {
@@ -411,9 +412,9 @@ impl ElementArray2Pow4 {
 
 /// Element arrays of up to 64 elements
 #[derive(Debug)]
-pub(crate) struct ElementArray2Pow6 {
-    pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 6)]>>,
-    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow6 {
+    pub values: Vec<Option<[Option<Value>; usize::pow(2, 6)]>>,
+    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow6 {
@@ -436,9 +437,9 @@ impl ElementArray2Pow6 {
 
 /// Element arrays of up to 256 elements
 #[derive(Debug)]
-pub(crate) struct ElementArray2Pow8 {
-    pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 8)]>>,
-    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow8 {
+    pub values: Vec<Option<[Option<Value>; usize::pow(2, 8)]>>,
+    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow8 {
@@ -461,9 +462,9 @@ impl ElementArray2Pow8 {
 
 /// Element arrays of up to 1024 elements
 #[derive(Debug)]
-pub(crate) struct ElementArray2Pow10 {
-    pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 10)]>>,
-    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow10 {
+    pub values: Vec<Option<[Option<Value>; usize::pow(2, 10)]>>,
+    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow10 {
@@ -486,9 +487,9 @@ impl ElementArray2Pow10 {
 
 /// Element arrays of up to 4096 elements
 #[derive(Debug)]
-pub(crate) struct ElementArray2Pow12 {
-    pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 12)]>>,
-    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow12 {
+    pub values: Vec<Option<[Option<Value>; usize::pow(2, 12)]>>,
+    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow12 {
@@ -511,9 +512,9 @@ impl ElementArray2Pow12 {
 
 /// Element arrays of up to 65536 elements
 #[derive(Debug)]
-pub(crate) struct ElementArray2Pow16 {
-    pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 16)]>>,
-    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow16 {
+    pub values: Vec<Option<[Option<Value>; usize::pow(2, 16)]>>,
+    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow16 {
@@ -536,9 +537,9 @@ impl ElementArray2Pow16 {
 
 /// Element arrays of up to 16777216 elements
 #[derive(Debug)]
-pub(crate) struct ElementArray2Pow24 {
-    pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 24)]>>,
-    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow24 {
+    pub values: Vec<Option<[Option<Value>; usize::pow(2, 24)]>>,
+    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow24 {
@@ -561,9 +562,9 @@ impl ElementArray2Pow24 {
 
 /// Element arrays of up to 4294967296 elements
 #[derive(Debug)]
-pub(crate) struct ElementArray2Pow32 {
-    pub(crate) values: Vec<Option<[Option<Value>; usize::pow(2, 32)]>>,
-    pub(crate) descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow32 {
+    pub values: Vec<Option<[Option<Value>; usize::pow(2, 32)]>>,
+    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
 }
 
 impl Default for ElementArray2Pow32 {
@@ -585,23 +586,23 @@ impl ElementArray2Pow32 {
 }
 
 #[derive(Debug)]
-pub(crate) struct ElementArrays {
+pub struct ElementArrays {
     /// up to 16 elements
-    pub(crate) e2pow4: ElementArray2Pow4,
+    pub e2pow4: ElementArray2Pow4,
     /// up to 64 elements
-    pub(crate) e2pow6: ElementArray2Pow6,
+    pub e2pow6: ElementArray2Pow6,
     /// up to 256 elements
-    pub(crate) e2pow8: ElementArray2Pow8,
+    pub e2pow8: ElementArray2Pow8,
     /// up to 1024 elements
-    pub(crate) e2pow10: ElementArray2Pow10,
+    pub e2pow10: ElementArray2Pow10,
     /// up to 4096 elements
-    pub(crate) e2pow12: ElementArray2Pow12,
+    pub e2pow12: ElementArray2Pow12,
     /// up to 65536 elements
-    pub(crate) e2pow16: ElementArray2Pow16,
+    pub e2pow16: ElementArray2Pow16,
     /// up to 16777216 elements
-    pub(crate) e2pow24: ElementArray2Pow24,
+    pub e2pow24: ElementArray2Pow24,
     /// up to 4294967296 elements
-    pub(crate) e2pow32: ElementArray2Pow32,
+    pub e2pow32: ElementArray2Pow32,
 }
 
 impl ElementArrays {
@@ -775,7 +776,7 @@ impl ElementArrays {
         }
     }
 
-    pub(crate) fn create_object_entries(
+    pub fn create_object_entries(
         &mut self,
         mut entries: Vec<ObjectEntry>,
     ) -> (ElementsVector, ElementsVector) {
@@ -788,9 +789,9 @@ impl ElementArrays {
             let (maybe_descriptor, maybe_value) =
                 ElementDescriptor::from_property_descriptor(value);
             let key = match key {
-                PropertyKey::SmallAsciiString(data) => Value::StackString(data),
-                PropertyKey::Smi(data) => Value::Smi(data),
-                PropertyKey::String(data) => Value::HeapString(data),
+                PropertyKey::SmallString(data) => Value::SmallString(data),
+                PropertyKey::Smi(data) => Value::from(data),
+                PropertyKey::String(data) => Value::String(data),
                 PropertyKey::Symbol(data) => Value::Symbol(data),
             };
             keys.push(Some(key));
@@ -821,5 +822,135 @@ impl ElementArrays {
                 len,
             },
         )
+    }
+
+    pub fn get<'a>(&'a self, vector: ElementsVector) -> () {
+        // match vector.cap {
+        //     ElementArrayKey::E4 => &self
+        //         .e2pow4
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     ElementArrayKey::E6 => &self
+        //         .e2pow6
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     ElementArrayKey::E8 => &self
+        //         .e2pow8
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     ElementArrayKey::E10 => &self
+        //         .e2pow10
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     ElementArrayKey::E12 => &self
+        //         .e2pow12
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     ElementArrayKey::E16 => &self
+        //         .e2pow16
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     ElementArrayKey::E24 => &self
+        //         .e2pow24
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     ElementArrayKey::E32 => &self
+        //         .e2pow32
+        //         .values
+        //         .get(vector.elements_index.into_index())
+        //         .unwrap()
+        //         .unwrap()
+        //         .as_slice()[0..vector.len as usize],
+        //     _ => unreachable!(),
+    }
+
+    pub fn has(&self, vector: ElementsVector, element: Value) -> bool {
+        match vector.cap {
+            ElementArrayKey::E4 => self
+                .e2pow4
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .unwrap()
+                .as_slice()[0..vector.len as usize]
+                .contains(&Some(element)),
+            ElementArrayKey::E6 => self
+                .e2pow6
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .unwrap()
+                .as_slice()[0..vector.len as usize]
+                .contains(&Some(element)),
+            ElementArrayKey::E8 => self
+                .e2pow8
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .unwrap()
+                .as_slice()[0..vector.len as usize]
+                .contains(&Some(element)),
+            ElementArrayKey::E10 => self
+                .e2pow10
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .unwrap()
+                .as_slice()[0..vector.len as usize]
+                .contains(&Some(element)),
+            ElementArrayKey::E12 => self
+                .e2pow12
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .unwrap()
+                .as_slice()[0..vector.len as usize]
+                .contains(&Some(element)),
+            ElementArrayKey::E16 => self
+                .e2pow16
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .unwrap()
+                .as_slice()[0..vector.len as usize]
+                .contains(&Some(element)),
+            ElementArrayKey::E24 => self
+                .e2pow24
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .unwrap()
+                .as_slice()[0..vector.len as usize]
+                .contains(&Some(element)),
+            ElementArrayKey::E32 => self
+                .e2pow32
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .unwrap()
+                .as_slice()[0..vector.len as usize]
+                .contains(&Some(element)),
+        }
     }
 }

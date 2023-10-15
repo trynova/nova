@@ -1,9 +1,11 @@
 use crate::{
+    builtins::Behaviour,
+    execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, PropertyDescriptor,
     },
-    value::{JsResult, Value},
+    types::{Object, Value},
 };
 
 use super::{
@@ -12,16 +14,17 @@ use super::{
     object::{ObjectEntry, PropertyKey},
 };
 
-pub type JsBindingFunction = fn(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value>;
-
 #[derive(Debug, Clone)]
-pub(crate) struct FunctionHeapData {
-    pub(super) object_index: ObjectIndex,
-    pub(super) length: u8,
-    pub(super) uses_arguments: bool,
-    pub(super) bound: Option<Box<[Value]>>,
-    pub(super) visible: Option<Vec<Value>>,
-    pub(super) binding: JsBindingFunction,
+pub struct FunctionHeapData {
+    pub(crate) object_index: Option<ObjectIndex>,
+    pub(crate) length: u8,
+    pub initial_name: Value,
+    // pub behaviour: Behaviour,
+    // TODO: Should we create a `BoundFunctionHeapData` for an exotic object
+    //       that allows setting fields and other deoptimizations?
+    // pub(super) uses_arguments: bool,
+    // pub(super) bound: Option<Box<[Value]>>,
+    // pub(super) visible: Option<Vec<Value>>,
     // TODO: Should name be here as an "internal slot" of sorts?
 }
 
@@ -33,37 +36,38 @@ pub fn initialize_function_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::FunctionConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
+        Some(Object::Function(
+            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+        )),
         entries,
     );
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::FunctionConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::FunctionConstructorIndex.into(),
+            object_index: Some(BuiltinObjectIndexes::FunctionConstructorIndex.into()),
             length: 1,
-            uses_arguments: false,
-            bound: None,
-            visible: None,
-            binding: function_constructor_binding,
+            // uses_arguments: false,
+            // bound: None,
+            // visible: None,
+            initial_name: Value::Null,
         });
     let entries = vec![
-        ObjectEntry::new_prototype_function_entry(heap, "apply", 2, false, function_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "bind", 1, true, function_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "call", 1, true, function_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "apply", 2, false),
+        ObjectEntry::new_prototype_function_entry(heap, "bind", 1, true),
+        ObjectEntry::new_prototype_function_entry(heap, "call", 1, true),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
             PropertyDescriptor::rwx(Value::Function(get_constructor_index(
                 BuiltinObjectIndexes::FunctionConstructorIndex,
             ))),
         ),
-        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, function_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
             "hasInstance",
             WellKnownSymbolIndexes::HasInstance.into(),
             1,
             false,
-            function_todo,
         ),
     ];
     // NOTE: According to ECMAScript spec https://tc39.es/ecma262/#sec-properties-of-the-function-prototype-object
@@ -72,7 +76,9 @@ pub fn initialize_function_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::FunctionPrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
+        Some(Object::Object(
+            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
+        )),
         entries,
     );
 }

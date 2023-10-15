@@ -1,9 +1,10 @@
 use crate::{
+    execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, PropertyDescriptor,
     },
-    value::{JsResult, Value},
+    types::{Object, Value},
 };
 
 use super::{
@@ -13,7 +14,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ErrorHeapData {
+pub struct ErrorHeapData {
     pub(super) object_index: ObjectIndex,
     // TODO: stack? name?
 }
@@ -26,18 +27,20 @@ pub fn initialize_error_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ErrorConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
+        Some(Object::Function(
+            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+        )),
         entries,
     );
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::ErrorConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::ErrorConstructorIndex.into(),
+            object_index: Some(BuiltinObjectIndexes::ErrorConstructorIndex.into()),
             length: 1,
-            uses_arguments: false,
-            bound: None,
-            visible: None,
-            binding: error_constructor_binding,
+            // uses_arguments: false,
+            // bound: None,
+            // visible: None,
+            initial_name: Value::Null,
         });
     let entries = vec![
         ObjectEntry::new(
@@ -48,18 +51,20 @@ pub fn initialize_error_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "name"),
-            PropertyDescriptor::rwx(Value::EmptyString),
+            PropertyDescriptor::rwx(Value::try_from("").unwrap()),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "name"),
-            PropertyDescriptor::rwx(Value::new_string(heap, "Error")),
+            PropertyDescriptor::rwx(Value::from_str(heap, "Error")),
         ),
-        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, error_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
     ];
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ErrorPrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
+        Some(Object::Object(
+            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
+        )),
         entries,
     );
 }

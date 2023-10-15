@@ -1,9 +1,10 @@
 use crate::{
+    execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes, WellKnownSymbolIndexes},
         FunctionHeapData, Heap, PropertyDescriptor,
     },
-    value::{JsResult, Value},
+    types::{Object, Value},
 };
 
 use super::{
@@ -12,7 +13,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct SymbolHeapData {
+pub struct SymbolHeapData {
     pub(super) descriptor: Option<StringIndex>,
 }
 
@@ -75,7 +76,7 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
             PropertyKey::from_str(heap, "asyncIterator"),
             PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::AsyncIterator.into())),
         ),
-        ObjectEntry::new_prototype_function_entry(heap, "for", 1, false, symbol_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "for", 1, false),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "hasInstance"),
             PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::HasInstance.into())),
@@ -90,7 +91,7 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
             PropertyKey::from_str(heap, "iterator"),
             PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Iterator.into())),
         ),
-        ObjectEntry::new_prototype_function_entry(heap, "keyFor", 1, false, symbol_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "keyFor", 1, false),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "Match"),
             PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Match.into())),
@@ -135,18 +136,20 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::SymbolConstructorIndex,
         true,
-        Value::Function(BuiltinObjectIndexes::FunctionPrototypeIndex.into()),
+        Some(Object::Function(
+            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+        )),
         entries,
     );
     heap.functions
         [get_constructor_index(BuiltinObjectIndexes::SymbolConstructorIndex).into_index()] =
         Some(FunctionHeapData {
-            object_index: BuiltinObjectIndexes::SymbolConstructorIndex.into(),
+            object_index: Some(BuiltinObjectIndexes::SymbolConstructorIndex.into()),
             length: 1,
-            uses_arguments: false,
-            bound: None,
-            visible: None,
-            binding: symbol_constructor_binding,
+            // uses_arguments: false,
+            // bound: None,
+            // visible: None,
+            initial_name: Value::Null,
         });
     let entries = vec![
         ObjectEntry::new(
@@ -164,25 +167,26 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
                 configurable: true,
             },
         ),
-        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false, symbol_todo),
-        ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false, symbol_todo),
+        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
+        ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false),
         ObjectEntry::new_prototype_symbol_function_entry(
             heap,
             "[Symbol.toPrimitive]",
             WellKnownSymbolIndexes::ToPrimitive.into(),
             1,
             false,
-            symbol_todo,
         ),
         ObjectEntry::new(
             PropertyKey::Symbol(WellKnownSymbolIndexes::ToStringTag.into()),
-            PropertyDescriptor::roxh(Value::new_string(heap, "Symbol")),
+            PropertyDescriptor::roxh(Value::from_str(heap, "Symbol")),
         ),
     ];
     heap.insert_builtin_object(
         BuiltinObjectIndexes::SymbolPrototypeIndex,
         true,
-        Value::Object(BuiltinObjectIndexes::ObjectPrototypeIndex.into()),
+        Some(Object::Object(
+            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
+        )),
         entries,
     );
 }

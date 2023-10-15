@@ -8,5 +8,10 @@ edition = "2021"
 [dependencies]
 gc = { version = "0.4", features = ["derive"] }
 wtf8 = "0.1"
-oxc_parser = "0.0.6"
-oxc_ast = "0.0.6"
+oxc_parser = "0.1.0"
+oxc_span = "0.1.0"
+oxc_ast = "0.1.0"
+oxc_allocator = "0.1.0"
+oxc_diagnostics = "0.1.0"
+num-bigint-dig = "0.8"
+small_vec = "0.1"

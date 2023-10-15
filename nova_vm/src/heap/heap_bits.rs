@@ -1,6 +1,6 @@
 use std::sync::atomic::AtomicBool;
 
-use crate::value::Value;
+use crate::types::Value;
 
 use super::{
     indexes::{
@@ -10,7 +10,7 @@ use super::{
     Heap,
 };
 
-pub(crate) struct HeapBits {
+pub struct HeapBits {
     pub e_2_4: Box<[AtomicBool]>,
     pub e_2_6: Box<[AtomicBool]>,
     pub e_2_8: Box<[AtomicBool]>,
@@ -31,7 +31,7 @@ pub(crate) struct HeapBits {
     pub symbols: Box<[AtomicBool]>,
 }
 
-pub(crate) struct WorkQueues {
+pub struct WorkQueues {
     pub e_2_4: Vec<ElementIndex>,
     pub e_2_6: Vec<ElementIndex>,
     pub e_2_8: Vec<ElementIndex>,
@@ -53,7 +53,7 @@ pub(crate) struct WorkQueues {
 }
 
 impl HeapBits {
-    pub(crate) fn new(heap: &Heap) -> Self {
+    pub fn new(heap: &Heap) -> Self {
         Self {
             e_2_4: Vec::with_capacity(heap.elements.e2pow4.values.len()).into_boxed_slice(),
             e_2_6: Vec::with_capacity(heap.elements.e2pow6.values.len()).into_boxed_slice(),
@@ -78,7 +78,7 @@ impl HeapBits {
 }
 
 impl WorkQueues {
-    pub(crate) fn new(heap: &Heap) -> Self {
+    pub fn new(heap: &Heap) -> Self {
         Self {
             e_2_4: Vec::with_capacity(heap.elements.e2pow4.values.len() / 4),
             e_2_6: Vec::with_capacity(heap.elements.e2pow6.values.len() / 4),
@@ -101,40 +101,34 @@ impl WorkQueues {
         }
     }
 
-    pub(crate) fn push_value(&mut self, value: Value) {
+    pub fn push_value(&mut self, value: Value) {
         match value {
             Value::Array(idx) => self.arrays.push(idx),
-            Value::BigIntObject(_) => todo!(),
-            Value::BooleanObject(idx) => todo!(),
+            // Value::BigIntObject(_) => todo!(),
+            // Value::BooleanObject(idx) => todo!(),
             Value::Boolean(_) => {}
             Value::Date(idx) => self.dates.push(idx),
-            Value::EmptyString => {}
             Value::Error(idx) => self.errors.push(idx),
             Value::Function(idx) => todo!(),
-            Value::HeapBigInt(idx) => self.bigints.push(idx),
-            Value::HeapNumber(idx) => self.numbers.push(idx),
-            Value::HeapString(idx) => self.strings.push(idx),
-            Value::Infinity => {}
-            Value::NaN => {}
-            Value::NegativeInfinity => {}
-            Value::NegativeZero => {}
+            Value::BigInt(idx) => self.bigints.push(idx),
+            Value::Number(idx) => self.numbers.push(idx),
+            Value::String(idx) => self.strings.push(idx),
             Value::Null => {}
-            Value::NumberObject(_) => todo!(),
+            // Value::NumberObject(_) => todo!(),
             Value::Object(idx) => self.objects.push(idx),
             Value::RegExp(idx) => self.regexps.push(idx),
-            Value::StackString(_) => {}
+            Value::SmallString(_) => {}
             Value::SmallBigInt(_) => {}
-            Value::SmallBigIntU(_) => {}
-            Value::Smi(_) => {}
-            Value::SmiU(_) => {}
-            Value::StringObject(_) => todo!(),
+            // Value::StringObject(_) => todo!(),
             Value::Symbol(idx) => self.symbols.push(idx),
-            Value::SymbolObject(_) => todo!(),
+            // Value::SymbolObject(_) => todo!(),
             Value::Undefined => {}
+            Value::Integer(_) => {}
+            Value::Float(_) => {}
         }
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.e_2_4.is_empty()
             && self.e_2_6.is_empty()
             && self.e_2_8.is_empty()

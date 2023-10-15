@@ -2,7 +2,7 @@ use super::common;
 use crate::error::Error;
 use crate::error::Result;
 use crate::varint::decode_u32;
-pub(crate) fn decode_vec<T, R, F>(reader: &mut R, func: F) -> Result<Vec<T>>
+pub fn decode_vec<T, R, F>(reader: &mut R, func: F) -> Result<Vec<T>>
 where
     R: std::io::Read,
     F: Fn(&mut R) -> Result<T>,
