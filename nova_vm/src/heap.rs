@@ -20,7 +20,7 @@ mod symbol;
 pub use self::heap_constants::BuiltinObjectIndexes;
 use self::{
     array::{initialize_array_heap, ArrayHeapData},
-    array_buffer::ArrayBufferHeapData,
+    array_buffer::{initialize_array_buffer_heap, ArrayBufferHeapData},
     bigint::{initialize_bigint_heap, BigIntHeapData},
     boolean::initialize_boolean_heap,
     date::{initialize_date_heap, DateHeapData},
@@ -207,6 +207,7 @@ impl Heap {
             }
         }
         initialize_array_heap(&mut heap);
+        initialize_array_buffer_heap(&mut heap);
         initialize_bigint_heap(&mut heap);
         initialize_boolean_heap(&mut heap);
         initialize_date_heap(&mut heap);
