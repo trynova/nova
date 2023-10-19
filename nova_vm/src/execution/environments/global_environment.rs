@@ -17,6 +17,14 @@ impl GlobalEnvironmentIndex {
         Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
     }
 
+    pub const fn from_usize_index(value: usize) -> Self {
+        debug_assert!(value < u32::MAX as usize);
+        Self(
+            unsafe { NonZeroU32::new_unchecked(value as u32 + 1) },
+            PhantomData,
+        )
+    }
+
     pub const fn into_index(self) -> usize {
         self.0.get() as usize - 1
     }
@@ -45,4 +53,16 @@ pub struct GlobalEnvironment {
     /// Per https://tc39.es/ecma262/#sec-the-environment-record-type-hierarchy:
     /// > A _Global Environment Record_ is used for Script global declarations. It does not have an outer environment; its \[\[OuterEnv\]\] is null.
     outer_env: (),
+}
+
+impl GlobalEnvironment {
+    pub(crate) fn new(global_object: Object, this_value: Object) -> Self {
+        Self {
+            object_record: global_object,
+            global_this_value: this_value,
+            declarative_record: Default::default(),
+            var_names: todo!(),
+            outer_env: (),
+        }
+    }
 }

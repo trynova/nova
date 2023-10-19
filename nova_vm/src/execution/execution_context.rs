@@ -44,3 +44,18 @@ pub struct ExecutionContext<'ctx, 'host> {
     /// https://tc39.es/ecma262/#ecmascript-code-execution-context
     pub ecmascript_code: Option<ECMAScriptCode>,
 }
+
+impl<'ctx, 'host> ExecutionContext<'ctx, 'host> {
+    pub(crate) fn new() -> Self {
+        Self {
+            function: None,
+            realm: RealmIdentifier::from_u32_index(0),
+            script_or_module: None,
+            ecmascript_code: None,
+        }
+    }
+
+    pub(crate) fn set_realm(&mut self, realm: RealmIdentifier<'ctx, 'host>) {
+        self.realm = realm;
+    }
+}
