@@ -45,6 +45,38 @@ impl Default for Environments {
 }
 
 impl Environments {
+    pub fn push_declarative_environment<'a>(
+        &'a mut self,
+        env: DeclarativeEnvironment,
+    ) -> DeclarativeEnvironmentIndex {
+        self.declarative.push(Some(env));
+        DeclarativeEnvironmentIndex::from_u32_index(self.declarative.len() as u32)
+    }
+
+    pub fn push_function_environment<'a>(
+        &'a mut self,
+        env: FunctionEnvironment,
+    ) -> FunctionEnvironmentIndex {
+        self.function.push(Some(env));
+        FunctionEnvironmentIndex::from_u32_index(self.function.len() as u32)
+    }
+
+    pub fn push_global_environment<'a>(
+        &'a mut self,
+        env: GlobalEnvironment,
+    ) -> GlobalEnvironmentIndex {
+        self.global.push(Some(env));
+        GlobalEnvironmentIndex::from_u32_index(self.global.len() as u32)
+    }
+
+    pub fn push_object_environment<'a>(
+        &'a mut self,
+        env: ObjectEnvironment,
+    ) -> ObjectEnvironmentIndex {
+        self.object.push(Some(env));
+        ObjectEnvironmentIndex::from_u32_index(self.object.len() as u32)
+    }
+
     pub fn get_declarative_environment<'a>(
         &'a self,
         index: DeclarativeEnvironmentIndex,

@@ -45,13 +45,14 @@ use self::{
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
 use crate::{
-    execution::Environments,
+    execution::{Environments, Realm, RealmIdentifier},
     types::{Function, Number, Object, String, Value},
 };
 use wtf8::{Wtf8, Wtf8Buf};
 
 #[derive(Debug)]
-pub struct Heap {
+pub struct Heap<'ctx, 'host> {
+    pub realms: Vec<Option<Realm<'ctx, 'host>>>,
     pub environments: Environments,
     /// ElementsArrays is where all element arrays live;
     /// Element arrays are static arrays of Values plus
@@ -82,7 +83,7 @@ pub trait GetHeapData<'a, T, F: 'a> {
     fn get_mut(&'a mut self, id: BaseIndex<T>) -> &'a mut F;
 }
 
-impl CreateHeapData<f64, Number> for Heap {
+impl CreateHeapData<f64, Number> for Heap<'_, '_> {
     fn create(&mut self, data: f64) -> Number {
         if let Ok(value) = Value::try_from(data) {
             Number::new(value)
@@ -97,7 +98,7 @@ impl CreateHeapData<f64, Number> for Heap {
 
 macro_rules! impl_heap_data {
     ($table: ident, $in: ty, $out: ty) => {
-        impl<'a> GetHeapData<'a, $in, $out> for Heap {
+        impl<'a> GetHeapData<'a, $in, $out> for Heap<'_, '_> {
             fn get(&'a self, id: BaseIndex<$in>) -> &'a $out {
                 self.$table.get(id.into_index()).unwrap().as_ref().unwrap()
             }
@@ -112,7 +113,7 @@ macro_rules! impl_heap_data {
         }
     };
     ($table: ident, $in: ty, $out: ty, $accessor: ident) => {
-        impl<'a> GetHeapData<'a, $in, $out> for Heap {
+        impl<'a> GetHeapData<'a, $in, $out> for Heap<'_, '_> {
             fn get(&'a self, id: BaseIndex<$in>) -> &'a $out {
                 &self
                     .$table
@@ -143,7 +144,7 @@ impl_heap_data!(strings, StringHeapData, Wtf8Buf, data);
 impl_heap_data!(functions, FunctionHeapData, FunctionHeapData);
 impl_heap_data!(arrays, ArrayHeapData, ArrayHeapData);
 
-impl CreateHeapData<&str, String> for Heap {
+impl CreateHeapData<&str, String> for Heap<'_, '_> {
     fn create(&mut self, data: &str) -> String {
         if let Ok(value) = String::try_from(data) {
             value
@@ -154,23 +155,24 @@ impl CreateHeapData<&str, String> for Heap {
     }
 }
 
-impl CreateHeapData<FunctionHeapData, Function> for Heap {
+impl CreateHeapData<FunctionHeapData, Function> for Heap<'_, '_> {
     fn create(&mut self, data: FunctionHeapData) -> Function {
         self.functions.push(Some(data));
         Function(FunctionIndex::last(&self.functions))
     }
 }
 
-impl CreateHeapData<ObjectHeapData, Object> for Heap {
+impl CreateHeapData<ObjectHeapData, Object> for Heap<'_, '_> {
     fn create(&mut self, data: ObjectHeapData) -> Object {
         self.objects.push(Some(data));
         Object::Object(ObjectIndex::last(&self.objects))
     }
 }
 
-impl Heap {
-    pub fn new() -> Heap {
+impl<'ctx, 'host> Heap<'ctx, 'host> {
+    pub fn new() -> Heap<'ctx, 'host> {
         let mut heap = Heap {
+            realms: Vec::with_capacity(1),
             environments: Default::default(),
             elements: ElementArrays {
                 e2pow4: ElementArray2Pow4::with_capacity(1024),
@@ -221,6 +223,27 @@ impl Heap {
         initialize_symbol_heap(&mut heap);
 
         heap
+    }
+
+    pub(crate) fn add_realm(&mut self, realm: Realm<'ctx, 'host>) -> RealmIdentifier<'ctx, 'host> {
+        self.realms.push(Some(realm));
+        RealmIdentifier::from_usize_index(self.realms.len())
+    }
+
+    pub fn get_realm(&self, id: RealmIdentifier<'ctx, 'host>) -> &Realm<'ctx, 'host> {
+        self.realms
+            .get(id.into_index())
+            .expect("RealmIdentifier did not match a Realm")
+            .as_ref()
+            .expect("RealmIdentifier matched a freed Realm")
+    }
+
+    pub fn get_realm_mut(&mut self, id: RealmIdentifier<'ctx, 'host>) -> &mut Realm<'ctx, 'host> {
+        self.realms
+            .get_mut(id.into_index())
+            .expect("RealmIdentifier did not match a Realm")
+            .as_mut()
+            .expect("RealmIdentifier matched a freed Realm")
     }
 
     pub fn alloc_string(&mut self, message: &str) -> StringIndex {

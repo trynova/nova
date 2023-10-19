@@ -7,7 +7,7 @@ pub type IndexType = u16;
 
 #[derive(Debug)]
 pub struct Executable<'ctx> {
-    pub heap: PhantomData<&'ctx mut Heap>,
+    pub heap: PhantomData<&'ctx mut Heap<'ctx, 'ctx>>,
     pub instructions: Vec<Instruction>,
     pub constants: Vec<Value>,
     pub identifiers: Vec<Atom>,

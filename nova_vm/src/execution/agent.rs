@@ -3,7 +3,7 @@ use crate::{
     types::{Object, Symbol, Value},
     Heap,
 };
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
 #[derive(Debug, Default)]
 pub struct Options {
@@ -27,14 +27,13 @@ pub struct HostHooks {
 /// https://tc39.es/ecma262/#sec-agents
 #[derive(Debug)]
 pub struct Agent<'ctx, 'host> {
-    pub heap: Heap,
+    pub heap: Heap<'ctx, 'host>,
     pub options: Options,
     // pre_allocated: PreAllocated,
     pub exception: Option<Value>,
     pub symbol_id: usize,
     pub global_symbol_registry: HashMap<&'static str, Symbol>,
     pub host_hooks: HostHooks,
-    pub realms: Vec<Realm<'ctx, 'host>>,
     pub execution_context_stack: Vec<ExecutionContext<'ctx, 'host>>,
 }
 
@@ -52,15 +51,11 @@ impl<'ctx, 'host> Agent<'ctx, 'host> {
     }
 
     pub fn get_realm(&self, id: RealmIdentifier<'ctx, 'host>) -> &Realm<'ctx, 'host> {
-        self.realms
-            .get(id.into_index())
-            .expect("RealmIdentifier did not match a Realm")
+        self.heap.get_realm(id)
     }
 
     pub fn get_realm_mut(&mut self, id: RealmIdentifier<'ctx, 'host>) -> &mut Realm<'ctx, 'host> {
-        self.realms
-            .get_mut(id.into_index())
-            .expect("RealmIdentifier did not match a Realm")
+        self.heap.get_realm_mut(id)
     }
 
     /// 5.2.3.2 Throw an Exception

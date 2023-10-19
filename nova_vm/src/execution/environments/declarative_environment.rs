@@ -13,6 +13,14 @@ impl DeclarativeEnvironmentIndex {
         Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
     }
 
+    pub const fn from_usize_index(value: usize) -> Self {
+        debug_assert!(value < u32::MAX as usize);
+        Self(
+            unsafe { NonZeroU32::new_unchecked(value as u32 + 1) },
+            PhantomData,
+        )
+    }
+
     pub const fn into_index(self) -> usize {
         self.0.get() as usize - 1
     }
