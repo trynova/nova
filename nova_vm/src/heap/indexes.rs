@@ -2,9 +2,9 @@ use super::array_buffer::ArrayBufferHeapData;
 use super::{
     array::ArrayHeapData, bigint::BigIntHeapData, date::DateHeapData, error::ErrorHeapData,
     function::FunctionHeapData, number::NumberHeapData, object::ObjectHeapData,
-    regexp::RegExpHeapData, string::StringHeapData, symbol::SymbolHeapData,
+    regexp::RegExpHeapData, symbol::SymbolHeapData,
 };
-use crate::types::Value;
+use crate::types::{StringHeapData, Value};
 use crate::Heap;
 use core::fmt::Debug;
 use std::hash::{Hash, Hasher};

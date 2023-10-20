@@ -41,12 +41,12 @@ use self::{
         initialize_object_heap, ObjectEntry, ObjectHeapData, PropertyDescriptor, PropertyKey,
     },
     regexp::{initialize_regexp_heap, RegExpHeapData},
-    string::{initialize_string_heap, StringHeapData},
+    string::initialize_string_heap,
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
 use crate::{
     execution::{Environments, Realm, RealmIdentifier},
-    types::{Function, Number, Object, String, Value},
+    types::{Function, Number, Object, String, StringHeapData, Value},
 };
 use wtf8::{Wtf8, Wtf8Buf};
 
@@ -247,10 +247,11 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
     }
 
     pub fn alloc_string(&mut self, message: &str) -> StringIndex {
-        let found = self.strings.iter().position(|opt| {
-            opt.as_ref()
-                .map_or(false, |data| data.data == Wtf8::from_str(message))
-        });
+        let wtf8 = Wtf8::from_str(message);
+        let found = self
+            .strings
+            .iter()
+            .position(|opt| opt.as_ref().map_or(false, |data| data.data == wtf8));
         if let Some(idx) = found {
             return StringIndex::from_index(idx);
         }

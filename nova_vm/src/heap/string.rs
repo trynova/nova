@@ -6,26 +6,6 @@ use crate::{
     },
     types::{Object, Value},
 };
-use wtf8::Wtf8Buf;
-
-#[derive(Debug, Clone)]
-pub struct StringHeapData {
-    pub data: Wtf8Buf,
-}
-
-impl StringHeapData {
-    pub fn dummy() -> Self {
-        Self {
-            data: Wtf8Buf::new(),
-        }
-    }
-
-    pub fn from_str(str: &str) -> Self {
-        StringHeapData {
-            data: Wtf8Buf::from_str(str),
-        }
-    }
-}
 
 pub fn initialize_string_heap(heap: &mut Heap) {
     heap.insert_builtin_object(

@@ -1,3 +1,5 @@
+pub(crate) mod data;
+
 use super::Value;
 use crate::{
     execution::Agent,
