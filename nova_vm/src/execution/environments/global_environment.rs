@@ -36,10 +36,10 @@ impl GlobalEnvironmentIndex {
 pub struct GlobalEnvironment {
     /// [[ObjectRecord]]
     /// The Object Environment Record is inlined here.
-    object_record: Object,
+    pub object_record: Object,
 
     /// [[GlobalThisValue]]
-    global_this_value: Object,
+    pub global_this_value: Object,
 
     /// [[DeclarativeRecord]]
     /// The Declaration Environment Record is inlined here.
