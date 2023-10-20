@@ -3,9 +3,9 @@ use crate::{
     execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        FunctionHeapData, Heap, ObjectEntry, PropertyDescriptor, PropertyKey,
+        FunctionHeapData, Heap, ObjectEntry, PropertyDescriptor,
     },
-    types::{Object, Value},
+    types::{Object, PropertyKey, Value},
 };
 use num_bigint_dig::BigInt;
 

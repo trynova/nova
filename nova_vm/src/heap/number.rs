@@ -1,14 +1,11 @@
-use super::{
-    object::{ObjectEntry, PropertyKey},
-    Heap,
-};
+use super::{object::ObjectEntry, Heap};
 use crate::{
     execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, PropertyDescriptor,
     },
-    types::{Object, Value},
+    types::{Object, PropertyKey, Value},
 };
 
 #[derive(Debug, Clone, Copy)]

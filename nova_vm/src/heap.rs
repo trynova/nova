@@ -37,16 +37,14 @@ use self::{
     indexes::{BaseIndex, FunctionIndex, NumberIndex, ObjectIndex, StringIndex},
     math::initialize_math_object,
     number::{initialize_number_heap, NumberHeapData},
-    object::{
-        initialize_object_heap, ObjectEntry, ObjectHeapData, PropertyDescriptor, PropertyKey,
-    },
+    object::{initialize_object_heap, ObjectEntry, ObjectHeapData, PropertyDescriptor},
     regexp::{initialize_regexp_heap, RegExpHeapData},
     string::initialize_string_heap,
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
 use crate::{
     execution::{Environments, Realm, RealmIdentifier},
-    types::{Function, Number, Object, String, StringHeapData, Value},
+    types::{Function, Number, Object, PropertyKey, String, StringHeapData, Value},
 };
 use wtf8::{Wtf8, Wtf8Buf};
 
@@ -275,7 +273,7 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
         &mut self,
         name: Value,
         length: u8,
-        uses_arguments: bool,
+        _uses_arguments: bool,
         // behaviour: Behaviour,
     ) -> FunctionIndex {
         let entries = vec![

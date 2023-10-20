@@ -1,7 +1,3 @@
-use std::sync::atomic::Ordering;
-
-use crate::types::Value;
-
 use super::{
     element_array::ElementArrayKey,
     heap_bits::{HeapBits, WorkQueues},
@@ -11,6 +7,8 @@ use super::{
     },
     ElementsVector, Heap,
 };
+use crate::types::Value;
+use std::sync::atomic::Ordering;
 
 pub fn heap_gc(heap: &mut Heap) {
     let bits = HeapBits::new(heap);

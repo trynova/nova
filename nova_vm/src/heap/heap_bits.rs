@@ -1,7 +1,3 @@
-use std::sync::atomic::AtomicBool;
-
-use crate::types::Value;
-
 use super::{
     indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, DateIndex, ElementIndex, ErrorIndex,
@@ -9,6 +5,8 @@ use super::{
     },
     Heap,
 };
+use crate::types::Value;
+use std::sync::atomic::AtomicBool;
 
 pub struct HeapBits {
     pub e_2_4: Box<[AtomicBool]>,
