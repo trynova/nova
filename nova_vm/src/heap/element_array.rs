@@ -1,10 +1,10 @@
 use super::{
     indexes::{ElementIndex, FunctionIndex},
-    object::{ObjectEntry, PropertyDescriptor, PropertyKey},
+    object::{ObjectEntry, PropertyDescriptor},
 };
-use crate::{types::Value, Heap};
+use crate::types::{PropertyKey, Value};
 use core::panic;
-use std::{collections::HashMap, mem::MaybeUninit, num::NonZeroU16, vec};
+use std::{collections::HashMap, mem::MaybeUninit, num::NonZeroU16};
 
 #[derive(Debug, Clone, Copy)]
 pub enum ElementArrayKey {
@@ -789,8 +789,8 @@ impl ElementArrays {
             let (maybe_descriptor, maybe_value) =
                 ElementDescriptor::from_property_descriptor(value);
             let key = match key {
+                PropertyKey::Integer(data) => Value::Integer(data),
                 PropertyKey::SmallString(data) => Value::SmallString(data),
-                PropertyKey::Smi(data) => Value::from(data),
                 PropertyKey::String(data) => Value::String(data),
                 PropertyKey::Symbol(data) => Value::Symbol(data),
             };

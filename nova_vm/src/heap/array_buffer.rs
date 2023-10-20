@@ -1,16 +1,13 @@
 use super::{
-    function::FunctionHeapData,
-    heap_constants::WellKnownSymbolIndexes,
-    indexes::{ArrayBufferIndex, ObjectIndex},
-    object::{ObjectEntry, PropertyKey},
+    function::FunctionHeapData, heap_constants::WellKnownSymbolIndexes, indexes::ObjectIndex,
+    object::ObjectEntry,
 };
 use crate::{
-    execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, PropertyDescriptor,
     },
-    types::{Object, Value},
+    types::{Object, PropertyKey, Value},
 };
 use std::{
     alloc::{alloc_zeroed, handle_alloc_error, Layout},

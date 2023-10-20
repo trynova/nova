@@ -1,15 +1,14 @@
+use super::{
+    indexes::{FunctionIndex, StringIndex, SymbolIndex},
+    object::ObjectEntry,
+};
 use crate::{
     execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes, WellKnownSymbolIndexes},
         FunctionHeapData, Heap, PropertyDescriptor,
     },
-    types::{Object, Value},
-};
-
-use super::{
-    indexes::{FunctionIndex, StringIndex, SymbolIndex},
-    object::{ObjectEntry, PropertyKey},
+    types::{Object, PropertyKey, Value},
 };
 
 #[derive(Debug, Clone, Copy)]

@@ -1,17 +1,16 @@
+use super::{
+    function::FunctionHeapData,
+    heap_constants::WellKnownSymbolIndexes,
+    indexes::{FunctionIndex, ObjectIndex},
+    object::ObjectEntry,
+};
 use crate::{
     execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, PropertyDescriptor,
     },
-    types::{Object, Value},
-};
-
-use super::{
-    function::FunctionHeapData,
-    heap_constants::WellKnownSymbolIndexes,
-    indexes::{FunctionIndex, ObjectIndex},
-    object::{ObjectEntry, PropertyKey},
+    types::{Object, PropertyKey, Value},
 };
 
 #[derive(Debug, Clone, Copy)]

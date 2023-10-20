@@ -1,20 +1,18 @@
-use std::time::SystemTime;
-
+use super::{
+    function::FunctionHeapData,
+    heap_constants::WellKnownSymbolIndexes,
+    indexes::{FunctionIndex, ObjectIndex},
+    object::ObjectEntry,
+};
 use crate::{
     execution::JsResult,
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, PropertyDescriptor,
     },
-    types::{Object, Value},
+    types::{Object, PropertyKey, Value},
 };
-
-use super::{
-    function::FunctionHeapData,
-    heap_constants::WellKnownSymbolIndexes,
-    indexes::{FunctionIndex, ObjectIndex},
-    object::{ObjectEntry, PropertyKey},
-};
+use std::time::SystemTime;
 
 #[derive(Debug, Clone, Copy)]
 pub struct DateHeapData {

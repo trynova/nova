@@ -1,6 +1,6 @@
 use super::{
     element_array::ElementsVector,
-    indexes::{FunctionIndex, ObjectIndex, StringIndex, SymbolIndex},
+    indexes::{FunctionIndex, ObjectIndex, SymbolIndex},
 };
 use crate::{
     execution::JsResult,
@@ -8,8 +8,7 @@ use crate::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, Heap,
     },
-    types::{Object, Value},
-    SmallString,
+    types::{Object, PropertyKey, Value},
 };
 use std::{fmt::Debug, vec};
 
@@ -34,7 +33,7 @@ impl ObjectEntry {
         let key = PropertyKey::from_str(heap, name);
         let name = match key {
             PropertyKey::SmallString(data) => Value::SmallString(data.clone()),
-            PropertyKey::Smi(_) => unreachable!("No prototype functions should have SMI names"),
+            PropertyKey::Integer(_) => unreachable!("No prototype functions should have SMI names"),
             PropertyKey::String(idx) => Value::String(idx),
             PropertyKey::Symbol(idx) => Value::Symbol(idx),
         };
@@ -74,24 +73,6 @@ impl ObjectEntry {
         ObjectEntry {
             key: PropertyKey::from_str(heap, key),
             value: PropertyDescriptor::roh(value),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum PropertyKey {
-    SmallString(SmallString),
-    Smi(i32),
-    String(StringIndex),
-    Symbol(SymbolIndex),
-}
-
-impl PropertyKey {
-    pub fn from_str(heap: &mut Heap, str: &str) -> Self {
-        if let Ok(ascii_string) = SmallString::try_from(str) {
-            PropertyKey::SmallString(ascii_string)
-        } else {
-            PropertyKey::String(heap.alloc_string(str))
         }
     }
 }

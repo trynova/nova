@@ -1,9 +1,11 @@
-use crate::{execution::JsResult, types::Value};
-
 use super::{
     heap_constants::WellKnownSymbolIndexes,
-    object::{ObjectEntry, PropertyDescriptor, PropertyKey},
+    object::{ObjectEntry, PropertyDescriptor},
     Heap,
+};
+use crate::{
+    execution::JsResult,
+    types::{PropertyKey, Value},
 };
 
 pub(super) fn initialize_math_object(heap: &mut Heap) {
