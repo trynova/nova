@@ -17,7 +17,7 @@ use crate::{
     Heap,
 };
 
-pub use data::ObjectData;
+pub use data::ObjectHeapData;
 pub use internal_methods::InternalMethods;
 pub use property_key::PropertyKey;
 pub use property_storage::PropertyStorage;

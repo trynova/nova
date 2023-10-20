@@ -37,14 +37,14 @@ use self::{
     indexes::{BaseIndex, FunctionIndex, NumberIndex, ObjectIndex, StringIndex},
     math::initialize_math_object,
     number::{initialize_number_heap, NumberHeapData},
-    object::{initialize_object_heap, ObjectEntry, ObjectHeapData, PropertyDescriptor},
+    object::{initialize_object_heap, ObjectEntry, PropertyDescriptor},
     regexp::{initialize_regexp_heap, RegExpHeapData},
     string::initialize_string_heap,
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
 use crate::{
     execution::{Environments, Realm, RealmIdentifier},
-    types::{Function, Number, Object, PropertyKey, String, StringHeapData, Value},
+    types::{Function, Number, Object, ObjectHeapData, PropertyKey, String, StringHeapData, Value},
 };
 use wtf8::{Wtf8, Wtf8Buf};
 

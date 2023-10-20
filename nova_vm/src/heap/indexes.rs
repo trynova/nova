@@ -1,10 +1,10 @@
 use super::array_buffer::ArrayBufferHeapData;
 use super::{
     array::ArrayHeapData, bigint::BigIntHeapData, date::DateHeapData, error::ErrorHeapData,
-    function::FunctionHeapData, number::NumberHeapData, object::ObjectHeapData,
-    regexp::RegExpHeapData, symbol::SymbolHeapData,
+    function::FunctionHeapData, number::NumberHeapData, regexp::RegExpHeapData,
+    symbol::SymbolHeapData,
 };
-use crate::types::{StringHeapData, Value};
+use crate::types::{ObjectHeapData, StringHeapData, Value};
 use crate::Heap;
 use core::fmt::Debug;
 use std::hash::{Hash, Hasher};
