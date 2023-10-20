@@ -2,9 +2,12 @@ mod intrinsics;
 
 use super::{
     environments::global_environment::GlobalEnvironmentIndex, Agent, ExecutionContext,
-    GlobalEnvironment,
+    GlobalEnvironment, JsResult,
 };
-use crate::{heap::indexes::ObjectIndex, types::Object};
+use crate::{
+    heap::indexes::ObjectIndex,
+    types::{Object, PropertyDescriptor, PropertyKey, Value},
+};
 pub use intrinsics::Intrinsics;
 use std::{any::Any, cell::RefCell, marker::PhantomData, rc::Rc};
 
@@ -72,7 +75,7 @@ impl<'ctx, 'host> Realm<'ctx, 'host> {
         // 1. If globalObj is undefined, then
         let global_object = global_object.unwrap_or_else(|| {
             // a. Let intrinsics be realmRec.[[Intrinsics]].
-            let intrinsics = self.intrinsics;
+            let intrinsics = &self.intrinsics;
             // b. Set globalObj to OrdinaryObjectCreate(intrinsics.[[%Object.prototype%]]).
             Object::Object(
                 self.agent
@@ -102,21 +105,40 @@ impl<'ctx, 'host> Realm<'ctx, 'host> {
         // 7. Return UNUSED.
     }
 
+    /// 9.3.4 SetDefaultGlobalBindings ( realmRec )
+    /// https://tc39.es/ecma262/#sec-setdefaultglobalbindings
     pub(crate) fn set_default_global_bindings(
         &mut self,
         agent: Rc<RefCell<Agent<'ctx, 'host>>>,
-    ) -> Object {
+    ) -> JsResult<Object> {
         // 1. Let global be realmRec.[[GlobalObject]].
         let global = self.global_object;
 
         // 2. For each property of the Global Object specified in clause 19, do
         // a. Let name be the String value of the property name.
+        let name =
+            PropertyKey::try_from(Value::from_str(&mut agent.borrow_mut().heap, "globalThis"))
+                .unwrap();
         // b. Let desc be the fully populated data Property Descriptor for the property, containing the specified attributes for the property. For properties listed in 19.2, 19.3, or 19.4 the value of the [[Value]] attribute is the corresponding intrinsic object from realmRec.
+        let desc = PropertyDescriptor {
+            value: Some(
+                agent
+                    .borrow()
+                    .heap
+                    .environments
+                    .get_global_environment(self.global_env)
+                    .global_this_value
+                    .into_value(),
+            ),
+            ..Default::default()
+        };
         // c. Perform ? DefinePropertyOrThrow(global, name, desc).
-        // TODO
+        global.define_property_or_throw(&mut agent.borrow_mut(), name, desc)?;
+
+        // TODO: Actually do other properties aside from globalThis.
 
         // 3. Return global.
-        global
+        Ok(global)
     }
 
     /// 9.6 InitializeHostDefinedRealm ( ), https://tc39.es/ecma262/#sec-initializehostdefinedrealm
@@ -177,7 +199,8 @@ impl<'ctx, 'host> Realm<'ctx, 'host> {
         let global_obj = agent
             .borrow_mut()
             .get_realm_mut(realm)
-            .set_default_global_bindings(agent.clone());
+            .set_default_global_bindings(agent.clone())
+            .unwrap();
 
         // 11. Create any host-defined global object properties on globalObj.
         if let Some(initialize_global_object) = initialize_global_object {

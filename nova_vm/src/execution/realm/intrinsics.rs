@@ -6,7 +6,7 @@ use crate::{
     types::{Function, Object},
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Intrinsics {
     /// %Array%
     array: FunctionIndex,
