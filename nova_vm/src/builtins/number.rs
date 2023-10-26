@@ -15,8 +15,8 @@ impl Builtin for NumberConstructor {
     fn create<'a>(agent: &'a mut Agent<'a, 'a>) -> JsResult<Object> {
         let realm_id = agent.current_realm_id();
 
-        let function_prototype = agent.current_realm().intrinsics.function_prototype();
-        let number_prototype = agent.current_realm().intrinsics.number_prototype();
+        let function_prototype = agent.current_realm().intrinsics().function_prototype();
+        let number_prototype = agent.current_realm().intrinsics().number_prototype();
         let object: Object = create_builtin_function(
             agent,
             Behaviour::Constructor(Self::behaviour),

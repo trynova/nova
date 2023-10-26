@@ -63,7 +63,7 @@ pub fn create_builtin_function<'a, 'b: 'a>(
     let prototype = args.prototype.unwrap_or_else(|| {
         agent
             .get_realm(realm_id)
-            .intrinsics
+            .intrinsics()
             .function_prototype()
             .into()
     });
