@@ -4,12 +4,14 @@ use super::{
     object::ObjectEntry,
 };
 use crate::{
-    execution::JsResult,
+    ecmascript::{
+        execution::JsResult,
+        types::{Object, PropertyKey, Value},
+    },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, PropertyDescriptor,
     },
-    types::{Object, PropertyKey, Value},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -68,10 +70,10 @@ pub fn initialize_error_heap(heap: &mut Heap) {
     );
 }
 
-fn error_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
+fn error_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
     Ok(Value::Function(FunctionIndex::from_index(0)))
 }
 
-fn error_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
+fn error_todo(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
     todo!()
 }

@@ -7,7 +7,7 @@ use super::{
     },
     ElementsVector, Heap,
 };
-use crate::types::Value;
+use crate::ecmascript::types::Value;
 use std::sync::atomic::Ordering;
 
 pub fn heap_gc(heap: &mut Heap) {

@@ -3,7 +3,7 @@ use super::{
     object::{ObjectEntry, PropertyDescriptor},
     Heap,
 };
-use crate::{
+use crate::ecmascript::{
     execution::JsResult,
     types::{PropertyKey, Value},
 };

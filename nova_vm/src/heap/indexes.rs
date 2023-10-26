@@ -4,7 +4,7 @@ use super::{
     function::FunctionHeapData, number::NumberHeapData, regexp::RegExpHeapData,
     symbol::SymbolHeapData,
 };
-use crate::types::{ObjectHeapData, StringHeapData, Value};
+use crate::ecmascript::types::{ObjectHeapData, StringHeapData, Value};
 use crate::Heap;
 use core::fmt::Debug;
 use std::hash::{Hash, Hasher};
@@ -41,10 +41,6 @@ impl<T: ?Sized> PartialEq for BaseIndex<T> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
-
-    fn ne(&self, other: &Self) -> bool {
-        !self.eq(other)
-    }
 }
 
 impl<T: ?Sized> Eq for BaseIndex<T> {}
@@ -73,7 +69,7 @@ impl<T: ?Sized> BaseIndex<T> {
     }
 
     pub const fn into_u32_index(self) -> u32 {
-        self.0.get() as u32 - 1
+        self.0.get() - 1
     }
 
     pub const fn into_usize(self) -> usize {
@@ -81,7 +77,7 @@ impl<T: ?Sized> BaseIndex<T> {
     }
 
     pub const fn into_u32(self) -> u32 {
-        self.0.get() as u32
+        self.0.get()
     }
 
     pub const fn from_index(value: usize) -> Self {
@@ -89,10 +85,7 @@ impl<T: ?Sized> BaseIndex<T> {
         assert!(value != u32::MAX);
         // SAFETY: Number is not max value and will not overflow to zero.
         // This check is done manually to allow const context.
-        Self(
-            unsafe { NonZeroU32::new_unchecked(value as u32 + 1) },
-            PhantomData,
-        )
+        Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
     }
 
     pub const fn from_u32_index(value: u32) -> Self {
@@ -107,10 +100,7 @@ impl<T: ?Sized> BaseIndex<T> {
         assert!(value != 0);
         // SAFETY: Number is not zero.
         // This check is done manually to allow const context.
-        Self(
-            unsafe { NonZeroU32::new_unchecked(value as u32) },
-            PhantomData,
-        )
+        Self(unsafe { NonZeroU32::new_unchecked(value) }, PhantomData)
     }
 
     pub const fn from_u32(value: u32) -> Self {
@@ -121,7 +111,7 @@ impl<T: ?Sized> BaseIndex<T> {
     }
 
     pub fn last<U: Sized>(vec: &Vec<Option<U>>) -> Self {
-        assert!(vec.len() > 0);
+        assert!(!vec.is_empty());
         Self::from_index(vec.len())
     }
 }

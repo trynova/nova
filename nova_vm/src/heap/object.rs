@@ -1,11 +1,13 @@
 use super::indexes::{FunctionIndex, ObjectIndex, SymbolIndex};
 use crate::{
-    execution::JsResult,
+    ecmascript::{
+        execution::JsResult,
+        types::{Object, PropertyKey, Value},
+    },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, Heap,
     },
-    types::{Object, PropertyKey, Value},
 };
 use std::{fmt::Debug, vec};
 
@@ -29,7 +31,7 @@ impl ObjectEntry {
     ) -> Self {
         let key = PropertyKey::from_str(heap, name);
         let name = match key {
-            PropertyKey::SmallString(data) => Value::SmallString(data.clone()),
+            PropertyKey::SmallString(data) => Value::SmallString(data),
             PropertyKey::Integer(_) => unreachable!("No prototype functions should have SMI names"),
             PropertyKey::String(idx) => Value::String(idx),
             PropertyKey::Symbol(idx) => Value::Symbol(idx),
@@ -269,10 +271,10 @@ pub fn initialize_object_heap(heap: &mut Heap) {
     );
 }
 
-fn object_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
+fn object_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
     Ok(Value::Object(ObjectIndex::from_index(0)))
 }
 
-fn object_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
+fn object_todo(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
     todo!()
 }

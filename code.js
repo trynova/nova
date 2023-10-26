@@ -1,1 +1,1 @@
-var asd = "foobar"
+var asd = "foobar";

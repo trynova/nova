@@ -42,7 +42,7 @@ use self::{
     string::initialize_string_heap,
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
-use crate::{
+use crate::ecmascript::{
     execution::{Environments, Realm, RealmIdentifier},
     types::{Function, Number, Object, ObjectHeapData, PropertyKey, String, StringHeapData, Value},
 };

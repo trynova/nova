@@ -134,17 +134,17 @@ pub enum BuiltinObjectIndexes {
     ProxyConstructorIndex,
 }
 
-impl Into<ObjectIndex> for BuiltinObjectIndexes {
-    fn into(self) -> ObjectIndex {
-        ObjectIndex::from_u32_index(self as u32)
+impl From<BuiltinObjectIndexes> for ObjectIndex {
+    fn from(value: BuiltinObjectIndexes) -> ObjectIndex {
+        ObjectIndex::from_u32_index(value as u32)
     }
 }
 
-impl Into<FunctionIndex> for BuiltinObjectIndexes {
-    fn into(self) -> FunctionIndex {
+impl From<BuiltinObjectIndexes> for FunctionIndex {
+    fn from(value: BuiltinObjectIndexes) -> FunctionIndex {
         // We do not allow more than 16 777 216 functions to exist.
-        assert!(self as u32 <= u32::pow(2, 24));
-        FunctionIndex::from_u32_index(self as u32)
+        assert!(value as u32 <= u32::pow(2, 24));
+        FunctionIndex::from_u32_index(value as u32)
     }
 }
 
@@ -179,9 +179,9 @@ pub enum WellKnownSymbolIndexes {
     Unscopables,
 }
 
-impl Into<SymbolIndex> for WellKnownSymbolIndexes {
-    fn into(self) -> SymbolIndex {
-        SymbolIndex::from_u32_index(self as u32)
+impl From<WellKnownSymbolIndexes> for SymbolIndex {
+    fn from(value: WellKnownSymbolIndexes) -> Self {
+        SymbolIndex::from_u32_index(value as u32)
     }
 }
 
