@@ -19,7 +19,7 @@ mod symbol;
 
 pub use self::heap_constants::BuiltinObjectIndexes;
 use self::{
-    array::{initialize_array_heap, ArrayHeapData},
+    array::initialize_array_heap,
     array_buffer::{initialize_array_buffer_heap, ArrayBufferHeapData},
     bigint::{initialize_bigint_heap, BigIntHeapData},
     boolean::initialize_boolean_heap,
@@ -43,6 +43,7 @@ use self::{
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
 use crate::ecmascript::{
+    builtins::ArrayHeapData,
     execution::{Environments, Realm, RealmIdentifier},
     types::{Function, Number, Object, ObjectHeapData, PropertyKey, String, StringHeapData, Value},
 };

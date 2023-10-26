@@ -1,3 +1,9 @@
+//! ### 10.4.2 Array Exotic Objects
+//!
+//! https://tc39.es/ecma262/#sec-array-exotic-objects
+
+pub(crate) mod data;
+
 use super::{create_builtin_function, ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs};
 use crate::ecmascript::{
     execution::{Agent, JsResult},

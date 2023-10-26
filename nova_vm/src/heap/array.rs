@@ -1,8 +1,5 @@
 use super::{
-    element_array::ElementsVector,
-    function::FunctionHeapData,
-    heap_constants::WellKnownSymbolIndexes,
-    indexes::{FunctionIndex, ObjectIndex},
+    function::FunctionHeapData, heap_constants::WellKnownSymbolIndexes, indexes::FunctionIndex,
     object::ObjectEntry,
 };
 use crate::{
@@ -15,13 +12,6 @@ use crate::{
         Heap, PropertyDescriptor,
     },
 };
-
-#[derive(Debug, Clone, Copy)]
-pub struct ArrayHeapData {
-    pub object_index: Option<ObjectIndex>,
-    // TODO: Use SmallVec<[Value; 4]>
-    pub elements: ElementsVector,
-}
 
 pub fn initialize_array_heap(heap: &mut Heap) {
     let species_function_name = Value::from_str(heap, "get [Symbol.species]");
