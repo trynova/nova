@@ -1,11 +1,13 @@
 use super::{object::ObjectEntry, Heap};
 use crate::{
-    execution::JsResult,
+    ecmascript::{
+        execution::JsResult,
+        types::{Object, PropertyKey, Value},
+    },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, PropertyDescriptor,
     },
-    types::{Object, PropertyKey, Value},
 };
 
 pub fn initialize_boolean_heap(heap: &mut Heap) {
@@ -51,10 +53,10 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
     );
 }
 
-fn boolean_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
+fn boolean_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
     Ok(Value::Boolean(false))
 }
 
-fn boolean_todo(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
+fn boolean_todo(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
     todo!();
 }

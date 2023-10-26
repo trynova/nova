@@ -3,11 +3,11 @@ use super::{
     object::ObjectEntry,
 };
 use crate::{
+    ecmascript::types::{Object, PropertyKey, Value},
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, PropertyDescriptor,
     },
-    types::{Object, PropertyKey, Value},
 };
 use std::{
     alloc::{alloc_zeroed, handle_alloc_error, Layout},
@@ -127,24 +127,24 @@ impl BackingStore {
     fn as_ptr(&self, byte_offset: u32) -> Option<*const u8> {
         if byte_offset >= self.byte_length {
             None
-        } else if let Some(data) = self.ptr {
-            // SAFETY: The data is properly initialized, and the T being read is
-            // checked to be fully within the length of the data allocation.
-            Some(unsafe { data.as_ptr().add(byte_offset as usize) })
         } else {
-            None
+            self.ptr.map(|data| {
+                // SAFETY: The data is properly initialized, and the T being read is
+                // checked to be fully within the length of the data allocation.
+                unsafe { data.as_ptr().add(byte_offset as usize) as *const _ }
+            })
         }
     }
 
     fn as_mut_ptr(&mut self, byte_offset: u32) -> Option<*mut u8> {
         if byte_offset >= self.byte_length {
             None
-        } else if let Some(data) = self.ptr {
-            // SAFETY: The data is properly initialized, and the T being read is
-            // checked to be fully within the length of the data allocation.
-            Some(unsafe { data.as_ptr().add(byte_offset as usize) })
         } else {
-            None
+            self.ptr.map(|data| {
+                // SAFETY: The data is properly initialized, and the T being read is
+                // checked to be fully within the length of the data allocation.
+                unsafe { data.as_ptr().add(byte_offset as usize) }
+            })
         }
     }
 
@@ -153,12 +153,12 @@ impl BackingStore {
         let byte_offset = offset * size;
         if byte_offset >= self.byte_length {
             None
-        } else if let Some(data) = self.ptr {
-            // SAFETY: The data is properly initialized, and the T being read is
-            // checked to be fully within the length of the data allocation.
-            Some(unsafe { read_unaligned(data.as_ptr().add(offset as usize).cast()) })
         } else {
-            None
+            self.ptr.map(|data| {
+                // SAFETY: The data is properly initialized, and the T being read is
+                // checked to be fully within the length of the data allocation.
+                unsafe { read_unaligned(data.as_ptr().add(offset as usize).cast()) }
+            })
         }
     }
 

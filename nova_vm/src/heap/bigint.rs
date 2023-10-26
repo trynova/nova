@@ -1,11 +1,13 @@
 use super::indexes::ObjectIndex;
 use crate::{
-    execution::JsResult,
+    ecmascript::{
+        execution::JsResult,
+        types::{Object, PropertyKey, Value},
+    },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, Heap, ObjectEntry, PropertyDescriptor,
     },
-    types::{Object, PropertyKey, Value},
 };
 use num_bigint_dig::BigInt;
 
@@ -70,7 +72,7 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
     );
 }
 
-fn bigint_constructor(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value> {
+fn bigint_constructor(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
     // if !this.is_undefined() {
     //     // TODO: Throw TypeError
     //     return Err(Value::Error(ErrorIndex::from_index(0)));
@@ -80,28 +82,28 @@ fn bigint_constructor(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<
     Ok(Value::Null)
 }
 
-fn bigint_as_int_n(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
+fn bigint_as_int_n(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
     // Ok(Value::SmallBigInt(3))
     Ok(Value::Null)
 }
 
-fn bigint_as_uint_n(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value> {
+fn bigint_as_uint_n(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
     // Ok(Value::SmallBigIntU(3))
     Ok(Value::Null)
 }
 
 fn bigint_prototype_to_locale_string(
     heap: &mut Heap,
-    this: Value,
-    args: &[Value],
+    _this: Value,
+    _args: &[Value],
 ) -> JsResult<Value> {
     Ok(Value::from_str(heap, "BigInt(3n)"))
 }
 
-fn bigint_prototype_to_string(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value> {
+fn bigint_prototype_to_string(heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
     Ok(Value::from_str(heap, "BigInt(3n)"))
 }
 
-fn bigint_prototype_value_of(heap: &mut Heap, this: Value, args: &[Value]) -> JsResult<Value> {
+fn bigint_prototype_value_of(heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
     Ok(Value::from_str(heap, "BigInt(3n)"))
 }

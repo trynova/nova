@@ -1,10 +1,12 @@
 use crate::{
-    execution::JsResult,
+    ecmascript::{
+        execution::JsResult,
+        types::{Object, Value},
+    },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, Heap,
     },
-    types::{Object, Value},
 };
 
 pub fn initialize_string_heap(heap: &mut Heap) {
@@ -38,6 +40,6 @@ pub fn initialize_string_heap(heap: &mut Heap) {
     );
 }
 
-fn string_constructor_binding(heap: &mut Heap, _this: Value, args: &[Value]) -> JsResult<Value> {
+fn string_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
     Ok(Value::Null)
 }

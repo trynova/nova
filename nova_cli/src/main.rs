@@ -44,7 +44,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let allocator = Default::default();
             let source_type: SourceType = Default::default();
             let parser = Parser::new(&allocator, &file, source_type.with_typescript(false));
-            let result = parser.parse();
+            let _result = parser.parse();
 
             // let mut vm = VM {
             //     source: &file,

@@ -1,10 +1,6 @@
-pub mod builtins;
-pub mod execution;
+pub mod ecmascript;
+pub mod engine;
 pub mod heap;
-pub mod language;
-pub mod types;
+pub use engine::small_integer::SmallInteger;
+pub use engine::small_string::SmallString;
 pub use heap::Heap;
-mod small_integer;
-mod small_string;
-pub use small_integer::SmallInteger;
-pub use small_string::SmallString;

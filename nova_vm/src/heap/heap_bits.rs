@@ -5,7 +5,7 @@ use super::{
     },
     Heap,
 };
-use crate::types::Value;
+use crate::ecmascript::types::Value;
 use std::sync::atomic::AtomicBool;
 
 pub struct HeapBits {
@@ -112,7 +112,7 @@ impl WorkQueues {
             Value::Boolean(_) => {}
             Value::Date(idx) => self.dates.push(idx),
             Value::Error(idx) => self.errors.push(idx),
-            Value::Function(idx) => todo!(),
+            Value::Function(_idx) => todo!(),
             Value::BigInt(idx) => self.bigints.push(idx),
             Value::Number(idx) => self.numbers.push(idx),
             Value::String(idx) => self.strings.push(idx),

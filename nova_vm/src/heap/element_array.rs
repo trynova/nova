@@ -2,9 +2,9 @@ use super::{
     indexes::{ElementIndex, FunctionIndex},
     object::{ObjectEntry, PropertyDescriptor},
 };
-use crate::types::{PropertyKey, Value};
+use crate::ecmascript::types::{PropertyKey, Value};
 use core::panic;
-use std::{collections::HashMap, mem::MaybeUninit, num::NonZeroU16};
+use std::{collections::HashMap, num::NonZeroU16};
 
 #[derive(Debug, Clone, Copy)]
 pub enum ElementArrayKey {
@@ -342,7 +342,7 @@ impl ElementDescriptor {
                 get_bottom,
                 _,
             ) => Some(FunctionIndex::from_u32(
-                (*get_top as u32) << 16 + get_bottom.get() as u32,
+                (*get_top as u32) << (16 + get_bottom.get() as u32),
             )),
             _ => None,
         }
@@ -378,7 +378,7 @@ impl ElementDescriptor {
                 _,
                 set_bottom,
             ) => Some(FunctionIndex::from_u32(
-                (*set_top as u32) << 16 + set_bottom.get() as u32,
+                (*set_top as u32) << (16 + set_bottom.get() as u32),
             )),
             _ => None,
         }
@@ -386,19 +386,10 @@ impl ElementDescriptor {
 }
 
 /// Element arrays of up to 16 elements
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ElementArray2Pow4 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 4)]>>,
     pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
-}
-
-impl Default for ElementArray2Pow4 {
-    fn default() -> Self {
-        Self {
-            values: Default::default(),
-            descriptors: Default::default(),
-        }
-    }
 }
 
 impl ElementArray2Pow4 {
@@ -411,19 +402,10 @@ impl ElementArray2Pow4 {
 }
 
 /// Element arrays of up to 64 elements
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ElementArray2Pow6 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 6)]>>,
     pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
-}
-
-impl Default for ElementArray2Pow6 {
-    fn default() -> Self {
-        Self {
-            values: Default::default(),
-            descriptors: Default::default(),
-        }
-    }
 }
 
 impl ElementArray2Pow6 {
@@ -436,19 +418,10 @@ impl ElementArray2Pow6 {
 }
 
 /// Element arrays of up to 256 elements
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ElementArray2Pow8 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 8)]>>,
     pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
-}
-
-impl Default for ElementArray2Pow8 {
-    fn default() -> Self {
-        Self {
-            values: Default::default(),
-            descriptors: Default::default(),
-        }
-    }
 }
 
 impl ElementArray2Pow8 {
@@ -461,19 +434,10 @@ impl ElementArray2Pow8 {
 }
 
 /// Element arrays of up to 1024 elements
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ElementArray2Pow10 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 10)]>>,
     pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
-}
-
-impl Default for ElementArray2Pow10 {
-    fn default() -> Self {
-        Self {
-            values: Default::default(),
-            descriptors: Default::default(),
-        }
-    }
 }
 
 impl ElementArray2Pow10 {
@@ -486,19 +450,10 @@ impl ElementArray2Pow10 {
 }
 
 /// Element arrays of up to 4096 elements
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ElementArray2Pow12 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 12)]>>,
     pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
-}
-
-impl Default for ElementArray2Pow12 {
-    fn default() -> Self {
-        Self {
-            values: Default::default(),
-            descriptors: Default::default(),
-        }
-    }
 }
 
 impl ElementArray2Pow12 {
@@ -511,19 +466,10 @@ impl ElementArray2Pow12 {
 }
 
 /// Element arrays of up to 65536 elements
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ElementArray2Pow16 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 16)]>>,
     pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
-}
-
-impl Default for ElementArray2Pow16 {
-    fn default() -> Self {
-        Self {
-            values: Default::default(),
-            descriptors: Default::default(),
-        }
-    }
 }
 
 impl ElementArray2Pow16 {
@@ -536,19 +482,10 @@ impl ElementArray2Pow16 {
 }
 
 /// Element arrays of up to 16777216 elements
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ElementArray2Pow24 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 24)]>>,
     pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
-}
-
-impl Default for ElementArray2Pow24 {
-    fn default() -> Self {
-        Self {
-            values: Default::default(),
-            descriptors: Default::default(),
-        }
-    }
 }
 
 impl ElementArray2Pow24 {
@@ -561,19 +498,10 @@ impl ElementArray2Pow24 {
 }
 
 /// Element arrays of up to 4294967296 elements
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ElementArray2Pow32 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 32)]>>,
     pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
-}
-
-impl Default for ElementArray2Pow32 {
-    fn default() -> Self {
-        Self {
-            values: Default::default(),
-            descriptors: Default::default(),
-        }
-    }
 }
 
 impl ElementArray2Pow32 {
@@ -615,18 +543,20 @@ impl ElementArrays {
         match key {
             ElementArrayKey::E4 => {
                 self.e2pow4.values.reserve(1);
-                // SAFETY: We reserved an extra slot successfully.
+                let remaining = self.e2pow4.values.spare_capacity_mut();
+                let length = vector.len();
+                let last = remaining.get_mut(0).unwrap();
+                // SAFETY: Not really safe but still mostly safe.
+                // Unsafety comes from the fact that we have not initialized the memory and thus
+                // the Option<Value> cases we have in this memory are bound to be all wrong.
+                // The safety comes from Option<Value> being a copyable type so no dropping will be
+                // done either way, and we initialize all values to either valid Values or None.
                 unsafe {
+                    let last_slice = last.assume_init_mut().as_mut().unwrap();
+                    last_slice[0..length].copy_from_slice(vector.as_slice());
+                    last_slice[vector.len()..].fill(None);
                     self.e2pow4.values.set_len(self.e2pow4.values.len() + 1);
-                    let last = std::mem::transmute::<
-                        _,
-                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 4)]>,
-                    >(self.e2pow4.values.last_mut().unwrap());
-                    let length = vector.len();
-                    let last_slice = last.assume_init_mut().as_mut_slice();
-                    last_slice[0..length].copy_from_slice(&vector.as_slice());
-                    last_slice[vector.len()..].fill(None)
-                };
+                }
                 let index = ElementIndex::last(&self.e2pow4.values);
                 if let Some(descriptors) = desciptors {
                     self.e2pow4.descriptors.insert(index, descriptors);
@@ -635,18 +565,20 @@ impl ElementArrays {
             }
             ElementArrayKey::E6 => {
                 self.e2pow6.values.reserve(1);
-                // SAFETY: We reserved an extra slot successfully.
+                let remaining = self.e2pow6.values.spare_capacity_mut();
+                let length = vector.len();
+                let last = remaining.get_mut(0).unwrap();
+                // SAFETY: Not really safe but still mostly safe.
+                // Unsafety comes from the fact that we have not initialized the memory and thus
+                // the Option<Value> cases we have in this memory are bound to be all wrong.
+                // The safety comes from Option<Value> being a copyable type so no dropping will be
+                // done either way, and we initialize all values to either valid Values or None.
                 unsafe {
-                    self.e2pow6.values.set_len(self.e2pow6.values.len() + 1);
-                    let last = std::mem::transmute::<
-                        _,
-                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 6)]>,
-                    >(self.e2pow6.values.last_mut().unwrap());
-                    let length = vector.len();
-                    let last_slice = last.assume_init_mut().as_mut_slice();
+                    let last_slice = last.assume_init_mut().as_mut().unwrap();
                     last_slice[0..length].copy_from_slice(vector.as_slice());
-                    last_slice[vector.len()..].fill(None)
-                };
+                    last_slice[vector.len()..].fill(None);
+                    self.e2pow6.values.set_len(self.e2pow6.values.len() + 1);
+                }
                 let index = ElementIndex::last(&self.e2pow6.values);
                 if let Some(descriptors) = desciptors {
                     self.e2pow6.descriptors.insert(index, descriptors);
@@ -655,18 +587,20 @@ impl ElementArrays {
             }
             ElementArrayKey::E8 => {
                 self.e2pow8.values.reserve(1);
-                // SAFETY: We reserved an extra slot successfully.
+                let remaining = self.e2pow8.values.spare_capacity_mut();
+                let length = vector.len();
+                let last = remaining.get_mut(0).unwrap();
+                // SAFETY: Not really safe but still mostly safe.
+                // Unsafety comes from the fact that we have not initialized the memory and thus
+                // the Option<Value> cases we have in this memory are bound to be all wrong.
+                // The safety comes from Option<Value> being a copyable type so no dropping will be
+                // done either way, and we initialize all values to either valid Values or None.
                 unsafe {
-                    self.e2pow8.values.set_len(self.e2pow8.values.len() + 1);
-                    let last = std::mem::transmute::<
-                        _,
-                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 8)]>,
-                    >(self.e2pow8.values.last_mut().unwrap());
-                    let length = vector.len();
-                    let last_slice = last.assume_init_mut().as_mut_slice();
+                    let last_slice = last.assume_init_mut().as_mut().unwrap();
                     last_slice[0..length].copy_from_slice(vector.as_slice());
-                    last_slice[vector.len()..].fill(None)
-                };
+                    last_slice[vector.len()..].fill(None);
+                    self.e2pow8.values.set_len(self.e2pow8.values.len() + 1);
+                }
                 let index = ElementIndex::last(&self.e2pow8.values);
                 if let Some(descriptors) = desciptors {
                     self.e2pow8.descriptors.insert(index, descriptors);
@@ -675,18 +609,20 @@ impl ElementArrays {
             }
             ElementArrayKey::E10 => {
                 self.e2pow10.values.reserve(1);
-                // SAFETY: We reserved an extra slot successfully.
+                let remaining = self.e2pow10.values.spare_capacity_mut();
+                let length = vector.len();
+                let last = remaining.get_mut(0).unwrap();
+                // SAFETY: Not really safe but still mostly safe.
+                // Unsafety comes from the fact that we have not initialized the memory and thus
+                // the Option<Value> cases we have in this memory are bound to be all wrong.
+                // The safety comes from Option<Value> being a copyable type so no dropping will be
+                // done either way, and we initialize all values to either valid Values or None.
                 unsafe {
-                    self.e2pow10.values.set_len(self.e2pow10.values.len() + 1);
-                    let last = std::mem::transmute::<
-                        _,
-                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 10)]>,
-                    >(self.e2pow10.values.last_mut().unwrap());
-                    let length = vector.len();
-                    let last_slice = last.assume_init_mut().as_mut_slice();
+                    let last_slice = last.assume_init_mut().as_mut().unwrap();
                     last_slice[0..length].copy_from_slice(vector.as_slice());
-                    last_slice[vector.len()..].fill(None)
-                };
+                    last_slice[vector.len()..].fill(None);
+                    self.e2pow10.values.set_len(self.e2pow10.values.len() + 1);
+                }
                 let index = ElementIndex::last(&self.e2pow10.values);
                 if let Some(descriptors) = desciptors {
                     self.e2pow10.descriptors.insert(index, descriptors);
@@ -695,18 +631,20 @@ impl ElementArrays {
             }
             ElementArrayKey::E12 => {
                 self.e2pow12.values.reserve(1);
-                // SAFETY: We reserved an extra slot successfully.
+                let remaining = self.e2pow12.values.spare_capacity_mut();
+                let length = vector.len();
+                let last = remaining.get_mut(0).unwrap();
+                // SAFETY: Not really safe but still mostly safe.
+                // Unsafety comes from the fact that we have not initialized the memory and thus
+                // the Option<Value> cases we have in this memory are bound to be all wrong.
+                // The safety comes from Option<Value> being a copyable type so no dropping will be
+                // done either way, and we initialize all values to either valid Values or None.
                 unsafe {
-                    self.e2pow12.values.set_len(self.e2pow12.values.len() + 1);
-                    let last = std::mem::transmute::<
-                        _,
-                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 12)]>,
-                    >(self.e2pow12.values.last_mut().unwrap());
-                    let length = vector.len();
-                    let last_slice = last.assume_init_mut().as_mut_slice();
+                    let last_slice = last.assume_init_mut().as_mut().unwrap();
                     last_slice[0..length].copy_from_slice(vector.as_slice());
-                    last_slice[vector.len()..].fill(None)
-                };
+                    last_slice[vector.len()..].fill(None);
+                    self.e2pow12.values.set_len(self.e2pow12.values.len() + 1);
+                }
                 let index = ElementIndex::last(&self.e2pow12.values);
                 if let Some(descriptors) = desciptors {
                     self.e2pow12.descriptors.insert(index, descriptors);
@@ -715,18 +653,20 @@ impl ElementArrays {
             }
             ElementArrayKey::E16 => {
                 self.e2pow16.values.reserve(1);
-                // SAFETY: We reserved an extra slot successfully.
+                let remaining = self.e2pow16.values.spare_capacity_mut();
+                let length = vector.len();
+                let last = remaining.get_mut(0).unwrap();
+                // SAFETY: Not really safe but still mostly safe.
+                // Unsafety comes from the fact that we have not initialized the memory and thus
+                // the Option<Value> cases we have in this memory are bound to be all wrong.
+                // The safety comes from Option<Value> being a copyable type so no dropping will be
+                // done either way, and we initialize all values to either valid Values or None.
                 unsafe {
-                    self.e2pow16.values.set_len(self.e2pow16.values.len() + 1);
-                    let last = std::mem::transmute::<
-                        _,
-                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 12)]>,
-                    >(self.e2pow16.values.last_mut().unwrap());
-                    let length = vector.len();
-                    let last_slice = last.assume_init_mut().as_mut_slice();
+                    let last_slice = last.assume_init_mut().as_mut().unwrap();
                     last_slice[0..length].copy_from_slice(vector.as_slice());
-                    last_slice[vector.len()..].fill(None)
-                };
+                    last_slice[vector.len()..].fill(None);
+                    self.e2pow16.values.set_len(self.e2pow16.values.len() + 1);
+                }
                 let index = ElementIndex::last(&self.e2pow16.values);
                 if let Some(descriptors) = desciptors {
                     self.e2pow16.descriptors.insert(index, descriptors);
@@ -735,18 +675,20 @@ impl ElementArrays {
             }
             ElementArrayKey::E24 => {
                 self.e2pow24.values.reserve(1);
-                // SAFETY: We reserved an extra slot successfully.
+                let remaining = self.e2pow24.values.spare_capacity_mut();
+                let length = vector.len();
+                let last = remaining.get_mut(0).unwrap();
+                // SAFETY: Not really safe but still mostly safe.
+                // Unsafety comes from the fact that we have not initialized the memory and thus
+                // the Option<Value> cases we have in this memory are bound to be all wrong.
+                // The safety comes from Option<Value> being a copyable type so no dropping will be
+                // done either way, and we initialize all values to either valid Values or None.
                 unsafe {
-                    self.e2pow24.values.set_len(self.e2pow24.values.len() + 1);
-                    let last = std::mem::transmute::<
-                        _,
-                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 12)]>,
-                    >(self.e2pow24.values.last_mut().unwrap());
-                    let length = vector.len();
-                    let last_slice = last.assume_init_mut().as_mut_slice();
+                    let last_slice = last.assume_init_mut().as_mut().unwrap();
                     last_slice[0..length].copy_from_slice(vector.as_slice());
-                    last_slice[vector.len()..].fill(None)
-                };
+                    last_slice[vector.len()..].fill(None);
+                    self.e2pow24.values.set_len(self.e2pow24.values.len() + 1);
+                }
                 let index = ElementIndex::last(&self.e2pow24.values);
                 if let Some(descriptors) = desciptors {
                     self.e2pow24.descriptors.insert(index, descriptors);
@@ -755,18 +697,20 @@ impl ElementArrays {
             }
             ElementArrayKey::E32 => {
                 self.e2pow32.values.reserve(1);
-                // SAFETY: We reserved an extra slot successfully.
+                let remaining = self.e2pow32.values.spare_capacity_mut();
+                let length = vector.len();
+                let last = remaining.get_mut(0).unwrap();
+                // SAFETY: Not really safe but still mostly safe.
+                // Unsafety comes from the fact that we have not initialized the memory and thus
+                // the Option<Value> cases we have in this memory are bound to be all wrong.
+                // The safety comes from Option<Value> being a copyable type so no dropping will be
+                // done either way, and we initialize all values to either valid Values or None.
                 unsafe {
-                    self.e2pow32.values.set_len(self.e2pow32.values.len() + 1);
-                    let last = std::mem::transmute::<
-                        _,
-                        &mut MaybeUninit<[Option<Value>; usize::pow(2, 12)]>,
-                    >(self.e2pow32.values.last_mut().unwrap());
-                    let length = vector.len();
-                    let last_slice = last.assume_init_mut().as_mut_slice();
+                    let last_slice = last.assume_init_mut().as_mut().unwrap();
                     last_slice[0..length].copy_from_slice(vector.as_slice());
-                    last_slice[vector.len()..].fill(None)
-                };
+                    last_slice[vector.len()..].fill(None);
+                    self.e2pow32.values.set_len(self.e2pow32.values.len() + 1);
+                }
                 let index = ElementIndex::last(&self.e2pow32.values);
                 if let Some(descriptors) = desciptors {
                     self.e2pow32.descriptors.insert(index, descriptors);
@@ -824,7 +768,7 @@ impl ElementArrays {
         )
     }
 
-    pub fn get<'a>(&'a self, vector: ElementsVector) -> () {
+    pub fn get(&self, _vector: ElementsVector) {
         // match vector.cap {
         //     ElementArrayKey::E4 => &self
         //         .e2pow4
