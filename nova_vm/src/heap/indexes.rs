@@ -1,9 +1,9 @@
 use super::array_buffer::ArrayBufferHeapData;
 use super::{
-    array::ArrayHeapData, bigint::BigIntHeapData, date::DateHeapData, error::ErrorHeapData,
-    function::FunctionHeapData, number::NumberHeapData, regexp::RegExpHeapData,
-    symbol::SymbolHeapData,
+    bigint::BigIntHeapData, date::DateHeapData, error::ErrorHeapData, function::FunctionHeapData,
+    number::NumberHeapData, regexp::RegExpHeapData, symbol::SymbolHeapData,
 };
+use crate::ecmascript::builtins::ArrayHeapData;
 use crate::ecmascript::types::{ObjectHeapData, StringHeapData, Value};
 use crate::Heap;
 use core::fmt::Debug;
