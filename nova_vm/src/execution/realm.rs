@@ -38,7 +38,7 @@ pub struct Realm<'ctx, 'host> {
     // NOTE: We will need an rng here at some point.
 
     // [[Intrinsics]]
-    pub intrinsics: Intrinsics,
+    intrinsics: Intrinsics,
 
     /// [[GlobalObject]]
     pub global_object: Object,
@@ -64,6 +64,10 @@ impl<'ctx, 'host> Realm<'ctx, 'host> {
         };
 
         agent.borrow_mut().heap.add_realm(realm)
+    }
+
+    pub(crate) fn intrinsics(&self) -> &Intrinsics {
+        &self.intrinsics
     }
 
     /// 9.3.3 SetRealmGlobalObject ( realmRec, globalObj, thisValue ), https://tc39.es/ecma262/#sec-setrealmglobalobject
