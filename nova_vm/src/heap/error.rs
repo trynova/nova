@@ -1,12 +1,11 @@
 use super::{
-    function::FunctionHeapData,
     indexes::{FunctionIndex, ObjectIndex},
     object::ObjectEntry,
 };
 use crate::{
     ecmascript::{
         execution::JsResult,
-        types::{Object, PropertyKey, Value},
+        types::{FunctionHeapData, Object, PropertyKey, Value},
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},

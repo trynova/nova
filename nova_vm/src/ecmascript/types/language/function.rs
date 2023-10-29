@@ -1,5 +1,9 @@
+mod data;
+
 use super::{Object, Value};
 use crate::heap::indexes::FunctionIndex;
+
+pub use data::FunctionHeapData;
 
 /// https://tc39.es/ecma262/#function-object
 #[derive(Clone, Copy)]

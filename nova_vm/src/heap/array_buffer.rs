@@ -1,9 +1,6 @@
-use super::{
-    function::FunctionHeapData, heap_constants::WellKnownSymbolIndexes, indexes::ObjectIndex,
-    object::ObjectEntry,
-};
+use super::{heap_constants::WellKnownSymbolIndexes, indexes::ObjectIndex, object::ObjectEntry};
 use crate::{
-    ecmascript::types::{Object, PropertyKey, Value},
+    ecmascript::types::{FunctionHeapData, Object, PropertyKey, Value},
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, PropertyDescriptor,

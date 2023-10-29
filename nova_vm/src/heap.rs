@@ -30,7 +30,7 @@ use self::{
         ElementsVector,
     },
     error::{initialize_error_heap, ErrorHeapData},
-    function::{initialize_function_heap, FunctionHeapData},
+    function::initialize_function_heap,
     heap_constants::{
         FIRST_CONSTRUCTOR_INDEX, LAST_BUILTIN_OBJECT_INDEX, LAST_WELL_KNOWN_SYMBOL_INDEX,
     },
@@ -46,8 +46,8 @@ use crate::ecmascript::{
     builtins::ArrayHeapData,
     execution::{Environments, Realm, RealmIdentifier},
     types::{
-        BigIntHeapData, Function, Number, NumberHeapData, Object, ObjectHeapData, PropertyKey,
-        String, StringHeapData, Value,
+        BigIntHeapData, Function, FunctionHeapData, Number, NumberHeapData, Object, ObjectHeapData,
+        PropertyKey, String, StringHeapData, Value,
     },
 };
 use wtf8::{Wtf8, Wtf8Buf};
