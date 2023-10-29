@@ -9,18 +9,6 @@ use crate::{
         FunctionHeapData, Heap, ObjectEntry, PropertyDescriptor,
     },
 };
-use num_bigint_dig::BigInt;
-
-#[derive(Debug, Clone)]
-pub struct BigIntHeapData {
-    pub(super) data: BigInt,
-}
-
-impl BigIntHeapData {
-    pub fn try_into_f64(&self) -> Option<f64> {
-        None
-    }
-}
 
 pub fn initialize_bigint_heap(heap: &mut Heap) {
     let entries = vec![
