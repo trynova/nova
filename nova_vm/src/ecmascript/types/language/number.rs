@@ -216,6 +216,14 @@ impl Number {
         }
     }
 
+    pub fn into_i64(self, agent: &Agent) -> i64 {
+        match self {
+            Number::Number(n) => *agent.heap.get(n) as i64,
+            Number::Integer(n) => Into::<i64>::into(n),
+            Number::Float(n) => n as i64,
+        }
+    }
+
     /// A minimal version of ObjectIs when you know the arguments are numbers.
     pub fn is(self, agent: &mut Agent, y: Self) -> bool {
         // TODO: Add in spec from Object.is pertaining to numbers.

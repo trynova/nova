@@ -140,11 +140,12 @@ macro_rules! impl_heap_data {
     };
 }
 
+impl_heap_data!(arrays, ArrayHeapData, ArrayHeapData);
+impl_heap_data!(array_buffers, ArrayBufferHeapData, ArrayBufferHeapData);
+impl_heap_data!(functions, FunctionHeapData, FunctionHeapData);
 impl_heap_data!(numbers, NumberHeapData, f64, data);
 impl_heap_data!(objects, ObjectHeapData, ObjectHeapData);
 impl_heap_data!(strings, StringHeapData, Wtf8Buf, data);
-impl_heap_data!(functions, FunctionHeapData, FunctionHeapData);
-impl_heap_data!(arrays, ArrayHeapData, ArrayHeapData);
 
 impl CreateHeapData<&str, String> for Heap<'_, '_> {
     fn create(&mut self, data: &str) -> String {

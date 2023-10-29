@@ -3,10 +3,9 @@
 use std::{
     alloc::{alloc_zeroed, handle_alloc_error, Layout},
     ptr::{read_unaligned, write_bytes, write_unaligned, NonNull},
-    sync::atomic::AtomicU8,
 };
 
-use crate::ecmascript::execution::{agent::JsError, JsResult};
+use crate::ecmascript::execution::{agent::JsError, Agent, JsResult};
 
 /// # Data Block
 ///
@@ -28,10 +27,7 @@ pub(crate) struct DataBlock {
 }
 
 mod private {
-    use std::sync::atomic::AtomicU8;
-
     pub trait Sealed {}
-    impl Sealed for AtomicU8 {}
     impl Sealed for u8 {}
     impl Sealed for i8 {}
     impl Sealed for u16 {}
@@ -56,11 +52,6 @@ impl Viewable for u64 {}
 impl Viewable for i64 {}
 impl Viewable for f32 {}
 impl Viewable for f64 {}
-
-pub trait Copyable: private::Sealed {}
-
-impl Copyable for u8 {}
-impl Copyable for AtomicU8 {}
 
 impl DataBlock {
     fn new(len: u32) -> Self {
@@ -232,11 +223,9 @@ impl DataBlock {
     ///
     /// The abstract operation CreateByteDataBlock takes argument size (a non-negative integer)
     /// and returns either a normal completion containing a Data Block or a throw completion.
-    ///
-    /// TODO: size parameter should be Integer
-    pub fn create_byte_data_block(size: usize) -> JsResult<Self> {
+    pub fn create_byte_data_block(_agent: &Agent, size: u64) -> JsResult<Self> {
         // 1. If size > 2**53 - 1, throw a RangeError exception.
-        if size > usize::pow(2, 53) - 1 {
+        if size > u64::pow(2, 53) - 1 {
             // TODO: throw a RangeError exception
             Err(JsError {})
         } else
@@ -244,7 +233,7 @@ impl DataBlock {
         if let Ok(size) = u32::try_from(size) {
             // 3. Set all of the bytes of db to 0.
             // 4. Return db.
-            Ok(Self::new(size as u32))
+            Ok(Self::new(size))
         } else {
             // TODO: throw a RangeError exception
             Err(JsError {})
@@ -255,9 +244,7 @@ impl DataBlock {
     ///
     /// The abstract operation CreateSharedByteDataBlock takes argument size (a non-negative integer)
     /// and returns either a normal completion containing a Shared Data Block or a throw completion.
-    ///
-    /// TODO: size parameter should be Integer
-    pub fn create_shared_byte_data_block(size: usize) -> JsResult<Self> {
+    pub fn create_shared_byte_data_block(size: u64) -> JsResult<Self> {
         // 1. Let db be a new Shared Data Block value consisting of size bytes. If it is impossible to create such a Shared Data Block, throw a RangeError exception.
         if let Ok(size) = u32::try_from(size) {
             // 2. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
@@ -265,7 +252,7 @@ impl DataBlock {
             // 4. Let zero be « 0 ».
             // 5. For each index i of db, do
             // a. Append WriteSharedMemory { [[Order]]: INIT, [[NoTear]]: true, [[Block]]: db, [[ByteIndex]]: i, [[ElementSize]]: 1, [[Payload]]: zero } to eventsRecord.[[EventList]].
-            Ok(Self::new(size as u32))
+            Ok(Self::new(size))
         } else {
             Err(JsError {})
         }
@@ -277,7 +264,7 @@ impl DataBlock {
     /// The abstract operation CopyDataBlockBytes takes arguments toBlock (a Data Block or a Shared
     /// Data Block), toIndex (a non-negative integer), fromBlock (a Data Block or a Shared Data Block),
     /// fromIndex (a non-negative integer), and count (a non-negative integer) and returns UNUSED.
-    pub fn copy_data_block_bytes<T: Copyable>(
+    pub fn copy_data_block_bytes(
         &mut self,
         to_index: u32,
         from_block: &Self,
@@ -348,7 +335,7 @@ impl DataBlock {
 }
 
 #[test]
-fn new_backing_store() {
+fn new_data_block() {
     let db = DataBlock::new(0);
     assert_eq!(db.len(), 0);
     assert_eq!(db.capacity(), 0);
