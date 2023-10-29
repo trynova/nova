@@ -5,12 +5,14 @@
 //! https://tc39.es/ecma262/#sec-ordinary-and-exotic-objects-behaviours
 
 mod array;
+mod array_buffer;
 mod builtin_function;
 mod ecmascript_function;
 mod number;
 pub mod ordinary;
 
-pub(crate) use array::data::ArrayHeapData;
+pub(crate) use array::ArrayHeapData;
+pub(crate) use array_buffer::ArrayBufferHeapData;
 pub use array::ArrayConstructor;
 pub use builtin_function::{
     create_builtin_function, todo_builtin, ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs,
