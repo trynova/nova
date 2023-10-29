@@ -1,4 +1,4 @@
-pub(crate) mod data;
+mod data;
 
 use super::Value;
 use crate::{
@@ -6,6 +6,8 @@ use crate::{
     heap::{indexes::StringIndex, GetHeapData},
     SmallString,
 };
+
+pub use data::StringHeapData;
 
 /// 6.1.4 The String Type
 /// https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type
