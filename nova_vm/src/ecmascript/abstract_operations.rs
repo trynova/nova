@@ -1,3 +1,3 @@
-mod operations_on_objects;
-mod testing_and_comparison;
-mod type_conversion;
+pub(crate) mod operations_on_objects;
+pub(crate) mod testing_and_comparison;
+pub(crate) mod type_conversion;
