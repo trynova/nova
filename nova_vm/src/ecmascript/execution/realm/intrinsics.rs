@@ -12,6 +12,10 @@ pub struct Intrinsics {
     array: FunctionIndex,
     /// %Array.prototype%
     array_prototype: ObjectIndex,
+    /// %ArrayBuffer%
+    array_buffer: FunctionIndex,
+    /// %ArrayBuffer.prototype%
+    array_buffer_prototype: ObjectIndex,
     /// %BigInt%
     big_int: FunctionIndex,
     /// %BigInt.prototype%
@@ -92,6 +96,8 @@ impl Default for Intrinsics {
     fn default() -> Self {
         let array = BuiltinObjectIndexes::ArrayConstructorIndex.into();
         let array_prototype = BuiltinObjectIndexes::ArrayPrototypeIndex.into();
+        let array_buffer = BuiltinObjectIndexes::ArrayBufferConstructorIndex.into();
+        let array_buffer_prototype = BuiltinObjectIndexes::ArrayBufferPrototypeIndex.into();
         let big_int = BuiltinObjectIndexes::BigintConstructorIndex.into();
         let big_int_prototype = BuiltinObjectIndexes::BigintPrototypeIndex.into();
         let boolean = BuiltinObjectIndexes::BooleanConstructorIndex.into();
@@ -148,6 +154,8 @@ impl Default for Intrinsics {
         Self {
             array,
             array_prototype,
+            array_buffer,
+            array_buffer_prototype,
             big_int,
             big_int_prototype,
             boolean,
@@ -196,6 +204,16 @@ impl Intrinsics {
     /// %Array.prototype%
     pub const fn array_prototype(&self) -> Object {
         Object::Object(self.array_prototype)
+    }
+
+    /// %ArrayBuffer%
+    pub const fn array_buffer(&self) -> Function {
+        Function(self.array_buffer)
+    }
+
+    /// %ArrayBuffer.prototype%
+    pub const fn array_buffer_prototype(&self) -> Object {
+        Object::Object(self.array_buffer_prototype)
     }
 
     /// %BigInt%
