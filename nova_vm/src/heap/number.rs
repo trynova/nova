@@ -10,21 +10,6 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, Copy)]
-pub struct NumberHeapData {
-    pub(super) data: f64,
-}
-
-impl NumberHeapData {
-    pub(super) fn new(data: f64) -> NumberHeapData {
-        NumberHeapData { data }
-    }
-
-    pub fn value(&self) -> f64 {
-        self.data
-    }
-}
-
 pub fn initialize_number_heap(heap: &mut Heap) {
     let entries = vec![
         ObjectEntry::new(

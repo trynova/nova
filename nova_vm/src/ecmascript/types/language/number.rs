@@ -1,3 +1,5 @@
+mod data;
+
 use super::{
     value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
     Value,
@@ -7,6 +9,8 @@ use crate::{
     heap::{indexes::NumberIndex, CreateHeapData, GetHeapData},
     SmallInteger,
 };
+
+pub use data::NumberHeapData;
 
 /// 6.1.6.1 The Number Type
 /// https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type

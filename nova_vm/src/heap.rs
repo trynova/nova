@@ -36,7 +36,7 @@ use self::{
     },
     indexes::{BaseIndex, FunctionIndex, NumberIndex, ObjectIndex, StringIndex},
     math::initialize_math_object,
-    number::{initialize_number_heap, NumberHeapData},
+    number::initialize_number_heap,
     object::{initialize_object_heap, ObjectEntry, PropertyDescriptor},
     regexp::{initialize_regexp_heap, RegExpHeapData},
     string::initialize_string_heap,
@@ -46,8 +46,8 @@ use crate::ecmascript::{
     builtins::ArrayHeapData,
     execution::{Environments, Realm, RealmIdentifier},
     types::{
-        BigIntHeapData, Function, Number, Object, ObjectHeapData, PropertyKey, String,
-        StringHeapData, Value,
+        BigIntHeapData, Function, Number, NumberHeapData, Object, ObjectHeapData, PropertyKey,
+        String, StringHeapData, Value,
     },
 };
 use wtf8::{Wtf8, Wtf8Buf};
@@ -269,7 +269,7 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
     }
 
     pub fn alloc_number(&mut self, number: f64) -> NumberIndex {
-        self.numbers.push(Some(NumberHeapData::new(number)));
+        self.numbers.push(Some(number.into()));
         NumberIndex::last(&self.numbers)
     }
 
