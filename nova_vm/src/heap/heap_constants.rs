@@ -163,7 +163,7 @@ pub const fn get_constructor_index(object_index: BuiltinObjectIndexes) -> Functi
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u32)]
-pub enum WellKnownSymbolIndexes {
+pub(crate) enum WellKnownSymbolIndexes {
     AsyncIterator,
     HasInstance,
     IsConcatSpreadable,

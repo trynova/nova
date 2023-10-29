@@ -5,12 +5,17 @@
 mod data;
 
 use super::{create_builtin_function, ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs};
-use crate::ecmascript::{
-    execution::{Agent, JsResult},
-    types::{Object, Value},
+use crate::{
+    ecmascript::{
+        execution::{Agent, JsResult},
+        types::{Object, Value},
+    },
+    heap::indexes::ArrayIndex,
 };
 
 pub use data::ArrayHeapData;
+
+pub struct Array(ArrayIndex);
 
 pub struct ArrayConstructor;
 

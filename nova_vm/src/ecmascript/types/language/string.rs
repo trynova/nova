@@ -58,6 +58,19 @@ impl From<String> for Value {
 }
 
 impl String {
+    pub fn from_str(agent: &mut Agent, message: &str) -> String {
+        if let Ok(ascii_string) = SmallString::try_from(message) {
+            String::SmallString(ascii_string)
+        } else {
+            String::String(agent.heap.alloc_string(message))
+        }
+    }
+
+    pub fn from_small_string(message: &'static str) -> String {
+        assert!(message.len() < 8 && !message.ends_with("\0"));
+        String::SmallString(SmallString::from_str_unchecked(message))
+    }
+
     pub fn into_value(self) -> Value {
         self.into()
     }

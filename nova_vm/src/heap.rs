@@ -17,7 +17,7 @@ mod regexp;
 mod string;
 mod symbol;
 
-pub use self::heap_constants::BuiltinObjectIndexes;
+pub(crate) use self::heap_constants::{BuiltinObjectIndexes, WellKnownSymbolIndexes};
 use self::{
     array::initialize_array_heap,
     array_buffer::initialize_array_buffer_heap,
