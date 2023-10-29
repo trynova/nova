@@ -1,4 +1,4 @@
-pub(crate) mod data;
+mod data;
 
 use super::value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT};
 use crate::{heap::indexes::BigIntIndex, SmallInteger};
