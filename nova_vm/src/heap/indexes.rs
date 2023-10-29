@@ -2,7 +2,7 @@ use super::{
     date::DateHeapData, error::ErrorHeapData, regexp::RegExpHeapData, symbol::SymbolHeapData,
 };
 use crate::ecmascript::{
-    builtins::{ArrayHeapData, ArrayBufferHeapData},
+    builtins::{ArrayBufferHeapData, ArrayHeapData},
     types::{
         BigIntHeapData, FunctionHeapData, NumberHeapData, ObjectHeapData, StringHeapData, Value,
     },

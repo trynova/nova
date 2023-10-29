@@ -43,7 +43,7 @@ use self::{
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
 use crate::ecmascript::{
-    builtins::{ArrayHeapData, ArrayBufferHeapData},
+    builtins::{ArrayBufferHeapData, ArrayHeapData},
     execution::{Environments, Realm, RealmIdentifier},
     types::{
         BigIntHeapData, Function, FunctionHeapData, Number, NumberHeapData, Object, ObjectHeapData,
