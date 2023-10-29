@@ -1,32 +1,14 @@
-use super::{
-    heap_constants::WellKnownSymbolIndexes,
-    indexes::{FunctionIndex, ObjectIndex},
-    object::ObjectEntry,
-};
+use super::{heap_constants::WellKnownSymbolIndexes, indexes::FunctionIndex, object::ObjectEntry};
 use crate::{
     ecmascript::{
         execution::JsResult,
-        types::{Object, PropertyKey, Value},
+        types::{FunctionHeapData, Object, PropertyKey, Value},
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, PropertyDescriptor,
     },
 };
-
-#[derive(Debug, Clone)]
-pub struct FunctionHeapData {
-    pub(crate) object_index: Option<ObjectIndex>,
-    pub(crate) length: u8,
-    pub initial_name: Value,
-    // pub behaviour: Behaviour,
-    // TODO: Should we create a `BoundFunctionHeapData` for an exotic object
-    //       that allows setting fields and other deoptimizations?
-    // pub(super) uses_arguments: bool,
-    // pub(super) bound: Option<Box<[Value]>>,
-    // pub(super) visible: Option<Vec<Value>>,
-    // TODO: Should name be here as an "internal slot" of sorts?
-}
 
 pub fn initialize_function_heap(heap: &mut Heap) {
     let entries = vec![ObjectEntry::new_constructor_prototype_entry(

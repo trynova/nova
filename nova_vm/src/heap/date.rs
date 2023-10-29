@@ -1,5 +1,4 @@
 use super::{
-    function::FunctionHeapData,
     heap_constants::WellKnownSymbolIndexes,
     indexes::{FunctionIndex, ObjectIndex},
     object::ObjectEntry,
@@ -7,7 +6,7 @@ use super::{
 use crate::{
     ecmascript::{
         execution::JsResult,
-        types::{Object, PropertyKey, Value},
+        types::{FunctionHeapData, Object, PropertyKey, Value},
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},

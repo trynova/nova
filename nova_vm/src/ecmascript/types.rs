@@ -1,7 +1,9 @@
 mod language;
 mod spec;
 
-pub(crate) use language::{BigIntHeapData, NumberHeapData, ObjectHeapData, StringHeapData};
+pub(crate) use language::{
+    BigIntHeapData, FunctionHeapData, NumberHeapData, ObjectHeapData, StringHeapData,
+};
 pub use language::{Function, InternalMethods, Number, Object, PropertyKey, String, Value};
 pub use spec::{Base, PropertyDescriptor, Reference, ReferencedName};
 
