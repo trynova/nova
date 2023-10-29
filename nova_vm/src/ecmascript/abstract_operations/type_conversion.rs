@@ -13,7 +13,7 @@
 use crate::{
     ecmascript::{
         execution::{agent::JsError, Agent, JsResult},
-        types::{Object, PropertyKey, String, Value},
+        types::{BigInt, Number, Object, PropertyKey, String, Value},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -137,6 +137,312 @@ pub(crate) fn ordinary_to_primitive(
     }
     // 4. Throw a TypeError exception.
     Err(JsError {})
+}
+
+/// ### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
+pub(crate) fn to_boolean(agent: &mut Agent, argument: Value) -> JsResult<Value> {
+    // 1. If argument is a Boolean, return argument.
+    if argument.is_boolean() {
+        return Ok(argument);
+    }
+
+    // 2. If argument is one of undefined, null, +0𝔽, -0𝔽, NaN, 0ℤ, or the empty String, return false.
+    // TODO: checks for 0ℤ
+    if argument.is_undefined()
+        || argument.is_null()
+        || argument.is_pos_zero(agent)
+        || argument.is_neg_zero(agent)
+        || argument.is_nan(agent)
+        || argument.is_empty_string()
+    {
+        return Ok(false.into());
+    }
+
+    // 3. NOTE: This step is replaced in section B.3.6.1.
+
+    // 4. Return true.
+    Ok(true.into())
+}
+
+/// ### [7.1.3 ToNumeric ( value )](https://tc39.es/ecma262/#sec-tonumeric)
+pub(crate) fn to_numeric(agent: &mut Agent, value: Value) -> JsResult<Value> {
+    // 1. Let primValue be ? ToPrimitive(value, number).
+    let prim_value = to_primitive(agent, value, Some(PreferredType::Number))?;
+
+    // 2. If primValue is a BigInt, return primValue.
+    if prim_value.is_bigint() {
+        return Ok(prim_value);
+    }
+
+    // 3. Return ? ToNumber(primValue).
+    to_number(agent, value).map(|n| n.into_value())
+}
+
+/// ### [7.1.4 ToNumber ( argument )](https://tc39.es/ecma262/#sec-tonumber)
+pub(crate) fn to_number(agent: &mut Agent, argument: Value) -> JsResult<Number> {
+    // 1. If argument is a Number, return argument.
+    if let Ok(argument) = Number::try_from(argument) {
+        return Ok(argument);
+    }
+
+    // 2. If argument is either a Symbol or a BigInt, throw a TypeError exception.
+    if argument.is_symbol() || argument.is_bigint() {
+        todo!();
+    }
+
+    // 3. If argument is undefined, return NaN.
+    if argument.is_undefined() {
+        return Ok(Number::nan());
+    }
+
+    // 4. If argument is either null or false, return +0𝔽.
+    if argument.is_null() || argument.is_false() {
+        return Ok(Number::from(0));
+    }
+
+    // 5. If argument is true, return 1𝔽.
+    if argument.is_true() {
+        return Ok(Number::from(1));
+    }
+
+    // 6. If argument is a String, return StringToNumber(argument).
+    if argument.is_string() {
+        todo!();
+    }
+
+    // 7. Assert: argument is an Object.
+    debug_assert!(argument.is_object());
+
+    // 8. Let primValue be ? ToPrimitive(argument, number).
+    let prim_value = to_primitive(agent, argument, Some(PreferredType::Number))?;
+
+    // 9. Assert: primValue is not an Object.
+    debug_assert!(!prim_value.is_object());
+
+    // 10. Return ? ToNumber(primValue).
+    to_number(agent, prim_value)
+}
+
+/// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
+// TODO: Should we add another [`Value`] newtype for IntegerOrInfinity?
+pub(crate) fn to_integer_or_infinty(agent: &mut Agent, argument: Value) -> JsResult<Number> {
+    // 1. Let number be ? ToNumber(argument).
+    let number = to_number(agent, argument)?;
+
+    // 2. If number is one of NaN, +0𝔽, or -0𝔽, return 0.
+    if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+        return Ok(Number::pos_zero());
+    }
+
+    // 3. If number is +∞𝔽, return +∞.
+    if number.is_pos_infinity(agent) {
+        return Ok(Number::pos_inf());
+    }
+
+    // 4. If number is -∞𝔽, return -∞.
+    if number.is_neg_infinity(agent) {
+        return Ok(Number::neg_inf());
+    }
+
+    // 5. Return truncate(ℝ(number)).
+    Ok(number.truncate(agent))
+}
+
+/// ### [7.1.6 ToInt32 ( argument )](https://tc39.es/ecma262/#sec-toint32)
+pub(crate) fn to_int32(agent: &mut Agent, argument: Value) -> JsResult<i32> {
+    // 1. Let number be ? ToNumber(argument).
+    let number = to_number(agent, argument)?;
+
+    // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
+    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+        return Ok(0);
+    }
+
+    // 3. Let int be truncate(ℝ(number)).
+    let int = number.truncate(agent).into_f64(agent);
+
+    // 4. Let int32bit be int modulo 2^32.
+    let int32bit = int % 2f64.powi(32);
+
+    // 5. If int32bit ≥ 2^31, return 𝔽(int32bit - 2^32); otherwise return 𝔽(int32bit).
+    Ok(if int32bit >= 2f64.powi(32) {
+        int32bit - 2f64.powi(32)
+    } else {
+        int32bit
+    } as i32)
+}
+
+/// ### [7.1.7 ToUint32 ( argument )](https://tc39.es/ecma262/#sec-touint32)
+pub(crate) fn to_uint32(agent: &mut Agent, argument: Value) -> JsResult<u32> {
+    // 1. Let number be ? ToNumber(argument).
+    let number = to_number(agent, argument)?;
+
+    // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
+    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+        return Ok(0);
+    }
+
+    // 3. Let int be truncate(ℝ(number)).
+    let int = number.truncate(agent).into_f64(agent);
+
+    // 4. Let int32bit be int modulo 2^32.
+    let int32bit = int % 2f64.powi(32);
+
+    // 5. Return 𝔽(int32bit).
+    Ok(int32bit as u32)
+}
+
+/// ### [7.1.8 ToInt16 ( argument )](https://tc39.es/ecma262/#sec-toint16)
+pub(crate) fn to_int16(agent: &mut Agent, argument: Value) -> JsResult<i16> {
+    // 1. Let number be ? ToNumber(argument).
+    let number = to_number(agent, argument)?;
+
+    // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
+    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+        return Ok(0);
+    }
+
+    // 3. Let int be truncate(ℝ(number)).
+    let int = number.truncate(agent).into_f64(agent);
+
+    // 4. Let int16bit be int modulo 2^16.
+    let int16bit = int % 2f64.powi(16);
+
+    // 5. If int16bit ≥ 2^15, return 𝔽(int16bit - 2^16); otherwise return 𝔽(int16bit).
+    Ok(if int16bit >= 2f64.powi(15) {
+        int16bit - 2f64.powi(16)
+    } else {
+        int16bit
+    } as i16)
+}
+
+/// ### [7.1.9 ToUint16 ( argument )](https://tc39.es/ecma262/#sec-touint16)
+pub(crate) fn to_uint16(agent: &mut Agent, argument: Value) -> JsResult<i16> {
+    // 1. Let number be ? ToNumber(argument).
+    let number = to_number(agent, argument)?;
+
+    // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
+    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+        return Ok(0);
+    }
+
+    // 3. Let int be truncate(ℝ(number)).
+    let int = number.truncate(agent).into_f64(agent);
+
+    // 4. Let int16bit be int modulo 2^16.
+    let int16bit = int % 2f64.powi(16);
+
+    // Return 𝔽(int16bit).
+    Ok(int16bit as i16)
+}
+
+/// ### [7.1.10 ToInt8 ( argument )](https://tc39.es/ecma262/#sec-toint8)
+pub(crate) fn to_int8(agent: &mut Agent, argument: Value) -> JsResult<i8> {
+    // 1. Let number be ? ToNumber(argument).
+    let number = to_number(agent, argument)?;
+
+    // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
+    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+        return Ok(0);
+    }
+
+    // 3. Let int be truncate(ℝ(number)).
+    let int = number.truncate(agent).into_f64(agent);
+
+    // 4. Let int8bit be int modulo 2^8.
+    let int8bit = int % 2f64.powi(8);
+
+    // 5. If int8bit ≥ 2^7, return 𝔽(int8bit - 2^8); otherwise return 𝔽(int8bit).
+    Ok(if int8bit >= 2f64.powi(7) {
+        int8bit - 2f64.powi(8)
+    } else {
+        int8bit
+    } as i8)
+}
+
+/// ### [7.1.11 ToUint8 ( argument )](https://tc39.es/ecma262/#sec-touint8)
+pub(crate) fn to_uint8(agent: &mut Agent, argument: Value) -> JsResult<u8> {
+    // 1. Let number be ? ToNumber(argument).
+    let number = to_number(agent, argument)?;
+
+    // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
+    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+        return Ok(0);
+    }
+
+    // 3. Let int be truncate(ℝ(number)).
+    let int = number.truncate(agent).into_f64(agent);
+
+    // 4. Let int8bit be int modulo 2^8.
+    let int8bit = int % 2f64.powi(8);
+
+    // 5. Return 𝔽(int8bit).
+    Ok(int8bit as u8)
+}
+
+/// ### [7.1.12 ToUint8Clamp ( argument )](https://tc39.es/ecma262/#sec-touint8clamp)
+pub(crate) fn to_uint8_clamp(agent: &mut Agent, argument: Value) -> JsResult<u8> {
+    // 1. Let number be ? ToNumber(argument).
+    let number = to_number(agent, argument)?;
+
+    // 2. If number is NaN, return +0𝔽.
+    if number.is_nan(agent) {
+        return Ok(0);
+    }
+
+    // 3. Let mv be the extended mathematical value of number.
+    // TODO: Is there a better way?
+    let mv = number.into_f64(agent);
+
+    // 4. Let clamped be the result of clamping mv between 0 and 255.
+    let clamped = mv.clamp(0.0, 255.0);
+
+    // 5. Let f be floor(clamped).
+    let f = clamped.floor();
+
+    Ok(
+        // 6. If clamped < f + 0.5, return 𝔽(f).
+        if clamped < f + 0.5 {
+            f as u8
+        }
+        // 7. If clamped > f + 0.5, return 𝔽(f + 1).
+        else if clamped > f + 0.5 {
+            f as u8 + 1
+        }
+        // 8. If f is even, return 𝔽(f). Otherwise, return 𝔽(f + 1).
+        else if f % 2.0 == 0.0 {
+            f as u8
+        } else {
+            f as u8 + 1
+        },
+    )
+}
+
+/// ### [7.1.13 ToBigInt ( argument )](https://tc39.es/ecma262/#sec-tobigint)
+pub(crate) fn to_big_int(agent: &mut Agent, argument: Value) -> JsResult<BigInt> {
+    // 1. Let prim be ? ToPrimitive(argument, number).
+    let _prim = to_primitive(agent, argument, Some(PreferredType::Number))?;
+
+    // 2. Return the value that prim corresponds to in Table 12.
+    todo!()
+}
+
+/// ### [7.1.17 ToString ( argument )](https://tc39.es/ecma262/#sec-tostring)
+pub(crate) fn to_string(_agent: &mut Agent, _argument: Value) -> JsResult<String> {
+    // TODO: 1. If argument is a String, return argument.
+    // 2. If argument is a Symbol, throw a TypeError exception.
+    // 3. If argument is undefined, return "undefined".
+    // 4. If argument is null, return "null".
+    // 5. If argument is true, return "true".
+    // 6. If argument is false, return "false".
+    // 7. If argument is a Number, return Number::toString(argument, 10).
+    // 8. If argument is a BigInt, return BigInt::toString(argument, 10).
+    // 9. Assert: argument is an Object.
+    // 10. Let primValue be ? ToPrimitive(argument, string).
+    // 11. Assert: primValue is not an Object.
+    // 12. Return ? ToString(primValue).
+
+    todo!()
 }
 
 /// ### [7.1.18 ToObject ( argument )](https://tc39.es/ecma262/#sec-toobject)
