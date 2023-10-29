@@ -1,10 +1,10 @@
 use super::array_buffer::ArrayBufferHeapData;
 use super::{
-    bigint::BigIntHeapData, date::DateHeapData, error::ErrorHeapData, function::FunctionHeapData,
-    number::NumberHeapData, regexp::RegExpHeapData, symbol::SymbolHeapData,
+    date::DateHeapData, error::ErrorHeapData, function::FunctionHeapData, number::NumberHeapData,
+    regexp::RegExpHeapData, symbol::SymbolHeapData,
 };
 use crate::ecmascript::builtins::ArrayHeapData;
-use crate::ecmascript::types::{ObjectHeapData, StringHeapData, Value};
+use crate::ecmascript::types::{BigIntHeapData, ObjectHeapData, StringHeapData, Value};
 use crate::Heap;
 use core::fmt::Debug;
 use std::hash::{Hash, Hasher};

@@ -21,7 +21,7 @@ pub use self::heap_constants::BuiltinObjectIndexes;
 use self::{
     array::initialize_array_heap,
     array_buffer::{initialize_array_buffer_heap, ArrayBufferHeapData},
-    bigint::{initialize_bigint_heap, BigIntHeapData},
+    bigint::initialize_bigint_heap,
     boolean::initialize_boolean_heap,
     date::{initialize_date_heap, DateHeapData},
     element_array::{
@@ -45,7 +45,10 @@ use self::{
 use crate::ecmascript::{
     builtins::ArrayHeapData,
     execution::{Environments, Realm, RealmIdentifier},
-    types::{Function, Number, Object, ObjectHeapData, PropertyKey, String, StringHeapData, Value},
+    types::{
+        BigIntHeapData, Function, Number, Object, ObjectHeapData, PropertyKey, String,
+        StringHeapData, Value,
+    },
 };
 use wtf8::{Wtf8, Wtf8Buf};
 

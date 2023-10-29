@@ -5,7 +5,7 @@ mod object;
 mod string;
 mod value;
 
-pub use bigint::BigInt;
+pub use bigint::{BigInt, BigIntHeapData};
 pub use function::Function;
 pub use number::Number;
 pub use object::{InternalMethods, Object, ObjectHeapData, PropertyKey, PropertyStorage};
