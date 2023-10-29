@@ -5,7 +5,7 @@ mod data;
 use crate::{
     ecmascript::{
         execution::{agent::JsError, Agent, JsResult},
-        types::{DataBlock, Function, Number, Object, PropertyKey, Value},
+        types::{DataBlock, Function, InternalMethods, Number, Object, PropertyKey, Value},
     },
     heap::{indexes::ArrayBufferIndex, GetHeapData},
     Heap,
@@ -211,8 +211,7 @@ impl ArrayBuffer {
         };
         // 2. Let maxByteLength be ? Get(options, "maxByteLength").
         let property = PropertyKey::from_str(&mut agent.heap, "maxByteLength");
-        let max_byte_length =
-            (options.internal_methods(agent).get)(agent, options, property, options.into_value())?;
+        let max_byte_length = Object::get(agent, options, property, options.into_value())?;
         // 3. If maxByteLength is undefined, return EMPTY.
         if max_byte_length.is_undefined() {
             return Ok(None);

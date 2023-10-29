@@ -5,89 +5,90 @@ use crate::ecmascript::{
     types::{PropertyDescriptor, Value},
 };
 
-pub type GetPrototypeOf = fn(agent: &mut Agent, object: Object) -> Option<Object>;
-pub type SetPrototypeOf =
-    fn(agent: &mut Agent, object: Object, prototype: Option<Object>) -> JsResult<bool>;
-pub type IsExtensible = fn(agent: &mut Agent, object: Object) -> JsResult<bool>;
-pub type PreventExtensions = fn(agent: &mut Agent, object: Object) -> JsResult<bool>;
-pub type GetOwnProperty = fn(
+pub type Call<T> = fn(
     agent: &mut Agent,
-    object: Object,
-    property_key: PropertyKey,
-) -> JsResult<Option<PropertyDescriptor>>;
-pub type DefineOwnProperty = fn(
-    agent: &mut Agent,
-    object: Object,
-    property_key: PropertyKey,
-    property_descriptor: PropertyDescriptor,
-) -> JsResult<bool>;
-pub type HasProperty =
-    fn(agent: &mut Agent, object: Object, property_key: PropertyKey) -> JsResult<bool>;
-pub type Get = fn(
-    agent: &mut Agent,
-    object: Object,
-    property_key: PropertyKey,
-    receiver: Value,
-) -> JsResult<Value>;
-pub type Set = fn(
-    agent: &mut Agent,
-    object: Object,
-    property_key: PropertyKey,
-    value: Value,
-    receiver: Value,
-) -> JsResult<bool>;
-pub type Delete =
-    fn(agent: &mut Agent, object: Object, property_key: PropertyKey) -> JsResult<bool>;
-pub type OwnPropertyKeys = fn(agent: &mut Agent, object: Object) -> JsResult<Vec<PropertyKey>>;
-pub type Call = fn(
-    agent: &mut Agent,
-    object: Object,
+    object: T,
     this_value: Value,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value>;
-pub type Construct =
-    fn(agent: &mut Agent, object: Object, arguments_list: ArgumentsList) -> JsResult<Object>;
+pub type Construct<T> =
+    fn(agent: &mut Agent, object: T, arguments_list: ArgumentsList) -> JsResult<T>;
 
 /// 6.1.7.2 Object Internal Methods and Internal Slots
 /// https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots
-#[derive(Debug, Clone)]
-pub struct InternalMethods {
-    /// [[GetPrototypeOf]]
-    pub get_prototype_of: GetPrototypeOf,
+pub trait InternalMethods<T = Object>
+where
+    Self: Sized,
+{
+    /// \[\[GetPrototypeOf\]\]
+    fn get_prototype_of(agent: &mut Agent, object: Self) -> JsResult<Option<Object>>;
 
-    /// [[SetPrototypeOf]]
-    pub set_prototype_of: SetPrototypeOf,
+    /// \[\[SetPrototypeOf\]\]
+    fn set_prototype_of(
+        agent: &mut Agent,
+        object: Self,
+        prototype: Option<Object>,
+    ) -> JsResult<bool>;
 
-    /// [[IsExtensible]]
-    pub is_extensible: IsExtensible,
+    /// \[\[IsExtensible\]\]
+    fn is_extensible(agent: &mut Agent, object: Self) -> JsResult<bool>;
 
-    /// [[PreventExtensions]]
-    pub prevent_extensions: PreventExtensions,
+    /// \[\[PreventExtensions\]\]
+    fn prevent_extensions(agent: &mut Agent, object: Self) -> JsResult<bool>;
 
-    /// [[GetOwnProperty]]
-    pub get_own_property: GetOwnProperty,
+    /// \[\[GetOwnProperty\]\]
+    fn get_own_property(
+        agent: &mut Agent,
+        object: Self,
+        property_key: PropertyKey,
+    ) -> JsResult<Option<PropertyDescriptor>>;
 
-    /// [[DefineOwnProperty]]
-    pub define_own_property: DefineOwnProperty,
+    /// \[\[DefineOwnProperty\]\]
+    fn define_own_property(
+        agent: &mut Agent,
+        object: Self,
+        property_key: PropertyKey,
+        property_descriptor: PropertyDescriptor,
+    ) -> JsResult<bool>;
 
-    /// [[HasProperty]]
-    pub has_property: HasProperty,
+    /// \[\[HasProperty\]\]
+    fn has_property(agent: &mut Agent, object: Self, property_key: PropertyKey) -> JsResult<bool>;
 
-    /// [[Get]]
-    pub get: Get,
+    /// \[\[Get\]\]
+    fn get(
+        agent: &mut Agent,
+        object: Self,
+        property_key: PropertyKey,
+        receiver: Value,
+    ) -> JsResult<Value>;
 
-    /// [[Set]]
-    pub set: Set,
+    /// \[\[Set\]\]
+    fn set(
+        agent: &mut Agent,
+        object: Self,
+        property_key: PropertyKey,
+        value: Value,
+        receiver: Value,
+    ) -> JsResult<bool>;
 
-    /// [[Delete]]
-    pub delete: Delete,
+    /// \[\[Delete\]\]
+    fn delete(agent: &mut Agent, object: Self, property_key: PropertyKey) -> JsResult<bool>;
 
-    /// [[OwnPropertyKeys]]
-    pub own_property_keys: OwnPropertyKeys,
+    /// \[\[OwnPropertyKeys\]\]
+    fn own_property_keys(agent: &mut Agent, object: Self) -> JsResult<Vec<PropertyKey>>;
 
-    /// [[Call]]
-    pub call: Option<Call>,
+    /// \[\[Call\]\]
+    fn call(
+        agent: &mut Agent,
+        object: Self,
+        this_value: Value,
+        arguments_list: &[Value],
+    ) -> JsResult<Value> {
+        unreachable!()
+    }
 
-    /// [[Construct]]
-    pub construct: Option<Construct>,
+    /// \[\[Construct\]\]
+    fn construct(agent: &mut Agent, object: Self, arguments_list: &[Value]) -> JsResult<T> {
+        unreachable!()
+    }
 }

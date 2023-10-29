@@ -1,7 +1,10 @@
 mod data;
 
-use super::{Object, Value};
-use crate::heap::indexes::FunctionIndex;
+use super::{InternalMethods, Object, Value};
+use crate::{
+    ecmascript::execution::{Agent, JsResult},
+    heap::indexes::FunctionIndex,
+};
 
 pub use data::FunctionHeapData;
 
@@ -62,5 +65,109 @@ impl Function {
 
     pub fn into_object(self) -> Object {
         Object::Function(self.0)
+    }
+}
+
+impl InternalMethods for Function {
+    fn get_prototype_of(
+        agent: &mut Agent,
+        object: Self,
+    ) -> crate::ecmascript::execution::JsResult<Option<Object>> {
+        todo!()
+    }
+
+    fn set_prototype_of(
+        agent: &mut Agent,
+        object: Self,
+        prototype: Option<Object>,
+    ) -> crate::ecmascript::execution::JsResult<bool> {
+        todo!()
+    }
+
+    fn is_extensible(
+        agent: &mut Agent,
+        object: Self,
+    ) -> crate::ecmascript::execution::JsResult<bool> {
+        todo!()
+    }
+
+    fn prevent_extensions(
+        agent: &mut Agent,
+        object: Self,
+    ) -> crate::ecmascript::execution::JsResult<bool> {
+        todo!()
+    }
+
+    fn get_own_property(
+        agent: &mut Agent,
+        object: Self,
+        property_key: super::PropertyKey,
+    ) -> crate::ecmascript::execution::JsResult<Option<crate::ecmascript::types::PropertyDescriptor>>
+    {
+        todo!()
+    }
+
+    fn define_own_property(
+        agent: &mut Agent,
+        object: Self,
+        property_key: super::PropertyKey,
+        property_descriptor: crate::ecmascript::types::PropertyDescriptor,
+    ) -> crate::ecmascript::execution::JsResult<bool> {
+        todo!()
+    }
+
+    fn has_property(
+        agent: &mut Agent,
+        object: Self,
+        property_key: super::PropertyKey,
+    ) -> crate::ecmascript::execution::JsResult<bool> {
+        todo!()
+    }
+
+    fn get(
+        agent: &mut Agent,
+        object: Self,
+        property_key: super::PropertyKey,
+        receiver: Value,
+    ) -> crate::ecmascript::execution::JsResult<Value> {
+        todo!()
+    }
+
+    fn set(
+        agent: &mut Agent,
+        object: Self,
+        property_key: super::PropertyKey,
+        value: Value,
+        receiver: Value,
+    ) -> crate::ecmascript::execution::JsResult<bool> {
+        todo!()
+    }
+
+    fn delete(
+        agent: &mut Agent,
+        object: Self,
+        property_key: super::PropertyKey,
+    ) -> crate::ecmascript::execution::JsResult<bool> {
+        todo!()
+    }
+
+    fn own_property_keys(
+        agent: &mut Agent,
+        object: Self,
+    ) -> crate::ecmascript::execution::JsResult<Vec<super::PropertyKey>> {
+        todo!()
+    }
+
+    fn call(
+        agent: &mut Agent,
+        object: Self,
+        this_value: Value,
+        arguments_list: &[Value],
+    ) -> JsResult<Value> {
+        todo!()
+    }
+
+    fn construct(agent: &mut Agent, object: Self, arguments_list: &[Value]) -> JsResult<Object> {
+        todo!()
     }
 }
