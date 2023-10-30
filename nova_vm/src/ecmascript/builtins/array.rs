@@ -8,7 +8,7 @@ use std::ops::Deref;
 
 use super::{
     create_builtin_function,
-    ordinary::{ordinary_get_prototype_of, ordinary_is_extensible, ordinary_set_prototype_of},
+    ordinary::{ordinary_is_extensible, ordinary_set_prototype_of},
     ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs,
 };
 use crate::{
@@ -81,7 +81,7 @@ impl OrdinaryObjectInternalSlots for Array {
     fn set_extensible(self, agent: &mut Agent, value: bool) {
         if let Some(object_index) = agent.heap.get(*self).object_index {
             Object::from(object_index).set_extensible(agent, value)
-        } else if value == false {
+        } else if !value {
             // Create array base object and set inextensible
             todo!()
         }
@@ -98,7 +98,7 @@ impl OrdinaryObjectInternalSlots for Array {
     fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         if let Some(object_index) = agent.heap.get(*self).object_index {
             Object::from(object_index).set_prototype(agent, prototype)
-        } else if prototype != Some(agent.current_realm().intrinsics().array_prototype().into()) {
+        } else if prototype != Some(agent.current_realm().intrinsics().array_prototype()) {
             // Create array base object with custom prototype
             todo!()
         }
@@ -147,65 +147,65 @@ impl InternalMethods for Array {
         }
     }
 
-    fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+    fn prevent_extensions(self, _agent: &mut Agent) -> JsResult<bool> {
         todo!()
     }
 
     fn get_own_property(
         self,
-        agent: &mut Agent,
-        property_key: crate::ecmascript::types::PropertyKey,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
     ) -> JsResult<Option<crate::ecmascript::types::PropertyDescriptor>> {
         todo!()
     }
 
     fn define_own_property(
         self,
-        agent: &mut Agent,
-        property_key: crate::ecmascript::types::PropertyKey,
-        property_descriptor: crate::ecmascript::types::PropertyDescriptor,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
+        _property_descriptor: crate::ecmascript::types::PropertyDescriptor,
     ) -> JsResult<bool> {
         todo!()
     }
 
     fn has_property(
         self,
-        agent: &mut Agent,
-        property_key: crate::ecmascript::types::PropertyKey,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
     ) -> JsResult<bool> {
         todo!()
     }
 
     fn get(
         self,
-        agent: &mut Agent,
-        property_key: crate::ecmascript::types::PropertyKey,
-        receiver: Value,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
+        _receiver: Value,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn set(
         self,
-        agent: &mut Agent,
-        property_key: crate::ecmascript::types::PropertyKey,
-        value: Value,
-        receiver: Value,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
+        _value: Value,
+        _receiver: Value,
     ) -> JsResult<bool> {
         todo!()
     }
 
     fn delete(
         self,
-        agent: &mut Agent,
-        property_key: crate::ecmascript::types::PropertyKey,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
     ) -> JsResult<bool> {
         todo!()
     }
 
     fn own_property_keys(
         self,
-        agent: &mut Agent,
+        _agent: &mut Agent,
     ) -> JsResult<Vec<crate::ecmascript::types::PropertyKey>> {
         todo!()
     }

@@ -67,7 +67,7 @@ impl String {
     }
 
     pub fn from_small_string(message: &'static str) -> String {
-        assert!(message.len() < 8 && !message.ends_with("\0"));
+        assert!(message.len() < 8 && !message.ends_with('\0'));
         String::SmallString(SmallString::from_str_unchecked(message))
     }
 

@@ -21,7 +21,7 @@ use crate::ecmascript::{
 /// > overriding some or all of that object's internal methods. In order to
 /// > encapsulate exotic object creation, the object's essential internal
 /// > methods are never modified outside those operations.
-pub(crate) fn make_basic_object(agent: &mut Agent, internal_slots_list: ()) -> Object {
+pub(crate) fn make_basic_object(_agent: &mut Agent, _internal_slots_list: ()) -> Object {
     // 1. Let obj be a newly created object with an internal slot for each name in internalSlotsList.
     // 2. Set obj's essential internal methods to the default ordinary object definitions specified in 10.1.
     // 3. Assert: If the caller will not be overriding both obj's [[GetPrototypeOf]] and [[SetPrototypeOf]] essential
