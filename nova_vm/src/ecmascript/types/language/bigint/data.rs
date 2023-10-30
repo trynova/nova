@@ -4,7 +4,7 @@ use num_bigint_dig::BigInt;
 
 #[derive(Debug, Clone)]
 pub struct BigIntHeapData {
-    pub(super) data: BigInt,
+    pub(crate) data: BigInt,
 }
 
 impl TryInto<f64> for BigIntHeapData {

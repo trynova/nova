@@ -2,17 +2,22 @@ use std::mem::size_of;
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{to_int32, to_number, to_numeric, to_uint32},
+        abstract_operations::type_conversion::{
+            to_big_int, to_int32, to_number, to_numeric, to_uint32,
+        },
         execution::{Agent, JsResult},
     },
-    heap::indexes::{
-        ArrayBufferIndex, ArrayIndex, BigIntIndex, DateIndex, ErrorIndex, FunctionIndex,
-        NumberIndex, ObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
+    heap::{
+        indexes::{
+            ArrayBufferIndex, ArrayIndex, BigIntIndex, DateIndex, ErrorIndex, FunctionIndex,
+            NumberIndex, ObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
+        },
+        GetHeapData,
     },
     Heap, SmallInteger, SmallString,
 };
 
-use super::Number;
+use super::{BigInt, Number};
 
 /// 6.1 ECMAScript Language Types
 /// https://tc39.es/ecma262/#sec-ecmascript-language-types
@@ -208,6 +213,18 @@ impl Value {
             .unwrap_or(false)
     }
 
+    pub fn is_pos_infinity(self, agent: &mut Agent) -> bool {
+        Number::try_from(self)
+            .map(|n| n.is_pos_infinity(agent))
+            .unwrap_or(false)
+    }
+
+    pub fn is_neg_infinity(self, agent: &mut Agent) -> bool {
+        Number::try_from(self)
+            .map(|n| n.is_neg_infinity(agent))
+            .unwrap_or(false)
+    }
+
     pub fn is_nan(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
             .map(|n| n.is_nan(agent))
@@ -239,6 +256,10 @@ impl Value {
         to_number(agent, self)
     }
 
+    pub fn to_bigint(self, agent: &mut Agent) -> JsResult<BigInt> {
+        to_big_int(agent, self)
+    }
+
     pub fn to_numeric(self, agent: &mut Agent) -> JsResult<Value> {
         to_numeric(agent, self)
     }
@@ -249,6 +270,17 @@ impl Value {
 
     pub fn to_uint32(self, agent: &mut Agent) -> JsResult<u32> {
         to_uint32(agent, self)
+    }
+
+    /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
+    pub fn to_real(self, agent: &mut Agent) -> JsResult<f64> {
+        Ok(match self {
+            Value::Number(n) => *agent.heap.get(n),
+            Value::Integer(i) => i.into_i64() as f64,
+            Value::Float(f) => f as f64,
+            // NOTE: Converting to a number should give us a nice error message.
+            _ => to_number(agent, self)?.into_f64(agent),
+        })
     }
 }
 
