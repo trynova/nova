@@ -217,12 +217,9 @@ impl Number {
 
     pub fn is_odd_integer(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => {
-                let n = *agent.heap.get(n);
-                n % 1.0 == 0.0 && n % 2.0 == 0.0
-            }
-            Number::Integer(n) => Into::<i64>::into(n) % 2 == 0,
-            Number::Float(n) => n % 1.0 == 0.0 && n % 2.0 == 0.0,
+            Number::Number(n) => *agent.heap.get(n) % 2.0 == 1.0,
+            Number::Integer(n) => Into::<i64>::into(n) % 2 == 1,
+            Number::Float(n) => n % 2.0 == 1.0,
         }
     }
 
