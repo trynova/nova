@@ -146,6 +146,7 @@ impl_heap_data!(functions, FunctionHeapData, FunctionHeapData);
 impl_heap_data!(numbers, NumberHeapData, f64, data);
 impl_heap_data!(objects, ObjectHeapData, ObjectHeapData);
 impl_heap_data!(strings, StringHeapData, Wtf8Buf, data);
+impl_heap_data!(bigints, BigIntHeapData, BigIntHeapData);
 
 impl CreateHeapData<&str, String> for Heap<'_, '_> {
     fn create(&mut self, data: &str) -> String {
