@@ -83,6 +83,37 @@ pub(crate) fn same_value<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(
     same_value_non_number(agent, x, y)
 }
 
+/// ### [7.2.11 SameValueZero ( x, y )](https://tc39.es/ecma262/#sec-samevaluezero)
+///
+/// The abstract operation SameValueZero takes arguments x (an ECMAScript
+/// language value) and y (an ECMAScript language value) and returns a Boolean.
+/// It determines whether or not the two arguments are the same value (ignoring
+/// the difference between +0𝔽 and -0𝔽). It performs the following steps when
+/// called:
+pub(crate) fn same_value_zero(
+    agent: &mut Agent,
+    x: impl Copy + Into<Value>,
+    y: impl Copy + Into<Value>,
+) -> bool {
+    let (x, y) = (x.into(), y.into());
+
+    // 1. If Type(x) is not Type(y), return false.
+    if !is_same_type(x, y) {
+        return false;
+    }
+
+    // 2. If x is a Number, then
+    // NOTE: We need to convert both to a number because we use number
+    // type-safety.
+    if let (Ok(x), Ok(y)) = (x.to_number(agent), y.to_number(agent)) {
+        // a. Return Number::sameValueZero(x, y).
+        return x.same_value_zero(agent, y);
+    }
+
+    // 3. Return SameValueNonNumber(x, y).
+    return same_value_non_number(agent, x, y);
+}
+
 /// 7.2.12 SameValueNonNumber ( x, y )
 /// https://tc39.es/ecma262/#sec-samevaluenonnumber
 pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(_agent: &mut Agent, x: T, y: T) -> bool {
