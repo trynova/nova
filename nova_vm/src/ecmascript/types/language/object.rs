@@ -1,18 +1,18 @@
 mod data;
 mod internal_methods;
+mod internal_slots;
 mod property_key;
 mod property_storage;
+use std::ops::Deref;
+
 use super::{
     value::{ARRAY_DISCRIMINANT, FUNCTION_DISCRIMINANT, OBJECT_DISCRIMINANT},
     Function, Value,
 };
 use crate::{
     ecmascript::{
-        builtins::ordinary,
-        execution::{
-            agent::{ExceptionType, JsError},
-            Agent, JsResult,
-        },
+        builtins::Array,
+        execution::{agent::ExceptionType, Agent, JsResult},
         types::PropertyDescriptor,
     },
     heap::{
@@ -24,6 +24,7 @@ use crate::{
 
 pub use data::ObjectHeapData;
 pub use internal_methods::InternalMethods;
+pub use internal_slots::OrdinaryObjectInternalSlots;
 pub use property_key::PropertyKey;
 pub use property_storage::PropertyStorage;
 
@@ -31,7 +32,7 @@ pub use property_storage::PropertyStorage;
 /// https://tc39.es/ecma262/#sec-object-type
 ///
 /// In Nova
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Object {
     Object(ObjectIndex) = OBJECT_DISCRIMINANT,
@@ -47,6 +48,38 @@ pub struct OrdinaryObject(ObjectIndex);
 impl From<OrdinaryObject> for Object {
     fn from(value: OrdinaryObject) -> Self {
         Self::Object(value.0)
+    }
+}
+
+impl From<ObjectIndex> for OrdinaryObject {
+    fn from(value: ObjectIndex) -> Self {
+        OrdinaryObject(value)
+    }
+}
+
+impl Deref for OrdinaryObject {
+    type Target = ObjectIndex;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl OrdinaryObjectInternalSlots for OrdinaryObject {
+    fn extensible(self, agent: &Agent) -> bool {
+        agent.heap.get(*self).extensible
+    }
+
+    fn set_extensible(self, agent: &mut Agent, value: bool) {
+        agent.heap.get_mut(*self).extensible = value;
+    }
+
+    fn prototype(self, agent: &Agent) -> Option<Object> {
+        agent.heap.get(*self).prototype
+    }
+
+    fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+        agent.heap.get_mut(*self).prototype = prototype;
     }
 }
 
@@ -92,75 +125,6 @@ impl Object {
         self.into()
     }
 
-    fn get_object_index(self, heap: &Heap) -> ObjectIndex {
-        match self {
-            Object::Object(index) => index,
-            Object::Array(array_index) => heap
-                .arrays
-                .get(array_index.into_index())
-                .unwrap()
-                .unwrap()
-                .object_index
-                .unwrap(),
-            Object::Function(function_index) => heap
-                .functions
-                .get(function_index.into_index())
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .object_index
-                .unwrap(),
-        }
-    }
-
-    /// [[Extensible]]
-    pub fn extensible(self, agent: &mut Agent) -> bool {
-        let heap = &agent.heap;
-        let object_index = self.get_object_index(heap);
-        heap.get(object_index).extensible
-    }
-
-    /// [[Extensible]]
-    pub fn set_extensible(self, agent: &mut Agent, value: bool) {
-        let heap = &mut agent.heap;
-        let object_index = self.get_object_index(heap);
-        let object = heap.get_mut(object_index);
-        object.extensible = value;
-    }
-
-    /// [[Prototype]]
-    pub fn prototype(self, agent: &mut Agent) -> Option<Value> {
-        let heap = &agent.heap;
-        let realm = agent.current_realm();
-
-        match self {
-            Object::Object(object) => {
-                let object = heap.get(object);
-                object.prototype.map(|v| v.into_value())
-            }
-            Object::Array(array) => {
-                let array = heap.get(array);
-
-                if let Some(object_index) = array.object_index {
-                    let prototype = heap.get(object_index).prototype;
-                    prototype.map(|v| v.into())
-                } else {
-                    Some(realm.intrinsics().array_prototype().into_value())
-                }
-            }
-            Object::Function(_) => Some(realm.intrinsics().function_prototype().into_value()),
-            _ => unreachable!(),
-        }
-    }
-
-    /// [[Prototype]]
-    pub fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        let heap = &mut agent.heap;
-        let object_index = self.get_object_index(heap);
-        let object = heap.get_mut(object_index);
-        object.prototype = prototype;
-    }
-
     pub fn property_storage(self) -> PropertyStorage {
         PropertyStorage::new(self)
     }
@@ -174,7 +138,7 @@ impl Object {
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<()> {
         // 1. Let success be ? O.[[DefineOwnProperty]](P, desc).
-        let success = Object::define_own_property(agent, self, property_key, property_descriptor)?;
+        let success = self.define_own_property(agent, property_key, property_descriptor)?;
 
         // 2. If success is false, throw a TypeError exception.
         if !success {
@@ -208,162 +172,173 @@ impl Object {
         };
 
         // 2. Return ? O.[[DefineOwnProperty]](P, newDesc).
-        Object::define_own_property(agent, self, property_key, new_descriptor)
+        self.define_own_property(agent, property_key, new_descriptor)
+    }
+}
+
+impl OrdinaryObjectInternalSlots for Object {
+    fn extensible(self, agent: &Agent) -> bool {
+        match self {
+            Object::Object(idx) => OrdinaryObject::from(idx).extensible(agent),
+            Object::Array(idx) => Array::from(idx).extensible(agent),
+            Object::Function(idx) => Function::from(idx).extensible(agent),
+        }
+    }
+
+    fn set_extensible(self, agent: &mut Agent, value: bool) {
+        match self {
+            Object::Object(idx) => OrdinaryObject::from(idx).set_extensible(agent, value),
+            Object::Array(idx) => Array::from(idx).set_extensible(agent, value),
+            Object::Function(idx) => Function::from(idx).set_extensible(agent, value),
+        }
+    }
+
+    fn prototype(self, agent: &Agent) -> Option<Object> {
+        match self {
+            Object::Object(idx) => OrdinaryObject::from(idx).prototype(agent),
+            Object::Array(idx) => Array::from(idx).prototype(agent),
+            Object::Function(idx) => Function::from(idx).prototype(agent),
+        }
+    }
+
+    fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+        match self {
+            Object::Object(idx) => OrdinaryObject::from(idx).set_prototype(agent, prototype),
+            Object::Array(idx) => Array::from(idx).set_prototype(agent, prototype),
+            Object::Function(idx) => Function::from(idx).set_prototype(agent, prototype),
+        }
     }
 }
 
 impl InternalMethods for Object {
-    fn get_prototype_of(agent: &mut Agent, object: Self) -> JsResult<Option<Object>> {
-        match object {
-            Object::Object(idx) => OrdinaryObject::get_prototype_of(agent, OrdinaryObject(idx)),
-            Object::Array(idx) => todo!(),
-            Object::Function(idx) => Function::get_prototype_of(agent, Function(idx)),
+    fn get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
+        match self {
+            Object::Object(idx) => OrdinaryObject::from(idx).get_prototype_of(agent),
+            Object::Array(idx) => Array::from(idx).get_prototype_of(agent),
+            Object::Function(idx) => Function::from(idx).get_prototype_of(agent),
         }
     }
 
-    fn set_prototype_of(
-        agent: &mut Agent,
-        object: Self,
-        prototype: Option<Object>,
-    ) -> JsResult<bool> {
-        match object {
-            Object::Object(idx) => {
-                OrdinaryObject::set_prototype_of(agent, OrdinaryObject(idx), prototype)
-            }
-            Object::Array(idx) => todo!(),
-            Object::Function(idx) => Function::set_prototype_of(agent, Function(idx), prototype),
+    fn set_prototype_of(self, agent: &mut Agent, prototype: Option<Object>) -> JsResult<bool> {
+        match self {
+            Object::Object(idx) => OrdinaryObject::from(idx).set_prototype_of(agent, prototype),
+            Object::Array(idx) => Array::from(idx).set_prototype_of(agent, prototype),
+            Object::Function(idx) => Function::from(idx).set_prototype_of(agent, prototype),
         }
     }
 
-    fn is_extensible(agent: &mut Agent, object: Self) -> JsResult<bool> {
-        match object {
-            Object::Object(idx) => OrdinaryObject::is_extensible(agent, OrdinaryObject(idx)),
-            Object::Array(idx) => todo!(),
-            Object::Function(idx) => Function::is_extensible(agent, Function(idx)),
+    fn is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
+        match self {
+            Object::Object(idx) => OrdinaryObject::from(idx).is_extensible(agent),
+            Object::Array(idx) => Array::from(idx).is_extensible(agent),
+            Object::Function(idx) => Function::from(idx).is_extensible(agent),
         }
     }
 
-    fn prevent_extensions(agent: &mut Agent, object: Self) -> JsResult<bool> {
-        match object {
-            Object::Object(idx) => OrdinaryObject::prevent_extensions(agent, OrdinaryObject(idx)),
-            Object::Array(idx) => todo!(),
-            Object::Function(idx) => Function::prevent_extensions(agent, Function(idx)),
+    fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+        match self {
+            Object::Object(idx) => OrdinaryObject::from(idx).prevent_extensions(agent),
+            Object::Array(idx) => Array::from(idx).prevent_extensions(agent),
+            Object::Function(idx) => Function::from(idx).prevent_extensions(agent),
         }
     }
 
     fn get_own_property(
+        self,
         agent: &mut Agent,
-        object: Self,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
-        match object {
-            Object::Object(idx) => {
-                OrdinaryObject::get_own_property(agent, OrdinaryObject(idx), property_key)
-            }
-            Object::Array(idx) => todo!(),
-            Object::Function(idx) => Function::get_own_property(agent, Function(idx), property_key),
+        match self {
+            Object::Object(idx) => OrdinaryObject::from(idx).get_own_property(agent, property_key),
+            Object::Array(idx) => Array::from(idx).get_own_property(agent, property_key),
+            Object::Function(idx) => Function::from(idx).get_own_property(agent, property_key),
         }
     }
 
     fn define_own_property(
+        self,
         agent: &mut Agent,
-        object: Self,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
-        match object {
-            Object::Object(idx) => OrdinaryObject::define_own_property(
+        match self {
+            Object::Object(idx) => OrdinaryObject::from(idx).define_own_property(
                 agent,
-                OrdinaryObject(idx),
                 property_key,
                 property_descriptor,
             ),
-            Object::Array(idx) => todo!(),
-            Object::Function(idx) => Function::define_own_property(
-                agent,
-                Function(idx),
-                property_key,
-                property_descriptor,
-            ),
+            Object::Array(idx) => {
+                Array::from(idx).define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::Function(idx) => {
+                Function::from(idx).define_own_property(agent, property_key, property_descriptor)
+            }
         }
     }
 
-    fn has_property(agent: &mut Agent, object: Self, property_key: PropertyKey) -> JsResult<bool> {
-        match object {
-            Object::Object(idx) => {
-                OrdinaryObject::has_property(agent, OrdinaryObject(idx), property_key)
-            }
-            Object::Array(idx) => todo!(),
-            Object::Function(idx) => Function::has_property(agent, Function(idx), property_key),
+    fn has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+        match self {
+            Object::Object(idx) => OrdinaryObject::from(idx).has_property(agent, property_key),
+            Object::Array(idx) => Array::from(idx).has_property(agent, property_key),
+            Object::Function(idx) => Function::from(idx).has_property(agent, property_key),
         }
     }
 
-    fn get(
-        agent: &mut Agent,
-        object: Self,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
-        match object {
-            Object::Object(idx) => {
-                OrdinaryObject::get(agent, OrdinaryObject(idx), property_key, receiver)
-            }
-            Object::Array(idx) => todo!(),
-            Object::Function(idx) => Function::get(agent, Function(idx), property_key, receiver),
+    fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
+        match self {
+            Object::Object(idx) => OrdinaryObject::from(idx).get(agent, property_key, receiver),
+            Object::Array(idx) => Array::from(idx).get(agent, property_key, receiver),
+            Object::Function(idx) => Function::from(idx).get(agent, property_key, receiver),
         }
     }
 
     fn set(
+        self,
         agent: &mut Agent,
-        object: Self,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
     ) -> JsResult<bool> {
-        match object {
+        match self {
             Object::Object(idx) => {
-                OrdinaryObject::set(agent, OrdinaryObject(idx), property_key, value, receiver)
+                OrdinaryObject::from(idx).set(agent, property_key, value, receiver)
             }
-            Object::Array(idx) => todo!(),
-            Object::Function(idx) => {
-                Function::set(agent, Function(idx), property_key, value, receiver)
-            }
+            Object::Array(idx) => Array::from(idx).set(agent, property_key, value, receiver),
+            Object::Function(idx) => Function::from(idx).set(agent, property_key, value, receiver),
         }
     }
 
-    fn delete(agent: &mut Agent, object: Self, property_key: PropertyKey) -> JsResult<bool> {
-        match object {
-            Object::Object(idx) => OrdinaryObject::delete(agent, OrdinaryObject(idx), property_key),
-            Object::Array(idx) => todo!(),
-            Object::Function(idx) => Function::delete(agent, Function(idx), property_key),
+    fn delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+        match self {
+            Object::Object(idx) => OrdinaryObject::from(idx).delete(agent, property_key),
+            Object::Array(idx) => Array::from(idx).delete(agent, property_key),
+            Object::Function(idx) => Function::from(idx).delete(agent, property_key),
         }
     }
 
-    fn own_property_keys(agent: &mut Agent, object: Self) -> JsResult<Vec<PropertyKey>> {
-        match object {
-            Object::Object(idx) => OrdinaryObject::own_property_keys(agent, OrdinaryObject(idx)),
-            Object::Array(idx) => todo!(),
-            Object::Function(idx) => Function::own_property_keys(agent, Function(idx)),
+    fn own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+        match self {
+            Object::Object(idx) => OrdinaryObject::from(idx).own_property_keys(agent),
+            Object::Array(idx) => Array::from(idx).own_property_keys(agent),
+            Object::Function(idx) => Function::from(idx).own_property_keys(agent),
         }
     }
 
     fn call(
+        self,
         agent: &mut Agent,
-        object: Self,
         this_value: Value,
         arguments_list: &[Value],
     ) -> JsResult<Value> {
-        match object {
-            Object::Function(idx) => {
-                Function::call(agent, Function(idx), this_value, arguments_list)
-            }
+        match self {
+            Object::Function(idx) => Function::from(idx).call(agent, this_value, arguments_list),
             _ => unreachable!(),
         }
     }
 
-    fn construct(agent: &mut Agent, object: Self, arguments_list: &[Value]) -> JsResult<Object> {
-        match object {
-            Object::Function(idx) => Function::construct(agent, Function(idx), arguments_list),
+    fn construct(self, agent: &mut Agent, arguments_list: &[Value]) -> JsResult<Object> {
+        match self {
+            Object::Function(idx) => Function::from(idx).construct(agent, arguments_list),
             _ => unreachable!(),
         }
     }
