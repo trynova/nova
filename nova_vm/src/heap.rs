@@ -161,7 +161,7 @@ impl CreateHeapData<&str, String> for Heap<'_, '_> {
 impl CreateHeapData<FunctionHeapData, Function> for Heap<'_, '_> {
     fn create(&mut self, data: FunctionHeapData) -> Function {
         self.functions.push(Some(data));
-        Function(FunctionIndex::last(&self.functions))
+        Function::from(FunctionIndex::last(&self.functions))
     }
 }
 

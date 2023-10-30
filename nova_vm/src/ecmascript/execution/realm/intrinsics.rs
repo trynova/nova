@@ -198,7 +198,7 @@ impl Default for Intrinsics {
 impl Intrinsics {
     /// %Array%
     pub const fn array(&self) -> Function {
-        Function(self.array)
+        Function::new(self.array)
     }
 
     /// %Array.prototype%
@@ -208,7 +208,7 @@ impl Intrinsics {
 
     /// %ArrayBuffer%
     pub const fn array_buffer(&self) -> Function {
-        Function(self.array_buffer)
+        Function::new(self.array_buffer)
     }
 
     /// %ArrayBuffer.prototype%
@@ -218,7 +218,7 @@ impl Intrinsics {
 
     /// %BigInt%
     pub const fn big_int(&self) -> Function {
-        Function(self.big_int)
+        Function::new(self.big_int)
     }
 
     /// %BigInt.prototype%
@@ -228,7 +228,7 @@ impl Intrinsics {
 
     /// %Boolean%
     pub const fn boolean(&self) -> Function {
-        Function(self.boolean)
+        Function::new(self.boolean)
     }
 
     /// %Boolean.prototype%
@@ -238,7 +238,7 @@ impl Intrinsics {
 
     /// %Error%
     pub const fn error(&self) -> Function {
-        Function(self.error)
+        Function::new(self.error)
     }
 
     /// %Error.prototype%
@@ -253,7 +253,7 @@ impl Intrinsics {
 
     /// %EvalError%
     pub const fn eval_error(&self) -> Function {
-        Function(self.eval_error)
+        Function::new(self.eval_error)
     }
 
     /// %EvalError.prototype%
@@ -263,7 +263,7 @@ impl Intrinsics {
 
     /// %Function%
     pub const fn function(&self) -> Function {
-        Function(self.function)
+        Function::new(self.function)
     }
 
     /// %Function.prototype%
@@ -288,7 +288,7 @@ impl Intrinsics {
 
     /// %Number%
     pub const fn number(&self) -> Function {
-        Function(self.number)
+        Function::new(self.number)
     }
 
     /// %Number.prototype%
@@ -298,7 +298,7 @@ impl Intrinsics {
 
     /// %Object%
     pub const fn object(&self) -> Function {
-        Function(self.object)
+        Function::new(self.object)
     }
 
     /// %Object.prototype%
@@ -338,7 +338,7 @@ impl Intrinsics {
 
     /// %String%
     pub const fn string(&self) -> Function {
-        Function(self.string)
+        Function::new(self.string)
     }
 
     /// %String.prototype%
@@ -348,7 +348,7 @@ impl Intrinsics {
 
     /// %Symbol%
     pub const fn symbol(&self) -> Function {
-        Function(self.symbol)
+        Function::new(self.symbol)
     }
 
     /// %Symbol.prototype%

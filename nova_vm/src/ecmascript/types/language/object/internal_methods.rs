@@ -18,69 +18,60 @@ pub type Construct<T> =
 /// https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots
 pub trait InternalMethods<T = Object>
 where
-    Self: Sized,
+    Self: Sized + Into<Object>,
 {
     /// \[\[GetPrototypeOf\]\]
-    fn get_prototype_of(agent: &mut Agent, object: Self) -> JsResult<Option<Object>>;
+    fn get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>>;
 
     /// \[\[SetPrototypeOf\]\]
-    fn set_prototype_of(
-        agent: &mut Agent,
-        object: Self,
-        prototype: Option<Object>,
-    ) -> JsResult<bool>;
+    fn set_prototype_of(self, agent: &mut Agent, prototype: Option<Object>) -> JsResult<bool>;
 
     /// \[\[IsExtensible\]\]
-    fn is_extensible(agent: &mut Agent, object: Self) -> JsResult<bool>;
+    fn is_extensible(self, agent: &mut Agent) -> JsResult<bool>;
 
     /// \[\[PreventExtensions\]\]
-    fn prevent_extensions(agent: &mut Agent, object: Self) -> JsResult<bool>;
+    fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool>;
 
     /// \[\[GetOwnProperty\]\]
     fn get_own_property(
+        self,
         agent: &mut Agent,
-        object: Self,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>>;
 
     /// \[\[DefineOwnProperty\]\]
     fn define_own_property(
+        self,
         agent: &mut Agent,
-        object: Self,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool>;
 
     /// \[\[HasProperty\]\]
-    fn has_property(agent: &mut Agent, object: Self, property_key: PropertyKey) -> JsResult<bool>;
+    fn has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool>;
 
     /// \[\[Get\]\]
-    fn get(
-        agent: &mut Agent,
-        object: Self,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value>;
+    fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value>;
 
     /// \[\[Set\]\]
     fn set(
+        self,
         agent: &mut Agent,
-        object: Self,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
     ) -> JsResult<bool>;
 
     /// \[\[Delete\]\]
-    fn delete(agent: &mut Agent, object: Self, property_key: PropertyKey) -> JsResult<bool>;
+    fn delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool>;
 
     /// \[\[OwnPropertyKeys\]\]
-    fn own_property_keys(agent: &mut Agent, object: Self) -> JsResult<Vec<PropertyKey>>;
+    fn own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>>;
 
     /// \[\[Call\]\]
     fn call(
+        self,
         agent: &mut Agent,
-        object: Self,
         this_value: Value,
         arguments_list: &[Value],
     ) -> JsResult<Value> {
@@ -88,7 +79,7 @@ where
     }
 
     /// \[\[Construct\]\]
-    fn construct(agent: &mut Agent, object: Self, arguments_list: &[Value]) -> JsResult<T> {
+    fn construct(self, agent: &mut Agent, arguments_list: &[Value]) -> JsResult<T> {
         unreachable!()
     }
 }

@@ -41,7 +41,7 @@ pub(crate) fn make_basic_object(agent: &mut Agent, internal_slots_list: ()) -> O
 /// specific property of an object.
 pub(crate) fn get(agent: &mut Agent, o: Object, p: PropertyKey) -> JsResult<Value> {
     // 1. Return ? O.[[Get]](P, O).
-    Object::get(agent, o, p, o.into())
+    o.get(agent, p, o.into())
 }
 
 /// ### [7.3.3 GetV ( V, P )](https://tc39.es/ecma262/#sec-getv)
@@ -56,7 +56,7 @@ pub(crate) fn get_v(agent: &mut Agent, v: Value, p: PropertyKey) -> JsResult<Val
     // 1. Let O be ? ToObject(V).
     let o = to_object(agent, v)?;
     // 2. Return ? O.[[Get]](P, V).
-    Object::get(agent, o, p, o.into())
+    o.get(agent, p, o.into())
 }
 
 /// ### [7.3.11 GetMethod ( V, P )](https://tc39.es/ecma262/#sec-getmethod)
@@ -114,7 +114,7 @@ pub(crate) fn call(
     } else {
         // 3. Return ? F.[[Call]](V, argumentsList).
         if let Value::Function(idx) = f {
-            Function::call(agent, Function(idx), v, arguments_list)
+            Function::from(idx).call(agent, v, arguments_list)
         } else {
             unreachable!();
         }
@@ -129,5 +129,5 @@ pub(crate) fn call_function(
     arguments_list: Option<&[Value]>,
 ) -> JsResult<Value> {
     let arguments_list = arguments_list.unwrap_or(&[]);
-    Function::call(agent, f, v, arguments_list)
+    f.call(agent, v, arguments_list)
 }

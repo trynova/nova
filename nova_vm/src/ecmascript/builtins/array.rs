@@ -4,18 +4,45 @@
 
 mod data;
 
-use super::{create_builtin_function, ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs};
+use std::ops::Deref;
+
+use super::{
+    create_builtin_function,
+    ordinary::{ordinary_get_prototype_of, ordinary_is_extensible, ordinary_set_prototype_of},
+    ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs,
+};
 use crate::{
     ecmascript::{
+        abstract_operations::testing_and_comparison::same_value_non_number,
         execution::{Agent, JsResult},
-        types::{Object, Value},
+        types::{InternalMethods, Object, OrdinaryObjectInternalSlots, Value},
     },
-    heap::indexes::ArrayIndex,
+    heap::{indexes::ArrayIndex, GetHeapData},
 };
 
 pub use data::ArrayHeapData;
 
 pub struct Array(ArrayIndex);
+
+impl From<ArrayIndex> for Array {
+    fn from(value: ArrayIndex) -> Self {
+        Array(value)
+    }
+}
+
+impl From<Array> for Object {
+    fn from(value: Array) -> Self {
+        Self::Array(value.0)
+    }
+}
+
+impl Deref for Array {
+    type Target = ArrayIndex;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 pub struct ArrayConstructor;
 
@@ -39,5 +66,147 @@ impl ArrayConstructor {
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
+    }
+}
+
+impl OrdinaryObjectInternalSlots for Array {
+    fn extensible(self, agent: &Agent) -> bool {
+        if let Some(object_index) = agent.heap.get(*self).object_index {
+            Object::from(object_index).extensible(agent)
+        } else {
+            true
+        }
+    }
+
+    fn set_extensible(self, agent: &mut Agent, value: bool) {
+        if let Some(object_index) = agent.heap.get(*self).object_index {
+            Object::from(object_index).set_extensible(agent, value)
+        } else if value == false {
+            // Create array base object and set inextensible
+            todo!()
+        }
+    }
+
+    fn prototype(self, agent: &Agent) -> Option<Object> {
+        if let Some(object_index) = agent.heap.get(*self).object_index {
+            Object::from(object_index).prototype(agent)
+        } else {
+            Some(agent.current_realm().intrinsics().array_prototype())
+        }
+    }
+
+    fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+        if let Some(object_index) = agent.heap.get(*self).object_index {
+            Object::from(object_index).set_prototype(agent, prototype)
+        } else if prototype != Some(agent.current_realm().intrinsics().array_prototype().into()) {
+            // Create array base object with custom prototype
+            todo!()
+        }
+    }
+}
+
+impl InternalMethods for Array {
+    fn get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
+        if let Some(object_index) = agent.heap.get(*self).object_index {
+            Object::Object(object_index).get_prototype_of(agent)
+        } else {
+            Ok(Some(agent.current_realm().intrinsics().array_prototype()))
+        }
+    }
+
+    fn set_prototype_of(self, agent: &mut Agent, prototype: Option<Object>) -> JsResult<bool> {
+        if let Some(object_index) = agent.heap.get(*self).object_index {
+            Ok(ordinary_set_prototype_of(
+                agent,
+                Object::Object(object_index),
+                prototype,
+            ))
+        } else {
+            // 1. Let current be O.[[Prototype]].
+            let current = agent.current_realm().intrinsics().array_prototype();
+            let object_index = if let Some(v) = prototype {
+                if same_value_non_number(agent, v.into(), current.into()) {
+                    return Ok(true);
+                } else {
+                    // TODO: Proper handling
+                    Some(agent.heap.create_object_with_prototype(v))
+                }
+            } else {
+                Some(agent.heap.create_null_object(Default::default()))
+            };
+            agent.heap.get_mut(*self).object_index = object_index;
+            Ok(true)
+        }
+    }
+
+    fn is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
+        if let Some(object_index) = agent.heap.get(*self).object_index {
+            Ok(ordinary_is_extensible(agent, Object::Object(object_index)))
+        } else {
+            Ok(true)
+        }
+    }
+
+    fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn get_own_property(
+        self,
+        agent: &mut Agent,
+        property_key: crate::ecmascript::types::PropertyKey,
+    ) -> JsResult<Option<crate::ecmascript::types::PropertyDescriptor>> {
+        todo!()
+    }
+
+    fn define_own_property(
+        self,
+        agent: &mut Agent,
+        property_key: crate::ecmascript::types::PropertyKey,
+        property_descriptor: crate::ecmascript::types::PropertyDescriptor,
+    ) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn has_property(
+        self,
+        agent: &mut Agent,
+        property_key: crate::ecmascript::types::PropertyKey,
+    ) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn get(
+        self,
+        agent: &mut Agent,
+        property_key: crate::ecmascript::types::PropertyKey,
+        receiver: Value,
+    ) -> JsResult<Value> {
+        todo!()
+    }
+
+    fn set(
+        self,
+        agent: &mut Agent,
+        property_key: crate::ecmascript::types::PropertyKey,
+        value: Value,
+        receiver: Value,
+    ) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn delete(
+        self,
+        agent: &mut Agent,
+        property_key: crate::ecmascript::types::PropertyKey,
+    ) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn own_property_keys(
+        self,
+        agent: &mut Agent,
+    ) -> JsResult<Vec<crate::ecmascript::types::PropertyKey>> {
+        todo!()
     }
 }

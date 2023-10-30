@@ -11,8 +11,8 @@ mod ecmascript_function;
 mod number;
 pub mod ordinary;
 
-pub use array::ArrayConstructor;
 pub(crate) use array::ArrayHeapData;
+pub use array::{Array, ArrayConstructor};
 pub(crate) use array_buffer::ArrayBufferHeapData;
 pub use builtin_function::{
     create_builtin_function, todo_builtin, ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs,
