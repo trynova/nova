@@ -1,4 +1,4 @@
-mod bigint;
+pub mod bigint;
 mod function;
 mod number;
 mod object;

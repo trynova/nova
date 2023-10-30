@@ -2,8 +2,8 @@ mod language;
 mod spec;
 
 pub use language::{
-    BigInt, Function, InternalMethods, Number, Object, OrdinaryObject, OrdinaryObjectInternalSlots,
-    PropertyKey, String, Value,
+    bigint, BigInt, Function, InternalMethods, Number, Object, OrdinaryObject,
+    OrdinaryObjectInternalSlots, PropertyKey, String, Value,
 };
 pub(crate) use language::{
     BigIntHeapData, FunctionHeapData, NumberHeapData, ObjectHeapData, StringHeapData,

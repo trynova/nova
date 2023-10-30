@@ -1,9 +1,8 @@
 //! ## [7.2 Testing and Comparison Operations](https://tc39.es/ecma262/#sec-testing-and-comparison-operations)
 
 use crate::ecmascript::{
-    abstract_operations::bigint,
     execution::{agent::JsError, Agent, JsResult},
-    types::{Number, Value},
+    types::{bigint, Number, Value},
 };
 
 use super::type_conversion::{to_primitive, PreferredType};
