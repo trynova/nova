@@ -290,9 +290,12 @@ impl From<bool> for Value {
     }
 }
 
-impl From<Option<Value>> for Value {
-    fn from(value: Option<Value>) -> Self {
-        value.unwrap_or(Value::Undefined)
+impl<T> From<Option<T>> for Value
+where
+    T: Into<Value>,
+{
+    fn from(value: Option<T>) -> Self {
+        value.map_or(Value::Undefined, |v| v.into())
     }
 }
 

@@ -172,7 +172,7 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
     agent: &mut Agent,
     x: impl Into<Value> + Copy,
     y: impl Into<Value> + Copy,
-) -> JsResult<Value> {
+) -> JsResult<Option<bool>> {
     // 1. If LeftFirst is true, then
     let (px, py) = if LEFT_FIRST {
         // a. Let px be ? ToPrimitive(x, NUMBER).
@@ -239,7 +239,7 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
                 // 1. Return Number::lessThan(nx, ny).
                 let nx = nx.to_number(agent)?;
                 let ny = ny.to_number(agent)?;
-                return Ok(nx.less_than(agent, ny).into());
+                return Ok(nx.less_than(agent, ny));
             }
             // ii. Else,
             else {
@@ -249,7 +249,7 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
                 // 2. Return BigInt::lessThan(nx, ny).
                 let nx = nx.to_bigint(agent)?;
                 let ny = ny.to_bigint(agent)?;
-                return Ok(nx.less_than(agent, ny).into());
+                return Ok(Some(nx.less_than(agent, ny)));
             }
         }
 
@@ -258,22 +258,22 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
 
         // h. If nx or ny is NaN, return undefined.
         if nx.is_nan(agent) || ny.is_nan(agent) {
-            return Ok(Value::Undefined);
+            return Ok(None);
         }
 
         // i. If nx is -∞𝔽 or ny is +∞𝔽, return true.
         if nx.is_neg_infinity(agent) || ny.is_pos_infinity(agent) {
-            return Ok(Value::from(true));
+            return Ok(Some(true));
         }
 
         // j. If nx is +∞𝔽 or ny is -∞𝔽, return false.
         if nx.is_pos_infinity(agent) || ny.is_neg_infinity(agent) {
-            return Ok(Value::from(false));
+            return Ok(Some(false));
         }
 
         // k. If ℝ(nx) < ℝ(ny), return true; otherwise return false.
         let rnx = nx.to_real(agent)?;
         let rny = nx.to_real(agent)?;
-        return Ok(Value::from(rnx < rny));
+        return Ok(Some(rnx < rny));
     }
 }
