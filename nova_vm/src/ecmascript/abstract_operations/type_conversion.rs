@@ -17,7 +17,6 @@ use crate::{
     },
     heap::{GetHeapData, WellKnownSymbolIndexes},
 };
-use std::cmp::min;
 
 use super::{
     operations_on_objects::{call, call_function, get, get_method},
