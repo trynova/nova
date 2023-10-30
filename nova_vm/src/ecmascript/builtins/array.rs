@@ -7,9 +7,8 @@ mod data;
 use std::ops::Deref;
 
 use super::{
-    create_builtin_function,
-    ordinary::{ordinary_is_extensible, ordinary_set_prototype_of},
-    ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs,
+    create_builtin_function, ordinary::ordinary_is_extensible, ArgumentsList, Behaviour, Builtin,
+    BuiltinFunctionArgs,
 };
 use crate::{
     ecmascript::{
@@ -143,8 +142,12 @@ impl InternalMethods for Array {
         }
     }
 
-    fn prevent_extensions(self, _agent: &mut Agent) -> JsResult<bool> {
-        todo!()
+    fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+        if let Some(object_index) = agent.heap.get(*self).object_index {
+            Ok(ordinary_is_extensible(agent, Object::Object(object_index)))
+        } else {
+            Ok(true)
+        }
     }
 
     fn get_own_property(
