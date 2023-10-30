@@ -6,17 +6,19 @@ mod property_storage;
 use std::ops::Deref;
 
 use super::{
-    value::{ARRAY_DISCRIMINANT, FUNCTION_DISCRIMINANT, OBJECT_DISCRIMINANT},
+    value::{
+        ARRAY_BUFFER_DISCRIMINANT, ARRAY_DISCRIMINANT, FUNCTION_DISCRIMINANT, OBJECT_DISCRIMINANT,
+    },
     Function, Value,
 };
 use crate::{
     ecmascript::{
-        builtins::Array,
+        builtins::{Array, ArrayBuffer},
         execution::{agent::ExceptionType, Agent, JsResult},
         types::PropertyDescriptor,
     },
     heap::{
-        indexes::{ArrayIndex, FunctionIndex, ObjectIndex},
+        indexes::{ArrayBufferIndex, ArrayIndex, FunctionIndex, ObjectIndex},
         GetHeapData,
     },
 };
@@ -38,10 +40,12 @@ pub enum Object {
     // Date(DateIndex) = DATE_DISCRIMINANT,
     // Error(ErrorIndex) = ERROR_DISCRIMINANT,
     Array(ArrayIndex) = ARRAY_DISCRIMINANT,
+    ArrayBuffer(ArrayBufferIndex) = ARRAY_BUFFER_DISCRIMINANT,
     Function(FunctionIndex) = FUNCTION_DISCRIMINANT,
     //RegExp(RegExpIndex) = REGEXP_DISCRIMINANT,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct OrdinaryObject(ObjectIndex);
 
 impl From<OrdinaryObject> for Object {
@@ -79,6 +83,12 @@ impl OrdinaryObjectInternalSlots for OrdinaryObject {
 
     fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         agent.heap.get_mut(*self).prototype = prototype;
+    }
+}
+
+impl OrdinaryObject {
+    pub(crate) const fn new(value: ObjectIndex) -> Self {
+        Self(value)
     }
 }
 
@@ -180,6 +190,7 @@ impl OrdinaryObjectInternalSlots for Object {
         match self {
             Object::Object(idx) => OrdinaryObject::from(idx).extensible(agent),
             Object::Array(idx) => Array::from(idx).extensible(agent),
+            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).extensible(agent),
             Object::Function(idx) => Function::from(idx).extensible(agent),
         }
     }
@@ -188,6 +199,7 @@ impl OrdinaryObjectInternalSlots for Object {
         match self {
             Object::Object(idx) => OrdinaryObject::from(idx).set_extensible(agent, value),
             Object::Array(idx) => Array::from(idx).set_extensible(agent, value),
+            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).set_extensible(agent, value),
             Object::Function(idx) => Function::from(idx).set_extensible(agent, value),
         }
     }
@@ -196,6 +208,7 @@ impl OrdinaryObjectInternalSlots for Object {
         match self {
             Object::Object(idx) => OrdinaryObject::from(idx).prototype(agent),
             Object::Array(idx) => Array::from(idx).prototype(agent),
+            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).prototype(agent),
             Object::Function(idx) => Function::from(idx).prototype(agent),
         }
     }
@@ -204,6 +217,7 @@ impl OrdinaryObjectInternalSlots for Object {
         match self {
             Object::Object(idx) => OrdinaryObject::from(idx).set_prototype(agent, prototype),
             Object::Array(idx) => Array::from(idx).set_prototype(agent, prototype),
+            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).set_prototype(agent, prototype),
             Object::Function(idx) => Function::from(idx).set_prototype(agent, prototype),
         }
     }
@@ -214,6 +228,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => OrdinaryObject::from(idx).get_prototype_of(agent),
             Object::Array(idx) => Array::from(idx).get_prototype_of(agent),
+            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).get_prototype_of(agent),
             Object::Function(idx) => Function::from(idx).get_prototype_of(agent),
         }
     }
@@ -222,6 +237,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => OrdinaryObject::from(idx).set_prototype_of(agent, prototype),
             Object::Array(idx) => Array::from(idx).set_prototype_of(agent, prototype),
+            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).set_prototype_of(agent, prototype),
             Object::Function(idx) => Function::from(idx).set_prototype_of(agent, prototype),
         }
     }
@@ -230,6 +246,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => OrdinaryObject::from(idx).is_extensible(agent),
             Object::Array(idx) => Array::from(idx).is_extensible(agent),
+            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).is_extensible(agent),
             Object::Function(idx) => Function::from(idx).is_extensible(agent),
         }
     }
@@ -238,6 +255,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => OrdinaryObject::from(idx).prevent_extensions(agent),
             Object::Array(idx) => Array::from(idx).prevent_extensions(agent),
+            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).prevent_extensions(agent),
             Object::Function(idx) => Function::from(idx).prevent_extensions(agent),
         }
     }
@@ -250,6 +268,9 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => OrdinaryObject::from(idx).get_own_property(agent, property_key),
             Object::Array(idx) => Array::from(idx).get_own_property(agent, property_key),
+            Object::ArrayBuffer(idx) => {
+                ArrayBuffer::from(idx).get_own_property(agent, property_key)
+            }
             Object::Function(idx) => Function::from(idx).get_own_property(agent, property_key),
         }
     }
@@ -269,6 +290,9 @@ impl InternalMethods for Object {
             Object::Array(idx) => {
                 Array::from(idx).define_own_property(agent, property_key, property_descriptor)
             }
+            Object::ArrayBuffer(idx) => {
+                ArrayBuffer::from(idx).define_own_property(agent, property_key, property_descriptor)
+            }
             Object::Function(idx) => {
                 Function::from(idx).define_own_property(agent, property_key, property_descriptor)
             }
@@ -279,6 +303,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => OrdinaryObject::from(idx).has_property(agent, property_key),
             Object::Array(idx) => Array::from(idx).has_property(agent, property_key),
+            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).has_property(agent, property_key),
             Object::Function(idx) => Function::from(idx).has_property(agent, property_key),
         }
     }
@@ -287,6 +312,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => OrdinaryObject::from(idx).get(agent, property_key, receiver),
             Object::Array(idx) => Array::from(idx).get(agent, property_key, receiver),
+            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).get(agent, property_key, receiver),
             Object::Function(idx) => Function::from(idx).get(agent, property_key, receiver),
         }
     }
@@ -303,6 +329,9 @@ impl InternalMethods for Object {
                 OrdinaryObject::from(idx).set(agent, property_key, value, receiver)
             }
             Object::Array(idx) => Array::from(idx).set(agent, property_key, value, receiver),
+            Object::ArrayBuffer(idx) => {
+                ArrayBuffer::from(idx).set(agent, property_key, value, receiver)
+            }
             Object::Function(idx) => Function::from(idx).set(agent, property_key, value, receiver),
         }
     }
@@ -311,6 +340,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => OrdinaryObject::from(idx).delete(agent, property_key),
             Object::Array(idx) => Array::from(idx).delete(agent, property_key),
+            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).delete(agent, property_key),
             Object::Function(idx) => Function::from(idx).delete(agent, property_key),
         }
     }
@@ -319,6 +349,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => OrdinaryObject::from(idx).own_property_keys(agent),
             Object::Array(idx) => Array::from(idx).own_property_keys(agent),
+            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).own_property_keys(agent),
             Object::Function(idx) => Function::from(idx).own_property_keys(agent),
         }
     }
