@@ -2,9 +2,7 @@ use std::mem::size_of;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            type_conversion::{to_int32, to_number, to_numeric, to_uint32},
-        },
+        abstract_operations::type_conversion::{to_int32, to_number, to_numeric, to_uint32},
         execution::{Agent, JsResult},
     },
     heap::indexes::{

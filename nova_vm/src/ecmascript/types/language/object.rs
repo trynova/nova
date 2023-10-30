@@ -335,9 +335,16 @@ impl InternalMethods for Object {
         }
     }
 
-    fn construct(self, agent: &mut Agent, arguments_list: &[Value]) -> JsResult<Object> {
+    fn construct(
+        self,
+        agent: &mut Agent,
+        arguments_list: &[Value],
+        new_target: Function,
+    ) -> JsResult<Object> {
         match self {
-            Object::Function(idx) => Function::from(idx).construct(agent, arguments_list),
+            Object::Function(idx) => {
+                Function::from(idx).construct(agent, arguments_list, new_target)
+            }
             _ => unreachable!(),
         }
     }

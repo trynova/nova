@@ -1,18 +1,8 @@
 use super::{Object, PropertyKey};
 use crate::ecmascript::{
-    builtins::ArgumentsList,
     execution::{Agent, JsResult},
-    types::{PropertyDescriptor, Value},
+    types::{Function, PropertyDescriptor, Value},
 };
-
-pub type Call<T> = fn(
-    agent: &mut Agent,
-    object: T,
-    this_value: Value,
-    arguments_list: ArgumentsList,
-) -> JsResult<Value>;
-pub type Construct<T> =
-    fn(agent: &mut Agent, object: T, arguments_list: ArgumentsList) -> JsResult<T>;
 
 /// 6.1.7.2 Object Internal Methods and Internal Slots
 /// https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots
@@ -79,7 +69,12 @@ where
     }
 
     /// \[\[Construct\]\]
-    fn construct(self, _agent: &mut Agent, _arguments_list: &[Value]) -> JsResult<T> {
+    fn construct(
+        self,
+        _agent: &mut Agent,
+        _arguments_list: &[Value],
+        _new_target: Function,
+    ) -> JsResult<T> {
         unreachable!()
     }
 }
