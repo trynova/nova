@@ -1,6 +1,7 @@
 //! ## [7.2 Testing and Comparison Operations](https://tc39.es/ecma262/#sec-testing-and-comparison-operations)
 
 use crate::ecmascript::{
+    abstract_operations::bigint,
     execution::{agent::JsError, Agent, JsResult},
     types::{Number, Value},
 };
@@ -249,7 +250,7 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
                 // 2. Return BigInt::lessThan(nx, ny).
                 let nx = nx.to_bigint(agent)?;
                 let ny = ny.to_bigint(agent)?;
-                return Ok(Some(nx.less_than(agent, ny)));
+                return Ok(Some(bigint::less_than(agent, nx, ny)));
             }
         }
 
