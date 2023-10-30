@@ -6,15 +6,12 @@ mod data;
 
 use std::ops::Deref;
 
-use super::{
-    create_builtin_function, ordinary::ordinary_is_extensible, ArgumentsList, Behaviour, Builtin,
-    BuiltinFunctionArgs,
-};
+use super::{create_builtin_function, ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs};
 use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::same_value_non_number,
         execution::{Agent, JsResult},
-        types::{InternalMethods, Object, OrdinaryObjectInternalSlots, Value},
+        types::{InternalMethods, Object, OrdinaryObject, OrdinaryObjectInternalSlots, Value},
     },
     heap::{indexes::ArrayIndex, GetHeapData},
 };
@@ -71,7 +68,7 @@ impl ArrayConstructor {
 impl OrdinaryObjectInternalSlots for Array {
     fn extensible(self, agent: &Agent) -> bool {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            Object::from(object_index).extensible(agent)
+            OrdinaryObject::from(object_index).extensible(agent)
         } else {
             true
         }
@@ -79,7 +76,7 @@ impl OrdinaryObjectInternalSlots for Array {
 
     fn set_extensible(self, agent: &mut Agent, value: bool) {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            Object::from(object_index).set_extensible(agent, value)
+            OrdinaryObject::from(object_index).set_extensible(agent, value)
         } else if !value {
             // Create array base object and set inextensible
             todo!()
@@ -88,7 +85,7 @@ impl OrdinaryObjectInternalSlots for Array {
 
     fn prototype(self, agent: &Agent) -> Option<Object> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            Object::from(object_index).prototype(agent)
+            OrdinaryObject::from(object_index).prototype(agent)
         } else {
             Some(agent.current_realm().intrinsics().array_prototype())
         }
@@ -96,7 +93,7 @@ impl OrdinaryObjectInternalSlots for Array {
 
     fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            Object::from(object_index).set_prototype(agent, prototype)
+            OrdinaryObject::from(object_index).set_prototype(agent, prototype)
         } else if prototype != Some(agent.current_realm().intrinsics().array_prototype()) {
             // Create array base object with custom prototype
             todo!()
@@ -107,7 +104,7 @@ impl OrdinaryObjectInternalSlots for Array {
 impl InternalMethods for Array {
     fn get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            Object::Object(object_index).get_prototype_of(agent)
+            OrdinaryObject::from(object_index).get_prototype_of(agent)
         } else {
             Ok(Some(agent.current_realm().intrinsics().array_prototype()))
         }
@@ -115,7 +112,7 @@ impl InternalMethods for Array {
 
     fn set_prototype_of(self, agent: &mut Agent, prototype: Option<Object>) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            Object::Object(object_index).set_prototype_of(agent, prototype)
+            OrdinaryObject::from(object_index).set_prototype_of(agent, prototype)
         } else {
             // 1. Let current be O.[[Prototype]].
             let current = agent.current_realm().intrinsics().array_prototype();
@@ -136,7 +133,7 @@ impl InternalMethods for Array {
 
     fn is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            Ok(ordinary_is_extensible(agent, Object::Object(object_index)))
+            OrdinaryObject::from(object_index).is_extensible(agent)
         } else {
             Ok(true)
         }
@@ -144,8 +141,9 @@ impl InternalMethods for Array {
 
     fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            Ok(ordinary_is_extensible(agent, Object::Object(object_index)))
+            OrdinaryObject::from(object_index).prevent_extensions(agent)
         } else {
+            // TODO: Create base array object and call prevent extensions on it.
             Ok(true)
         }
     }
