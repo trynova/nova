@@ -107,6 +107,45 @@ pub(crate) fn ordinary_get_prototype_of(agent: &mut Agent, object: Object) -> Op
     object.prototype(agent)
 }
 
+/// Implements steps 5 through 7 of OrdinarySetPrototypeOf
+///
+/// Returns true if a loop is detected, corresponding to substep 7.b.i. of the
+/// abstract operation.
+pub(crate) fn ordinary_set_prototype_of_check_loop(
+    agent: &mut Agent,
+    o: Object,
+    v: Option<Object>,
+) -> bool {
+    // 5. Let p be V.
+    let mut p = v;
+    // 6. Let done be false.
+    // 7. Repeat, while done is false,
+    while let Some(p_inner) = p {
+        // a. If p is null, then
+        //     i. Set done to true.
+
+        // b. Else if SameValue(p, O) is true, then
+        if same_value_non_number(agent, p_inner, o) {
+            // i. Return false.
+            return false;
+        }
+
+        // c. Else,
+        // i. If p.[[GetPrototypeOf]] is not the ordinary object internal method defined in 10.1.1,
+        //    set done to true.
+        // NOTE: At present there are two exotic objects that define their own [[GetPrototypeOf]]
+        // methods. Those are Proxy and Module.
+
+        // if parent_prototype.get_prototype_of != get_prototype_of {
+        //     break;
+        // }
+
+        // ii. Else, set p to p.[[Prototype]].
+        p = p_inner.prototype(agent);
+    }
+    true
+}
+
 /// 10.1.2.1 OrdinarySetPrototypeOf ( O, V )
 /// https://tc39.es/ecma262/#sec-ordinarysetprototypeof
 pub(crate) fn ordinary_set_prototype_of(
@@ -131,41 +170,16 @@ pub(crate) fn ordinary_set_prototype_of(
 
     // 4. If extensible is false, return false.
     if !extensible {
+        // 7.b.i. Return false.
         return false;
     }
 
-    // 5. Let p be V.
-    let mut parent_prototype_outer = prototype;
-
-    // 6. Let done be false.
-    // 7. Repeat, while done is false,
-    while let Some(parent_prototype) = parent_prototype_outer {
-        // a. If p is null, then
-        //     i. Set done to true.
-
-        // b. Else if SameValue(p, O) is true, then
-        if same_value_non_number(agent, parent_prototype, object) {
-            // i. Return false.
-            return false;
-        }
-
-        // c. Else,
-        // i. If p.[[GetPrototypeOf]] is not the ordinary object internal method defined in 10.1.1,
-        //    set done to true.
-        // NOTE: At present there are two exotic objects that define their own [[GetPrototypeOf]]
-        // methods. Those are Proxy and Module.
-
-        // if parent_prototype.get_prototype_of != get_prototype_of {
-        //     break;
-        // }
-
-        // ii. Else, set p to p.[[Prototype]].
-        // TODO: Is this still wrong?
-        parent_prototype_outer = parent_prototype.prototype(agent);
+    if ordinary_set_prototype_of_check_loop(agent, object, prototype) {
+        return false;
     }
 
     // 8. Set O.[[Prototype]] to V.
-    object.set_prototype(agent, parent_prototype_outer);
+    object.set_prototype(agent, prototype);
 
     // 9. Return true.
     true

@@ -1,5 +1,5 @@
 use crate::{
-    ecmascript::types::{Function, Object},
+    ecmascript::types::{Function, Object, OrdinaryObject},
     heap::{
         indexes::{FunctionIndex, ObjectIndex},
         BuiltinObjectIndexes,
@@ -223,7 +223,7 @@ impl Intrinsics {
     ) -> Object {
         match intrinsic_default_proto {
             ProtoIntrinsics::Array => self.array_prototype(),
-            ProtoIntrinsics::ArrayBuffer => self.array_buffer_prototype(),
+            ProtoIntrinsics::ArrayBuffer => self.array_buffer_prototype().into(),
             ProtoIntrinsics::BigInt => self.big_int_prototype(),
             ProtoIntrinsics::Boolean => self.boolean_prototype(),
             ProtoIntrinsics::Error => self.error_prototype(),
@@ -257,8 +257,8 @@ impl Intrinsics {
     }
 
     /// %ArrayBuffer.prototype%
-    pub const fn array_buffer_prototype(&self) -> Object {
-        Object::Object(self.array_buffer_prototype)
+    pub const fn array_buffer_prototype(&self) -> OrdinaryObject {
+        OrdinaryObject::new(self.array_buffer_prototype)
     }
 
     /// %BigInt%

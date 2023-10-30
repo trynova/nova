@@ -94,7 +94,7 @@ impl OrdinaryObjectInternalSlots for Array {
     fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         if let Some(object_index) = agent.heap.get(*self).object_index {
             OrdinaryObject::from(object_index).set_prototype(agent, prototype)
-        } else if prototype != Some(agent.current_realm().intrinsics().array_prototype()) {
+        } else {
             // Create array base object with custom prototype
             todo!()
         }

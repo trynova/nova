@@ -10,7 +10,7 @@ use crate::{
     Heap, SmallInteger, SmallString,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PropertyKey {
     Integer(SmallInteger),
     SmallString(SmallString),
