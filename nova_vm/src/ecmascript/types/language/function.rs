@@ -111,14 +111,7 @@ impl OrdinaryObjectInternalSlots for Function {
     fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         if let Some(object_index) = agent.heap.get(*self).object_index {
             Object::from(object_index).set_prototype(agent, prototype)
-        } else if prototype
-            != Some(
-                agent
-                    .current_realm()
-                    .intrinsics()
-                    .function_prototype(),
-            )
-        {
+        } else if prototype != Some(agent.current_realm().intrinsics().function_prototype()) {
             // Create function base object with custom prototype
             todo!()
         }
@@ -145,7 +138,10 @@ impl InternalMethods for Function {
         todo!()
     }
 
-    fn prevent_extensions(self, _agent: &mut Agent) -> crate::ecmascript::execution::JsResult<bool> {
+    fn prevent_extensions(
+        self,
+        _agent: &mut Agent,
+    ) -> crate::ecmascript::execution::JsResult<bool> {
         todo!()
     }
 
@@ -218,7 +214,12 @@ impl InternalMethods for Function {
         todo!()
     }
 
-    fn construct(self, _agent: &mut Agent, _arguments_list: &[Value]) -> JsResult<Object> {
+    fn construct(
+        self,
+        _agent: &mut Agent,
+        _arguments_list: &[Value],
+        _new_target: Function,
+    ) -> JsResult<Object> {
         todo!()
     }
 }
