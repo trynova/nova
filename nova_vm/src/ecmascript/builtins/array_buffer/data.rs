@@ -1,10 +1,12 @@
+use std::mem::ManuallyDrop;
+
 use crate::{ecmascript::types::DataBlock, heap::indexes::ObjectIndex};
 
 #[derive(Debug)]
 pub(crate) enum InternalBuffer {
     Detached,
-    FixedLength(DataBlock),
-    Resizable(DataBlock),
+    FixedLength(ManuallyDrop<DataBlock>),
+    Resizable(ManuallyDrop<DataBlock>),
     // TODO: Implement SharedDataBlock
     SharedFixedLength(()),
     SharedResizableLength(()),
@@ -21,14 +23,14 @@ impl ArrayBufferHeapData {
     pub(crate) fn new_resizable(db: DataBlock) -> Self {
         Self {
             object_index: None,
-            buffer: InternalBuffer::Resizable(db),
+            buffer: InternalBuffer::Resizable(ManuallyDrop::new(db)),
         }
     }
 
     pub(crate) fn new_fixed_length(db: DataBlock) -> Self {
         Self {
             object_index: None,
-            buffer: InternalBuffer::FixedLength(db),
+            buffer: InternalBuffer::FixedLength(ManuallyDrop::new(db)),
         }
     }
 
