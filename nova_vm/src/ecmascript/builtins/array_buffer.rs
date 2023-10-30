@@ -60,7 +60,7 @@ pub(crate) enum Ordering {
 }
 
 impl ArrayBuffer {
-    /// #### [25.1.3.1 AllocateArrayBuffer ( constructor, byteLength [ , maxByteLength ] )](https://tc39.es/ecma262/#sec-allocatearraybuffer)
+    /// #### [25.1.3.1 AllocateArrayBuffer ( constructor, byteLength \[ , maxByteLength \] )](https://tc39.es/ecma262/#sec-allocatearraybuffer)
     ///
     /// The abstract operation AllocateArrayBuffer takes arguments *constructor*
     /// (a constructor) and *byteLength* (a non-negative integer) and optional
@@ -147,7 +147,7 @@ impl ArrayBuffer {
         agent.heap.get(self.0).is_detached_buffer()
     }
 
-    /// #### [25.1.3.4 DetachArrayBuffer ( arrayBuffer [ , key ] )](https://tc39.es/ecma262/#sec-detacharraybuffer)
+    /// #### [25.1.3.4 DetachArrayBuffer ( arrayBuffer \[ , key \] )](https://tc39.es/ecma262/#sec-detacharraybuffer)
     ///
     /// The abstract operation DetachArrayBuffer takes argument *arrayBuffer* (an ArrayBuffer)
     /// and optional argument *key* (anything) and returns either a normal completion
@@ -297,7 +297,9 @@ impl ArrayBuffer {
 
     /// #### [25.1.3.8 IsFixedLengthArrayBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isfixedlengtharraybuffer)
     ///
-    /// The abstract operation IsFixedLengthArrayBuffer takes argument arrayBuffer (an ArrayBuffer or a SharedArrayBuffer) and returns a Boolean. It performs the following steps when called:
+    /// The abstract operation IsFixedLengthArrayBuffer takes argument
+    /// arrayBuffer (an ArrayBuffer or a SharedArrayBuffer) and returns a
+    /// Boolean.
     pub(crate) fn is_fixed_length_array_buffer(self, agent: &Agent) -> bool {
         let array_buffer = agent.heap.get(self.0);
         // 1. If arrayBuffer has an [[ArrayBufferMaxByteLength]] internal slot, return false.
@@ -310,7 +312,9 @@ impl ArrayBuffer {
 
     /// #### [25.1.3.9 IsUnsignedElementType ( type )](https://tc39.es/ecma262/#sec-isunsignedelementtype)
     ///
-    /// The abstract operation IsUnsignedElementType takes argument type (a TypedArray element type) and returns a Boolean. It verifies if the argument type is an unsigned TypedArray element type. It performs the following steps when called:
+    /// The abstract operation IsUnsignedElementType takes argument type (a
+    /// TypedArray element type) and returns a Boolean. It verifies if the
+    /// argument type is an unsigned TypedArray element type.
     pub(crate) const fn is_unsigned_element_type(_type: ()) -> bool {
         // 1. If type is one of UINT8, UINT8CLAMPED, UINT16, UINT32, or BIGUINT64, return true.
         // 2. Return false.
@@ -319,7 +323,10 @@ impl ArrayBuffer {
 
     /// #### [25.1.3.10 IsUnclampedIntegerElementType ( type )](https://tc39.es/ecma262/#sec-isunclampedintegerelementtype)
     ///
-    /// The abstract operation IsUnclampedIntegerElementType takes argument type (a TypedArray element type) and returns a Boolean. It verifies if the argument type is an Integer TypedArray element type not including UINT8CLAMPED. It performs the following steps when called:
+    /// The abstract operation IsUnclampedIntegerElementType takes argument
+    /// type (a TypedArray element type) and returns a Boolean. It verifies if
+    /// the argument type is an Integer TypedArray element type not including
+    /// UINT8CLAMPED.
     pub(crate) const fn is_unclamped_integer_element_type(_type: ()) -> bool {
         // 1. If type is one of INT8, UINT8, INT16, UINT16, INT32, or UINT32, return true.
         // 2. Return false.
@@ -328,7 +335,9 @@ impl ArrayBuffer {
 
     /// #### [25.1.3.11 IsBigIntElementType ( type )](https://tc39.es/ecma262/#sec-isbigintelementtype)
     ///
-    /// The abstract operation IsBigIntElementType takes argument type (a TypedArray element type) and returns a Boolean. It verifies if the argument type is a BigInt TypedArray element type. It performs the following steps when called:
+    /// The abstract operation IsBigIntElementType takes argument type (a
+    /// TypedArray element type) and returns a Boolean. It verifies if the
+    /// argument type is a BigInt TypedArray element type.
     pub(crate) const fn is_big_int_element_type(_type: ()) -> bool {
         // 1. If type is either BIGUINT64 or BIGINT64, return true.
         // 2. Return false.
@@ -337,7 +346,9 @@ impl ArrayBuffer {
 
     /// #### [25.1.3.12 IsNoTearConfiguration ( type, order )](https://tc39.es/ecma262/#sec-isnotearconfiguration)
     ///
-    /// The abstract operation IsNoTearConfiguration takes arguments type (a TypedArray element type) and order (SEQ-CST, UNORDERED, or INIT) and returns a Boolean. It performs the following steps when called:
+    /// The abstract operation IsNoTearConfiguration takes arguments type (a
+    /// TypedArray element type) and order (SEQ-CST, UNORDERED, or INIT) and
+    /// returns a Boolean.
     pub(crate) const fn is_no_tear_configuration(r#type: (), order: Ordering) -> bool {
         if Self::is_unclamped_integer_element_type(r#type) {
             // 1. If IsUnclampedIntegerElementType(type) is true, return true.
@@ -355,7 +366,9 @@ impl ArrayBuffer {
 
     /// #### [25.1.3.13 RawBytesToNumeric ( type, rawBytes, isLittleEndian )](https://tc39.es/ecma262/#sec-rawbytestonumeric)
     ///
-    /// The abstract operation RawBytesToNumeric takes arguments type (a TypedArray element type), rawBytes (a List of byte values), and isLittleEndian (a Boolean) and returns a Number or a BigInt. It performs the following steps when called:
+    /// The abstract operation RawBytesToNumeric takes arguments type (a
+    /// TypedArray element type), rawBytes (a List of byte values), and
+    /// isLittleEndian (a Boolean) and returns a Number or a BigInt.
     pub(crate) const fn raw_bytes_to_numeric(
         _type: (),
         _raw_bytes: &[u8],
@@ -381,7 +394,10 @@ impl ArrayBuffer {
 
     /// #### [25.1.3.14 GetRawBytesFromSharedBlock ( block, byteIndex, type, isTypedArray, order )](https://tc39.es/ecma262/#sec-getrawbytesfromsharedblock)
     ///
-    /// The abstract operation GetRawBytesFromSharedBlock takes arguments block (a Shared Data Block), byteIndex (a non-negative integer), type (a TypedArray element type), isTypedArray (a Boolean), and order (SEQ-CST or UNORDERED) and returns a List of byte values. It performs the following steps when called:
+    /// The abstract operation GetRawBytesFromSharedBlock takes arguments block
+    /// (a Shared Data Block), byteIndex (a non-negative integer), type (a
+    /// TypedArray element type), isTypedArray (a Boolean), and order (SEQ-CST
+    /// or UNORDERED) and returns a List of byte values.
     pub(crate) fn get_raw_bytes_from_shared_block(
         self,
         _block: &DataBlock,
@@ -402,9 +418,13 @@ impl ArrayBuffer {
         // 10. Return rawValue.
     }
 
-    /// #### [25.1.3.15 GetValueFromBuffer ( arrayBuffer, byteIndex, type, isTypedArray, order [ , isLittleEndian ] )](https://tc39.es/ecma262/#sec-getvaluefrombuffer)
+    /// #### [25.1.3.15 GetValueFromBuffer ( arrayBuffer, byteIndex, type, isTypedArray, order \[ , isLittleEndian \] )](https://tc39.es/ecma262/#sec-getvaluefrombuffer)
     ///
-    /// The abstract operation GetValueFromBuffer takes arguments arrayBuffer (an ArrayBuffer or SharedArrayBuffer), byteIndex (a non-negative integer), type (a TypedArray element type), isTypedArray (a Boolean), and order (SEQ-CST or UNORDERED) and optional argument isLittleEndian (a Boolean) and returns a Number or a BigInt. It performs the following steps when called:
+    /// The abstract operation GetValueFromBuffer takes arguments arrayBuffer
+    /// (an ArrayBuffer or SharedArrayBuffer), byteIndex (a non-negative
+    /// integer), type (a TypedArray element type), isTypedArray (a Boolean),
+    /// and order (SEQ-CST or UNORDERED) and optional argument isLittleEndian
+    /// (a Boolean) and returns a Number or a BigInt.
     pub(crate) fn get_value_from_buffer(
         self,
         _byte_index: u32,
@@ -429,7 +449,9 @@ impl ArrayBuffer {
 
     /// #### [25.1.3.16 NumericToRawBytes ( type, value, isLittleEndian )](https://tc39.es/ecma262/#sec-numerictorawbytes)
     ///
-    /// The abstract operation NumericToRawBytes takes arguments type (a TypedArray element type), value (a Number or a BigInt), and isLittleEndian (a Boolean) and returns a List of byte values. It performs the following steps when called:
+    /// The abstract operation NumericToRawBytes takes arguments type (a
+    /// TypedArray element type), value (a Number or a BigInt), and
+    /// isLittleEndian (a Boolean) and returns a List of byte values.
     pub(crate) fn numeric_to_raw_bytes(self, _type: (), _value: Number, _is_little_endian: bool) {
         // 1. If type is FLOAT32, then
         // a. Let rawBytes be a List whose elements are the 4 bytes that are the result of converting value to IEEE 754-2019 binary32 format using roundTiesToEven mode. The bytes are arranged in little endian order. If value is NaN, rawBytes may be set to any implementation chosen IEEE 754-2019 binary32 format Not-a-Number encoding. An implementation must always choose the same encoding for each implementation distinguishable NaN value.
@@ -447,9 +469,13 @@ impl ArrayBuffer {
         // 5. Return rawBytes.
     }
 
-    /// #### [25.1.3.17 SetValueInBuffer ( arrayBuffer, byteIndex, type, value, isTypedArray, order [ , isLittleEndian ] )](https://tc39.es/ecma262/#sec-setvalueinbuffer)
+    /// #### [25.1.3.17 SetValueInBuffer ( arrayBuffer, byteIndex, type, value, isTypedArray, order \[ , isLittleEndian \] )](https://tc39.es/ecma262/#sec-setvalueinbuffer)
     ///
-    /// The abstract operation SetValueInBuffer takes arguments arrayBuffer (an ArrayBuffer or SharedArrayBuffer), byteIndex (a non-negative integer), type (a TypedArray element type), value (a Number or a BigInt), isTypedArray (a Boolean), and order (SEQ-CST, UNORDERED, or INIT) and optional argument isLittleEndian (a Boolean) and returns UNUSED. It performs the following steps when called:
+    /// The abstract operation SetValueInBuffer takes arguments arrayBuffer (an
+    /// ArrayBuffer or SharedArrayBuffer), byteIndex (a non-negative integer),
+    /// type (a TypedArray element type), value (a Number or a BigInt),
+    /// isTypedArray (a Boolean), and order (SEQ-CST, UNORDERED, or INIT) and
+    /// optional argument isLittleEndian (a Boolean) and returns UNUSED.
     pub(crate) fn set_value_in_buffer(
         self,
         _byte_index: u32,
