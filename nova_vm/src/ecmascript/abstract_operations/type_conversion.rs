@@ -546,7 +546,7 @@ pub(crate) fn canonical_numeric_index_string(
     // 1. If argument is "-0", return -0𝔽.
     match argument.as_str(agent) {
         Some("-0") => {
-            return Ok(Number::Number(agent.heap.alloc_number(-0.0)).into());
+            return Ok(Number::Float(-0.0).into());
         }
         _ => {}
     }
