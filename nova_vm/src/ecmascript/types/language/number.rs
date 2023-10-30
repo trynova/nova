@@ -111,108 +111,81 @@ impl Number {
     }
 
     pub fn is_nan(self, agent: &mut Agent) -> bool {
-        let x = self.into_value();
-
-        match x {
-            Value::Number(n) => agent.heap.get(n).is_nan(),
-            Value::Integer(_) => false,
-            Value::Float(n) => n.is_nan(),
-            _ => unreachable!(),
+        match self {
+            Number::Number(n) => agent.heap.get(n).is_nan(),
+            Number::Integer(_) => false,
+            Number::Float(n) => n.is_nan(),
         }
     }
 
     pub fn is_pos_zero(self, agent: &mut Agent) -> bool {
-        let x = self.into_value();
-
-        match x {
-            Value::Number(n) => agent.heap.get(n).is_sign_positive(),
-            Value::Integer(n) => 0i64 == n.into(),
-            Value::Float(n) => n.is_sign_positive(),
-            _ => unreachable!(),
+        match self {
+            Number::Number(n) => agent.heap.get(n).is_sign_positive(),
+            Number::Integer(n) => 0i64 == n.into(),
+            Number::Float(n) => n.is_sign_positive(),
         }
     }
 
     pub fn is_neg_zero(self, agent: &mut Agent) -> bool {
-        let x = self.into_value();
-
-        match x {
-            Value::Number(n) => agent.heap.get(n).is_sign_negative(),
-            Value::Integer(_) => false,
-            Value::Float(n) => n.is_sign_negative(),
-            _ => unreachable!(),
+        match self {
+            Number::Number(n) => agent.heap.get(n).is_sign_negative(),
+            Number::Integer(_) => false,
+            Number::Float(n) => n.is_sign_negative(),
         }
     }
 
     pub fn is_pos_infinity(self, agent: &mut Agent) -> bool {
-        let x = self.into_value();
-
-        match x {
-            Value::Number(n) => *agent.heap.get(n) == f64::INFINITY,
-            Value::Integer(_) => false,
-            Value::Float(n) => n == f32::INFINITY,
-            _ => unreachable!(),
+        match self {
+            Number::Number(n) => *agent.heap.get(n) == f64::INFINITY,
+            Number::Integer(_) => false,
+            Number::Float(n) => n == f32::INFINITY,
         }
     }
 
     pub fn is_neg_infinity(self, agent: &mut Agent) -> bool {
-        let x = self.into_value();
-
-        match x {
-            Value::Number(n) => *agent.heap.get(n) == f64::NEG_INFINITY,
-            Value::Integer(_) => false,
-            Value::Float(n) => n == f32::NEG_INFINITY,
-            _ => unreachable!(),
+        match self {
+            Number::Number(n) => *agent.heap.get(n) == f64::NEG_INFINITY,
+            Number::Integer(_) => false,
+            Number::Float(n) => n == f32::NEG_INFINITY,
         }
     }
 
     pub fn is_finite(self, agent: &mut Agent) -> bool {
-        let x = self.into_value();
-
-        match x {
-            Value::Number(n) => agent.heap.get(n).is_finite(),
-            Value::Integer(_) => true,
-            Value::Float(n) => n.is_finite(),
-            _ => unreachable!(),
+        match self {
+            Number::Number(n) => agent.heap.get(n).is_finite(),
+            Number::Integer(_) => true,
+            Number::Float(n) => n.is_finite(),
         }
     }
 
     pub fn is_nonzero(self, agent: &mut Agent) -> bool {
-        let x = self.into_value();
-
-        match x {
-            Value::Number(n) => {
+        match self {
+            Number::Number(n) => {
                 let n = *agent.heap.get(n);
                 !n.is_sign_negative() && !n.is_sign_positive()
             }
-            Value::Integer(_) => true,
-            Value::Float(n) => !n.is_sign_negative() && !n.is_sign_positive(),
-            _ => unreachable!(),
+            Number::Integer(_) => true,
+            Number::Float(n) => !n.is_sign_negative() && !n.is_sign_positive(),
         }
     }
 
     /// https://tc39.es/ecma262/#eqn-truncate
     pub fn truncate(self, agent: &mut Agent) -> Number {
-        let x = self.into_value();
-
-        match x {
-            Value::Number(n) => {
+        match self {
+            Number::Number(n) => {
                 let n = agent.heap.get(n).trunc();
                 agent.heap.create(n)
             }
-            Value::Integer(_) => self,
-            Value::Float(n) => n.trunc().into(),
-            _ => unreachable!(),
+            Number::Integer(_) => self,
+            Number::Float(n) => n.trunc().into(),
         }
     }
 
     pub fn into_f64(self, agent: &Agent) -> f64 {
-        let x = self.into_value();
-
-        match x {
-            Value::Number(n) => *agent.heap.get(n),
-            Value::Integer(n) => Into::<i64>::into(n) as f64,
-            Value::Float(n) => n as f64,
-            _ => unreachable!(),
+        match self {
+            Number::Number(n) => *agent.heap.get(n),
+            Number::Integer(n) => Into::<i64>::into(n) as f64,
+            Number::Float(n) => n as f64,
         }
     }
 
@@ -227,42 +200,35 @@ impl Number {
     /// A minimal version of ObjectIs when you know the arguments are numbers.
     pub fn is(self, agent: &mut Agent, y: Self) -> bool {
         // TODO: Add in spec from Object.is pertaining to numbers.
-        let x = self.into_value();
-        let y = y.into_value();
+        let x = self;
 
         match (x, y) {
-            (Value::Number(x), Value::Number(y)) => agent.heap.get(x) == agent.heap.get(y),
-            (Value::Number(x), Value::Integer(y)) => *agent.heap.get(x) == y.into_i64() as f64,
-            (Value::Number(x), Value::Float(y)) => *agent.heap.get(x) == y as f64,
-            (Value::Integer(x), Value::Number(y)) => (x.into_i64() as f64) == *agent.heap.get(y),
-            (Value::Integer(x), Value::Integer(y)) => x.into_i64() == y.into_i64(),
-            (Value::Integer(x), Value::Float(y)) => (x.into_i64() as f64) == y as f64,
-            (Value::Float(x), Value::Number(y)) => (x as f64) == *agent.heap.get(y),
-            (Value::Float(x), Value::Integer(y)) => (x as f64) == y.into_i64() as f64,
-            (Value::Float(x), Value::Float(y)) => x == y,
-            _ => unreachable!(),
+            (Number::Number(x), Number::Number(y)) => agent.heap.get(x) == agent.heap.get(y),
+            (Number::Number(x), Number::Integer(y)) => *agent.heap.get(x) == y.into_i64() as f64,
+            (Number::Number(x), Number::Float(y)) => *agent.heap.get(x) == y as f64,
+            (Number::Integer(x), Number::Number(y)) => (x.into_i64() as f64) == *agent.heap.get(y),
+            (Number::Integer(x), Number::Integer(y)) => x.into_i64() == y.into_i64(),
+            (Number::Integer(x), Number::Float(y)) => (x.into_i64() as f64) == y as f64,
+            (Number::Float(x), Number::Number(y)) => (x as f64) == *agent.heap.get(y),
+            (Number::Float(x), Number::Integer(y)) => (x as f64) == y.into_i64() as f64,
+            (Number::Float(x), Number::Float(y)) => x == y,
         }
     }
 
     pub fn is_odd_integer(self, agent: &mut Agent) -> bool {
-        let x = self.into_value();
-
-        match x {
-            Value::Number(n) => {
+        match self {
+            Number::Number(n) => {
                 let n = *agent.heap.get(n);
                 n % 1.0 == 0.0 && n % 2.0 == 0.0
             }
-            Value::Integer(n) => Into::<i64>::into(n) % 2 == 0,
-            Value::Float(n) => n % 1.0 == 0.0 && n % 2.0 == 0.0,
-            _ => unreachable!(),
+            Number::Integer(n) => Into::<i64>::into(n) % 2 == 0,
+            Number::Float(n) => n % 1.0 == 0.0 && n % 2.0 == 0.0,
         }
     }
 
     pub fn abs(self, agent: &mut Agent) -> Self {
-        let x = self.into_value();
-
-        match x {
-            Value::Number(n) => {
+        match self {
+            Number::Number(n) => {
                 let n = *agent.heap.get(n);
                 if n > 0.0 {
                     self
@@ -270,37 +236,32 @@ impl Number {
                     agent.heap.create(-n)
                 }
             }
-            Value::Integer(n) => {
+            Number::Integer(n) => {
                 let n = n.into_i64();
                 Number::Integer(SmallInteger::from_i64_unchecked(n.abs()))
             }
-            Value::Float(n) => Number::Float(n.abs()),
-            _ => unreachable!(),
+            Number::Float(n) => Number::Float(n.abs()),
         }
     }
 
-    pub fn greater_than(self, agent: &mut Agent, y: Self) -> Value {
-        let x = self;
-        y.less_than(agent, x).into()
+    pub fn greater_than(self, agent: &mut Agent, y: Self) -> Option<bool> {
+        y.less_than(agent, self).map(|x| !x)
     }
 
     /// 6.1.6.1.1 Number::unaryMinus ( x )
     /// https://tc39.es/ecma262/#sec-numeric-types-number-unaryMinus
     pub fn unary_minus(self, agent: &mut Agent) -> Self {
-        let x = self.into_value();
-
         // 1. If x is NaN, return NaN.
         // NOTE: Computers do this automatically.
 
         // 2. Return the result of negating x; that is, compute a Number with the same magnitude but opposite sign.
-        match x {
-            Value::Number(n) => {
+        match self {
+            Number::Number(n) => {
                 let value = *agent.heap.get(n);
                 agent.heap.create(-value)
             }
-            Value::Integer(n) => SmallInteger::from_i64_unchecked(-n.into_i64()).into(),
-            Value::Float(n) => (-n).into(),
-            _ => unreachable!(),
+            Number::Integer(n) => SmallInteger::from_i64_unchecked(-n.into_i64()).into(),
+            Number::Float(n) => (-n).into(),
         }
     }
 
@@ -339,7 +300,10 @@ impl Number {
         // 4. If base is +∞𝔽, then
         if base.is_pos_infinity(agent) {
             // a. If exponent > +0𝔽, return +∞𝔽. Otherwise, return +0𝔽.
-            return if exponent.greater_than(agent, Number::from(0)).is_true() {
+            return if exponent
+                .greater_than(agent, Number::from(0))
+                .unwrap_or(false)
+            {
                 Number::pos_inf()
             } else {
                 Number::pos_zero()
@@ -349,7 +313,7 @@ impl Number {
         // 5. If base is -∞𝔽, then
         if base.is_neg_infinity(agent) {
             // a. If exponent > +0𝔽, then
-            return if exponent.greater_than(agent, 0.into()).is_true() {
+            return if exponent.greater_than(agent, 0.into()).unwrap_or(false) {
                 // i. If exponent is an odd integral Number, return -∞𝔽. Otherwise, return +∞𝔽.
                 if exponent.is_odd_integer(agent) {
                     Number::neg_inf()
@@ -371,7 +335,10 @@ impl Number {
         // 6. If base is +0𝔽, then
         if base.is_pos_zero(agent) {
             // a. If exponent > +0𝔽, return +0𝔽. Otherwise, return +∞𝔽.
-            return if exponent.greater_than(agent, Number::pos_zero()).is_true() {
+            return if exponent
+                .greater_than(agent, Number::pos_zero())
+                .unwrap_or(false)
+            {
                 Number::pos_zero()
             } else {
                 Number::pos_inf()
@@ -381,7 +348,10 @@ impl Number {
         // 7. If base is -0𝔽, then
         if base.is_neg_zero(agent) {
             // a. If exponent > +0𝔽, then
-            return if exponent.greater_than(agent, Number::pos_zero()).is_true() {
+            return if exponent
+                .greater_than(agent, Number::pos_zero())
+                .unwrap_or(false)
+            {
                 // i. If exponent is an odd integral Number, return -0𝔽. Otherwise, return +0𝔽.
                 if exponent.is_odd_integer(agent) {
                     Number::neg_zero()
@@ -408,7 +378,7 @@ impl Number {
             let base = base.abs(agent);
 
             // a. If abs(ℝ(base)) > 1, return +∞𝔽.
-            return if base.greater_than(agent, Number::from(1)).is_true() {
+            return if base.greater_than(agent, Number::from(1)).unwrap_or(false) {
                 Number::pos_inf()
             }
             // b. If abs(ℝ(base)) = 1, return NaN.
@@ -443,7 +413,7 @@ impl Number {
         debug_assert!(exponent.is_finite(agent) && exponent.is_nonzero(agent));
 
         // 12. If base < -0𝔽 and exponent is not an integral Number, return NaN.
-        if base.less_than(agent, Number::neg_zero()) == Some(true)
+        if base.less_than(agent, Number::neg_zero()).unwrap_or(false)
             && !exponent.is_odd_integer(agent)
         {
             return Number::nan();
@@ -513,17 +483,16 @@ impl Number {
         );
 
         // 11. If ℝ(x) < ℝ(y), return true. Otherwise, return false.
-        Some(match (x.into_value(), y.into_value()) {
-            (Value::Number(x), Value::Number(y)) => agent.heap.get(x) < agent.heap.get(y),
-            (Value::Number(x), Value::Integer(y)) => *agent.heap.get(x) < y.into_i64() as f64,
-            (Value::Number(x), Value::Float(y)) => *agent.heap.get(x) < y as f64,
-            (Value::Integer(x), Value::Number(y)) => (x.into_i64() as f64) < *agent.heap.get(y),
-            (Value::Integer(x), Value::Integer(y)) => x.into_i64() < y.into_i64(),
-            (Value::Integer(x), Value::Float(y)) => (x.into_i64() as f64) < y as f64,
-            (Value::Float(x), Value::Number(y)) => (x as f64) < *agent.heap.get(y),
-            (Value::Float(x), Value::Integer(y)) => (x as f64) < y.into_i64() as f64,
-            (Value::Float(x), Value::Float(y)) => x < y,
-            _ => unreachable!(),
+        Some(match (x, y) {
+            (Number::Number(x), Number::Number(y)) => agent.heap.get(x) < agent.heap.get(y),
+            (Number::Number(x), Number::Integer(y)) => *agent.heap.get(x) < y.into_i64() as f64,
+            (Number::Number(x), Number::Float(y)) => *agent.heap.get(x) < y as f64,
+            (Number::Integer(x), Number::Number(y)) => (x.into_i64() as f64) < *agent.heap.get(y),
+            (Number::Integer(x), Number::Integer(y)) => x.into_i64() < y.into_i64(),
+            (Number::Integer(x), Number::Float(y)) => (x.into_i64() as f64) < y as f64,
+            (Number::Float(x), Number::Number(y)) => (x as f64) < *agent.heap.get(y),
+            (Number::Float(x), Number::Integer(y)) => (x as f64) < y.into_i64() as f64,
+            (Number::Float(x), Number::Float(y)) => x < y,
         })
     }
 
