@@ -128,7 +128,7 @@ impl ArrayBuffer {
         // 2. Assert: IsDetachedBuffer(arrayBuffer) is false.
         debug_assert!(!array_buffer.is_detached_buffer());
         // 3. Return arrayBuffer.[[ArrayBufferByteLength]].
-        match array_buffer.buffer {
+        match &array_buffer.buffer {
             InternalBuffer::Detached => unreachable!(),
             InternalBuffer::FixedLength(block) => block.len() as i64,
             InternalBuffer::Resizable(block) => block.len() as i64,

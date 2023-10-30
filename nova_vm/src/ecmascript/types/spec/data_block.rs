@@ -1,7 +1,7 @@
 //! ### [6.2.9 Data Blocks](https://tc39.es/ecma262/#sec-data-blocks)
 
 use std::{
-    alloc::{alloc_zeroed, handle_alloc_error, Layout},
+    alloc::{alloc_zeroed, dealloc, handle_alloc_error, Layout},
     ptr::{read_unaligned, write_bytes, write_unaligned, NonNull},
 };
 
@@ -19,11 +19,20 @@ use crate::ecmascript::execution::{agent::JsError, Agent, JsResult};
 /// of bytes, the length of which is determined by
 /// the capacity. The pointer can be None if the
 /// capacity of the buffer is zero.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub(crate) struct DataBlock {
     ptr: Option<NonNull<u8>>,
     cap: u32,
     byte_length: u32,
+}
+
+impl Drop for DataBlock {
+    fn drop(&mut self) {
+        if let Some(ptr) = self.ptr {
+            let layout = Layout::from_size_align(self.cap as usize, 8).unwrap();
+            unsafe { dealloc(ptr.as_ptr(), layout) }
+        }
+    }
 }
 
 mod private {
