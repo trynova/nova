@@ -15,8 +15,9 @@ use crate::{
         execution::{agent::ExceptionType, agent::JsError, Agent, JsResult},
         types::{BigInt, Number, Object, PropertyKey, String, Value},
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{GetHeapData, WellKnownSymbolIndexes},
 };
+use std::cmp::min;
 
 use super::{
     operations_on_objects::{call, call_function, get, get_method},
@@ -489,4 +490,88 @@ pub(crate) fn to_object(_agent: &mut Agent, argument: Value) -> JsResult<Object>
         Value::SmallBigInt(_) => todo!("BigIntObject"),
         _ => Ok(Object::try_from(argument).unwrap()),
     }
+}
+
+/// ### [7.1.19 ToPropertyKey ( argument )](https://tc39.es/ecma262/#sec-topropertykey)
+pub(crate) fn to_property_key(agent: &mut Agent, argument: Value) -> JsResult<Value> {
+    // 1. Let key be ? ToPrimitive(argument, hint String).
+    let key = to_primitive(agent, argument, Some(PreferredType::String))?;
+
+    // 2. If Type(key) is Symbol, then
+    if key.is_symbol() {
+        // a. Return key.
+        return Ok(key);
+    }
+
+    // 3. Return ! ToString(key).
+    Ok(to_string(agent, key).unwrap().into())
+}
+
+/// ### [7.1.20 ToLength ( argument )](https://tc39.es/ecma262/#sec-tolength)
+pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<Value> {
+    // 1. Let len be ? ToIntegerOrInfinity(argument).
+    let len = to_integer_or_infinity(agent, argument)?;
+
+    // 2. If len ≤ 0, return +0𝔽.
+    match len {
+        Number::Integer(n) if n.into_i64() <= 0 => {
+            return Ok(0.0.into());
+        }
+        Number::Float(n) if n <= 0.0 => {
+            return Ok(0.0.into());
+        }
+        Number::Number(n) if *agent.heap.get(n) < 0.0 => {
+            return Ok(0.0.into());
+        }
+        _ => {}
+    }
+
+    // 3. Return 𝔽(min(len, 2**53 - 1)).
+    Ok(match len {
+        Number::Integer(n) => Number::Integer(n).into(),
+        Number::Float(n) => n.into(),
+        Number::Number(n) => Number::Number(
+            agent
+                .heap
+                .alloc_number(agent.heap.get(n).min(2.0f64.powi(53) - 1.0)),
+        )
+        .into(),
+    })
+}
+
+/// ### [7.1.21 CanonicalNumericIndexString ( argument )](https://tc39.es/ecma262/#sec-canonicalnumericindexstring)
+pub(crate) fn canonical_numeric_index_string(
+    agent: &mut Agent,
+    argument: String,
+) -> JsResult<Value> {
+    // 1. If argument is "-0", return -0𝔽.
+    match argument.as_str(agent) {
+        Some("-0") => {
+            return Ok(Number::Number(agent.heap.alloc_number(-0.0)).into());
+        }
+        _ => {}
+    }
+
+    // 2. Let n be ! ToNumber(argument).
+    let n = to_number(agent, argument.into()).unwrap();
+
+    // 3. If ! ToString(n) is argument, return n.
+    if to_string(agent, n.into()).unwrap() == argument {
+        return Ok(n.into());
+    }
+
+    // 4. Return undefined.
+    Ok(Value::Undefined)
+}
+
+/// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
+pub(crate) fn to_index(agent: &mut Agent, argument: Value) -> JsResult<Value> {
+    // 1. Let integer be ? ToIntegerOrInfinity(value).
+    let integer = to_integer_or_infinity(agent, argument)?;
+
+    // 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a RangeError exception.
+    todo!();
+
+    // 3. Return integer.
+    Ok(integer.into())
 }
