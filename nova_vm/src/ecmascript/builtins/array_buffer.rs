@@ -2,7 +2,7 @@
 
 mod data;
 use self::data::InternalBuffer;
-use super::{ordinary::ordinary_set_prototype_of_check_loop, Array};
+use super::ordinary::ordinary_set_prototype_of_check_loop;
 use crate::{
     ecmascript::{
         abstract_operations::{

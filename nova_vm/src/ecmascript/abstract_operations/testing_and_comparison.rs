@@ -114,7 +114,7 @@ pub(crate) fn same_value_zero(
     }
 
     // 3. Return SameValueNonNumber(x, y).
-    return same_value_non_number(agent, x, y);
+    same_value_non_number(agent, x, y)
 }
 
 /// 7.2.12 SameValueNonNumber ( x, y )
@@ -275,6 +275,6 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
         // k. If ℝ(nx) < ℝ(ny), return true; otherwise return false.
         let rnx = nx.to_real(agent)?;
         let rny = nx.to_real(agent)?;
-        return Ok(Some(rnx < rny));
+        Ok(Some(rnx < rny))
     }
 }
