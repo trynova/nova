@@ -116,16 +116,12 @@ impl InternalMethods for Array {
 
     fn set_prototype_of(self, agent: &mut Agent, prototype: Option<Object>) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            Ok(ordinary_set_prototype_of(
-                agent,
-                Object::Object(object_index),
-                prototype,
-            ))
+            Object::Object(object_index).set_prototype_of(agent, prototype)
         } else {
             // 1. Let current be O.[[Prototype]].
             let current = agent.current_realm().intrinsics().array_prototype();
             let object_index = if let Some(v) = prototype {
-                if same_value_non_number(agent, v.into(), current.into()) {
+                if same_value_non_number(agent, v, current) {
                     return Ok(true);
                 } else {
                     // TODO: Proper handling
