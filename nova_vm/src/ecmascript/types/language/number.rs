@@ -281,7 +281,7 @@ impl Number {
 
     pub fn greater_than(self, agent: &mut Agent, y: Self) -> Value {
         let x = self;
-        y.less_than(agent, x)
+        y.less_than(agent, x).into()
     }
 
     /// 6.1.6.1.1 Number::unaryMinus ( x )
@@ -443,7 +443,9 @@ impl Number {
         debug_assert!(exponent.is_finite(agent) && exponent.is_nonzero(agent));
 
         // 12. If base < -0𝔽 and exponent is not an integral Number, return NaN.
-        if base.less_than(agent, Number::neg_zero()).is_true() && !exponent.is_odd_integer(agent) {
+        if base.less_than(agent, Number::neg_zero()) == Some(true)
+            && !exponent.is_odd_integer(agent)
+        {
             return Number::nan();
         }
 
@@ -457,61 +459,61 @@ impl Number {
 
     /// 6.1.6.1.12 Number::lessThan ( x, y )
     /// https://tc39.es/ecma262/#sec-numeric-types-number-lessThan
-    pub fn less_than(self, agent: &mut Agent, y: Self) -> Value {
+    pub fn less_than(self, agent: &mut Agent, y: Self) -> Option<bool> {
         let x = self;
 
         // 1. If x is NaN, return undefined.
         if x.is_nan(agent) {
-            return Value::Undefined;
+            return None;
         }
 
         // 2. If y is NaN, return undefined.
         if y.is_nan(agent) {
-            return Value::Undefined;
+            return None;
         }
 
         // 3. If x is y, return false.
         if x.is(agent, y) {
-            return false.into();
+            return Some(false);
         }
 
         // 4. If x is +0𝔽 and y is -0𝔽, return false.
         if x.is_pos_zero(agent) && y.is_neg_zero(agent) {
-            return false.into();
+            return Some(false);
         }
 
         // 5. If x is -0𝔽 and y is +0𝔽, return false.
         if x.is_neg_zero(agent) && y.is_pos_zero(agent) {
-            return false.into();
+            return Some(false);
         }
 
         // 6. If x is +∞𝔽, return false.
         if x.is_pos_infinity(agent) {
-            return false.into();
+            return Some(false);
         }
 
         // 7. If y is +∞𝔽, return true.
         if y.is_pos_infinity(agent) {
-            return true.into();
+            return Some(true);
         }
 
         // 8. If y is -∞𝔽, return false.
         if y.is_neg_infinity(agent) {
-            return false.into();
+            return Some(false);
         }
 
         // 9. If x is -∞𝔽, return true.
         if x.is_neg_infinity(agent) {
-            return true.into();
+            return Some(true);
         }
 
         // 10. Assert: x and y are finite and non-zero.
-        debug_assert!(
+        assert!(
             x.is_finite(agent) && x.is_nonzero(agent) && y.is_finite(agent) && y.is_nonzero(agent)
         );
 
         // 11. If ℝ(x) < ℝ(y), return true. Otherwise, return false.
-        Value::Boolean(match (x.into_value(), y.into_value()) {
+        Some(match (x.into_value(), y.into_value()) {
             (Value::Number(x), Value::Number(y)) => agent.heap.get(x) < agent.heap.get(y),
             (Value::Number(x), Value::Integer(y)) => *agent.heap.get(x) < y.into_i64() as f64,
             (Value::Number(x), Value::Float(y)) => *agent.heap.get(x) < y as f64,
