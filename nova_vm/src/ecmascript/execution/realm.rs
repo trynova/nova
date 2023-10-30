@@ -9,6 +9,7 @@ use crate::{
     heap::indexes::ObjectIndex,
 };
 pub use intrinsics::Intrinsics;
+pub(crate) use intrinsics::ProtoIntrinsics;
 use std::{any::Any, cell::RefCell, marker::PhantomData, rc::Rc};
 
 #[derive(Debug, Clone, Copy)]

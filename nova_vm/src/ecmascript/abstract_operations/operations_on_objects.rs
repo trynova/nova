@@ -2,7 +2,7 @@
 
 use super::{testing_and_comparison::is_callable, type_conversion::to_object};
 use crate::ecmascript::{
-    execution::{agent::JsError, Agent, JsResult},
+    execution::{agent::JsError, Agent, JsResult, Realm},
     types::{Function, InternalMethods, Object, PropertyKey, Value},
 };
 
@@ -130,4 +130,29 @@ pub(crate) fn call_function(
 ) -> JsResult<Value> {
     let arguments_list = arguments_list.unwrap_or(&[]);
     f.call(agent, v, arguments_list)
+}
+
+/// ### [7.3.25 GetFunctionRealm ( obj )](https://tc39.es/ecma262/#sec-getfunctionrealm)
+/// The abstract operation GetFunctionRealm takes argument obj (a function
+/// object) and returns either a normal completion containing a Realm Record or
+/// a throw completion.
+pub(crate) fn get_function_realm<'ctx, 'host>(
+    agent: &'ctx mut Agent<'ctx, 'host>,
+    _obj: Function,
+) -> JsResult<&'ctx mut Realm<'ctx, 'host>> {
+    // 1. If obj has a [[Realm]] internal slot, then
+    // a. Return obj.[[Realm]].
+    // TODO: realm-bound functions
+
+    // 2. If obj is a bound function exotic object, then
+    // a. Let boundTargetFunction be obj.[[BoundTargetFunction]].
+    // b. Return ? GetFunctionRealm(boundTargetFunction).
+    // 3. If obj is a Proxy exotic object, then
+    // a. Perform ? ValidateNonRevokedProxy(obj).
+    // b. Let proxyTarget be obj.[[ProxyTarget]].
+    // c. Return ? GetFunctionRealm(proxyTarget).
+    // 4. Return the current Realm Record.
+    // NOTE: Step 4 will only be reached if obj is a non-standard function
+    // exotic object that does not have a [[Realm]] internal slot.
+    Ok(agent.current_realm_mut())
 }
