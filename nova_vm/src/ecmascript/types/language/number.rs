@@ -244,8 +244,8 @@ impl Number {
         }
     }
 
-    pub fn greater_than(self, agent: &mut Agent, y: Self) -> Value {
-        y.less_than(agent, self)
+    pub fn greater_than(self, agent: &mut Agent, y: Self) -> Option<bool> {
+        y.less_than(agent, self).map(|x| !x)
     }
 
     /// 6.1.6.1.1 Number::unaryMinus ( x )
@@ -300,7 +300,7 @@ impl Number {
         // 4. If base is +∞𝔽, then
         if base.is_pos_infinity(agent) {
             // a. If exponent > +0𝔽, return +∞𝔽. Otherwise, return +0𝔽.
-            return if exponent.greater_than(agent, Number::from(0)).is_true() {
+            return if exponent.greater_than(agent, Number::from(0)) == Some(true) {
                 Number::pos_inf()
             } else {
                 Number::pos_zero()
@@ -310,7 +310,7 @@ impl Number {
         // 5. If base is -∞𝔽, then
         if base.is_neg_infinity(agent) {
             // a. If exponent > +0𝔽, then
-            return if exponent.greater_than(agent, 0.into()).is_true() {
+            return if exponent.greater_than(agent, 0.into()) == Some(true) {
                 // i. If exponent is an odd integral Number, return -∞𝔽. Otherwise, return +∞𝔽.
                 if exponent.is_odd_integer(agent) {
                     Number::neg_inf()
@@ -332,7 +332,7 @@ impl Number {
         // 6. If base is +0𝔽, then
         if base.is_pos_zero(agent) {
             // a. If exponent > +0𝔽, return +0𝔽. Otherwise, return +∞𝔽.
-            return if exponent.greater_than(agent, Number::pos_zero()).is_true() {
+            return if exponent.greater_than(agent, Number::pos_zero()) == Some(true) {
                 Number::pos_zero()
             } else {
                 Number::pos_inf()
@@ -342,7 +342,7 @@ impl Number {
         // 7. If base is -0𝔽, then
         if base.is_neg_zero(agent) {
             // a. If exponent > +0𝔽, then
-            return if exponent.greater_than(agent, Number::pos_zero()).is_true() {
+            return if exponent.greater_than(agent, Number::pos_zero()) == Some(true) {
                 // i. If exponent is an odd integral Number, return -0𝔽. Otherwise, return +0𝔽.
                 if exponent.is_odd_integer(agent) {
                     Number::neg_zero()
@@ -369,7 +369,7 @@ impl Number {
             let base = base.abs(agent);
 
             // a. If abs(ℝ(base)) > 1, return +∞𝔽.
-            return if base.greater_than(agent, Number::from(1)).is_true() {
+            return if base.greater_than(agent, Number::from(1)) == Some(true) {
                 Number::pos_inf()
             }
             // b. If abs(ℝ(base)) = 1, return NaN.
@@ -474,7 +474,7 @@ impl Number {
         );
 
         // 11. If ℝ(x) < ℝ(y), return true. Otherwise, return false.
-        Value::Boolean(match (x, y) {
+        Some(match (x, y) {
             (Number::Number(x), Number::Number(y)) => agent.heap.get(x) < agent.heap.get(y),
             (Number::Number(x), Number::Integer(y)) => *agent.heap.get(x) < y.into_i64() as f64,
             (Number::Number(x), Number::Float(y)) => *agent.heap.get(x) < y as f64,
