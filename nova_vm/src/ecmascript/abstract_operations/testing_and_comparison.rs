@@ -49,37 +49,46 @@ pub(crate) fn is_callable(argument: Value) -> bool {
     matches!(argument, Value::Function(_))
 }
 
-pub(crate) fn is_same_type(x: Value, y: Value) -> bool {
-    (x.is_undefined() && y.is_undefined())
-        || (x.is_null() && y.is_null())
-        || (x.is_boolean() && y.is_boolean())
-        || (x.is_string() && y.is_string())
-        || (x.is_symbol() && y.is_symbol())
-        || (x.is_number() && y.is_number())
-        || (x.is_object() && y.is_object())
+pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1, y: V2) -> bool {
+    (x.into().is_undefined() && y.into().is_undefined())
+        || (x.into().is_null() && y.into().is_null())
+        || (x.into().is_boolean() && y.into().is_boolean())
+        || (x.into().is_string() && y.into().is_string())
+        || (x.into().is_symbol() && y.into().is_symbol())
+        || (x.into().is_number() && y.into().is_number())
+        || (x.into().is_object() && y.into().is_object())
 }
 
 /// 7.2.10 SameValue ( x, y )
 /// https://tc39.es/ecma262/#sec-samevalue
-pub(crate) fn same_value(agent: &mut Agent, x: Value, y: Value) -> bool {
+pub(crate) fn same_value<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(
+    agent: &mut Agent,
+    x: V1,
+    y: V2,
+) -> bool {
     // 1. If Type(x) is not Type(y), return false.
     if !is_same_type(x, y) {
         return false;
     }
 
     // 2. If x is a Number, then
-    if let (Ok(x), Ok(y)) = (Number::try_from(x), Number::try_from(y)) {
+    if let (Ok(x), Ok(y)) = (Number::try_from(x.into()), Number::try_from(y.into())) {
         // a. Return Number::sameValue(x, y).
         return x.same_value(agent, y);
     }
 
     // 3. Return SameValueNonNumber(x, y).
+    let x: Value = x.into();
+    let y: Value = y.into();
     same_value_non_number(agent, x, y)
 }
 
 /// 7.2.12 SameValueNonNumber ( x, y )
 /// https://tc39.es/ecma262/#sec-samevaluenonnumber
-pub(crate) fn same_value_non_number(_agent: &mut Agent, x: Value, y: Value) -> bool {
+pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(_agent: &mut Agent, x: T, y: T) -> bool {
+    let x: Value = x.into();
+    let y: Value = y.into();
+
     // 1. Assert: Type(x) is Type(y).
     debug_assert!(is_same_type(x, y));
 

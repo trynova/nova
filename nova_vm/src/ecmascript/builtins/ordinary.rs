@@ -116,9 +116,7 @@ pub(crate) fn ordinary_set_prototype_of(
 
     // 2. If SameValue(V, current) is true, return true.
     match (prototype, current) {
-        (Some(prototype), Some(current))
-            if same_value_non_number(agent, prototype.into(), current.into()) =>
-        {
+        (Some(prototype), Some(current)) if same_value_non_number(agent, prototype, current) => {
             return true
         }
         (None, None) => return true,
@@ -143,7 +141,7 @@ pub(crate) fn ordinary_set_prototype_of(
         //     i. Set done to true.
 
         // b. Else if SameValue(p, O) is true, then
-        if same_value_non_number(agent, parent_prototype.into(), object.into()) {
+        if same_value_non_number(agent, parent_prototype, object) {
             // i. Return false.
             return false;
         }
