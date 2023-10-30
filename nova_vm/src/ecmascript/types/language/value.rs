@@ -3,7 +3,6 @@ use std::mem::size_of;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            testing_and_comparison::{is_same_type, same_value},
             type_conversion::{to_int32, to_number, to_numeric, to_uint32},
         },
         execution::{Agent, JsResult},

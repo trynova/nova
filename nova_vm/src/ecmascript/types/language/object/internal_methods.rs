@@ -71,15 +71,15 @@ where
     /// \[\[Call\]\]
     fn call(
         self,
-        agent: &mut Agent,
-        this_value: Value,
-        arguments_list: &[Value],
+        _agent: &mut Agent,
+        _this_value: Value,
+        _arguments_list: &[Value],
     ) -> JsResult<Value> {
         unreachable!()
     }
 
     /// \[\[Construct\]\]
-    fn construct(self, agent: &mut Agent, arguments_list: &[Value]) -> JsResult<T> {
+    fn construct(self, _agent: &mut Agent, _arguments_list: &[Value]) -> JsResult<T> {
         unreachable!()
     }
 }

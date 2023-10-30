@@ -451,7 +451,7 @@ pub(crate) fn to_string(_agent: &mut Agent, _argument: Value) -> JsResult<String
 /// language value) and returns either a normal completion containing an Object
 /// or a throw completion. It converts argument to a value of type Object
 /// according to [Table 13](https://tc39.es/ecma262/#table-toobject-conversions):
-pub(crate) fn to_object(agent: &mut Agent, argument: Value) -> JsResult<Object> {
+pub(crate) fn to_object(_agent: &mut Agent, argument: Value) -> JsResult<Object> {
     match argument {
         Value::Undefined | Value::Null => Err(JsError {}),
         // Return a new Boolean object whose [[BooleanData]] internal slot is set to argument.

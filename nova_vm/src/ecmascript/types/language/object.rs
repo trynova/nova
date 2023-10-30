@@ -19,7 +19,6 @@ use crate::{
         indexes::{ArrayIndex, FunctionIndex, ObjectIndex},
         GetHeapData,
     },
-    Heap,
 };
 
 pub use data::ObjectHeapData;

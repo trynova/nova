@@ -12,7 +12,7 @@ use crate::ecmascript::{
 /// containing an ECMAScript language value or a throw completion. It throws an
 /// error if argument is a value that cannot be converted to an Object using
 /// ToObject. It is defined by [Table 14](https://tc39.es/ecma262/#table-requireobjectcoercible-results):
-pub(crate) fn require_object_coercible(agent: &mut Agent, argument: Value) -> JsResult<Value> {
+pub(crate) fn require_object_coercible(_agent: &mut Agent, argument: Value) -> JsResult<Value> {
     if argument.is_undefined() || argument.is_null() {
         Err(JsError {})
     } else {
@@ -25,7 +25,7 @@ pub(crate) fn require_object_coercible(agent: &mut Agent, argument: Value) -> Js
 /// The abstract operation IsArray takes argument argument (an ECMAScript
 /// language value) and returns either a normal completion containing a Boolean
 /// or a throw completion.
-pub(crate) fn is_array(agent: &Agent, argument: Value) -> JsResult<bool> {
+pub(crate) fn is_array(_agent: &Agent, argument: Value) -> JsResult<bool> {
     // 1. If argument is not an Object, return false.
     // 2. If argument is an Array exotic object, return true.
     Ok(matches!(argument, Value::Array(_)))
