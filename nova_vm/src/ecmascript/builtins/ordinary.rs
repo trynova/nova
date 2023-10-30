@@ -1,9 +1,12 @@
 use crate::ecmascript::{
-    abstract_operations::testing_and_comparison::{same_value, same_value_non_number},
-    execution::{Agent, JsResult},
+    abstract_operations::{
+        operations_on_objects::{get, get_function_realm},
+        testing_and_comparison::{same_value, same_value_non_number},
+    },
+    execution::{Agent, JsResult, ProtoIntrinsics},
     types::{
-        InternalMethods, Object, OrdinaryObject, OrdinaryObjectInternalSlots, PropertyDescriptor,
-        PropertyKey, Value,
+        Function, InternalMethods, Object, OrdinaryObject, OrdinaryObjectInternalSlots,
+        PropertyDescriptor, PropertyKey, String, Value,
     },
 };
 
@@ -749,4 +752,43 @@ pub(crate) fn ordinary_own_property_keys(
 
     // 5. Return keys.
     Ok(keys)
+}
+
+/// ### [10.1.14 GetPrototypeFromConstructor ( constructor, intrinsicDefaultProto )](https://tc39.es/ecma262/#sec-getprototypefromconstructor)
+///
+/// The abstract operation GetPrototypeFromConstructor takes arguments
+/// constructor (a function object) and intrinsicDefaultProto (a String) and
+/// returns either a normal completion containing an Object or a throw
+/// completion. It determines the \[\[Prototype\]\] value that should be used
+/// to create an object corresponding to a specific constructor. The value is
+/// retrieved from the constructor's "prototype" property, if it exists.
+/// Otherwise the intrinsic named by intrinsicDefaultProto is used for
+/// \[\[Prototype\]\].
+pub(crate) fn get_prototype_from_constructor(
+    agent: &mut Agent,
+    constructor: Function,
+    intrinsic_default_proto: ProtoIntrinsics,
+) -> JsResult<Object> {
+    // 1. Assert: intrinsicDefaultProto is this specification's name of an
+    // intrinsic object. The corresponding object must be an intrinsic that is
+    // intended to be used as the [[Prototype]] value of an object.
+    // 2. Let proto be ? Get(constructor, "prototype").
+    let prototype_key = String::from_str(agent, "prototype").into();
+    let proto = get(agent, constructor.into(), prototype_key)?;
+    // 3. If proto is not an Object, then
+    match Object::try_from(proto) {
+        Err(_) => {
+            // a. Let realm be ? GetFunctionRealm(constructor).
+            // SAFETY: Lifetimes are currently just badly guessed, meaningless lumps.
+            let realm = get_function_realm(unsafe { std::mem::transmute(agent) }, constructor)?;
+            // b. Set proto to realm's intrinsic object named intrinsicDefaultProto.
+            Ok(realm
+                .intrinsics()
+                .get_intrinsic_default_proto(intrinsic_default_proto))
+        }
+        Ok(proto) => {
+            // 4. Return proto.
+            Ok(proto)
+        }
+    }
 }

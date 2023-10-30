@@ -11,4 +11,5 @@ pub use environments::{
     ObjectEnvironment, ObjectEnvironmentIndex, PrivateEnvironment, PrivateEnvironmentIndex,
 };
 pub use execution_context::{ECMAScriptCode, ExecutionContext};
+pub(crate) use realm::ProtoIntrinsics;
 pub use realm::{Intrinsics, Realm, RealmIdentifier};

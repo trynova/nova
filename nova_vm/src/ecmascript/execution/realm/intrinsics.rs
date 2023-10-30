@@ -92,6 +92,27 @@ pub struct Intrinsics {
     uri_error_prototype: ObjectIndex,
 }
 
+/// Enumeration of intrinsics intended to be used as the [[Prototype]] value of
+/// an object. Used in GetPrototypeFromConstructor.
+pub(crate) enum ProtoIntrinsics {
+    Array,
+    ArrayBuffer,
+    BigInt,
+    Boolean,
+    Error,
+    EvalError,
+    Function,
+    Number,
+    Object,
+    RangeError,
+    ReferenceError,
+    String,
+    Symbol,
+    SyntaxError,
+    TypeError,
+    UriError,
+}
+
 impl Default for Intrinsics {
     fn default() -> Self {
         let array = BuiltinObjectIndexes::ArrayConstructorIndex.into();
@@ -196,6 +217,30 @@ impl Default for Intrinsics {
 }
 
 impl Intrinsics {
+    pub(crate) fn get_intrinsic_default_proto(
+        &self,
+        intrinsic_default_proto: ProtoIntrinsics,
+    ) -> Object {
+        match intrinsic_default_proto {
+            ProtoIntrinsics::Array => self.array_prototype(),
+            ProtoIntrinsics::ArrayBuffer => self.array_buffer_prototype(),
+            ProtoIntrinsics::BigInt => self.big_int_prototype(),
+            ProtoIntrinsics::Boolean => self.boolean_prototype(),
+            ProtoIntrinsics::Error => self.error_prototype(),
+            ProtoIntrinsics::EvalError => self.eval_error_prototype(),
+            ProtoIntrinsics::Function => self.function_prototype(),
+            ProtoIntrinsics::Number => self.number_prototype(),
+            ProtoIntrinsics::Object => self.object_prototype(),
+            ProtoIntrinsics::RangeError => self.range_error_prototype(),
+            ProtoIntrinsics::ReferenceError => self.reference_error_prototype(),
+            ProtoIntrinsics::String => self.string_prototype(),
+            ProtoIntrinsics::Symbol => self.symbol_prototype(),
+            ProtoIntrinsics::SyntaxError => self.syntax_error_prototype(),
+            ProtoIntrinsics::TypeError => self.type_error_prototype(),
+            ProtoIntrinsics::UriError => self.uri_error_prototype(),
+        }
+    }
+
     /// %Array%
     pub const fn array(&self) -> Function {
         Function::new(self.array)
