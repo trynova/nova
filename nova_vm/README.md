@@ -16,6 +16,6 @@ ECMAScript specification text and its structure.
 
 As an example, the `ecmascript/types` folder corresponds to the specification's
 section 6, `ECMAScript Data Types and Values`. That section has two subsections,
-6.1 `ECMASCript Language Types` and 6.2 `ECMAScript Specification Types`, which
+6.1 `ECMAScript Language Types` and 6.2 `ECMAScript Specification Types`, which
 then correspond to the `ecmascript/types/language` and `ecmascript/types/spec`
 folders respectively.

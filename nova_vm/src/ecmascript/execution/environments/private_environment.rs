@@ -29,7 +29,7 @@ impl PrivateEnvironmentIndex {
 pub enum PrivateElement {
     Field(Option<Value>),
     Method(Option<Function>),
-    /// Accssor(get, set)
+    /// Accessor(get, set)
     Accessor(Option<Function>, Option<Function>),
 }
 
