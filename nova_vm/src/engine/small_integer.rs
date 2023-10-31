@@ -11,11 +11,11 @@ impl std::fmt::Debug for SmallInteger {
 }
 
 impl SmallInteger {
-    pub const MIN_BIGINT: i64 = -(2i64.pow(56)) / 2 + 1;
-    pub const MAX_BIGINT: i64 = 2i64.pow(56) / 2 + 1;
+    pub const MIN_BIGINT: i64 = -2i64.pow(55);
+    pub const MAX_BIGINT: i64 = 2i64.pow(55) - 1;
 
-    pub const MIN_NUMBER: i64 = -(2i64).pow(53) / 2 + 1;
-    pub const MAX_NUMBER: i64 = (2i64).pow(53) / 2 - 1;
+    pub const MIN_NUMBER: i64 = -2i64.pow(53) + 1;
+    pub const MAX_NUMBER: i64 = 2i64.pow(53) - 1;
 
     #[inline]
     pub fn into_i64(self) -> i64 {
@@ -29,7 +29,7 @@ impl SmallInteger {
     }
 
     pub fn from_i64_unchecked(value: i64) -> SmallInteger {
-        debug_assert!((Self::MIN_NUMBER..=Self::MAX_NUMBER).contains(&value));
+        debug_assert!((Self::MIN_BIGINT..=Self::MAX_BIGINT).contains(&value));
         let bytes = i64::to_ne_bytes(value);
 
         let data = if cfg!(target_endian = "little") {
@@ -49,7 +49,7 @@ impl SmallInteger {
 impl TryFrom<i64> for SmallInteger {
     type Error = ();
     fn try_from(value: i64) -> Result<Self, Self::Error> {
-        if (Self::MIN_NUMBER..=Self::MAX_NUMBER).contains(&value) {
+        if (Self::MIN_BIGINT..=Self::MAX_BIGINT).contains(&value) {
             Ok(Self::from_i64_unchecked(value))
         } else {
             Err(())
@@ -83,8 +83,14 @@ fn valid_small_integers() {
     assert_eq!(5i64, SmallInteger::try_from(5).unwrap().into());
     assert_eq!(23i64, SmallInteger::try_from(23).unwrap().into());
     assert_eq!(
-        SmallInteger::MAX_NUMBER,
-        SmallInteger::try_from(SmallInteger::MAX_NUMBER)
+        SmallInteger::MAX_NUMBER + 1,
+        SmallInteger::try_from(SmallInteger::MAX_NUMBER + 1)
+            .unwrap()
+            .into()
+    );
+    assert_eq!(
+        SmallInteger::MAX_BIGINT,
+        SmallInteger::try_from(SmallInteger::MAX_BIGINT)
             .unwrap()
             .into()
     );
@@ -92,8 +98,14 @@ fn valid_small_integers() {
     assert_eq!(-5i64, SmallInteger::try_from(-5).unwrap().into());
     assert_eq!(-59i64, SmallInteger::try_from(-59).unwrap().into());
     assert_eq!(
-        SmallInteger::MIN_NUMBER,
-        SmallInteger::try_from(SmallInteger::MIN_NUMBER)
+        SmallInteger::MIN_NUMBER - 1,
+        SmallInteger::try_from(SmallInteger::MIN_NUMBER - 1)
+            .unwrap()
+            .into()
+    );
+    assert_eq!(
+        SmallInteger::MIN_BIGINT,
+        SmallInteger::try_from(SmallInteger::MIN_BIGINT)
             .unwrap()
             .into()
     );
@@ -102,12 +114,12 @@ fn valid_small_integers() {
 #[test]
 fn invalid_small_integers() {
     assert_eq!(
-        SmallInteger::try_from(SmallInteger::MAX_NUMBER + 1),
+        SmallInteger::try_from(SmallInteger::MAX_BIGINT + 1),
         Err(())
     );
     assert_eq!(SmallInteger::try_from(i64::MAX), Err(()));
     assert_eq!(
-        SmallInteger::try_from(SmallInteger::MIN_NUMBER - 1),
+        SmallInteger::try_from(SmallInteger::MIN_BIGINT - 1),
         Err(())
     );
     assert_eq!(SmallInteger::try_from(i64::MIN), Err(()));
