@@ -368,7 +368,7 @@ pub(crate) fn is_loosely_equal(
     }
 
     // 13. If x is a BigInt and y is a Number, or if x is a Number and y is a BigInt, then
-    if x.is_bigint() && y.is_number() {
+    if (x.is_bigint() && y.is_number()) || (x.is_number() && y.is_bigint()) {
         // a. If x is not finite or y is not finite, return false.
         // b. If ℝ(x) = ℝ(y), return true; otherwise return false.
 
