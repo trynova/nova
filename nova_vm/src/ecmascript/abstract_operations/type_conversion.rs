@@ -225,7 +225,7 @@ pub(crate) fn to_number(agent: &mut Agent, argument: Value) -> JsResult<Number> 
 
 /// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
 // TODO: Should we add another [`Value`] newtype for IntegerOrInfinity?
-pub(crate) fn to_integer_or_infinty(agent: &mut Agent, argument: Value) -> JsResult<Number> {
+pub(crate) fn to_integer_or_infinity(agent: &mut Agent, argument: Value) -> JsResult<Number> {
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, argument)?;
 

@@ -538,7 +538,7 @@ impl ElementArrays {
         &mut self,
         key: ElementArrayKey,
         vector: Vec<Option<Value>>,
-        desciptors: Option<HashMap<u32, ElementDescriptor>>,
+        descriptors: Option<HashMap<u32, ElementDescriptor>>,
     ) -> ElementIndex {
         match key {
             ElementArrayKey::E4 => {
@@ -558,7 +558,7 @@ impl ElementArrays {
                     self.e2pow4.values.set_len(self.e2pow4.values.len() + 1);
                 }
                 let index = ElementIndex::last(&self.e2pow4.values);
-                if let Some(descriptors) = desciptors {
+                if let Some(descriptors) = descriptors {
                     self.e2pow4.descriptors.insert(index, descriptors);
                 }
                 index
@@ -580,7 +580,7 @@ impl ElementArrays {
                     self.e2pow6.values.set_len(self.e2pow6.values.len() + 1);
                 }
                 let index = ElementIndex::last(&self.e2pow6.values);
-                if let Some(descriptors) = desciptors {
+                if let Some(descriptors) = descriptors {
                     self.e2pow6.descriptors.insert(index, descriptors);
                 }
                 index
@@ -602,7 +602,7 @@ impl ElementArrays {
                     self.e2pow8.values.set_len(self.e2pow8.values.len() + 1);
                 }
                 let index = ElementIndex::last(&self.e2pow8.values);
-                if let Some(descriptors) = desciptors {
+                if let Some(descriptors) = descriptors {
                     self.e2pow8.descriptors.insert(index, descriptors);
                 }
                 index
@@ -624,7 +624,7 @@ impl ElementArrays {
                     self.e2pow10.values.set_len(self.e2pow10.values.len() + 1);
                 }
                 let index = ElementIndex::last(&self.e2pow10.values);
-                if let Some(descriptors) = desciptors {
+                if let Some(descriptors) = descriptors {
                     self.e2pow10.descriptors.insert(index, descriptors);
                 }
                 index
@@ -646,7 +646,7 @@ impl ElementArrays {
                     self.e2pow12.values.set_len(self.e2pow12.values.len() + 1);
                 }
                 let index = ElementIndex::last(&self.e2pow12.values);
-                if let Some(descriptors) = desciptors {
+                if let Some(descriptors) = descriptors {
                     self.e2pow12.descriptors.insert(index, descriptors);
                 }
                 index
@@ -668,7 +668,7 @@ impl ElementArrays {
                     self.e2pow16.values.set_len(self.e2pow16.values.len() + 1);
                 }
                 let index = ElementIndex::last(&self.e2pow16.values);
-                if let Some(descriptors) = desciptors {
+                if let Some(descriptors) = descriptors {
                     self.e2pow16.descriptors.insert(index, descriptors);
                 }
                 index
@@ -690,7 +690,7 @@ impl ElementArrays {
                     self.e2pow24.values.set_len(self.e2pow24.values.len() + 1);
                 }
                 let index = ElementIndex::last(&self.e2pow24.values);
-                if let Some(descriptors) = desciptors {
+                if let Some(descriptors) = descriptors {
                     self.e2pow24.descriptors.insert(index, descriptors);
                 }
                 index
@@ -712,7 +712,7 @@ impl ElementArrays {
                     self.e2pow32.values.set_len(self.e2pow32.values.len() + 1);
                 }
                 let index = ElementIndex::last(&self.e2pow32.values);
-                if let Some(descriptors) = desciptors {
+                if let Some(descriptors) = descriptors {
                     self.e2pow32.descriptors.insert(index, descriptors);
                 }
                 index

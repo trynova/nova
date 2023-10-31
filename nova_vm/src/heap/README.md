@@ -11,7 +11,7 @@ good idea of the data and common actions on it.
 
 So what are common actions that a JavaScript runtime does?
 
-- There's all the boring stuff like arithemtic operations, boolean logic, etc.
+- There's all the boring stuff like arithmetic operations, boolean logic, etc.
 - Creating objects and arrays is very common.
 - Checking for properties in an object is very common.
 - Object access is very common.
@@ -28,11 +28,11 @@ What are some uncommon actions?
 - Deleting of object properties. It is done, yes, but rarely do you see objects
   used as hashmaps anymore.
 - Accessing or defining property descriptors.
-- Accessing or assinging non-element (indexed) properties on arrays.
+- Accessing or assigning non-element (indexed) properties on arrays.
 - Calling getter or setter functions. This happens but again is not the most
   common path.
 - Checking the length of a function.
-- Accessing or assigning propertes on functions. This does happen, but it is
+- Accessing or assigning properties on functions. This does happen, but it is
   infrequent.
 - Accessing or assigning properties on ArrayBuffers, Uint8Arrays, DataViews,
   Dates, RegExps, ... Most builtin objects are used for their named purpose only
