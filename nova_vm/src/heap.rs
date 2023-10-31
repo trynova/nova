@@ -262,7 +262,7 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
     /// comparison between heap allocated strings and SmallStrings can be
     /// guaranteed to never equal true.
     pub unsafe fn alloc_string(&mut self, message: &str) -> StringIndex {
-        debug_assert!(message.len() < 7 || message.ends_with('\0'));
+        debug_assert!(message.len() > 7 || message.ends_with('\0'));
         let wtf8 = Wtf8::from_str(message);
         let found = self
             .strings
