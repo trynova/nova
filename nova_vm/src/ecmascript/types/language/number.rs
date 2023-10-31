@@ -120,7 +120,7 @@ impl Number {
 
     pub fn is_pos_zero(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(agent.heap.get(n)),
+            Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(*agent.heap.get(n)),
             Number::Integer(n) => 0i64 == n.into(),
             Number::Float(n) => f32::to_bits(0.0) == f32::to_bits(n),
         }
@@ -128,7 +128,7 @@ impl Number {
 
     pub fn is_neg_zero(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => f64::to_bits(-0.0) == f64::to_bits(agent.heap.get(n)),
+            Number::Number(n) => f64::to_bits(-0.0) == f64::to_bits(*agent.heap.get(n)),
             Number::Integer(_) => false,
             Number::Float(n) => f32::to_bits(-0.0) == f32::to_bits(n),
         }
