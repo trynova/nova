@@ -194,21 +194,46 @@ impl Number {
         }
     }
 
-    /// A minimal version of ObjectIs when you know the arguments are numbers.
-    pub fn is(self, agent: &mut Agent, y: Self) -> bool {
-        // TODO: Add in spec from Object.is pertaining to numbers.
-        let x = self;
-
-        match (x, y) {
-            (Number::Number(x), Number::Number(y)) => agent.heap.get(x) == agent.heap.get(y),
-            (Number::Number(x), Number::Integer(y)) => *agent.heap.get(x) == y.into_i64() as f64,
-            (Number::Number(x), Number::Float(y)) => *agent.heap.get(x) == y as f64,
-            (Number::Integer(x), Number::Number(y)) => (x.into_i64() as f64) == *agent.heap.get(y),
-            (Number::Integer(x), Number::Integer(y)) => x.into_i64() == y.into_i64(),
-            (Number::Integer(x), Number::Float(y)) => (x.into_i64() as f64) == y as f64,
-            (Number::Float(x), Number::Number(y)) => (x as f64) == *agent.heap.get(y),
-            (Number::Float(x), Number::Integer(y)) => (x as f64) == y.into_i64() as f64,
+    /// Compare two Numbers with each other: This is used when the spec asks if
+    /// `x is y` when talking of Numbers. Generally this is asked after various
+    /// NaN and non-zero checks, depending on which spec algorithm is being used.
+    #[inline(always)]
+    fn is(self, agent: &mut Agent, y: Self) -> bool {
+        match (self, y) {
+            // Optimisation: First compare by-reference; only read from heap if needed.
+            (Number::Number(x), Number::Number(y)) => {
+                x == y || agent.heap.get(x) == agent.heap.get(y)
+            }
+            (Number::Integer(x), Number::Integer(y)) => x == y,
             (Number::Float(x), Number::Float(y)) => x == y,
+            (Number::Number(x), Number::Integer(y)) => {
+                // Optimisation: Integers should never be allocated into the heap as f64s.
+                debug_assert!(*agent.heap.get(x) != y.into_i64() as f64);
+                false
+            }
+            (Number::Number(x), Number::Float(y)) => {
+                // Optimisation: f32s should never be allocated into the heap
+                debug_assert!(*agent.heap.get(x) != y as f64);
+                false
+            }
+            (Number::Integer(x), Number::Number(y)) => {
+                // Optimisation: Integers should never be allocated into the heap as f64s.
+                debug_assert!((x.into_i64() as f64) != *agent.heap.get(y));
+                false
+            }
+            (Number::Integer(x), Number::Float(y)) => {
+                debug_assert!((x.into_i64() as f64) != y as f64);
+                false
+            }
+            (Number::Float(x), Number::Number(y)) => {
+                // Optimisation: f32s should never be allocated into the heap
+                debug_assert!((x as f64) != *agent.heap.get(y));
+                false
+            }
+            (Number::Float(x), Number::Integer(y)) => {
+                debug_assert!((x as f64) != y.into_i64() as f64);
+                false
+            }
         }
     }
 
