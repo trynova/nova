@@ -153,7 +153,8 @@ impl CreateHeapData<&str, String> for Heap<'_, '_> {
         if let Ok(value) = String::try_from(data) {
             value
         } else {
-            let id = self.alloc_string(data);
+            // SAFETY: String couldn't be represented as a SmallString.
+            let id = unsafe { self.alloc_string(data) };
             Value::String(id).try_into().unwrap()
         }
     }
@@ -250,7 +251,18 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
             .expect("RealmIdentifier matched a freed Realm")
     }
 
-    pub fn alloc_string(&mut self, message: &str) -> StringIndex {
+    /// Allocate a string onto the Agent heap
+    ///
+    /// This method will currently iterate through all heap strings to look for
+    /// a possible matching string and if found will return its StringIndex
+    /// instead of allocating a copy.
+    ///
+    /// SAFETY: The string being allocated must not be representable as a
+    /// SmallString. All SmallStrings must be kept on the stack to ensure that
+    /// comparison between heap allocated strings and SmallStrings can be
+    /// guaranteed to never equal true.
+    pub unsafe fn alloc_string(&mut self, message: &str) -> StringIndex {
+        debug_assert!(message.len() < 7 || message.ends_with('\0'));
         let wtf8 = Wtf8::from_str(message);
         let found = self
             .strings

@@ -12,7 +12,7 @@ use crate::{
             ArrayBufferIndex, ArrayIndex, BigIntIndex, DateIndex, ErrorIndex, FunctionIndex,
             NumberIndex, ObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
         },
-        GetHeapData,
+        CreateHeapData, GetHeapData,
     },
     Heap, SmallInteger, SmallString,
 };
@@ -130,11 +130,7 @@ pub(crate) const REGEXP_DISCRIMINANT: u8 =
 
 impl Value {
     pub fn from_str(heap: &mut Heap, message: &str) -> Value {
-        if let Ok(ascii_string) = SmallString::try_from(message) {
-            Value::SmallString(ascii_string)
-        } else {
-            Value::String(heap.alloc_string(message))
-        }
+        heap.create(message).into()
     }
 
     pub fn from_f64(heap: &mut Heap, value: f64) -> Value {

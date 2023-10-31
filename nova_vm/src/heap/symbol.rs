@@ -21,55 +21,68 @@ pub struct SymbolHeapData {
 pub fn initialize_symbol_heap(heap: &mut Heap) {
     // AsyncIterator
     heap.symbols[WellKnownSymbolIndexes::AsyncIterator as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.asyncIterator")),
+        // SAFETY: Descriptor string is too long to be a SmallString.
+        descriptor: Some(unsafe { heap.alloc_string("Symbol.asyncIterator") }),
     });
     // HasInstance
     heap.symbols[WellKnownSymbolIndexes::HasInstance as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.hasInstance")),
+        // SAFETY: Descriptor string is too long to be a SmallString.
+        descriptor: Some(unsafe { heap.alloc_string("Symbol.hasInstance") }),
     });
     // IsConcatSpreadable
     heap.symbols[WellKnownSymbolIndexes::IsConcatSpreadable as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.isConcatSpreadable")),
+        // SAFETY: Descriptor string is too long to be a SmallString.
+        descriptor: Some(unsafe { heap.alloc_string("Symbol.isConcatSpreadable") }),
     });
     // Iterator
     heap.symbols[WellKnownSymbolIndexes::Iterator as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.iterator")),
+        // SAFETY: Descriptor string is too long to be a SmallString.
+        descriptor: Some(unsafe { heap.alloc_string("Symbol.iterator") }),
     });
     // Match
     heap.symbols[WellKnownSymbolIndexes::Match as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.match")),
+        // SAFETY: Descriptor string is too long to be a SmallString.
+        descriptor: Some(unsafe { heap.alloc_string("Symbol.match") }),
     });
     // MatchAll
     heap.symbols[WellKnownSymbolIndexes::MatchAll as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.matchAll")),
+        // SAFETY: Descriptor string is too long to be a SmallString.
+        descriptor: Some(unsafe { heap.alloc_string("Symbol.matchAll") }),
     });
     // Replace
     heap.symbols[WellKnownSymbolIndexes::Replace as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.replace")),
+        // SAFETY: Descriptor string is too long to be a SmallString.
+        descriptor: Some(unsafe { heap.alloc_string("Symbol.replace") }),
     });
     // Search
     heap.symbols[WellKnownSymbolIndexes::Search as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.search")),
+        // SAFETY: Descriptor string is too long to be a SmallString.
+        descriptor: Some(unsafe { heap.alloc_string("Symbol.search") }),
     });
     // Species
     heap.symbols[WellKnownSymbolIndexes::Species as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.species")),
+        // SAFETY: Descriptor string is too long to be a SmallString.
+        descriptor: Some(unsafe { heap.alloc_string("Symbol.species") }),
     });
     // Split
     heap.symbols[WellKnownSymbolIndexes::Split as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.split")),
+        // SAFETY: Descriptor string is too long to be a SmallString.
+        descriptor: Some(unsafe { heap.alloc_string("Symbol.split") }),
     });
     // ToPrimitive
     heap.symbols[WellKnownSymbolIndexes::ToPrimitive as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.toPrimitive")),
+        // SAFETY: Descriptor string is too long to be a SmallString.
+        descriptor: Some(unsafe { heap.alloc_string("Symbol.toPrimitive") }),
     });
     // ToStringTag
     heap.symbols[WellKnownSymbolIndexes::ToStringTag as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.toStringTag")),
+        // SAFETY: Descriptor string is too long to be a SmallString.
+        descriptor: Some(unsafe { heap.alloc_string("Symbol.toStringTag") }),
     });
     // Unscopables
     heap.symbols[WellKnownSymbolIndexes::Unscopables as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.unscopables")),
+        // SAFETY: Descriptor string is too long to be a SmallString.
+        descriptor: Some(unsafe { heap.alloc_string("Symbol.unscopables") }),
     });
 
     let entries = vec![
