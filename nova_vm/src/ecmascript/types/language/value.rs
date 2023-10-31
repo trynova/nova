@@ -177,6 +177,7 @@ impl Value {
             self,
             Value::Object(_)
                 | Value::Array(_)
+                | Value::ArrayBuffer(_)
                 | Value::Date(_)
                 | Value::Function(_)
                 | Value::Error(_)
@@ -233,7 +234,7 @@ impl Value {
 
     pub fn is_bigint(self) -> bool {
         // TODO: Check for BigInt object instance.
-        matches!(self, Value::BigInt(_))
+        matches!(self, Value::BigInt(_) | Value::SmallBigInt(_))
     }
 
     pub fn is_symbol(self) -> bool {
