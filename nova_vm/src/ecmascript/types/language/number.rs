@@ -161,7 +161,7 @@ impl Number {
     pub fn is_nonzero(self, agent: &mut Agent) -> bool {
         match self {
             Number::Number(n) => 0.0 != *agent.heap.get(n),
-            Number::Integer(_) => true,
+            Number::Integer(n) => 0i64 != n.into(),
             Number::Float(n) => 0.0 != n,
         }
     }
