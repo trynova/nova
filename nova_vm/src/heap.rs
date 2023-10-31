@@ -87,13 +87,13 @@ pub trait GetHeapData<'a, T, F: 'a> {
 
 impl CreateHeapData<f64, Number> for Heap<'_, '_> {
     fn create(&mut self, data: f64) -> Number {
-        if let Ok(value) = Value::try_from(data) {
-            Number::new(value)
-        } else if data as f32 as f64 == data {
-            Number::new(Value::Float(data as f32))
+        if let Ok(value) = Number::try_from(data) {
+            value
         } else {
-            let id = self.alloc_number(data);
-            Value::Number(id).try_into().unwrap()
+            // SAFETY: Number was not representable as a
+            // stack-allocated Number.
+            let id = unsafe { self.alloc_number(data) };
+            Number::Number(id)
         }
     }
 }
@@ -282,7 +282,13 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
         }
     }
 
-    pub fn alloc_number(&mut self, number: f64) -> NumberIndex {
+    /// Allocate a 64-bit floating point number onto the Agent heap
+    ///
+    /// SAFETY: The number being allocated must not be representable
+    /// as a SmallInteger or f32. All stack-allocated numbers must be
+    /// inequal to any heap-allocated number.
+    pub unsafe fn alloc_number(&mut self, number: f64) -> NumberIndex {
+        debug_assert!(number.fract() != 0.0 && number as f32 as f64 != number);
         self.numbers.push(Some(number.into()));
         NumberIndex::last(&self.numbers)
     }

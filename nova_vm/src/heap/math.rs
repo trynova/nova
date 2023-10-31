@@ -1,7 +1,7 @@
 use super::{
     heap_constants::WellKnownSymbolIndexes,
     object::{ObjectEntry, PropertyDescriptor},
-    Heap,
+    CreateHeapData, Heap,
 };
 use crate::ecmascript::{
     execution::JsResult,
@@ -9,14 +9,14 @@ use crate::ecmascript::{
 };
 
 pub(super) fn initialize_math_object(heap: &mut Heap) {
-    let e = Value::from_f64(heap, std::f64::consts::E);
-    let ln10 = Value::from_f64(heap, std::f64::consts::LN_10);
-    let ln2 = Value::from_f64(heap, std::f64::consts::LN_2);
-    let log10e = Value::from_f64(heap, std::f64::consts::LOG10_E);
-    let log2e = Value::from_f64(heap, std::f64::consts::LOG2_E);
-    let pi = Value::from_f64(heap, std::f64::consts::PI);
-    let sqrt1_2 = Value::from_f64(heap, std::f64::consts::FRAC_1_SQRT_2);
-    let sqrt2 = Value::from_f64(heap, std::f64::consts::SQRT_2);
+    let e = heap.create(std::f64::consts::E);
+    let ln10 = heap.create(std::f64::consts::LN_10);
+    let ln2 = heap.create(std::f64::consts::LN_2);
+    let log10e = heap.create(std::f64::consts::LOG10_E);
+    let log2e = heap.create(std::f64::consts::LOG2_E);
+    let pi = heap.create(std::f64::consts::PI);
+    let sqrt1_2 = heap.create(std::f64::consts::FRAC_1_SQRT_2);
+    let sqrt2 = heap.create(std::f64::consts::SQRT_2);
     let abs = ObjectEntry::new_prototype_function_entry(heap, "abs", 1, false);
     let acos = ObjectEntry::new_prototype_function_entry(heap, "acos", 1, false);
     let acosh = ObjectEntry::new_prototype_function_entry(heap, "acosh", 1, false);
@@ -53,14 +53,14 @@ pub(super) fn initialize_math_object(heap: &mut Heap) {
     let tanh = ObjectEntry::new_prototype_function_entry(heap, "tanh", 1, false);
     let trunc = ObjectEntry::new_prototype_function_entry(heap, "trunc", 1, false);
     let entries = vec![
-        ObjectEntry::new_frozen_entry(heap, "E", e),
-        ObjectEntry::new_frozen_entry(heap, "LN10", ln10),
-        ObjectEntry::new_frozen_entry(heap, "LN2", ln2),
-        ObjectEntry::new_frozen_entry(heap, "LOG10E", log10e),
-        ObjectEntry::new_frozen_entry(heap, "LOG2E", log2e),
-        ObjectEntry::new_frozen_entry(heap, "PI", pi),
-        ObjectEntry::new_frozen_entry(heap, "SQRT1_2", sqrt1_2),
-        ObjectEntry::new_frozen_entry(heap, "SQRT2", sqrt2),
+        ObjectEntry::new_frozen_entry(heap, "E", e.into()),
+        ObjectEntry::new_frozen_entry(heap, "LN10", ln10.into()),
+        ObjectEntry::new_frozen_entry(heap, "LN2", ln2.into()),
+        ObjectEntry::new_frozen_entry(heap, "LOG10E", log10e.into()),
+        ObjectEntry::new_frozen_entry(heap, "LOG2E", log2e.into()),
+        ObjectEntry::new_frozen_entry(heap, "PI", pi.into()),
+        ObjectEntry::new_frozen_entry(heap, "SQRT1_2", sqrt1_2.into()),
+        ObjectEntry::new_frozen_entry(heap, "SQRT2", sqrt2.into()),
         ObjectEntry::new(
             PropertyKey::Symbol(WellKnownSymbolIndexes::ToStringTag.into()),
             PropertyDescriptor::roxh(Value::from_str(heap, "Math")),

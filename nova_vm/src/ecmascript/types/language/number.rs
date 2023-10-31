@@ -33,6 +33,12 @@ impl std::fmt::Debug for Number {
     }
 }
 
+impl From<NumberIndex> for Number {
+    fn from(value: NumberIndex) -> Self {
+        Number::Number(value)
+    }
+}
+
 impl From<SmallInteger> for Number {
     fn from(value: SmallInteger) -> Self {
         Number::Integer(value)
@@ -60,6 +66,27 @@ impl From<f32> for Number {
     }
 }
 
+const MIN_NUMBER: f64 = -9007199254740991.0;
+const MAX_NUMBER: f64 = 9007199254740991.0;
+
+impl TryFrom<f64> for Number {
+    type Error = ();
+
+    fn try_from(value: f64) -> Result<Self, ()> {
+        if value.is_finite() && value.trunc() == value && (MIN_NUMBER..MAX_NUMBER).contains(&value)
+        {
+            debug_assert_eq!(value as i64 as f64, value);
+            Ok(Number::Integer(unsafe {
+                SmallInteger::from_i64_unchecked(value as i64)
+            }))
+        } else if value as f32 as f64 == value {
+            Ok(Number::Float(value as f32))
+        } else {
+            Err(())
+        }
+    }
+}
+
 impl TryFrom<Value> for Number {
     type Error = ();
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -76,13 +103,8 @@ impl TryFrom<Value> for Number {
 }
 
 impl Number {
-    pub fn new(value: Value) -> Self {
-        debug_assert!(matches!(
-            value,
-            Value::Number(_) | Value::Integer(_) | Value::Float(_)
-        ));
-        // SAFETY: Sub-enum.
-        unsafe { std::mem::transmute::<Value, Number>(value) }
+    pub fn from_f64(agent: &mut Agent, value: f64) -> Self {
+        agent.heap.create(value)
     }
 
     pub fn nan() -> Self {

@@ -133,19 +133,8 @@ impl Value {
         heap.create(message).into()
     }
 
-    pub fn from_f64(heap: &mut Heap, value: f64) -> Value {
-        let is_int = value.fract() == 0.0;
-        if is_int {
-            if let Ok(data) = Value::try_from(value as i64) {
-                return data;
-            }
-        }
-        if value as f32 as f64 == value {
-            // TODO: Verify logic
-            Value::Float(value as f32)
-        } else {
-            Value::Number(heap.alloc_number(value))
-        }
+    pub fn from_f64(agent: &mut Agent, value: f64) -> Value {
+        Number::from_f64(agent, value).into()
     }
 
     pub fn nan() -> Self {
@@ -310,12 +299,7 @@ impl TryFrom<&str> for Value {
 impl TryFrom<f64> for Value {
     type Error = ();
     fn try_from(value: f64) -> Result<Self, ()> {
-        // TODO: verify logic
-        if value as f32 as f64 == value {
-            Ok(Value::Float(value as f32))
-        } else {
-            Err(())
-        }
+        Number::try_from(value).map(|v| v.into())
     }
 }
 
