@@ -50,8 +50,7 @@ impl TryFrom<i64> for SmallInteger {
     type Error = ();
     fn try_from(value: i64) -> Result<Self, Self::Error> {
         if (Self::MIN_BIGINT..=Self::MAX_BIGINT).contains(&value) {
-            // SAFETY: We just checked the valid range.
-            Ok(unsafe { Self::from_i64_unchecked(value) })
+            Ok(Self::from_i64_unchecked(value))
         } else {
             Err(())
         }
@@ -62,11 +61,7 @@ impl TryFrom<u64> for SmallInteger {
     type Error = ();
     fn try_from(value: u64) -> Result<Self, Self::Error> {
         if value <= (Self::MAX_BIGINT as u64) {
-            // SAFETY: Since Self::MIN_NUMBER is negative and Self::MAX_NUMBER
-            // positive, we know that value is within the valid range.
-            // Furthermore, since value is within a range that is valid for i64,
-            // we know that value is representable as i64.
-            Ok(unsafe { Self::from_i64_unchecked(value as i64) })
+            Ok(Self::from_i64_unchecked(value as i64))
         } else {
             Err(())
         }
@@ -94,9 +89,7 @@ macro_rules! from_numeric_type {
         };
         impl From<$numtype> for SmallInteger {
             fn from(value: $numtype) -> Self {
-                // SAFETY: All values of $numtype fit in the {MIN,MAX}_BIGINT
-                // range, which we have verified at compile time above.
-                unsafe { Self::from_i64_unchecked(i64::from(value)) }
+                Self::from_i64_unchecked(i64::from(value))
             }
         }
     };
