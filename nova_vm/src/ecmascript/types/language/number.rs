@@ -160,12 +160,9 @@ impl Number {
 
     pub fn is_nonzero(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => {
-                let n = *agent.heap.get(n);
-                !n.is_sign_negative() && !n.is_sign_positive()
-            }
+            Number::Number(n) => 0.0 != *agent.heap.get(n),
             Number::Integer(_) => true,
-            Number::Float(n) => !n.is_sign_negative() && !n.is_sign_positive(),
+            Number::Float(n) => 0.0 != n,
         }
     }
 
