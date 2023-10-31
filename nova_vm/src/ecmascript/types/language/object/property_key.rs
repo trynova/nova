@@ -1,7 +1,13 @@
 use crate::{
     ecmascript::{
         execution::Agent,
-        types::{String, Value},
+        types::{
+            language::value::{
+                INTEGER_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
+                SYMBOL_DISCRIMINANT,
+            },
+            String, Value,
+        },
     },
     heap::{
         indexes::{StringIndex, SymbolIndex},
@@ -11,11 +17,12 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(u8)]
 pub enum PropertyKey {
-    Integer(SmallInteger),
-    SmallString(SmallString),
-    String(StringIndex),
-    Symbol(SymbolIndex),
+    Integer(SmallInteger) = INTEGER_DISCRIMINANT,
+    SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
+    String(StringIndex) = STRING_DISCRIMINANT,
+    Symbol(SymbolIndex) = SYMBOL_DISCRIMINANT,
 }
 
 impl PropertyKey {
