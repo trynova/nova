@@ -436,7 +436,7 @@ pub(crate) fn string_to_big_int(agent: &mut Agent, argument: Value) -> Option<Va
     // 5. Assert: mv is an integer.
     // 6. Return ℤ(mv).
 
-    todo!()
+    todo!("string_to_big_int: Implement BigInts")
 }
 
 /// ### [7.1.17 ToString ( argument )](https://tc39.es/ecma262/#sec-tostring)
