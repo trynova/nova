@@ -198,9 +198,27 @@ impl Number {
     }
 
     /// A minimal version of ObjectIs when you know the arguments are numbers.
-    pub fn is(self, agent: &mut Agent, y: Self) -> bool {
-        // TODO: Add in spec from Object.is pertaining to numbers.
+    /// https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-numeric-types-number-sameValue
+    pub fn same_value(self, agent: &mut Agent, y: Self) -> bool {
+        // If x is NaN and y is NaN, return true.
+        // If x is +0𝔽 and y is -0𝔽, return false.
+        // If x is -0𝔽 and y is +0𝔽, return false.
+        // If x is y, return true.
+        // Return false.
+
         let x = self;
+
+        if x.is_nan() && y.is_nan() {
+            return true;
+        }
+
+        if !x.is_nonzero() & !y.is_nonzero() {
+            let x: f32 = x.into();
+            let y: f32 = y.into();
+            let sign_of_x = f32::copysign(0.0, x);
+            let sign_of_y = f32::copysign(0.0, y);
+            return sign_of_x == sign_of_y;
+        }
 
         match (x, y) {
             (Number::Number(x), Number::Number(y)) => agent.heap.get(x) == agent.heap.get(y),
@@ -382,7 +400,7 @@ impl Number {
                 Number::pos_inf()
             }
             // b. If abs(ℝ(base)) = 1, return NaN.
-            else if base.is(agent, Number::from(1)) {
+            else if todo!("implement number comparisons") /*base.is(agent, Number::from(1))*/ {
                 Number::nan()
             }
             // c. If abs(ℝ(base)) < 1, return +0𝔽.
@@ -443,7 +461,7 @@ impl Number {
         }
 
         // 3. If x is y, return false.
-        if x.is(agent, y) {
+        if todo!("implement number comparisons") /*x.is(agent, y)*/ {
             return Some(false);
         }
 
@@ -512,7 +530,7 @@ impl Number {
         }
 
         // 3. If x is y, return true.
-        if x.is(agent, y) {
+        if todo!("implement number comparisons") /*x.is(agent, y)*/ {
             return true;
         }
 
@@ -551,7 +569,7 @@ impl Number {
         }
 
         // 4. If x is y, return true.
-        if x.is(agent, y) {
+        if todo!("implement number comparisons") /*x.is(agent, y)*/ {
             return true;
         }
 
@@ -580,7 +598,7 @@ impl Number {
         }
 
         // 4. If x is y, return true.
-        if x.is(agent, y) {
+        if todo!("implement number comparisons") /*x.is(agent, y)*/ {
             return true;
         }
 
