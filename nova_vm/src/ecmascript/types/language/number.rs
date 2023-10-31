@@ -400,7 +400,7 @@ impl Number {
                 Number::pos_inf()
             }
             // b. If abs(ℝ(base)) = 1, return NaN.
-            else if todo!("implement number comparisons") /*base.is(agent, Number::from(1))*/ {
+            else if base.same_value(agent, Number::from(1)) {
                 Number::nan()
             }
             // c. If abs(ℝ(base)) < 1, return +0𝔽.
@@ -461,7 +461,7 @@ impl Number {
         }
 
         // 3. If x is y, return false.
-        if todo!("implement number comparisons") /*x.is(agent, y)*/ {
+        if x.same_value(agent, y) {
             return Some(false);
         }
 
@@ -530,7 +530,7 @@ impl Number {
         }
 
         // 3. If x is y, return true.
-        if todo!("implement number comparisons") /*x.is(agent, y)*/ {
+        if x.same_value(agent, y) {
             return true;
         }
 
@@ -569,7 +569,7 @@ impl Number {
         }
 
         // 4. If x is y, return true.
-        if todo!("implement number comparisons") /*x.is(agent, y)*/ {
+        if x.same_value(agent, y) {
             return true;
         }
 
@@ -598,7 +598,7 @@ impl Number {
         }
 
         // 4. If x is y, return true.
-        if todo!("implement number comparisons") /*x.is(agent, y)*/ {
+        if x.same_value(agent, y) {
             return true;
         }
 
