@@ -5,7 +5,7 @@ use crate::ecmascript::{
     types::{bigint, Number, Value},
 };
 
-use super::type_conversion::{to_primitive, PreferredType};
+use super::type_conversion::{string_to_big_int, to_number, to_primitive, PreferredType};
 
 /// ### [7.2.1 RequireObjectCoercible ( argument )](https://tc39.es/ecma262/#sec-requireobjectcoercible)
 ///
@@ -276,4 +276,134 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
         let rny = nx.to_real(agent)?;
         Ok(Some(rnx < rny))
     }
+}
+
+/// [7.2.14 IsLooselyEqual ( x, y )](https://tc39.es/ecma262/#sec-islooselyequal)
+///
+/// The abstract operation IsLooselyEqual takes arguments x (an ECMAScript
+/// language value) and y (an ECMAScript language value) and returns either a
+/// normal completion containing a Boolean or a throw completion. It provides
+/// the semantics for the == operator. It performs the following steps when
+/// called:
+pub(crate) fn is_loosely_equal(
+    agent: &mut Agent,
+    x: impl Into<Value> + Copy,
+    y: impl Into<Value> + Copy,
+) -> JsResult<bool> {
+    let (x, y) = (x.into(), y.into());
+
+    // 1. If Type(x) is Type(y), then
+    if is_same_type(x, y) {
+        // a. Return IsStrictlyEqual(x, y).
+        return Ok(is_strictly_equal(agent, x, y));
+    }
+
+    // 2. If x is null and y is undefined, return true.
+    if x.is_null() && y.is_undefined() {
+        return Ok(true);
+    }
+
+    // 3. If x is undefined and y is null, return true.
+    if x.is_undefined() && y.is_null() {
+        return Ok(true);
+    }
+
+    // 4. Perform the following steps:
+    // a. If x is an Object, x has an [[IsHTMLDDA]] internal slot, and y is either undefined or null, return true.
+    // b. If x is either undefined or null, y is an Object, and y has an [[IsHTMLDDA]] internal slot, return true.
+
+    // 5. If x is a Number and y is a String, return ! IsLooselyEqual(x, ! ToNumber(y)).
+    if x.is_number() && y.is_string() {
+        let y = to_number(agent, y)?;
+        return is_loosely_equal(agent, x, y);
+    }
+
+    // 6. If x is a String and y is a Number, return ! IsLooselyEqual(! ToNumber(x), y).
+    if x.is_string() && y.is_number() {
+        let x = to_number(agent, x)?;
+        return is_loosely_equal(agent, x, y);
+    }
+
+    // 7. If x is a BigInt and y is a String, then
+    if x.is_bigint() && y.is_string() {
+        // a. Let n be StringToBigInt(y).
+        let n = string_to_big_int(agent, y)?;
+
+        // b. If n is undefined, return false.
+        if n.is_undefined() {
+            return Ok(false);
+        }
+
+        // c. Return ! IsLooselyEqual(x, n).
+        return is_loosely_equal(agent, x, n);
+    }
+
+    // 8. If x is a String and y is a BigInt, return ! IsLooselyEqual(y, x).
+    if x.is_string() && y.is_bigint() {
+        return is_loosely_equal(agent, y, x);
+    }
+
+    // 9. If x is a Boolean, return ! IsLooselyEqual(! ToNumber(x), y).
+    if x.is_boolean() {
+        let x = to_number(agent, x)?;
+        return is_loosely_equal(agent, x, y);
+    }
+
+    // 10. If y is a Boolean, return ! IsLooselyEqual(x, ! ToNumber(y)).
+    if y.is_boolean() {
+        let y = to_number(agent, y)?;
+        return is_loosely_equal(agent, x, y);
+    }
+
+    // 11. If x is either a String, a Number, a BigInt, or a Symbol and y is an Object, return ! IsLooselyEqual(x, ? ToPrimitive(y)).
+    if (x.is_string() || x.is_number() || x.is_bigint() || x.is_symbol()) && y.is_object() {
+        let y = to_primitive(agent, y, None)?;
+        return is_loosely_equal(agent, x, y);
+    }
+
+    // 12. If x is an Object and y is either a String, a Number, a BigInt, or a Symbol, return ! IsLooselyEqual(? ToPrimitive(x), y).
+    if x.is_object() && (y.is_string() || y.is_number() || y.is_bigint() || y.is_symbol()) {
+        let x = to_primitive(agent, x, None)?;
+        return is_loosely_equal(agent, x, y);
+    }
+
+    // 13. If x is a BigInt and y is a Number, or if x is a Number and y is a BigInt, then
+    if x.is_bigint() && y.is_number() {
+        // a. If x is not finite or y is not finite, return false.
+        // b. If ℝ(x) = ℝ(y), return true; otherwise return false.
+
+        todo!();
+    }
+
+    // 14. Return false.
+    Ok(false)
+}
+/// [7.2.14 IsStrictlyEqual ( x, y )](https://tc39.es/ecma262/#sec-isstrictlyequal)
+///
+/// The abstract operation IsStrictlyEqual takes arguments x (an ECMAScript
+/// language value) and y (an ECMAScript language value) and returns a Boolean.
+/// It provides the semantics for the === operator. It performs the following
+/// steps when called:
+pub(crate) fn is_strictly_equal(
+    agent: &mut Agent,
+    x: impl Into<Value> + Copy,
+    y: impl Into<Value> + Copy,
+) -> bool {
+    let (x, y) = (x.into(), y.into());
+
+    // 1. If Type(x) is not Type(y), return false.
+    if !is_same_type(x, y) {
+        return false;
+    }
+
+    // 2. If x is a Number, then
+    // NOTE: We need to convert both to a number because we use number
+    // type-safety.
+    if let (Ok(x), Ok(y)) = (x.to_number(agent), y.to_number(agent)) {
+        // a. Return Number::equal(x, y).
+        return x.equal(agent, y);
+    }
+
+    // 3. Return SameValueNonNumber(x, y).
+    same_value_non_number(agent, x, y)
 }
