@@ -11,10 +11,10 @@ impl std::fmt::Debug for SmallInteger {
 }
 
 impl SmallInteger {
-    pub const MIN_BIGINT: i64 = -2i64.pow(55);
+    pub const MIN_BIGINT: i64 = -(2i64.pow(55));
     pub const MAX_BIGINT: i64 = 2i64.pow(55) - 1;
 
-    pub const MIN_NUMBER: i64 = -2i64.pow(53) + 1;
+    pub const MIN_NUMBER: i64 = -(2i64.pow(53)) + 1;
     pub const MAX_NUMBER: i64 = 2i64.pow(53) - 1;
 
     #[inline]

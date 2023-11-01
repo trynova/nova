@@ -1,11 +1,12 @@
 use super::{
-    indexes::{FunctionIndex, StringIndex, SymbolIndex},
+    indexes::{FunctionIndex, SymbolIndex},
     object::ObjectEntry,
+    CreateHeapData,
 };
 use crate::{
     ecmascript::{
         execution::JsResult,
-        types::{Object, PropertyKey, Value},
+        types::{Object, PropertyKey, String, Value},
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes, WellKnownSymbolIndexes},
@@ -15,61 +16,61 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub struct SymbolHeapData {
-    pub(super) descriptor: Option<StringIndex>,
+    pub(super) descriptor: Option<String>,
 }
 
 pub fn initialize_symbol_heap(heap: &mut Heap) {
     // AsyncIterator
     heap.symbols[WellKnownSymbolIndexes::AsyncIterator as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.asyncIterator")),
+        descriptor: Some(heap.create("Symbol.asyncIterator")),
     });
     // HasInstance
     heap.symbols[WellKnownSymbolIndexes::HasInstance as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.hasInstance")),
+        descriptor: Some(heap.create("Symbol.hasInstance")),
     });
     // IsConcatSpreadable
     heap.symbols[WellKnownSymbolIndexes::IsConcatSpreadable as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.isConcatSpreadable")),
+        descriptor: Some(heap.create("Symbol.isConcatSpreadable")),
     });
     // Iterator
     heap.symbols[WellKnownSymbolIndexes::Iterator as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.iterator")),
+        descriptor: Some(heap.create("Symbol.iterator")),
     });
     // Match
     heap.symbols[WellKnownSymbolIndexes::Match as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.match")),
+        descriptor: Some(heap.create("Symbol.match")),
     });
     // MatchAll
     heap.symbols[WellKnownSymbolIndexes::MatchAll as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.matchAll")),
+        descriptor: Some(heap.create("Symbol.matchAll")),
     });
     // Replace
     heap.symbols[WellKnownSymbolIndexes::Replace as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.replace")),
+        descriptor: Some(heap.create("Symbol.replace")),
     });
     // Search
     heap.symbols[WellKnownSymbolIndexes::Search as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.search")),
+        descriptor: Some(heap.create("Symbol.search")),
     });
     // Species
     heap.symbols[WellKnownSymbolIndexes::Species as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.species")),
+        descriptor: Some(heap.create("Symbol.species")),
     });
     // Split
     heap.symbols[WellKnownSymbolIndexes::Split as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.split")),
+        descriptor: Some(heap.create("Symbol.split")),
     });
     // ToPrimitive
     heap.symbols[WellKnownSymbolIndexes::ToPrimitive as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.toPrimitive")),
+        descriptor: Some(heap.create("Symbol.toPrimitive")),
     });
     // ToStringTag
     heap.symbols[WellKnownSymbolIndexes::ToStringTag as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.toStringTag")),
+        descriptor: Some(heap.create("Symbol.toStringTag")),
     });
     // Unscopables
     heap.symbols[WellKnownSymbolIndexes::Unscopables as usize] = Some(SymbolHeapData {
-        descriptor: Some(heap.alloc_string("Symbol.unscopables")),
+        descriptor: Some(heap.create("Symbol.unscopables")),
     });
 
     let entries = vec![

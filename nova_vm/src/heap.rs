@@ -87,13 +87,16 @@ pub trait GetHeapData<'a, T, F: 'a> {
 
 impl CreateHeapData<f64, Number> for Heap<'_, '_> {
     fn create(&mut self, data: f64) -> Number {
-        if let Ok(value) = Value::try_from(data) {
-            Number::new(value)
-        } else if data as f32 as f64 == data {
-            Number::new(Value::Float(data as f32))
+        // NOTE: This function cannot currently be implemented
+        // directly using `Number::from_f64` as it takes an Agent
+        // parameter that we do not have access to here.
+        if let Ok(value) = Number::try_from(data) {
+            value
         } else {
-            let id = self.alloc_number(data);
-            Value::Number(id).try_into().unwrap()
+            // SAFETY: Number was not representable as a
+            // stack-allocated Number.
+            let id = unsafe { self.alloc_number(data) };
+            Number::Number(id)
         }
     }
 }
@@ -153,7 +156,8 @@ impl CreateHeapData<&str, String> for Heap<'_, '_> {
         if let Ok(value) = String::try_from(data) {
             value
         } else {
-            let id = self.alloc_string(data);
+            // SAFETY: String couldn't be represented as a SmallString.
+            let id = unsafe { self.alloc_string(data) };
             Value::String(id).try_into().unwrap()
         }
     }
@@ -250,7 +254,18 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
             .expect("RealmIdentifier matched a freed Realm")
     }
 
-    pub fn alloc_string(&mut self, message: &str) -> StringIndex {
+    /// Allocate a string onto the Agent heap
+    ///
+    /// This method will currently iterate through all heap strings to look for
+    /// a possible matching string and if found will return its StringIndex
+    /// instead of allocating a copy.
+    ///
+    /// SAFETY: The string being allocated must not be representable as a
+    /// SmallString. All SmallStrings must be kept on the stack to ensure that
+    /// comparison between heap allocated strings and SmallStrings can be
+    /// guaranteed to never equal true.
+    pub unsafe fn alloc_string(&mut self, message: &str) -> StringIndex {
+        debug_assert!(message.len() > 7 || message.ends_with('\0'));
         let wtf8 = Wtf8::from_str(message);
         let found = self
             .strings
@@ -270,7 +285,13 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
         }
     }
 
-    pub fn alloc_number(&mut self, number: f64) -> NumberIndex {
+    /// Allocate a 64-bit floating point number onto the Agent heap
+    ///
+    /// SAFETY: The number being allocated must not be representable
+    /// as a SmallInteger or f32. All stack-allocated numbers must be
+    /// inequal to any heap-allocated number.
+    pub unsafe fn alloc_number(&mut self, number: f64) -> NumberIndex {
+        debug_assert!(number.fract() != 0.0 || number as f32 as f64 != number);
         self.numbers.push(Some(number.into()));
         NumberIndex::last(&self.numbers)
     }

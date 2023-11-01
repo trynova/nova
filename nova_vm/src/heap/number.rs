@@ -1,20 +1,21 @@
-use super::{object::ObjectEntry, Heap};
+use super::{object::ObjectEntry, CreateHeapData, Heap};
 use crate::{
     ecmascript::{
         execution::JsResult,
-        types::{Object, PropertyKey, Value},
+        types::{Number, Object, PropertyKey, Value},
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, PropertyDescriptor,
     },
+    SmallInteger,
 };
 
 pub fn initialize_number_heap(heap: &mut Heap) {
     let entries = vec![
         ObjectEntry::new(
             PropertyKey::from_str(heap, "EPSILON"),
-            PropertyDescriptor::roh(Value::from_f64(heap, f64::EPSILON)),
+            PropertyDescriptor::roh(heap.create(f64::EPSILON).into()),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "isFinite", 1, false),
         ObjectEntry::new_prototype_function_entry(heap, "isInteger", 1, false),
@@ -22,19 +23,19 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "isSafeInteger", 1, false),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MAX_SAFE_INTEGER"),
-            PropertyDescriptor::roh(Value::from_f64(heap, 9007199254740991.0)),
+            PropertyDescriptor::roh(Number::try_from(SmallInteger::MAX_NUMBER).unwrap().into()),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MAX_VALUE"),
-            PropertyDescriptor::roh(Value::from_f64(heap, f64::MAX)),
+            PropertyDescriptor::roh(heap.create(f64::MAX).into()),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MIN_SAFE_INTEGER"),
-            PropertyDescriptor::roh(Value::from_f64(heap, -9007199254740991.0)),
+            PropertyDescriptor::roh(Number::try_from(SmallInteger::MIN_NUMBER).unwrap().into()),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MIN_VALUE"),
-            PropertyDescriptor::roh(Value::from_f64(heap, f64::MIN)),
+            PropertyDescriptor::roh(heap.create(f64::MIN).into()),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "NaN"),
