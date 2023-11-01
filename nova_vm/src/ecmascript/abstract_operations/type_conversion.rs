@@ -540,11 +540,8 @@ pub(crate) fn canonical_numeric_index_string(
     argument: String,
 ) -> Option<Number> {
     // 1. If argument is "-0", return -0𝔽.
-    match argument.as_str(agent) {
-        Some("-0") => {
-            return Some(Number::from(-0.0));
-        }
-        _ => {}
+    if argument == String::from_small_string("-0") {
+        return Some(Number::from(-0.0));
     }
 
     // 2. Let n be ! ToNumber(argument).
@@ -565,7 +562,19 @@ pub(crate) fn to_index(agent: &mut Agent, argument: Value) -> JsResult<Number> {
     let integer = to_integer_or_infinity(agent, argument)?;
 
     // 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a RangeError exception.
-    todo!();
+    let max = 2.0f64.powi(53) - 1.0;
+    match integer {
+        Number::Integer(n) if !(0..=(max as i64)).contains(&n.into_i64()) => {
+            return Ok(0.0.into());
+        }
+        Number::Float(n) if !(0.0f32..=(max as f32)).contains(&n) => {
+            return Ok(0.0.into());
+        }
+        Number::Number(n) if !(0.0f64..=max).contains(agent.heap.get(n)) => {
+            return Ok(0.0.into());
+        }
+        _ => {}
+    }
 
     // 3. Return integer.
     Ok(integer)
