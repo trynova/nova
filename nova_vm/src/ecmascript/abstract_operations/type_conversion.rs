@@ -15,7 +15,7 @@ use crate::{
         execution::{agent::ExceptionType, agent::JsError, Agent, JsResult},
         types::{BigInt, Number, Object, PropertyKey, String, Value},
     },
-    heap::{GetHeapData, WellKnownSymbolIndexes},
+    heap::{CreateHeapData, GetHeapData, WellKnownSymbolIndexes},
 };
 
 use super::{
@@ -526,15 +526,11 @@ pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<Value> {
     }
 
     // 3. Return 𝔽(min(len, 2**53 - 1)).
+    let max = 2.0f64.powi(53) - 1.0;
     Ok(match len {
-        Number::Integer(n) => Number::Integer(n).into(),
-        Number::Float(n) => n.into(),
-        Number::Number(n) => Number::Number(
-            agent
-                .heap
-                .alloc_number(agent.heap.get(n).min(2.0f64.powi(53) - 1.0)),
-        )
-        .into(),
+        Number::Integer(n) => Number::from(n.into_i64().min(max as i64)).into(),
+        Number::Float(n) => n.min(max as f32).into(),
+        Number::Number(n) => agent.heap.create(agent.heap.get(n).min(max)).into(),
     })
 }
 
@@ -564,7 +560,7 @@ pub(crate) fn canonical_numeric_index_string(
 }
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
-pub(crate) fn to_index(agent: &mut Agent, argument: Value) -> JsResult<Value> {
+pub(crate) fn to_index(agent: &mut Agent, argument: Value) -> JsResult<Number> {
     // 1. Let integer be ? ToIntegerOrInfinity(value).
     let integer = to_integer_or_infinity(agent, argument)?;
 
@@ -572,5 +568,5 @@ pub(crate) fn to_index(agent: &mut Agent, argument: Value) -> JsResult<Value> {
     todo!();
 
     // 3. Return integer.
-    Ok(integer.into())
+    Ok(integer)
 }
