@@ -22,67 +22,54 @@ pub struct SymbolHeapData {
 pub fn initialize_symbol_heap(heap: &mut Heap) {
     // AsyncIterator
     heap.symbols[WellKnownSymbolIndexes::AsyncIterator as usize] = Some(SymbolHeapData {
-        // SAFETY: Descriptor string is too long to be a SmallString.
         descriptor: Some(heap.create("Symbol.asyncIterator")),
     });
     // HasInstance
     heap.symbols[WellKnownSymbolIndexes::HasInstance as usize] = Some(SymbolHeapData {
-        // SAFETY: Descriptor string is too long to be a SmallString.
         descriptor: Some(heap.create("Symbol.hasInstance")),
     });
     // IsConcatSpreadable
     heap.symbols[WellKnownSymbolIndexes::IsConcatSpreadable as usize] = Some(SymbolHeapData {
-        // SAFETY: Descriptor string is too long to be a SmallString.
         descriptor: Some(heap.create("Symbol.isConcatSpreadable")),
     });
     // Iterator
     heap.symbols[WellKnownSymbolIndexes::Iterator as usize] = Some(SymbolHeapData {
-        // SAFETY: Descriptor string is too long to be a SmallString.
         descriptor: Some(heap.create("Symbol.iterator")),
     });
     // Match
     heap.symbols[WellKnownSymbolIndexes::Match as usize] = Some(SymbolHeapData {
-        // SAFETY: Descriptor string is too long to be a SmallString.
         descriptor: Some(heap.create("Symbol.match")),
     });
     // MatchAll
     heap.symbols[WellKnownSymbolIndexes::MatchAll as usize] = Some(SymbolHeapData {
-        // SAFETY: Descriptor string is too long to be a SmallString.
         descriptor: Some(heap.create("Symbol.matchAll")),
     });
     // Replace
     heap.symbols[WellKnownSymbolIndexes::Replace as usize] = Some(SymbolHeapData {
-        // SAFETY: Descriptor string is too long to be a SmallString.
         descriptor: Some(heap.create("Symbol.replace")),
     });
     // Search
     heap.symbols[WellKnownSymbolIndexes::Search as usize] = Some(SymbolHeapData {
-        // SAFETY: Descriptor string is too long to be a SmallString.
         descriptor: Some(heap.create("Symbol.search")),
     });
     // Species
     heap.symbols[WellKnownSymbolIndexes::Species as usize] = Some(SymbolHeapData {
-        // SAFETY: Descriptor string is too long to be a SmallString.
         descriptor: Some(heap.create("Symbol.species")),
     });
     // Split
     heap.symbols[WellKnownSymbolIndexes::Split as usize] = Some(SymbolHeapData {
-        // SAFETY: Descriptor string is too long to be a SmallString.
         descriptor: Some(heap.create("Symbol.split")),
     });
     // ToPrimitive
     heap.symbols[WellKnownSymbolIndexes::ToPrimitive as usize] = Some(SymbolHeapData {
-        // SAFETY: Descriptor string is too long to be a SmallString.
         descriptor: Some(heap.create("Symbol.toPrimitive")),
     });
     // ToStringTag
     heap.symbols[WellKnownSymbolIndexes::ToStringTag as usize] = Some(SymbolHeapData {
-        // SAFETY: Descriptor string is too long to be a SmallString.
         descriptor: Some(heap.create("Symbol.toStringTag")),
     });
     // Unscopables
     heap.symbols[WellKnownSymbolIndexes::Unscopables as usize] = Some(SymbolHeapData {
-        // SAFETY: Descriptor string is too long to be a SmallString.
         descriptor: Some(heap.create("Symbol.unscopables")),
     });
 
