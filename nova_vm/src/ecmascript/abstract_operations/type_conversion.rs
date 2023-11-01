@@ -542,11 +542,11 @@ pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<Value> {
 pub(crate) fn canonical_numeric_index_string(
     agent: &mut Agent,
     argument: String,
-) -> JsResult<Value> {
+) -> Option<Number> {
     // 1. If argument is "-0", return -0𝔽.
     match argument.as_str(agent) {
         Some("-0") => {
-            return Ok(Number::Float(-0.0).into());
+            return Some(Number::from(-0.0));
         }
         _ => {}
     }
@@ -556,11 +556,11 @@ pub(crate) fn canonical_numeric_index_string(
 
     // 3. If ! ToString(n) is argument, return n.
     if to_string(agent, n.into()).unwrap() == argument {
-        return Ok(n.into());
+        return Some(n);
     }
 
     // 4. Return undefined.
-    Ok(Value::Undefined)
+    None
 }
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
