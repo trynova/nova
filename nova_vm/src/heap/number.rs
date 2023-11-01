@@ -2,12 +2,13 @@ use super::{object::ObjectEntry, CreateHeapData, Heap};
 use crate::{
     ecmascript::{
         execution::JsResult,
-        types::{Object, PropertyKey, Value},
+        types::{Number, Object, PropertyKey, Value},
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, PropertyDescriptor,
     },
+    SmallInteger,
 };
 
 pub fn initialize_number_heap(heap: &mut Heap) {
@@ -22,7 +23,7 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "isSafeInteger", 1, false),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MAX_SAFE_INTEGER"),
-            PropertyDescriptor::roh(heap.create(9007199254740991.0).into()),
+            PropertyDescriptor::roh(Number::try_from(SmallInteger::MAX_NUMBER).unwrap().into()),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MAX_VALUE"),
@@ -30,7 +31,7 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MIN_SAFE_INTEGER"),
-            PropertyDescriptor::roh(heap.create(-9007199254740991.0).into()),
+            PropertyDescriptor::roh(Number::try_from(SmallInteger::MIN_NUMBER).unwrap().into()),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MIN_VALUE"),

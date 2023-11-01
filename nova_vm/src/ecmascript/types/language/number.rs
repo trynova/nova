@@ -66,8 +66,8 @@ impl From<f32> for Number {
     }
 }
 
-const MIN_NUMBER: f64 = -9007199254740991.0;
-const MAX_NUMBER: f64 = 9007199254740991.0;
+const MAX_NUMBER: f64 = ((1u64 << 53) - 1) as f64;
+const MIN_NUMBER: f64 = -MAX_NUMBER;
 
 impl TryFrom<f64> for Number {
     type Error = ();
@@ -104,7 +104,14 @@ impl TryFrom<Value> for Number {
 
 impl Number {
     pub fn from_f64(agent: &mut Agent, value: f64) -> Self {
-        agent.heap.create(value)
+        if let Ok(value) = Number::try_from(value) {
+            value
+        } else {
+            // SAFETY: Number was not representable as a
+            // stack-allocated Number.
+            let id = unsafe { agent.heap.alloc_number(value) };
+            Number::Number(id)
+        }
     }
 
     pub fn nan() -> Self {

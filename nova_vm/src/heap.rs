@@ -87,6 +87,9 @@ pub trait GetHeapData<'a, T, F: 'a> {
 
 impl CreateHeapData<f64, Number> for Heap<'_, '_> {
     fn create(&mut self, data: f64) -> Number {
+        // NOTE: This function cannot currently be implemented
+        // directly using `Number::from_f64` as it takes an Agent
+        // parameter that we do not have access to here.
         if let Ok(value) = Number::try_from(data) {
             value
         } else {
