@@ -76,9 +76,7 @@ impl TryFrom<f64> for Number {
         if value.is_finite() && value.trunc() == value && (MIN_NUMBER..=MAX_NUMBER).contains(&value)
         {
             debug_assert_eq!(value as i64 as f64, value);
-            Ok(Number::Integer(unsafe {
-                SmallInteger::from_i64_unchecked(value as i64)
-            }))
+            Ok(Number::try_from(value as i64).unwrap())
         } else if value as f32 as f64 == value {
             Ok(Number::Float(value as f32))
         } else {
