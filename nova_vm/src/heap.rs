@@ -34,7 +34,7 @@ use self::{
     heap_constants::{
         FIRST_CONSTRUCTOR_INDEX, LAST_BUILTIN_OBJECT_INDEX, LAST_WELL_KNOWN_SYMBOL_INDEX,
     },
-    indexes::{BaseIndex, FunctionIndex, NumberIndex, ObjectIndex, StringIndex},
+    indexes::{BaseIndex, BigIntIndex, FunctionIndex, NumberIndex, ObjectIndex, StringIndex},
     math::initialize_math_object,
     number::initialize_number_heap,
     object::{initialize_object_heap, ObjectEntry, PropertyDescriptor},
@@ -46,8 +46,8 @@ use crate::ecmascript::{
     builtins::{ArrayBufferHeapData, ArrayHeapData},
     execution::{Environments, Realm, RealmIdentifier},
     types::{
-        BigIntHeapData, Function, FunctionHeapData, Number, NumberHeapData, Object, ObjectHeapData,
-        PropertyKey, String, StringHeapData, Value,
+        BigInt, BigIntHeapData, Function, FunctionHeapData, Number, NumberHeapData, Object,
+        ObjectHeapData, PropertyKey, String, StringHeapData, Value,
     },
 };
 use wtf8::{Wtf8, Wtf8Buf};
@@ -170,6 +170,13 @@ impl CreateHeapData<ObjectHeapData, Object> for Heap<'_, '_> {
     fn create(&mut self, data: ObjectHeapData) -> Object {
         self.objects.push(Some(data));
         Object::Object(ObjectIndex::last(&self.objects))
+    }
+}
+
+impl CreateHeapData<BigIntHeapData, BigInt> for Heap<'_, '_> {
+    fn create(&mut self, data: BigIntHeapData) -> BigInt {
+        self.bigints.push(Some(data));
+        BigInt::BigInt(BigIntIndex::last(&self.bigints))
     }
 }
 

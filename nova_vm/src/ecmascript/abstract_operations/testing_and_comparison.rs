@@ -2,7 +2,10 @@
 
 use crate::ecmascript::{
     execution::{agent::JsError, Agent, JsResult},
-    types::{bigint, Number, Value},
+    types::{
+        bigint::{self, BigInt},
+        Number, Value,
+    },
 };
 
 use super::type_conversion::{to_primitive, PreferredType};
@@ -249,7 +252,7 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
                 // 2. Return BigInt::lessThan(nx, ny).
                 let nx = nx.to_bigint(agent)?;
                 let ny = ny.to_bigint(agent)?;
-                return Ok(Some(bigint::less_than(agent, nx, ny)));
+                return Ok(Some(BigInt::less_than(agent, nx, ny)));
             }
         }
 

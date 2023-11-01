@@ -46,6 +46,24 @@ impl SmallInteger {
     }
 }
 
+impl std::ops::Neg for SmallInteger {
+    type Output = Self;
+    fn neg(self) -> Self::Output {
+        // NOTE: This is safe because the negation of any number in the range
+        // will always be in the safe number range.
+        Self::from_i64_unchecked(-self.into_i64())
+    }
+}
+
+impl std::ops::Not for SmallInteger {
+    type Output = Self;
+    fn not(self) -> Self::Output {
+        // NOTE: This is safe because the bitwise not of any number in the range
+        // will always be in the safe number range.
+        Self::from_i64_unchecked(!self.into_i64())
+    }
+}
+
 impl TryFrom<i64> for SmallInteger {
     type Error = ();
     fn try_from(value: i64) -> Result<Self, Self::Error> {
