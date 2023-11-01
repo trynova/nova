@@ -346,8 +346,7 @@ macro_rules! impl_value_from_n {
     ($size: ty) => {
         impl From<$size> for Value {
             fn from(value: $size) -> Self {
-                let n: i64 = value.into();
-                Value::Integer(SmallInteger::from_i64_unchecked(n))
+                Value::Integer(SmallInteger::from(value))
             }
         }
     };

@@ -41,7 +41,7 @@ impl From<SmallInteger> for Number {
 
 impl From<i32> for Number {
     fn from(value: i32) -> Self {
-        Number::Integer(SmallInteger::from_i64_unchecked(value as i64))
+        Number::Integer(SmallInteger::from(value))
     }
 }
 
@@ -50,7 +50,7 @@ impl From<i64> for Number {
         let n = value
             .min(SmallInteger::MAX_NUMBER)
             .max(SmallInteger::MIN_NUMBER);
-        Number::Integer(SmallInteger::from_i64_unchecked(n))
+        Number::Integer(SmallInteger::try_from(n).unwrap())
     }
 }
 
@@ -257,7 +257,7 @@ impl Number {
             }
             Number::Integer(n) => {
                 let n = n.into_i64();
-                Number::Integer(SmallInteger::from_i64_unchecked(n.abs()))
+                Number::Integer(SmallInteger::try_from(n.abs()).unwrap())
             }
             Number::Float(n) => Number::Float(n.abs()),
         }
@@ -279,7 +279,7 @@ impl Number {
                 let value = *agent.heap.get(n);
                 agent.heap.create(-value)
             }
-            Number::Integer(n) => SmallInteger::from_i64_unchecked(-n.into_i64()).into(),
+            Number::Integer(n) => SmallInteger::try_from(-n.into_i64()).unwrap().into(),
             Number::Float(n) => (-n).into(),
         }
     }
