@@ -24,6 +24,8 @@ jobs:
           components: rustfmt
       - name: Check formatting
         run: cargo fmt --check
+      - name: Spell check
+        uses: crate-ci/typos@master
       - name: Build
         run: cargo build
       - name: Test
