@@ -565,13 +565,19 @@ pub(crate) fn to_index(agent: &mut Agent, argument: Value) -> JsResult<Number> {
     let max = 2.0f64.powi(53) - 1.0;
     match integer {
         Number::Integer(n) if !(0..=(max as i64)).contains(&n.into_i64()) => {
-            return Ok(0.0.into());
+            return Err(todo!(
+                "RangeError: placeholder. implement the Error objects :)"
+            ));
         }
         Number::Float(n) if !(0.0f32..=(max as f32)).contains(&n) => {
-            return Ok(0.0.into());
+            return Err(todo!(
+                "RangeError: placeholder. implement the Error objects :)"
+            ));
         }
         Number::Number(n) if !(0.0f64..=max).contains(agent.heap.get(n)) => {
-            return Ok(0.0.into());
+            return Err(todo!(
+                "RangeError: placeholder. implement the Error objects :)"
+            ));
         }
         _ => {}
     }
