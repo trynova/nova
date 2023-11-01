@@ -291,7 +291,7 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
     /// as a SmallInteger or f32. All stack-allocated numbers must be
     /// inequal to any heap-allocated number.
     pub unsafe fn alloc_number(&mut self, number: f64) -> NumberIndex {
-        debug_assert!(number.fract() != 0.0 && number as f32 as f64 != number);
+        debug_assert!(number.fract() != 0.0 || number as f32 as f64 != number);
         self.numbers.push(Some(number.into()));
         NumberIndex::last(&self.numbers)
     }
