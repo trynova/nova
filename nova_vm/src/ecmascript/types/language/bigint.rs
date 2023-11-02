@@ -165,7 +165,7 @@ impl BigInt {
                 let (x, y) = (agent.heap.get(x), agent.heap.get(y));
                 x.data == y.data
             }
-            (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => x.into_i64() == y.into_i64(),
+            (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => x == y,
             _ => false,
         }
     }
