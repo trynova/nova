@@ -1,34 +1,7 @@
-use std::collections::HashMap;
-use std::marker::PhantomData;
-use std::num::NonZeroU32;
-
 use super::declarative_environment::Binding;
 use crate::ecmascript::types::{Object, String};
 use crate::heap::element_array::ElementsVector;
-
-#[derive(Debug, Clone, Copy)]
-pub struct GlobalEnvironmentIndex(NonZeroU32, PhantomData<GlobalEnvironment>);
-
-impl GlobalEnvironmentIndex {
-    pub const fn from_u32_index(value: u32) -> Self {
-        assert!(value != u32::MAX);
-        // SAFETY: Number is not max value and will not overflow to zero.
-        // This check is done manually to allow const context.
-        Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
-    }
-
-    pub const fn from_usize_index(value: usize) -> Self {
-        debug_assert!(value < u32::MAX as usize);
-        Self(
-            unsafe { NonZeroU32::new_unchecked(value as u32 + 1) },
-            PhantomData,
-        )
-    }
-
-    pub const fn into_index(self) -> usize {
-        self.0.get() as usize - 1
-    }
-}
+use std::collections::HashMap;
 
 /// 9.1.1.4 Global Environment Records
 /// https://tc39.es/ecma262/#sec-global-environment-records

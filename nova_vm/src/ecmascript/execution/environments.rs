@@ -1,17 +1,19 @@
 //! 9.1 Environment Records
 //! https://tc39.es/ecma262/#sec-environment-records
 
-pub mod declarative_environment;
-pub mod function_environment;
-pub mod global_environment;
-pub mod object_environment;
-pub mod private_environment;
+use std::{marker::PhantomData, num::NonZeroU32};
 
-pub use declarative_environment::{DeclarativeEnvironment, DeclarativeEnvironmentIndex};
-pub use function_environment::{FunctionEnvironment, FunctionEnvironmentIndex};
-pub use global_environment::{GlobalEnvironment, GlobalEnvironmentIndex};
-pub use object_environment::{ObjectEnvironment, ObjectEnvironmentIndex};
-pub use private_environment::{PrivateEnvironment, PrivateEnvironmentIndex};
+mod declarative_environment;
+mod function_environment;
+mod global_environment;
+mod object_environment;
+mod private_environment;
+
+pub use declarative_environment::DeclarativeEnvironment;
+pub use function_environment::FunctionEnvironment;
+pub use global_environment::GlobalEnvironment;
+pub use object_environment::ObjectEnvironment;
+pub use private_environment::PrivateEnvironment;
 
 /// ### [\[\[OuterEnv\]\]](https://tc39.es/ecma262/#sec-environment-records)
 ///
@@ -27,6 +29,40 @@ pub use private_environment::{PrivateEnvironment, PrivateEnvironmentIndex};
 /// functions will have as their outer Environment Record the Environment Record
 /// of the current evaluation of the surrounding function.
 pub(super) type OuterEnv = Option<EnvironmentIndex>;
+
+macro_rules! create_environment_index {
+    ($name: ident, $index: ident) => {
+        #[derive(Debug, Clone, Copy)]
+        pub(crate) struct $index(NonZeroU32, PhantomData<$name>);
+
+        impl $index {
+            pub(crate) const fn from_u32_index(value: u32) -> Self {
+                assert!(value != u32::MAX);
+                // SAFETY: Number is not max value and will not overflow to zero.
+                // This check is done manually to allow const context.
+                Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
+            }
+
+            pub(crate) const fn from_usize_index(value: usize) -> Self {
+                debug_assert!(value < u32::MAX as usize);
+                Self(
+                    unsafe { NonZeroU32::new_unchecked(value as u32 + 1) },
+                    PhantomData,
+                )
+            }
+
+            pub(crate) const fn into_index(self) -> usize {
+                self.0.get() as usize - 1
+            }
+        }
+    };
+}
+
+create_environment_index!(DeclarativeEnvironment, DeclarativeEnvironmentIndex);
+create_environment_index!(FunctionEnvironment, FunctionEnvironmentIndex);
+create_environment_index!(GlobalEnvironment, GlobalEnvironmentIndex);
+create_environment_index!(ObjectEnvironment, ObjectEnvironmentIndex);
+create_environment_index!(PrivateEnvironment, PrivateEnvironmentIndex);
 
 /// 9.1.1 The Environment Record Type Hierarchy
 /// https://tc39.es/ecma262/#sec-the-environment-record-type-hierarchy

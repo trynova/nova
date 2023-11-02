@@ -4,31 +4,7 @@ use crate::ecmascript::{
     types::Value,
 };
 use oxc_span::Atom;
-use std::{collections::HashMap, marker::PhantomData, num::NonZeroU32};
-
-#[derive(Debug, Clone, Copy)]
-pub struct DeclarativeEnvironmentIndex(NonZeroU32, PhantomData<DeclarativeEnvironment>);
-
-impl DeclarativeEnvironmentIndex {
-    pub const fn from_u32_index(value: u32) -> Self {
-        assert!(value != u32::MAX);
-        // SAFETY: Number is not max value and will not overflow to zero.
-        // This check is done manually to allow const context.
-        Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
-    }
-
-    pub const fn from_usize_index(value: usize) -> Self {
-        debug_assert!(value < u32::MAX as usize);
-        Self(
-            unsafe { NonZeroU32::new_unchecked(value as u32 + 1) },
-            PhantomData,
-        )
-    }
-
-    pub const fn into_index(self) -> usize {
-        self.0.get() as usize - 1
-    }
-}
+use std::collections::HashMap;
 
 /// ### [9.1.1.1 Declarative Environment Records](https://tc39.es/ecma262/#sec-declarative-environment-records)
 ///
