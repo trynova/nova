@@ -383,6 +383,7 @@ pub(crate) fn is_loosely_equal(
     // 14. Return false.
     Ok(false)
 }
+
 /// [7.2.14 IsStrictlyEqual ( x, y )](https://tc39.es/ecma262/#sec-isstrictlyequal)
 ///
 /// The abstract operation IsStrictlyEqual takes arguments x (an ECMAScript

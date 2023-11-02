@@ -4,6 +4,7 @@ mod data;
 use super::value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT};
 use crate::{heap::indexes::BigIntIndex, SmallInteger};
 
+pub use abstract_operations::*;
 pub use data::BigIntHeapData;
 
 #[derive(Clone, Copy)]
