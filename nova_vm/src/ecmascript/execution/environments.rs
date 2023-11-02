@@ -13,6 +13,21 @@ pub use global_environment::{GlobalEnvironment, GlobalEnvironmentIndex};
 pub use object_environment::{ObjectEnvironment, ObjectEnvironmentIndex};
 pub use private_environment::{PrivateEnvironment, PrivateEnvironmentIndex};
 
+/// ### [\[\[OuterEnv\]\]](https://tc39.es/ecma262/#sec-environment-records)
+///
+/// Every Environment Record has an \[\[OuterEnv\]\] field, which is either null
+/// or a reference to an outer Environment Record. This is used to model the
+/// logical nesting of Environment Record values. The outer reference of an
+/// (inner) Environment Record is a reference to the Environment Record that
+/// logically surrounds the inner Environment Record. An outer Environment
+/// Record may, of course, have its own outer Environment Record. An Environment
+/// Record may serve as the outer environment for multiple inner Environment
+/// Records. For example, if a FunctionDeclaration contains two nested
+/// FunctionDeclarations then the Environment Records of each of the nested
+/// functions will have as their outer Environment Record the Environment Record
+/// of the current evaluation of the surrounding function.
+pub(super) type OuterEnv = Option<EnvironmentIndex>;
+
 /// 9.1.1 The Environment Record Type Hierarchy
 /// https://tc39.es/ecma262/#sec-the-environment-record-type-hierarchy
 #[derive(Debug, Clone)]
