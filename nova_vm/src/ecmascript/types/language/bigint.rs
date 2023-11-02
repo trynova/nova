@@ -1,6 +1,9 @@
 mod data;
 
-use super::value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT};
+use super::{
+    value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT},
+    Value,
+};
 use crate::{
     ecmascript::execution::{agent::ExceptionType, Agent, JsResult},
     heap::{indexes::BigIntIndex, CreateHeapData, GetHeapData},
@@ -164,6 +167,26 @@ impl BigInt {
             }
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => x.into_i64() == y.into_i64(),
             _ => false,
+        }
+    }
+}
+
+impl TryFrom<Value> for BigInt {
+    type Error = ();
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::BigInt(x) => Ok(BigInt::BigInt(x)),
+            Value::SmallBigInt(x) => Ok(BigInt::SmallBigInt(x)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl From<BigInt> for Value {
+    fn from(value: BigInt) -> Value {
+        match value {
+            BigInt::BigInt(x) => Value::BigInt(x),
+            BigInt::SmallBigInt(x) => Value::SmallBigInt(x),
         }
     }
 }
