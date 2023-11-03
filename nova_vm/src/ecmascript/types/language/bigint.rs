@@ -74,7 +74,7 @@ impl BigInt {
         // 1. If exponent < 0ℤ, throw a RangeError exception.
         if match exponent {
             BigInt::SmallBigInt(x) if x.into_i64() < 0 => true,
-            BigInt::BigInt(x) => agent.heap.get(x).data < 0.into()
+            BigInt::BigInt(x) => agent.heap.get(x).data < 0.into(),
             _ => false
          } {
             return Err(
