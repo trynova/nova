@@ -72,20 +72,15 @@ impl BigInt {
         exponent: BigInt,
     ) -> JsResult<BigInt> {
         // 1. If exponent < 0ℤ, throw a RangeError exception.
-        match exponent {
-            BigInt::SmallBigInt(x) if x.into_i64() < 0 => {
-                return Err(
-                    agent.throw_exception(ExceptionType::RangeError, "exponent must be positive")
-                );
-            }
-            BigInt::BigInt(x) => {
-                let x = agent.heap.get(x);
-                if x.data < 0.into() {
-                    return Err(agent
-                        .throw_exception(ExceptionType::RangeError, "exponent must be positive"));
-                }
-            }
-            _ => {}
+        if match exponent {
+            BigInt::SmallBigInt(x) if x.into_i64() < 0 => true,
+            BigInt::BigInt(x) => agent.heap.get(x).data < 0.into()
+            _ => false
+         } {
+            return Err(
+            agent.throw_exception(ExceptionType::RangeError, "exponent must be positive")
+            );
+        }
         }
 
         // TODO: 2. If base is 0ℤ and exponent is 0ℤ, return 1ℤ.
