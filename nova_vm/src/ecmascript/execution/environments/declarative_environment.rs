@@ -14,7 +14,12 @@ use std::collections::HashMap;
 /// bindings with ECMAScript language values.
 #[derive(Debug)]
 pub struct DeclarativeEnvironment {
-    pub(crate) outer_env: OuterEnv,
+    /// ### \[\[OuterEnv\]\]
+    ///
+    /// See [OuterEnv].
+    outer_env: OuterEnv,
+
+    /// The environment's bindings.
     bindings: HashMap<Atom, Binding>,
 }
 
@@ -28,6 +33,13 @@ struct Binding {
 }
 
 impl DeclarativeEnvironment {
+    /// ### \[\[OuterEnv\]\]
+    ///
+    /// See [OuterEnv].
+    pub(crate) fn outer_env(&self) -> OuterEnv {
+        self.outer_env.clone()
+    }
+
     /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of a Declarative Environment Record
