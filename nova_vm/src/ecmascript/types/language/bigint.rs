@@ -81,7 +81,6 @@ impl BigInt {
             agent.throw_exception(ExceptionType::RangeError, "exponent must be positive")
             );
         }
-        }
 
         // TODO: 2. If base is 0ℤ and exponent is 0ℤ, return 1ℤ.
         // TODO: 3. Return base raised to the power exponent.
