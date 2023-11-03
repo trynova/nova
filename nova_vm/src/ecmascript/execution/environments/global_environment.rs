@@ -1,4 +1,4 @@
-use super::declarative_environment::Binding;
+// use super::declarative_environment::Binding;
 use crate::ecmascript::types::{Object, String};
 use crate::heap::element_array::ElementsVector;
 use std::collections::HashMap;
@@ -16,7 +16,7 @@ pub struct GlobalEnvironment {
 
     /// [[DeclarativeRecord]]
     /// The Declaration Environment Record is inlined here.
-    declarative_record: HashMap<String, Binding>,
+    declarative_record: HashMap<String, &'static ()>,
 
     /// [[VarNames]]
     var_names: ElementsVector,
