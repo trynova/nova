@@ -38,9 +38,11 @@ impl BigInt {
         // 2. Return -x.
         match x {
             BigInt::SmallBigInt(x) => BigInt::SmallBigInt(-x),
-            BigInt::BigInt(x) => {
-                let x = agent.heap.get(x);
-                agent.heap.create(BigIntHeapData { data: -&x.data })
+            BigInt::BigInt(x_index) => {
+                let x_data = agent.heap.get(x_index);
+                agent.heap.create(BigIntHeapData {
+                    data: -&x_data.data,
+                })
             }
         }
     }
@@ -54,9 +56,11 @@ impl BigInt {
         // NOTE: We can use the builtin bitwise not operations instead.
         match x {
             BigInt::SmallBigInt(x) => BigInt::SmallBigInt(!x),
-            BigInt::BigInt(x) => {
-                let x = agent.heap.get(x);
-                agent.heap.create(BigIntHeapData { data: !&x.data })
+            BigInt::BigInt(x_index) => {
+                let x_data = agent.heap.get(x_index);
+                agent.heap.create(BigIntHeapData {
+                    data: -&x_data.data,
+                })
             }
         }
     }
@@ -75,10 +79,10 @@ impl BigInt {
         if match exponent {
             BigInt::SmallBigInt(x) if x.into_i64() < 0 => true,
             BigInt::BigInt(x) => agent.heap.get(x).data < 0.into(),
-            _ => false
-         } {
+            _ => false,
+        } {
             return Err(
-            agent.throw_exception(ExceptionType::RangeError, "exponent must be positive")
+                agent.throw_exception(ExceptionType::RangeError, "exponent must be positive")
             );
         }
 
@@ -112,15 +116,11 @@ impl BigInt {
                     })
                 }
             }
-            (BigInt::SmallBigInt(x), BigInt::BigInt(y)) => {
+            (BigInt::SmallBigInt(x), BigInt::BigInt(y))
+            | (BigInt::BigInt(y), BigInt::SmallBigInt(x)) => {
                 let x = x.into_i64();
                 let y = agent.heap.get(y);
                 agent.heap.create(BigIntHeapData { data: x * &y.data })
-            }
-            (BigInt::BigInt(x), BigInt::SmallBigInt(y)) => {
-                let x = agent.heap.get(x);
-                let y = y.into_i64();
-                agent.heap.create(BigIntHeapData { data: &x.data * y })
             }
             (BigInt::BigInt(x), BigInt::BigInt(y)) => {
                 let (x, y) = (agent.heap.get(x), agent.heap.get(y));
