@@ -101,18 +101,14 @@ impl BigInt {
     pub(crate) fn multiply(agent: &mut Agent, x: BigInt, y: BigInt) -> BigInt {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
-                let (x, y) = (x.into_i64(), y.into_i64());
-                if let Some(result) = x.checked_mul(y) {
-                    if let Ok(result) = SmallInteger::try_from(result) {
-                        BigInt::SmallBigInt(SmallInteger::try_from(result).unwrap())
-                    } else {
-                        agent.heap.create(BigIntHeapData {
-                            data: result.into(),
-                        })
-                    }
+                let (x, y) = (x.into_i64() as i128, y.into_i64() as i128);
+                let result = x * y;
+
+                if let Ok(result) = SmallInteger::try_from(result) {
+                    BigInt::SmallBigInt(SmallInteger::try_from(result).unwrap())
                 } else {
                     agent.heap.create(BigIntHeapData {
-                        data: num_bigint_dig::BigInt::from(x) * num_bigint_dig::BigInt::from(y),
+                        data: result.into(),
                     })
                 }
             }
