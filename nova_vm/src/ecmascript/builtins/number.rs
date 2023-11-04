@@ -4,6 +4,7 @@ use super::{
 };
 use crate::{
     ecmascript::{
+        abstract_operations::testing_and_comparison::is_integral_number,
         execution::{Agent, JsResult},
         types::{Number, Object, PropertyDescriptor, Value},
     },
@@ -44,6 +45,46 @@ impl Builtin for NumberConstructor {
                 configurable: Some(false),
                 ..Default::default()
             },
+        )?;
+
+        // 21.1.2.2 Number.isFinite ( number )
+        define_builtin_function(
+            agent,
+            object,
+            "isFinite",
+            NumberConstructor::is_finite,
+            1,
+            realm_id,
+        )?;
+
+        // 21.1.2.3 Number.isInteger ( number )
+        define_builtin_function(
+            agent,
+            object,
+            "isInteger",
+            NumberConstructor::is_integer,
+            1,
+            realm_id,
+        )?;
+
+        // 21.1.2.4 Number.isNaN ( number )
+        define_builtin_function(
+            agent,
+            object,
+            "isNaN",
+            NumberConstructor::is_nan,
+            1,
+            realm_id,
+        )?;
+
+        // 21.1.2.5 Number.isSafeInteger ( number )
+        define_builtin_function(
+            agent,
+            object,
+            "isSafeInteger",
+            NumberConstructor::is_safe_integer,
+            1,
+            realm_id,
         )?;
 
         // 21.1.2.6 Number.MAX_SAFE_INTEGER
@@ -130,6 +171,12 @@ impl Builtin for NumberConstructor {
             },
         )?;
 
+        // 21.1.2.12 Number.parseFloat ( string )
+        define_builtin_function(agent, object, "parseFloat", todo_builtin, 1, realm_id)?;
+
+        // 21.1.2.13 Number.parseInt ( string, radix )
+        define_builtin_function(agent, object, "parseInt", todo_builtin, 2, realm_id)?;
+
         // 21.1.2.14 Number.POSITIVE_INFINITY
         // https://tc39.es/ecma262/#sec-number.positive_infinity
         define_builtin_property(
@@ -143,12 +190,6 @@ impl Builtin for NumberConstructor {
                 ..Default::default()
             },
         )?;
-
-        define_builtin_function(agent, object, "isFinite", todo_builtin, 1, realm_id)?;
-        define_builtin_function(agent, object, "isNaN", todo_builtin, 1, realm_id)?;
-        define_builtin_function(agent, object, "isSafeInteger", todo_builtin, 1, realm_id)?;
-        define_builtin_function(agent, object, "parseFloat", todo_builtin, 1, realm_id)?;
-        define_builtin_function(agent, object, "parseInt", todo_builtin, 2, realm_id)?;
 
         // 21.1.2.15 Number.prototype
         // https://tc39.es/ecma262/#sec-number.prototype
@@ -223,5 +264,69 @@ impl NumberConstructor {
         // 4. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%Number.prototype%", « [[NumberData]] »).
         // 5. Set O.[[NumberData]] to n.
         // 6. Return O.
+    }
+
+    /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
+    fn is_finite(
+        agent: &mut Agent,
+        _this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let maybe_number = arguments.get(0);
+
+        // 1. If number is not a Number, return false.
+        let Ok(number) = Number::try_from(maybe_number) else {
+            return Ok(false.into());
+        };
+
+        // 2. If number is not finite, return false.
+        // 3. Otherwise, return true.
+        Ok(number.is_finite(agent).into())
+    }
+
+    /// ### [21.1.2.3 Number.isInteger ( number )](21.1.2.3 Number.isInteger ( number ))
+    fn is_integer(
+        agent: &mut Agent,
+        _this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let maybe_number = arguments.get(0);
+
+        // 1. Return IsIntegralNumber(number).
+        Ok(is_integral_number(agent, maybe_number).into())
+    }
+
+    /// ### [21.1.2.4 Number.isNaN ( number )](https://tc39.es/ecma262/#sec-number.isnan)
+    fn is_nan(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let maybe_number = arguments.get(0);
+
+        // 1. If number is not a Number, return false.
+        let Ok(number) = Number::try_from(maybe_number) else {
+            return Ok(false.into());
+        };
+
+        // 2. If number is NaN, return true.
+        // 3. Otherwise, return false.
+        Ok(number.is_nan(agent).into())
+    }
+
+    // ### [21.1.2.5 Number.isSafeInteger ( number )](21.1.2.5 Number.isSafeInteger ( number ))
+    fn is_safe_integer(
+        agent: &mut Agent,
+        _this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let maybe_number = arguments.get(0);
+
+        // 1. If IsIntegralNumber(number) is true, then
+        if is_integral_number(agent, maybe_number) {
+            // a. If abs(ℝ(number)) ≤ 2**53 - 1, return true.
+            if maybe_number.to_real(agent).unwrap() <= (2.0f64.powi(53) - 1.0) {
+                return Ok(true.into());
+            }
+        }
+
+        // 2. Return false.
+        Ok(false.into())
     }
 }
