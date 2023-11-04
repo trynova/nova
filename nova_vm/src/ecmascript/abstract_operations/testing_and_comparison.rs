@@ -66,16 +66,18 @@ pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1
 
 /// ### [7.2.6 IsIntegralNumber ( argument )](https://tc39.es/ecma262/#sec-isintegralnumber)
 pub(crate) fn is_integral_number(agent: &mut Agent, argument: impl Copy + Into<Value>) -> bool {
-    // 1. If argument is not a Number, return false.
-    let Ok(argument) = Number::try_from(argument.into()) else {
-        return false;
-    };
+    let argument = argument.into();
 
     // OPTIMIZATION: If the number is a small integer, then know that it must
     // an integral number.
-    if let Number::Integer(_) = argument {
+    if let Value::Integer(_) = argument {
         return true;
     }
+
+    // 1. If argument is not a Number, return false.
+    let Ok(argument) = Number::try_from(argument) else {
+        return false;
+    };
 
     // 2. If argument is not finite, return false.
     if !argument.is_finite(agent) {
