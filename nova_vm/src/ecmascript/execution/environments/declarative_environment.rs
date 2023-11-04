@@ -1,7 +1,7 @@
 use super::OuterEnv;
 use crate::ecmascript::{
     execution::{agent::ExceptionType, Agent, JsResult},
-    types::Value,
+    types::{Object, Value},
 };
 use oxc_span::Atom;
 use std::collections::HashMap;
@@ -285,8 +285,8 @@ impl DeclarativeEnvironment {
     ///
     /// The WithBaseObject concrete method of a Declarative Environment Record
     /// envRec takes no arguments and returns undefined.
-    pub(crate) fn with_base_object(&self) -> Value {
+    pub(crate) fn with_base_object(&self) -> Option<Object> {
         // 1. Return undefined.
-        Value::Undefined
+        None
     }
 }
