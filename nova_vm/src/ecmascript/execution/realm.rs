@@ -55,7 +55,7 @@ impl<'ctx, 'host> Realm<'ctx, 'host> {
     pub fn create(agent: &mut Agent<'ctx, 'host>) -> RealmIdentifier<'ctx, 'host> {
         // TODO: implement spec
         let realm = Self {
-            global_env: GlobalEnvironmentIndex::from_u32_index(0),
+            global_env: GlobalEnvironmentIndex::from_u32(0),
             global_object: Object::Object(ObjectIndex::from_u32_index(0)),
             host_defined: None,
             intrinsics: Intrinsics::default(),
