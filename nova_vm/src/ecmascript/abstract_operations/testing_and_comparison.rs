@@ -68,7 +68,7 @@ pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1
 pub(crate) fn is_integral_number(agent: &mut Agent, argument: impl Copy + Into<Value>) -> bool {
     let argument = argument.into();
 
-    // OPTIMIZATION: If the number is a small integer, then know that it must
+    // OPTIMIZATION: If the number is a small integer, then know that it must be
     // an integral number.
     if let Value::Integer(_) = argument {
         return true;
@@ -86,7 +86,7 @@ pub(crate) fn is_integral_number(agent: &mut Agent, argument: impl Copy + Into<V
 
     // 3. If truncate(ℝ(argument)) ≠ ℝ(argument), return false.
     // 4. Return true.
-    // NOTE: Checking if the fractional component is 0.0 is the same the
+    // NOTE: Checking if the fractional component is 0.0 is the same as the
     // specification's operation.
     argument.into_value().to_real(agent).unwrap().fract() == 0.0
 }
