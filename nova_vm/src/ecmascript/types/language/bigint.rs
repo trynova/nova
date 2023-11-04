@@ -37,7 +37,16 @@ impl BigInt {
 
         // 2. Return -x.
         match x {
-            BigInt::SmallBigInt(x) => BigInt::SmallBigInt(-x),
+            BigInt::SmallBigInt(x) => {
+                // We need to check if the negation will overflow.
+                if x.into_i64() != SmallInteger::MAX_BIGINT {
+                    BigInt::SmallBigInt(-x)
+                } else {
+                    agent.heap.create(BigIntHeapData {
+                        data: -num_bigint_dig::BigInt::from(x.into_i64()),
+                    })
+                }
+            }
             BigInt::BigInt(x_index) => {
                 let x_data = agent.heap.get(x_index);
                 agent.heap.create(BigIntHeapData {

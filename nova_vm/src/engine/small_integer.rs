@@ -48,9 +48,10 @@ impl SmallInteger {
 
 impl std::ops::Neg for SmallInteger {
     type Output = Self;
+
+    /// ## Panics
+    /// - If the negation overflows.
     fn neg(self) -> Self::Output {
-        // NOTE: This is safe because the negation of any number in the range
-        // will always be in the safe number range.
         Self::from_i64_unchecked(-self.into_i64())
     }
 }
