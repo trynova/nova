@@ -57,8 +57,8 @@ impl<'ctx, 'host> Realm<'ctx, 'host> {
         // TODO: implement spec
         let realm = Self {
             agent: agent.clone(),
-            global_env: GlobalEnvironmentIndex::from_u32(0),
-            global_object: Object::Object(ObjectIndex::from_u32(0)),
+            global_env: GlobalEnvironmentIndex::from_index(0),
+            global_object: Object::Object(ObjectIndex::from_index(0)),
             host_defined: None,
             intrinsics: Intrinsics::default(),
         };
