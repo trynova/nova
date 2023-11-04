@@ -26,13 +26,27 @@ pub struct DeclarativeEnvironment {
 #[derive(Debug)]
 struct Binding {
     value: Option<Value>,
-    // TODO: Would it be better to pack these in?
+    // TODO: Pack these into bitfields.
     strict: bool,
     mutable: bool,
     deletable: bool,
 }
 
 impl DeclarativeEnvironment {
+    /// ### [9.1.2.2 NewDeclarativeEnvironment ( E )](https://tc39.es/ecma262/#sec-newdeclarativeenvironment)
+    ///
+    /// The abstract operation NewDeclarativeEnvironment takes argument E (an
+    /// Environment Record or null) and returns a Declarative Environment Record.
+    pub(crate) fn new(outer_env: OuterEnv) -> DeclarativeEnvironment {
+        // 1. Let env be a new Declarative Environment Record containing no bindings.
+        // 2. Set env.[[OuterEnv]] to E.
+        // 3. Return env.
+        DeclarativeEnvironment {
+            outer_env,
+            bindings: HashMap::new(),
+        }
+    }
+
     /// ### \[\[OuterEnv\]\]
     ///
     /// See [OuterEnv].

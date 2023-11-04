@@ -1,5 +1,24 @@
-//! 9.1 Environment Records
-//! https://tc39.es/ecma262/#sec-environment-records
+//! ### [9.1 Environment Records](https://tc39.es/ecma262/#sec-environment-records)
+//!
+//! Environment Record is a specification type used to define the association of
+//! Identifiers to specific variables and functions, based upon the lexical
+//! nesting structure of ECMAScript code. Usually an Environment Record is
+//! associated with some specific syntactic structure of ECMAScript code such as
+//! a FunctionDeclaration, a BlockStatement, or a Catch clause of a
+//! TryStatement. Each time such code is evaluated, a new Environment Record is
+//! created to record the identifier bindings that are created by that code.
+//!
+//! Every Environment Record has an \[\[OuterEnv\]\] field, which is either null or
+//! a reference to an outer Environment Record. This is used to model the
+//! logical nesting of Environment Record values. The outer reference of an
+//! (inner) Environment Record is a reference to the Environment Record that
+//! logically surrounds the inner Environment Record. An outer Environment
+//! Record may, of course, have its own outer Environment Record. An Environment
+//! Record may serve as the outer environment for multiple inner Environment
+//! Records. For example, if a FunctionDeclaration contains two nested
+//! FunctionDeclarations then the Environment Records of each of the nested
+//! functions will have as their outer Environment Record the Environment Record
+//! of the current evaluation of the surrounding function.
 
 use std::{marker::PhantomData, num::NonZeroU32};
 
@@ -64,8 +83,14 @@ create_environment_index!(GlobalEnvironment, GlobalEnvironmentIndex);
 create_environment_index!(ObjectEnvironment, ObjectEnvironmentIndex);
 create_environment_index!(PrivateEnvironment, PrivateEnvironmentIndex);
 
-/// 9.1.1 The Environment Record Type Hierarchy
-/// https://tc39.es/ecma262/#sec-the-environment-record-type-hierarchy
+/// ### [9.1.1 The Environment Record Type Hierarchy](https://tc39.es/ecma262/#sec-the-environment-record-type-hierarchy)
+///
+/// Environment Records can be thought of as existing in a simple
+/// object-oriented hierarchy where Environment Record is an abstract class with
+/// three concrete subclasses: Declarative Environment Record, Object
+/// Environment Record, and Global Environment Record. Function Environment
+/// Records and Module Environment Records are subclasses of Declarative
+/// Environment Record.
 #[derive(Debug, Clone)]
 #[repr(u8)]
 pub enum EnvironmentIndex {
