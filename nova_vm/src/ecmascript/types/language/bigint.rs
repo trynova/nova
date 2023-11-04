@@ -68,7 +68,7 @@ impl BigInt {
             BigInt::BigInt(x_index) => {
                 let x_data = agent.heap.get(x_index);
                 agent.heap.create(BigIntHeapData {
-                    data: -&x_data.data,
+                    data: !&x_data.data,
                 })
             }
         }
