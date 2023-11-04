@@ -64,14 +64,14 @@ macro_rules! create_environment_index {
             ///
             /// ## Panics
             /// - If the value is equal to [`u32::MAX`].
-            pub(crate) const fn from_u32(value: u32) -> Self {
+            pub(crate) const fn from_index(value: u32) -> Self {
                 assert!(value != u32::MAX);
                 // SAFETY: Number is not max value and will not overflow to zero.
                 // This check is done manually to allow const context.
                 Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
             }
 
-            pub(crate) const fn into_u32(self) -> usize {
+            pub(crate) const fn into_index(self) -> usize {
                 self.0.get() as usize - 1
             }
         }
@@ -127,7 +127,7 @@ impl Environments {
         env: DeclarativeEnvironment,
     ) -> DeclarativeEnvironmentIndex {
         self.declarative.push(Some(env));
-        DeclarativeEnvironmentIndex::from_u32(self.declarative.len() as u32)
+        DeclarativeEnvironmentIndex::from_index(self.declarative.len() as u32)
     }
 
     pub(crate) fn push_function_environment(
@@ -135,7 +135,7 @@ impl Environments {
         env: FunctionEnvironment,
     ) -> FunctionEnvironmentIndex {
         self.function.push(Some(env));
-        FunctionEnvironmentIndex::from_u32(self.function.len() as u32)
+        FunctionEnvironmentIndex::from_index(self.function.len() as u32)
     }
 
     pub(crate) fn push_global_environment(
@@ -143,7 +143,7 @@ impl Environments {
         env: GlobalEnvironment,
     ) -> GlobalEnvironmentIndex {
         self.global.push(Some(env));
-        GlobalEnvironmentIndex::from_u32(self.global.len() as u32)
+        GlobalEnvironmentIndex::from_index(self.global.len() as u32)
     }
 
     pub(crate) fn push_object_environment(
@@ -151,7 +151,7 @@ impl Environments {
         env: ObjectEnvironment,
     ) -> ObjectEnvironmentIndex {
         self.object.push(Some(env));
-        ObjectEnvironmentIndex::from_u32(self.object.len() as u32)
+        ObjectEnvironmentIndex::from_index(self.object.len() as u32)
     }
 
     pub(crate) fn get_declarative_environment(
@@ -159,7 +159,7 @@ impl Environments {
         index: DeclarativeEnvironmentIndex,
     ) -> &DeclarativeEnvironment {
         self.declarative
-            .get(index.into_u32())
+            .get(index.into_index())
             .expect("DeclarativeEnvironmentIndex did not match to any vector index")
             .as_ref()
             .expect("DeclarativeEnvironmentIndex pointed to a None")
@@ -170,7 +170,7 @@ impl Environments {
         index: FunctionEnvironmentIndex,
     ) -> &FunctionEnvironment {
         self.function
-            .get(index.into_u32())
+            .get(index.into_index())
             .expect("FunctionEnvironmentIndex did not match to any vector index")
             .as_ref()
             .expect("FunctionEnvironmentIndex pointed to a None")
@@ -181,7 +181,7 @@ impl Environments {
         index: GlobalEnvironmentIndex,
     ) -> &GlobalEnvironment {
         self.global
-            .get(index.into_u32())
+            .get(index.into_index())
             .expect("GlobalEnvironmentIndex did not match to any vector index")
             .as_ref()
             .expect("GlobalEnvironmentIndex pointed to a None")
@@ -192,7 +192,7 @@ impl Environments {
         index: ObjectEnvironmentIndex,
     ) -> &ObjectEnvironment {
         self.object
-            .get(index.into_u32())
+            .get(index.into_index())
             .expect("ObjectEnvironmentIndex did not match to any vector index")
             .as_ref()
             .expect("ObjectEnvironmentIndex pointed to a None")
