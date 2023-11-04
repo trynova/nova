@@ -1,10 +1,11 @@
 use super::{DeclarativeEnvironment, OuterEnv};
 use crate::{
     ecmascript::{
+        builtins::ECMAScriptFunction,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{Object, Value},
+        types::{Function, Object, Value},
     },
-    heap::indexes::FunctionIndex,
+    heap::{indexes::FunctionIndex, GetHeapData},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -30,7 +31,7 @@ pub struct FunctionEnvironment {
     /// ### \[\[ThisValue\]\]
     ///
     /// This is the this value used for this invocation of the function.
-    this_value: Value,
+    this_value: Option<Value>,
 
     /// ### \[\[ThisBindingStatus\]\]
     ///
@@ -42,7 +43,7 @@ pub struct FunctionEnvironment {
     ///
     /// The function object whose invocation caused this Environment Record to
     /// be created.
-    function_object: FunctionIndex,
+    function_object: Function,
 
     /// ### \[\[NewTarget\]\]
     ///
@@ -54,15 +55,45 @@ pub struct FunctionEnvironment {
     /// Function Environment Records support all of the Declarative Environment
     /// Record methods listed in Table 16 and share the same specifications for
     /// all of those methods except for HasThisBinding and HasSuperBinding.
-    pub(crate) declarative_environment: DeclarativeEnvironment,
+    declarative_environment: DeclarativeEnvironment,
+}
+
+impl std::ops::Deref for FunctionEnvironment {
+    type Target = DeclarativeEnvironment;
+    fn deref(&self) -> &Self::Target {
+        &self.declarative_environment
+    }
 }
 
 impl FunctionEnvironment {
-    /// ### \[\[OuterEnv\]\]
+    /// ### [9.1.2.4 NewFunctionEnvironment ( F, newTarget )](https://tc39.es/ecma262/#sec-newfunctionenvironment)
     ///
-    /// See [OuterEnv].
-    pub(crate) fn outer_env(&self) -> OuterEnv {
-        self.declarative_environment.outer_env()
+    /// The abstract operation NewFunctionEnvironment takes arguments F (an
+    /// ECMAScript function object) and newTarget (an Object or undefined) and
+    /// returns a Function Environment Record.
+    pub(crate) fn new(
+        agent: &Agent,
+        function_object: Function,
+        new_target: Option<Object>,
+    ) -> FunctionEnvironment {
+        // 1. Let env be a new Function Environment Record containing no bindings.
+        FunctionEnvironment {
+            this_value: None,
+
+            // 2. Set env.[[FunctionObject]] to F.
+            function_object,
+
+            // 3. If F.[[ThisMode]] is LEXICAL, set env.[[ThisBindingStatus]] to LEXICAL.
+            // 4. Else, set env.[[ThisBindingStatus]] to UNINITIALIZED.
+            this_binding_status: ThisBindingStatus::Uninitialized,
+
+            // 5. Set env.[[NewTarget]] to newTarget.
+            new_target,
+
+            // 6. Set env.[[OuterEnv]] to F.[[Environment]].
+            declarative_environment: todo!(),
+        }
+        // 7. Return env.
     }
 
     /// ### [9.1.1.3.1 BindThisValue ( V )](https://tc39.es/ecma262/#sec-bindthisvalue)
@@ -82,7 +113,7 @@ impl FunctionEnvironment {
         }
 
         // 3. Set envRec.[[ThisValue]] to V.
-        self.this_value = value;
+        self.this_value = Some(value);
 
         // 4. Set envRec.[[ThisBindingStatus]] to INITIALIZED.
         self.this_binding_status = ThisBindingStatus::Initialized;
@@ -112,7 +143,7 @@ impl FunctionEnvironment {
         }
 
         // TODO: 2. If envRec.[[FunctionObject]].[[HomeObject]] is undefined, return false; otherwise, return true.
-        false
+        todo!("Finish this")
     }
 
     /// ### [9.1.1.3.5 GetSuperBase ( )](https://tc39.es/ecma262/#sec-getsuperbase)
@@ -121,8 +152,7 @@ impl FunctionEnvironment {
     /// takes no arguments and returns either a normal completion containing
     /// either an Object, null, or undefined, or a throw completion.
     pub(crate) fn get_super_base(&self) -> Value {
-        // TODO: Implement this correctly.
-        Value::Undefined
+        todo!("Finish this")
 
         // 1. Let home be envRec.[[FunctionObject]].[[HomeObject]].
         // 2. If home is undefined, return undefined.

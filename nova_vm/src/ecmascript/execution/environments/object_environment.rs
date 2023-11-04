@@ -34,3 +34,25 @@ pub struct ObjectEnvironment {
     /// See [OuterEnv].
     outer_env: OuterEnv,
 }
+
+impl ObjectEnvironment {
+    /// ### [9.1.2.3 NewObjectEnvironment ( O, W, E )](https://tc39.es/ecma262/#sec-newobjectenvironmenthttps://tc39.es/ecma262/#sec-newobjectenvironment)
+    ///
+    /// The abstract operation NewObjectEnvironment takes arguments O (an Object), W (a Boolean), and E (an Environment Record or null) and returns an Object Environment Record. It performs the following steps when called:
+    pub(crate) fn new(
+        binding_object: Object,
+        is_with_environment: bool,
+        outer_env: OuterEnv,
+    ) -> ObjectEnvironment {
+        // 1. Let env be a new Object Environment Record.
+        ObjectEnvironment {
+            // 2. Set env.[[BindingObject]] to O.
+            binding_object,
+            // 3. Set env.[[IsWithEnvironment]] to W.
+            is_with_environment,
+            // 4. Set env.[[OuterEnv]] to E.
+            outer_env,
+        }
+        // 5. Return env.
+    }
+}

@@ -98,7 +98,8 @@ impl<'ctx, 'host> Realm<'ctx, 'host> {
         self.global_object = global_object;
 
         // 5. Let newGlobalEnv be NewGlobalEnvironment(globalObj, thisValue).
-        let new_global_env = GlobalEnvironment::new(global_object, this_value);
+        let new_global_env =
+            GlobalEnvironment::new(&mut self.agent.borrow_mut(), global_object, this_value);
         // 6. Set realmRec.[[GlobalEnv]] to newGlobalEnv.
         self.global_env = self
             .agent
