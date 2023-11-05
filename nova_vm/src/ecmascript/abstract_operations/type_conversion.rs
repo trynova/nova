@@ -512,17 +512,13 @@ pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<Number> 
     let len = to_integer_or_infinity(agent, argument)?;
 
     // 2. If len ≤ 0, return +0𝔽.
-    match len {
-        Number::Integer(n) if n.into_i64() <= 0 => {
-            return Ok(0.0.into());
-        }
-        Number::Float(n) if n <= 0.0 => {
-            return Ok(0.0.into());
-        }
-        Number::Number(n) if *agent.heap.get(n) < 0.0 => {
-            return Ok(0.0.into());
-        }
-        _ => {}
+    if match len {
+        Number::Integer(n) if n.into_i64() <= 0 => true,
+        Number::Float(n) if n <= 0.0 => true,
+        Number::Number(n) if *agent.heap.get(n) <= 0.0 => true,
+        _ => false,
+    } {
+        return Ok(0.0.into());
     }
 
     // 3. Return 𝔽(min(len, 2**53 - 1)).
