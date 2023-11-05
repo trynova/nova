@@ -122,6 +122,13 @@ impl TryFrom<Value> for PropertyKey {
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
             Value::Integer(x) => Ok(PropertyKey::Integer(x)),
+            Value::Float(x) if x.fract() == 0.0 => {
+                if let Ok(x) = SmallInteger::try_from(x as i64) {
+                    Ok(PropertyKey::Integer(x))
+                } else {
+                    Err(())
+                }
+            }
             Value::SmallString(x) => Ok(PropertyKey::SmallString(x)),
             Value::String(x) => Ok(PropertyKey::String(x)),
             Value::Symbol(x) => Ok(PropertyKey::Symbol(x)),
