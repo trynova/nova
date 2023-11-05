@@ -492,14 +492,16 @@ pub(crate) fn to_object(_agent: &mut Agent, argument: Value) -> JsResult<Object>
 }
 
 /// ### [7.1.19 ToPropertyKey ( argument )](https://tc39.es/ecma262/#sec-topropertykey)
-pub(crate) fn to_property_key(agent: &mut Agent, argument: Value) -> JsResult<Value> {
+pub(crate) fn to_property_key(agent: &mut Agent, argument: Value) -> JsResult<PropertyKey> {
     // 1. Let key be ? ToPrimitive(argument, hint String).
     let key = to_primitive(agent, argument, Some(PreferredType::String))?;
 
     // 2. If Type(key) is Symbol, then
-    if key.is_symbol() {
-        // a. Return key.
-        return Ok(key);
+    //    a. Return key.
+    // NOTE: This handles Symbols and other primitives because we use niche
+    // specializations for PropertyKey (e.g. integer indexes for arrays).
+    if let Ok(property_key) = PropertyKey::try_from(key) {
+        return Ok(property_key);
     }
 
     // 3. Return ! ToString(key).
