@@ -121,13 +121,13 @@ impl WorkQueues {
             Value::Object(idx) => self.objects.push(idx),
             Value::RegExp(idx) => self.regexps.push(idx),
             Value::SmallString(_) => {}
-            Value::SmallBigInt(_) => {}
+            Value::BigIntI56(_) => {}
             // Value::StringObject(_) => todo!(),
             Value::Symbol(idx) => self.symbols.push(idx),
             // Value::SymbolObject(_) => todo!(),
             Value::Undefined => {}
-            Value::Integer(_) => {}
-            Value::Float(_) => {}
+            Value::NumberI56(_) => {}
+            Value::NumberF32(_) => {}
         }
     }
 

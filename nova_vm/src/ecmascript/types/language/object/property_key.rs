@@ -3,7 +3,7 @@ use crate::{
         execution::Agent,
         types::{
             language::value::{
-                INTEGER_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
+                NUMBER_I56_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
                 SYMBOL_DISCRIMINANT,
             },
             String, Value,
@@ -13,13 +13,13 @@ use crate::{
         indexes::{StringIndex, SymbolIndex},
         CreateHeapData, GetHeapData,
     },
-    Heap, SmallInteger, SmallString,
+    Heap, SmallString, I56,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum PropertyKey {
-    Integer(SmallInteger) = INTEGER_DISCRIMINANT,
+    NumberI56(I56) = NUMBER_I56_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
     String(StringIndex) = STRING_DISCRIMINANT,
     Symbol(SymbolIndex) = SYMBOL_DISCRIMINANT,
@@ -37,7 +37,7 @@ impl PropertyKey {
 
     pub fn is_array_index(self) -> bool {
         // TODO: string check
-        matches!(self.into_value(), Value::Integer(_))
+        matches!(self.into_value(), Value::NumberI56(_))
     }
 
     pub(self) fn is_str_eq_num(s: &str, n: i64) -> bool {
@@ -54,7 +54,7 @@ impl PropertyKey {
             (PropertyKey::SmallString(s1), PropertyKey::SmallString(s2)) => {
                 s1.as_str() == s2.as_str()
             }
-            (PropertyKey::String(s), PropertyKey::Integer(n)) => {
+            (PropertyKey::String(s), PropertyKey::NumberI56(n)) => {
                 let s = agent.heap.get(s);
 
                 let Some(s) = s.as_str() else {
@@ -63,19 +63,21 @@ impl PropertyKey {
 
                 Self::is_str_eq_num(s, n.into_i64())
             }
-            (PropertyKey::SmallString(s), PropertyKey::Integer(n)) => {
+            (PropertyKey::SmallString(s), PropertyKey::NumberI56(n)) => {
                 Self::is_str_eq_num(s.as_str(), n.into_i64())
             }
-            (PropertyKey::Integer(n1), PropertyKey::Integer(n2)) => n1.into_i64() == n2.into_i64(),
-            (PropertyKey::Integer(_), _) => y.equals(agent, self),
+            (PropertyKey::NumberI56(n1), PropertyKey::NumberI56(n2)) => {
+                n1.into_i64() == n2.into_i64()
+            }
+            (PropertyKey::NumberI56(_), _) => y.equals(agent, self),
             _ => false,
         }
     }
 }
 
-impl From<SmallInteger> for PropertyKey {
-    fn from(value: SmallInteger) -> Self {
-        PropertyKey::Integer(value)
+impl From<I56> for PropertyKey {
+    fn from(value: I56) -> Self {
+        PropertyKey::NumberI56(value)
     }
 }
 
@@ -109,7 +111,7 @@ impl From<String> for PropertyKey {
 impl From<PropertyKey> for Value {
     fn from(value: PropertyKey) -> Self {
         match value {
-            PropertyKey::Integer(x) => Value::Integer(x),
+            PropertyKey::NumberI56(x) => Value::NumberI56(x),
             PropertyKey::SmallString(x) => Value::SmallString(x),
             PropertyKey::String(x) => Value::String(x),
             PropertyKey::Symbol(x) => Value::Symbol(x),
@@ -121,7 +123,7 @@ impl TryFrom<Value> for PropertyKey {
     type Error = ();
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Integer(x) => Ok(PropertyKey::Integer(x)),
+            Value::NumberI56(x) => Ok(PropertyKey::NumberI56(x)),
             Value::SmallString(x) => Ok(PropertyKey::SmallString(x)),
             Value::String(x) => Ok(PropertyKey::String(x)),
             Value::Symbol(x) => Ok(PropertyKey::Symbol(x)),

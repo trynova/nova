@@ -295,7 +295,7 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
     /// Allocate a 64-bit floating point number onto the Agent heap
     ///
     /// SAFETY: The number being allocated must not be representable
-    /// as a SmallInteger or f32. All stack-allocated numbers must be
+    /// as a I56 or f32. All stack-allocated numbers must be
     /// inequal to any heap-allocated number.
     pub unsafe fn alloc_number(&mut self, number: f64) -> NumberIndex {
         debug_assert!(number.fract() != 0.0 || number as f32 as f64 != number);

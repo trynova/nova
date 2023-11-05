@@ -475,11 +475,11 @@ pub(crate) fn to_object(_agent: &mut Agent, argument: Value) -> JsResult<Object>
         Value::Symbol(_) => todo!("SymbolObject"),
         // Return a new Number object whose [[NumberData]] internal slot is set to argument.
         Value::Number(_) => todo!("NumberObject"),
-        Value::Integer(_) => todo!("NumberObject"),
-        Value::Float(_) => todo!("NumberObject"),
+        Value::NumberI56(_) => todo!("NumberObject"),
+        Value::NumberF32(_) => todo!("NumberObject"),
         // Return a new BigInt object whose [[BigIntData]] internal slot is set to argument.
         Value::BigInt(_) => todo!("BigIntObject"),
-        Value::SmallBigInt(_) => todo!("BigIntObject"),
+        Value::BigIntI56(_) => todo!("BigIntObject"),
         _ => Ok(Object::try_from(argument).unwrap()),
     }
 }

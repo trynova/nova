@@ -8,7 +8,7 @@ use crate::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         FunctionHeapData, PropertyDescriptor,
     },
-    SmallInteger,
+    I56,
 };
 
 pub fn initialize_number_heap(heap: &mut Heap) {
@@ -23,7 +23,7 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "isSafeInteger", 1, false),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MAX_SAFE_INTEGER"),
-            PropertyDescriptor::roh(Number::try_from(SmallInteger::MAX_NUMBER).unwrap().into()),
+            PropertyDescriptor::roh(Number::try_from(I56::MAX_NUMBER).unwrap().into()),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MAX_VALUE"),
@@ -31,7 +31,7 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MIN_SAFE_INTEGER"),
-            PropertyDescriptor::roh(Number::try_from(SmallInteger::MIN_NUMBER).unwrap().into()),
+            PropertyDescriptor::roh(Number::try_from(I56::MIN_NUMBER).unwrap().into()),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MIN_VALUE"),

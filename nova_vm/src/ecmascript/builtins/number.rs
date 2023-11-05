@@ -8,7 +8,7 @@ use crate::{
         types::{Number, Object, PropertyDescriptor, Value},
     },
     heap::CreateHeapData,
-    SmallInteger,
+    I56,
 };
 
 pub struct NumberConstructor;
@@ -52,7 +52,7 @@ impl Builtin for NumberConstructor {
             object,
             "MAX_SAFE_INTEGER",
             PropertyDescriptor {
-                value: Some(Number::from(SmallInteger::MAX_NUMBER).into()),
+                value: Some(Number::from(I56::MAX_NUMBER).into()),
                 writable: Some(false),
                 enumerable: Some(false),
                 configurable: Some(false),
@@ -80,7 +80,7 @@ impl Builtin for NumberConstructor {
             object,
             "MIN_SAFE_INTEGER",
             PropertyDescriptor {
-                value: Some(Number::from(SmallInteger::MIN_NUMBER).into()),
+                value: Some(Number::from(I56::MIN_NUMBER).into()),
                 writable: Some(false),
                 enumerable: Some(false),
                 configurable: Some(false),

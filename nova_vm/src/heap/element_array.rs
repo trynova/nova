@@ -733,7 +733,7 @@ impl ElementArrays {
             let (maybe_descriptor, maybe_value) =
                 ElementDescriptor::from_property_descriptor(value);
             let key = match key {
-                PropertyKey::Integer(data) => Value::Integer(data),
+                PropertyKey::NumberI56(data) => Value::NumberI56(data),
                 PropertyKey::SmallString(data) => Value::SmallString(data),
                 PropertyKey::String(data) => Value::String(data),
                 PropertyKey::Symbol(data) => Value::Symbol(data),

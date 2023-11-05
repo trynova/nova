@@ -14,7 +14,7 @@ use crate::{
         },
         CreateHeapData, GetHeapData,
     },
-    Heap, SmallInteger, SmallString,
+    Heap, SmallString, I56,
 };
 
 use super::{BigInt, Number};
@@ -49,13 +49,13 @@ pub enum Value {
     /// 6.1.6.1 The Number Type
     /// https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type
     Number(NumberIndex),
-    Integer(SmallInteger), // 56-bit signed integer.
-    Float(f32),
+    NumberI56(I56),
+    NumberF32(f32),
 
     /// 6.1.6.2 The BigInt Type
     /// https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type
     BigInt(BigIntIndex),
-    SmallBigInt(SmallInteger),
+    BigIntI56(I56),
 
     /// 6.1.7 The Object Type
     /// https://tc39.es/ecma262/#sec-object-type
@@ -106,13 +106,11 @@ pub(crate) const SYMBOL_DISCRIMINANT: u8 =
     value_discriminant(Value::Symbol(SymbolIndex::from_u32_index(0)));
 pub(crate) const NUMBER_DISCRIMINANT: u8 =
     value_discriminant(Value::Number(NumberIndex::from_u32_index(0)));
-pub(crate) const INTEGER_DISCRIMINANT: u8 =
-    value_discriminant(Value::Integer(SmallInteger::zero()));
-pub(crate) const FLOAT_DISCRIMINANT: u8 = value_discriminant(Value::Float(0f32));
+pub(crate) const NUMBER_I56_DISCRIMINANT: u8 = value_discriminant(Value::NumberI56(I56::zero()));
+pub(crate) const NUMBER_F32_DISCRIMINANT: u8 = value_discriminant(Value::NumberF32(0f32));
 pub(crate) const BIGINT_DISCRIMINANT: u8 =
     value_discriminant(Value::BigInt(BigIntIndex::from_u32_index(0)));
-pub(crate) const SMALL_BIGINT_DISCRIMINANT: u8 =
-    value_discriminant(Value::SmallBigInt(SmallInteger::zero()));
+pub(crate) const BIGINT_I56_DISCRIMINANT: u8 = value_discriminant(Value::BigIntI56(I56::zero()));
 pub(crate) const OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::Object(ObjectIndex::from_u32_index(0)));
 pub(crate) const ARRAY_DISCRIMINANT: u8 =
@@ -219,7 +217,7 @@ impl Value {
 
     pub fn is_bigint(self) -> bool {
         // TODO: Check for BigInt object instance.
-        matches!(self, Value::BigInt(_) | Value::SmallBigInt(_))
+        matches!(self, Value::BigInt(_) | Value::BigIntI56(_))
     }
 
     pub fn is_symbol(self) -> bool {
@@ -227,7 +225,10 @@ impl Value {
     }
 
     pub fn is_number(self) -> bool {
-        matches!(self, Value::Number(_) | Value::Float(_) | Value::Integer(_))
+        matches!(
+            self,
+            Value::Number(_) | Value::NumberF32(_) | Value::NumberI56(_)
+        )
     }
 
     pub fn is_empty_string(self) -> bool {
@@ -262,8 +263,8 @@ impl Value {
     pub fn to_real(self, agent: &mut Agent) -> JsResult<f64> {
         Ok(match self {
             Value::Number(n) => *agent.heap.get(n),
-            Value::Integer(i) => i.into_i64() as f64,
-            Value::Float(f) => f as f64,
+            Value::NumberI56(i) => i.into_i64() as f64,
+            Value::NumberF32(f) => f as f64,
             // NOTE: Converting to a number should give us a nice error message.
             _ => to_number(agent, self)?.into_f64(agent),
         })
@@ -311,14 +312,14 @@ impl From<Number> for Value {
 
 impl From<f32> for Value {
     fn from(value: f32) -> Self {
-        Value::Float(value)
+        Value::NumberF32(value)
     }
 }
 
 impl TryFrom<i64> for Value {
     type Error = ();
     fn try_from(value: i64) -> Result<Self, ()> {
-        Ok(Value::Integer(SmallInteger::try_from(value)?))
+        Ok(Value::NumberI56(I56::try_from(value)?))
     }
 }
 
@@ -326,7 +327,7 @@ macro_rules! impl_value_from_n {
     ($size: ty) => {
         impl From<$size> for Value {
             fn from(value: $size) -> Self {
-                Value::Integer(SmallInteger::from(value))
+                Value::NumberI56(I56::from(value))
             }
         }
     };

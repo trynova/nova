@@ -1,34 +1,43 @@
 mod data;
 
 use super::{
-    value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
+    value::{NUMBER_DISCRIMINANT, NUMBER_F32_DISCRIMINANT, NUMBER_I56_DISCRIMINANT},
     Value,
 };
 use crate::{
     ecmascript::execution::{Agent, JsResult},
     heap::{indexes::NumberIndex, CreateHeapData, GetHeapData},
-    SmallInteger,
+    I56,
 };
 
 pub use data::NumberHeapData;
 
-/// 6.1.6.1 The Number Type
-/// https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type
+/// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+///
+/// The Number type has exactly 18,437,736,874,454,810,627 (that is,
+/// 2\**64 - 2**53 + 3) values, representing the double-precision 64-bit format
+/// IEEE 754-2019 values as specified in the IEEE Standard for Binary
+/// Floating-Point Arithmetic, except that the 9,007,199,254,740,990 (that is,
+/// 2\**53 - 2) distinct “Not-a-Number” values of the IEEE Standard are
+/// represented in ECMAScript as a single special NaN value. (Note that the NaN
+/// value is produced by the program expression NaN.) In some implementations,
+/// external code might be able to detect a difference between various
+/// Not-a-Number values, but such behaviour is implementation-defined; to
+/// ECMAScript code, all NaN values are indistinguishable from each other.
 #[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum Number {
     Number(NumberIndex) = NUMBER_DISCRIMINANT,
-    // 56-bit signed integer.
-    Integer(SmallInteger) = INTEGER_DISCRIMINANT,
-    Float(f32) = FLOAT_DISCRIMINANT,
+    NumberI56(I56) = NUMBER_I56_DISCRIMINANT,
+    NumberF32(f32) = NUMBER_F32_DISCRIMINANT,
 }
 
 impl std::fmt::Debug for Number {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
             Number::Number(idx) => write!(f, "Number({:?})", idx),
-            Number::Integer(value) => write!(f, "{}", value.into_i64()),
-            Number::Float(value) => write!(f, "{}", value),
+            Number::NumberI56(value) => write!(f, "{}", value.into_i64()),
+            Number::NumberF32(value) => write!(f, "{}", value),
         }
     }
 }
@@ -39,30 +48,28 @@ impl From<NumberIndex> for Number {
     }
 }
 
-impl From<SmallInteger> for Number {
-    fn from(value: SmallInteger) -> Self {
-        Number::Integer(value)
+impl From<I56> for Number {
+    fn from(value: I56) -> Self {
+        Number::NumberI56(value)
     }
 }
 
 impl From<i32> for Number {
     fn from(value: i32) -> Self {
-        Number::Integer(SmallInteger::from(value))
+        Number::NumberI56(I56::from(value))
     }
 }
 
 impl From<i64> for Number {
     fn from(value: i64) -> Self {
-        let n = value
-            .min(SmallInteger::MAX_NUMBER)
-            .max(SmallInteger::MIN_NUMBER);
-        Number::Integer(SmallInteger::try_from(n).unwrap())
+        let n = value.min(I56::MAX_NUMBER).max(I56::MIN_NUMBER);
+        Number::NumberI56(I56::try_from(n).unwrap())
     }
 }
 
 impl From<f32> for Number {
     fn from(value: f32) -> Self {
-        Number::Float(value)
+        Number::NumberF32(value)
     }
 }
 
@@ -78,7 +85,7 @@ impl TryFrom<f64> for Number {
             debug_assert_eq!(value as i64 as f64, value);
             Ok(Number::try_from(value as i64).unwrap())
         } else if value as f32 as f64 == value {
-            Ok(Number::Float(value as f32))
+            Ok(Number::NumberF32(value as f32))
         } else {
             Err(())
         }
@@ -90,7 +97,7 @@ impl TryFrom<Value> for Number {
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         if matches!(
             value,
-            Value::Number(_) | Value::Integer(_) | Value::Float(_)
+            Value::Number(_) | Value::NumberI56(_) | Value::NumberF32(_)
         ) {
             // SAFETY: Sub-enum.
             Ok(unsafe { std::mem::transmute::<Value, Number>(value) })
@@ -140,56 +147,56 @@ impl Number {
     pub fn is_nan(self, agent: &mut Agent) -> bool {
         match self {
             Number::Number(n) => agent.heap.get(n).is_nan(),
-            Number::Integer(_) => false,
-            Number::Float(n) => n.is_nan(),
+            Number::NumberI56(_) => false,
+            Number::NumberF32(n) => n.is_nan(),
         }
     }
 
     pub fn is_pos_zero(self, agent: &mut Agent) -> bool {
         match self {
             Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(*agent.heap.get(n)),
-            Number::Integer(n) => 0i64 == n.into(),
-            Number::Float(n) => f32::to_bits(0.0) == f32::to_bits(n),
+            Number::NumberI56(n) => 0i64 == n.into(),
+            Number::NumberF32(n) => f32::to_bits(0.0) == f32::to_bits(n),
         }
     }
 
     pub fn is_neg_zero(self, agent: &mut Agent) -> bool {
         match self {
             Number::Number(n) => f64::to_bits(-0.0) == f64::to_bits(*agent.heap.get(n)),
-            Number::Integer(_) => false,
-            Number::Float(n) => f32::to_bits(-0.0) == f32::to_bits(n),
+            Number::NumberI56(_) => false,
+            Number::NumberF32(n) => f32::to_bits(-0.0) == f32::to_bits(n),
         }
     }
 
     pub fn is_pos_infinity(self, agent: &mut Agent) -> bool {
         match self {
             Number::Number(n) => *agent.heap.get(n) == f64::INFINITY,
-            Number::Integer(_) => false,
-            Number::Float(n) => n == f32::INFINITY,
+            Number::NumberI56(_) => false,
+            Number::NumberF32(n) => n == f32::INFINITY,
         }
     }
 
     pub fn is_neg_infinity(self, agent: &mut Agent) -> bool {
         match self {
             Number::Number(n) => *agent.heap.get(n) == f64::NEG_INFINITY,
-            Number::Integer(_) => false,
-            Number::Float(n) => n == f32::NEG_INFINITY,
+            Number::NumberI56(_) => false,
+            Number::NumberF32(n) => n == f32::NEG_INFINITY,
         }
     }
 
     pub fn is_finite(self, agent: &mut Agent) -> bool {
         match self {
             Number::Number(n) => agent.heap.get(n).is_finite(),
-            Number::Integer(_) => true,
-            Number::Float(n) => n.is_finite(),
+            Number::NumberI56(_) => true,
+            Number::NumberF32(n) => n.is_finite(),
         }
     }
 
     pub fn is_nonzero(self, agent: &mut Agent) -> bool {
         match self {
             Number::Number(n) => 0.0 != *agent.heap.get(n),
-            Number::Integer(n) => 0i64 != n.into(),
-            Number::Float(n) => 0.0 != n,
+            Number::NumberI56(n) => 0i64 != n.into(),
+            Number::NumberF32(n) => 0.0 != n,
         }
     }
 
@@ -200,24 +207,24 @@ impl Number {
                 let n = agent.heap.get(n).trunc();
                 agent.heap.create(n)
             }
-            Number::Integer(_) => self,
-            Number::Float(n) => n.trunc().into(),
+            Number::NumberI56(_) => self,
+            Number::NumberF32(n) => n.trunc().into(),
         }
     }
 
     pub fn into_f64(self, agent: &Agent) -> f64 {
         match self {
             Number::Number(n) => *agent.heap.get(n),
-            Number::Integer(n) => Into::<i64>::into(n) as f64,
-            Number::Float(n) => n as f64,
+            Number::NumberI56(n) => Into::<i64>::into(n) as f64,
+            Number::NumberF32(n) => n as f64,
         }
     }
 
     pub fn into_i64(self, agent: &Agent) -> i64 {
         match self {
             Number::Number(n) => *agent.heap.get(n) as i64,
-            Number::Integer(n) => Into::<i64>::into(n),
-            Number::Float(n) => n as i64,
+            Number::NumberI56(n) => Into::<i64>::into(n),
+            Number::NumberF32(n) => n as i64,
         }
     }
 
@@ -231,33 +238,33 @@ impl Number {
             (Number::Number(x), Number::Number(y)) => {
                 x == y || agent.heap.get(x) == agent.heap.get(y)
             }
-            (Number::Integer(x), Number::Integer(y)) => x == y,
-            (Number::Float(x), Number::Float(y)) => x == y,
-            (Number::Number(x), Number::Integer(y)) => {
+            (Number::NumberI56(x), Number::NumberI56(y)) => x == y,
+            (Number::NumberF32(x), Number::NumberF32(y)) => x == y,
+            (Number::Number(x), Number::NumberI56(y)) => {
                 // Optimisation: Integers should never be allocated into the heap as f64s.
                 debug_assert!(*agent.heap.get(x) != y.into_i64() as f64);
                 false
             }
-            (Number::Number(x), Number::Float(y)) => {
+            (Number::Number(x), Number::NumberF32(y)) => {
                 // Optimisation: f32s should never be allocated into the heap
                 debug_assert!(*agent.heap.get(x) != y as f64);
                 false
             }
-            (Number::Integer(x), Number::Number(y)) => {
+            (Number::NumberI56(x), Number::Number(y)) => {
                 // Optimisation: Integers should never be allocated into the heap as f64s.
                 debug_assert!((x.into_i64() as f64) != *agent.heap.get(y));
                 false
             }
-            (Number::Integer(x), Number::Float(y)) => {
+            (Number::NumberI56(x), Number::NumberF32(y)) => {
                 debug_assert!((x.into_i64() as f64) != y as f64);
                 false
             }
-            (Number::Float(x), Number::Number(y)) => {
+            (Number::NumberF32(x), Number::Number(y)) => {
                 // Optimisation: f32s should never be allocated into the heap
                 debug_assert!((x as f64) != *agent.heap.get(y));
                 false
             }
-            (Number::Float(x), Number::Integer(y)) => {
+            (Number::NumberF32(x), Number::NumberI56(y)) => {
                 debug_assert!((x as f64) != y.into_i64() as f64);
                 false
             }
@@ -267,8 +274,8 @@ impl Number {
     pub fn is_odd_integer(self, agent: &mut Agent) -> bool {
         match self {
             Number::Number(n) => *agent.heap.get(n) % 2.0 == 1.0,
-            Number::Integer(n) => Into::<i64>::into(n) % 2 == 1,
-            Number::Float(n) => n % 2.0 == 1.0,
+            Number::NumberI56(n) => Into::<i64>::into(n) % 2 == 1,
+            Number::NumberF32(n) => n % 2.0 == 1.0,
         }
     }
 
@@ -282,11 +289,11 @@ impl Number {
                     agent.heap.create(-n)
                 }
             }
-            Number::Integer(n) => {
+            Number::NumberI56(n) => {
                 let n = n.into_i64();
-                Number::Integer(SmallInteger::try_from(n.abs()).unwrap())
+                Number::NumberI56(I56::try_from(n.abs()).unwrap())
             }
-            Number::Float(n) => Number::Float(n.abs()),
+            Number::NumberF32(n) => Number::NumberF32(n.abs()),
         }
     }
 
@@ -306,8 +313,8 @@ impl Number {
                 let value = *agent.heap.get(n);
                 agent.heap.create(-value)
             }
-            Number::Integer(n) => SmallInteger::try_from(-n.into_i64()).unwrap().into(),
-            Number::Float(n) => (-n).into(),
+            Number::NumberI56(n) => I56::try_from(-n.into_i64()).unwrap().into(),
+            Number::NumberF32(n) => (-n).into(),
         }
     }
 
@@ -531,14 +538,14 @@ impl Number {
         // 11. If ℝ(x) < ℝ(y), return true. Otherwise, return false.
         Some(match (x, y) {
             (Number::Number(x), Number::Number(y)) => agent.heap.get(x) < agent.heap.get(y),
-            (Number::Number(x), Number::Integer(y)) => *agent.heap.get(x) < y.into_i64() as f64,
-            (Number::Number(x), Number::Float(y)) => *agent.heap.get(x) < y as f64,
-            (Number::Integer(x), Number::Number(y)) => (x.into_i64() as f64) < *agent.heap.get(y),
-            (Number::Integer(x), Number::Integer(y)) => x.into_i64() < y.into_i64(),
-            (Number::Integer(x), Number::Float(y)) => (x.into_i64() as f64) < y as f64,
-            (Number::Float(x), Number::Number(y)) => (x as f64) < *agent.heap.get(y),
-            (Number::Float(x), Number::Integer(y)) => (x as f64) < y.into_i64() as f64,
-            (Number::Float(x), Number::Float(y)) => x < y,
+            (Number::Number(x), Number::NumberI56(y)) => *agent.heap.get(x) < y.into_i64() as f64,
+            (Number::Number(x), Number::NumberF32(y)) => *agent.heap.get(x) < y as f64,
+            (Number::NumberI56(x), Number::Number(y)) => (x.into_i64() as f64) < *agent.heap.get(y),
+            (Number::NumberI56(x), Number::NumberI56(y)) => x.into_i64() < y.into_i64(),
+            (Number::NumberI56(x), Number::NumberF32(y)) => (x.into_i64() as f64) < y as f64,
+            (Number::NumberF32(x), Number::Number(y)) => (x as f64) < *agent.heap.get(y),
+            (Number::NumberF32(x), Number::NumberI56(y)) => (x as f64) < y.into_i64() as f64,
+            (Number::NumberF32(x), Number::NumberF32(y)) => x < y,
         })
     }
 

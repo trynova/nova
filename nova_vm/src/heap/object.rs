@@ -32,7 +32,9 @@ impl ObjectEntry {
         let key = PropertyKey::from_str(heap, name);
         let name = match key {
             PropertyKey::SmallString(data) => Value::SmallString(data),
-            PropertyKey::Integer(_) => unreachable!("No prototype functions should have SMI names"),
+            PropertyKey::NumberI56(_) => {
+                unreachable!("No prototype functions should have SMI names")
+            }
             PropertyKey::String(idx) => Value::String(idx),
             PropertyKey::Symbol(idx) => Value::Symbol(idx),
         };

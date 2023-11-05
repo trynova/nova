@@ -65,13 +65,13 @@ fn bigint_constructor(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResu
     //     // TODO: Throw TypeError
     //     return Err(Value::Error(ErrorIndex::from_index(0)));
     // } else {
-    //      Ok(Value::SmallBigInt(3))
+    //      Ok(Value::BigIntI56(3))
     // }
     Ok(Value::Null)
 }
 
 fn bigint_as_int_n(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    // Ok(Value::SmallBigInt(3))
+    // Ok(Value::BigIntI56(3))
     Ok(Value::Null)
 }
 

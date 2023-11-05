@@ -1,13 +1,13 @@
 mod data;
 
 use super::{
-    value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT},
+    value::{BIGINT_DISCRIMINANT, BIGINT_I56_DISCRIMINANT},
     Value,
 };
 use crate::{
     ecmascript::execution::{agent::ExceptionType, Agent, JsResult},
     heap::{indexes::BigIntIndex, CreateHeapData, GetHeapData},
-    SmallInteger,
+    I56,
 };
 
 pub use data::BigIntHeapData;
@@ -23,7 +23,7 @@ pub use data::BigIntHeapData;
 #[repr(u8)]
 pub enum BigInt {
     BigInt(BigIntIndex) = BIGINT_DISCRIMINANT,
-    SmallBigInt(SmallInteger) = SMALL_BIGINT_DISCRIMINANT,
+    BigIntI56(I56) = BIGINT_I56_DISCRIMINANT,
 }
 
 impl BigInt {
@@ -37,10 +37,10 @@ impl BigInt {
 
         // 2. Return -x.
         match x {
-            BigInt::SmallBigInt(x) => {
+            BigInt::BigIntI56(x) => {
                 // We need to check if the negation will overflow.
-                if x.into_i64() != SmallInteger::MAX_BIGINT {
-                    BigInt::SmallBigInt(-x)
+                if x.into_i64() != I56::MAX_BIGINT {
+                    BigInt::BigIntI56(-x)
                 } else {
                     agent.heap.create(BigIntHeapData {
                         data: -num_bigint_dig::BigInt::from(x.into_i64()),
@@ -64,7 +64,7 @@ impl BigInt {
         // 1. Return -x - 1ℤ.
         // NOTE: We can use the builtin bitwise not operations instead.
         match x {
-            BigInt::SmallBigInt(x) => BigInt::SmallBigInt(!x),
+            BigInt::BigIntI56(x) => BigInt::BigIntI56(!x),
             BigInt::BigInt(x_index) => {
                 let x_data = agent.heap.get(x_index);
                 agent.heap.create(BigIntHeapData {
@@ -86,7 +86,7 @@ impl BigInt {
     ) -> JsResult<BigInt> {
         // 1. If exponent < 0ℤ, throw a RangeError exception.
         if match exponent {
-            BigInt::SmallBigInt(x) if x.into_i64() < 0 => true,
+            BigInt::BigIntI56(x) if x.into_i64() < 0 => true,
             BigInt::BigInt(x) => agent.heap.get(x).data < 0.into(),
             _ => false,
         } {
@@ -109,20 +109,20 @@ impl BigInt {
     /// y (a BigInt) and returns a BigInt.
     pub(crate) fn multiply(agent: &mut Agent, x: BigInt, y: BigInt) -> BigInt {
         match (x, y) {
-            (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
+            (BigInt::BigIntI56(x), BigInt::BigIntI56(y)) => {
                 let (x, y) = (x.into_i64() as i128, y.into_i64() as i128);
                 let result = x * y;
 
-                if let Ok(result) = SmallInteger::try_from(result) {
-                    BigInt::SmallBigInt(SmallInteger::try_from(result).unwrap())
+                if let Ok(result) = I56::try_from(result) {
+                    BigInt::BigIntI56(result)
                 } else {
                     agent.heap.create(BigIntHeapData {
                         data: result.into(),
                     })
                 }
             }
-            (BigInt::SmallBigInt(x), BigInt::BigInt(y))
-            | (BigInt::BigInt(y), BigInt::SmallBigInt(x)) => {
+            (BigInt::BigIntI56(x), BigInt::BigInt(y))
+            | (BigInt::BigInt(y), BigInt::BigIntI56(x)) => {
                 let x = x.into_i64();
                 let y = agent.heap.get(y);
                 agent.heap.create(BigIntHeapData { data: x * &y.data })
@@ -143,13 +143,13 @@ impl BigInt {
     pub(crate) fn less_than(agent: &mut Agent, x: BigInt, y: BigInt) -> bool {
         // 1. If ℝ(x) < ℝ(y), return true; otherwise return false.
         match (x, y) {
-            (BigInt::BigInt(_), BigInt::SmallBigInt(_)) => false,
-            (BigInt::SmallBigInt(_), BigInt::BigInt(_)) => true,
+            (BigInt::BigInt(_), BigInt::BigIntI56(_)) => false,
+            (BigInt::BigIntI56(_), BigInt::BigInt(_)) => true,
             (BigInt::BigInt(b1), BigInt::BigInt(b2)) => {
                 let (b1, b2) = (agent.heap.get(b1), agent.heap.get(b2));
                 b1.data < b2.data
             }
-            (BigInt::SmallBigInt(b1), BigInt::SmallBigInt(b2)) => b1.into_i64() < b2.into_i64(),
+            (BigInt::BigIntI56(b1), BigInt::BigIntI56(b2)) => b1.into_i64() < b2.into_i64(),
         }
     }
 
@@ -164,7 +164,7 @@ impl BigInt {
                 let (x, y) = (agent.heap.get(x), agent.heap.get(y));
                 x.data == y.data
             }
-            (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => x == y,
+            (BigInt::BigIntI56(x), BigInt::BigIntI56(y)) => x == y,
             _ => false,
         }
     }
@@ -175,7 +175,7 @@ impl TryFrom<Value> for BigInt {
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
             Value::BigInt(x) => Ok(BigInt::BigInt(x)),
-            Value::SmallBigInt(x) => Ok(BigInt::SmallBigInt(x)),
+            Value::BigIntI56(x) => Ok(BigInt::BigIntI56(x)),
             _ => Err(()),
         }
     }
@@ -185,7 +185,7 @@ impl From<BigInt> for Value {
     fn from(value: BigInt) -> Value {
         match value {
             BigInt::BigInt(x) => Value::BigInt(x),
-            BigInt::SmallBigInt(x) => Value::SmallBigInt(x),
+            BigInt::BigIntI56(x) => Value::BigIntI56(x),
         }
     }
 }
