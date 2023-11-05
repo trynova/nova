@@ -537,7 +537,7 @@ pub(crate) fn canonical_numeric_index_string(
 ) -> Option<Number> {
     // 1. If argument is "-0", return -0𝔽.
     if argument == String::from_small_string("-0") {
-        return Some(Number::from(-0.0));
+        return Some((-0.0).into());
     }
 
     // 2. Let n be ! ToNumber(argument).
