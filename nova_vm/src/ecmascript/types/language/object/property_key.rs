@@ -125,6 +125,12 @@ impl TryFrom<Value> for PropertyKey {
             Value::SmallString(x) => Ok(PropertyKey::SmallString(x)),
             Value::String(x) => Ok(PropertyKey::String(x)),
             Value::Symbol(x) => Ok(PropertyKey::Symbol(x)),
+            Value::SmallBigInt(x)
+                if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER)
+                    .contains(&x.into_i64()) =>
+            {
+                Ok(PropertyKey::Integer(x))
+            }
             _ => Err(()),
         }
     }
