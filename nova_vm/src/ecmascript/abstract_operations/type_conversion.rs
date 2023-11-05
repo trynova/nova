@@ -559,23 +559,12 @@ pub(crate) fn to_index(agent: &mut Agent, argument: Value) -> JsResult<Number> {
 
     // 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a RangeError exception.
     let max = 2.0f64.powi(53) - 1.0;
-    match integer {
-        Number::Integer(n) if !(0..=(max as i64)).contains(&n.into_i64()) => {
-            return Err(todo!(
-                "RangeError: placeholder. implement the Error objects :)"
-            ));
-        }
-        Number::Float(n) if !(0.0f32..=(max as f32)).contains(&n) => {
-            return Err(todo!(
-                "RangeError: placeholder. implement the Error objects :)"
-            ));
-        }
-        Number::Number(n) if !(0.0f64..=max).contains(agent.heap.get(n)) => {
-            return Err(todo!(
-                "RangeError: placeholder. implement the Error objects :)"
-            ));
-        }
-        _ => {}
+    if match integer {
+        Number::Integer(n) => !(0..=(max as i64)).contains(&n.into_i64()),
+        Number::Float(n) => !(0.0f32..=(max as f32)).contains(&n),
+        Number::Number(n) => !(0.0f64..=max).contains(agent.heap.get(n)),
+    } {
+        return Err(agent.throw_exception(ExceptionType::RangeError, "Result is out of range"));
     }
 
     // 3. Return integer.
