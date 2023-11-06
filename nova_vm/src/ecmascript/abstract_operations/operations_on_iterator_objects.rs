@@ -24,9 +24,7 @@ pub(crate) fn get_iterator_from_method(
     let iterator = call(agent, method.into(), obj, None)?;
 
     // 2. If iterator is not an Object, throw a TypeError exception.
-    let iterator = if let Ok(iterator) = to_object(agent, iterator) {
-        iterator
-    } else {
+    let Ok(iterator) = to_object(agent, iterator) else {
         return Err(agent.throw_exception(ExceptionType::TypeError, "Iterator is not object"));
     };
 
