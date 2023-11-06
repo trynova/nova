@@ -1,6 +1,6 @@
 use super::{ExecutionContext, Realm, RealmIdentifier};
 use crate::{
-    ecmascript::types::{Object, Symbol, Value},
+    ecmascript::types::{Function, Object, Symbol, Value},
     Heap,
 };
 use std::collections::HashMap;
@@ -20,10 +20,9 @@ pub struct JsError {}
 // #[derive(Debug)]
 // pub struct PreAllocated;
 
-#[derive(Debug)]
-pub struct HostHooks {
-    pub host_ensure_can_compile_strings: fn(callee_realm: &mut Realm) -> JsResult<()>,
-    pub host_has_source_text_available: fn(func: Object) -> bool,
+pub trait HostHooks: std::fmt::Debug {
+    fn host_ensure_can_compile_strings(&self, callee_realm: &mut Realm) -> JsResult<()>;
+    fn host_has_source_text_available(&self, func: Function) -> bool;
 }
 
 /// 9.7 Agents
@@ -36,11 +35,23 @@ pub struct Agent<'ctx, 'host> {
     pub exception: Option<Value>,
     pub symbol_id: usize,
     pub global_symbol_registry: HashMap<&'static str, Symbol>,
-    pub host_hooks: HostHooks,
+    pub host_hooks: &'host dyn HostHooks,
     pub execution_context_stack: Vec<ExecutionContext<'ctx, 'host>>,
 }
 
 impl<'ctx, 'host> Agent<'ctx, 'host> {
+    pub fn new(options: Options, host_hooks: &'host dyn HostHooks) -> Self {
+        Self {
+            heap: Heap::new(),
+            options,
+            exception: None,
+            symbol_id: 0,
+            global_symbol_registry: HashMap::new(),
+            host_hooks,
+            execution_context_stack: Vec::new(),
+        }
+    }
+
     pub fn current_realm_id(&self) -> RealmIdentifier<'ctx, 'host> {
         self.execution_context_stack.last().unwrap().realm
     }

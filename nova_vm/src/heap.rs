@@ -242,7 +242,7 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
 
     pub(crate) fn add_realm(&mut self, realm: Realm<'ctx, 'host>) -> RealmIdentifier<'ctx, 'host> {
         self.realms.push(Some(realm));
-        RealmIdentifier::from_usize_index(self.realms.len())
+        RealmIdentifier::from_usize_index(self.realms.len() - 1)
     }
 
     pub fn get_realm(&self, id: RealmIdentifier<'ctx, 'host>) -> &Realm<'ctx, 'host> {

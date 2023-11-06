@@ -4,8 +4,8 @@ use std::{cell::RefCell, rc::Rc};
 pub mod module;
 pub mod script;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ScriptOrModule<'ctx, 'host> {
-    Script(Rc<RefCell<Script<'ctx, 'host>>>),
-    Module(Rc<RefCell<Module>>),
+    Script(Script<'ctx, 'host>),
+    Module(Module),
 }

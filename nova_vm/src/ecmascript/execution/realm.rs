@@ -53,7 +53,7 @@ pub struct Realm<'ctx, 'host> {
 
 impl<'ctx, 'host> Realm<'ctx, 'host> {
     /// 9.3.1 CreateRealm ( ), https://tc39.es/ecma262/#sec-createrealm
-    fn create(agent: &mut Agent<'ctx, 'host>) -> RealmIdentifier<'ctx, 'host> {
+    pub fn create(agent: &mut Agent<'ctx, 'host>) -> RealmIdentifier<'ctx, 'host> {
         // TODO: implement spec
         let realm = Self {
             global_env: GlobalEnvironmentIndex::from_u32_index(0),

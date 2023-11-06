@@ -1,60 +1,70 @@
 use oxc_span::Atom;
 
 use crate::ecmascript::{
-    execution::Agent,
+    execution::{Agent, JsResult},
     types::{Reference, Value},
 };
 
-use super::{Executable, IndexType, Instruction};
+use super::{Executable, IndexType, Instr, Instruction, InstructionIter};
 
 #[derive(Debug)]
-pub struct Vm<'ctx, 'host> {
-    agent: &'ctx mut Agent<'ctx, 'host>,
+pub(crate) struct Vm {
+    /// Instruction pointer.
     ip: usize,
     stack: Vec<Value>,
     reference_stack: Vec<Option<Reference>>,
     exception_jump_target_stack: Vec<usize>,
-    result: Option<Value>,
+    result: Value,
     exception: Option<Value>,
     reference: Option<Reference>,
 }
 
-impl<'ctx, 'host> Vm<'ctx, 'host> {
-    pub fn new(agent: &'ctx mut Agent<'ctx, 'host>) -> Self {
+impl Vm {
+    fn new() -> Self {
         Self {
-            agent,
             ip: 0,
             stack: Vec::with_capacity(32),
             reference_stack: Vec::new(),
             exception_jump_target_stack: Vec::new(),
-            result: None,
+            result: Value::Undefined,
             exception: None,
             reference: None,
         }
     }
 
-    fn fetch_instruction(&mut self, executable: &Executable) -> Option<Instruction> {
-        executable.instructions.get(self.ip).map(|kind| {
-            self.ip += 1;
-            *kind
-        })
+    fn fetch_constant(&self, exe: &Executable, index: usize) -> Value {
+        exe.constants[index]
     }
 
-    fn fetch_constant(&mut self, executable: &Executable) -> Value {
-        let index = self.fetch_index(executable);
-        executable.constants[index as usize]
-    }
+    /// Executes an executable using the virtual machine.
+    pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> JsResult<Value> {
+        let mut vm = Vm::new();
 
-    fn fetch_identifier(&mut self, executable: &Executable) -> Atom {
-        let index = self.fetch_index(executable);
-        executable.identifiers[index as usize].clone()
-    }
+        let mut iter = InstructionIter::new(&executable.instructions);
 
-    fn fetch_index(&mut self, executable: &Executable) -> IndexType {
-        let bytes = IndexType::from_ne_bytes([
-            self.fetch_instruction(executable).unwrap() as u8,
-            self.fetch_instruction(executable).unwrap() as u8,
-        ]);
-        bytes as IndexType
+        while let Some(instr) = iter.next() {
+            match instr.kind {
+                Instruction::LoadConstant => {
+                    let constant = vm.fetch_constant(executable, instr.args[0].unwrap() as usize);
+                    vm.stack.push(constant);
+                }
+                Instruction::Load => {
+                    vm.stack.push(vm.result);
+                }
+                Instruction::Return => {
+                    return Ok(vm.stack.pop().into());
+                }
+                Instruction::Store => {
+                    vm.result = *vm.stack.last().unwrap();
+                }
+                Instruction::StoreConstant => {
+                    let constant = vm.fetch_constant(executable, instr.args[0].unwrap() as usize);
+                    vm.result = constant;
+                }
+                other => todo!("{other:?}"),
+            }
+        }
+
+        Ok(Value::Undefined)
     }
 }

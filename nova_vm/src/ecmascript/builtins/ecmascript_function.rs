@@ -21,7 +21,7 @@ pub enum ThisMode {
 
 /// 10.2 ECMAScript Function Objects
 /// https://tc39.es/ecma262/#sec-ecmascript-function-objects
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ECMAScriptFunction<'ctx, 'host> {
     /// [[Environment]]
     pub environment: EnvironmentIndex,

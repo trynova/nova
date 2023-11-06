@@ -1,7 +1,12 @@
-use crate::ecmascript::{
-    execution::{Agent, ECMAScriptCode, EnvironmentIndex, ExecutionContext, RealmIdentifier},
-    scripts_and_modules::ScriptOrModule,
-    types::Value,
+use crate::{
+    ecmascript::{
+        execution::{
+            Agent, ECMAScriptCode, EnvironmentIndex, ExecutionContext, JsResult, RealmIdentifier,
+        },
+        scripts_and_modules::ScriptOrModule,
+        types::Value,
+    },
+    engine::{Executable, Vm},
 };
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{BindingPatternKind, Declaration, Program, Statement};
@@ -19,25 +24,21 @@ pub struct Script<'ctx, 'host> {
     pub realm: RealmIdentifier<'ctx, 'host>,
 
     /// [[ECMAScriptCode]]
-    pub ecmascript_code: Rc<Program<'host>>,
+    pub ecmascript_code: Program<'ctx>,
 
     // TODO: [[LoadedModules]]
     /// [[HostDefined]]
     pub host_defined: Option<HostDefined<'host>>,
 }
 
-#[derive(Debug)]
-pub enum ScriptOrErrors<'ctx, 'host> {
-    Script(Script<'ctx, 'host>),
-    Errors(Vec<oxc_diagnostics::Error>),
-}
+pub type ScriptOrErrors<'ctx, 'host> = Result<Script<'ctx, 'host>, Vec<oxc_diagnostics::Error>>;
 
-impl<'ctx, 'host: 'ctx> Script<'ctx, 'host> {
+impl<'ctx, 'host> Script<'ctx, 'host> {
     /// 16.1.5 ParseScript ( sourceText, realm, hostDefined )
     /// https://tc39.es/ecma262/#sec-parse-script
     pub fn parse(
-        allocator: &'host Allocator,
-        source_text: &'host str,
+        allocator: &'ctx Allocator,
+        source_text: &'ctx str,
         realm: RealmIdentifier<'ctx, 'host>,
         host_defined: Option<HostDefined<'host>>,
     ) -> ScriptOrErrors<'ctx, 'host> {
@@ -47,23 +48,22 @@ impl<'ctx, 'host: 'ctx> Script<'ctx, 'host> {
         let script = parser.parse();
 
         if !script.errors.is_empty() {
-            return ScriptOrErrors::Errors(script.errors);
+            return Err(script.errors);
         }
 
         // 3. Return Script Record {
         //      [[Realm]]: realm, [[ECMAScriptCode]]: script, [[LoadedModules]]: « », [[HostDefined]]: hostDefined
         //    }.
-        ScriptOrErrors::Script(Self {
+        Ok(Script {
             realm,
-            ecmascript_code: Rc::new(script.program),
+            ecmascript_code: script.program,
             host_defined,
         })
     }
 
     /// 16.1.6 ScriptEvaluation ( scriptRecord )
     /// https://tc39.es/ecma262/#sec-runtime-semantics-scriptevaluation
-    pub fn evaluate(self, agent: &mut Agent<'ctx, 'host>) -> Value {
-        let ecmascript_code = self.ecmascript_code.clone();
+    pub fn evaluate(self, agent: &mut Agent<'ctx, 'host>) -> JsResult<Value> {
         let realm_id = self.realm;
         let realm = agent.get_realm_mut(realm_id);
 
@@ -79,7 +79,7 @@ impl<'ctx, 'host: 'ctx> Script<'ctx, 'host> {
             realm: realm_id,
 
             // 5. Set the ScriptOrModule of scriptContext to scriptRecord.
-            script_or_module: Some(ScriptOrModule::Script(Rc::new(RefCell::new(self)))),
+            script_or_module: Some(ScriptOrModule::Script(self)),
 
             ecmascript_code: Some(ECMAScriptCode {
                 // 6. Set the VariableEnvironment of scriptContext to globalEnv.
@@ -99,7 +99,20 @@ impl<'ctx, 'host: 'ctx> Script<'ctx, 'host> {
         agent.execution_context_stack.push(script_context);
 
         // 11. Let script be scriptRecord.[[ECMAScriptCode]].
-        let script = ecmascript_code.as_ref();
+        let ScriptOrModule::Script(Script {
+            ecmascript_code: script,
+            ..
+        }) = &agent
+            .execution_context_stack
+            .last()
+            .as_ref()
+            .unwrap()
+            .script_or_module
+            .as_ref()
+            .unwrap()
+        else {
+            unreachable!();
+        };
 
         // TODO: 12. Let result be Completion(GlobalDeclarationInstantiation(script, globalEnv)).
         // NOTE: This is totally ad-hoc for now.
@@ -130,17 +143,59 @@ impl<'ctx, 'host: 'ctx> Script<'ctx, 'host> {
         //     a. Set result to Completion(Evaluation of script).
         //     b. If result.[[Type]] is normal and result.[[Value]] is empty, then
         //         i. Set result to NormalCompletion(undefined).
+        // TODO: Follow these steps exactly.
+
+        let exe = Executable::compile(&mut agent.heap, &script.body);
+        let result = Vm::execute(agent, &exe)?;
 
         // 14. Suspend scriptContext and remove it from the execution context stack.
         _ = agent.execution_context_stack.pop();
 
-        // 15. Assert: The execution context stack is not empty.
-        debug_assert!(!agent.execution_context_stack.is_empty());
+        // TODO: 15. Assert: The execution context stack is not empty.
+        // debug_assert!(!agent.execution_context_stack.is_empty());
 
         // TODO: 16. Resume the context that is now on the top of the execution context stack as the
         //     running execution context.
 
         // 17. Return ? result.
-        todo!()
+        Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::Script;
+    use crate::ecmascript::{
+        execution::{agent::Options, Agent, DefaultHostHooks, Realm},
+        types::Value,
+    };
+    use oxc_allocator::Allocator;
+
+    #[test]
+    fn empty_script() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = Realm::create(&mut agent);
+
+        let script = Script::parse(&allocator, "", realm, None).unwrap();
+
+        let result = script.evaluate(&mut agent).unwrap();
+
+        assert_eq!(result, Value::Undefined);
+    }
+
+    #[test]
+    fn basic_constants() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = Realm::create(&mut agent);
+
+        let script = Script::parse(&allocator, "true", realm, None).unwrap();
+
+        let result = script.evaluate(&mut agent).unwrap();
+
+        assert_eq!(result, true.into());
     }
 }

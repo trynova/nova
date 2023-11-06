@@ -150,19 +150,19 @@ impl Instruction {
 }
 
 #[derive(Debug)]
-pub struct Instr {
+pub(crate) struct Instr {
     pub kind: Instruction,
     pub args: [Option<IndexType>; 2],
 }
 
 #[derive(Debug)]
-pub struct InstructionIter<'a> {
-    instructions: &'a [Instruction],
+pub(crate) struct InstructionIter<'a> {
+    instructions: &'a [u8],
     index: usize,
 }
 
 impl<'a> InstructionIter<'a> {
-    pub fn new(instructions: &'a [Instruction]) -> Self {
+    pub(crate) fn new(instructions: &'a [u8]) -> Self {
         Self {
             instructions,
             index: 0,
@@ -178,7 +178,7 @@ impl Iterator for InstructionIter<'_> {
             return None;
         }
 
-        let kind = self.instructions[self.index];
+        let kind: Instruction = unsafe { std::mem::transmute(self.instructions[self.index]) };
         self.index += 1;
 
         let mut args: [Option<IndexType>; 2] = [None, None];
