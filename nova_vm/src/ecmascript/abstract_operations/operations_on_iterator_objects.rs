@@ -257,7 +257,7 @@ pub(crate) fn create_iter_result_object(agent: &mut Agent, value: Value, done: b
 /// of ECMAScript language values) and returns an Iterator Record. It creates
 /// an Iterator (27.1.1.2) object record whose next method returns the
 /// successive elements of list.
-pub(crate) fn create_list_iterator_record(agent: &mut Agent, list: Vec<Value>) -> JsResult<Value> {
+pub(crate) fn create_list_iterator_record(agent: &mut Agent, list: &[Value]) -> JsResult<Value> {
     // 1. Let closure be a new Abstract Closure with no parameters that captures list and performs the following steps when called:
     // a. For each element E of list, do
     // i. Perform ? GeneratorYield(CreateIterResultObject(E, false)).
