@@ -180,7 +180,7 @@ pub(crate) fn iterator_step(agent: &mut Agent, iterator_record: Object) -> JsRes
 pub(crate) fn iterator_close(
     agent: &mut Agent,
     iterator_record: Object,
-    completion: Value,
+    completion: JsResult<Value>,
 ) -> JsResult<Value> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
@@ -201,7 +201,7 @@ pub(crate) fn iterator_close(
 /// IfAbruptCloseIterator is a shorthand for a sequence of algorithm steps that use an Iterator Record.
 pub(crate) fn if_abrupt_close_iterator(
     agent: &mut Agent,
-    value: Value,
+    value: JsResult<Value>,
     iterator_record: Object,
 ) -> JsResult<Value> {
     // 1. Assert: value is a Completion Record.
@@ -220,7 +220,7 @@ pub(crate) fn if_abrupt_close_iterator(
 pub(crate) fn async_iterator_close(
     agent: &mut Agent,
     iterator_record: Object,
-    completion: Value,
+    completion: JsResult<Value>,
 ) -> JsResult<Value> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
