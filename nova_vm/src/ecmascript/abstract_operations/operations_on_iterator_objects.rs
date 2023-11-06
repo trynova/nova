@@ -4,9 +4,16 @@ use super::{
     operations_on_objects::{call, get},
     type_conversion::{to_boolean, to_object},
 };
-use crate::ecmascript::{
-    execution::{agent::ExceptionType, Agent, JsResult},
-    types::{Function, Object, PropertyKey, Value},
+use crate::{
+    ecmascript::{
+        abstract_operations::operations_on_objects::get_method,
+        execution::{
+            agent::{ExceptionType, JsError},
+            Agent, JsResult,
+        },
+        types::{Function, Object, OrdinaryObject, PropertyKey, Value},
+    },
+    heap::WellKnownSymbolIndexes,
 };
 
 /// [7.4.2 GetIteratorFromMethod ( obj, method )](https://tc39.es/ecma262/#sec-getiteratorfrommethod)
@@ -44,17 +51,57 @@ pub(crate) fn get_iterator_from_method(
 /// completion containing an Iterator Record or a throw completion.
 pub(crate) fn get_iterator(agent: &mut Agent, obj: Value, is_async: bool) -> JsResult<Object> {
     // 1. If kind is async, then
-    // a. Let method be ? GetMethod(obj, @@asyncIterator).
-    // b. If method is undefined, then
-    // i. Let syncMethod be ? GetMethod(obj, @@iterator).
-    // ii. If syncMethod is undefined, throw a TypeError exception.
-    // iii. Let syncIteratorRecord be ? GetIteratorFromMethod(obj, syncMethod).
-    // iv. Return CreateAsyncFromSyncIterator(syncIteratorRecord).
-    // 2. Else,
-    // a. Let method be ? GetMethod(obj, @@iterator).
-    // 3. If method is undefined, throw a TypeError exception.
+    let method = if is_async {
+        // a. Let method be ? GetMethod(obj, @@asyncIterator).
+        let method = get_method(
+            agent,
+            obj,
+            PropertyKey::Symbol(WellKnownSymbolIndexes::AsyncIterator.into()),
+        )?;
+
+        // b. If method is undefined, then
+        if method.is_none() {
+            // i. Let syncMethod be ? GetMethod(obj, @@iterator).
+            let Some(sync_method) = get_method(
+                agent,
+                obj,
+                PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+            )?
+            else {
+                // ii. If syncMethod is undefined, throw a TypeError exception.
+                return Err(
+                    agent.throw_exception(ExceptionType::TypeError, "No iterator on object")
+                );
+            };
+
+            // iii. Let syncIteratorRecord be ? GetIteratorFromMethod(obj, syncMethod).
+            let sync_iterator_record = get_iterator_from_method(agent, obj, sync_method)?;
+
+            // iv. Return CreateAsyncFromSyncIterator(syncIteratorRecord).
+            todo!("Implement create_async_from_sync_iterator(sync_iterator_record)")
+        } else {
+            method
+        }
+    } else {
+        // 2. Else,
+        // a. Let method be ? GetMethod(obj, @@iterator).
+        get_method(
+            agent,
+            obj,
+            PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+        )?
+    };
+
     // 4. Return ? GetIteratorFromMethod(obj, method).
-    todo!()
+    if let Some(method) = method {
+        get_iterator_from_method(agent, obj, method)
+    } else {
+        // 3. If method is undefined, throw a TypeError exception.
+        Err(agent.throw_exception(
+            ExceptionType::TypeError,
+            "Iterator method cannot be undefined",
+        ))
+    }
 }
 
 /// [7.4.4 IteratorNext ( iteratorRecord [ , value ] )](https://tc39.es/ecma262/#sec-iteratornext)
@@ -227,12 +274,29 @@ pub(crate) fn create_list_iterator_record(agent: &mut Agent, list: Vec<Value>) -
 /// of ECMAScript language values or a throw completion.
 pub(crate) fn iterator_to_list(agent: &mut Agent, iterator_record: Object) -> JsResult<Vec<Value>> {
     // 1. Let values be a new empty List.
+    let mut values = Vec::new();
+
     // 2. Let next be true.
+    let mut next = Value::Boolean(true);
+
     // 3. Repeat, while next is not false,
-    // a. Set next to ? IteratorStep(iteratorRecord).
-    // b. If next is not false, then
-    // i. Let nextValue be ? IteratorValue(next).
-    // ii. Append nextValue to values.
+    while next.is_true() {
+        // a. Set next to ? IteratorStep(iteratorRecord).
+        next = iterator_step(agent, iterator_record)?;
+
+        // b. If next is not false, then
+        if !next.is_false() {
+            // SAFETY: Because iterator_step returns either false or an object this is always safe.
+            let next = unsafe { next.try_into().unwrap_unchecked() };
+
+            // i. Let nextValue be ? IteratorValue(next).
+            let next_value = iterator_value(agent, next)?;
+
+            // ii. Append nextValue to values.
+            values.push(next_value);
+        }
+    }
+
     // 4. Return values.
-    todo!()
+    Ok(values)
 }
