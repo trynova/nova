@@ -319,14 +319,9 @@ impl NumberConstructor {
         let maybe_number = arguments.get(0);
 
         // 1. If IsIntegralNumber(number) is true, then
-        if is_integral_number(agent, maybe_number) {
-            // a. If abs(ℝ(number)) ≤ 2**53 - 1, return true.
-            if maybe_number.to_real(agent).unwrap() <= (2.0f64.powi(53) - 1.0) {
-                return Ok(true.into());
-            }
-        }
-
+        //    a. If abs(ℝ(number)) ≤ 2**53 - 1, return true.
         // 2. Return false.
-        Ok(false.into())
+        // NOTE: Integers must be stored in `Value::Integer`.
+        Ok(matches!(maybe_number, Value::Integer(_)).into())
     }
 }
