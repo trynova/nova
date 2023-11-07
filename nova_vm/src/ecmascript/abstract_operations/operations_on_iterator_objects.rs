@@ -314,9 +314,9 @@ pub(crate) fn iterator_to_list(
 
     // 2. Let next be true.
     // 3. Repeat, while next is not false,
+    // a. Set next to ? IteratorStep(iteratorRecord).
+    // b. If next is not false, then
     while let Some(next) = iterator_step(agent, iterator_record)? {
-        // a. Set next to ? IteratorStep(iteratorRecord).
-        // b. If next is not false, then
         // i. Let nextValue be ? IteratorValue(next).
         // ii. Append nextValue to values.
         values.push(iterator_value(agent, next)?);
