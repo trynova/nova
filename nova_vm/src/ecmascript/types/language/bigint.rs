@@ -43,7 +43,7 @@ impl BigInt {
                     BigInt::SmallBigInt(-x)
                 } else {
                     agent.heap.create(BigIntHeapData {
-                        data: -num_bigint_dig::BigInt::from(x.into_i64()),
+                        data: -num_bigint::BigInt::from(x.into_i64()),
                     })
                 }
             }
