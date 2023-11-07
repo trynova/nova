@@ -1,11 +1,11 @@
+use oxc_syntax::operator::BinaryOperator;
+
 use super::IndexType;
 
 #[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-#[non_exhaustive]
 pub enum Instruction {
     /// Store ApplyStringOrNumericBinaryOperator() as the result value.
-    ApplyStringOrNumericBinaryOperator,
+    ApplyStringOrNumericBinaryOperator(BinaryOperator),
     /// Store ArrayCreate(0) as the result value.
     ArrayCreate,
     /// Set an array's value at the given index.
@@ -112,8 +112,7 @@ impl Instruction {
             | Self::EvaluatePropertyAccessWithIdentifierKey
             | Self::JumpConditional
             | Self::ResolveBinding => 2,
-            Self::ApplyStringOrNumericBinaryOperator
-            | Self::ArraySetLength
+            Self::ArraySetLength
             | Self::ArraySetValue
             | Self::CreateCatchBinding
             | Self::EvaluateNew

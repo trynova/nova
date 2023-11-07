@@ -198,4 +198,32 @@ mod test {
 
         assert_eq!(result, true.into());
     }
+
+    #[test]
+    fn unary_minus() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = Realm::create(&mut agent);
+
+        let script = Script::parse(&allocator, "-2", realm, None).unwrap();
+
+        let result = script.evaluate(&mut agent).unwrap();
+
+        assert_eq!(result, (-2).into());
+    }
+
+    #[test]
+    fn binary_add() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = Realm::create(&mut agent);
+
+        let script = Script::parse(&allocator, "2 + 2 + 6", realm, None).unwrap();
+
+        let result = script.evaluate(&mut agent).unwrap();
+
+        assert_eq!(result, (10).into());
+    }
 }

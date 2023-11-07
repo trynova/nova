@@ -1,12 +1,12 @@
 use super::Instruction;
 use crate::{
-    ecmascript::{execution::ExecutionContext, types::Value},
+    ecmascript::types::{BigIntHeapData, Value},
     heap::CreateHeapData,
     Heap,
 };
 use oxc_ast::ast;
 use oxc_span::Atom;
-use std::marker::PhantomData;
+use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 
 pub type IndexType = u16;
 
@@ -46,6 +46,7 @@ impl Executable {
             stmt.compile(&mut ctx);
         }
 
+        // TODO: Remove this and find another way to test.
         if let Some(last) = body.last() {
             last.compile(&mut ctx);
             ctx.exe.add_instruction(Instruction::Return);
@@ -55,7 +56,8 @@ impl Executable {
     }
 
     fn add_instruction(&mut self, instruction: Instruction) {
-        self.instructions.push(instruction as u8);
+        self.instructions
+            .push(unsafe { std::mem::transmute(instruction) });
     }
 
     fn add_constant(&mut self, constant: Value) -> usize {
@@ -123,14 +125,80 @@ impl Compile for ast::NumberLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let constant = ctx.heap.create(self.value);
         ctx.exe
-            .add_instruction_with_constant(Instruction::LoadConstant, constant);
+            .add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
 }
 
 impl Compile for ast::BooleanLiteral {
     fn compile(&self, ctx: &mut CompileContext) {
         ctx.exe
-            .add_instruction_with_constant(Instruction::LoadConstant, self.value);
+            .add_instruction_with_constant(Instruction::StoreConstant, self.value);
+    }
+}
+
+impl Compile for ast::BigintLiteral {
+    fn compile(&self, ctx: &mut CompileContext) {
+        let constant = ctx.heap.create(BigIntHeapData {
+            data: self.value.clone(),
+        });
+        ctx.exe
+            .add_instruction_with_constant(Instruction::StoreConstant, constant);
+    }
+}
+
+impl Compile for ast::UnaryExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        match self.operator {
+            // 13.5.5.1 Runtime Semantics: Evaluation
+            // https://tc39.es/ecma262/#sec-unary-minus-operator-runtime-semantics-evaluation
+            // UnaryExpression : - UnaryExpression
+            UnaryOperator::UnaryNegation => {
+                // 1. Let expr be ? Evaluation of UnaryExpression.
+                self.argument.compile(ctx);
+
+                // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
+                // TODO: Implement GetValue
+                ctx.exe.add_instruction(Instruction::ToNumeric);
+
+                // 3. If oldValue is a Number, then
+                //     a. Return Number::unaryMinus(oldValue).
+                // 4. Else,
+                //     a. Assert: oldValue is a BigInt.
+                //     b. Return BigInt::unaryMinus(oldValue).
+                ctx.exe.add_instruction(Instruction::UnaryMinus);
+            }
+            other => todo!("{other:?}"),
+        }
+    }
+}
+
+impl Compile for ast::BinaryExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        // 1. Let lref be ? Evaluation of leftOperand.
+        self.left.compile(ctx);
+
+        // 2. Let lval be ? GetValue(lref).
+        // TODO: Implement GetValue
+        ctx.exe.add_instruction(Instruction::Load);
+
+        // 3. Let rref be ? Evaluation of rightOperand.
+        self.right.compile(ctx);
+
+        // 4. Let rval be ? GetValue(rref).
+        // TODO: Implement GetValue
+        ctx.exe.add_instruction(Instruction::Load);
+
+        // 5. Return ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
+        ctx.exe
+            .add_instruction(Instruction::ApplyStringOrNumericBinaryOperator(
+                self.operator,
+            ));
+    }
+}
+
+impl Compile for ast::ParenthesizedExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        self.expression.compile(ctx);
     }
 }
 
@@ -139,6 +207,10 @@ impl Compile for ast::Expression<'_> {
         match self {
             ast::Expression::NumberLiteral(x) => x.compile(ctx),
             ast::Expression::BooleanLiteral(x) => x.compile(ctx),
+            ast::Expression::BigintLiteral(x) => x.compile(ctx),
+            ast::Expression::UnaryExpression(x) => x.compile(ctx),
+            ast::Expression::BinaryExpression(x) => x.compile(ctx),
+            ast::Expression::ParenthesizedExpression(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }
