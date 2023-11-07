@@ -26,7 +26,7 @@ impl<'ctx, 'host> RealmIdentifier<'ctx, 'host> {
     }
 
     pub const fn into_index(self) -> usize {
-        self.0 as usize
+        self.0 as usize - 1
     }
 }
 
