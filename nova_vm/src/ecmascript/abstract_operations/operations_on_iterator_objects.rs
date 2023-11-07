@@ -7,14 +7,22 @@ use super::{
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get_method,
-        execution::{
-            agent::{ExceptionType, JsError},
-            Agent, JsResult,
-        },
-        types::{Function, Object, OrdinaryObject, PropertyKey, Value},
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{Function, Object, PropertyKey, String, Value},
     },
     heap::WellKnownSymbolIndexes,
 };
+
+/// [7.4.1 Iterator Records](https://tc39.es/ecma262/#sec-iterator-records)
+///
+/// An Iterator Record is a Record value used to encapsulate an Iterator or
+/// AsyncIterator along with the next method.
+#[derive(Debug)]
+pub(crate) struct IteratorRecord {
+    iterator: Object,
+    next_method: Value,
+    done: bool,
+}
 
 /// [7.4.2 GetIteratorFromMethod ( obj, method )](https://tc39.es/ecma262/#sec-getiteratorfrommethod)
 ///
@@ -26,7 +34,7 @@ pub(crate) fn get_iterator_from_method(
     agent: &mut Agent,
     obj: Value,
     method: Function,
-) -> JsResult<Object> {
+) -> JsResult<IteratorRecord> {
     // 1. Let iterator be ? Call(method, obj).
     let iterator = call(agent, method.into(), obj, None)?;
 
@@ -36,12 +44,15 @@ pub(crate) fn get_iterator_from_method(
     };
 
     // 3. Let nextMethod be ? Get(iterator, "next").
-    let property = PropertyKey::from_str(&mut agent.heap, "next");
-    let next_method = get(agent, iterator, property)?;
+    let next_method = get(agent, iterator, String::from_small_string("next").into())?;
 
     // 4. Let iteratorRecord be the Iterator Record { [[Iterator]]: iterator, [[NextMethod]]: nextMethod, [[Done]]: false }.
     // 5. Return iteratorRecord.
-    todo!()
+    Ok(IteratorRecord {
+        iterator,
+        next_method,
+        done: false,
+    })
 }
 
 /// [7.4.3 GetIterator ( obj, kind )](https://tc39.es/ecma262/#sec-getiterator)
@@ -49,7 +60,11 @@ pub(crate) fn get_iterator_from_method(
 /// The abstract operation GetIterator takes arguments obj (an ECMAScript
 /// language value) and kind (sync or async) and returns either a normal
 /// completion containing an Iterator Record or a throw completion.
-pub(crate) fn get_iterator(agent: &mut Agent, obj: Value, is_async: bool) -> JsResult<Object> {
+pub(crate) fn get_iterator(
+    agent: &mut Agent,
+    obj: Value,
+    is_async: bool,
+) -> JsResult<IteratorRecord> {
     // 1. If kind is async, then
     let method = if is_async {
         // a. Let method be ? GetMethod(obj, @@asyncIterator).
@@ -94,10 +109,10 @@ pub(crate) fn get_iterator(agent: &mut Agent, obj: Value, is_async: bool) -> JsR
 
     // 3. If method is undefined, throw a TypeError exception.
     let Some(method) = method else {
-        Err(agent.throw_exception(
+        return Err(agent.throw_exception(
             ExceptionType::TypeError,
             "Iterator method cannot be undefined",
-        ))
+        ));
     };
 
     // 4. Return ? GetIteratorFromMethod(obj, method).
@@ -112,16 +127,26 @@ pub(crate) fn get_iterator(agent: &mut Agent, obj: Value, is_async: bool) -> JsR
 /// completion.
 pub(crate) fn iterator_next(
     agent: &mut Agent,
-    iterator_record: Object,
+    iterator_record: &IteratorRecord,
     value: Option<Value>,
 ) -> JsResult<Object> {
     // 1. If value is not present, then
     // a. Let result be ? Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]]).
     // 2. Else,
     // a. Let result be ? Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]], « value »).
+    let result = call(
+        agent,
+        iterator_record.next_method,
+        iterator_record.iterator.into(),
+        value.as_ref().map(|v| std::slice::from_ref(v)),
+    )?;
+
     // 3. If result is not an Object, throw a TypeError exception.
     // 4. Return result.
-    todo!()
+    result.try_into().or(Err(agent.throw_exception(
+        ExceptionType::TypeError,
+        "The iterator result was not an object",
+    )))
 }
 
 /// [7.4.5 IteratorComplete ( iterResult )](https://tc39.es/ecma262/#sec-iteratorcomplete)
@@ -131,8 +156,7 @@ pub(crate) fn iterator_next(
 /// throw completion.
 pub(crate) fn iterator_complete(agent: &mut Agent, iter_result: Object) -> JsResult<Value> {
     // 1. Return ToBoolean(? Get(iterResult, "done")).
-    let property = PropertyKey::from_str(&mut agent.heap, "done");
-    let done = get(agent, iter_result, property)?;
+    let done = get(agent, iter_result, String::from_small_string("done").into())?;
     to_boolean(agent, done)
 }
 
@@ -143,8 +167,11 @@ pub(crate) fn iterator_complete(agent: &mut Agent, iter_result: Object) -> JsRes
 /// language value or a throw completion.
 pub(crate) fn iterator_value(agent: &mut Agent, iter_result: Object) -> JsResult<Value> {
     // 1. Return ? Get(iterResult, "value").
-    let property = PropertyKey::from_str(&mut agent.heap, "value");
-    get(agent, iter_result, property)
+    get(
+        agent,
+        iter_result,
+        String::from_small_string("value").into(),
+    )
 }
 
 /// [7.4.7 IteratorStep ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstep)
@@ -155,7 +182,13 @@ pub(crate) fn iterator_value(agent: &mut Agent, iter_result: Object) -> JsResult
 /// iteratorRecord.\[\[Iterator\]\] by calling iteratorRecord.\[\[NextMethod\]\]
 /// and returns either false indicating that the iterator has reached its end
 /// or the IteratorResult object if a next value is available.
-pub(crate) fn iterator_step(agent: &mut Agent, iterator_record: Object) -> JsResult<Value> {
+///
+/// > NOTE: Instead of returning the boolean value false we return an Option where
+/// > the false state is None. That way we can pass the Object as is.
+pub(crate) fn iterator_step(
+    agent: &mut Agent,
+    iterator_record: &IteratorRecord,
+) -> JsResult<Option<Object>> {
     // 1. Let result be ? IteratorNext(iteratorRecord).
     let result = iterator_next(agent, iterator_record, None)?;
 
@@ -164,11 +197,11 @@ pub(crate) fn iterator_step(agent: &mut Agent, iterator_record: Object) -> JsRes
 
     // 3. If done is true, return false.
     if done.is_true() {
-        return Ok(Value::Boolean(false));
+        return Ok(None);
     }
 
     // 4. Return result.
-    Ok(result.into())
+    Ok(Some(result))
 }
 
 /// [7.4.8 IteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-iteratorclose)
@@ -179,7 +212,7 @@ pub(crate) fn iterator_step(agent: &mut Agent, iterator_record: Object) -> JsRes
 /// any actions it would normally perform when it has reached its completed state.
 pub(crate) fn iterator_close(
     agent: &mut Agent,
-    iterator_record: Object,
+    iterator_record: &IteratorRecord,
     completion: JsResult<Value>,
 ) -> JsResult<Value> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
@@ -202,7 +235,7 @@ pub(crate) fn iterator_close(
 pub(crate) fn if_abrupt_close_iterator(
     agent: &mut Agent,
     value: JsResult<Value>,
-    iterator_record: Object,
+    iterator_record: &IteratorRecord,
 ) -> JsResult<Value> {
     // 1. Assert: value is a Completion Record.
     // 2. If value is an abrupt completion, return ? IteratorClose(iteratorRecord, value).
@@ -219,7 +252,7 @@ pub(crate) fn if_abrupt_close_iterator(
 /// completed state.
 pub(crate) fn async_iterator_close(
     agent: &mut Agent,
-    iterator_record: Object,
+    iterator_record: &IteratorRecord,
     completion: JsResult<Value>,
 ) -> JsResult<Value> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
@@ -272,29 +305,21 @@ pub(crate) fn create_list_iterator_record(agent: &mut Agent, list: &[Value]) -> 
 /// The abstract operation IteratorToList takes argument iteratorRecord (an
 /// Iterator Record) and returns either a normal completion containing a List
 /// of ECMAScript language values or a throw completion.
-pub(crate) fn iterator_to_list(agent: &mut Agent, iterator_record: Object) -> JsResult<Vec<Value>> {
+pub(crate) fn iterator_to_list(
+    agent: &mut Agent,
+    iterator_record: &IteratorRecord,
+) -> JsResult<Vec<Value>> {
     // 1. Let values be a new empty List.
     let mut values = Vec::new();
 
     // 2. Let next be true.
-    let mut next = Value::Boolean(true);
-
     // 3. Repeat, while next is not false,
-    while next.is_true() {
+    while let Some(next) = iterator_step(agent, iterator_record)? {
         // a. Set next to ? IteratorStep(iteratorRecord).
-        next = iterator_step(agent, iterator_record)?;
-
         // b. If next is not false, then
-        if !next.is_false() {
-            // SAFETY: Because iterator_step returns either false or an object this is always safe.
-            let next = unsafe { next.try_into().unwrap_unchecked() };
-
-            // i. Let nextValue be ? IteratorValue(next).
-            let next_value = iterator_value(agent, next)?;
-
-            // ii. Append nextValue to values.
-            values.push(next_value);
-        }
+        // i. Let nextValue be ? IteratorValue(next).
+        // ii. Append nextValue to values.
+        values.push(iterator_value(agent, next)?);
     }
 
     // 4. Return values.
