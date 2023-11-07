@@ -92,16 +92,16 @@ pub(crate) fn get_iterator(agent: &mut Agent, obj: Value, is_async: bool) -> JsR
         )?
     };
 
-    // 4. Return ? GetIteratorFromMethod(obj, method).
-    if let Some(method) = method {
-        get_iterator_from_method(agent, obj, method)
-    } else {
-        // 3. If method is undefined, throw a TypeError exception.
+    // 3. If method is undefined, throw a TypeError exception.
+    let Some(method) = method else {
         Err(agent.throw_exception(
             ExceptionType::TypeError,
             "Iterator method cannot be undefined",
         ))
-    }
+    };
+
+    // 4. Return ? GetIteratorFromMethod(obj, method).
+    get_iterator_from_method(agent, obj, method)
 }
 
 /// [7.4.4 IteratorNext ( iteratorRecord [ , value ] )](https://tc39.es/ecma262/#sec-iteratornext)
