@@ -17,7 +17,7 @@ use crate::{
 ///
 /// An Iterator Record is a Record value used to encapsulate an Iterator or
 /// AsyncIterator along with the next method.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct IteratorRecord {
     iterator: Object,
     next_method: Value,
