@@ -117,7 +117,7 @@ pub(crate) fn resolve_binding(
     // 3. If the source text matched by the syntactic production that is being
     //    evaluated is contained in strict mode code, let strict be true; else
     //    let strict be false.
-    // TODO: Implment correctly.
+    // TODO: Implement correctly.
     let strict = false;
 
     // 4. Return ? GetIdentifierReference(env, name, strict).
