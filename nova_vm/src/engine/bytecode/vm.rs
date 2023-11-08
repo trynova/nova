@@ -94,7 +94,21 @@ impl Vm {
                     vm.result = constant;
                 }
                 Instruction::UnaryMinus => {
-                    vm.result = Number::unary_minus(vm.result.try_into().unwrap(), agent).into();
+                    let old_value = vm.result;
+
+                    // 3. If oldValue is a Number, then
+                    if let Ok(old_value) = Number::try_from(old_value) {
+                        // a. Return Number::unaryMinus(oldValue).
+                        vm.result = Number::unary_minus(old_value, agent).into();
+                    }
+                    // 4. Else,
+                    else {
+                        // a. Assert: oldValue is a BigInt.
+                        let old_value = BigInt::try_from(old_value).unwrap();
+
+                        // b. Return BigInt::unaryMinus(oldValue).
+                        vm.result = BigInt::unary_minus(agent, old_value).into();
+                    }
                 }
                 Instruction::ToNumber => {
                     vm.result = to_number(agent, vm.result).map(|number| number.into())?;

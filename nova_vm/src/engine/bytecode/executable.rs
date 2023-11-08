@@ -196,10 +196,10 @@ impl Compile for ast::UnaryExpression<'_> {
                 ctx.exe.add_instruction(Instruction::ToNumeric);
 
                 // 3. If oldValue is a Number, then
-                //     a. Return Number::unaryMinus(oldValue).
+                //    a. Return Number::unaryMinus(oldValue).
                 // 4. Else,
-                //     a. Assert: oldValue is a BigInt.
-                //     b. Return BigInt::unaryMinus(oldValue).
+                //    a. Assert: oldValue is a BigInt.
+                //    b. Return BigInt::unaryMinus(oldValue).
                 ctx.exe.add_instruction(Instruction::UnaryMinus);
             }
             other => todo!("{other:?}"),

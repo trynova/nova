@@ -101,7 +101,15 @@ pub enum Instruction {
     ToNumeric,
     /// Apply the typeof operation to the evaluated expression and set it as the result value.
     Typeof,
-    /// Store Number::unaryMinus() / BigInt::unaryMinus() as the result value.
+    /// Performs the following specification steps where oldValue is
+    /// the result value and instead of returning, sets the function return
+    /// value to the result value:
+    ///
+    /// > 3. If oldValue is a Number, then
+    /// >    a. Return Number::unaryMinus(oldValue).
+    /// > 4. Else,
+    /// >    a. Assert: oldValue is a BigInt.
+    /// >    b. Return BigInt::unaryMinus(oldValue).
     UnaryMinus,
 }
 
