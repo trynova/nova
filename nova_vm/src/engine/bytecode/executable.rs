@@ -1,12 +1,15 @@
 use super::Instruction;
 use crate::{
-    ecmascript::types::{BigIntHeapData, Value},
+    ecmascript::types::{BigIntHeapData, Reference, Value},
     heap::CreateHeapData,
     Heap,
 };
 use oxc_ast::ast;
 use oxc_span::Atom;
-use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
+use oxc_syntax::{
+    identifier,
+    operator::{BinaryOperator, UnaryOperator},
+};
 
 pub type IndexType = u16;
 
@@ -18,8 +21,9 @@ pub(crate) struct CompileContext<'a, 'b, 'c> {
 #[derive(Debug)]
 pub(crate) struct Executable {
     pub(crate) instructions: Vec<u8>,
-    pub constants: Vec<Value>,
-    pub identifiers: Vec<Atom>,
+    pub(crate) constants: Vec<Value>,
+    pub(crate) identifiers: Vec<Atom>,
+    pub(crate) references: Vec<Reference>,
     // TODO: function_expressions
 }
 
@@ -32,6 +36,7 @@ impl Executable {
             instructions: Vec::new(),
             constants: Vec::new(),
             identifiers: Vec::new(),
+            references: Vec::new(),
         };
 
         let mut ctx = CompileContext { heap, exe };
@@ -66,8 +71,10 @@ impl Executable {
         index
     }
 
-    fn add_identifier(&mut self, identifier: Atom) {
+    fn add_identifier(&mut self, identifier: Atom) -> usize {
+        let index = self.identifiers.len();
         self.identifiers.push(identifier);
+        index
     }
 
     fn add_instruction_with_constant(
@@ -82,9 +89,9 @@ impl Executable {
     }
 
     fn add_instruction_with_identifier(&mut self, instruction: Instruction, identifier: Atom) {
-        debug_assert!(instruction.has_identifier_index());
         self.add_instruction(instruction);
-        self.add_identifier(identifier);
+        let identifier = self.add_identifier(identifier);
+        self.add_index(identifier);
     }
 
     fn add_index(&mut self, index: usize) {
@@ -121,6 +128,18 @@ pub(crate) trait Compile {
     fn compile(&self, ctx: &mut CompileContext);
 }
 
+fn is_reference(expression: &ast::Expression) -> bool {
+    match expression {
+        ast::Expression::Identifier(_)
+        | ast::Expression::MemberExpression(_)
+        | ast::Expression::Super(_) => true,
+        ast::Expression::ParenthesizedExpression(parenthesized) => {
+            is_reference(&parenthesized.expression)
+        }
+        _ => false,
+    }
+}
+
 impl Compile for ast::NumberLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let constant = ctx.heap.create(self.value);
@@ -146,6 +165,20 @@ impl Compile for ast::BigintLiteral {
     }
 }
 
+impl Compile for ast::IdentifierReference {
+    fn compile(&self, ctx: &mut CompileContext) {
+        ctx.exe
+            .add_instruction_with_identifier(Instruction::ResolveBinding, self.name.clone());
+    }
+}
+
+impl Compile for ast::BindingIdentifier {
+    fn compile(&self, ctx: &mut CompileContext) {
+        ctx.exe
+            .add_instruction_with_identifier(Instruction::ResolveBinding, self.name.clone());
+    }
+}
+
 impl Compile for ast::UnaryExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self.operator {
@@ -157,7 +190,9 @@ impl Compile for ast::UnaryExpression<'_> {
                 self.argument.compile(ctx);
 
                 // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
-                // TODO: Implement GetValue
+                if is_reference(&self.argument) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
                 ctx.exe.add_instruction(Instruction::ToNumeric);
 
                 // 3. If oldValue is a Number, then
@@ -178,14 +213,19 @@ impl Compile for ast::BinaryExpression<'_> {
         self.left.compile(ctx);
 
         // 2. Let lval be ? GetValue(lref).
-        // TODO: Implement GetValue
+        if is_reference(&self.left) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
         ctx.exe.add_instruction(Instruction::Load);
 
         // 3. Let rref be ? Evaluation of rightOperand.
         self.right.compile(ctx);
 
         // 4. Let rval be ? GetValue(rref).
-        // TODO: Implement GetValue
+        if is_reference(&self.right) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+
         ctx.exe.add_instruction(Instruction::Load);
 
         // 5. Return ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
@@ -193,6 +233,31 @@ impl Compile for ast::BinaryExpression<'_> {
             .add_instruction(Instruction::ApplyStringOrNumericBinaryOperator(
                 self.operator,
             ));
+    }
+}
+
+impl Compile for ast::AssignmentExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        let ast::AssignmentTarget::SimpleAssignmentTarget(target) = &self.left else {
+            todo!("{:?}", self.left);
+        };
+
+        let ast::SimpleAssignmentTarget::AssignmentTargetIdentifier(identifier) = &target else {
+            todo!("{target:?}");
+        };
+
+        identifier.compile(ctx);
+        ctx.exe.add_instruction(Instruction::PushReference);
+
+        self.right.compile(ctx);
+
+        if is_reference(&self.right) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+
+        ctx.exe
+            .add_instruction_with_identifier(Instruction::PutValue, identifier.name.clone());
+        ctx.exe.add_instruction(Instruction::PopReference);
     }
 }
 
@@ -207,9 +272,11 @@ impl Compile for ast::Expression<'_> {
         match self {
             ast::Expression::NumberLiteral(x) => x.compile(ctx),
             ast::Expression::BooleanLiteral(x) => x.compile(ctx),
+            ast::Expression::Identifier(x) => x.compile(ctx),
             ast::Expression::BigintLiteral(x) => x.compile(ctx),
             ast::Expression::UnaryExpression(x) => x.compile(ctx),
             ast::Expression::BinaryExpression(x) => x.compile(ctx),
+            ast::Expression::AssignmentExpression(x) => x.compile(ctx),
             ast::Expression::ParenthesizedExpression(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
@@ -244,11 +311,60 @@ impl Compile for ast::IfStatement<'_> {
     }
 }
 
+impl Compile for ast::VariableDeclaration<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        for decl in &self.declarations {
+            match self.kind {
+                ast::VariableDeclarationKind::Var => {
+                    let ast::BindingPatternKind::BindingIdentifier(identifier) = &decl.id.kind
+                    else {
+                        todo!("{:?}", decl.id.kind);
+                    };
+
+                    if let Some(init) = &decl.init {
+                        ctx.exe.add_instruction(Instruction::Load);
+
+                        ctx.exe.add_instruction_with_identifier(
+                            Instruction::ResolveBinding,
+                            identifier.name.clone(),
+                        );
+
+                        ctx.exe.add_instruction(Instruction::PushReference);
+
+                        init.compile(ctx);
+
+                        if is_reference(init) {
+                            ctx.exe.add_instruction(Instruction::GetValue);
+                        }
+
+                        ctx.exe.add_instruction(Instruction::PutValue);
+                        ctx.exe.add_instruction(Instruction::PopReference);
+
+                        ctx.exe.add_instruction(Instruction::Store);
+                    }
+                }
+                other => todo!("{other:?}"),
+            }
+        }
+    }
+}
+
+impl Compile for ast::Declaration<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        match self {
+            ast::Declaration::VariableDeclaration(x) => x.compile(ctx),
+            other => todo!("{other:?}"),
+        }
+    }
+}
+
 impl Compile for ast::Statement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
             ast::Statement::ExpressionStatement(x) => x.compile(ctx),
             ast::Statement::ReturnStatement(x) => x.compile(ctx),
+            ast::Statement::IfStatement(x) => x.compile(ctx),
+            ast::Statement::Declaration(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }

@@ -110,8 +110,7 @@ impl Instruction {
         match self {
             Self::EvaluateCall
             | Self::EvaluatePropertyAccessWithIdentifierKey
-            | Self::JumpConditional
-            | Self::ResolveBinding => 2,
+            | Self::JumpConditional => 2,
             Self::ArraySetLength
             | Self::ArraySetValue
             | Self::CreateCatchBinding
@@ -122,7 +121,8 @@ impl Instruction {
             | Self::Jump
             | Self::LoadConstant
             | Self::PushExceptionJumpTarget
-            | Self::StoreConstant => 1,
+            | Self::StoreConstant
+            | Self::ResolveBinding => 1,
             _ => 0,
         }
     }

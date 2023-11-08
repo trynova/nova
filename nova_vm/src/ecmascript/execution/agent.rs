@@ -1,6 +1,10 @@
-use super::{ExecutionContext, Realm, RealmIdentifier};
+use super::{
+    environments::get_identifier_reference, EnvironmentIndex, ExecutionContext, Realm,
+    RealmIdentifier,
+};
 use crate::{
-    ecmascript::types::{Function, Object, Symbol, Value},
+    ecmascript::types::{Function, Object, Reference, Symbol, Value},
+    heap::GetHeapData,
     Heap,
 };
 use std::collections::HashMap;
@@ -74,9 +78,50 @@ impl<'ctx, 'host> Agent<'ctx, 'host> {
 
     /// 5.2.3.2 Throw an Exception
     /// https://tc39.es/ecma262/#sec-throw-an-exception
-    pub fn throw_exception(&mut self, _kind: ExceptionType, _message: &'static str) -> JsError {
-        todo!()
+    pub fn throw_exception(&mut self, kind: ExceptionType, message: &'static str) -> JsError {
+        todo!("Uncaught {kind:?}: {message}")
     }
+
+    pub(crate) fn running_execution_context(&self) -> &ExecutionContext<'ctx, 'host> {
+        self.execution_context_stack.last().unwrap()
+    }
+}
+
+/// ### [9.4.2 ResolveBinding ( name \[ , env \] )](https://tc39.es/ecma262/#sec-resolvebinding)
+///
+/// The abstract operation ResolveBinding takes argument name (a String) and
+/// optional argument env (an Environment Record or undefined) and returns
+/// either a normal completion containing a Reference Record or a throw
+/// completion. It is used to determine the binding of name. env can be used to
+/// explicitly provide the Environment Record that is to be searched for the
+/// binding.
+pub(crate) fn resolve_binding(
+    agent: &mut Agent,
+    name: &str,
+    env: Option<EnvironmentIndex>,
+) -> JsResult<Reference> {
+    let env = env.unwrap_or_else(|| {
+        // 1. If env is not present or env is undefined, then
+        //    a. Set env to the running execution context's LexicalEnvironment.
+        agent
+            .running_execution_context()
+            .ecmascript_code
+            .as_ref()
+            .unwrap()
+            .lexical_environment
+    });
+
+    // 2. Assert: env is an Environment Record.
+    // Implicit from env's type.
+
+    // 3. If the source text matched by the syntactic production that is being
+    //    evaluated is contained in strict mode code, let strict be true; else
+    //    let strict be false.
+    // TODO: Implment correctly.
+    let strict = false;
+
+    // 4. Return ? GetIdentifierReference(env, name, strict).
+    get_identifier_reference(agent, Some(env), name, strict)
 }
 
 #[derive(Debug)]

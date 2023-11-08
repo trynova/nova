@@ -32,7 +32,7 @@ pub struct ObjectEnvironment {
     /// ### \[\[OuterEnv\]\]
     ///
     /// See [OuterEnv].
-    outer_env: OuterEnv,
+    pub(crate) outer_env: OuterEnv,
 }
 
 impl ObjectEnvironment {

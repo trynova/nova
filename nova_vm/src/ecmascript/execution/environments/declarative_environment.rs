@@ -17,7 +17,7 @@ pub struct DeclarativeEnvironment {
     /// ### \[\[OuterEnv\]\]
     ///
     /// See [OuterEnv].
-    outer_env: OuterEnv,
+    pub(crate) outer_env: OuterEnv,
 
     /// The environment's bindings.
     bindings: HashMap<Atom, Binding>,
@@ -47,20 +47,13 @@ impl DeclarativeEnvironment {
         }
     }
 
-    /// ### \[\[OuterEnv\]\]
-    ///
-    /// See [OuterEnv].
-    pub(crate) fn outer_env(&self) -> OuterEnv {
-        self.outer_env.clone()
-    }
-
     /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of a Declarative Environment Record
     /// envRec takes argument N (a String) and returns a normal completion
     /// containing a Boolean. It determines if the argument identifier is one of
     /// the identifiers bound by the record.
-    pub fn has_binding(&self, name: &Atom) -> bool {
+    pub fn has_binding(&self, name: &str) -> bool {
         // 1. If envRec has a binding for N, return true.
         // 2. Return false.
         self.bindings.contains_key(name)

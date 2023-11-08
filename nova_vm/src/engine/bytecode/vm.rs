@@ -6,8 +6,11 @@ use crate::ecmascript::{
         testing_and_comparison::is_same_type,
         type_conversion::{to_number, to_numeric, to_primitive, to_string},
     },
-    execution::{agent::ExceptionType, Agent, JsResult},
-    types::{BigInt, Number, Reference, Value},
+    execution::{
+        agent::{resolve_binding, ExceptionType},
+        Agent, EnvironmentIndex, JsResult,
+    },
+    types::{Base, BigInt, Number, Reference, Value},
 };
 
 use super::{Executable, IndexType, Instr, Instruction, InstructionIter};
@@ -17,7 +20,7 @@ pub(crate) struct Vm {
     /// Instruction pointer.
     ip: usize,
     stack: Vec<Value>,
-    reference_stack: Vec<Option<Reference>>,
+    reference_stack: Vec<Reference>,
     exception_jump_target_stack: Vec<usize>,
     result: Value,
     exception: Option<Value>,
@@ -37,6 +40,10 @@ impl Vm {
         }
     }
 
+    fn fetch_identifier<'a>(&self, exe: &'a Executable, index: usize) -> &'a Atom {
+        &exe.identifiers[index]
+    }
+
     fn fetch_constant(&self, exe: &Executable, index: usize) -> Value {
         exe.constants[index]
     }
@@ -51,6 +58,24 @@ impl Vm {
             eprintln!("{:?} {:?}", instr.kind, instr.args);
 
             match instr.kind {
+                Instruction::ResolveBinding => {
+                    let identifier =
+                        vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+
+                    let reference = resolve_binding(agent, &identifier, None)?;
+
+                    vm.result = match reference.base {
+                        Base::Value(value) => value,
+                        _ => {
+                            return Err(agent.throw_exception(
+                                ExceptionType::ReferenceError,
+                                "Unable to resolve identifier.",
+                            ));
+                        }
+                    };
+
+                    vm.reference = Some(reference);
+                }
                 Instruction::LoadConstant => {
                     let constant = vm.fetch_constant(executable, instr.args[0].unwrap() as usize);
                     vm.stack.push(constant);
@@ -82,6 +107,16 @@ impl Vm {
                     let rval = vm.stack.pop().unwrap();
                     vm.result =
                         apply_string_or_numeric_binary_operator(agent, lval, op_text, rval)?;
+                }
+                Instruction::PushReference => {
+                    vm.reference_stack.push(vm.reference.take().unwrap());
+                }
+                Instruction::PopReference => {
+                    vm.reference_stack.pop();
+                }
+                Instruction::PutValue => {
+                    let reference = vm.reference_stack.last_mut().unwrap();
+                    reference.base = Base::Value(vm.stack.pop().unwrap());
                 }
                 other => todo!("{other:?}"),
             }
