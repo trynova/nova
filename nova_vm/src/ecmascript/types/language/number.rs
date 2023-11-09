@@ -515,6 +515,18 @@ impl Number {
         agent.heap.create(x.into_f64(agent) + y.into_f64(agent))
     }
 
+    /// ### [6.1.6.1.8 Number::subtract ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-subtract)
+    ///
+    /// The abstract operation Number::subtract takes arguments x (a Number) and
+    /// y (a Number) and returns a Number. It performs subtraction, producing
+    /// the difference of its operands; x is the minuend and y is the
+    /// subtrahend.
+    pub(crate) fn subtract(agent: &mut Agent, x: Number, y: Number) -> Number {
+        // 1. Return Number::add(x, Number::unaryMinus(y)).
+        let negated_y = Number::unary_minus(y, agent);
+        Number::add(agent, x, negated_y)
+    }
+
     // ...
 
     /// 6.1.6.1.12 Number::lessThan ( x, y )

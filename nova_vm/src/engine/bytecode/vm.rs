@@ -3,7 +3,7 @@ use oxc_syntax::operator::BinaryOperator;
 
 use crate::ecmascript::{
     abstract_operations::{
-        testing_and_comparison::is_same_type,
+        testing_and_comparison::{is_less_than, is_same_type},
         type_conversion::{to_number, to_numeric, to_primitive, to_string},
     },
     execution::{
@@ -234,6 +234,9 @@ fn apply_string_or_numeric_binary_operator(
         }
         // +	BigInt	BigInt::add
         // -	Number	Number::subtract
+        BinaryOperator::Subtraction if lnum.is_number() => {
+            Number::subtract(agent, lnum.try_into().unwrap(), rnum.try_into().unwrap()).into()
+        }
         // -	BigInt	BigInt::subtract
         // <<	Number	Number::leftShift
         // <<	BigInt	BigInt::leftShift

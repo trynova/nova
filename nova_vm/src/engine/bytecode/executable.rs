@@ -209,6 +209,34 @@ impl Compile for ast::UnaryExpression<'_> {
 
 impl Compile for ast::BinaryExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        match self.operator {
+            BinaryOperator::LessThan => {
+                // 13.10.1 Runtime Semantics: Evaluation
+                // RelationalExpression : RelationalExpression < ShiftExpression
+
+                // 1. Let lref be ? Evaluation of RelationalExpression.
+                self.left.compile(ctx);
+
+                // 2. Let lval be ? GetValue(lref).
+                if is_reference(&self.left) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+
+                // 3. Let rref be ? Evaluation of ShiftExpression.
+                self.right.compile(ctx);
+
+                // 4. Let rval be ? GetValue(rref).
+                if is_reference(&self.left) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+
+                // 5. Let r be ? IsLessThan(lval, rval, true).
+                // 6. If r is undefined, return false. Otherwise, return r.
+                ctx.exe.add_instruction(Instruction::LessThan);
+            }
+            _ => {}
+        }
+
         // 1. Let lref be ? Evaluation of leftOperand.
         self.left.compile(ctx);
 
