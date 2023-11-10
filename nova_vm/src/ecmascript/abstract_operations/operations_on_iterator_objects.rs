@@ -39,17 +39,17 @@ pub(crate) fn get_iterator_from_method(
     let iterator = call(agent, method.into(), obj, None)?;
 
     // 2. If iterator is not an Object, throw a TypeError exception.
-    let Ok(iterator) = to_object(agent, iterator) else {
+    let Value::Object(iterator) = (iterator) else {
         return Err(agent.throw_exception(ExceptionType::TypeError, "Iterator is not an object"));
     };
 
     // 3. Let nextMethod be ? Get(iterator, "next").
-    let next_method = get(agent, iterator, String::from_small_string("next").into())?;
+    let next_method = get(agent, Value::Object(iterator), String::from_small_string("next").into())?;
 
     // 4. Let iteratorRecord be the Iterator Record { [[Iterator]]: iterator, [[NextMethod]]: nextMethod, [[Done]]: false }.
     // 5. Return iteratorRecord.
     Ok(IteratorRecord {
-        iterator,
+        Value::Object(iterator),
         next_method,
         done: false,
     })
@@ -154,10 +154,10 @@ pub(crate) fn iterator_next(
 /// The abstract operation IteratorComplete takes argument iterResult (an
 /// Object) and returns either a normal completion containing a Boolean or a
 /// throw completion.
-pub(crate) fn iterator_complete(agent: &mut Agent, iter_result: Object) -> JsResult<bool> {
+pub(crate) fn iterator_complete(agent: &mut Agent, iter_result: Object) -> JsResult<Value> {
     // 1. Return ToBoolean(? Get(iterResult, "done")).
     let done = get(agent, iter_result, String::from_small_string("done").into())?;
-    Ok(to_boolean(agent, done))
+    to_boolean(agent, done)
 }
 
 /// [7.4.6 IteratorValue ( iterResult )](https://tc39.es/ecma262/#sec-iteratorvalue)
@@ -196,7 +196,7 @@ pub(crate) fn iterator_step(
     let done = iterator_complete(agent, result)?;
 
     // 3. If done is true, return false.
-    if done {
+    if done.is_true() {
         return Ok(None);
     }
 
@@ -239,8 +239,12 @@ pub(crate) fn if_abrupt_close_iterator(
 ) -> JsResult<Value> {
     // 1. Assert: value is a Completion Record.
     // 2. If value is an abrupt completion, return ? IteratorClose(iteratorRecord, value).
-    // 3. Else, set value to value.[[Value]].
-    todo!()
+    if value.is_err() {
+        todo!();
+    } else {
+        // 3. Else, set value to value.[[Value]].
+        return value;
+    }
 }
 
 /// [7.4.10 AsyncIteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-asynciteratorclose)
@@ -257,7 +261,9 @@ pub(crate) fn async_iterator_close(
 ) -> JsResult<Value> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
+    let iterator = iterator_record.iterator;
     // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
+    let inner_result = get_method(todo!(), "return");
     // 4. If innerResult.[[Type]] is normal, then
     // a. Let return be innerResult.[[Value]].
     // b. If return is undefined, return ? completion.
@@ -276,12 +282,36 @@ pub(crate) fn async_iterator_close(
 /// ECMAScript language value) and done (a Boolean) and returns an Object that
 /// conforms to the IteratorResult interface. It creates an object that conforms
 /// to the IteratorResult interface.
-pub(crate) fn create_iter_result_object(agent: &mut Agent, value: Value, done: bool) -> Value {
+pub(crate) fn create_iter_result_object(agent: &mut Agent, value: Value, done: bool) -> Object {
     // 1. Let obj be OrdinaryObjectCreate(%Object.prototype%).
+    let obj: Object = todo!();
+    let property_storage = obj.property_storage();
     // 2. Perform ! CreateDataPropertyOrThrow(obj, "value", value).
+    property_storage.set(
+        agent,
+        SmallString::from_str("value").into(),
+        PropertyDescriptor {
+            value: Some(value),
+            enumerable: Some(true),
+            configurable: Some(true),
+            writable: Some(true),
+            ..Default::default()
+        },
+    );
     // 3. Perform ! CreateDataPropertyOrThrow(obj, "done", done).
+    property_storage.set(
+        agent,
+        SmallString::from_str("done").into(),
+        PropertyDescriptor {
+            value: Some(done),
+            enumerable: Some(true),
+            configurable: Some(true),
+            writable: Some(true),
+            ..Default::default()
+        },
+    );
     // 4. Return obj.
-    todo!()
+    obj
 }
 
 /// [7.4.12 CreateListIteratorRecord ( list )](https://tc39.es/ecma262/#sec-createlistiteratorRecord)
