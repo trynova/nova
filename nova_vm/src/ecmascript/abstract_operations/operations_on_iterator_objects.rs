@@ -196,7 +196,7 @@ pub(crate) fn iterator_step(
     let done = iterator_complete(agent, result)?;
 
     // 3. If done is true, return false.
-    if done.is_true() {
+    if done {
         return Ok(None);
     }
 
