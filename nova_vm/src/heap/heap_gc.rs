@@ -185,7 +185,7 @@ pub fn heap_gc(heap: &mut Heap) {
                 marked.store(true, Ordering::Relaxed);
                 let data = heap.symbols.get(index).unwrap().as_ref().unwrap();
                 if let Some(string_index) = data.descriptor {
-                    queues.push_value(Value::String(string_index));
+                    queues.push_value(string_index.into());
                 }
             }
         });

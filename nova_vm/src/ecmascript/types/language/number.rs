@@ -33,6 +33,12 @@ impl std::fmt::Debug for Number {
     }
 }
 
+impl From<NumberIndex> for Number {
+    fn from(value: NumberIndex) -> Self {
+        Number::Number(value)
+    }
+}
+
 impl From<SmallInteger> for Number {
     fn from(value: SmallInteger) -> Self {
         Number::Integer(value)
@@ -41,7 +47,7 @@ impl From<SmallInteger> for Number {
 
 impl From<i32> for Number {
     fn from(value: i32) -> Self {
-        Number::Integer(SmallInteger::from_i64_unchecked(value as i64))
+        Number::Integer(SmallInteger::from(value))
     }
 }
 
@@ -50,13 +56,32 @@ impl From<i64> for Number {
         let n = value
             .min(SmallInteger::MAX_NUMBER)
             .max(SmallInteger::MIN_NUMBER);
-        Number::Integer(SmallInteger::from_i64_unchecked(n))
+        Number::Integer(SmallInteger::try_from(n).unwrap())
     }
 }
 
 impl From<f32> for Number {
     fn from(value: f32) -> Self {
         Number::Float(value)
+    }
+}
+
+const MAX_NUMBER: f64 = ((1u64 << 53) - 1) as f64;
+const MIN_NUMBER: f64 = -MAX_NUMBER;
+
+impl TryFrom<f64> for Number {
+    type Error = ();
+
+    fn try_from(value: f64) -> Result<Self, ()> {
+        if value.is_finite() && value.trunc() == value && (MIN_NUMBER..=MAX_NUMBER).contains(&value)
+        {
+            debug_assert_eq!(value as i64 as f64, value);
+            Ok(Number::try_from(value as i64).unwrap())
+        } else if value as f32 as f64 == value {
+            Ok(Number::Float(value as f32))
+        } else {
+            Err(())
+        }
     }
 }
 
@@ -76,13 +101,15 @@ impl TryFrom<Value> for Number {
 }
 
 impl Number {
-    pub fn new(value: Value) -> Self {
-        debug_assert!(matches!(
-            value,
-            Value::Number(_) | Value::Integer(_) | Value::Float(_)
-        ));
-        // SAFETY: Sub-enum.
-        unsafe { std::mem::transmute::<Value, Number>(value) }
+    pub fn from_f64(agent: &mut Agent, value: f64) -> Self {
+        if let Ok(value) = Number::try_from(value) {
+            value
+        } else {
+            // SAFETY: Number was not representable as a
+            // stack-allocated Number.
+            let id = unsafe { agent.heap.alloc_number(value) };
+            Number::Number(id)
+        }
     }
 
     pub fn nan() -> Self {
@@ -257,7 +284,7 @@ impl Number {
             }
             Number::Integer(n) => {
                 let n = n.into_i64();
-                Number::Integer(SmallInteger::from_i64_unchecked(n.abs()))
+                Number::Integer(SmallInteger::try_from(n.abs()).unwrap())
             }
             Number::Float(n) => Number::Float(n.abs()),
         }
@@ -279,7 +306,7 @@ impl Number {
                 let value = *agent.heap.get(n);
                 agent.heap.create(-value)
             }
-            Number::Integer(n) => SmallInteger::from_i64_unchecked(-n.into_i64()).into(),
+            Number::Integer(n) => SmallInteger::try_from(-n.into_i64()).unwrap().into(),
             Number::Float(n) => (-n).into(),
         }
     }

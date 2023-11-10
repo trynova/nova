@@ -11,7 +11,7 @@ use crate::{
     },
     heap::{
         indexes::{StringIndex, SymbolIndex},
-        GetHeapData,
+        CreateHeapData, GetHeapData,
     },
     Heap, SmallInteger, SmallString,
 };
@@ -28,11 +28,7 @@ pub enum PropertyKey {
 impl PropertyKey {
     // FIXME: This API is not necessarily in the right place.
     pub fn from_str(heap: &mut Heap, str: &str) -> Self {
-        if let Ok(ascii_string) = SmallString::try_from(str) {
-            PropertyKey::SmallString(ascii_string)
-        } else {
-            PropertyKey::String(heap.alloc_string(str))
-        }
+        heap.create(str).into()
     }
 
     pub fn into_value(self) -> Value {
