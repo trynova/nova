@@ -140,10 +140,10 @@ pub(crate) fn ordinary_to_primitive(
 }
 
 /// ### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
-pub(crate) fn to_boolean(agent: &mut Agent, argument: Value) -> JsResult<bool> {
+pub(crate) fn to_boolean(agent: &mut Agent, argument: Value) -> bool {
     // 1. If argument is a Boolean, return argument.
     if let Value::Boolean(ret) = argument {
-        return Ok(ret);
+        return ret;
     }
 
     // 2. If argument is one of undefined, null, +0𝔽, -0𝔽, NaN, 0ℤ, or the empty String, return false.
@@ -155,13 +155,13 @@ pub(crate) fn to_boolean(agent: &mut Agent, argument: Value) -> JsResult<bool> {
         || argument.is_nan(agent)
         || argument.is_empty_string()
     {
-        return Ok(false);
+        return false;
     }
 
     // 3. NOTE: This step is replaced in section B.3.6.1.
 
     // 4. Return true.
-    Ok(true)
+    true
 }
 
 /// ### [7.1.3 ToNumeric ( value )](https://tc39.es/ecma262/#sec-tonumeric)
