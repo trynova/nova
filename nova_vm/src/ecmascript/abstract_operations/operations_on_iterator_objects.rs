@@ -154,7 +154,7 @@ pub(crate) fn iterator_next(
 /// The abstract operation IteratorComplete takes argument iterResult (an
 /// Object) and returns either a normal completion containing a Boolean or a
 /// throw completion.
-pub(crate) fn iterator_complete(agent: &mut Agent, iter_result: Object) -> JsResult<Value> {
+pub(crate) fn iterator_complete(agent: &mut Agent, iter_result: Object) -> JsResult<bool> {
     // 1. Return ToBoolean(? Get(iterResult, "done")).
     let done = get(agent, iter_result, String::from_small_string("done").into())?;
     to_boolean(agent, done)
