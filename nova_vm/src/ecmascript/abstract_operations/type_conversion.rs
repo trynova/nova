@@ -12,7 +12,7 @@
 
 use crate::{
     ecmascript::{
-        execution::{agent::JsError, agent::ExceptionType, Agent, JsResult},
+        execution::{agent::ExceptionType, agent::JsError, Agent, JsResult},
         types::{BigInt, Number, Object, PropertyKey, String, Value},
     },
     heap::WellKnownSymbolIndexes,
@@ -165,7 +165,7 @@ pub(crate) fn to_boolean(agent: &mut Agent, argument: Value) -> JsResult<Value> 
 }
 
 /// ### [7.1.3 ToNumeric ( value )](https://tc39.es/ecma262/#sec-tonumeric)
-pub(crate) fn to_numeric(agent: &mut Agent, value: Value) -> JsResult<Number> {
+pub(crate) fn to_numeric(agent: &mut Agent, value: Value) -> JsResult<Value> {
     // 1. Let primValue be ? ToPrimitive(value, number).
     let prim_value = to_primitive(agent, value, Some(PreferredType::Number))?;
 
@@ -175,7 +175,7 @@ pub(crate) fn to_numeric(agent: &mut Agent, value: Value) -> JsResult<Number> {
     }
 
     // 3. Return ? ToNumber(primValue).
-    to_number(agent, value)
+    to_number(agent, value).map(|n| n.into_value())
 }
 
 /// ### [7.1.4 ToNumber ( argument )](https://tc39.es/ecma262/#sec-tonumber)
@@ -187,10 +187,14 @@ pub(crate) fn to_number(agent: &mut Agent, argument: Value) -> JsResult<Number> 
 
     // 2. If argument is either a Symbol or a BigInt, throw a TypeError exception.
     if argument.is_symbol() {
-        return Err(agent.throw_exception(ExceptionType::TypeError, "cannot conver symbol to number"));
+        return Err(
+            agent.throw_exception(ExceptionType::TypeError, "cannot conver symbol to number")
+        );
     }
     if argument.is_bigint() {
-        return Err(agent.throw_exception(ExceptionType::TypeError, "cannot conver bigint to number"));
+        return Err(
+            agent.throw_exception(ExceptionType::TypeError, "cannot conver bigint to number")
+        );
     }
 
     // 3. If argument is undefined, return NaN.
