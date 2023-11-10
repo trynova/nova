@@ -188,12 +188,12 @@ pub(crate) fn to_number(agent: &mut Agent, argument: Value) -> JsResult<Number> 
     // 2. If argument is either a Symbol or a BigInt, throw a TypeError exception.
     if argument.is_symbol() {
         return Err(
-            agent.throw_exception(ExceptionType::TypeError, "cannot conver symbol to number")
+            agent.throw_exception(ExceptionType::TypeError, "cannot convert symbol to number")
         );
     }
     if argument.is_bigint() {
         return Err(
-            agent.throw_exception(ExceptionType::TypeError, "cannot conver bigint to number")
+            agent.throw_exception(ExceptionType::TypeError, "cannot convert bigint to number")
         );
     }
 
