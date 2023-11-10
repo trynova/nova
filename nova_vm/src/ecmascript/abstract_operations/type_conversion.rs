@@ -12,7 +12,7 @@
 
 use crate::{
     ecmascript::{
-        execution::{agent::JsError, Agent, JsResult},
+        execution::{agent::JsError, agent::ExceptionType, Agent, JsResult},
         types::{BigInt, Number, Object, PropertyKey, String, Value},
     },
     heap::WellKnownSymbolIndexes,
@@ -142,8 +142,8 @@ pub(crate) fn ordinary_to_primitive(
 /// ### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
 pub(crate) fn to_boolean(agent: &mut Agent, argument: Value) -> JsResult<Value> {
     // 1. If argument is a Boolean, return argument.
-    if argument.is_boolean() {
-        return Ok(argument);
+    if let Boolean(ret) = argument {
+        return Ok(ret);
     }
 
     // 2. If argument is one of undefined, null, +0𝔽, -0𝔽, NaN, 0ℤ, or the empty String, return false.
@@ -155,17 +155,17 @@ pub(crate) fn to_boolean(agent: &mut Agent, argument: Value) -> JsResult<Value> 
         || argument.is_nan(agent)
         || argument.is_empty_string()
     {
-        return Ok(false.into());
+        return Ok(false);
     }
 
     // 3. NOTE: This step is replaced in section B.3.6.1.
 
     // 4. Return true.
-    Ok(true.into())
+    Ok(true)
 }
 
 /// ### [7.1.3 ToNumeric ( value )](https://tc39.es/ecma262/#sec-tonumeric)
-pub(crate) fn to_numeric(agent: &mut Agent, value: Value) -> JsResult<Value> {
+pub(crate) fn to_numeric(agent: &mut Agent, value: Value) -> JsResult<Number> {
     // 1. Let primValue be ? ToPrimitive(value, number).
     let prim_value = to_primitive(agent, value, Some(PreferredType::Number))?;
 
@@ -175,7 +175,7 @@ pub(crate) fn to_numeric(agent: &mut Agent, value: Value) -> JsResult<Value> {
     }
 
     // 3. Return ? ToNumber(primValue).
-    to_number(agent, value).map(|n| n.into_value())
+    to_number(agent, value)
 }
 
 /// ### [7.1.4 ToNumber ( argument )](https://tc39.es/ecma262/#sec-tonumber)
@@ -186,8 +186,11 @@ pub(crate) fn to_number(agent: &mut Agent, argument: Value) -> JsResult<Number> 
     }
 
     // 2. If argument is either a Symbol or a BigInt, throw a TypeError exception.
-    if argument.is_symbol() || argument.is_bigint() {
-        todo!();
+    if argument.is_symbol() {
+        return Err(agent.throw_exception(ExceptionType::TypeError, "cannot conver symbol to number"));
+    }
+    if argument.is_bigint() {
+        return Err(agent.throw_exception(ExceptionType::TypeError, "cannot conver bigint to number"));
     }
 
     // 3. If argument is undefined, return NaN.
@@ -207,7 +210,7 @@ pub(crate) fn to_number(agent: &mut Agent, argument: Value) -> JsResult<Number> 
 
     // 6. If argument is a String, return StringToNumber(argument).
     if argument.is_string() {
-        todo!();
+        todo!("implement StringToNumber");
     }
 
     // 7. Assert: argument is an Object.
