@@ -140,7 +140,7 @@ pub(crate) fn ordinary_to_primitive(
 }
 
 /// ### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
-pub(crate) fn to_boolean(agent: &mut Agent, argument: Value) -> JsResult<Value> {
+pub(crate) fn to_boolean(agent: &mut Agent, argument: Value) -> JsResult<bool> {
     // 1. If argument is a Boolean, return argument.
     if let Boolean(ret) = argument {
         return Ok(ret);
