@@ -1,4 +1,6 @@
-## Warning: This project is a Work In Progress, and is very far from being suitable for use
+# Nova - Your favorite javascript and wasm engine
+
+## :warning: This project is a Work In Progress, and is very far from being suitable for use :warning:
 
 Nova is a [JavaScript](https://tc39.es/ecma262) and
 [WebAssembly](https://webassembly.org) engine written in Rust.
