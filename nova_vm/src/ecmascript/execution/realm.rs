@@ -33,8 +33,6 @@ impl<'ctx, 'host> RealmIdentifier<'ctx, 'host> {
 /// https://tc39.es/ecma262/#sec-code-realms
 #[derive(Debug)]
 pub struct Realm<'ctx, 'host> {
-    pub agent: Rc<RefCell<Agent<'ctx, 'host>>>,
-
     // NOTE: We will need an rng here at some point.
 
     // [[Intrinsics]]
@@ -49,21 +47,22 @@ pub struct Realm<'ctx, 'host> {
     /// [[HostDefined]]
     pub host_defined: Option<Rc<RefCell<dyn Any>>>,
     // TODO: [[TemplateMap]], [[LoadedModules]]
+    _marker: PhantomData<(&'ctx (), &'host ())>,
 }
 
 impl<'ctx, 'host> Realm<'ctx, 'host> {
     /// 9.3.1 CreateRealm ( ), https://tc39.es/ecma262/#sec-createrealm
-    fn create(agent: Rc<RefCell<Agent<'ctx, 'host>>>) -> RealmIdentifier<'ctx, 'host> {
+    fn create(agent: &mut Agent<'ctx, 'host>) -> RealmIdentifier<'ctx, 'host> {
         // TODO: implement spec
         let realm = Self {
-            agent: agent.clone(),
             global_env: GlobalEnvironmentIndex::from_index(0),
-            global_object: Object::Object(ObjectIndex::from_index(0)),
+            global_object: Object::Object(ObjectIndex::from_u32_index(0)),
             host_defined: None,
             intrinsics: Intrinsics::default(),
+            _marker: PhantomData::default(),
         };
 
-        agent.borrow_mut().heap.add_realm(realm)
+        agent.heap.add_realm(realm)
     }
 
     pub(crate) fn intrinsics(&self) -> &Intrinsics {
@@ -72,18 +71,18 @@ impl<'ctx, 'host> Realm<'ctx, 'host> {
 
     /// 9.3.3 SetRealmGlobalObject ( realmRec, globalObj, thisValue ), https://tc39.es/ecma262/#sec-setrealmglobalobject
     pub(crate) fn set_global_object(
-        &mut self,
+        agent: &mut Agent<'ctx, 'host>,
+        realm_id: RealmIdentifier<'ctx, 'host>,
         global_object: Option<Object>,
         this_value: Option<Object>,
     ) {
         // 1. If globalObj is undefined, then
         let global_object = global_object.unwrap_or_else(|| {
             // a. Let intrinsics be realmRec.[[Intrinsics]].
-            let intrinsics = &self.intrinsics;
+            let intrinsics = &agent.get_realm(realm_id).intrinsics;
             // b. Set globalObj to OrdinaryObjectCreate(intrinsics.[[%Object.prototype%]]).
             Object::Object(
-                self.agent
-                    .borrow_mut()
+                agent
                     .heap
                     .create_object_with_prototype(intrinsics.object_prototype()),
             )
@@ -95,15 +94,13 @@ impl<'ctx, 'host> Realm<'ctx, 'host> {
         let this_value = this_value.unwrap_or(global_object);
 
         // 4. Set realmRec.[[GlobalObject]] to globalObj.
-        self.global_object = global_object;
+        agent.heap.get_realm_mut(realm_id).global_object = global_object;
 
         // 5. Let newGlobalEnv be NewGlobalEnvironment(globalObj, thisValue).
-        let new_global_env =
-            GlobalEnvironment::new(&mut self.agent.borrow_mut(), global_object, this_value);
+        let new_global_env = GlobalEnvironment::new(agent, global_object, this_value);
+
         // 6. Set realmRec.[[GlobalEnv]] to newGlobalEnv.
-        self.global_env = self
-            .agent
-            .borrow_mut()
+        agent.heap.get_realm_mut(realm_id).global_env = agent
             .heap
             .environments
             .push_global_environment(new_global_env);
@@ -113,32 +110,34 @@ impl<'ctx, 'host> Realm<'ctx, 'host> {
     /// 9.3.4 SetDefaultGlobalBindings ( realmRec )
     /// https://tc39.es/ecma262/#sec-setdefaultglobalbindings
     pub(crate) fn set_default_global_bindings(
-        &mut self,
-        agent: Rc<RefCell<Agent<'ctx, 'host>>>,
+        agent: &mut Agent,
+        realm_id: RealmIdentifier,
     ) -> JsResult<Object> {
         // 1. Let global be realmRec.[[GlobalObject]].
-        let global = self.global_object;
+        // NOTE: We define this later to ensure reference safety.
 
         // 2. For each property of the Global Object specified in clause 19, do
+
         // a. Let name be the String value of the property name.
-        let name =
-            PropertyKey::try_from(Value::from_str(&mut agent.borrow_mut().heap, "globalThis"))
-                .unwrap();
+        let name = PropertyKey::try_from(Value::from_str(&mut agent.heap, "globalThis")).unwrap();
+
         // b. Let desc be the fully populated data Property Descriptor for the property, containing the specified attributes for the property. For properties listed in 19.2, 19.3, or 19.4 the value of the [[Value]] attribute is the corresponding intrinsic object from realmRec.
+        let global_env = agent.heap.get_realm(realm_id).global_env;
         let desc = PropertyDescriptor {
             value: Some(
                 agent
-                    .borrow()
                     .heap
                     .environments
-                    .get_global_environment(self.global_env)
+                    .get_global_environment(global_env)
                     .global_this_value
                     .into_value(),
             ),
             ..Default::default()
         };
+
         // c. Perform ? DefinePropertyOrThrow(global, name, desc).
-        global.define_property_or_throw(&mut agent.borrow_mut(), name, desc)?;
+        let global = agent.heap.get_realm(realm_id).global_object;
+        global.define_property_or_throw(agent, name, desc)?;
 
         // TODO: Actually do other properties aside from globalThis.
 
@@ -148,16 +147,17 @@ impl<'ctx, 'host> Realm<'ctx, 'host> {
 
     /// 9.6 InitializeHostDefinedRealm ( ), https://tc39.es/ecma262/#sec-initializehostdefinedrealm
     pub fn initialize_host_defined_realm<F, Init>(
-        agent: Rc<RefCell<Agent<'ctx, 'host>>>,
+        agent: &mut Agent<'ctx, 'host>,
+        realm_id: RealmIdentifier<'ctx, 'host>,
         create_global_object: Option<F>,
         create_global_this_value: Option<F>,
         initialize_global_object: Option<Init>,
     ) where
-        F: FnOnce(&mut Realm<'ctx, 'host>) -> Object,
-        Init: FnOnce(Rc<RefCell<Agent<'ctx, 'host>>>, Object),
+        F: FnOnce(&mut Realm) -> Object,
+        Init: FnOnce(&mut Agent, Object),
     {
         // 1. Let realm be CreateRealm().
-        let realm = Self::create(agent.clone());
+        let realm = Realm::create(agent);
 
         // 2. Let newContext be a new execution context.
         let mut new_context = ExecutionContext::new();
@@ -172,38 +172,29 @@ impl<'ctx, 'host> Realm<'ctx, 'host> {
         // No-op
 
         // 6. Push newContext onto the execution context stack; newContext is now the running execution context.
-        agent.borrow_mut().execution_context_stack.push(new_context);
+        agent.execution_context_stack.push(new_context);
 
         // 7. If the host requires use of an exotic object to serve as realm's global object,
         // let global be such an object created in a host-defined manner.
         // Otherwise, let global be undefined, indicating that an ordinary object should be created as the global object.
-        let global = create_global_this_value.map(|create_global_this_value| {
-            create_global_this_value(agent.borrow_mut().current_realm_mut())
-        });
+        let global = create_global_this_value
+            .map(|create_global_this_value| create_global_this_value(agent.current_realm_mut()));
 
         // 8. If the host requires that the this binding in realm's global scope return an object other than the global object,
         // let thisValue be such an object created in a host-defined manner.
         // Otherwise, let thisValue be undefined, indicating that realm's global this binding should be the global object.
-        let this_value = create_global_object.map(|create_global_object| {
-            create_global_object(agent.borrow_mut().current_realm_mut())
-        });
+        let this_value = create_global_object
+            .map(|create_global_object| create_global_object(agent.current_realm_mut()));
 
         // 9. Perform SetRealmGlobalObject(realm, global, thisValue).
-        agent
-            .borrow_mut()
-            .get_realm_mut(realm)
-            .set_global_object(global, this_value);
+        Realm::set_global_object(agent, realm_id, global, this_value);
 
         // 10. Let globalObj be ? SetDefaultGlobalBindings(realm).
-        let global_obj = agent
-            .borrow_mut()
-            .get_realm_mut(realm)
-            .set_default_global_bindings(agent.clone())
-            .unwrap();
+        let global_object = Realm::set_default_global_bindings(agent, realm_id).unwrap();
 
         // 11. Create any host-defined global object properties on globalObj.
         if let Some(initialize_global_object) = initialize_global_object {
-            initialize_global_object(agent, global_obj);
+            initialize_global_object(agent, global_object);
         };
 
         // 12. Return UNUSED.
