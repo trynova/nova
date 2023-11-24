@@ -202,7 +202,28 @@ impl Compile for ast::UnaryExpression<'_> {
                 //    b. Return BigInt::unaryMinus(oldValue).
                 ctx.exe.add_instruction(Instruction::UnaryMinus);
             }
-            other => todo!("{other:?}"),
+            UnaryOperator::UnaryPlus => todo!(),
+            UnaryOperator::LogicalNot => todo!(),
+            UnaryOperator::BitwiseNot => todo!(),
+            UnaryOperator::Typeof => todo!(),
+            // 13.5.2.1 Runtime Semantics: Evaluation
+            // UnaryExpression : void UnaryExpression
+            UnaryOperator::Void => {
+                // 1. Let expr be ? Evaluation of UnaryExpression.
+                self.argument.compile(ctx);
+                // NOTE: GetValue must be called even though its value is not used because it may have observable side-effects.
+                // 2. Perform ? GetValue(expr).
+                if is_reference(&self.argument) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                // 3. Return undefined.
+                ctx.exe
+                    .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            }
+            // 13.5.1.2 Runtime Semantics: Evaluation
+            // https://tc39.es/ecma262/#sec-delete-operator-runtime-semantics-evaluation
+            // UnaryExpression : delete UnaryExpression
+            UnaryOperator::Delete => todo!(),
         }
     }
 }

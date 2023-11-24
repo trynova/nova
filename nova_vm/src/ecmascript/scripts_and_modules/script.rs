@@ -409,4 +409,19 @@ mod test {
 
         assert_eq!(result, (10).into());
     }
+
+    #[test]
+    fn binary_void() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(&allocator, "void (2 + 2 + 6)", realm, None).unwrap();
+
+        let result = script_evaluation(&mut agent, script).unwrap();
+
+        assert_eq!(result, Value::Undefined);
+    }
 }
