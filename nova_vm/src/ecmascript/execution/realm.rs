@@ -55,7 +55,7 @@ impl<'ctx, 'host> Realm<'ctx, 'host> {
     fn create(agent: &mut Agent<'ctx, 'host>) -> RealmIdentifier<'ctx, 'host> {
         // TODO: implement spec
         let realm = Self {
-            global_env: GlobalEnvironmentIndex::from_u32_index(0),
+            global_env: GlobalEnvironmentIndex::from_index(0),
             global_object: Object::Object(ObjectIndex::from_u32_index(0)),
             host_defined: None,
             intrinsics: Intrinsics::default(),
@@ -97,7 +97,7 @@ impl<'ctx, 'host> Realm<'ctx, 'host> {
         agent.heap.get_realm_mut(realm_id).global_object = global_object;
 
         // 5. Let newGlobalEnv be NewGlobalEnvironment(globalObj, thisValue).
-        let new_global_env = GlobalEnvironment::new(global_object, this_value);
+        let new_global_env = GlobalEnvironment::new(&mut agent, global_object, this_value);
 
         // 6. Set realmRec.[[GlobalEnv]] to newGlobalEnv.
         agent.heap.get_realm_mut(realm_id).global_env = agent
