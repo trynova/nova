@@ -1,7 +1,7 @@
 use crate::ecmascript::{
     abstract_operations::{
         operations_on_objects::{get, get_function_realm},
-        testing_and_comparison::{same_value, same_value_non_number},
+        testing_and_comparison::same_value,
     },
     execution::{Agent, JsResult, ProtoIntrinsics},
     types::{
@@ -125,7 +125,7 @@ pub(crate) fn ordinary_set_prototype_of_check_loop(
         //     i. Set done to true.
 
         // b. Else if SameValue(p, O) is true, then
-        if same_value_non_number(agent, p_inner, o) {
+        if same_value(agent, p_inner, o) {
             // i. Return false.
             return false;
         }
@@ -158,9 +158,7 @@ pub(crate) fn ordinary_set_prototype_of(
 
     // 2. If SameValue(V, current) is true, return true.
     match (prototype, current) {
-        (Some(prototype), Some(current)) if same_value_non_number(agent, prototype, current) => {
-            return true
-        }
+        (Some(prototype), Some(current)) if same_value(agent, prototype, current) => return true,
         (None, None) => return true,
         _ => {}
     }
