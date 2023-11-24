@@ -180,9 +180,10 @@ impl Compile for ast::BindingIdentifier {
 }
 
 impl Compile for ast::UnaryExpression<'_> {
+    /// ## [13.5 Unary Operators](https://tc39.es/ecma262/#sec-unary-operators)
     fn compile(&self, ctx: &mut CompileContext) {
         match self.operator {
-            // 13.5.5.1 Runtime Semantics: Evaluation
+            // 13.5.5 Unary - Operator
             // https://tc39.es/ecma262/#sec-unary-minus-operator-runtime-semantics-evaluation
             // UnaryExpression : - UnaryExpression
             UnaryOperator::UnaryNegation => {
@@ -205,8 +206,21 @@ impl Compile for ast::UnaryExpression<'_> {
             UnaryOperator::UnaryPlus => todo!(),
             UnaryOperator::LogicalNot => todo!(),
             UnaryOperator::BitwiseNot => todo!(),
-            UnaryOperator::Typeof => todo!(),
-            // 13.5.2.1 Runtime Semantics: Evaluation
+            // 13.5.3 The typeof Operator
+            // UnaryExpression : typeof UnaryExpression
+            UnaryOperator::Typeof => {
+                // 1. Let val be ? Evaluation of UnaryExpression.
+                self.argument.compile(ctx);
+                // 2. If val is a Reference Record, then
+                if is_reference(&self.argument) {
+                    // a. If IsUnresolvableReference(val) is true, return "undefined".
+                    // if is_unresolvable_reference(&self.argument) {  }
+                }
+                // 3. Set val to ? GetValue(val).
+                ctx.exe.add_instruction(Instruction::GetValue);
+                ctx.exe.add_instruction(Instruction::Typeof);
+            }
+            // 13.5.2 The void operator
             // UnaryExpression : void UnaryExpression
             UnaryOperator::Void => {
                 // 1. Let expr be ? Evaluation of UnaryExpression.
@@ -220,7 +234,7 @@ impl Compile for ast::UnaryExpression<'_> {
                 ctx.exe
                     .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
             }
-            // 13.5.1.2 Runtime Semantics: Evaluation
+            // 13.5.1 The delete operator
             // https://tc39.es/ecma262/#sec-delete-operator-runtime-semantics-evaluation
             // UnaryExpression : delete UnaryExpression
             UnaryOperator::Delete => todo!(),

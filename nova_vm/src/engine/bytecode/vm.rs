@@ -10,7 +10,7 @@ use crate::ecmascript::{
         agent::{resolve_binding, ExceptionType},
         Agent, EnvironmentIndex, JsResult,
     },
-    types::{Base, BigInt, Number, Reference, Value},
+    types::{Base, BigInt, Number, Reference, String, Value},
 };
 
 use super::{Executable, IndexType, Instr, Instruction, InstructionIter};
@@ -132,6 +132,27 @@ impl Vm {
                     let reference = vm.reference_stack.last_mut().unwrap();
                     reference.base = Base::Value(vm.stack.pop().unwrap());
                 }
+                Instruction::GetValue => {
+                    let reference = if let Some(reference) = &vm.reference {
+                        reference
+                    } else {
+                        continue;
+                    };
+
+                    vm.result = match reference.base {
+                        Base::Value(value) => value,
+                        _ => {
+                            return Err(agent.throw_exception(
+                                ExceptionType::ReferenceError,
+                                "Unable to resolve identifier.",
+                            ));
+                        }
+                    };
+                }
+                Instruction::Typeof => {
+                    let val = vm.result;
+                    vm.result = typeof_operator(agent, val).into()
+                }
                 other => todo!("{other:?}"),
             }
         }
@@ -251,4 +272,40 @@ fn apply_string_or_numeric_binary_operator(
         // |	BigInt	BigInt::bitwiseOR
         _ => todo!(),
     })
+}
+
+/// ### [13.5.3 The typeof operator](https://tc39.es/ecma262/#sec-typeof-operator)
+#[inline]
+fn typeof_operator(agent: &mut Agent, val: Value) -> String {
+    match val {
+        // 4. If val is undefined, return "undefined".
+        Value::Undefined => String::from_str(agent, "undefined"),
+        // 8. If val is a Boolean, return "boolean".
+        Value::Boolean(_) => String::from_small_string("boolean"),
+        // 6. If val is a String, return "string".
+        Value::String(_) |
+        Value::SmallString(_) => String::from_small_string("string"),
+        // 7. If val is a Symbol, return "symbol".
+        Value::Symbol(_) => String::from_small_string("symbol"),
+        // 9. If val is a Number, return "number".
+        Value::Number(_) |
+        Value::Integer(_) |
+        Value::Float(_) => String::from_small_string("number"),
+        // 10. If val is a BigInt, return "bigint".
+        Value::BigInt(_) |
+        Value::SmallBigInt(_) => String::from_small_string("bigint"),
+        // 5. If val is null, return "object".
+        Value::Null |
+        // 11. Assert: val is an Object.
+        // 12. NOTE: This step is replaced in section B.3.6.3.
+        Value::Object(_)  |
+        Value::Array(_)  |
+        Value::ArrayBuffer(_)  |
+        Value::Date(_)  |
+        Value::Error(_)  |
+        // 14. Return "object".
+        Value::RegExp(_) => String::from_small_string("object"),
+        // 13. If val has a [[Call]] internal slot, return "function".
+        Value::Function(_) => String::from_str(agent, "function"),
+    }
 }

@@ -411,6 +411,51 @@ mod test {
     }
 
     #[test]
+    fn unary_typeof() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        // let script = parse_script(&allocator, "typeof undefined", realm, None).unwrap();
+        // let result = script_evaluation(&mut agent, script).unwrap();
+        // assert_eq!(result, Value::from_str(&mut agent.heap, "undefined"));
+
+        // let script = parse_script(&allocator, "typeof null", realm, None).unwrap();
+        // let result = script_evaluation(&mut agent, script).unwrap();
+        // assert_eq!(result, Value::from_str(&mut agent.heap, "object"));
+
+        // let script = parse_script(&allocator, "typeof \"string\"", realm, None).unwrap();
+        // let result = script_evaluation(&mut agent, script).unwrap();
+        // assert_eq!(result, Value::from_str(&mut agent.heap, "string"));
+
+        // let script = parse_script(&allocator, "typeof Symbol()", realm, None).unwrap();
+        // let result = script_evaluation(&mut agent, script).unwrap();
+        // assert_eq!(result, Value::from_str(&mut agent.heap, "symbol"));
+
+        let script = parse_script(&allocator, "typeof true", realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_str(&mut agent.heap, "boolean"));
+
+        let script = parse_script(&allocator, "typeof 3", realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_str(&mut agent.heap, "number"));
+
+        let script = parse_script(&allocator, "typeof 3n", realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_str(&mut agent.heap, "bigint"));
+
+        // let script = parse_script(&allocator, "typeof {}", realm, None).unwrap();
+        // let result = script_evaluation(&mut agent, script).unwrap();
+        // assert_eq!(result, Value::from_str(&mut agent.heap, "object"));
+
+        // let script = parse_script(&allocator, "typeof () => {}", realm, None).unwrap();
+        // let result = script_evaluation(&mut agent, script).unwrap();
+        // assert_eq!(result, Value::from_str(&mut agent.heap, "function"));
+    }
+
+    #[test]
     fn binary_add() {
         let allocator = Allocator::default();
 
