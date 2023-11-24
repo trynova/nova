@@ -5,7 +5,7 @@ mod execution_context;
 mod realm;
 
 pub use agent::{Agent, JsResult};
-pub use environments::{
+pub(crate) use environments::{
     DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, Environments,
     FunctionEnvironment, FunctionEnvironmentIndex, GlobalEnvironment, GlobalEnvironmentIndex,
     ObjectEnvironment, ObjectEnvironmentIndex, PrivateEnvironment, PrivateEnvironmentIndex,

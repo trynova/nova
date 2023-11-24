@@ -1,8 +1,7 @@
 mod intrinsics;
 
 use super::{
-    environments::global_environment::GlobalEnvironmentIndex, Agent, ExecutionContext,
-    GlobalEnvironment, JsResult,
+    environments::GlobalEnvironmentIndex, Agent, ExecutionContext, GlobalEnvironment, JsResult,
 };
 use crate::{
     ecmascript::types::{Object, PropertyDescriptor, PropertyKey, Value},

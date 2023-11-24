@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod ecmascript;
 pub mod engine;
 pub mod heap;
