@@ -81,7 +81,7 @@ pub(crate) fn is_private_reference(reference: &Reference) -> bool {
 }
 
 #[derive(Debug)]
-pub enum Base {
+pub(crate) enum Base {
     Value(Value),
     Environment(EnvironmentIndex),
     Unresolvable,

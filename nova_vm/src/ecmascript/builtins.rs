@@ -19,5 +19,5 @@ pub use builtin_function::{
     create_builtin_function, todo_builtin, ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs,
     ConstructorFn, RegularFn as JsFunction, RegularFn,
 };
-pub use ecmascript_function::ECMAScriptFunction;
+pub(crate) use ecmascript_function::ECMAScriptFunction;
 pub use number::NumberConstructor;
