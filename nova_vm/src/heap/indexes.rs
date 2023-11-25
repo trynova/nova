@@ -114,7 +114,7 @@ impl<T: ?Sized> BaseIndex<T> {
 
     pub fn last<U: Sized>(vec: &Vec<Option<U>>) -> Self {
         assert!(!vec.is_empty());
-        Self::from_index(vec.len())
+        Self::from_usize(vec.len())
     }
 }
 
