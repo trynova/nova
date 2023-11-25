@@ -1,8 +1,8 @@
 use super::Instruction;
 use crate::{
-    ecmascript::types::{BigIntHeapData, Reference, Value},
+    ecmascript::types::{BigIntHeapData, Reference, StringHeapData, Value},
     heap::CreateHeapData,
-    Heap,
+    Heap, SmallString,
 };
 use oxc_ast::ast;
 use oxc_span::Atom;
@@ -169,6 +169,14 @@ impl Compile for ast::NullLiteral {
     fn compile(&self, ctx: &mut CompileContext) {
         ctx.exe
             .add_instruction_with_constant(Instruction::StoreConstant, Value::Null);
+    }
+}
+
+impl Compile for ast::StringLiteral {
+    fn compile(&self, ctx: &mut CompileContext) {
+        let constant = Value::from_str(ctx.heap, &self.value.as_str());
+        ctx.exe
+            .add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
 }
 
@@ -349,6 +357,7 @@ impl Compile for ast::Expression<'_> {
             ast::Expression::AssignmentExpression(x) => x.compile(ctx),
             ast::Expression::ParenthesizedExpression(x) => x.compile(ctx),
             ast::Expression::NullLiteral(x) => x.compile(ctx),
+            ast::Expression::StringLiteral(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }
