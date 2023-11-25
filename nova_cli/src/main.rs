@@ -1,4 +1,13 @@
 use clap::{Parser as ClapParser, Subcommand};
+use nova_vm::{
+    ecmascript::{
+        execution::{
+            agent::Options, create_realm, set_realm_global_object, Agent, DefaultHostHooks,
+        },
+        scripts_and_modules::script::{parse_script, script_evaluation},
+    },
+    Heap,
+};
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 
@@ -42,20 +51,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Command::Eval { path } => {
             let file = std::fs::read_to_string(path)?;
             let allocator = Default::default();
-            let source_type: SourceType = Default::default();
-            let parser = Parser::new(&allocator, &file, source_type.with_typescript(false));
-            let _result = parser.parse();
 
-            // let mut vm = VM {
-            //     source: &file,
-            //     pc: 0,
-            //     instructions: Vec::new(),
-            //     heap: Heap::new(),
-            // };
+            let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+            let realm = create_realm(&mut agent);
+            set_realm_global_object(&mut agent, realm, None, None);
+            let script = parse_script(&allocator, &file, realm, None).unwrap();
+            let result = script_evaluation(&mut agent, script).unwrap();
 
-            // vm.load_program(result.program);
-            // println!("{:?}", vm.instructions);
-            // vm.interpret();
+            println!("{:?}", result);
         }
     }
 

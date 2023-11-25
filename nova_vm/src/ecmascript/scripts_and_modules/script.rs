@@ -58,7 +58,7 @@ pub type ScriptOrErrors<'ctx, 'host> = Result<Script<'ctx, 'host>, Vec<oxc_diagn
 /// (anything) and returns a Script Record or a non-empty List of SyntaxError
 /// objects. It creates a Script Record based upon the result of parsing
 /// sourceText as a Script.
-pub(crate) fn parse_script<'ctx, 'host>(
+pub fn parse_script<'ctx, 'host>(
     allocator: &'ctx Allocator,
     source_text: &'ctx str,
     realm: RealmIdentifier<'ctx, 'host>,
@@ -92,7 +92,7 @@ pub(crate) fn parse_script<'ctx, 'host>(
 /// The abstract operation ScriptEvaluation takes argument scriptRecord (a
 /// Script Record) and returns either a normal completion containing an
 /// ECMAScript language value or an abrupt completion.
-pub(crate) fn script_evaluation<'ctx, 'host>(
+pub fn script_evaluation<'ctx, 'host>(
     agent: &mut Agent<'ctx, 'host>,
     script: Script<'ctx, 'host>,
 ) -> JsResult<Value> {
