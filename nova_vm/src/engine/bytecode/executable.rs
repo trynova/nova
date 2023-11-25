@@ -165,6 +165,13 @@ impl Compile for ast::BigintLiteral {
     }
 }
 
+impl Compile for ast::NullLiteral {
+    fn compile(&self, ctx: &mut CompileContext) {
+        ctx.exe
+            .add_instruction_with_constant(Instruction::StoreConstant, Value::Null);
+    }
+}
+
 impl Compile for ast::IdentifierReference {
     fn compile(&self, ctx: &mut CompileContext) {
         ctx.exe
@@ -341,6 +348,7 @@ impl Compile for ast::Expression<'_> {
             ast::Expression::BinaryExpression(x) => x.compile(ctx),
             ast::Expression::AssignmentExpression(x) => x.compile(ctx),
             ast::Expression::ParenthesizedExpression(x) => x.compile(ctx),
+            ast::Expression::NullLiteral(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }

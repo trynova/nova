@@ -422,9 +422,9 @@ mod test {
         // let result = script_evaluation(&mut agent, script).unwrap();
         // assert_eq!(result, Value::from_str(&mut agent.heap, "undefined"));
 
-        // let script = parse_script(&allocator, "typeof null", realm, None).unwrap();
-        // let result = script_evaluation(&mut agent, script).unwrap();
-        // assert_eq!(result, Value::from_str(&mut agent.heap, "object"));
+        let script = parse_script(&allocator, "typeof null", realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_str(&mut agent.heap, "object"));
 
         // let script = parse_script(&allocator, "typeof \"string\"", realm, None).unwrap();
         // let result = script_evaluation(&mut agent, script).unwrap();
