@@ -418,9 +418,9 @@ mod test {
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        // let script = parse_script(&allocator, "typeof undefined", realm, None).unwrap();
-        // let result = script_evaluation(&mut agent, script).unwrap();
-        // assert_eq!(result, Value::from_str(&mut agent.heap, "undefined"));
+        let script = parse_script(&allocator, "typeof undefined", realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_str(&mut agent.heap, "undefined"));
 
         let script = parse_script(&allocator, "typeof null", realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();

@@ -182,8 +182,15 @@ impl Compile for ast::StringLiteral {
 
 impl Compile for ast::IdentifierReference {
     fn compile(&self, ctx: &mut CompileContext) {
-        ctx.exe
-            .add_instruction_with_identifier(Instruction::ResolveBinding, self.name.clone());
+        if self.name == "undefined" {
+            // TODO(@aapoalas): This is correct for strict mode but not correct
+            // in general and definitely not the way to do this.
+            ctx.exe
+                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        } else {
+            ctx.exe
+                .add_instruction_with_identifier(Instruction::ResolveBinding, self.name.clone());
+        }
     }
 }
 
