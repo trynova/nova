@@ -122,13 +122,13 @@ impl TryFrom<Value> for PropertyKey {
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
             Value::Integer(x) => Ok(PropertyKey::Integer(x)),
-            Value::Float(x)
-                if x.fract() == 0.0
-                    && (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER)
-                        .contains(&(x as i64)) =>
-            {
-                if let Ok(x) = SmallInteger::try_from(x as i64) {
-                    Ok(PropertyKey::Integer(x))
+            Value::Float(x) => {
+                if x == -0.0f32 {
+                    Ok(PropertyKey::Integer(0))
+                } else if x.fract() == 0.0
+                    && (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&(x as i64))
+                {
+                    unreachable!("Value::Float should not contain safe integers");
                 } else {
                     Err(())
                 }
