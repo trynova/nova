@@ -16,6 +16,7 @@ use crate::{
         types::{BigInt, Number, Object, PropertyKey, String, Value},
     },
     heap::{CreateHeapData, GetHeapData, WellKnownSymbolIndexes},
+    SmallInteger,
 };
 
 use super::{
@@ -509,7 +510,9 @@ pub(crate) fn to_property_key(agent: &mut Agent, argument: Value) -> JsResult<Pr
 }
 
 /// ### [7.1.20 ToLength ( argument )](https://tc39.es/ecma262/#sec-tolength)
-pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<Number> {
+pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<i64> {
+    // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
+
     // 1. Let len be ? ToIntegerOrInfinity(argument).
     let len = to_integer_or_infinity(agent, argument)?;
 
@@ -519,15 +522,14 @@ pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<Number> 
         Number::Float(n) => n <= 0.0,
         Number::Number(n) => *agent.heap.get(n) <= 0.0,
     } {
-        return Ok(0.0.into());
+        return Ok(0);
     }
 
     // 3. Return 𝔽(min(len, 2**53 - 1)).
-    let max = 2.0f64.powi(53) - 1.0;
     Ok(match len {
-        Number::Integer(n) => n.into_i64().min(max as i64).into(),
-        Number::Float(n) => n.min(max as f32).into(),
-        Number::Number(n) => agent.heap.create(agent.heap.get(n).min(max)),
+        Number::Integer(n) => n.into_i64().min(SmallInteger::MAX_NUMBER),
+        Number::Float(n) => n.min(SmallInteger::MAX_NUMBER as f32) as i64,
+        Number::Number(n) => agent.heap.get(n).min(SmallInteger::MAX_NUMBER as f64) as i64,
     })
 }
 
