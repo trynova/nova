@@ -122,9 +122,26 @@ impl TryFrom<Value> for PropertyKey {
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
             Value::Integer(x) => Ok(PropertyKey::Integer(x)),
+            Value::Float(x) => {
+                if x == -0.0f32 {
+                    Ok(PropertyKey::Integer(0.into()))
+                } else if x.fract() == 0.0
+                    && (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&(x as i64))
+                {
+                    unreachable!("Value::Float should not contain safe integers");
+                } else {
+                    Err(())
+                }
+            }
             Value::SmallString(x) => Ok(PropertyKey::SmallString(x)),
             Value::String(x) => Ok(PropertyKey::String(x)),
             Value::Symbol(x) => Ok(PropertyKey::Symbol(x)),
+            Value::SmallBigInt(x)
+                if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER)
+                    .contains(&x.into_i64()) =>
+            {
+                Ok(PropertyKey::Integer(x))
+            }
             _ => Err(()),
         }
     }

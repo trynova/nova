@@ -6,8 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { version = "4.3", features = ["derive"] }
-oxc_parser = "0.1.0"
-oxc_ast = "0.1.0"
-oxc_span = "0.1.0"
+clap = { version = "4.4.8", features = ["derive"] }
+oxc_parser = "0.3.0"
+oxc_ast = "0.3.0"
+oxc_span = "0.3.0"
 nova_vm = { path = "../nova_vm" }

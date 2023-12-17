@@ -5,7 +5,7 @@ use crate::ecmascript::execution::{Agent, JsResult};
 // use super::declarative_environment::Binding;
 use crate::ecmascript::types::{Object, String, Value};
 use crate::heap::element_array::ElementsVector;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use super::{DeclarativeEnvironment, ObjectEnvironment};
 

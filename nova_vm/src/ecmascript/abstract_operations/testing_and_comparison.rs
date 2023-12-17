@@ -64,6 +64,33 @@ pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1
         || (x.into().is_object() && y.into().is_object())
 }
 
+/// ### [7.2.6 IsIntegralNumber ( argument )](https://tc39.es/ecma262/#sec-isintegralnumber)
+pub(crate) fn is_integral_number(agent: &mut Agent, argument: impl Copy + Into<Value>) -> bool {
+    let argument = argument.into();
+
+    // OPTIMIZATION: If the number is a small integer, then know that it must be
+    // an integral number.
+    if let Value::Integer(_) = argument {
+        return true;
+    }
+
+    // 1. If argument is not a Number, return false.
+    let Ok(argument) = Number::try_from(argument) else {
+        return false;
+    };
+
+    // 2. If argument is not finite, return false.
+    if !argument.is_finite(agent) {
+        return false;
+    }
+
+    // 3. If truncate(ℝ(argument)) ≠ ℝ(argument), return false.
+    // 4. Return true.
+    // NOTE: Checking if the fractional component is 0.0 is the same as the
+    // specification's operation.
+    argument.into_value().to_real(agent).unwrap().fract() == 0.0
+}
+
 /// 7.2.10 SameValue ( x, y )
 /// https://tc39.es/ecma262/#sec-samevalue
 pub(crate) fn same_value<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(

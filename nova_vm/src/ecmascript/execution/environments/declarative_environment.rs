@@ -53,7 +53,7 @@ impl DeclarativeEnvironment {
     /// envRec takes argument N (a String) and returns a normal completion
     /// containing a Boolean. It determines if the argument identifier is one of
     /// the identifiers bound by the record.
-    pub fn has_binding(&self, name: &str) -> bool {
+    pub fn has_binding(&self, name: &Atom) -> bool {
         // 1. If envRec has a binding for N, return true.
         // 2. Return false.
         self.bindings.contains_key(name)

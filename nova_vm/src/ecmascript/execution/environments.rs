@@ -72,7 +72,7 @@ macro_rules! create_environment_index {
                 assert!(value != u32::MAX);
                 // SAFETY: Number is not max value and will not overflow to zero.
                 // This check is done manually to allow const context.
-                Self(unsafe { NonZeroU32::new_unchecked(value) }, PhantomData)
+                Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
             }
 
             pub(crate) const fn into_index(self) -> usize {
