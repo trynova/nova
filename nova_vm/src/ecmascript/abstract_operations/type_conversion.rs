@@ -556,19 +556,23 @@ pub(crate) fn canonical_numeric_index_string(
 }
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
-pub(crate) fn to_index(agent: &mut Agent, argument: Value) -> JsResult<Number> {
+pub(crate) fn to_index(agent: &mut Agent, argument: Value) -> JsResult<i64> {
+    // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
+
     // 1. Let integer be ? ToIntegerOrInfinity(value).
     let integer = to_integer_or_infinity(agent, argument)?;
 
     // 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a RangeError exception.
-    let max = 2.0f64.powi(53) - 1.0;
-    if match integer {
-        Number::Integer(n) => !(0..=(max as i64)).contains(&n.into_i64()),
-        Number::Float(n) => !(0.0f32..=(max as f32)).contains(&n),
-        Number::Number(n) => !(0.0f64..=max).contains(agent.heap.get(n)),
-    } {
+    let integer = if let Number::Integer(n) = integer {
+        let integer = n.into_i64();
+        if !(0..=(SmallInteger::MAX_NUMBER)).contains(&integer) {
+            return Err(agent.throw_exception(ExceptionType::RangeError, "Result is out of range"));
+        }
+        integer
+    } else {
+        // to_integer_or_infinity returns +0, +Infinity, -Infinity, or an integer.
         return Err(agent.throw_exception(ExceptionType::RangeError, "Result is out of range"));
-    }
+    };
 
     // 3. Return integer.
     Ok(integer)
