@@ -67,12 +67,12 @@ macro_rules! create_environment_index {
             /// Creates a new index from a u32.
             ///
             /// ## Panics
-            /// - If the value is equal to [`u32::MAX`].
-            pub(crate) const fn from_index(value: u32) -> Self {
-                assert!(value != u32::MAX);
-                // SAFETY: Number is not max value and will not overflow to zero.
+            /// - If the value is equal to 0.
+            pub(crate) const fn from_u32(value: u32) -> Self {
+                assert!(value != 0);
+                // SAFETY: Number is not 0 and will not overflow to zero.
                 // This check is done manually to allow const context.
-                Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
+                Self(unsafe { NonZeroU32::new_unchecked(value) }, PhantomData)
             }
 
             pub(crate) const fn into_index(self) -> usize {
@@ -227,7 +227,7 @@ impl Environments {
         env: DeclarativeEnvironment,
     ) -> DeclarativeEnvironmentIndex {
         self.declarative.push(Some(env));
-        DeclarativeEnvironmentIndex::from_index(self.declarative.len() as u32)
+        DeclarativeEnvironmentIndex::from_u32(self.declarative.len() as u32)
     }
 
     pub(crate) fn push_function_environment(
@@ -235,7 +235,7 @@ impl Environments {
         env: FunctionEnvironment,
     ) -> FunctionEnvironmentIndex {
         self.function.push(Some(env));
-        FunctionEnvironmentIndex::from_index(self.function.len() as u32)
+        FunctionEnvironmentIndex::from_u32(self.function.len() as u32)
     }
 
     pub(crate) fn push_global_environment(
@@ -243,7 +243,7 @@ impl Environments {
         env: GlobalEnvironment,
     ) -> GlobalEnvironmentIndex {
         self.global.push(Some(env));
-        GlobalEnvironmentIndex::from_index(self.global.len() as u32)
+        GlobalEnvironmentIndex::from_u32(self.global.len() as u32)
     }
 
     pub(crate) fn push_object_environment(
@@ -251,7 +251,7 @@ impl Environments {
         env: ObjectEnvironment,
     ) -> ObjectEnvironmentIndex {
         self.object.push(Some(env));
-        ObjectEnvironmentIndex::from_index(self.object.len() as u32)
+        ObjectEnvironmentIndex::from_u32(self.object.len() as u32)
     }
 
     pub(crate) fn get_declarative_environment(
