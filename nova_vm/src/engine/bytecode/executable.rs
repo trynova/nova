@@ -352,6 +352,12 @@ impl Compile for ast::ParenthesizedExpression<'_> {
     }
 }
 
+impl Compile for ast::Function<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        todo!("Aapo ei tehnyt vielä mitään")
+    }
+}
+
 impl Compile for ast::Expression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
@@ -365,6 +371,7 @@ impl Compile for ast::Expression<'_> {
             ast::Expression::ParenthesizedExpression(x) => x.compile(ctx),
             ast::Expression::NullLiteral(x) => x.compile(ctx),
             ast::Expression::StringLiteral(x) => x.compile(ctx),
+            ast::Expression::FunctionExpression(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }
@@ -409,6 +416,7 @@ impl Compile for ast::VariableDeclaration<'_> {
                     };
 
                     if let Some(init) = &decl.init {
+                        // Put undefined to stack
                         ctx.exe.add_instruction(Instruction::Load);
 
                         ctx.exe.add_instruction_with_identifier(
@@ -424,9 +432,11 @@ impl Compile for ast::VariableDeclaration<'_> {
                             ctx.exe.add_instruction(Instruction::GetValue);
                         }
 
+                        ctx.exe.add_instruction(Instruction::Load);
                         ctx.exe.add_instruction(Instruction::PutValue);
                         ctx.exe.add_instruction(Instruction::PopReference);
 
+                        // Pop out undefined from stack to return it.
                         ctx.exe.add_instruction(Instruction::Store);
                     }
                 }

@@ -1,3 +1,5 @@
+use oxc_span::Atom;
+
 use super::{
     environments::get_identifier_reference, EnvironmentIndex, ExecutionContext, Realm,
     RealmIdentifier,

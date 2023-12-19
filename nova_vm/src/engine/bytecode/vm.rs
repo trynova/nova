@@ -61,12 +61,32 @@ impl Vm {
                 Instruction::ResolveBinding => {
                     let identifier =
                         vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                    println!("{}", identifier);
 
                     let reference = resolve_binding(agent, &identifier, None)?;
 
                     vm.result = match reference.base {
                         Base::Value(value) => value,
-                        _ => {
+                        Base::Environment(env) => match env {
+                            EnvironmentIndex::DeclarativeEnvironment(idx) => agent
+                                .heap
+                                .environments
+                                .get_declarative_environment(idx)
+                                .get_binding_value(identifier, false)?,
+                            EnvironmentIndex::FunctionEnvironment(idx) => agent
+                                .heap
+                                .environments
+                                .get_function_environment(idx)
+                                .get_binding_value(identifier, false)?,
+                            EnvironmentIndex::GlobalEnvironment(idx) => agent
+                                .heap
+                                .environments
+                                .get_global_environment(idx)
+                                .declarative_record
+                                .get_binding_value(identifier, false)?,
+                            EnvironmentIndex::ObjectEnvironment(_idx) => todo!(),
+                        },
+                        Base::Unresolvable => {
                             return Err(agent.throw_exception(
                                 ExceptionType::ReferenceError,
                                 "Unable to resolve identifier.",

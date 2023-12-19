@@ -215,7 +215,7 @@ impl DeclarativeEnvironment {
     /// thrown, regardless of the value of S.
     pub(crate) fn get_binding_value(
         &self,
-        agent: &mut Agent,
+        // agent: &mut Agent,
         name: &Atom,
         _is_strict: bool,
     ) -> JsResult<Value> {
@@ -225,9 +225,12 @@ impl DeclarativeEnvironment {
         // 2. If the binding for N in envRec is an uninitialized binding, throw
         // a ReferenceError exception.
         let Some(value) = binding.value else {
-            return Err(
-                agent.throw_exception(ExceptionType::ReferenceError, "Identifier is not defined.")
-            );
+            // TODO: Resolve the issue of environments being in heap and not light enough to clone,
+            // while still having methods that take the Agent and thereby the heap.
+            panic!("Idenitifer is not defined");
+            // return Err(
+            //     agent.throw_exception(ExceptionType::ReferenceError, "Identifier is not defined.")
+            // );
         };
 
         // 3. Return the value currently bound to N in envRec.
