@@ -184,23 +184,21 @@ impl Vm {
                             agent,
                         )
                     };
-                    let function = unsafe {
-                        ordinary_function_create(
-                            stupid_agent,
-                            None,
-                            "",
-                            &function_expression.expression.params,
-                            &function_expression.expression.body.as_ref().unwrap(),
-                            crate::ecmascript::builtins::ThisMode::Lexical,
-                            agent
-                                .running_execution_context()
-                                .ecmascript_code
-                                .as_ref()
-                                .unwrap()
-                                .lexical_environment,
-                            None,
-                        )
-                    };
+                    let function = ordinary_function_create(
+                        stupid_agent,
+                        None,
+                        "",
+                        &function_expression.expression.params,
+                        &function_expression.expression.body.as_ref().unwrap(),
+                        crate::ecmascript::builtins::ThisMode::Lexical,
+                        agent
+                            .running_execution_context()
+                            .ecmascript_code
+                            .as_ref()
+                            .unwrap()
+                            .lexical_environment,
+                        None,
+                    );
                     vm.result = function.into();
                 }
                 other => todo!("{other:?}"),
