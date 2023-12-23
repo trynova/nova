@@ -121,10 +121,7 @@ impl Executable {
         self.instructions.extend_from_slice(&bytes);
     }
 
-    fn add_function_expression(
-        &mut self,
-        function_expression: FunctionExpression
-    ) {
+    fn add_function_expression(&mut self, function_expression: FunctionExpression) {
         self.add_instruction(Instruction::InstantiateOrdinaryFunctionExpression);
         self.function_expressions.push(function_expression);
         let index = self.function_expressions.len() - 1;
@@ -385,7 +382,11 @@ impl Compile for ast::ParenthesizedExpression<'_> {
 
 impl Compile for ast::Function<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        ctx.exe.add_function_expression(FunctionExpression { expression: unsafe{std::mem::transmute(self)}, identifier: None, home_object: None });
+        ctx.exe.add_function_expression(FunctionExpression {
+            expression: unsafe { std::mem::transmute(self) },
+            identifier: None,
+            home_object: None,
+        });
     }
 }
 

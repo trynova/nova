@@ -3,14 +3,15 @@ use oxc_syntax::operator::BinaryOperator;
 
 use crate::ecmascript::{
     abstract_operations::{
-        testing_and_comparison::{is_same_type},
+        testing_and_comparison::is_same_type,
         type_conversion::{to_number, to_numeric, to_primitive, to_string},
     },
+    builtins::ordinary_function_create,
     execution::{
         agent::{resolve_binding, ExceptionType},
         Agent, EnvironmentIndex, JsResult,
     },
-    types::{Base, BigInt, Number, Reference, String, Value}, builtins::ordinary_function_create,
+    types::{Base, BigInt, Number, Reference, String, Value},
 };
 
 use super::{Executable, Instruction, InstructionIter};
@@ -174,16 +175,34 @@ impl Vm {
                     vm.result = typeof_operator(agent, val).into()
                 }
                 Instruction::InstantiateOrdinaryFunctionExpression => {
-                    let function_expression = executable.function_expressions.get(instr.args[0].unwrap() as usize).unwrap();
-                    let stupid_agent = unsafe {std::mem::transmute::<&mut Agent, &'static mut Agent<'static, 'static>>(agent)};
-                    let function = unsafe {ordinary_function_create(stupid_agent, None, "", &function_expression.expression.params, &function_expression.expression.body.as_ref().unwrap(), crate::ecmascript::builtins::ThisMode::Lexical, agent
-                        .running_execution_context()
-                        .ecmascript_code
-                        .as_ref()
-                        .unwrap()
-                        .lexical_environment, None)};
+                    let function_expression = executable
+                        .function_expressions
+                        .get(instr.args[0].unwrap() as usize)
+                        .unwrap();
+                    let stupid_agent = unsafe {
+                        std::mem::transmute::<&mut Agent, &'static mut Agent<'static, 'static>>(
+                            agent,
+                        )
+                    };
+                    let function = unsafe {
+                        ordinary_function_create(
+                            stupid_agent,
+                            None,
+                            "",
+                            &function_expression.expression.params,
+                            &function_expression.expression.body.as_ref().unwrap(),
+                            crate::ecmascript::builtins::ThisMode::Lexical,
+                            agent
+                                .running_execution_context()
+                                .ecmascript_code
+                                .as_ref()
+                                .unwrap()
+                                .lexical_environment,
+                            None,
+                        )
+                    };
                     vm.result = function.into();
-                },
+                }
                 other => todo!("{other:?}"),
             }
         }

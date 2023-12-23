@@ -97,8 +97,14 @@ pub(crate) fn ordinary_function_create<'ctx, 'host>(
         length: 0,
         initial_name: Value::Undefined,
     };
-    if function_prototype.is_some() && function_prototype != Some(agent.current_realm().intrinsics().function_prototype()) {
-        function.object_index = Some(agent.heap.create_object_with_prototype(function_prototype.unwrap()));
+    if function_prototype.is_some()
+        && function_prototype != Some(agent.current_realm().intrinsics().function_prototype())
+    {
+        function.object_index = Some(
+            agent
+                .heap
+                .create_object_with_prototype(function_prototype.unwrap()),
+        );
     }
 
     let _ecmascript_function = ECMAScriptFunction {
