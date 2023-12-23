@@ -19,13 +19,18 @@ impl<'ctx, 'host> RealmIdentifier<'ctx, 'host> {
     ///
     /// ## Panics
     /// If the given index is greater than `u32::MAX`.
-    pub const fn from_index(value: usize) -> Self {
+    pub(crate) const fn from_index(value: usize) -> Self {
         assert!(value <= u32::MAX as usize);
         Self(value as u32, PhantomData)
     }
 
-    pub const fn into_index(self) -> usize {
-        self.0 as usize - 1
+    pub(crate) fn last(realms: &Vec<Option<Realm>>) -> Self {
+        let index = realms.len() - 1;
+        Self::from_index(index)
+    }
+
+    pub(crate) const fn into_index(self) -> usize {
+        self.0 as usize
     }
 }
 

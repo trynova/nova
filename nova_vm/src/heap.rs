@@ -45,6 +45,10 @@ use self::{
 use crate::ecmascript::{
     builtins::{ArrayBufferHeapData, ArrayHeapData},
     execution::{Environments, Realm, RealmIdentifier},
+    scripts_and_modules::{
+        module::{Module, ModuleIdentifier},
+        script::{Script, ScriptIdentifier},
+    },
     types::{
         BigInt, BigIntHeapData, Function, FunctionHeapData, Number, NumberHeapData, Object,
         ObjectHeapData, PropertyKey, String, StringHeapData, Value,
@@ -54,7 +58,9 @@ use wtf8::{Wtf8, Wtf8Buf};
 
 #[derive(Debug)]
 pub struct Heap<'ctx, 'host> {
+    pub modules: Vec<Option<Module<'ctx, 'host>>>,
     pub realms: Vec<Option<Realm<'ctx, 'host>>>,
+    pub scripts: Vec<Option<Script<'ctx, 'host>>>,
     pub environments: Environments,
     /// ElementsArrays is where all element arrays live;
     /// Element arrays are static arrays of Values plus
@@ -187,7 +193,9 @@ impl CreateHeapData<BigIntHeapData, BigInt> for Heap<'_, '_> {
 impl<'ctx, 'host> Heap<'ctx, 'host> {
     pub fn new() -> Heap<'ctx, 'host> {
         let mut heap = Heap {
+            modules: vec![],
             realms: Vec::with_capacity(1),
+            scripts: Vec::with_capacity(1),
             environments: Default::default(),
             elements: ElementArrays {
                 e2pow4: ElementArray2Pow4::with_capacity(1024),
@@ -240,12 +248,47 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
         heap
     }
 
-    pub(crate) fn add_realm(&mut self, realm: Realm<'ctx, 'host>) -> RealmIdentifier<'ctx, 'host> {
-        self.realms.push(Some(realm));
-        RealmIdentifier::from_index(self.realms.len())
+    pub(crate) fn add_module(
+        &mut self,
+        module: Module<'ctx, 'host>,
+    ) -> ModuleIdentifier<'ctx, 'host> {
+        self.modules.push(Some(module));
+        ModuleIdentifier::last(&self.modules)
     }
 
-    pub fn get_realm(&self, id: RealmIdentifier<'ctx, 'host>) -> &Realm<'ctx, 'host> {
+    pub(crate) fn add_realm(&mut self, realm: Realm<'ctx, 'host>) -> RealmIdentifier<'ctx, 'host> {
+        self.realms.push(Some(realm));
+        RealmIdentifier::last(&self.realms)
+    }
+
+    pub(crate) fn add_script(
+        &mut self,
+        script: Script<'ctx, 'host>,
+    ) -> ScriptIdentifier<'ctx, 'host> {
+        self.scripts.push(Some(script));
+        ScriptIdentifier::last(&self.scripts)
+    }
+
+    pub(crate) fn get_module(&self, id: ModuleIdentifier<'ctx, 'host>) -> &Module<'ctx, 'host> {
+        self.modules
+            .get(id.into_index())
+            .expect("ModuleIdentifier did not match a Module")
+            .as_ref()
+            .expect("ModuleIdentifier matched a freed Module")
+    }
+
+    pub(crate) fn get_module_mut(
+        &mut self,
+        id: ModuleIdentifier<'ctx, 'host>,
+    ) -> &mut Module<'ctx, 'host> {
+        self.modules
+            .get_mut(id.into_index())
+            .expect("ModuleIdentifier did not match a Module")
+            .as_mut()
+            .expect("ModuleIdentifier matched a freed Module")
+    }
+
+    pub(crate) fn get_realm(&self, id: RealmIdentifier<'ctx, 'host>) -> &Realm<'ctx, 'host> {
         self.realms
             .get(id.into_index())
             .expect("RealmIdentifier did not match a Realm")
@@ -253,12 +296,34 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
             .expect("RealmIdentifier matched a freed Realm")
     }
 
-    pub fn get_realm_mut(&mut self, id: RealmIdentifier<'ctx, 'host>) -> &mut Realm<'ctx, 'host> {
+    pub(crate) fn get_realm_mut(
+        &mut self,
+        id: RealmIdentifier<'ctx, 'host>,
+    ) -> &mut Realm<'ctx, 'host> {
         self.realms
             .get_mut(id.into_index())
             .expect("RealmIdentifier did not match a Realm")
             .as_mut()
             .expect("RealmIdentifier matched a freed Realm")
+    }
+
+    pub(crate) fn get_script(&self, id: ScriptIdentifier<'ctx, 'host>) -> &Script<'ctx, 'host> {
+        self.scripts
+            .get(id.into_index())
+            .expect("ScriptIdentifier did not match a Script")
+            .as_ref()
+            .expect("ScriptIdentifier matched a freed Script")
+    }
+
+    pub(crate) fn get_script_mut(
+        &mut self,
+        id: ScriptIdentifier<'ctx, 'host>,
+    ) -> &mut Script<'ctx, 'host> {
+        self.scripts
+            .get_mut(id.into_index())
+            .expect("ScriptIdentifier did not match a Script")
+            .as_mut()
+            .expect("ScriptIdentifier matched a freed Script")
     }
 
     /// Allocate a string onto the Agent heap

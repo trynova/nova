@@ -2,21 +2,43 @@ use crate::{
     ecmascript::{
         execution::{
             agent::ExceptionType, Agent, ECMAScriptCode, EnvironmentIndex, ExecutionContext,
-            GlobalEnvironment, GlobalEnvironmentIndex, JsResult, RealmIdentifier,
+            GlobalEnvironmentIndex, JsResult, RealmIdentifier,
         },
         scripts_and_modules::ScriptOrModule,
         types::Value,
     },
     engine::{Executable, Vm},
-    heap::GetHeapData,
 };
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{BindingPatternKind, Declaration, Program, Statement};
 use oxc_parser::Parser;
 use oxc_span::SourceType;
-use std::{any::Any, collections::HashMap};
+use std::{any::Any, marker::PhantomData};
 
 pub type HostDefined<'ctx> = &'ctx mut dyn Any;
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ScriptIdentifier<'ctx, 'host>(u32, PhantomData<Script<'ctx, 'host>>);
+
+impl<'ctx, 'host> ScriptIdentifier<'ctx, 'host> {
+    /// Creates a script identififer from a usize.
+    ///
+    /// ## Panics
+    /// If the given index is greater than `u32::MAX`.
+    pub(crate) const fn from_index(value: usize) -> Self {
+        assert!(value <= u32::MAX as usize);
+        Self(value as u32, PhantomData)
+    }
+
+    pub(crate) fn last(scripts: &Vec<Option<Script>>) -> Self {
+        let index = scripts.len() - 1;
+        Self::from_index(index)
+    }
+
+    pub(crate) const fn into_index(self) -> usize {
+        self.0 as usize
+    }
+}
 
 /// ### [16.1.4 Script Records](https://tc39.es/ecma262/#sec-script-records)
 ///
@@ -97,6 +119,7 @@ pub(crate) fn script_evaluation<'ctx, 'host>(
     script: Script<'ctx, 'host>,
 ) -> JsResult<Value> {
     let realm_id = script.realm;
+    let script = agent.heap.add_script(script);
     let realm = agent.get_realm(realm_id);
 
     // 1. Let globalEnv be scriptRecord.[[Realm]].[[GlobalEnv]].
@@ -134,30 +157,14 @@ pub(crate) fn script_evaluation<'ctx, 'host>(
     // NOTE: We cannot define the script here due to reference safety.
 
     // 12. Let result be Completion(GlobalDeclarationInstantiation(script, globalEnv)).
-    global_declaration_instantiation(agent, global_env.unwrap())?;
+    let _ = global_declaration_instantiation(agent, script, global_env.unwrap())?;
 
     // TODO: Follow step 13.
     // 13. If result.[[Type]] is normal, then
     //     a. Set result to Completion(Evaluation of script).
     //     b. If result.[[Type]] is normal and result.[[Value]] is empty, then
     //        i. Set result to NormalCompletion(undefined).
-
-    let exe = Executable::compile(
-        &mut agent.heap,
-        agent
-            .execution_context_stack
-            .last()
-            .unwrap()
-            .script_or_module
-            .as_ref()
-            .map(|script_or_module| {
-                let ScriptOrModule::Script(script) = script_or_module else {
-                    unreachable!();
-                };
-                &script.ecmascript_code.body
-            })
-            .unwrap(),
-    );
+    let exe = Executable::compile(agent, script);
     let result = Vm::execute(agent, &exe)?;
 
     // 14. Suspend scriptContext and remove it from the execution context stack.
@@ -181,19 +188,13 @@ pub(crate) fn script_evaluation<'ctx, 'host>(
 /// either a normal completion containing UNUSED or a throw completion. script
 /// is the Script for which the execution context is being established. env is
 /// the global environment in which bindings are to be created.
-pub(crate) fn global_declaration_instantiation(
-    agent: &mut Agent,
+pub(crate) fn global_declaration_instantiation<'ctx, 'host>(
+    agent: &mut Agent<'ctx, 'host>,
+    script: ScriptIdentifier<'ctx, 'host>,
     env_index: GlobalEnvironmentIndex,
 ) -> JsResult<()> {
-    let ScriptOrModule::Script(script) = agent
-        .running_execution_context()
-        .script_or_module
-        .as_ref()
-        .unwrap()
-    else {
-        unreachable!();
-    };
-
+    // 11. Let script be scriptRecord.[[ECMAScriptCode]].
+    let script = agent.heap.get_script(script);
     let env = agent.heap.environments.get_global_environment(env_index);
 
     // 1. Let lexNames be the LexicallyDeclaredNames of script.
@@ -481,5 +482,18 @@ mod test {
         let script = parse_script(&allocator, "var foo = 3;", realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Undefined);
+    }
+
+    #[test]
+    fn empty_function() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(&allocator, "function() {}", realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert!(result.is_object());
     }
 }

@@ -5,7 +5,10 @@ use super::{
     RealmIdentifier,
 };
 use crate::{
-    ecmascript::types::{Function, Object, Reference, Symbol, Value},
+    ecmascript::{
+        scripts_and_modules::ScriptOrModule,
+        types::{Function, Object, Reference, Symbol, Value},
+    },
     heap::GetHeapData,
     Heap,
 };
@@ -87,6 +90,25 @@ impl<'ctx, 'host> Agent<'ctx, 'host> {
     pub(crate) fn running_execution_context(&self) -> &ExecutionContext<'ctx, 'host> {
         self.execution_context_stack.last().unwrap()
     }
+}
+
+/// ### [9.4.1 GetActiveScriptOrModule ()](https://tc39.es/ecma262/#sec-getactivescriptormodule)
+///
+/// The abstract operation GetActiveScriptOrModule takes no arguments and
+/// returns a Script Record, a Module Record, or null. It is used to determine
+/// the running script or module, based on the running execution context.
+pub(crate) fn get_active_script_or_module<'ctx, 'host>(
+    agent: &mut Agent<'ctx, 'host>,
+) -> Option<ScriptOrModule<'ctx, 'host>> {
+    if agent.execution_context_stack.is_empty() {
+        return None;
+    }
+    let ec = agent
+        .execution_context_stack
+        .iter()
+        .rev()
+        .find(|context| context.script_or_module.is_some());
+    ec.map(|context| context.script_or_module.unwrap())
 }
 
 /// ### [9.4.2 ResolveBinding ( name \[ , env \] )](https://tc39.es/ecma262/#sec-resolvebinding)

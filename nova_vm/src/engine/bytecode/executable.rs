@@ -1,21 +1,28 @@
 use super::Instruction;
 use crate::{
-    ecmascript::types::{BigIntHeapData, Reference, StringHeapData, Value},
+    ecmascript::{
+        execution::Agent,
+        scripts_and_modules::script::ScriptIdentifier,
+        types::{BigIntHeapData, Reference, Value},
+    },
     heap::CreateHeapData,
-    Heap, SmallString,
 };
-use oxc_ast::ast;
+use oxc_ast::ast::{self, Statement};
 use oxc_span::Atom;
-use oxc_syntax::{
-    identifier,
-    operator::{BinaryOperator, UnaryOperator},
-};
+use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 
 pub type IndexType = u16;
 
-pub(crate) struct CompileContext<'a, 'b, 'c> {
-    heap: &'a mut Heap<'b, 'c>,
+pub(crate) struct CompileContext<'agent, 'ctx, 'host> {
+    agent: &'agent mut Agent<'ctx, 'host>,
     exe: Executable,
+}
+
+#[derive(Debug)]
+pub(crate) struct FunctionExpression {
+    pub(crate) expression: &'static ast::Function<'static>,
+    pub(crate) identifier: Option<usize>,
+    pub(crate) home_object: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -24,22 +31,36 @@ pub(crate) struct Executable {
     pub(crate) constants: Vec<Value>,
     pub(crate) identifiers: Vec<Atom>,
     pub(crate) references: Vec<Reference>,
-    // TODO: function_expressions
+    pub(crate) function_expressions: Vec<FunctionExpression>,
 }
 
 impl Executable {
     pub(crate) fn compile<'ctx, 'host>(
-        heap: &mut Heap<'ctx, 'host>,
-        body: &[ast::Statement],
+        agent: &mut Agent<'ctx, 'host>,
+        script: ScriptIdentifier<'ctx, 'host>,
     ) -> Executable {
         let exe = Executable {
             instructions: Vec::new(),
             constants: Vec::new(),
             identifiers: Vec::new(),
             references: Vec::new(),
+            function_expressions: Vec::new(),
         };
 
-        let mut ctx = CompileContext { heap, exe };
+        // SAFETY: Script uniquely owns the Program and it the body buffer does
+        // not move under any circumstances during heap operations.
+        let body: &[Statement] = unsafe {
+            std::mem::transmute(
+                agent
+                    .heap
+                    .get_script(script)
+                    .ecmascript_code
+                    .body
+                    .as_slice(),
+            )
+        };
+
+        let mut ctx = CompileContext { agent, exe };
 
         let iter = if body.len() != 0 {
             body[..body.len() - 1].iter()
@@ -100,6 +121,16 @@ impl Executable {
         self.instructions.extend_from_slice(&bytes);
     }
 
+    fn add_function_expression(
+        &mut self,
+        function_expression: FunctionExpression
+    ) {
+        self.add_instruction(Instruction::InstantiateOrdinaryFunctionExpression);
+        self.function_expressions.push(function_expression);
+        let index = self.function_expressions.len() - 1;
+        self.add_index(index);
+    }
+
     fn add_jump_index(&mut self) -> JumpIndex {
         self.add_index(0);
         JumpIndex {
@@ -142,7 +173,7 @@ fn is_reference(expression: &ast::Expression) -> bool {
 
 impl Compile for ast::NumberLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        let constant = ctx.heap.create(self.value);
+        let constant = ctx.agent.heap.create(self.value);
         ctx.exe
             .add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
@@ -157,7 +188,7 @@ impl Compile for ast::BooleanLiteral {
 
 impl Compile for ast::BigintLiteral {
     fn compile(&self, ctx: &mut CompileContext) {
-        let constant = ctx.heap.create(BigIntHeapData {
+        let constant = ctx.agent.heap.create(BigIntHeapData {
             data: self.value.clone(),
         });
         ctx.exe
@@ -174,7 +205,7 @@ impl Compile for ast::NullLiteral {
 
 impl Compile for ast::StringLiteral {
     fn compile(&self, ctx: &mut CompileContext) {
-        let constant = Value::from_str(ctx.heap, &self.value.as_str());
+        let constant = Value::from_str(&mut ctx.agent.heap, &self.value.as_str());
         ctx.exe
             .add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
@@ -354,7 +385,7 @@ impl Compile for ast::ParenthesizedExpression<'_> {
 
 impl Compile for ast::Function<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        todo!("Aapo ei tehnyt vielä mitään")
+        ctx.exe.add_function_expression(FunctionExpression { expression: unsafe{std::mem::transmute(self)}, identifier: None, home_object: None });
     }
 }
 
@@ -450,6 +481,7 @@ impl Compile for ast::Declaration<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
             ast::Declaration::VariableDeclaration(x) => x.compile(ctx),
+            ast::Declaration::FunctionDeclaration(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }

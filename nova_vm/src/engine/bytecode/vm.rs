@@ -3,17 +3,17 @@ use oxc_syntax::operator::BinaryOperator;
 
 use crate::ecmascript::{
     abstract_operations::{
-        testing_and_comparison::{is_less_than, is_same_type},
+        testing_and_comparison::{is_same_type},
         type_conversion::{to_number, to_numeric, to_primitive, to_string},
     },
     execution::{
         agent::{resolve_binding, ExceptionType},
         Agent, EnvironmentIndex, JsResult,
     },
-    types::{Base, BigInt, Number, Reference, String, Value},
+    types::{Base, BigInt, Number, Reference, String, Value}, builtins::ordinary_function_create,
 };
 
-use super::{Executable, IndexType, Instr, Instruction, InstructionIter};
+use super::{Executable, Instruction, InstructionIter};
 
 #[derive(Debug)]
 pub(crate) struct Vm {
@@ -173,6 +173,17 @@ impl Vm {
                     let val = vm.result;
                     vm.result = typeof_operator(agent, val).into()
                 }
+                Instruction::InstantiateOrdinaryFunctionExpression => {
+                    let function_expression = executable.function_expressions.get(instr.args[0].unwrap() as usize).unwrap();
+                    let stupid_agent = unsafe {std::mem::transmute::<&mut Agent, &'static mut Agent<'static, 'static>>(agent)};
+                    let function = unsafe {ordinary_function_create(stupid_agent, None, "", &function_expression.expression.params, &function_expression.expression.body.as_ref().unwrap(), crate::ecmascript::builtins::ThisMode::Lexical, agent
+                        .running_execution_context()
+                        .ecmascript_code
+                        .as_ref()
+                        .unwrap()
+                        .lexical_environment, None)};
+                    vm.result = function.into();
+                },
                 other => todo!("{other:?}"),
             }
         }
