@@ -1,11 +1,11 @@
+use oxc_syntax::operator::BinaryOperator;
+
 use super::IndexType;
 
 #[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-#[non_exhaustive]
 pub enum Instruction {
     /// Store ApplyStringOrNumericBinaryOperator() as the result value.
-    ApplyStringOrNumericBinaryOperator,
+    ApplyStringOrNumericBinaryOperator(BinaryOperator),
     /// Store ArrayCreate(0) as the result value.
     ArrayCreate,
     /// Set an array's value at the given index.
@@ -101,7 +101,7 @@ pub enum Instruction {
     ToNumeric,
     /// Apply the typeof operation to the evaluated expression and set it as the result value.
     Typeof,
-    /// Store Number::unaryMinus() / BigInt::unaryMinus() as the result value.
+    /// Performs steps 3 and 4 from the [UnaryExpression - Runtime Semantics](https://tc39.es/ecma262/#sec-unary-minus-operator-runtime-semantics-evaluation).
     UnaryMinus,
 }
 
@@ -110,10 +110,8 @@ impl Instruction {
         match self {
             Self::EvaluateCall
             | Self::EvaluatePropertyAccessWithIdentifierKey
-            | Self::JumpConditional
-            | Self::ResolveBinding => 2,
-            Self::ApplyStringOrNumericBinaryOperator
-            | Self::ArraySetLength
+            | Self::JumpConditional => 2,
+            Self::ArraySetLength
             | Self::ArraySetValue
             | Self::CreateCatchBinding
             | Self::EvaluateNew
@@ -123,7 +121,8 @@ impl Instruction {
             | Self::Jump
             | Self::LoadConstant
             | Self::PushExceptionJumpTarget
-            | Self::StoreConstant => 1,
+            | Self::StoreConstant
+            | Self::ResolveBinding => 1,
             _ => 0,
         }
     }
@@ -150,19 +149,19 @@ impl Instruction {
 }
 
 #[derive(Debug)]
-pub struct Instr {
+pub(crate) struct Instr {
     pub kind: Instruction,
     pub args: [Option<IndexType>; 2],
 }
 
 #[derive(Debug)]
-pub struct InstructionIter<'a> {
-    instructions: &'a [Instruction],
+pub(crate) struct InstructionIter<'a> {
+    instructions: &'a [u8],
     index: usize,
 }
 
 impl<'a> InstructionIter<'a> {
-    pub fn new(instructions: &'a [Instruction]) -> Self {
+    pub(crate) fn new(instructions: &'a [u8]) -> Self {
         Self {
             instructions,
             index: 0,
@@ -178,7 +177,7 @@ impl Iterator for InstructionIter<'_> {
             return None;
         }
 
-        let kind = self.instructions[self.index];
+        let kind: Instruction = unsafe { std::mem::transmute(self.instructions[self.index]) };
         self.index += 1;
 
         let mut args: [Option<IndexType>; 2] = [None, None];

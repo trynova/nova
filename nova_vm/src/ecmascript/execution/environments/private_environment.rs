@@ -51,9 +51,12 @@ pub(crate) fn new_private_environment(
     outer_private_environment: Option<PrivateEnvironmentIndex>,
 ) -> PrivateEnvironment {
     // 1. Let names be a new empty List.
-    // 2. Return the PrivateEnvironment Record { [[OuterPrivateEnvironment]]: outerPrivEnv, [[Names]]: names }.
+    // 2. Return the PrivateEnvironment Record {
     PrivateEnvironment {
+        // [[OuterPrivateEnvironment]]: outerPrivEnv,
         outer_private_environment,
+        // [[Names]]: names
         names: Default::default(),
     }
+    // }.
 }

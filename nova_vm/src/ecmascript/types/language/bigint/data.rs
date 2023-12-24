@@ -1,5 +1,5 @@
 use crate::ecmascript::execution::agent::JsError;
-use num_bigint_dig::BigInt;
+use num_bigint::BigInt;
 // use num_traits::cast::ToPrimitive;
 
 #[derive(Debug, Clone)]

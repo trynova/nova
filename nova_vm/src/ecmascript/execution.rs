@@ -5,6 +5,7 @@ mod execution_context;
 mod realm;
 
 pub use agent::{Agent, JsResult};
+pub use default_host_hooks::DefaultHostHooks;
 pub(crate) use environments::{
     DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, Environments,
     FunctionEnvironment, FunctionEnvironmentIndex, GlobalEnvironment, GlobalEnvironmentIndex,
@@ -12,4 +13,7 @@ pub(crate) use environments::{
 };
 pub use execution_context::{ECMAScriptCode, ExecutionContext};
 pub(crate) use realm::ProtoIntrinsics;
-pub use realm::{Intrinsics, Realm, RealmIdentifier};
+pub(crate) use realm::{
+    create_realm, initialize_host_defined_realm, set_realm_global_object, Intrinsics, Realm,
+    RealmIdentifier,
+};

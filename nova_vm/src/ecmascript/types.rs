@@ -8,8 +8,8 @@ pub use language::{
 pub(crate) use language::{
     BigIntHeapData, FunctionHeapData, NumberHeapData, ObjectHeapData, StringHeapData,
 };
-pub(crate) use spec::DataBlock;
-pub use spec::{Base, PropertyDescriptor, Reference, ReferencedName};
+pub(crate) use spec::{Base, DataBlock, Reference};
+pub use spec::{PropertyDescriptor, ReferencedName};
 
 #[derive(Debug)]
 pub struct Symbol;

@@ -1,6 +1,15 @@
-use super::{ExecutionContext, Realm, RealmIdentifier};
+use oxc_span::Atom;
+
+use super::{
+    environments::get_identifier_reference, EnvironmentIndex, ExecutionContext, Realm,
+    RealmIdentifier,
+};
 use crate::{
-    ecmascript::types::{Object, Symbol, Value},
+    ecmascript::{
+        scripts_and_modules::ScriptOrModule,
+        types::{Function, Object, Reference, Symbol, Value},
+    },
+    heap::GetHeapData,
     Heap,
 };
 use std::collections::HashMap;
@@ -20,10 +29,9 @@ pub struct JsError {}
 // #[derive(Debug)]
 // pub struct PreAllocated;
 
-#[derive(Debug)]
-pub struct HostHooks {
-    pub host_ensure_can_compile_strings: fn(callee_realm: &mut Realm) -> JsResult<()>,
-    pub host_has_source_text_available: fn(func: Object) -> bool,
+pub trait HostHooks: std::fmt::Debug {
+    fn host_ensure_can_compile_strings(&self, callee_realm: &mut Realm) -> JsResult<()>;
+    fn host_has_source_text_available(&self, func: Function) -> bool;
 }
 
 /// 9.7 Agents
@@ -36,11 +44,23 @@ pub struct Agent<'ctx, 'host> {
     pub exception: Option<Value>,
     pub symbol_id: usize,
     pub global_symbol_registry: HashMap<&'static str, Symbol>,
-    pub host_hooks: HostHooks,
+    pub host_hooks: &'host dyn HostHooks,
     pub execution_context_stack: Vec<ExecutionContext<'ctx, 'host>>,
 }
 
 impl<'ctx, 'host> Agent<'ctx, 'host> {
+    pub fn new(options: Options, host_hooks: &'host dyn HostHooks) -> Self {
+        Self {
+            heap: Heap::new(),
+            options,
+            exception: None,
+            symbol_id: 0,
+            global_symbol_registry: HashMap::new(),
+            host_hooks,
+            execution_context_stack: Vec::new(),
+        }
+    }
+
     pub fn current_realm_id(&self) -> RealmIdentifier<'ctx, 'host> {
         self.execution_context_stack.last().unwrap().realm
     }
@@ -63,9 +83,69 @@ impl<'ctx, 'host> Agent<'ctx, 'host> {
 
     /// 5.2.3.2 Throw an Exception
     /// https://tc39.es/ecma262/#sec-throw-an-exception
-    pub fn throw_exception(&mut self, _kind: ExceptionType, _message: &'static str) -> JsError {
-        todo!()
+    pub fn throw_exception(&mut self, kind: ExceptionType, message: &'static str) -> JsError {
+        todo!("Uncaught {kind:?}: {message}")
     }
+
+    pub(crate) fn running_execution_context(&self) -> &ExecutionContext<'ctx, 'host> {
+        self.execution_context_stack.last().unwrap()
+    }
+}
+
+/// ### [9.4.1 GetActiveScriptOrModule ()](https://tc39.es/ecma262/#sec-getactivescriptormodule)
+///
+/// The abstract operation GetActiveScriptOrModule takes no arguments and
+/// returns a Script Record, a Module Record, or null. It is used to determine
+/// the running script or module, based on the running execution context.
+pub(crate) fn get_active_script_or_module<'ctx, 'host>(
+    agent: &mut Agent<'ctx, 'host>,
+) -> Option<ScriptOrModule<'ctx, 'host>> {
+    if agent.execution_context_stack.is_empty() {
+        return None;
+    }
+    let ec = agent
+        .execution_context_stack
+        .iter()
+        .rev()
+        .find(|context| context.script_or_module.is_some());
+    ec.map(|context| context.script_or_module.unwrap())
+}
+
+/// ### [9.4.2 ResolveBinding ( name \[ , env \] )](https://tc39.es/ecma262/#sec-resolvebinding)
+///
+/// The abstract operation ResolveBinding takes argument name (a String) and
+/// optional argument env (an Environment Record or undefined) and returns
+/// either a normal completion containing a Reference Record or a throw
+/// completion. It is used to determine the binding of name. env can be used to
+/// explicitly provide the Environment Record that is to be searched for the
+/// binding.
+pub(crate) fn resolve_binding(
+    agent: &mut Agent,
+    name: &str,
+    env: Option<EnvironmentIndex>,
+) -> JsResult<Reference> {
+    let env = env.unwrap_or_else(|| {
+        // 1. If env is not present or env is undefined, then
+        //    a. Set env to the running execution context's LexicalEnvironment.
+        agent
+            .running_execution_context()
+            .ecmascript_code
+            .as_ref()
+            .unwrap()
+            .lexical_environment
+    });
+
+    // 2. Assert: env is an Environment Record.
+    // Implicit from env's type.
+
+    // 3. If the source text matched by the syntactic production that is being
+    //    evaluated is contained in strict mode code, let strict be true; else
+    //    let strict be false.
+    // TODO: Implement correctly.
+    let strict = false;
+
+    // 4. Return ? GetIdentifierReference(env, name, strict).
+    get_identifier_reference(agent, Some(env), name, strict)
 }
 
 #[derive(Debug)]

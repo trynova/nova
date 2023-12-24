@@ -1,11 +1,7 @@
-use super::{DeclarativeEnvironment, OuterEnv};
-use crate::{
-    ecmascript::{
-        builtins::ECMAScriptFunction,
-        execution::{agent::ExceptionType, Agent, JsResult},
-        types::{Function, Object, Value},
-    },
-    heap::{indexes::FunctionIndex, GetHeapData},
+use super::DeclarativeEnvironment;
+use crate::ecmascript::{
+    execution::{agent::ExceptionType, Agent, JsResult},
+    types::{Function, Object, Value},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -34,6 +34,10 @@ pub use global_environment::GlobalEnvironment;
 pub use object_environment::ObjectEnvironment;
 pub use private_environment::PrivateEnvironment;
 
+use crate::ecmascript::types::{Base, Reference, ReferencedName};
+
+use super::{Agent, JsResult};
+
 /// ### [\[\[OuterEnv\]\]](https://tc39.es/ecma262/#sec-environment-records)
 ///
 /// Every Environment Record has an \[\[OuterEnv\]\] field, which is either null
@@ -63,12 +67,12 @@ macro_rules! create_environment_index {
             /// Creates a new index from a u32.
             ///
             /// ## Panics
-            /// - If the value is equal to [`u32::MAX`].
-            pub(crate) const fn from_index(value: u32) -> Self {
-                assert!(value != u32::MAX);
-                // SAFETY: Number is not max value and will not overflow to zero.
+            /// - If the value is equal to 0.
+            pub(crate) const fn from_u32(value: u32) -> Self {
+                assert!(value != 0);
+                // SAFETY: Number is not 0 and will not overflow to zero.
                 // This check is done manually to allow const context.
-                Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
+                Self(unsafe { NonZeroU32::new_unchecked(value) }, PhantomData)
             }
 
             pub(crate) const fn into_index(self) -> usize {
@@ -92,7 +96,7 @@ create_environment_index!(PrivateEnvironment, PrivateEnvironmentIndex);
 /// Environment Record, and Global Environment Record. Function Environment
 /// Records and Module Environment Records are subclasses of Declarative
 /// Environment Record.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub(crate) enum EnvironmentIndex {
     // Leave 0 for None option
@@ -121,13 +125,109 @@ impl Default for Environments {
     }
 }
 
+/// ### [9.1.2.1 GetIdentifierReference ( env, name, strict )](https://tc39.es/ecma262/#sec-getidentifierreference)
+///
+/// The abstract operation GetIdentifierReference takes arguments env (an
+/// Environment Record or null), name (a String), and strict (a Boolean) and
+/// returns either a normal completion containing a Reference Record or a throw
+/// completion.
+pub(crate) fn get_identifier_reference(
+    agent: &mut Agent,
+    env: Option<EnvironmentIndex>,
+    name: &str,
+    strict: bool,
+) -> JsResult<Reference> {
+    // 1. If env is null, then
+    let Some(env) = env else {
+        // a. Return the Reference Record {
+        return Ok(Reference {
+            // [[Base]]: UNRESOLVABLE,
+            base: Base::Unresolvable,
+            // [[ReferencedName]]: name,
+            referenced_name: ReferencedName::String(name.into()),
+            // [[Strict]]: strict,
+            strict,
+            // [[ThisValue]]: EMPTY
+            this_value: None,
+        });
+        // }.
+    };
+
+    // 2. Let exists be ? env.HasBinding(name).
+    let exists = match env {
+        EnvironmentIndex::DeclarativeEnvironment(index) => agent
+            .heap
+            .environments
+            .get_declarative_environment(index)
+            .has_binding(name),
+        EnvironmentIndex::FunctionEnvironment(index) => agent
+            .heap
+            .environments
+            .get_function_environment(index)
+            .has_binding(name),
+        EnvironmentIndex::GlobalEnvironment(index) => agent
+            .heap
+            .environments
+            .get_global_environment(index)
+            .has_binding(name),
+        EnvironmentIndex::ObjectEnvironment(index) => todo!(),
+    };
+
+    // 3. If exists is true, then
+    if exists {
+        // a. Return the Reference Record {
+        Ok(Reference {
+            // [[Base]]: env,
+            base: Base::Environment(env),
+            // [[ReferencedName]]: name,
+            referenced_name: ReferencedName::String(name.into()),
+            // [[Strict]]: strict,
+            strict,
+            // [[ThisValue]]: EMPTY
+            this_value: None,
+        })
+        // }.
+    }
+    // 4. Else,
+    else {
+        // a. Let outer be env.[[OuterEnv]].
+        let outer = match env {
+            EnvironmentIndex::DeclarativeEnvironment(index) => {
+                agent
+                    .heap
+                    .environments
+                    .get_declarative_environment(index)
+                    .outer_env
+            }
+            EnvironmentIndex::FunctionEnvironment(index) => {
+                agent
+                    .heap
+                    .environments
+                    .get_function_environment(index)
+                    .outer_env
+            }
+            EnvironmentIndex::GlobalEnvironment(_) => None,
+            EnvironmentIndex::ObjectEnvironment(index) => {
+                agent
+                    .heap
+                    .environments
+                    .get_object_environment(index)
+                    .outer_env
+            }
+        };
+
+        // b. Return ? GetIdentifierReference(outer, name, strict).
+        get_identifier_reference(agent, outer, name, strict)
+    }
+}
+
 impl Environments {
     pub(crate) fn push_declarative_environment(
         &mut self,
         env: DeclarativeEnvironment,
     ) -> DeclarativeEnvironmentIndex {
         self.declarative.push(Some(env));
-        DeclarativeEnvironmentIndex::from_index(self.declarative.len() as u32)
+        DeclarativeEnvironmentIndex::from_u32(self.declarative.len() as u32)
     }
 
     pub(crate) fn push_function_environment(
@@ -135,7 +235,7 @@ impl Environments {
         env: FunctionEnvironment,
     ) -> FunctionEnvironmentIndex {
         self.function.push(Some(env));
-        FunctionEnvironmentIndex::from_index(self.function.len() as u32)
+        FunctionEnvironmentIndex::from_u32(self.function.len() as u32)
     }
 
     pub(crate) fn push_global_environment(
@@ -143,7 +243,7 @@ impl Environments {
         env: GlobalEnvironment,
     ) -> GlobalEnvironmentIndex {
         self.global.push(Some(env));
-        GlobalEnvironmentIndex::from_index(self.global.len() as u32)
+        GlobalEnvironmentIndex::from_u32(self.global.len() as u32)
     }
 
     pub(crate) fn push_object_environment(
@@ -151,7 +251,7 @@ impl Environments {
         env: ObjectEnvironment,
     ) -> ObjectEnvironmentIndex {
         self.object.push(Some(env));
-        ObjectEnvironmentIndex::from_index(self.object.len() as u32)
+        ObjectEnvironmentIndex::from_u32(self.object.len() as u32)
     }
 
     pub(crate) fn get_declarative_environment(
@@ -184,6 +284,17 @@ impl Environments {
             .get(index.into_index())
             .expect("GlobalEnvironmentIndex did not match to any vector index")
             .as_ref()
+            .expect("GlobalEnvironmentIndex pointed to a None")
+    }
+
+    pub(crate) fn get_global_environment_mut(
+        &mut self,
+        index: GlobalEnvironmentIndex,
+    ) -> &mut GlobalEnvironment {
+        self.global
+            .get_mut(index.into_index())
+            .expect("GlobalEnvironmentIndex did not match to any vector index")
+            .as_mut()
             .expect("GlobalEnvironmentIndex pointed to a None")
     }
 

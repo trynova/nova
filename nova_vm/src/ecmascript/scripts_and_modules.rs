@@ -1,11 +1,10 @@
-use self::{module::Module, script::Script};
-use std::{cell::RefCell, rc::Rc};
+use self::{module::ModuleIdentifier, script::ScriptIdentifier};
 
 pub mod module;
 pub mod script;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum ScriptOrModule<'ctx, 'host> {
-    Script(Rc<RefCell<Script<'ctx, 'host>>>),
-    Module(Rc<RefCell<Module>>),
+    Script(ScriptIdentifier<'ctx, 'host>),
+    Module(ModuleIdentifier<'ctx, 'host>),
 }

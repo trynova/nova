@@ -471,6 +471,62 @@ impl Number {
             .create(base.into_f64(agent).powf(exponent.into_f64(agent)))
     }
 
+    /// ### [6.1.6.1.7 Number::add ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-add)
+    ///
+    /// The abstract operation Number::add takes arguments x (a Number) and y (a
+    /// Number) and returns a Number. It performs addition according to the
+    /// rules of IEEE 754-2019 binary double-precision arithmetic, producing the
+    /// sum of its arguments.
+    pub(crate) fn add(agent: &mut Agent, x: Number, y: Number) -> Number {
+        // 1. If x is NaN or y is NaN, return NaN.
+        if x.is_nan(agent) || y.is_nan(agent) {
+            return Number::nan();
+        }
+
+        // 2. If x is +∞𝔽 and y is -∞𝔽, return NaN.
+        if x.is_pos_infinity(agent) && y.is_neg_infinity(agent) {
+            return Number::nan();
+        }
+
+        // 3. If x is -∞𝔽 and y is +∞𝔽, return NaN.
+        if x.is_neg_infinity(agent) && y.is_pos_infinity(agent) {
+            return Number::nan();
+        }
+
+        // 4. If x is either +∞𝔽 or -∞𝔽, return x.
+        if x.is_pos_infinity(agent) || x.is_neg_infinity(agent) {
+            return x;
+        }
+
+        // 5. If y is either +∞𝔽 or -∞𝔽, return y.
+        if y.is_pos_infinity(agent) || y.is_neg_infinity(agent) {
+            return y;
+        }
+
+        // 6. Assert: x and y are both finite.
+        debug_assert!(x.is_finite(agent) && y.is_finite(agent));
+
+        // 7. If x is -0𝔽 and y is -0𝔽, return -0𝔽.
+        if x.is_neg_zero(agent) && y.is_neg_zero(agent) {
+            return Number::neg_zero();
+        }
+
+        // 8. Return 𝔽(ℝ(x) + ℝ(y)).
+        agent.heap.create(x.into_f64(agent) + y.into_f64(agent))
+    }
+
+    /// ### [6.1.6.1.8 Number::subtract ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-subtract)
+    ///
+    /// The abstract operation Number::subtract takes arguments x (a Number) and
+    /// y (a Number) and returns a Number. It performs subtraction, producing
+    /// the difference of its operands; x is the minuend and y is the
+    /// subtrahend.
+    pub(crate) fn subtract(agent: &mut Agent, x: Number, y: Number) -> Number {
+        // 1. Return Number::add(x, Number::unaryMinus(y)).
+        let negated_y = Number::unary_minus(y, agent);
+        Number::add(agent, x, negated_y)
+    }
+
     // ...
 
     /// 6.1.6.1.12 Number::lessThan ( x, y )
