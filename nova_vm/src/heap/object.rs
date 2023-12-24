@@ -1,4 +1,4 @@
-use super::indexes::{FunctionIndex, ObjectIndex, SymbolIndex};
+use super::indexes::{BuiltinFunctionIndex, ObjectIndex, SymbolIndex};
 use crate::{
     ecmascript::{
         execution::JsResult,
@@ -6,7 +6,7 @@ use crate::{
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        FunctionHeapData, Heap,
+        BuiltinFunctionHeapData, Heap,
     },
 };
 use std::{fmt::Debug, vec};
@@ -37,7 +37,7 @@ impl ObjectEntry {
             PropertyKey::Symbol(idx) => Value::Symbol(idx),
         };
         let func_index = heap.create_function(name, length, uses_arguments);
-        let value = PropertyDescriptor::rwxh(Value::Function(func_index));
+        let value = PropertyDescriptor::rwxh(Value::BuiltinFunction(func_index));
         ObjectEntry { key, value }
     }
 
@@ -52,7 +52,7 @@ impl ObjectEntry {
         let name = Value::from_str(heap, name);
         let key = PropertyKey::Symbol(symbol_index);
         let func_index = heap.create_function(name, length, uses_arguments);
-        let value = PropertyDescriptor::roxh(Value::Function(func_index));
+        let value = PropertyDescriptor::roxh(Value::BuiltinFunction(func_index));
         ObjectEntry { key, value }
     }
 
@@ -89,18 +89,18 @@ pub enum PropertyDescriptor {
         configurable: bool,
     },
     ReadOnly {
-        get: FunctionIndex,
+        get: BuiltinFunctionIndex,
         enumerable: bool,
         configurable: bool,
     },
     WriteOnly {
-        set: FunctionIndex,
+        set: BuiltinFunctionIndex,
         enumerable: bool,
         configurable: bool,
     },
     ReadWrite {
-        get: FunctionIndex,
-        set: FunctionIndex,
+        get: BuiltinFunctionIndex,
+        set: BuiltinFunctionIndex,
         enumerable: bool,
         configurable: bool,
     },
@@ -234,14 +234,14 @@ pub fn initialize_object_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ObjectConstructorIndex,
         true,
-        Some(Object::Function(
+        Some(Object::BuiltinFunction(
             BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
         )),
         entries,
     );
-    heap.functions
+    heap.builtin_functions
         [get_constructor_index(BuiltinObjectIndexes::ObjectConstructorIndex).into_index()] =
-        Some(FunctionHeapData {
+        Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::ObjectConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
@@ -252,7 +252,7 @@ pub fn initialize_object_heap(heap: &mut Heap) {
     let entries = vec![
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
                 BuiltinObjectIndexes::ObjectConstructorIndex,
             ))),
         ),

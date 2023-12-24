@@ -2,45 +2,68 @@ mod data;
 
 use std::ops::Deref;
 
-use super::{InternalMethods, Object, OrdinaryObjectInternalSlots, Value};
+use super::{
+    value::{
+        BOUND_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
+        ECMASCRIPT_FUNCTION_DISCRIMINANT,
+    },
+    InternalMethods, Object, OrdinaryObjectInternalSlots, Value,
+};
 use crate::{
     ecmascript::execution::{Agent, JsResult},
-    heap::{indexes::FunctionIndex, GetHeapData},
+    heap::{
+        indexes::{BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex},
+        GetHeapData,
+    },
 };
 
-pub use data::FunctionHeapData;
+pub(crate) use data::*;
 
 /// https://tc39.es/ecma262/#function-object
 #[derive(Clone, Copy, PartialEq)]
-pub struct Function(FunctionIndex);
-
-impl Deref for Function {
-    type Target = FunctionIndex;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+#[repr(u8)]
+pub enum Function {
+    BoundFunction(BoundFunctionIndex) = BOUND_FUNCTION_DISCRIMINANT,
+    BuiltinFunction(BuiltinFunctionIndex) = BUILTIN_FUNCTION_DISCRIMINANT,
+    ECMAScriptFunction(ECMAScriptFunctionIndex) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
 }
 
 impl std::fmt::Debug for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.0)
+        match self {
+            Function::BoundFunction(d) => write!(f, "BoundFunction({:?})", d),
+            Function::BuiltinFunction(d) => write!(f, "BuiltinFunction({:?})", d),
+            Function::ECMAScriptFunction(d) => write!(f, "ECMAScriptFunction({:?})", d),
+        }
     }
 }
 
-impl From<FunctionIndex> for Function {
-    fn from(value: FunctionIndex) -> Self {
-        Function(value)
+impl From<BoundFunctionIndex> for Function {
+    fn from(value: BoundFunctionIndex) -> Self {
+        Function::BoundFunction(value)
+    }
+}
+
+impl From<BuiltinFunctionIndex> for Function {
+    fn from(value: BuiltinFunctionIndex) -> Self {
+        Function::BuiltinFunction(value)
+    }
+}
+
+impl From<ECMAScriptFunctionIndex> for Function {
+    fn from(value: ECMAScriptFunctionIndex) -> Self {
+        Function::ECMAScriptFunction(value)
     }
 }
 
 impl TryFrom<Object> for Function {
     type Error = ();
     fn try_from(value: Object) -> Result<Self, Self::Error> {
-        if let Object::Function(value) = value {
-            Ok(Function(value))
-        } else {
-            Err(())
+        match value {
+            Object::BoundFunction(d) => Ok(Function::from(d)),
+            Object::BuiltinFunction(d) => Ok(Function::from(d)),
+            Object::ECMAScriptFunction(d) => Ok(Function::from(d)),
+            _ => Err(()),
         }
     }
 }
@@ -48,29 +71,38 @@ impl TryFrom<Object> for Function {
 impl TryFrom<Value> for Function {
     type Error = ();
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        if let Value::Function(value) = value {
-            Ok(Function(value))
-        } else {
-            Err(())
+        match value {
+            Value::BoundFunction(d) => Ok(Function::from(d)),
+            Value::BuiltinFunction(d) => Ok(Function::from(d)),
+            Value::ECMAScriptFunction(d) => Ok(Function::from(d)),
+            _ => Err(()),
         }
     }
 }
 
 impl From<Function> for Object {
     fn from(value: Function) -> Self {
-        Object::Function(value.0)
+        match value {
+            Function::BoundFunction(d) => Object::from(d),
+            Function::BuiltinFunction(d) => Object::from(d),
+            Function::ECMAScriptFunction(d) => Object::from(d),
+        }
     }
 }
 
 impl From<Function> for Value {
     fn from(value: Function) -> Self {
-        Value::Function(value.0)
+        match value {
+            Function::BoundFunction(d) => Value::BoundFunction(d),
+            Function::BuiltinFunction(d) => Value::BuiltinFunction(d),
+            Function::ECMAScriptFunction(d) => Value::ECMAScriptFunction(d),
+        }
     }
 }
 
 impl Function {
-    pub(crate) const fn new(idx: FunctionIndex) -> Self {
-        Self(idx)
+    pub(crate) const fn new_builtin_function(idx: BuiltinFunctionIndex) -> Self {
+        Self::BuiltinFunction(idx)
     }
 
     pub fn into_value(self) -> Value {
@@ -78,13 +110,17 @@ impl Function {
     }
 
     pub fn into_object(self) -> Object {
-        Object::Function(self.0)
+        self.into()
     }
 }
 
 impl OrdinaryObjectInternalSlots for Function {
     fn extensible(self, agent: &Agent) -> bool {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = match self {
+            Function::BoundFunction(d) => agent.heap.get(d).object_index,
+            Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
+            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
+        } {
             Object::from(object_index).extensible(agent)
         } else {
             true
@@ -92,7 +128,11 @@ impl OrdinaryObjectInternalSlots for Function {
     }
 
     fn set_extensible(self, agent: &mut Agent, value: bool) {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = match self {
+            Function::BoundFunction(d) => agent.heap.get(d).object_index,
+            Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
+            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
+        } {
             Object::from(object_index).set_extensible(agent, value)
         } else if !value {
             // Create function base object and set inextensible
@@ -101,7 +141,11 @@ impl OrdinaryObjectInternalSlots for Function {
     }
 
     fn prototype(self, agent: &Agent) -> Option<Object> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = match self {
+            Function::BoundFunction(d) => agent.heap.get(d).object_index,
+            Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
+            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
+        } {
             Object::from(object_index).prototype(agent)
         } else {
             Some(agent.current_realm().intrinsics().function_prototype())
@@ -109,7 +153,11 @@ impl OrdinaryObjectInternalSlots for Function {
     }
 
     fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = match self {
+            Function::BoundFunction(d) => agent.heap.get(d).object_index,
+            Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
+            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
+        } {
             Object::from(object_index).set_prototype(agent, prototype)
         } else if prototype != Some(agent.current_realm().intrinsics().function_prototype()) {
             // Create function base object with custom prototype

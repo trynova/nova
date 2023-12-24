@@ -354,6 +354,6 @@ fn typeof_operator(agent: &mut Agent, val: Value) -> String {
         // 14. Return "object".
         Value::RegExp(_) => String::from_small_string("object"),
         // 13. If val has a [[Call]] internal slot, return "function".
-        Value::Function(_) => String::from_str(agent, "function"),
+        Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) => String::from_str(agent, "function"),
     }
 }

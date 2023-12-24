@@ -2,8 +2,8 @@ use super::{
     element_array::ElementArrayKey,
     heap_bits::{HeapBits, WorkQueues},
     indexes::{
-        ArrayIndex, DateIndex, ElementIndex, ErrorIndex, FunctionIndex, ObjectIndex, RegExpIndex,
-        StringIndex, SymbolIndex,
+        ArrayIndex, BuiltinFunctionIndex, DateIndex, ElementIndex, ErrorIndex, ObjectIndex,
+        RegExpIndex, StringIndex, SymbolIndex,
     },
     ElementsVector, Heap,
 };
@@ -64,7 +64,7 @@ pub fn heap_gc(heap: &mut Heap) {
                 queues.objects.push(data.object_index);
             }
         });
-        let mut functions: Box<[FunctionIndex]> = queues.functions.drain(..).collect();
+        let mut functions: Box<[BuiltinFunctionIndex]> = queues.functions.drain(..).collect();
         functions.sort();
         functions.iter().for_each(|&idx| {
             let index = idx.into_index();
@@ -74,7 +74,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 marked.store(true, Ordering::Relaxed);
-                let data = heap.functions.get(index).unwrap().as_ref().unwrap();
+                let data = heap.builtin_functions.get(index).unwrap().as_ref().unwrap();
                 if let Some(object_index) = data.object_index {
                     queues.objects.push(object_index);
                 }
@@ -461,7 +461,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
     });
     bits.functions.iter().enumerate().for_each(|(index, bit)| {
         if !bit.load(Ordering::Acquire) {
-            let reference = heap.functions.get_mut(index).unwrap();
+            let reference = heap.builtin_functions.get_mut(index).unwrap();
             reference.take();
         }
     });

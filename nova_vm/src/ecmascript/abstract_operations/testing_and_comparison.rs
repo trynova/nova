@@ -51,7 +51,10 @@ pub(crate) fn is_callable(argument: Value) -> bool {
     // 1. If argument is not an Object, return false.
     // 2. If argument has a [[Call]] internal method, return true.
     // 3. Return false.
-    matches!(argument, Value::Function(_))
+    matches!(
+        argument,
+        Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_)
+    )
 }
 
 pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1, y: V2) -> bool {

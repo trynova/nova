@@ -1,5 +1,5 @@
 use super::{
-    indexes::{FunctionIndex, SymbolIndex},
+    indexes::{BuiltinFunctionIndex, SymbolIndex},
     object::ObjectEntry,
     CreateHeapData,
 };
@@ -10,7 +10,7 @@ use crate::{
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes, WellKnownSymbolIndexes},
-        FunctionHeapData, Heap, PropertyDescriptor,
+        BuiltinFunctionHeapData, Heap, PropertyDescriptor,
     },
 };
 
@@ -138,14 +138,14 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::SymbolConstructorIndex,
         true,
-        Some(Object::Function(
+        Some(Object::BuiltinFunction(
             BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
         )),
         entries,
     );
-    heap.functions
+    heap.builtin_functions
         [get_constructor_index(BuiltinObjectIndexes::SymbolConstructorIndex).into_index()] =
-        Some(FunctionHeapData {
+        Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::SymbolConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
@@ -156,7 +156,7 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
     let entries = vec![
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
                 BuiltinObjectIndexes::SymbolConstructorIndex,
             ))),
         ),
@@ -164,7 +164,7 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
             PropertyKey::from_str(heap, "description"),
             // TODO: create description getter function
             PropertyDescriptor::ReadOnly {
-                get: FunctionIndex::from_index(0),
+                get: BuiltinFunctionIndex::from_index(0),
                 enumerable: false,
                 configurable: true,
             },

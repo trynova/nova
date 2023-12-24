@@ -6,7 +6,7 @@ use crate::{
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        FunctionHeapData, Heap, ObjectEntry, PropertyDescriptor,
+        BuiltinFunctionHeapData, Heap, ObjectEntry, PropertyDescriptor,
     },
 };
 
@@ -22,14 +22,14 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::BigintConstructorIndex,
         true,
-        Some(Object::Function(
+        Some(Object::BuiltinFunction(
             BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
         )),
         entries,
     );
-    heap.functions
+    heap.builtin_functions
         [get_constructor_index(BuiltinObjectIndexes::BigintConstructorIndex).into_index()] =
-        Some(FunctionHeapData {
+        Some(BuiltinFunctionHeapData {
             object_index: Some(ObjectIndex::last(&heap.objects)),
             length: 1,
             // uses_arguments: false,
@@ -40,7 +40,7 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
     let entries = vec![
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
                 BuiltinObjectIndexes::BigintConstructorIndex,
             ))),
         ),

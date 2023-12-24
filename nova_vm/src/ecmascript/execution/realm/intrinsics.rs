@@ -1,7 +1,7 @@
 use crate::{
     ecmascript::types::{Function, Object, OrdinaryObject},
     heap::{
-        indexes::{FunctionIndex, ObjectIndex},
+        indexes::{BuiltinFunctionIndex, ObjectIndex},
         BuiltinObjectIndexes,
     },
 };
@@ -9,33 +9,33 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Intrinsics {
     /// %Array%
-    array: FunctionIndex,
+    array: BuiltinFunctionIndex,
     /// %Array.prototype%
     array_prototype: ObjectIndex,
     /// %ArrayBuffer%
-    array_buffer: FunctionIndex,
+    array_buffer: BuiltinFunctionIndex,
     /// %ArrayBuffer.prototype%
     array_buffer_prototype: ObjectIndex,
     /// %BigInt%
-    big_int: FunctionIndex,
+    big_int: BuiltinFunctionIndex,
     /// %BigInt.prototype%
     big_int_prototype: ObjectIndex,
     /// %Boolean%
-    boolean: FunctionIndex,
+    boolean: BuiltinFunctionIndex,
     /// %Boolean.prototype%
     boolean_prototype: ObjectIndex,
     /// %Error%
-    error: FunctionIndex,
+    error: BuiltinFunctionIndex,
     /// %Error.prototype%
     error_prototype: ObjectIndex,
     /// %eval%
-    eval: FunctionIndex,
+    eval: BuiltinFunctionIndex,
     /// %EvalError%
-    eval_error: FunctionIndex,
+    eval_error: BuiltinFunctionIndex,
     /// %EvalError.prototype%
     eval_error_prototype: ObjectIndex,
     /// %Function%
-    function: FunctionIndex,
+    function: BuiltinFunctionIndex,
     /// %Function.prototype%
     ///
     /// NOTE: This is not spec-compliant. Function prototype should
@@ -43,51 +43,51 @@ pub struct Intrinsics {
     /// it is called. That's stupid so we do not have that.
     function_prototype: ObjectIndex,
     /// %isFinite%
-    is_finite: FunctionIndex,
+    is_finite: BuiltinFunctionIndex,
     /// %isNaN%
-    is_nan: FunctionIndex,
+    is_nan: BuiltinFunctionIndex,
     /// %Math%
     math: ObjectIndex,
     /// %Number%
-    number: FunctionIndex,
+    number: BuiltinFunctionIndex,
     /// %Number.prototype%
     number_prototype: ObjectIndex,
     /// %Object%
-    object: FunctionIndex,
+    object: BuiltinFunctionIndex,
     /// %Object.prototype%
     object_prototype: ObjectIndex,
     /// %Object.prototype.toString%
-    object_prototype_to_string: FunctionIndex,
+    object_prototype_to_string: BuiltinFunctionIndex,
     /// %RangeError%
-    range_error: FunctionIndex,
+    range_error: BuiltinFunctionIndex,
     /// %RangeError.prototype%
     range_error_prototype: ObjectIndex,
     /// %ReferenceError%
-    reference_error: FunctionIndex,
+    reference_error: BuiltinFunctionIndex,
     /// %ReferenceError.prototype%
     reference_error_prototype: ObjectIndex,
     /// %Reflect%
-    reflect: FunctionIndex,
+    reflect: BuiltinFunctionIndex,
     /// %String%
-    string: FunctionIndex,
+    string: BuiltinFunctionIndex,
     /// %String.prototype%
     string_prototype: ObjectIndex,
     /// %Symbol%
-    symbol: FunctionIndex,
+    symbol: BuiltinFunctionIndex,
     /// %Symbol.prototype%
     symbol_prototype: ObjectIndex,
     /// %SyntaxError%
-    syntax_error: FunctionIndex,
+    syntax_error: BuiltinFunctionIndex,
     /// %SyntaxError.prototype%
     syntax_error_prototype: ObjectIndex,
     /// %ThrowTypeError%
-    throw_type_error: FunctionIndex,
+    throw_type_error: BuiltinFunctionIndex,
     /// %TypeError%
-    type_error: FunctionIndex,
+    type_error: BuiltinFunctionIndex,
     /// %TypeError.prototype%
     type_error_prototype: ObjectIndex,
     /// %URIError%
-    uri_error: FunctionIndex,
+    uri_error: BuiltinFunctionIndex,
     /// %URIError.prototype%
     uri_error_prototype: ObjectIndex,
 }
@@ -126,30 +126,30 @@ impl Default for Intrinsics {
         let error = BuiltinObjectIndexes::ErrorConstructorIndex.into();
         let error_prototype = BuiltinObjectIndexes::ErrorPrototypeIndex.into();
         // TODO: Placeholder.
-        let eval = FunctionIndex::from_u32_index(0);
+        let eval = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
-        let eval_error = FunctionIndex::from_u32_index(0);
+        let eval_error = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
         let eval_error_prototype = ObjectIndex::from_u32_index(0);
         let function = BuiltinObjectIndexes::FunctionConstructorIndex.into();
         let function_prototype = BuiltinObjectIndexes::FunctionPrototypeIndex.into();
         // TODO: Placeholder.
-        let is_finite = FunctionIndex::from_u32_index(0);
+        let is_finite = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
-        let is_nan = FunctionIndex::from_u32_index(0);
+        let is_nan = BuiltinFunctionIndex::from_u32_index(0);
         let math = BuiltinObjectIndexes::MathObjectIndex.into();
         let number = BuiltinObjectIndexes::NumberConstructorIndex.into();
         let number_prototype = BuiltinObjectIndexes::NumberPrototypeIndex.into();
         let object = BuiltinObjectIndexes::ObjectConstructorIndex.into();
         let object_prototype = BuiltinObjectIndexes::ObjectPrototypeIndex.into();
         // TODO: Placeholder.
-        let object_prototype_to_string = FunctionIndex::from_u32_index(0);
+        let object_prototype_to_string = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
-        let range_error = FunctionIndex::from_u32_index(0);
+        let range_error = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
         let range_error_prototype = ObjectIndex::from_u32_index(0);
         // TODO: Placeholder.
-        let reference_error = FunctionIndex::from_u32_index(0);
+        let reference_error = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
         let reference_error_prototype = ObjectIndex::from_u32_index(0);
         let reflect = BuiltinObjectIndexes::ReflectObjectIndex.into();
@@ -158,17 +158,17 @@ impl Default for Intrinsics {
         let symbol = BuiltinObjectIndexes::SymbolConstructorIndex.into();
         let symbol_prototype = BuiltinObjectIndexes::SymbolPrototypeIndex.into();
         // TODO: Placeholder.
-        let syntax_error = FunctionIndex::from_u32_index(0);
+        let syntax_error = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
         let syntax_error_prototype = ObjectIndex::from_u32_index(0);
         // TODO: Placeholder.
-        let throw_type_error = FunctionIndex::from_u32_index(0);
+        let throw_type_error = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
-        let type_error = FunctionIndex::from_u32_index(0);
+        let type_error = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
         let type_error_prototype = ObjectIndex::from_u32_index(0);
         // TODO: Placeholder.
-        let uri_error = FunctionIndex::from_u32_index(0);
+        let uri_error = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
         let uri_error_prototype = ObjectIndex::from_u32_index(0);
 
@@ -243,7 +243,7 @@ impl Intrinsics {
 
     /// %Array%
     pub const fn array(&self) -> Function {
-        Function::new(self.array)
+        Function::new_builtin_function(self.array)
     }
 
     /// %Array.prototype%
@@ -253,7 +253,7 @@ impl Intrinsics {
 
     /// %ArrayBuffer%
     pub const fn array_buffer(&self) -> Function {
-        Function::new(self.array_buffer)
+        Function::new_builtin_function(self.array_buffer)
     }
 
     /// %ArrayBuffer.prototype%
@@ -263,7 +263,7 @@ impl Intrinsics {
 
     /// %BigInt%
     pub const fn big_int(&self) -> Function {
-        Function::new(self.big_int)
+        Function::new_builtin_function(self.big_int)
     }
 
     /// %BigInt.prototype%
@@ -273,7 +273,7 @@ impl Intrinsics {
 
     /// %Boolean%
     pub const fn boolean(&self) -> Function {
-        Function::new(self.boolean)
+        Function::new_builtin_function(self.boolean)
     }
 
     /// %Boolean.prototype%
@@ -283,7 +283,7 @@ impl Intrinsics {
 
     /// %Error%
     pub const fn error(&self) -> Function {
-        Function::new(self.error)
+        Function::new_builtin_function(self.error)
     }
 
     /// %Error.prototype%
@@ -298,7 +298,7 @@ impl Intrinsics {
 
     /// %EvalError%
     pub const fn eval_error(&self) -> Function {
-        Function::new(self.eval_error)
+        Function::new_builtin_function(self.eval_error)
     }
 
     /// %EvalError.prototype%
@@ -308,7 +308,7 @@ impl Intrinsics {
 
     /// %Function%
     pub const fn function(&self) -> Function {
-        Function::new(self.function)
+        Function::new_builtin_function(self.function)
     }
 
     /// %Function.prototype%
@@ -333,7 +333,7 @@ impl Intrinsics {
 
     /// %Number%
     pub const fn number(&self) -> Function {
-        Function::new(self.number)
+        Function::new_builtin_function(self.number)
     }
 
     /// %Number.prototype%
@@ -343,7 +343,7 @@ impl Intrinsics {
 
     /// %Object%
     pub const fn object(&self) -> Function {
-        Function::new(self.object)
+        Function::new_builtin_function(self.object)
     }
 
     /// %Object.prototype%
@@ -383,7 +383,7 @@ impl Intrinsics {
 
     /// %String%
     pub const fn string(&self) -> Function {
-        Function::new(self.string)
+        Function::new_builtin_function(self.string)
     }
 
     /// %String.prototype%
@@ -393,7 +393,7 @@ impl Intrinsics {
 
     /// %Symbol%
     pub const fn symbol(&self) -> Function {
-        Function::new(self.symbol)
+        Function::new_builtin_function(self.symbol)
     }
 
     /// %Symbol.prototype%

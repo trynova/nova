@@ -84,7 +84,9 @@ pub(crate) fn get_method(
     }
     // 4. Return func.
     match func {
-        Value::Function(idx) => Ok(Some(Function::from(idx))),
+        Value::BoundFunction(idx) => Ok(Some(Function::from(idx))),
+        Value::BuiltinFunction(idx) => Ok(Some(Function::from(idx))),
+        Value::ECMAScriptFunction(idx) => Ok(Some(Function::from(idx))),
         _ => unreachable!(),
     }
 }
@@ -113,10 +115,11 @@ pub(crate) fn call(
         Err(JsError {})
     } else {
         // 3. Return ? F.[[Call]](V, argumentsList).
-        if let Value::Function(idx) = f {
-            Function::from(idx).call(agent, v, arguments_list)
-        } else {
-            unreachable!();
+        match f {
+            Value::BoundFunction(idx) => Function::from(idx).call(agent, v, arguments_list),
+            Value::BuiltinFunction(idx) => Function::from(idx).call(agent, v, arguments_list),
+            Value::ECMAScriptFunction(idx) => Function::from(idx).call(agent, v, arguments_list),
+            _ => unreachable!(),
         }
     }
 }

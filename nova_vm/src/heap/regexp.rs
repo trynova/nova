@@ -1,12 +1,12 @@
 use super::{
     heap_constants::WellKnownSymbolIndexes,
-    indexes::{FunctionIndex, ObjectIndex},
+    indexes::{BuiltinFunctionIndex, ObjectIndex},
     object::ObjectEntry,
 };
 use crate::{
     ecmascript::{
         execution::JsResult,
-        types::{FunctionHeapData, Object, PropertyKey, Value},
+        types::{BuiltinFunctionHeapData, Object, PropertyKey, Value},
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
@@ -39,14 +39,14 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::RegExpConstructorIndex,
         true,
-        Some(Object::Function(
+        Some(Object::BuiltinFunction(
             BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
         )),
         entries,
     );
-    heap.functions
+    heap.builtin_functions
         [get_constructor_index(BuiltinObjectIndexes::RegExpConstructorIndex).into_index()] =
-        Some(FunctionHeapData {
+        Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::RegExpConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
@@ -57,7 +57,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
     let entries = vec![
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
                 BuiltinObjectIndexes::RegExpConstructorIndex,
             ))),
         ),
@@ -113,7 +113,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
 }
 
 fn regexp_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    Ok(Value::Function(FunctionIndex::from_index(0)))
+    Ok(Value::BuiltinFunction(BuiltinFunctionIndex::from_index(0)))
 }
 
 fn regexp_species(_heap: &mut Heap, this: Value, _args: &[Value]) -> JsResult<Value> {

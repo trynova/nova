@@ -39,7 +39,7 @@ pub struct ECMAScriptCodeEvaluationState {
 /// references to the running execution context in this specification denote the
 /// running execution context of the surrounding agent.
 #[derive(Debug)]
-pub struct ExecutionContext<'ctx, 'host> {
+pub(crate) struct ExecutionContext<'ctx, 'host> {
     /// ### code evaluation state
     ///
     /// Any state needed to perform, suspend, and resume evaluation of the code

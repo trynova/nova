@@ -1,6 +1,6 @@
 use super::{heap_constants::WellKnownSymbolIndexes, object::ObjectEntry};
 use crate::{
-    ecmascript::types::{FunctionHeapData, Object, PropertyKey, Value},
+    ecmascript::types::{BuiltinFunctionHeapData, Object, PropertyKey, Value},
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, PropertyDescriptor,
@@ -28,14 +28,14 @@ pub fn initialize_array_buffer_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ArrayBufferConstructorIndex,
         true,
-        Some(Object::Function(
+        Some(Object::BuiltinFunction(
             BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
         )),
         entries,
     );
-    heap.functions
+    heap.builtin_functions
         [get_constructor_index(BuiltinObjectIndexes::ArrayBufferConstructorIndex).into_index()] =
-        Some(FunctionHeapData {
+        Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::ArrayBufferConstructorIndex.into()),
             length: 1,
             // bound: None,
@@ -54,7 +54,7 @@ pub fn initialize_array_buffer_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
                 BuiltinObjectIndexes::ArrayBufferConstructorIndex,
             ))),
         ),

@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use std::{mem::size_of, ops::Bound};
 
 use crate::{
     ecmascript::{
@@ -9,8 +9,9 @@ use crate::{
     },
     heap::{
         indexes::{
-            ArrayBufferIndex, ArrayIndex, BigIntIndex, DateIndex, ErrorIndex, FunctionIndex,
-            NumberIndex, ObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
+            ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
+            DateIndex, ECMAScriptFunctionIndex, ErrorIndex, NumberIndex, ObjectIndex, RegExpIndex,
+            StringIndex, SymbolIndex,
         },
         CreateHeapData, GetHeapData,
     },
@@ -68,7 +69,9 @@ pub enum Value {
     ArrayBuffer(ArrayBufferIndex),
     Date(DateIndex),
     Error(ErrorIndex),
-    Function(FunctionIndex),
+    BoundFunction(BoundFunctionIndex),
+    BuiltinFunction(BuiltinFunctionIndex),
+    ECMAScriptFunction(ECMAScriptFunctionIndex),
     RegExp(RegExpIndex),
     // TODO: Implement primitive value objects, those useless things.
     // BigIntObject(u32),
@@ -123,8 +126,14 @@ pub(crate) const DATE_DISCRIMINANT: u8 =
     value_discriminant(Value::Date(DateIndex::from_u32_index(0)));
 pub(crate) const ERROR_DISCRIMINANT: u8 =
     value_discriminant(Value::Error(ErrorIndex::from_u32_index(0)));
-pub(crate) const FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::Function(FunctionIndex::from_u32_index(0)));
+pub(crate) const BUILTIN_FUNCTION_DISCRIMINANT: u8 = value_discriminant(Value::BuiltinFunction(
+    BuiltinFunctionIndex::from_u32_index(0),
+));
+pub(crate) const ECMASCRIPT_FUNCTION_DISCRIMINANT: u8 = value_discriminant(
+    Value::ECMAScriptFunction(ECMAScriptFunctionIndex::from_u32_index(0)),
+);
+pub(crate) const BOUND_FUNCTION_DISCRIMINANT: u8 =
+    value_discriminant(Value::BoundFunction(BoundFunctionIndex::from_u32_index(0)));
 pub(crate) const REGEXP_DISCRIMINANT: u8 =
     value_discriminant(Value::RegExp(RegExpIndex::from_u32_index(0)));
 
@@ -164,7 +173,9 @@ impl Value {
                 | Value::Array(_)
                 | Value::ArrayBuffer(_)
                 | Value::Date(_)
-                | Value::Function(_)
+                | Value::BuiltinFunction(_)
+                | Value::ECMAScriptFunction(_)
+                | Value::BoundFunction(_)
                 | Value::Error(_)
                 | Value::RegExp(_)
         )

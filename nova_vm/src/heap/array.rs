@@ -1,8 +1,10 @@
-use super::{heap_constants::WellKnownSymbolIndexes, indexes::FunctionIndex, object::ObjectEntry};
+use super::{
+    heap_constants::WellKnownSymbolIndexes, indexes::BuiltinFunctionIndex, object::ObjectEntry,
+};
 use crate::{
     ecmascript::{
         execution::JsResult,
-        types::{FunctionHeapData, Object, PropertyKey, Value},
+        types::{BuiltinFunctionHeapData, Object, PropertyKey, Value},
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
@@ -48,14 +50,14 @@ pub fn initialize_array_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ArrayConstructorIndex,
         true,
-        Some(Object::Function(
+        Some(Object::BuiltinFunction(
             BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
         )),
         entries,
     );
-    heap.functions
+    heap.builtin_functions
         [get_constructor_index(BuiltinObjectIndexes::ArrayConstructorIndex).into_index()] =
-        Some(FunctionHeapData {
+        Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::ArrayConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
@@ -68,7 +70,7 @@ pub fn initialize_array_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "concat", 1, true),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
                 BuiltinObjectIndexes::ArrayConstructorIndex,
             ))),
         ),
@@ -164,7 +166,7 @@ pub fn initialize_array_heap(heap: &mut Heap) {
 }
 
 fn array_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    Ok(Value::Function(FunctionIndex::from_index(0)))
+    Ok(Value::BuiltinFunction(BuiltinFunctionIndex::from_index(0)))
 }
 
 fn array_species(_heap: &mut Heap, this: Value, _args: &[Value]) -> JsResult<Value> {

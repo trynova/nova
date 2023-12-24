@@ -6,7 +6,7 @@ use crate::{
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        FunctionHeapData, PropertyDescriptor,
+        BuiltinFunctionHeapData, PropertyDescriptor,
     },
 };
 
@@ -18,14 +18,14 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::BooleanConstructorIndex,
         true,
-        Some(Object::Function(
+        Some(Object::BuiltinFunction(
             BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
         )),
         entries,
     );
-    heap.functions
+    heap.builtin_functions
         [get_constructor_index(BuiltinObjectIndexes::BooleanConstructorIndex).into_index()] =
-        Some(FunctionHeapData {
+        Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::BooleanConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
@@ -36,7 +36,7 @@ pub fn initialize_boolean_heap(heap: &mut Heap) {
     let entries = vec![
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
                 BuiltinObjectIndexes::BooleanConstructorIndex,
             ))),
         ),

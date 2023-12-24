@@ -66,7 +66,9 @@ impl PropertyStorage {
                     false
                 }
             }
-            Value::Function(_) => todo!(),
+            Value::BoundFunction(_) => todo!(),
+            Value::BuiltinFunction(_) => todo!(),
+            Value::ECMAScriptFunction(_) => todo!(),
             _ => unreachable!(),
         }
     }
