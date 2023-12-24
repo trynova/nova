@@ -4,7 +4,8 @@ use super::{
 use crate::ecmascript::{
     builtins::{ArrayBufferHeapData, ArrayHeapData},
     types::{
-        BigIntHeapData, FunctionHeapData, NumberHeapData, ObjectHeapData, StringHeapData, Value,
+        BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
+        NumberHeapData, ObjectHeapData, StringHeapData, Value,
     },
 };
 use crate::Heap;
@@ -118,12 +119,14 @@ impl<T: ?Sized> BaseIndex<T> {
     }
 }
 
-pub type ArrayIndex = BaseIndex<ArrayHeapData>;
 pub type ArrayBufferIndex = BaseIndex<ArrayBufferHeapData>;
+pub type ArrayIndex = BaseIndex<ArrayHeapData>;
 pub type BigIntIndex = BaseIndex<BigIntHeapData>;
+pub type BoundFunctionIndex = BaseIndex<BoundFunctionHeapData>;
+pub type BuiltinFunctionIndex = BaseIndex<BuiltinFunctionHeapData>;
 pub type DateIndex = BaseIndex<DateHeapData>;
+pub type ECMAScriptFunctionIndex = BaseIndex<ECMAScriptFunctionHeapData>;
 pub type ErrorIndex = BaseIndex<ErrorHeapData>;
-pub type FunctionIndex = BaseIndex<FunctionHeapData>;
 pub type NumberIndex = BaseIndex<NumberHeapData>;
 pub type ObjectIndex = BaseIndex<ObjectHeapData>;
 pub type RegExpIndex = BaseIndex<RegExpHeapData>;

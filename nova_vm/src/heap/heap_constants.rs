@@ -8,7 +8,7 @@
 // | First the list of built-in prototypes and non-prototypal objects |
 // +==================================================================+
 
-use super::indexes::{FunctionIndex, ObjectIndex, SymbolIndex};
+use super::indexes::{BuiltinFunctionIndex, ObjectIndex, SymbolIndex};
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy)]
@@ -140,11 +140,11 @@ impl From<BuiltinObjectIndexes> for ObjectIndex {
     }
 }
 
-impl From<BuiltinObjectIndexes> for FunctionIndex {
-    fn from(value: BuiltinObjectIndexes) -> FunctionIndex {
+impl From<BuiltinObjectIndexes> for BuiltinFunctionIndex {
+    fn from(value: BuiltinObjectIndexes) -> BuiltinFunctionIndex {
         // We do not allow more than 16 777 216 functions to exist.
         assert!(value as u32 <= u32::pow(2, 24));
-        FunctionIndex::from_u32_index(value as u32)
+        BuiltinFunctionIndex::from_u32_index(value as u32)
     }
 }
 
@@ -157,8 +157,8 @@ impl Default for BuiltinObjectIndexes {
 pub const LAST_BUILTIN_OBJECT_INDEX: u32 = BuiltinObjectIndexes::ProxyConstructorIndex as u32;
 pub const FIRST_CONSTRUCTOR_INDEX: u32 = BuiltinObjectIndexes::ObjectConstructorIndex as u32;
 
-pub const fn get_constructor_index(object_index: BuiltinObjectIndexes) -> FunctionIndex {
-    FunctionIndex::from_u32_index(object_index as u32 - FIRST_CONSTRUCTOR_INDEX)
+pub const fn get_constructor_index(object_index: BuiltinObjectIndexes) -> BuiltinFunctionIndex {
+    BuiltinFunctionIndex::from_u32_index(object_index as u32 - FIRST_CONSTRUCTOR_INDEX)
 }
 
 #[derive(Debug, Clone, Copy)]

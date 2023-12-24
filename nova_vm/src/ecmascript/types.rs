@@ -6,7 +6,8 @@ pub use language::{
     OrdinaryObjectInternalSlots, PropertyKey, String, Value,
 };
 pub(crate) use language::{
-    BigIntHeapData, FunctionHeapData, NumberHeapData, ObjectHeapData, StringHeapData,
+    BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
+    NumberHeapData, ObjectHeapData, StringHeapData,
 };
 pub(crate) use spec::{Base, DataBlock, Reference};
 pub use spec::{PropertyDescriptor, ReferencedName};

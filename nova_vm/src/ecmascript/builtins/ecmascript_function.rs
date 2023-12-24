@@ -7,9 +7,9 @@ use crate::{
             Agent, EnvironmentIndex, JsResult, PrivateEnvironmentIndex, RealmIdentifier,
         },
         scripts_and_modules::ScriptOrModule,
-        types::{Function, FunctionHeapData, Object, Value},
+        types::{BuiltinFunctionHeapData, Function, Object, Value},
     },
-    heap::indexes::FunctionIndex,
+    heap::indexes::BuiltinFunctionIndex,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -92,7 +92,7 @@ pub(crate) fn ordinary_function_create<'ctx, 'host>(
     // 1. Let internalSlotsList be the internal slots listed in Table 30.
     // 2. Let F be OrdinaryObjectCreate(functionPrototype, internalSlotsList).
     // 3. Set F.[[Call]] to the definition specified in 10.2.1.
-    let mut function = FunctionHeapData {
+    let mut function = BuiltinFunctionHeapData {
         object_index: None,
         length: 0,
         initial_name: Value::Undefined,
@@ -142,15 +142,17 @@ pub(crate) fn ordinary_function_create<'ctx, 'host>(
     // 22. Perform SetFunctionLength(F, len).
     set_function_length(agent, &mut function, parameters_list.parameters_count()).unwrap();
     // 23. Return F.
-    agent.heap.functions.push(Some(function));
-    Function::from(FunctionIndex::from_usize(agent.heap.functions.len()))
+    agent.heap.builtin_functions.push(Some(function));
+    Function::from(BuiltinFunctionIndex::from_usize(
+        agent.heap.builtin_functions.len(),
+    ))
 }
 
 /// 10.2.10 SetFunctionLength ( F, length )
 /// https://tc39.es/ecma262/#sec-setfunctionlength
 fn set_function_length(
     agent: &mut Agent,
-    function: &mut FunctionHeapData,
+    function: &mut BuiltinFunctionHeapData,
     length: usize,
 ) -> JsResult<()> {
     // TODO: 1. Assert: F is an extensible object that does not have a "length" own property.

@@ -1,11 +1,11 @@
 use super::{
-    indexes::{FunctionIndex, ObjectIndex},
+    indexes::{BuiltinFunctionIndex, ObjectIndex},
     object::ObjectEntry,
 };
 use crate::{
     ecmascript::{
         execution::JsResult,
-        types::{FunctionHeapData, Object, PropertyKey, Value},
+        types::{BuiltinFunctionHeapData, Object, PropertyKey, Value},
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
@@ -27,14 +27,14 @@ pub fn initialize_error_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
         BuiltinObjectIndexes::ErrorConstructorIndex,
         true,
-        Some(Object::Function(
+        Some(Object::BuiltinFunction(
             BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
         )),
         entries,
     );
-    heap.functions
+    heap.builtin_functions
         [get_constructor_index(BuiltinObjectIndexes::ErrorConstructorIndex).into_index()] =
-        Some(FunctionHeapData {
+        Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::ErrorConstructorIndex.into()),
             length: 1,
             // uses_arguments: false,
@@ -45,7 +45,7 @@ pub fn initialize_error_heap(heap: &mut Heap) {
     let entries = vec![
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::Function(get_constructor_index(
+            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
                 BuiltinObjectIndexes::ErrorConstructorIndex,
             ))),
         ),
@@ -70,7 +70,7 @@ pub fn initialize_error_heap(heap: &mut Heap) {
 }
 
 fn error_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    Ok(Value::Function(FunctionIndex::from_index(0)))
+    Ok(Value::BuiltinFunction(BuiltinFunctionIndex::from_index(0)))
 }
 
 fn error_todo(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {

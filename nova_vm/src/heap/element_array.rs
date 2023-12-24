@@ -1,5 +1,5 @@
 use super::{
-    indexes::{ElementIndex, FunctionIndex},
+    indexes::{BuiltinFunctionIndex, ElementIndex},
     object::{ObjectEntry, PropertyDescriptor},
 };
 use crate::ecmascript::types::{PropertyKey, Value};
@@ -312,7 +312,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub fn getter_index(&self) -> Option<FunctionIndex> {
+    pub fn getter_index(&self) -> Option<BuiltinFunctionIndex> {
         match self {
             ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor(get_top, get_bottom)
             | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor(get_top, get_bottom)
@@ -341,14 +341,14 @@ impl ElementDescriptor {
                 _,
                 get_bottom,
                 _,
-            ) => Some(FunctionIndex::from_u32(
+            ) => Some(BuiltinFunctionIndex::from_u32(
                 (*get_top as u32) << (16 + get_bottom.get() as u32),
             )),
             _ => None,
         }
     }
 
-    pub fn setter_index(&self) -> Option<FunctionIndex> {
+    pub fn setter_index(&self) -> Option<BuiltinFunctionIndex> {
         match self {
             ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor(set_top, set_bottom)
             | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor(set_top, set_bottom)
@@ -377,7 +377,7 @@ impl ElementDescriptor {
                 set_top,
                 _,
                 set_bottom,
-            ) => Some(FunctionIndex::from_u32(
+            ) => Some(BuiltinFunctionIndex::from_u32(
                 (*set_top as u32) << (16 + set_bottom.get() as u32),
             )),
             _ => None,

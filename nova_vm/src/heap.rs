@@ -34,7 +34,10 @@ use self::{
     heap_constants::{
         FIRST_CONSTRUCTOR_INDEX, LAST_BUILTIN_OBJECT_INDEX, LAST_WELL_KNOWN_SYMBOL_INDEX,
     },
-    indexes::{BaseIndex, BigIntIndex, FunctionIndex, NumberIndex, ObjectIndex, StringIndex},
+    indexes::{
+        BaseIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex,
+        NumberIndex, ObjectIndex, StringIndex,
+    },
     math::initialize_math_object,
     number::initialize_number_heap,
     object::{initialize_object_heap, ObjectEntry, PropertyDescriptor},
@@ -50,8 +53,9 @@ use crate::ecmascript::{
         script::{Script, ScriptIdentifier},
     },
     types::{
-        BigInt, BigIntHeapData, Function, FunctionHeapData, Number, NumberHeapData, Object,
-        ObjectHeapData, PropertyKey, String, StringHeapData, Value,
+        BigInt, BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData,
+        ECMAScriptFunctionHeapData, Function, Number, NumberHeapData, Object, ObjectHeapData,
+        PropertyKey, String, StringHeapData, Value,
     },
 };
 use wtf8::{Wtf8, Wtf8Buf};
@@ -70,7 +74,9 @@ pub struct Heap<'ctx, 'host> {
     pub array_buffers: Vec<Option<ArrayBufferHeapData>>,
     pub bigints: Vec<Option<BigIntHeapData>>,
     pub errors: Vec<Option<ErrorHeapData>>,
-    pub functions: Vec<Option<FunctionHeapData>>,
+    pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
+    pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
+    pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,
     pub dates: Vec<Option<DateHeapData>>,
     pub globals: Vec<Value>,
     pub numbers: Vec<Option<NumberHeapData>>,
@@ -151,7 +157,21 @@ macro_rules! impl_heap_data {
 
 impl_heap_data!(arrays, ArrayHeapData, ArrayHeapData);
 impl_heap_data!(array_buffers, ArrayBufferHeapData, ArrayBufferHeapData);
-impl_heap_data!(functions, FunctionHeapData, FunctionHeapData);
+impl_heap_data!(
+    bound_functions,
+    BoundFunctionHeapData,
+    BoundFunctionHeapData
+);
+impl_heap_data!(
+    builtin_functions,
+    BuiltinFunctionHeapData,
+    BuiltinFunctionHeapData
+);
+impl_heap_data!(
+    ecmascript_functions,
+    ECMAScriptFunctionHeapData,
+    ECMAScriptFunctionHeapData
+);
 impl_heap_data!(numbers, NumberHeapData, f64, data);
 impl_heap_data!(objects, ObjectHeapData, ObjectHeapData);
 impl_heap_data!(strings, StringHeapData, Wtf8Buf, data);
@@ -169,10 +189,24 @@ impl CreateHeapData<&str, String> for Heap<'_, '_> {
     }
 }
 
-impl CreateHeapData<FunctionHeapData, Function> for Heap<'_, '_> {
-    fn create(&mut self, data: FunctionHeapData) -> Function {
-        self.functions.push(Some(data));
-        Function::from(FunctionIndex::last(&self.functions))
+impl CreateHeapData<BoundFunctionHeapData, Function> for Heap<'_, '_> {
+    fn create(&mut self, data: BoundFunctionHeapData) -> Function {
+        self.bound_functions.push(Some(data));
+        Function::from(BoundFunctionIndex::last(&self.bound_functions))
+    }
+}
+
+impl CreateHeapData<BuiltinFunctionHeapData, Function> for Heap<'_, '_> {
+    fn create(&mut self, data: BuiltinFunctionHeapData) -> Function {
+        self.builtin_functions.push(Some(data));
+        Function::from(BuiltinFunctionIndex::last(&self.builtin_functions))
+    }
+}
+
+impl CreateHeapData<ECMAScriptFunctionHeapData, Function> for Heap<'_, '_> {
+    fn create(&mut self, data: ECMAScriptFunctionHeapData) -> Function {
+        self.ecmascript_functions.push(Some(data));
+        Function::from(ECMAScriptFunctionIndex::last(&self.ecmascript_functions))
     }
 }
 
@@ -211,7 +245,9 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
             array_buffers: Vec::with_capacity(1024),
             bigints: Vec::with_capacity(1024),
             errors: Vec::with_capacity(1024),
-            functions: Vec::with_capacity(1024),
+            bound_functions: Vec::with_capacity(256),
+            builtin_functions: Vec::with_capacity(1024),
+            ecmascript_functions: Vec::with_capacity(1024),
             dates: Vec::with_capacity(1024),
             globals: Vec::with_capacity(1024),
             numbers: Vec::with_capacity(1024),
@@ -228,7 +264,7 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
             // Initialize all static slots in heap objects.
             heap.objects.push(None);
             if i >= FIRST_CONSTRUCTOR_INDEX {
-                heap.functions.push(None);
+                heap.builtin_functions.push(None);
             }
         }
         initialize_array_heap(&mut heap);
@@ -374,7 +410,7 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
         length: u8,
         _uses_arguments: bool,
         // behaviour: Behaviour,
-    ) -> FunctionIndex {
+    ) -> BuiltinFunctionIndex {
         let entries = vec![
             ObjectEntry::new(
                 PropertyKey::from_str(self, "length"),
@@ -396,7 +432,7 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
             )),
         };
         self.objects.push(Some(func_object_data));
-        let func_data = FunctionHeapData {
+        let func_data = BuiltinFunctionHeapData {
             // behaviour,
             // bound: None,
             length,
@@ -405,8 +441,8 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
             // visible: None,
             initial_name: Value::Null,
         };
-        let index = FunctionIndex::from_index(self.functions.len());
-        self.functions.push(Some(func_data));
+        let index = BuiltinFunctionIndex::from_index(self.builtin_functions.len());
+        self.builtin_functions.push(Some(func_data));
         index
     }
 

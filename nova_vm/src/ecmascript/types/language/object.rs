@@ -7,7 +7,8 @@ use std::ops::Deref;
 
 use super::{
     value::{
-        ARRAY_BUFFER_DISCRIMINANT, ARRAY_DISCRIMINANT, FUNCTION_DISCRIMINANT, OBJECT_DISCRIMINANT,
+        ARRAY_BUFFER_DISCRIMINANT, ARRAY_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
+        BUILTIN_FUNCTION_DISCRIMINANT, ECMASCRIPT_FUNCTION_DISCRIMINANT, OBJECT_DISCRIMINANT,
     },
     Function, Value,
 };
@@ -18,7 +19,10 @@ use crate::{
         types::PropertyDescriptor,
     },
     heap::{
-        indexes::{ArrayBufferIndex, ArrayIndex, FunctionIndex, ObjectIndex},
+        indexes::{
+            ArrayBufferIndex, ArrayIndex, BoundFunctionIndex, BuiltinFunctionIndex,
+            ECMAScriptFunctionIndex, ObjectIndex,
+        },
         GetHeapData,
     },
 };
@@ -41,7 +45,9 @@ pub enum Object {
     // Error(ErrorIndex) = ERROR_DISCRIMINANT,
     Array(ArrayIndex) = ARRAY_DISCRIMINANT,
     ArrayBuffer(ArrayBufferIndex) = ARRAY_BUFFER_DISCRIMINANT,
-    Function(FunctionIndex) = FUNCTION_DISCRIMINANT,
+    BoundFunction(BoundFunctionIndex) = BOUND_FUNCTION_DISCRIMINANT,
+    BuiltinFunction(BuiltinFunctionIndex) = BUILTIN_FUNCTION_DISCRIMINANT,
+    ECMAScriptFunction(ECMAScriptFunctionIndex) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
     //RegExp(RegExpIndex) = REGEXP_DISCRIMINANT,
 }
 
@@ -104,9 +110,21 @@ impl From<ArrayIndex> for Object {
     }
 }
 
-impl From<FunctionIndex> for Object {
-    fn from(value: FunctionIndex) -> Self {
-        Object::Function(value)
+impl From<BoundFunctionIndex> for Object {
+    fn from(value: BoundFunctionIndex) -> Self {
+        Object::BoundFunction(value)
+    }
+}
+
+impl From<BuiltinFunctionIndex> for Object {
+    fn from(value: BuiltinFunctionIndex) -> Self {
+        Object::BuiltinFunction(value)
+    }
+}
+
+impl From<ECMAScriptFunctionIndex> for Object {
+    fn from(value: ECMAScriptFunctionIndex) -> Self {
+        Object::ECMAScriptFunction(value)
     }
 }
 
@@ -121,9 +139,11 @@ impl TryFrom<Value> for Object {
     type Error = ();
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Object(x) => Ok(Object::Object(x)),
-            Value::Array(x) => Ok(Object::Array(x)),
-            Value::Function(x) => Ok(Object::Function(x)),
+            Value::Object(x) => Ok(Object::from(x)),
+            Value::Array(x) => Ok(Object::from(x)),
+            Value::BoundFunction(x) => Ok(Object::from(x)),
+            Value::BuiltinFunction(x) => Ok(Object::from(x)),
+            Value::ECMAScriptFunction(x) => Ok(Object::from(x)),
             _ => Err(()),
         }
     }
@@ -191,7 +211,9 @@ impl OrdinaryObjectInternalSlots for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).extensible(agent),
             Object::Array(idx) => Array::from(idx).extensible(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).extensible(agent),
-            Object::Function(idx) => Function::from(idx).extensible(agent),
+            Object::BoundFunction(idx) => Function::from(idx).extensible(agent),
+            Object::BuiltinFunction(idx) => Function::from(idx).extensible(agent),
+            Object::ECMAScriptFunction(idx) => Function::from(idx).extensible(agent),
         }
     }
 
@@ -200,7 +222,9 @@ impl OrdinaryObjectInternalSlots for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).set_extensible(agent, value),
             Object::Array(idx) => Array::from(idx).set_extensible(agent, value),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).set_extensible(agent, value),
-            Object::Function(idx) => Function::from(idx).set_extensible(agent, value),
+            Object::BoundFunction(idx) => Function::from(idx).set_extensible(agent, value),
+            Object::BuiltinFunction(idx) => Function::from(idx).set_extensible(agent, value),
+            Object::ECMAScriptFunction(idx) => Function::from(idx).set_extensible(agent, value),
         }
     }
 
@@ -209,7 +233,9 @@ impl OrdinaryObjectInternalSlots for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).prototype(agent),
             Object::Array(idx) => Array::from(idx).prototype(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).prototype(agent),
-            Object::Function(idx) => Function::from(idx).prototype(agent),
+            Object::BoundFunction(idx) => Function::from(idx).prototype(agent),
+            Object::BuiltinFunction(idx) => Function::from(idx).prototype(agent),
+            Object::ECMAScriptFunction(idx) => Function::from(idx).prototype(agent),
         }
     }
 
@@ -218,7 +244,9 @@ impl OrdinaryObjectInternalSlots for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).set_prototype(agent, prototype),
             Object::Array(idx) => Array::from(idx).set_prototype(agent, prototype),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).set_prototype(agent, prototype),
-            Object::Function(idx) => Function::from(idx).set_prototype(agent, prototype),
+            Object::BoundFunction(idx) => Function::from(idx).set_prototype(agent, prototype),
+            Object::BuiltinFunction(idx) => Function::from(idx).set_prototype(agent, prototype),
+            Object::ECMAScriptFunction(idx) => Function::from(idx).set_prototype(agent, prototype),
         }
     }
 }
@@ -229,7 +257,9 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).get_prototype_of(agent),
             Object::Array(idx) => Array::from(idx).get_prototype_of(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).get_prototype_of(agent),
-            Object::Function(idx) => Function::from(idx).get_prototype_of(agent),
+            Object::BoundFunction(idx) => Function::from(idx).get_prototype_of(agent),
+            Object::BuiltinFunction(idx) => Function::from(idx).get_prototype_of(agent),
+            Object::ECMAScriptFunction(idx) => Function::from(idx).get_prototype_of(agent),
         }
     }
 
@@ -238,7 +268,11 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).set_prototype_of(agent, prototype),
             Object::Array(idx) => Array::from(idx).set_prototype_of(agent, prototype),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).set_prototype_of(agent, prototype),
-            Object::Function(idx) => Function::from(idx).set_prototype_of(agent, prototype),
+            Object::BoundFunction(idx) => Function::from(idx).set_prototype_of(agent, prototype),
+            Object::BuiltinFunction(idx) => Function::from(idx).set_prototype_of(agent, prototype),
+            Object::ECMAScriptFunction(idx) => {
+                Function::from(idx).set_prototype_of(agent, prototype)
+            }
         }
     }
 
@@ -247,7 +281,9 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).is_extensible(agent),
             Object::Array(idx) => Array::from(idx).is_extensible(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).is_extensible(agent),
-            Object::Function(idx) => Function::from(idx).is_extensible(agent),
+            Object::BoundFunction(idx) => Function::from(idx).is_extensible(agent),
+            Object::BuiltinFunction(idx) => Function::from(idx).is_extensible(agent),
+            Object::ECMAScriptFunction(idx) => Function::from(idx).is_extensible(agent),
         }
     }
 
@@ -256,7 +292,9 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).prevent_extensions(agent),
             Object::Array(idx) => Array::from(idx).prevent_extensions(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).prevent_extensions(agent),
-            Object::Function(idx) => Function::from(idx).prevent_extensions(agent),
+            Object::BoundFunction(idx) => Function::from(idx).prevent_extensions(agent),
+            Object::BuiltinFunction(idx) => Function::from(idx).prevent_extensions(agent),
+            Object::ECMAScriptFunction(idx) => Function::from(idx).prevent_extensions(agent),
         }
     }
 
@@ -271,7 +309,13 @@ impl InternalMethods for Object {
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).get_own_property(agent, property_key)
             }
-            Object::Function(idx) => Function::from(idx).get_own_property(agent, property_key),
+            Object::BoundFunction(idx) => Function::from(idx).get_own_property(agent, property_key),
+            Object::BuiltinFunction(idx) => {
+                Function::from(idx).get_own_property(agent, property_key)
+            }
+            Object::ECMAScriptFunction(idx) => {
+                Function::from(idx).get_own_property(agent, property_key)
+            }
         }
     }
 
@@ -293,7 +337,13 @@ impl InternalMethods for Object {
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).define_own_property(agent, property_key, property_descriptor)
             }
-            Object::Function(idx) => {
+            Object::BoundFunction(idx) => {
+                Function::from(idx).define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::BuiltinFunction(idx) => {
+                Function::from(idx).define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::ECMAScriptFunction(idx) => {
                 Function::from(idx).define_own_property(agent, property_key, property_descriptor)
             }
         }
@@ -304,7 +354,11 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).has_property(agent, property_key),
             Object::Array(idx) => Array::from(idx).has_property(agent, property_key),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).has_property(agent, property_key),
-            Object::Function(idx) => Function::from(idx).has_property(agent, property_key),
+            Object::BoundFunction(idx) => Function::from(idx).has_property(agent, property_key),
+            Object::BuiltinFunction(idx) => Function::from(idx).has_property(agent, property_key),
+            Object::ECMAScriptFunction(idx) => {
+                Function::from(idx).has_property(agent, property_key)
+            }
         }
     }
 
@@ -313,7 +367,11 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).get(agent, property_key, receiver),
             Object::Array(idx) => Array::from(idx).get(agent, property_key, receiver),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).get(agent, property_key, receiver),
-            Object::Function(idx) => Function::from(idx).get(agent, property_key, receiver),
+            Object::BoundFunction(idx) => Function::from(idx).get(agent, property_key, receiver),
+            Object::BuiltinFunction(idx) => Function::from(idx).get(agent, property_key, receiver),
+            Object::ECMAScriptFunction(idx) => {
+                Function::from(idx).get(agent, property_key, receiver)
+            }
         }
     }
 
@@ -332,7 +390,15 @@ impl InternalMethods for Object {
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).set(agent, property_key, value, receiver)
             }
-            Object::Function(idx) => Function::from(idx).set(agent, property_key, value, receiver),
+            Object::BoundFunction(idx) => {
+                Function::from(idx).set(agent, property_key, value, receiver)
+            }
+            Object::BuiltinFunction(idx) => {
+                Function::from(idx).set(agent, property_key, value, receiver)
+            }
+            Object::ECMAScriptFunction(idx) => {
+                Function::from(idx).set(agent, property_key, value, receiver)
+            }
         }
     }
 
@@ -341,7 +407,9 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).delete(agent, property_key),
             Object::Array(idx) => Array::from(idx).delete(agent, property_key),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).delete(agent, property_key),
-            Object::Function(idx) => Function::from(idx).delete(agent, property_key),
+            Object::BoundFunction(idx) => Function::from(idx).delete(agent, property_key),
+            Object::BuiltinFunction(idx) => Function::from(idx).delete(agent, property_key),
+            Object::ECMAScriptFunction(idx) => Function::from(idx).delete(agent, property_key),
         }
     }
 
@@ -350,7 +418,9 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).own_property_keys(agent),
             Object::Array(idx) => Array::from(idx).own_property_keys(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).own_property_keys(agent),
-            Object::Function(idx) => Function::from(idx).own_property_keys(agent),
+            Object::BoundFunction(idx) => Function::from(idx).own_property_keys(agent),
+            Object::BuiltinFunction(idx) => Function::from(idx).own_property_keys(agent),
+            Object::ECMAScriptFunction(idx) => Function::from(idx).own_property_keys(agent),
         }
     }
 
@@ -361,7 +431,15 @@ impl InternalMethods for Object {
         arguments_list: &[Value],
     ) -> JsResult<Value> {
         match self {
-            Object::Function(idx) => Function::from(idx).call(agent, this_value, arguments_list),
+            Object::BoundFunction(idx) => {
+                Function::from(idx).call(agent, this_value, arguments_list)
+            }
+            Object::BuiltinFunction(idx) => {
+                Function::from(idx).call(agent, this_value, arguments_list)
+            }
+            Object::ECMAScriptFunction(idx) => {
+                Function::from(idx).call(agent, this_value, arguments_list)
+            }
             _ => unreachable!(),
         }
     }
@@ -373,7 +451,13 @@ impl InternalMethods for Object {
         new_target: Function,
     ) -> JsResult<Object> {
         match self {
-            Object::Function(idx) => {
+            Object::BoundFunction(idx) => {
+                Function::from(idx).construct(agent, arguments_list, new_target)
+            }
+            Object::BuiltinFunction(idx) => {
+                Function::from(idx).construct(agent, arguments_list, new_target)
+            }
+            Object::ECMAScriptFunction(idx) => {
                 Function::from(idx).construct(agent, arguments_list, new_target)
             }
             _ => unreachable!(),

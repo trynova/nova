@@ -1,7 +1,7 @@
 use super::{
     indexes::{
-        ArrayBufferIndex, ArrayIndex, BigIntIndex, DateIndex, ElementIndex, ErrorIndex,
-        FunctionIndex, NumberIndex, ObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
+        ArrayBufferIndex, ArrayIndex, BigIntIndex, BuiltinFunctionIndex, DateIndex, ElementIndex,
+        ErrorIndex, NumberIndex, ObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
     },
     Heap,
 };
@@ -43,7 +43,7 @@ pub struct WorkQueues {
     pub array_buffers: Vec<ArrayBufferIndex>,
     pub bigints: Vec<BigIntIndex>,
     pub errors: Vec<ErrorIndex>,
-    pub functions: Vec<FunctionIndex>,
+    pub functions: Vec<BuiltinFunctionIndex>,
     pub dates: Vec<DateIndex>,
     pub numbers: Vec<NumberIndex>,
     pub objects: Vec<ObjectIndex>,
@@ -67,7 +67,7 @@ impl HeapBits {
             array_buffers: Vec::with_capacity(heap.array_buffers.len()).into_boxed_slice(),
             bigints: Vec::with_capacity(heap.bigints.len()).into_boxed_slice(),
             errors: Vec::with_capacity(heap.errors.len()).into_boxed_slice(),
-            functions: Vec::with_capacity(heap.functions.len()).into_boxed_slice(),
+            functions: Vec::with_capacity(heap.builtin_functions.len()).into_boxed_slice(),
             dates: Vec::with_capacity(heap.dates.len()).into_boxed_slice(),
             numbers: Vec::with_capacity(heap.numbers.len()).into_boxed_slice(),
             objects: Vec::with_capacity(heap.objects.len()).into_boxed_slice(),
@@ -93,7 +93,7 @@ impl WorkQueues {
             array_buffers: Vec::with_capacity(heap.array_buffers.len() / 4),
             bigints: Vec::with_capacity(heap.bigints.len() / 4),
             errors: Vec::with_capacity(heap.errors.len() / 4),
-            functions: Vec::with_capacity(heap.functions.len() / 4),
+            functions: Vec::with_capacity(heap.builtin_functions.len() / 4),
             dates: Vec::with_capacity(heap.dates.len() / 4),
             numbers: Vec::with_capacity(heap.numbers.len() / 4),
             objects: Vec::with_capacity(heap.objects.len() / 4),
@@ -112,7 +112,9 @@ impl WorkQueues {
             Value::Boolean(_) => {}
             Value::Date(idx) => self.dates.push(idx),
             Value::Error(idx) => self.errors.push(idx),
-            Value::Function(_idx) => todo!(),
+            Value::BoundFunction(_idx) => todo!(),
+            Value::BuiltinFunction(_idx) => todo!(),
+            Value::ECMAScriptFunction(_idx) => todo!(),
             Value::BigInt(idx) => self.bigints.push(idx),
             Value::Number(idx) => self.numbers.push(idx),
             Value::String(idx) => self.strings.push(idx),

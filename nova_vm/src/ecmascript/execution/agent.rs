@@ -38,14 +38,14 @@ pub trait HostHooks: std::fmt::Debug {
 /// https://tc39.es/ecma262/#sec-agents
 #[derive(Debug)]
 pub struct Agent<'ctx, 'host> {
-    pub heap: Heap<'ctx, 'host>,
-    pub options: Options,
+    pub(crate) heap: Heap<'ctx, 'host>,
+    pub(crate) options: Options,
     // pre_allocated: PreAllocated,
-    pub exception: Option<Value>,
-    pub symbol_id: usize,
-    pub global_symbol_registry: HashMap<&'static str, Symbol>,
-    pub host_hooks: &'host dyn HostHooks,
-    pub execution_context_stack: Vec<ExecutionContext<'ctx, 'host>>,
+    pub(crate) exception: Option<Value>,
+    pub(crate) symbol_id: usize,
+    pub(crate) global_symbol_registry: HashMap<&'static str, Symbol>,
+    pub(crate) host_hooks: &'host dyn HostHooks,
+    pub(crate) execution_context_stack: Vec<ExecutionContext<'ctx, 'host>>,
 }
 
 impl<'ctx, 'host> Agent<'ctx, 'host> {
