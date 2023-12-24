@@ -1,7 +1,5 @@
 mod data;
 
-use std::ops::Deref;
-
 use super::{
     value::{
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
@@ -119,7 +117,16 @@ impl OrdinaryObjectInternalSlots for Function {
         if let Some(object_index) = match self {
             Function::BoundFunction(d) => agent.heap.get(d).object_index,
             Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
-            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
+            Function::ECMAScriptFunction(d) => {
+                agent
+                    .heap
+                    .ecmascript_functions
+                    .get(d.into_index())
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .object_index
+            }
         } {
             Object::from(object_index).extensible(agent)
         } else {
@@ -131,7 +138,16 @@ impl OrdinaryObjectInternalSlots for Function {
         if let Some(object_index) = match self {
             Function::BoundFunction(d) => agent.heap.get(d).object_index,
             Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
-            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
+            Function::ECMAScriptFunction(d) => {
+                agent
+                    .heap
+                    .ecmascript_functions
+                    .get(d.into_index())
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .object_index
+            }
         } {
             Object::from(object_index).set_extensible(agent, value)
         } else if !value {
@@ -144,7 +160,16 @@ impl OrdinaryObjectInternalSlots for Function {
         if let Some(object_index) = match self {
             Function::BoundFunction(d) => agent.heap.get(d).object_index,
             Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
-            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
+            Function::ECMAScriptFunction(d) => {
+                agent
+                    .heap
+                    .ecmascript_functions
+                    .get(d.into_index())
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .object_index
+            }
         } {
             Object::from(object_index).prototype(agent)
         } else {
@@ -156,7 +181,16 @@ impl OrdinaryObjectInternalSlots for Function {
         if let Some(object_index) = match self {
             Function::BoundFunction(d) => agent.heap.get(d).object_index,
             Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
-            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
+            Function::ECMAScriptFunction(d) => {
+                agent
+                    .heap
+                    .ecmascript_functions
+                    .get(d.into_index())
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .object_index
+            }
         } {
             Object::from(object_index).set_prototype(agent, prototype)
         } else if prototype != Some(agent.current_realm().intrinsics().function_prototype()) {

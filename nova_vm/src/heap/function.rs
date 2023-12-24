@@ -3,11 +3,9 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        execution::JsResult,
-        types::{
-            BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData, Object,
-            PropertyKey, Value,
-        },
+        builtins::{ArgumentsList, Behaviour},
+        execution::{Agent, JsResult},
+        types::{BuiltinFunctionHeapData, Object, PropertyKey, Value},
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
@@ -33,10 +31,8 @@ pub fn initialize_function_heap(heap: &mut Heap) {
         Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::FunctionConstructorIndex.into()),
             length: 1,
-            // uses_arguments: false,
-            // bound: None,
-            // visible: None,
             initial_name: Value::Null,
+            behaviour: Behaviour::Constructor(function_constructor_binding),
         });
     let entries = vec![
         ObjectEntry::new_prototype_function_entry(heap, "apply", 2, false),
@@ -71,13 +67,10 @@ pub fn initialize_function_heap(heap: &mut Heap) {
 }
 
 fn function_constructor_binding(
-    _heap: &mut Heap,
+    _agent: &mut Agent,
     _this: Value,
-    _args: &[Value],
+    _args: ArgumentsList,
+    _target: Option<Object>,
 ) -> JsResult<Value> {
     Ok(Value::BuiltinFunction(BuiltinFunctionIndex::from_index(0)))
-}
-
-fn function_todo(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    todo!()
 }

@@ -15,7 +15,7 @@ use oxc_parser::Parser;
 use oxc_span::SourceType;
 use std::{any::Any, marker::PhantomData};
 
-pub type HostDefined<'ctx> = &'ctx mut dyn Any;
+pub type HostDefined<'host> = &'host mut dyn Any;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ScriptIdentifier<'ctx, 'host>(u32, PhantomData<Script<'ctx, 'host>>);

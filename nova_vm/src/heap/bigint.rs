@@ -1,7 +1,8 @@
 use super::indexes::ObjectIndex;
 use crate::{
     ecmascript::{
-        execution::JsResult,
+        builtins::{ArgumentsList, Behaviour},
+        execution::{Agent, JsResult},
         types::{Object, PropertyKey, Value},
     },
     heap::{
@@ -32,10 +33,8 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
         Some(BuiltinFunctionHeapData {
             object_index: Some(ObjectIndex::last(&heap.objects)),
             length: 1,
-            // uses_arguments: false,
-            // bound: None,
-            // visible: None,
             initial_name: Value::Null,
+            behaviour: Behaviour::Constructor(constructor_binding),
         });
     let entries = vec![
         ObjectEntry::new(
@@ -60,38 +59,11 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
     );
 }
 
-fn bigint_constructor(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    // if !this.is_undefined() {
-    //     // TODO: Throw TypeError
-    //     return Err(Value::Error(ErrorIndex::from_index(0)));
-    // } else {
-    //      Ok(Value::SmallBigInt(3))
-    // }
-    Ok(Value::Null)
-}
-
-fn bigint_as_int_n(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    // Ok(Value::SmallBigInt(3))
-    Ok(Value::Null)
-}
-
-fn bigint_as_uint_n(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    // Ok(Value::SmallBigIntU(3))
-    Ok(Value::Null)
-}
-
-fn bigint_prototype_to_locale_string(
-    heap: &mut Heap,
+fn constructor_binding(
+    _agent: &mut Agent,
     _this: Value,
-    _args: &[Value],
+    _args: ArgumentsList,
+    _target: Option<Object>,
 ) -> JsResult<Value> {
-    Ok(Value::from_str(heap, "BigInt(3n)"))
-}
-
-fn bigint_prototype_to_string(heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    Ok(Value::from_str(heap, "BigInt(3n)"))
-}
-
-fn bigint_prototype_value_of(heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    Ok(Value::from_str(heap, "BigInt(3n)"))
+    todo!()
 }

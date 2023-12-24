@@ -46,8 +46,8 @@ use self::{
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
 use crate::ecmascript::{
-    builtins::{ArrayBufferHeapData, ArrayHeapData},
-    execution::{Environments, Realm, RealmIdentifier},
+    builtins::{ArgumentsList, ArrayBufferHeapData, ArrayHeapData, Behaviour},
+    execution::{Agent, Environments, JsResult, Realm, RealmIdentifier},
     scripts_and_modules::{
         module::{Module, ModuleIdentifier},
         script::{Script, ScriptIdentifier},
@@ -76,7 +76,7 @@ pub struct Heap<'ctx, 'host> {
     pub errors: Vec<Option<ErrorHeapData>>,
     pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
     pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
-    pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,
+    pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData<'ctx, 'host>>>,
     pub dates: Vec<Option<DateHeapData>>,
     pub globals: Vec<Value>,
     pub numbers: Vec<Option<NumberHeapData>>,
@@ -167,11 +167,6 @@ impl_heap_data!(
     BuiltinFunctionHeapData,
     BuiltinFunctionHeapData
 );
-impl_heap_data!(
-    ecmascript_functions,
-    ECMAScriptFunctionHeapData,
-    ECMAScriptFunctionHeapData
-);
 impl_heap_data!(numbers, NumberHeapData, f64, data);
 impl_heap_data!(objects, ObjectHeapData, ObjectHeapData);
 impl_heap_data!(strings, StringHeapData, Wtf8Buf, data);
@@ -203,8 +198,10 @@ impl CreateHeapData<BuiltinFunctionHeapData, Function> for Heap<'_, '_> {
     }
 }
 
-impl CreateHeapData<ECMAScriptFunctionHeapData, Function> for Heap<'_, '_> {
-    fn create(&mut self, data: ECMAScriptFunctionHeapData) -> Function {
+impl<'ctx, 'host> CreateHeapData<ECMAScriptFunctionHeapData<'ctx, 'host>, Function>
+    for Heap<'ctx, 'host>
+{
+    fn create(&mut self, data: ECMAScriptFunctionHeapData<'ctx, 'host>) -> Function {
         self.ecmascript_functions.push(Some(data));
         Function::from(ECMAScriptFunctionIndex::last(&self.ecmascript_functions))
     }
@@ -433,13 +430,10 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
         };
         self.objects.push(Some(func_object_data));
         let func_data = BuiltinFunctionHeapData {
-            // behaviour,
-            // bound: None,
-            length,
             object_index: Some(ObjectIndex::last(&self.objects)),
-            // uses_arguments,
-            // visible: None,
+            length,
             initial_name: Value::Null,
+            behaviour: Behaviour::Regular(fn_todo),
         };
         let index = BuiltinFunctionIndex::from_index(self.builtin_functions.len());
         self.builtin_functions.push(Some(func_data));
@@ -501,6 +495,10 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
         self.objects[index as usize] = Some(object_data);
         ObjectIndex::last(&self.objects)
     }
+}
+
+fn fn_todo(_heap: &mut Agent, _this: Value, _args: ArgumentsList) -> JsResult<Value> {
+    todo!()
 }
 
 #[test]
