@@ -42,3 +42,4 @@ Some more long-term prospects and/or wild ideas:
     true. This would stop Result usage which is a darn shame (can be fixed with
     Nightly features). But it would mean that returning a (sort of)
     `Result<Value>` would fit in a register.
+- Consider a register based VM instead of going stack based
