@@ -19,6 +19,8 @@ use crate::{
 
 use super::{BigInt, Number};
 
+// TODO: Handle this and enum subtypes via a macro for compile-time guarantees and safety
+
 /// 6.1 ECMAScript Language Types
 /// https://tc39.es/ecma262/#sec-ecmascript-language-types
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -27,49 +29,49 @@ pub enum Value {
     /// 6.1.1 The Undefined Type
     /// https://tc39.es/ecma262/#sec-ecmascript-language-types-undefined-type
     #[default]
-    Undefined = 1,
+    Undefined = UNDEFINED_DISCRIMINANT,
 
     /// 6.1.2 The Null Type
     /// https://tc39.es/ecma262/#sec-ecmascript-language-types-null-type
-    Null,
+    Null = NULL_DISCRIMINANT,
 
     /// 6.1.3 The Boolean Type
     /// https://tc39.es/ecma262/#sec-ecmascript-language-types-boolean-type
-    Boolean(bool),
+    Boolean(bool) = BOOLEAN_DISCRIMINANT,
 
     /// 6.1.4 The String Type
     /// https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type
-    String(StringIndex),
-    SmallString(SmallString),
+    String(StringIndex) = STRING_DISCRIMINANT,
+    SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
 
     /// 6.1.5 The Symbol Type
     /// https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type
-    Symbol(SymbolIndex),
+    Symbol(SymbolIndex) = SYMBOL_DISCRIMINANT,
 
     /// 6.1.6.1 The Number Type
     /// https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type
-    Number(NumberIndex),
-    Integer(SmallInteger), // 56-bit signed integer.
-    Float(f32),
+    Number(NumberIndex) = NUMBER_DISCRIMINANT,
+    Integer(SmallInteger) = INTEGER_DISCRIMINANT, // 56-bit signed integer.
+    Float(f32) = FLOAT_DISCRIMINANT,
 
     /// 6.1.6.2 The BigInt Type
     /// https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type
-    BigInt(BigIntIndex),
-    SmallBigInt(SmallInteger),
+    BigInt(BigIntIndex) = BIGINT_DISCRIMINANT,
+    SmallBigInt(SmallInteger) = SMALL_BIGINT_DISCRIMINANT,
 
     /// 6.1.7 The Object Type
     /// https://tc39.es/ecma262/#sec-object-type
-    Object(ObjectIndex),
+    Object(ObjectIndex) = OBJECT_DISCRIMINANT,
 
     // Well-known object types
     // Roughly corresponding to 6.1.7.4 Well-Known Intrinsic Objects
     // https://tc39.es/ecma262/#sec-well-known-intrinsic-objects
-    Array(ArrayIndex),
-    ArrayBuffer(ArrayBufferIndex),
-    Date(DateIndex),
-    Error(ErrorIndex),
-    Function(FunctionIndex),
-    RegExp(RegExpIndex),
+    Array(ArrayIndex) = ARRAY_DISCRIMINANT,
+    ArrayBuffer(ArrayBufferIndex) = ARRAY_BUFFER_DISCRIMINANT,
+    Date(DateIndex) = DATE_DISCRIMINANT,
+    Error(ErrorIndex) = ERROR_DISCRIMINANT,
+    Function(FunctionIndex) = FUNCTION_DISCRIMINANT,
+    RegExp(RegExpIndex) = REGEXP_DISCRIMINANT,
     // TODO: Implement primitive value objects, those useless things.
     // BigIntObject(u32),
     // BooleanObject(u32),
@@ -78,16 +80,18 @@ pub enum Value {
     // SymbolObject(u32),
 }
 
-/// We want to guarantee that all handles to JS values are register sized. This assert must never be removed or broken.
-const _VALUE_SIZE_IS_WORD: () = assert!(size_of::<Value>() == size_of::<usize>());
+/// We want to guarantee that all handles to JS values are register sized. These asserts must never be removed or broken.
+const _: () = assert!(size_of::<Value>() <= size_of::<usize>(), "Handles to JavaScript values should fit within a 64-bit CPU register.");
+const _: () = assert!(size_of::<usize>() >= size_of::<u64>(), "Registers should be at least 64-bits");
 // We may also want to keep Option<Value> register sized so that eg. holes in arrays do not start requiring extra bookkeeping.
-const _OPTIONAL_VALUE_SIZE_IS_WORD: () = assert!(size_of::<Option<Value>>() == size_of::<usize>());
+const _: () = assert!(size_of::<Option<Value>>() == size_of::<usize>(), "OPTIONAL_VALUE_SIZE_IS_WORD");
 
 #[derive(Debug, Clone, Copy)]
 pub enum PreferredType {
     String,
     Number,
 }
+
 const fn value_discriminant(value: Value) -> u8 {
     // SAFETY: Because `Self` is marked `repr(u8)`, its layout is a `repr(C)` `union`
     // between `repr(C)` structs, each of which has the `u8` discriminant as its first
@@ -95,38 +99,26 @@ const fn value_discriminant(value: Value) -> u8 {
     unsafe { *(&value as *const Value).cast::<u8>() }
 }
 
-pub(crate) const UNDEFINED_DISCRIMINANT: u8 = value_discriminant(Value::Undefined);
-pub(crate) const NULL_DISCRIMINANT: u8 = value_discriminant(Value::Null);
-pub(crate) const BOOLEAN_DISCRIMINANT: u8 = value_discriminant(Value::Boolean(true));
-pub(crate) const STRING_DISCRIMINANT: u8 =
-    value_discriminant(Value::String(StringIndex::from_u32_index(0)));
-pub(crate) const SMALL_STRING_DISCRIMINANT: u8 =
-    value_discriminant(Value::SmallString(SmallString::new_empty()));
-pub(crate) const SYMBOL_DISCRIMINANT: u8 =
-    value_discriminant(Value::Symbol(SymbolIndex::from_u32_index(0)));
-pub(crate) const NUMBER_DISCRIMINANT: u8 =
-    value_discriminant(Value::Number(NumberIndex::from_u32_index(0)));
-pub(crate) const INTEGER_DISCRIMINANT: u8 =
-    value_discriminant(Value::Integer(SmallInteger::zero()));
-pub(crate) const FLOAT_DISCRIMINANT: u8 = value_discriminant(Value::Float(0f32));
-pub(crate) const BIGINT_DISCRIMINANT: u8 =
-    value_discriminant(Value::BigInt(BigIntIndex::from_u32_index(0)));
-pub(crate) const SMALL_BIGINT_DISCRIMINANT: u8 =
-    value_discriminant(Value::SmallBigInt(SmallInteger::zero()));
-pub(crate) const OBJECT_DISCRIMINANT: u8 =
-    value_discriminant(Value::Object(ObjectIndex::from_u32_index(0)));
-pub(crate) const ARRAY_DISCRIMINANT: u8 =
-    value_discriminant(Value::Array(ArrayIndex::from_u32_index(0)));
-pub(crate) const ARRAY_BUFFER_DISCRIMINANT: u8 =
-    value_discriminant(Value::ArrayBuffer(ArrayBufferIndex::from_u32_index(0)));
-pub(crate) const DATE_DISCRIMINANT: u8 =
-    value_discriminant(Value::Date(DateIndex::from_u32_index(0)));
-pub(crate) const ERROR_DISCRIMINANT: u8 =
-    value_discriminant(Value::Error(ErrorIndex::from_u32_index(0)));
-pub(crate) const FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::Function(FunctionIndex::from_u32_index(0)));
-pub(crate) const REGEXP_DISCRIMINANT: u8 =
-    value_discriminant(Value::RegExp(RegExpIndex::from_u32_index(0)));
+// These correspond to the order that each item appears in the Value enum.
+// This will be replaced when we modularise the enum subtyping via a crate or macro or whatever.
+pub(crate) const UNDEFINED_DISCRIMINANT: u8 = 1;
+pub(crate) const NULL_DISCRIMINANT: u8 = 2;
+pub(crate) const BOOLEAN_DISCRIMINANT: u8 = 3;
+pub(crate) const STRING_DISCRIMINANT: u8 = 4;
+pub(crate) const SMALL_STRING_DISCRIMINANT: u8 = 5;
+pub(crate) const SYMBOL_DISCRIMINANT: u8 = 6;
+pub(crate) const NUMBER_DISCRIMINANT: u8 = 7;
+pub(crate) const INTEGER_DISCRIMINANT: u8 = 8;
+pub(crate) const FLOAT_DISCRIMINANT: u8 = 9;
+pub(crate) const BIGINT_DISCRIMINANT: u8 = 10;
+pub(crate) const SMALL_BIGINT_DISCRIMINANT: u8 = 11;
+pub(crate) const OBJECT_DISCRIMINANT: u8 = 12;
+pub(crate) const ARRAY_DISCRIMINANT: u8 = 13;
+pub(crate) const ARRAY_BUFFER_DISCRIMINANT: u8 = 14;
+pub(crate) const DATE_DISCRIMINANT: u8 = 15;
+pub(crate) const ERROR_DISCRIMINANT: u8 = 16;
+pub(crate) const FUNCTION_DISCRIMINANT: u8 = 17;
+pub(crate) const REGEXP_DISCRIMINANT: u8 = 18;
 
 impl Value {
     pub fn from_str(heap: &mut Heap, message: &str) -> Value {
