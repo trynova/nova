@@ -1,6 +1,7 @@
 use crate::{
     ecmascript::{
-        execution::JsResult,
+        builtins::{ArgumentsList, Behaviour},
+        execution::{Agent, JsResult},
         types::{Object, Value},
     },
     heap::{
@@ -24,10 +25,8 @@ pub fn initialize_string_heap(heap: &mut Heap) {
         Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::StringConstructorIndex.into()),
             length: 1,
-            // uses_arguments: false,
-            // bound: None,
-            // visible: None,
             initial_name: Value::Null,
+            behaviour: Behaviour::Constructor(constructor_binding),
         });
     heap.insert_builtin_object(
         BuiltinObjectIndexes::StringPrototypeIndex,
@@ -40,6 +39,11 @@ pub fn initialize_string_heap(heap: &mut Heap) {
     );
 }
 
-fn string_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    Ok(Value::Null)
+fn constructor_binding(
+    _agent: &mut Agent,
+    _this: Value,
+    _args: ArgumentsList,
+    _target: Option<Object>,
+) -> JsResult<Value> {
+    todo!()
 }

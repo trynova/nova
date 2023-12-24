@@ -4,7 +4,8 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        execution::JsResult,
+        builtins::{ArgumentsList, Behaviour},
+        execution::{Agent, JsResult},
         types::{BuiltinFunctionHeapData, Object, PropertyKey, Value},
     },
     heap::{
@@ -37,10 +38,8 @@ pub fn initialize_error_heap(heap: &mut Heap) {
         Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::ErrorConstructorIndex.into()),
             length: 1,
-            // uses_arguments: false,
-            // bound: None,
-            // visible: None,
             initial_name: Value::Null,
+            behaviour: Behaviour::Constructor(constructor_binding),
         });
     let entries = vec![
         ObjectEntry::new(
@@ -69,10 +68,11 @@ pub fn initialize_error_heap(heap: &mut Heap) {
     );
 }
 
-fn error_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    Ok(Value::BuiltinFunction(BuiltinFunctionIndex::from_index(0)))
-}
-
-fn error_todo(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
+fn constructor_binding(
+    _agent: &mut Agent,
+    _this: Value,
+    _args: ArgumentsList,
+    _target: Option<Object>,
+) -> JsResult<Value> {
     todo!()
 }

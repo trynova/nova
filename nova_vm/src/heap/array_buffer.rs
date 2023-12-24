@@ -1,6 +1,10 @@
 use super::{heap_constants::WellKnownSymbolIndexes, object::ObjectEntry};
 use crate::{
-    ecmascript::types::{BuiltinFunctionHeapData, Object, PropertyKey, Value},
+    ecmascript::{
+        builtins::{ArgumentsList, Behaviour},
+        execution::{Agent, JsResult},
+        types::{BuiltinFunctionHeapData, Object, PropertyKey, Value},
+    },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
         Heap, PropertyDescriptor,
@@ -38,10 +42,8 @@ pub fn initialize_array_buffer_heap(heap: &mut Heap) {
         Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::ArrayBufferConstructorIndex.into()),
             length: 1,
-            // bound: None,
-            // visible: None,
-            // binding: array_buffer_constructor_binding,
             initial_name: Value::Null,
+            behaviour: Behaviour::Constructor(constructor_binding),
         });
     let entries = vec![
         ObjectEntry::new(
@@ -72,4 +74,13 @@ pub fn initialize_array_buffer_heap(heap: &mut Heap) {
         )),
         entries,
     );
+}
+
+fn constructor_binding(
+    _agent: &mut Agent,
+    _this: Value,
+    _args: ArgumentsList,
+    _target: Option<Object>,
+) -> JsResult<Value> {
+    todo!()
 }

@@ -1,7 +1,8 @@
 use super::indexes::{BuiltinFunctionIndex, ObjectIndex, SymbolIndex};
 use crate::{
     ecmascript::{
-        execution::JsResult,
+        builtins::{ArgumentsList, Behaviour},
+        execution::{Agent, JsResult},
         types::{Object, PropertyKey, Value},
     },
     heap::{
@@ -244,10 +245,8 @@ pub fn initialize_object_heap(heap: &mut Heap) {
         Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::ObjectConstructorIndex.into()),
             length: 1,
-            // uses_arguments: false,
-            // bound: None,
-            // visible: None,
             initial_name: Value::Null,
+            behaviour: Behaviour::Constructor(object_constructor_binding),
         });
     let entries = vec![
         ObjectEntry::new(
@@ -271,10 +270,11 @@ pub fn initialize_object_heap(heap: &mut Heap) {
     );
 }
 
-fn object_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
+fn object_constructor_binding(
+    _heap: &mut Agent,
+    _this: Value,
+    _args: ArgumentsList,
+    _target: Option<Object>,
+) -> JsResult<Value> {
     Ok(Value::Object(ObjectIndex::from_index(0)))
-}
-
-fn object_todo(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    todo!()
 }

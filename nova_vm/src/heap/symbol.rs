@@ -5,7 +5,8 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        execution::JsResult,
+        builtins::{ArgumentsList, Behaviour},
+        execution::{Agent, JsResult},
         types::{Object, PropertyKey, String, Value},
     },
     heap::{
@@ -148,10 +149,8 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
         Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::SymbolConstructorIndex.into()),
             length: 1,
-            // uses_arguments: false,
-            // bound: None,
-            // visible: None,
             initial_name: Value::Null,
+            behaviour: Behaviour::Constructor(constructor_binding),
         });
     let entries = vec![
         ObjectEntry::new(
@@ -193,10 +192,11 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
     );
 }
 
-fn symbol_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    Ok(Value::Symbol(SymbolIndex::from_index(0)))
-}
-
-fn symbol_todo(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    todo!();
+fn constructor_binding(
+    _agent: &mut Agent,
+    _this: Value,
+    _args: ArgumentsList,
+    _target: Option<Object>,
+) -> JsResult<Value> {
+    todo!()
 }

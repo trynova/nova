@@ -1,7 +1,8 @@
 use super::{object::ObjectEntry, CreateHeapData, Heap};
 use crate::{
     ecmascript::{
-        execution::JsResult,
+        builtins::{ArgumentsList, Behaviour},
+        execution::{Agent, JsResult},
         types::{Number, Object, PropertyKey, Value},
     },
     heap::{
@@ -69,10 +70,8 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::NumberConstructorIndex.into()),
             length: 1,
-            // uses_arguments: false,
-            // bound: None,
-            // visible: None,
             initial_name: Value::Null,
+            behaviour: Behaviour::Constructor(constructor_binding),
         });
     let entries = vec![
         ObjectEntry::new(
@@ -98,10 +97,11 @@ pub fn initialize_number_heap(heap: &mut Heap) {
     );
 }
 
-fn number_constructor_binding(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    Ok(Value::from(0))
-}
-
-fn number_todo(_heap: &mut Heap, _this: Value, _args: &[Value]) -> JsResult<Value> {
-    todo!();
+fn constructor_binding(
+    _agent: &mut Agent,
+    _this: Value,
+    _args: ArgumentsList,
+    _target: Option<Object>,
+) -> JsResult<Value> {
+    todo!()
 }
