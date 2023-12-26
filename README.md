@@ -30,8 +30,6 @@ as a potential easy jumping-into point for newcompers.
 
 Some more long-term prospects and/or wild ideas:
 
-- Figure out what the frick-fruck to do about the `'ctx, 'host` lifetimes and
-  what do they actually stand for etc.
 - Add a `Reference` variant to `Value` (or create a `ValueOrReference` enum that
   is the true root enum)
   - ReferenceRecords would (maybe?) move to Heap directly. This might make some

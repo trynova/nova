@@ -87,22 +87,18 @@ impl PropertyStorage {
 
     pub fn remove(self, _agent: &mut Agent, _property_key: PropertyKey) {}
 
-    pub fn entries<'a, 'b>(self, _agent: &'a Agent<'b, 'b>) -> Entries<'a, 'b> {
+    pub fn entries(self, _agent: &Agent) -> Entries {
         todo!()
     }
 }
 
 #[derive(Debug)]
-pub struct Entries<'a, 'b> {
-    pub realm: Ref<'a, Realm<'b, 'b>>,
-    _rc: std::marker::PhantomData<&'a Rc<RefCell<Realm<'b, 'b>>>>,
+pub struct Entries<'a> {
+    pub realm: Ref<'a, Realm>,
 }
 
-impl<'a, 'b> Entries<'a, 'b> {
-    fn new(realm: Ref<'a, Realm<'b, 'b>>) -> Self {
-        Self {
-            realm,
-            _rc: Default::default(),
-        }
+impl<'a> Entries<'a> {
+    fn new(realm: Ref<'a, Realm>) -> Self {
+        Self { realm }
     }
 }

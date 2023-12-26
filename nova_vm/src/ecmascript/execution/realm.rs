@@ -12,9 +12,9 @@ pub(crate) use intrinsics::ProtoIntrinsics;
 use std::{any::Any, marker::PhantomData};
 
 #[derive(Debug, Clone, Copy)]
-pub struct RealmIdentifier<'ctx, 'host>(u32, PhantomData<Realm<'ctx, 'host>>);
+pub struct RealmIdentifier(u32, PhantomData<Realm>);
 
-impl<'ctx, 'host> RealmIdentifier<'ctx, 'host> {
+impl RealmIdentifier {
     /// Creates a realm identififer from a usize.
     ///
     /// ## Panics
@@ -41,11 +41,11 @@ impl<'ctx, 'host> RealmIdentifier<'ctx, 'host> {
 /// global environment, all of the ECMAScript code that is loaded within the
 /// scope of that global environment, and other associated state and resources.
 #[derive(Debug)]
-pub struct Realm<'ctx, 'host> {
+pub struct Realm {
     /// ### \[\[AgentSignifier]]
     ///
     /// The agent that owns this realm
-    agent_signifier: PhantomData<Agent<'ctx, 'host>>,
+    agent_signifier: PhantomData<Agent>,
 
     /// ### \[\[Intrinsics]]
     ///
@@ -83,10 +83,10 @@ pub struct Realm<'ctx, 'host> {
     ///
     /// Field reserved for use by hosts that need to associate additional
     /// information with a Realm Record.
-    pub(crate) host_defined: Option<&'host dyn Any>,
+    pub(crate) host_defined: Option<&'static dyn Any>,
 }
 
-impl<'ctx, 'host> Realm<'ctx, 'host> {
+impl Realm {
     pub(crate) fn intrinsics(&self) -> &Intrinsics {
         &self.intrinsics
     }
@@ -96,7 +96,7 @@ impl<'ctx, 'host> Realm<'ctx, 'host> {
 ///
 /// The abstract operation CreateRealm takes no arguments and returns a Realm
 /// Record.
-pub fn create_realm<'ctx, 'host>(agent: &mut Agent<'ctx, 'host>) -> RealmIdentifier<'ctx, 'host> {
+pub fn create_realm(agent: &mut Agent) -> RealmIdentifier {
     // 1. Let realmRec be a new Realm Record.
     let realm_rec = Realm {
         // 2. Perform CreateIntrinsics(realmRec).
@@ -156,9 +156,9 @@ pub(crate) fn create_intrinsics() -> Intrinsics {
 }
 
 /// 9.3.3 SetRealmGlobalObject ( realmRec, globalObj, thisValue ), https://tc39.es/ecma262/#sec-setrealmglobalobject
-pub(crate) fn set_realm_global_object<'ctx, 'host>(
-    agent: &mut Agent<'ctx, 'host>,
-    realm_id: RealmIdentifier<'ctx, 'host>,
+pub(crate) fn set_realm_global_object(
+    agent: &mut Agent,
+    realm_id: RealmIdentifier,
     global_object: Option<Object>,
     this_value: Option<Object>,
 ) {
@@ -202,9 +202,9 @@ pub(crate) fn set_realm_global_object<'ctx, 'host>(
 /// The abstract operation SetDefaultGlobalBindings takes argument realmRec (a
 /// Realm Record) and returns either a normal completion containing an Object or
 /// a throw completion.
-pub(crate) fn set_default_global_bindings<'ctx, 'host>(
-    agent: &mut Agent<'ctx, 'host>,
-    realm_id: RealmIdentifier<'ctx, 'host>,
+pub(crate) fn set_default_global_bindings(
+    agent: &mut Agent,
+    realm_id: RealmIdentifier,
 ) -> JsResult<Object> {
     // 1. Let global be realmRec.[[GlobalObject]].
     let global = agent.heap.get_realm(realm_id).global_object;
@@ -238,9 +238,9 @@ pub(crate) fn set_default_global_bindings<'ctx, 'host>(
 }
 
 /// 9.6 InitializeHostDefinedRealm ( ), https://tc39.es/ecma262/#sec-initializehostdefinedrealm
-pub fn initialize_host_defined_realm<'ctx, 'host, F, Init>(
-    agent: &mut Agent<'ctx, 'host>,
-    realm_id: RealmIdentifier<'ctx, 'host>,
+pub fn initialize_host_defined_realm<F, Init>(
+    agent: &mut Agent,
+    realm_id: RealmIdentifier,
     create_global_object: Option<impl FnOnce(&mut Realm) -> Object>,
     create_global_this_value: Option<impl FnOnce(&mut Realm) -> Object>,
     initialize_global_object: Option<impl FnOnce(&mut Agent, Object)>,

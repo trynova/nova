@@ -39,7 +39,7 @@ pub struct ECMAScriptCodeEvaluationState {
 /// references to the running execution context in this specification denote the
 /// running execution context of the surrounding agent.
 #[derive(Debug)]
-pub(crate) struct ExecutionContext<'ctx, 'host> {
+pub(crate) struct ExecutionContext {
     /// ### code evaluation state
     ///
     /// Any state needed to perform, suspend, and resume evaluation of the code
@@ -57,7 +57,7 @@ pub(crate) struct ExecutionContext<'ctx, 'host> {
     ///
     /// The Realm Record from which associated code accesses ECMAScript
     /// resources.
-    pub realm: RealmIdentifier<'ctx, 'host>,
+    pub realm: RealmIdentifier,
 
     /// ### ScriptOrModule
     ///
@@ -65,5 +65,5 @@ pub(crate) struct ExecutionContext<'ctx, 'host> {
     /// originates. If there is no originating script or module, as is the case
     /// for the original execution context created in
     /// InitializeHostDefinedRealm, the value is null.
-    pub script_or_module: Option<ScriptOrModule<'ctx, 'host>>,
+    pub script_or_module: Option<ScriptOrModule>,
 }

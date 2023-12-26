@@ -43,7 +43,7 @@ impl Deref for Array {
 pub struct ArrayConstructor;
 
 impl Builtin for ArrayConstructor {
-    fn create<'a>(agent: &'a mut Agent<'a, 'a>) -> JsResult<Object> {
+    fn create(agent: &mut Agent) -> JsResult<Object> {
         let realm = agent.current_realm_id();
         let object = create_builtin_function(
             agent,
