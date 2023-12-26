@@ -10,6 +10,12 @@ projects which themselves must serve as a runtime for JavaScript code.
 
 The core of our team is on our [Discord server](https://discord.gg/RTrgJzXKUM).
 
+## Heap structure
+
+If you find yourself interested in what on earth is going on in the Heap, take a
+look at [the Heap README.md](./nova_vm/src/heap/README.md). It gives a more
+thorough walkthrough of the Heap structure and what the idea there is.
+
 ## List of active development ideas
 
 This list serves as a "this is where you were" for returning developers as well
