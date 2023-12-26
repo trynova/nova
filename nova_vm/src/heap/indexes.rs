@@ -50,7 +50,7 @@ impl<T: ?Sized> Eq for BaseIndex<T> {}
 
 impl<T: ?Sized> PartialOrd for BaseIndex<T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.0.partial_cmp(&other.0)
+        Some(self.cmp(other))
     }
 }
 
@@ -135,7 +135,7 @@ pub type SymbolIndex = BaseIndex<SymbolHeapData>;
 pub type ElementIndex = BaseIndex<[Option<Value>]>;
 
 impl ObjectIndex {
-    pub fn get<'a>(self, heap: &'a Heap) -> &'a ObjectHeapData {
+    pub fn get(self, heap: &Heap) -> &ObjectHeapData {
         heap.objects
             .get(self.into_index())
             .unwrap()

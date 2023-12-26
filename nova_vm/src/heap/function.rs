@@ -16,20 +16,20 @@ use crate::{
 pub fn initialize_function_heap(heap: &mut Heap) {
     let entries = vec![ObjectEntry::new_constructor_prototype_entry(
         heap,
-        BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+        BuiltinObjectIndexes::FunctionPrototype.into(),
     )];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::FunctionConstructorIndex,
+        BuiltinObjectIndexes::FunctionConstructor,
         true,
         Some(Object::BuiltinFunction(
-            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+            BuiltinObjectIndexes::FunctionPrototype.into(),
         )),
         entries,
     );
     heap.builtin_functions
-        [get_constructor_index(BuiltinObjectIndexes::FunctionConstructorIndex).into_index()] =
+        [get_constructor_index(BuiltinObjectIndexes::FunctionConstructor).into_index()] =
         Some(BuiltinFunctionHeapData {
-            object_index: Some(BuiltinObjectIndexes::FunctionConstructorIndex.into()),
+            object_index: Some(BuiltinObjectIndexes::FunctionConstructor.into()),
             length: 1,
             initial_name: Value::Null,
             behaviour: Behaviour::Constructor(function_constructor_binding),
@@ -41,7 +41,7 @@ pub fn initialize_function_heap(heap: &mut Heap) {
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
             PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
-                BuiltinObjectIndexes::FunctionConstructorIndex,
+                BuiltinObjectIndexes::FunctionConstructor,
             ))),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
@@ -57,11 +57,9 @@ pub fn initialize_function_heap(heap: &mut Heap) {
     // the %Function.prototype% object should itself be a function that always returns undefined. This is not
     // upheld here and we probably do not care. It's seemingly the only prototype that is a function.
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::FunctionPrototypeIndex,
+        BuiltinObjectIndexes::FunctionPrototype,
         true,
-        Some(Object::Object(
-            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
-        )),
+        Some(Object::Object(BuiltinObjectIndexes::ObjectPrototype.into())),
         entries,
     );
 }

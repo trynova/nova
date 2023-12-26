@@ -1,7 +1,10 @@
 use super::DeclarativeEnvironment;
-use crate::ecmascript::{
-    execution::{agent::ExceptionType, Agent, JsResult},
-    types::{Function, Object, Value},
+use crate::{
+    ecmascript::{
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{Function, Object, Value},
+    },
+    heap::GetHeapData,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -72,6 +75,10 @@ impl FunctionEnvironment {
         function_object: Function,
         new_target: Option<Object>,
     ) -> FunctionEnvironment {
+        let ecmascript_function = match function_object {
+            Function::ECMAScriptFunction(d) => &agent.heap.get(d).ecmascript_function,
+            _ => unreachable!(),
+        };
         // 1. Let env be a new Function Environment Record containing no bindings.
         FunctionEnvironment {
             this_value: None,
@@ -87,7 +94,9 @@ impl FunctionEnvironment {
             new_target,
 
             // 6. Set env.[[OuterEnv]] to F.[[Environment]].
-            declarative_environment: todo!(),
+            declarative_environment: DeclarativeEnvironment::new(Some(
+                ecmascript_function.environment,
+            )),
         }
         // 7. Return env.
     }
@@ -132,7 +141,7 @@ impl FunctionEnvironment {
     ///
     /// The HasSuperBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns a Boolean.
-    pub(crate) fn has_super_binding(&self, agent: &Agent) -> bool {
+    pub(crate) fn has_super_binding(&self, _agent: &Agent) -> bool {
         // 1. If envRec.[[ThisBindingStatus]] is LEXICAL, return false.
         if self.this_binding_status == ThisBindingStatus::Lexical {
             return false;

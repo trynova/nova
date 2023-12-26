@@ -228,7 +228,7 @@ impl DataBlock {
         }
     }
 
-    /// #### [6.2.9.1 CreateByteDataBlock ( size )](https://tc39.es/ecma262/#sec-createbytedatablock)
+    /// ### [6.2.9.1 CreateByteDataBlock ( size )](https://tc39.es/ecma262/#sec-createbytedatablock)
     ///
     /// The abstract operation CreateByteDataBlock takes argument size (a non-negative integer)
     /// and returns either a normal completion containing a Data Block or a throw completion.
@@ -237,19 +237,19 @@ impl DataBlock {
         if size > u64::pow(2, 53) - 1 {
             // TODO: throw a RangeError exception
             Err(JsError {})
-        } else
-        // 2. Let db be a new Data Block value consisting of size bytes. If it is impossible to create such a Data Block, throw a RangeError exception.
-        if let Ok(size) = u32::try_from(size) {
+        } else if let Ok(size) = u32::try_from(size) {
+            // 2. Let db be a new Data Block value consisting of size bytes.
             // 3. Set all of the bytes of db to 0.
             // 4. Return db.
             Ok(Self::new(size))
         } else {
+            // 2. cont: If it is impossible to create such a Data Block, throw a RangeError exception.
             // TODO: throw a RangeError exception
             Err(JsError {})
         }
     }
 
-    /// #### [6.2.9.2 CreateSharedByteDataBlock ( size )](https://tc39.es/ecma262/#sec-createsharedbytedatablock)
+    /// ### [6.2.9.2 CreateSharedByteDataBlock ( size )](https://tc39.es/ecma262/#sec-createsharedbytedatablock)
     ///
     /// The abstract operation CreateSharedByteDataBlock takes argument size (a non-negative integer)
     /// and returns either a normal completion containing a Shared Data Block or a throw completion.
@@ -268,7 +268,7 @@ impl DataBlock {
         // 6. Return db.
     }
 
-    /// #### [6.2.9.3 CopyDataBlockBytes ( toBlock, toIndex, fromBlock, fromIndex, count )](https://tc39.es/ecma262/#sec-copydatablockbytes)
+    /// ### [6.2.9.3 CopyDataBlockBytes ( toBlock, toIndex, fromBlock, fromIndex, count )](https://tc39.es/ecma262/#sec-copydatablockbytes)
     ///
     /// The abstract operation CopyDataBlockBytes takes arguments toBlock (a Data Block or a Shared
     /// Data Block), toIndex (a non-negative integer), fromBlock (a Data Block or a Shared Data Block),

@@ -59,7 +59,7 @@ impl Executable {
 
         let mut ctx = CompileContext { agent, exe };
 
-        let iter = if body.len() != 0 {
+        let iter = if !body.is_empty() {
             body[..body.len() - 1].iter()
         } else {
             body.iter()
@@ -135,8 +135,8 @@ impl Executable {
     fn set_jump_target(&mut self, jump: JumpIndex, index: usize) {
         assert!(index < IndexType::MAX as usize);
         let bytes: [u8; 2] = (index as IndexType).to_ne_bytes();
-        self.instructions[jump.index] = unsafe { std::mem::transmute(bytes[0]) };
-        self.instructions[jump.index + 1] = unsafe { std::mem::transmute(bytes[0]) };
+        self.instructions[jump.index] = bytes[0];
+        self.instructions[jump.index + 1] = bytes[0];
     }
 
     fn set_jump_target_here(&mut self, jump: JumpIndex) {
@@ -199,7 +199,7 @@ impl Compile for ast::NullLiteral {
 
 impl Compile for ast::StringLiteral {
     fn compile(&self, ctx: &mut CompileContext) {
-        let constant = Value::from_str(&mut ctx.agent.heap, &self.value.as_str());
+        let constant = Value::from_str(&mut ctx.agent.heap, self.value.as_str());
         ctx.exe
             .add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
@@ -227,7 +227,7 @@ impl Compile for ast::BindingIdentifier {
 }
 
 impl Compile for ast::UnaryExpression<'_> {
-    /// ## [13.5 Unary Operators](https://tc39.es/ecma262/#sec-unary-operators)
+    /// ### [13.5 Unary Operators](https://tc39.es/ecma262/#sec-unary-operators)
     fn compile(&self, ctx: &mut CompileContext) {
         match self.operator {
             // 13.5.5 Unary - Operator
@@ -316,7 +316,7 @@ impl Compile for ast::BinaryExpression<'_> {
                 // 6. If r is undefined, return false. Otherwise, return r.
                 ctx.exe.add_instruction(Instruction::LessThan);
             }
-            _ => {}
+            _ => todo!(),
         }
 
         // 1. Let lref be ? Evaluation of leftOperand.

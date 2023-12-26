@@ -8,7 +8,7 @@ use crate::ecmascript::{
 /// https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots
 pub trait InternalMethods<T = Object>
 where
-    Self: Sized + Into<Object>,
+    Self: Sized + Clone + Copy + Into<Object>,
 {
     /// \[\[GetPrototypeOf\]\]
     fn get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>>;

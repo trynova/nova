@@ -14,124 +14,124 @@ use super::indexes::{BuiltinFunctionIndex, ObjectIndex, SymbolIndex};
 #[derive(Debug, Clone, Copy)]
 pub enum BuiltinObjectIndexes {
     // Fundamental objects
-    ObjectPrototypeIndex,
-    FunctionPrototypeIndex,
-    BooleanPrototypeIndex,
-    SymbolPrototypeIndex,
-    ErrorPrototypeIndex,
+    ObjectPrototype,
+    FunctionPrototype,
+    BooleanPrototype,
+    SymbolPrototype,
+    ErrorPrototype,
 
     // Numbers and dates
-    NumberPrototypeIndex,
-    BigintPrototypeIndex,
-    MathObjectIndex,
-    DatePrototypeIndex,
+    NumberPrototype,
+    BigintPrototype,
+    MathObject,
+    DatePrototype,
 
     // Text processing
-    StringPrototypeIndex,
-    RegExpPrototypeIndex,
+    StringPrototype,
+    RegExpPrototype,
 
     // Indexed collections
-    ArrayPrototypeIndex,
-    Int8ArrayPrototypeIndex,
-    Uint8ArrayPrototypeIndex,
-    Uint8ClampedArrayPrototypeIndex,
-    Int16ArrayPrototypeIndex,
-    Uint16ArrayPrototypeIndex,
-    Int32ArrayPrototypeIndex,
-    Uint32ArrayPrototypeIndex,
-    BigInt64ArrayPrototypeIndex,
-    BigUint64ArrayPrototypeIndex,
-    Float32ArrayPrototypeIndex,
-    Float64ArrayPrototypeIndex,
+    ArrayPrototype,
+    Int8ArrayPrototype,
+    Uint8ArrayPrototype,
+    Uint8ClampedArrayPrototype,
+    Int16ArrayPrototype,
+    Uint16ArrayPrototype,
+    Int32ArrayPrototype,
+    Uint32ArrayPrototype,
+    BigInt64ArrayPrototype,
+    BigUint64ArrayPrototype,
+    Float32ArrayPrototype,
+    Float64ArrayPrototype,
 
     // Keyed collections
-    MapPrototypeIndex,
-    SetPrototypeIndex,
-    WeakMapPrototypeIndex,
-    WeakSetPrototypeIndex,
+    MapPrototype,
+    SetPrototype,
+    WeakMapPrototype,
+    WeakSetPrototype,
 
     // Structured data
-    ArrayBufferPrototypeIndex,
-    SharedArrayBufferPrototypeIndex,
-    DataViewPrototypeIndex,
-    AtomicsObjectIndex,
-    JsonObjectIndex,
+    ArrayBufferPrototype,
+    SharedArrayBufferPrototype,
+    DataViewPrototype,
+    AtomicsObject,
+    JsonObject,
 
     // Managing memory
-    WeakRefPrototypeIndex,
-    FinalizationRegistryPrototypeIndex,
+    WeakRefPrototype,
+    FinalizationRegistryPrototype,
 
     // Control abstraction objects
-    IteratorPrototypeIndex,
-    AsyncIteratorPrototypeIndex,
-    PromisePrototypeIndex,
-    GeneratorFunctionPrototypeIndex,
-    AsyncGeneratorFunctionPrototypeIndex,
-    GeneratorPrototypeIndex,
-    AsyncGeneratorPrototypeIndex,
-    AsyncFunctionPrototypeIndex,
+    IteratorPrototype,
+    AsyncIteratorPrototype,
+    PromisePrototype,
+    GeneratorFunctionPrototype,
+    AsyncGeneratorFunctionPrototype,
+    GeneratorPrototype,
+    AsyncGeneratorPrototype,
+    AsyncFunctionPrototype,
 
     // Reflection
-    ReflectObjectIndex,
-    ModulePrototypeIndex,
+    ReflectObject,
+    ModulePrototype,
 
     // +===============================================+
     // | Then the list of constructor function objects |
     // +===============================================+
 
     // Fundamental objects
-    ObjectConstructorIndex,
-    FunctionConstructorIndex,
-    BooleanConstructorIndex,
-    SymbolConstructorIndex,
-    ErrorConstructorIndex,
+    ObjectConstructor,
+    FunctionConstructor,
+    BooleanConstructor,
+    SymbolConstructor,
+    ErrorConstructor,
 
     // Numbers and dates
-    NumberConstructorIndex,
-    BigintConstructorIndex,
-    DateConstructorIndex,
+    NumberConstructor,
+    BigintConstructor,
+    DateConstructor,
 
     // Text processing
-    StringConstructorIndex,
-    RegExpConstructorIndex,
+    StringConstructor,
+    RegExpConstructor,
 
     // Indexed collections
-    ArrayConstructorIndex,
-    Int8ArrayConstructorIndex,
-    Uint8ArrayConstructorIndex,
-    Uint8ClampedArrayConstructorIndex,
-    Int16ArrayConstructorIndex,
-    Uint16ArrayConstructorIndex,
-    Int32ArrayConstructorIndex,
-    Uint32ArrayConstructorIndex,
-    BigInt64ArrayConstructorIndex,
-    BigUint64ArrayConstructorIndex,
-    Float32ArrayConstructorIndex,
-    Float64ArrayConstructorIndex,
+    ArrayConstructor,
+    Int8ArrayConstructor,
+    Uint8ArrayConstructor,
+    Uint8ClampedArrayConstructor,
+    Int16ArrayConstructor,
+    Uint16ArrayConstructor,
+    Int32ArrayConstructor,
+    Uint32ArrayConstructor,
+    BigInt64ArrayConstructor,
+    BigUint64ArrayConstructor,
+    Float32ArrayConstructor,
+    Float64ArrayConstructor,
 
     // Keyed collections
-    MapConstructorIndex,
-    SetConstructorIndex,
-    WeakMapConstructorIndex,
-    WeakSetConstructorIndex,
+    MapConstructor,
+    SetConstructor,
+    WeakMapConstructor,
+    WeakSetConstructor,
 
     // Structured data
-    ArrayBufferConstructorIndex,
-    SharedArrayBufferConstructorIndex,
-    DataViewConstructorIndex,
+    ArrayBufferConstructor,
+    SharedArrayBufferConstructor,
+    DataViewConstructor,
 
     // Managing memory
-    WeakRefConstructorIndex,
-    FinalizationRegistryConstructorIndex,
+    WeakRefConstructor,
+    FinalizationRegistryConstructor,
 
     // Control abstraction objects
-    PromiseConstructorIndex,
-    GeneratorFunctionConstructorIndex,
-    AsyncGeneratorFunctionConstructorIndex,
-    AsyncFunctionConstructorIndex,
+    PromiseConstructor,
+    GeneratorFunctionConstructor,
+    AsyncGeneratorFunctionConstructor,
+    AsyncFunctionConstructor,
 
     // Reflection
-    ProxyConstructorIndex,
+    ProxyConstructor,
 }
 
 impl From<BuiltinObjectIndexes> for ObjectIndex {
@@ -150,12 +150,12 @@ impl From<BuiltinObjectIndexes> for BuiltinFunctionIndex {
 
 impl Default for BuiltinObjectIndexes {
     fn default() -> Self {
-        Self::ObjectPrototypeIndex
+        Self::ObjectPrototype
     }
 }
 
-pub const LAST_BUILTIN_OBJECT_INDEX: u32 = BuiltinObjectIndexes::ProxyConstructorIndex as u32;
-pub const FIRST_CONSTRUCTOR_INDEX: u32 = BuiltinObjectIndexes::ObjectConstructorIndex as u32;
+pub const LAST_BUILTIN_OBJECT_INDEX: u32 = BuiltinObjectIndexes::ProxyConstructor as u32;
+pub const FIRST_CONSTRUCTOR_INDEX: u32 = BuiltinObjectIndexes::ObjectConstructor as u32;
 
 pub const fn get_constructor_index(object_index: BuiltinObjectIndexes) -> BuiltinFunctionIndex {
     BuiltinFunctionIndex::from_u32_index(object_index as u32 - FIRST_CONSTRUCTOR_INDEX)

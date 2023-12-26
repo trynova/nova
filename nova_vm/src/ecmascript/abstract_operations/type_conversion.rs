@@ -15,7 +15,7 @@ use crate::{
         execution::{agent::ExceptionType, agent::JsError, Agent, JsResult},
         types::{BigInt, Number, Object, PropertyKey, String, Value},
     },
-    heap::{CreateHeapData, GetHeapData, WellKnownSymbolIndexes},
+    heap::{GetHeapData, WellKnownSymbolIndexes},
     SmallInteger,
 };
 
@@ -98,7 +98,7 @@ pub(crate) fn to_primitive(
     }
 }
 
-/// #### [7.1.1.1 OrdinaryToPrimitive ( O, hint )](https://tc39.es/ecma262/#sec-ordinarytoprimitive)
+/// ### [7.1.1.1 OrdinaryToPrimitive ( O, hint )](https://tc39.es/ecma262/#sec-ordinarytoprimitive)
 ///
 /// The abstract operation OrdinaryToPrimitive takes arguments O (an Object)
 /// and hint (STRING or NUMBER) and returns either a normal completion
@@ -436,7 +436,7 @@ pub(crate) fn to_big_int(agent: &mut Agent, argument: Value) -> JsResult<BigInt>
 }
 
 /// ### [7.1.14 StringToBigInt ( str )](https://tc39.es/ecma262/#sec-stringtobigint)
-pub(crate) fn string_to_big_int(agent: &mut Agent, argument: Value) -> Option<Value> {
+pub(crate) fn string_to_big_int(_agent: &mut Agent, _argument: Value) -> Option<Value> {
     // 1. Let text be StringToCodePoints(str).
     // 2. Let literal be ParseText(text, StringIntegerLiteral).
     // 3. If literal is a List of errors, return undefined.

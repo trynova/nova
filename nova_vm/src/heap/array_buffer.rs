@@ -18,7 +18,7 @@ pub fn initialize_array_buffer_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "isView", 1, false),
         ObjectEntry::new_constructor_prototype_entry(
             heap,
-            BuiltinObjectIndexes::ArrayBufferPrototypeIndex.into(),
+            BuiltinObjectIndexes::ArrayBufferPrototype.into(),
         ),
         ObjectEntry::new(
             PropertyKey::Symbol(WellKnownSymbolIndexes::Species.into()),
@@ -30,17 +30,17 @@ pub fn initialize_array_buffer_heap(heap: &mut Heap) {
         ),
     ];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::ArrayBufferConstructorIndex,
+        BuiltinObjectIndexes::ArrayBufferConstructor,
         true,
         Some(Object::BuiltinFunction(
-            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+            BuiltinObjectIndexes::FunctionPrototype.into(),
         )),
         entries,
     );
     heap.builtin_functions
-        [get_constructor_index(BuiltinObjectIndexes::ArrayBufferConstructorIndex).into_index()] =
+        [get_constructor_index(BuiltinObjectIndexes::ArrayBufferConstructor).into_index()] =
         Some(BuiltinFunctionHeapData {
-            object_index: Some(BuiltinObjectIndexes::ArrayBufferConstructorIndex.into()),
+            object_index: Some(BuiltinObjectIndexes::ArrayBufferConstructor.into()),
             length: 1,
             initial_name: Value::Null,
             behaviour: Behaviour::Constructor(constructor_binding),
@@ -57,7 +57,7 @@ pub fn initialize_array_buffer_heap(heap: &mut Heap) {
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
             PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
-                BuiltinObjectIndexes::ArrayBufferConstructorIndex,
+                BuiltinObjectIndexes::ArrayBufferConstructor,
             ))),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "slice", 2, false),
@@ -67,11 +67,9 @@ pub fn initialize_array_buffer_heap(heap: &mut Heap) {
         ),
     ];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::ArrayBufferPrototypeIndex,
+        BuiltinObjectIndexes::ArrayBufferPrototype,
         true,
-        Some(Object::Object(
-            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
-        )),
+        Some(Object::Object(BuiltinObjectIndexes::ObjectPrototype.into())),
         entries,
     );
 }

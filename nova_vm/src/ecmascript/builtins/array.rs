@@ -18,6 +18,7 @@ use crate::{
 
 pub use data::ArrayHeapData;
 
+#[derive(Debug, Clone, Copy)]
 pub struct Array(ArrayIndex);
 
 impl From<ArrayIndex> for Array {

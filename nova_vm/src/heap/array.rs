@@ -1,6 +1,4 @@
-use super::{
-    heap_constants::WellKnownSymbolIndexes, indexes::BuiltinFunctionIndex, object::ObjectEntry,
-};
+use super::{heap_constants::WellKnownSymbolIndexes, object::ObjectEntry};
 use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
@@ -37,7 +35,7 @@ pub fn initialize_array_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "of", 0, true),
         ObjectEntry::new_constructor_prototype_entry(
             heap,
-            BuiltinObjectIndexes::ArrayPrototypeIndex.into(),
+            BuiltinObjectIndexes::ArrayPrototype.into(),
         ),
         ObjectEntry::new(
             PropertyKey::Symbol(WellKnownSymbolIndexes::Species.into()),
@@ -49,17 +47,17 @@ pub fn initialize_array_heap(heap: &mut Heap) {
         ),
     ];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::ArrayConstructorIndex,
+        BuiltinObjectIndexes::ArrayConstructor,
         true,
         Some(Object::BuiltinFunction(
-            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+            BuiltinObjectIndexes::FunctionPrototype.into(),
         )),
         entries,
     );
     heap.builtin_functions
-        [get_constructor_index(BuiltinObjectIndexes::ArrayConstructorIndex).into_index()] =
+        [get_constructor_index(BuiltinObjectIndexes::ArrayConstructor).into_index()] =
         Some(BuiltinFunctionHeapData {
-            object_index: Some(BuiltinObjectIndexes::ArrayConstructorIndex.into()),
+            object_index: Some(BuiltinObjectIndexes::ArrayConstructor.into()),
             length: 1,
             initial_name: Value::Null,
             behaviour: Behaviour::Constructor(constructor_binding),
@@ -70,7 +68,7 @@ pub fn initialize_array_heap(heap: &mut Heap) {
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
             PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
-                BuiltinObjectIndexes::ArrayConstructorIndex,
+                BuiltinObjectIndexes::ArrayConstructor,
             ))),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "copyWithin", 2, false),
@@ -155,11 +153,9 @@ pub fn initialize_array_heap(heap: &mut Heap) {
         ),
     ];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::ArrayPrototypeIndex,
+        BuiltinObjectIndexes::ArrayPrototype,
         true,
-        Some(Object::Object(
-            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
-        )),
+        Some(Object::Object(BuiltinObjectIndexes::ObjectPrototype.into())),
         entries,
     );
 }

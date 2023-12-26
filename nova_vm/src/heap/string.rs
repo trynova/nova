@@ -12,28 +12,26 @@ use crate::{
 
 pub fn initialize_string_heap(heap: &mut Heap) {
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::StringConstructorIndex,
+        BuiltinObjectIndexes::StringConstructor,
         true,
         Some(Object::BuiltinFunction(
-            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+            BuiltinObjectIndexes::FunctionPrototype.into(),
         )),
         // TODO: Methods and properties
         Vec::with_capacity(0),
     );
     heap.builtin_functions
-        [get_constructor_index(BuiltinObjectIndexes::StringConstructorIndex).into_index()] =
+        [get_constructor_index(BuiltinObjectIndexes::StringConstructor).into_index()] =
         Some(BuiltinFunctionHeapData {
-            object_index: Some(BuiltinObjectIndexes::StringConstructorIndex.into()),
+            object_index: Some(BuiltinObjectIndexes::StringConstructor.into()),
             length: 1,
             initial_name: Value::Null,
             behaviour: Behaviour::Constructor(constructor_binding),
         });
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::StringPrototypeIndex,
+        BuiltinObjectIndexes::StringPrototype,
         true,
-        Some(Object::Object(
-            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
-        )),
+        Some(Object::Object(BuiltinObjectIndexes::ObjectPrototype.into())),
         // TODO: Methods and properties
         Vec::with_capacity(0),
     );

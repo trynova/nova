@@ -54,21 +54,21 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new_constructor_prototype_entry(
             heap,
-            BuiltinObjectIndexes::NumberPrototypeIndex.into(),
+            BuiltinObjectIndexes::NumberPrototype.into(),
         ),
     ];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::NumberConstructorIndex,
+        BuiltinObjectIndexes::NumberConstructor,
         true,
         Some(Object::BuiltinFunction(
-            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+            BuiltinObjectIndexes::FunctionPrototype.into(),
         )),
         entries,
     );
     heap.builtin_functions
-        [get_constructor_index(BuiltinObjectIndexes::NumberConstructorIndex).into_index()] =
+        [get_constructor_index(BuiltinObjectIndexes::NumberConstructor).into_index()] =
         Some(BuiltinFunctionHeapData {
-            object_index: Some(BuiltinObjectIndexes::NumberConstructorIndex.into()),
+            object_index: Some(BuiltinObjectIndexes::NumberConstructor.into()),
             length: 1,
             initial_name: Value::Null,
             behaviour: Behaviour::Constructor(constructor_binding),
@@ -77,7 +77,7 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
             PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
-                BuiltinObjectIndexes::NumberConstructorIndex,
+                BuiltinObjectIndexes::NumberConstructor,
             ))),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "toExponential", 1, false),
@@ -88,11 +88,9 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false),
     ];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::NumberPrototypeIndex,
+        BuiltinObjectIndexes::NumberPrototype,
         true,
-        Some(Object::Object(
-            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
-        )),
+        Some(Object::Object(BuiltinObjectIndexes::ObjectPrototype.into())),
         entries,
     );
 }

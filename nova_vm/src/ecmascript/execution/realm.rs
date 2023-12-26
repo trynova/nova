@@ -103,7 +103,7 @@ pub fn create_realm(agent: &mut Agent) -> RealmIdentifier {
         intrinsics: create_intrinsics(),
 
         // 3. Set realmRec.[[AgentSignifier]] to AgentSignifier().
-        agent_signifier: PhantomData::default(),
+        agent_signifier: PhantomData,
 
         // 4. Set realmRec.[[GlobalObject]] to undefined.
         global_object: Object::Object(ObjectIndex::from_index(0)),
@@ -238,7 +238,7 @@ pub(crate) fn set_default_global_bindings(
 }
 
 /// 9.6 InitializeHostDefinedRealm ( ), https://tc39.es/ecma262/#sec-initializehostdefinedrealm
-pub fn initialize_host_defined_realm<F, Init>(
+pub fn initialize_host_defined_realm(
     agent: &mut Agent,
     realm_id: RealmIdentifier,
     create_global_object: Option<impl FnOnce(&mut Realm) -> Object>,

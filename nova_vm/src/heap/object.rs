@@ -226,24 +226,24 @@ pub fn initialize_object_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "preventExtensions", 1, false),
         ObjectEntry::new_constructor_prototype_entry(
             heap,
-            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
+            BuiltinObjectIndexes::ObjectPrototype.into(),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "seal", 1, false),
         ObjectEntry::new_prototype_function_entry(heap, "setPrototypeOf", 2, false),
         ObjectEntry::new_prototype_function_entry(heap, "values", 1, false),
     ];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::ObjectConstructorIndex,
+        BuiltinObjectIndexes::ObjectConstructor,
         true,
         Some(Object::BuiltinFunction(
-            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+            BuiltinObjectIndexes::FunctionPrototype.into(),
         )),
         entries,
     );
     heap.builtin_functions
-        [get_constructor_index(BuiltinObjectIndexes::ObjectConstructorIndex).into_index()] =
+        [get_constructor_index(BuiltinObjectIndexes::ObjectConstructor).into_index()] =
         Some(BuiltinFunctionHeapData {
-            object_index: Some(BuiltinObjectIndexes::ObjectConstructorIndex.into()),
+            object_index: Some(BuiltinObjectIndexes::ObjectConstructor.into()),
             length: 1,
             initial_name: Value::Null,
             behaviour: Behaviour::Constructor(object_constructor_binding),
@@ -252,7 +252,7 @@ pub fn initialize_object_heap(heap: &mut Heap) {
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
             PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
-                BuiltinObjectIndexes::ObjectConstructorIndex,
+                BuiltinObjectIndexes::ObjectConstructor,
             ))),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "hasOwnProperty", 1, false),
@@ -262,12 +262,7 @@ pub fn initialize_object_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
         ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false),
     ];
-    heap.insert_builtin_object(
-        BuiltinObjectIndexes::ObjectConstructorIndex,
-        true,
-        None,
-        entries,
-    );
+    heap.insert_builtin_object(BuiltinObjectIndexes::ObjectConstructor, true, None, entries);
 }
 
 fn object_constructor_binding(
