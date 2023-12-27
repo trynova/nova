@@ -435,8 +435,7 @@ mod test {
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_str(&mut agent.heap, "object"));
 
-        let script =
-            parse_script(&allocator, "typeof \"string\"".into(), realm, None).unwrap();
+        let script = parse_script(&allocator, "typeof \"string\"".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_str(&mut agent.heap, "string"));
 
