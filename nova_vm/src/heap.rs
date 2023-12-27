@@ -61,10 +61,10 @@ use crate::ecmascript::{
 use wtf8::{Wtf8, Wtf8Buf};
 
 #[derive(Debug)]
-pub struct Heap<'ctx, 'host> {
-    pub modules: Vec<Option<Module<'ctx, 'host>>>,
-    pub realms: Vec<Option<Realm<'ctx, 'host>>>,
-    pub scripts: Vec<Option<Script<'ctx, 'host>>>,
+pub struct Heap {
+    pub modules: Vec<Option<Module>>,
+    pub realms: Vec<Option<Realm>>,
+    pub scripts: Vec<Option<Script>>,
     pub environments: Environments,
     /// ElementsArrays is where all element arrays live;
     /// Element arrays are static arrays of Values plus
@@ -76,7 +76,7 @@ pub struct Heap<'ctx, 'host> {
     pub errors: Vec<Option<ErrorHeapData>>,
     pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
     pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
-    pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData<'ctx, 'host>>>,
+    pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,
     pub dates: Vec<Option<DateHeapData>>,
     pub globals: Vec<Value>,
     pub numbers: Vec<Option<NumberHeapData>>,
@@ -97,7 +97,7 @@ pub trait GetHeapData<'a, T, F: 'a> {
     fn get_mut(&'a mut self, id: BaseIndex<T>) -> &'a mut F;
 }
 
-impl CreateHeapData<f64, Number> for Heap<'_, '_> {
+impl CreateHeapData<f64, Number> for Heap {
     fn create(&mut self, data: f64) -> Number {
         // NOTE: This function cannot currently be implemented
         // directly using `Number::from_f64` as it takes an Agent
@@ -115,7 +115,7 @@ impl CreateHeapData<f64, Number> for Heap<'_, '_> {
 
 macro_rules! impl_heap_data {
     ($table: ident, $in: ty, $out: ty) => {
-        impl<'a> GetHeapData<'a, $in, $out> for Heap<'_, '_> {
+        impl<'a> GetHeapData<'a, $in, $out> for Heap {
             fn get(&'a self, id: BaseIndex<$in>) -> &'a $out {
                 self.$table.get(id.into_index()).unwrap().as_ref().unwrap()
             }
@@ -130,7 +130,7 @@ macro_rules! impl_heap_data {
         }
     };
     ($table: ident, $in: ty, $out: ty, $accessor: ident) => {
-        impl<'a> GetHeapData<'a, $in, $out> for Heap<'_, '_> {
+        impl<'a> GetHeapData<'a, $in, $out> for Heap {
             fn get(&'a self, id: BaseIndex<$in>) -> &'a $out {
                 &self
                     .$table
@@ -167,12 +167,17 @@ impl_heap_data!(
     BuiltinFunctionHeapData,
     BuiltinFunctionHeapData
 );
+impl_heap_data!(
+    ecmascript_functions,
+    ECMAScriptFunctionHeapData,
+    ECMAScriptFunctionHeapData
+);
 impl_heap_data!(numbers, NumberHeapData, f64, data);
 impl_heap_data!(objects, ObjectHeapData, ObjectHeapData);
 impl_heap_data!(strings, StringHeapData, Wtf8Buf, data);
 impl_heap_data!(bigints, BigIntHeapData, BigIntHeapData);
 
-impl CreateHeapData<&str, String> for Heap<'_, '_> {
+impl CreateHeapData<&str, String> for Heap {
     fn create(&mut self, data: &str) -> String {
         if let Ok(value) = String::try_from(data) {
             value
@@ -184,45 +189,43 @@ impl CreateHeapData<&str, String> for Heap<'_, '_> {
     }
 }
 
-impl CreateHeapData<BoundFunctionHeapData, Function> for Heap<'_, '_> {
+impl CreateHeapData<BoundFunctionHeapData, Function> for Heap {
     fn create(&mut self, data: BoundFunctionHeapData) -> Function {
         self.bound_functions.push(Some(data));
         Function::from(BoundFunctionIndex::last(&self.bound_functions))
     }
 }
 
-impl CreateHeapData<BuiltinFunctionHeapData, Function> for Heap<'_, '_> {
+impl CreateHeapData<BuiltinFunctionHeapData, Function> for Heap {
     fn create(&mut self, data: BuiltinFunctionHeapData) -> Function {
         self.builtin_functions.push(Some(data));
         Function::from(BuiltinFunctionIndex::last(&self.builtin_functions))
     }
 }
 
-impl<'ctx, 'host> CreateHeapData<ECMAScriptFunctionHeapData<'ctx, 'host>, Function>
-    for Heap<'ctx, 'host>
-{
-    fn create(&mut self, data: ECMAScriptFunctionHeapData<'ctx, 'host>) -> Function {
+impl CreateHeapData<ECMAScriptFunctionHeapData, Function> for Heap {
+    fn create(&mut self, data: ECMAScriptFunctionHeapData) -> Function {
         self.ecmascript_functions.push(Some(data));
         Function::from(ECMAScriptFunctionIndex::last(&self.ecmascript_functions))
     }
 }
 
-impl CreateHeapData<ObjectHeapData, Object> for Heap<'_, '_> {
+impl CreateHeapData<ObjectHeapData, Object> for Heap {
     fn create(&mut self, data: ObjectHeapData) -> Object {
         self.objects.push(Some(data));
         Object::Object(ObjectIndex::last(&self.objects))
     }
 }
 
-impl CreateHeapData<BigIntHeapData, BigInt> for Heap<'_, '_> {
+impl CreateHeapData<BigIntHeapData, BigInt> for Heap {
     fn create(&mut self, data: BigIntHeapData) -> BigInt {
         self.bigints.push(Some(data));
         BigInt::BigInt(BigIntIndex::last(&self.bigints))
     }
 }
 
-impl<'ctx, 'host> Heap<'ctx, 'host> {
-    pub fn new() -> Heap<'ctx, 'host> {
+impl Heap {
+    pub fn new() -> Heap {
         let mut heap = Heap {
             modules: vec![],
             realms: Vec::with_capacity(1),
@@ -281,28 +284,22 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
         heap
     }
 
-    pub(crate) fn add_module(
-        &mut self,
-        module: Module<'ctx, 'host>,
-    ) -> ModuleIdentifier<'ctx, 'host> {
+    pub(crate) fn add_module(&mut self, module: Module) -> ModuleIdentifier {
         self.modules.push(Some(module));
         ModuleIdentifier::last(&self.modules)
     }
 
-    pub(crate) fn add_realm(&mut self, realm: Realm<'ctx, 'host>) -> RealmIdentifier<'ctx, 'host> {
+    pub(crate) fn add_realm(&mut self, realm: Realm) -> RealmIdentifier {
         self.realms.push(Some(realm));
         RealmIdentifier::last(&self.realms)
     }
 
-    pub(crate) fn add_script(
-        &mut self,
-        script: Script<'ctx, 'host>,
-    ) -> ScriptIdentifier<'ctx, 'host> {
+    pub(crate) fn add_script(&mut self, script: Script) -> ScriptIdentifier {
         self.scripts.push(Some(script));
         ScriptIdentifier::last(&self.scripts)
     }
 
-    pub(crate) fn get_module(&self, id: ModuleIdentifier<'ctx, 'host>) -> &Module<'ctx, 'host> {
+    pub(crate) fn get_module(&self, id: ModuleIdentifier) -> &Module {
         self.modules
             .get(id.into_index())
             .expect("ModuleIdentifier did not match a Module")
@@ -310,10 +307,7 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
             .expect("ModuleIdentifier matched a freed Module")
     }
 
-    pub(crate) fn get_module_mut(
-        &mut self,
-        id: ModuleIdentifier<'ctx, 'host>,
-    ) -> &mut Module<'ctx, 'host> {
+    pub(crate) fn get_module_mut(&mut self, id: ModuleIdentifier) -> &mut Module {
         self.modules
             .get_mut(id.into_index())
             .expect("ModuleIdentifier did not match a Module")
@@ -321,7 +315,7 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
             .expect("ModuleIdentifier matched a freed Module")
     }
 
-    pub(crate) fn get_realm(&self, id: RealmIdentifier<'ctx, 'host>) -> &Realm<'ctx, 'host> {
+    pub(crate) fn get_realm(&self, id: RealmIdentifier) -> &Realm {
         self.realms
             .get(id.into_index())
             .expect("RealmIdentifier did not match a Realm")
@@ -329,10 +323,7 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
             .expect("RealmIdentifier matched a freed Realm")
     }
 
-    pub(crate) fn get_realm_mut(
-        &mut self,
-        id: RealmIdentifier<'ctx, 'host>,
-    ) -> &mut Realm<'ctx, 'host> {
+    pub(crate) fn get_realm_mut(&mut self, id: RealmIdentifier) -> &mut Realm {
         self.realms
             .get_mut(id.into_index())
             .expect("RealmIdentifier did not match a Realm")
@@ -340,7 +331,7 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
             .expect("RealmIdentifier matched a freed Realm")
     }
 
-    pub(crate) fn get_script(&self, id: ScriptIdentifier<'ctx, 'host>) -> &Script<'ctx, 'host> {
+    pub(crate) fn get_script(&self, id: ScriptIdentifier) -> &Script {
         self.scripts
             .get(id.into_index())
             .expect("ScriptIdentifier did not match a Script")
@@ -348,10 +339,7 @@ impl<'ctx, 'host> Heap<'ctx, 'host> {
             .expect("ScriptIdentifier matched a freed Script")
     }
 
-    pub(crate) fn get_script_mut(
-        &mut self,
-        id: ScriptIdentifier<'ctx, 'host>,
-    ) -> &mut Script<'ctx, 'host> {
+    pub(crate) fn get_script_mut(&mut self, id: ScriptIdentifier) -> &mut Script {
         self.scripts
             .get_mut(id.into_index())
             .expect("ScriptIdentifier did not match a Script")

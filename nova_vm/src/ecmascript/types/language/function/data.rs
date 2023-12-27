@@ -25,9 +25,9 @@ pub struct BuiltinFunctionHeapData {
 }
 
 #[derive(Debug)]
-pub struct ECMAScriptFunctionHeapData<'ctx, 'host> {
+pub struct ECMAScriptFunctionHeapData {
     pub(crate) object_index: Option<ObjectIndex>,
     pub(crate) length: u8,
     pub(crate) initial_name: Value,
-    pub(crate) ecmascript_function: ECMAScriptFunction<'ctx, 'host>,
+    pub(crate) ecmascript_function: ECMAScriptFunction,
 }

@@ -1,6 +1,7 @@
 use std::ptr::NonNull;
 
 use oxc_ast::ast::{FormalParameters, FunctionBody};
+use oxc_span::Span;
 
 use crate::{
     ecmascript::{
@@ -9,9 +10,9 @@ use crate::{
             Agent, EnvironmentIndex, JsResult, PrivateEnvironmentIndex, RealmIdentifier,
         },
         scripts_and_modules::ScriptOrModule,
-        types::{BuiltinFunctionHeapData, ECMAScriptFunctionHeapData, Function, Object, Value},
+        types::{ECMAScriptFunctionHeapData, Function, Object, Value},
     },
-    heap::{indexes::BuiltinFunctionIndex, CreateHeapData},
+    heap::CreateHeapData,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -29,7 +30,7 @@ pub enum ThisMode {
 
 /// ### [10.2 ECMAScript Function Objects](https://tc39.es/ecma262/#sec-ecmascript-function-objects)
 #[derive(Debug)]
-pub(crate) struct ECMAScriptFunction<'ctx, 'host> {
+pub(crate) struct ECMAScriptFunction {
     /// \[\[Environment]]
     pub environment: EnvironmentIndex,
 
@@ -37,19 +38,25 @@ pub(crate) struct ECMAScriptFunction<'ctx, 'host> {
     pub private_environment: Option<PrivateEnvironmentIndex>,
 
     /// \[\[FormalParameters]]
-    pub formal_parameters: NonNull<FormalParameters<'ctx>>,
+    ///
+    /// SAFETY: ScriptOrModule owns the Program which this refers to.
+    /// Our GC algorithm keeps it alive as long as this function is alive.
+    pub formal_parameters: NonNull<FormalParameters<'static>>,
 
     /// \[\[ECMAScriptCode]]
-    pub ecmascript_code: NonNull<FunctionBody<'ctx>>,
+    ///
+    /// SAFETY: ScriptOrModule owns the Program which this refers to.
+    /// Our GC algorithm keeps it alive as long as this function is alive.
+    pub ecmascript_code: NonNull<FunctionBody<'static>>,
 
     /// \[\[ConstructorKind]]
     pub constructor_kind: ConstructorKind,
 
     /// \[\[Realm]]
-    pub realm: RealmIdentifier<'ctx, 'host>,
+    pub realm: RealmIdentifier,
 
     /// \[\[ScriptOrModule]]
-    pub script_or_module: ScriptOrModule<'ctx, 'host>,
+    pub script_or_module: ScriptOrModule,
 
     /// \[\[ThisMode]]
     pub this_mode: ThisMode,
@@ -61,7 +68,7 @@ pub(crate) struct ECMAScriptFunction<'ctx, 'host> {
     pub home_object: Option<Object>,
 
     ///  [[SourceText]]
-    pub source_text: NonNull<str>,
+    pub source_text: Span,
 
     // TODO: [[Fields]],  [[PrivateMethods]], [[ClassFieldInitializerName]]
     /// \[\[IsClassConstructor]]
@@ -80,12 +87,12 @@ pub(crate) struct ECMAScriptFunction<'ctx, 'host> {
 /// \[\[Construct\]\] internal method (although one may be subsequently added
 /// by an operation such as MakeConstructor). sourceText is the source text of
 /// the syntactic definition of the function to be created.
-pub(crate) fn ordinary_function_create<'ctx, 'host>(
-    agent: &mut Agent<'ctx, 'host>,
+pub(crate) fn ordinary_function_create<'program>(
+    agent: &mut Agent,
     function_prototype: Option<Object>,
-    source_text: &'host str,
-    parameters_list: &'ctx FormalParameters<'ctx>,
-    body: &'ctx FunctionBody<'ctx>,
+    source_text: Span,
+    parameters_list: &'program FormalParameters<'program>,
+    body: &'program FunctionBody<'program>,
     this_mode: ThisMode,
     env: EnvironmentIndex,
     private_env: Option<PrivateEnvironmentIndex>,
@@ -99,9 +106,23 @@ pub(crate) fn ordinary_function_create<'ctx, 'host>(
         // 14. Set F.[[PrivateEnvironment]] to privateEnv.
         private_environment: private_env,
         // 5. Set F.[[FormalParameters]] to ParameterList.
-        formal_parameters: parameters_list.into(),
+        // SAFETY: The reference to FormalParameters points to ScriptOrModule
+        // and is valid until it gets dropped. Our GC keeps ScriptOrModule
+        // alive until this ECMAScriptFunction gets dropped, hence the 'static
+        // lifetime here is justified.
+        formal_parameters: unsafe {
+            std::mem::transmute::<
+                NonNull<FormalParameters<'program>>,
+                NonNull<FormalParameters<'static>>,
+            >(parameters_list.into())
+        },
         // 6. Set F.[[ECMAScriptCode]] to Body.
-        ecmascript_code: body.into(),
+        // SAFETY: Same as above: Self-referential reference to ScriptOrModule.
+        ecmascript_code: unsafe {
+            std::mem::transmute::<NonNull<FunctionBody<'program>>, NonNull<FunctionBody<'static>>>(
+                body.into(),
+            )
+        },
         constructor_kind: ConstructorKind::Base,
         // 16. Set F.[[Realm]] to the current Realm Record.
         realm: agent.current_realm_id(),
@@ -117,7 +138,7 @@ pub(crate) fn ordinary_function_create<'ctx, 'host>(
         // 17. Set F.[[HomeObject]] to undefined.
         home_object: None,
         // 4. Set F.[[SourceText]] to sourceText.
-        source_text: source_text.into(),
+        source_text,
         // 12. Set F.[[IsClassConstructor]] to false.
         is_class_constructor: false,
     };

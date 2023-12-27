@@ -179,15 +179,10 @@ impl Vm {
                         .function_expressions
                         .get(instr.args[0].unwrap() as usize)
                         .unwrap();
-                    let stupid_agent = unsafe {
-                        std::mem::transmute::<&mut Agent, &'static mut Agent<'static, 'static>>(
-                            agent,
-                        )
-                    };
                     let function = ordinary_function_create(
-                        stupid_agent,
+                        agent,
                         None,
-                        "",
+                        function_expression.expression.span,
                         &function_expression.expression.params,
                         &function_expression.expression.body.as_ref().unwrap(),
                         crate::ecmascript::builtins::ThisMode::Lexical,

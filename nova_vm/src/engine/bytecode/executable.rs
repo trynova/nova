@@ -13,8 +13,8 @@ use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 
 pub type IndexType = u16;
 
-pub(crate) struct CompileContext<'agent, 'ctx, 'host> {
-    agent: &'agent mut Agent<'ctx, 'host>,
+pub(crate) struct CompileContext<'agent> {
+    agent: &'agent mut Agent,
     exe: Executable,
 }
 
@@ -35,10 +35,7 @@ pub(crate) struct Executable {
 }
 
 impl Executable {
-    pub(crate) fn compile<'ctx, 'host>(
-        agent: &mut Agent<'ctx, 'host>,
-        script: ScriptIdentifier<'ctx, 'host>,
-    ) -> Executable {
+    pub(crate) fn compile(agent: &mut Agent, script: ScriptIdentifier) -> Executable {
         let exe = Executable {
             instructions: Vec::new(),
             constants: Vec::new(),

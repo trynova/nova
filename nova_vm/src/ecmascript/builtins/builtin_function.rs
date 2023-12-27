@@ -27,20 +27,20 @@ pub enum Behaviour {
 }
 
 pub trait Builtin {
-    fn create<'a>(agent: &'a mut Agent<'a, 'a>) -> JsResult<Object>;
+    fn create(agent: &mut Agent) -> JsResult<Object>;
 }
 
 #[derive(Debug, Default)]
-pub struct BuiltinFunctionArgs<'a, 'ctx, 'host> {
+pub struct BuiltinFunctionArgs {
     pub length: u32,
-    pub name: &'a str,
-    pub realm: Option<RealmIdentifier<'ctx, 'host>>,
+    pub name: &'static str,
+    pub realm: Option<RealmIdentifier>,
     pub prototype: Option<Object>,
     pub prefix: Option<Object>,
 }
 
-impl<'a, 'ctx: 'a, 'host: 'ctx> BuiltinFunctionArgs<'a, 'ctx, 'host> {
-    pub fn new(length: u32, name: &'a str, realm: RealmIdentifier<'ctx, 'host>) -> Self {
+impl BuiltinFunctionArgs {
+    pub fn new(length: u32, name: &'static str, realm: RealmIdentifier) -> Self {
         Self {
             length,
             name,
@@ -52,10 +52,10 @@ impl<'a, 'ctx: 'a, 'host: 'ctx> BuiltinFunctionArgs<'a, 'ctx, 'host> {
 
 /// 10.3.3 CreateBuiltinFunction ( behaviour, length, name, additionalInternalSlotsList [ , realm [ , prototype [ , prefix ] ] ] )
 /// https://tc39.es/ecma262/#sec-createbuiltinfunction
-pub fn create_builtin_function<'a, 'b: 'a>(
-    agent: &mut Agent<'b, 'b>,
+pub fn create_builtin_function(
+    agent: &mut Agent,
     _behaviour: Behaviour,
-    args: BuiltinFunctionArgs<'a, 'b, 'b>,
+    args: BuiltinFunctionArgs,
 ) -> Function {
     // 1. If realm is not present, set realm to the current Realm Record.
     let realm_id = args.realm.unwrap_or(agent.current_realm_id());
@@ -100,13 +100,13 @@ pub fn create_builtin_function<'a, 'b: 'a>(
     Function::from(func)
 }
 
-pub fn define_builtin_function<'b>(
-    agent: &mut Agent<'b, 'b>,
+pub fn define_builtin_function(
+    agent: &mut Agent,
     _object: Object,
-    name: &str,
+    name: &'static str,
     behaviour: RegularFn,
     length: u32,
-    realm: RealmIdentifier<'b, 'b>,
+    realm: RealmIdentifier,
 ) -> JsResult<()> {
     let _function = create_builtin_function(
         agent,

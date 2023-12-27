@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
 #[derive(Debug, Clone, Copy)]
-pub struct ModuleIdentifier<'ctx, 'host>(u32, PhantomData<Module<'ctx, 'host>>);
+pub struct ModuleIdentifier(u32, PhantomData<Module>);
 
-impl<'ctx, 'host> ModuleIdentifier<'ctx, 'host> {
+impl ModuleIdentifier {
     /// Creates a module identififer from a usize.
     ///
     /// ## Panics
@@ -24,7 +24,4 @@ impl<'ctx, 'host> ModuleIdentifier<'ctx, 'host> {
 }
 
 #[derive(Debug)]
-pub struct Module<'ctx, 'host> {
-    ctx: PhantomData<&'ctx ()>,
-    host: PhantomData<&'host ()>,
-}
+pub struct Module {}

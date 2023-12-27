@@ -139,10 +139,7 @@ pub(crate) fn call_function(
 /// The abstract operation GetFunctionRealm takes argument obj (a function
 /// object) and returns either a normal completion containing a Realm Record or
 /// a throw completion.
-pub(crate) fn get_function_realm<'ctx, 'host>(
-    agent: &'ctx mut Agent<'ctx, 'host>,
-    _obj: Function,
-) -> JsResult<&'ctx mut Realm<'ctx, 'host>> {
+pub(crate) fn get_function_realm(agent: &mut Agent, _obj: Function) -> JsResult<&mut Realm> {
     // 1. If obj has a [[Realm]] internal slot, then
     // a. Return obj.[[Realm]].
     // TODO: realm-bound functions

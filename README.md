@@ -10,6 +10,12 @@ projects which themselves must serve as a runtime for JavaScript code.
 
 The core of our team is on our [Discord server](https://discord.gg/RTrgJzXKUM).
 
+## Heap structure
+
+If you find yourself interested in what on earth is going on in the Heap, take a
+look at [the Heap README.md](./nova_vm/src/heap/README.md). It gives a more
+thorough walkthrough of the Heap structure and what the idea there is.
+
 ## List of active development ideas
 
 This list serves as a "this is where you were" for returning developers as well
@@ -21,8 +27,6 @@ as a potential easy jumping-into point for newcompers.
     even stubs.
 - Write implementations of class abstract operations
   - String, Number, ...
-- Split Function into sub-variants BuiltinFunction, ECMAScriptFunction, and
-  BoundFunction
 - Start `nova_vm/src/syntax` folder for
   [8 Syntax-Directed Operations](https://tc39.es/ecma262/#sec-syntax-directed-operations)
   - This will serve as the bridge between oxc AST, Bytecode, and Bytecode
@@ -30,8 +34,16 @@ as a potential easy jumping-into point for newcompers.
 
 Some more long-term prospects and/or wild ideas:
 
-- Figure out what the frick-fruck to do about the `'ctx, 'host` lifetimes and
-  what do they actually stand for etc.
+- Reintroduce lifetimes to Heap if possible
+  - `Value<'gen>` lifetime that is "controlled" by a Heap generation number:
+    Heap Values are valid while we can guarantee that the Heap generation number
+    isn't mutably borrowed. This is basically completely equal to a scope based
+    `Local<'a, Value>` lifetime but the intended benefit is that the
+    `Value<'gen>` lifetimes can also be used during Heap compaction: When Heap
+    GC and compaction occurs it can be written as a transformation from
+    `Heap<'old>` to `Heap<'new>` and the borrow checker would then help to make
+    sure that any and all `T<'new>` structs within the heap are properly
+    transformed to `T<'new>`.
 - Add a `Reference` variant to `Value` (or create a `ValueOrReference` enum that
   is the true root enum)
   - ReferenceRecords would (maybe?) move to Heap directly. This might make some

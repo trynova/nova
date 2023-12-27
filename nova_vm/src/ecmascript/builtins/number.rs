@@ -15,7 +15,7 @@ use crate::{
 pub struct NumberConstructor;
 
 impl Builtin for NumberConstructor {
-    fn create<'a>(agent: &'a mut Agent<'a, 'a>) -> JsResult<Object> {
+    fn create(agent: &mut Agent) -> JsResult<Object> {
         let realm_id = agent.current_realm_id();
 
         let function_prototype = agent.current_realm().intrinsics().function_prototype();

@@ -37,19 +37,19 @@ pub trait HostHooks: std::fmt::Debug {
 /// 9.7 Agents
 /// https://tc39.es/ecma262/#sec-agents
 #[derive(Debug)]
-pub struct Agent<'ctx, 'host> {
-    pub(crate) heap: Heap<'ctx, 'host>,
+pub struct Agent {
+    pub(crate) heap: Heap,
     pub(crate) options: Options,
     // pre_allocated: PreAllocated,
     pub(crate) exception: Option<Value>,
     pub(crate) symbol_id: usize,
     pub(crate) global_symbol_registry: HashMap<&'static str, Symbol>,
-    pub(crate) host_hooks: &'host dyn HostHooks,
-    pub(crate) execution_context_stack: Vec<ExecutionContext<'ctx, 'host>>,
+    pub(crate) host_hooks: &'static dyn HostHooks,
+    pub(crate) execution_context_stack: Vec<ExecutionContext>,
 }
 
-impl<'ctx, 'host> Agent<'ctx, 'host> {
-    pub fn new(options: Options, host_hooks: &'host dyn HostHooks) -> Self {
+impl Agent {
+    pub fn new(options: Options, host_hooks: &'static dyn HostHooks) -> Self {
         Self {
             heap: Heap::new(),
             options,
@@ -61,23 +61,23 @@ impl<'ctx, 'host> Agent<'ctx, 'host> {
         }
     }
 
-    pub fn current_realm_id(&self) -> RealmIdentifier<'ctx, 'host> {
+    pub fn current_realm_id(&self) -> RealmIdentifier {
         self.execution_context_stack.last().unwrap().realm
     }
 
-    pub fn current_realm(&self) -> &Realm<'ctx, 'host> {
+    pub fn current_realm(&self) -> &Realm {
         self.get_realm(self.current_realm_id())
     }
 
-    pub fn current_realm_mut(&mut self) -> &mut Realm<'ctx, 'host> {
+    pub fn current_realm_mut(&mut self) -> &mut Realm {
         self.get_realm_mut(self.current_realm_id())
     }
 
-    pub fn get_realm(&self, id: RealmIdentifier<'ctx, 'host>) -> &Realm<'ctx, 'host> {
+    pub fn get_realm(&self, id: RealmIdentifier) -> &Realm {
         self.heap.get_realm(id)
     }
 
-    pub fn get_realm_mut(&mut self, id: RealmIdentifier<'ctx, 'host>) -> &mut Realm<'ctx, 'host> {
+    pub fn get_realm_mut(&mut self, id: RealmIdentifier) -> &mut Realm {
         self.heap.get_realm_mut(id)
     }
 
@@ -87,7 +87,7 @@ impl<'ctx, 'host> Agent<'ctx, 'host> {
         todo!("Uncaught {kind:?}: {message}")
     }
 
-    pub(crate) fn running_execution_context(&self) -> &ExecutionContext<'ctx, 'host> {
+    pub(crate) fn running_execution_context(&self) -> &ExecutionContext {
         self.execution_context_stack.last().unwrap()
     }
 }
@@ -97,9 +97,7 @@ impl<'ctx, 'host> Agent<'ctx, 'host> {
 /// The abstract operation GetActiveScriptOrModule takes no arguments and
 /// returns a Script Record, a Module Record, or null. It is used to determine
 /// the running script or module, based on the running execution context.
-pub(crate) fn get_active_script_or_module<'ctx, 'host>(
-    agent: &mut Agent<'ctx, 'host>,
-) -> Option<ScriptOrModule<'ctx, 'host>> {
+pub(crate) fn get_active_script_or_module(agent: &mut Agent) -> Option<ScriptOrModule> {
     if agent.execution_context_stack.is_empty() {
         return None;
     }
