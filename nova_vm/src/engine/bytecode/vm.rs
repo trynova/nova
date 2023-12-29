@@ -6,10 +6,13 @@ use crate::ecmascript::{
         testing_and_comparison::is_same_type,
         type_conversion::{to_number, to_numeric, to_primitive, to_string},
     },
-    builtins::{ordinary_function_create, OrdinaryFunctionCreateParams, ThisMode},
+    builtins::{
+        ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
+        OrdinaryFunctionCreateParams, ThisMode,
+    },
     execution::{
         agent::{resolve_binding, ExceptionType},
-        Agent, EnvironmentIndex, JsResult,
+        Agent, EnvironmentIndex, JsResult, ProtoIntrinsics,
     },
     types::{Base, BigInt, Number, Reference, String, Value},
 };
@@ -173,6 +176,13 @@ impl Vm {
                 Instruction::Typeof => {
                     let val = vm.result;
                     vm.result = typeof_operator(agent, val).into()
+                }
+                Instruction::ObjectCreate => {
+                    let object = ordinary_object_create_with_intrinsics(
+                        agent,
+                        Some(ProtoIntrinsics::Object),
+                    );
+                    vm.stack.push(object.into())
                 }
                 Instruction::InstantiateOrdinaryFunctionExpression => {
                     let function_expression = executable

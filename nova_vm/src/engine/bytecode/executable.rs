@@ -389,6 +389,37 @@ impl Compile for ast::Function<'_> {
     }
 }
 
+impl Compile for ast::ObjectExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        // TODO: Consider preparing the size of the object here.
+        ctx.exe.add_instruction(Instruction::ObjectCreate);
+        for property in self.properties.iter() {
+            match property {
+                ast::ObjectPropertyKind::ObjectProperty(prop) => {
+                    match &prop.key {
+                        ast::PropertyKey::Identifier(id) => {
+                            ctx.exe.add_instruction_with_identifier(
+                                Instruction::Load,
+                                id.name.clone(),
+                            );
+                        }
+                        ast::PropertyKey::PrivateIdentifier(_) => todo!(),
+                        ast::PropertyKey::Expression(_) => todo!(),
+                    }
+
+                    prop.value.compile(ctx);
+
+                    ctx.exe.add_instruction(Instruction::Load);
+                    ctx.exe.add_instruction(Instruction::ObjectSetProperty);
+                }
+                ast::ObjectPropertyKind::SpreadProperty(_) => {
+                    todo!("...spread not yet implemented")
+                }
+            }
+        }
+    }
+}
+
 impl Compile for ast::Expression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
@@ -403,6 +434,7 @@ impl Compile for ast::Expression<'_> {
             ast::Expression::NullLiteral(x) => x.compile(ctx),
             ast::Expression::StringLiteral(x) => x.compile(ctx),
             ast::Expression::FunctionExpression(x) => x.compile(ctx),
+            ast::Expression::ObjectExpression(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }

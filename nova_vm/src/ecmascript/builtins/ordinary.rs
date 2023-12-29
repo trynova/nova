@@ -1,6 +1,6 @@
 use crate::ecmascript::{
     abstract_operations::{
-        operations_on_objects::{get, get_function_realm},
+        operations_on_objects::{get, get_function_realm, make_basic_object},
         testing_and_comparison::same_value,
     },
     execution::{Agent, JsResult, ProtoIntrinsics},
@@ -764,6 +764,45 @@ pub(crate) fn ordinary_own_property_keys(
 
     // 5. Return keys.
     Ok(keys)
+}
+
+/// ## [10.1.12 OrdinaryObjectCreate ( proto \[ , additionalInternalSlotsList \] )]()
+///
+/// The abstract operation OrdinaryObjectCreate takes argument proto (an Object
+/// or null) and optional argument additionalInternalSlotsList (a List of names
+/// of internal slots) and returns an Object. It is used to specify the runtime
+/// creation of new ordinary objects. additionalInternalSlotsList contains the
+/// names of additional internal slots that must be defined as part of the
+/// object, beyond [[Prototype]] and [[Extensible]].
+/// If additionalInternalSlotsList is not provided, a new empty List is used.
+///
+/// NOTE:
+pub(crate) fn ordinary_object_create_with_intrinsics(
+    agent: &mut Agent,
+    prototype: Option<ProtoIntrinsics>,
+) -> Object {
+    let Some(prototype) = prototype else {
+        return agent.heap.create_null_object(vec![]).into();
+    };
+
+    match prototype {
+        ProtoIntrinsics::Array => todo!(),
+        ProtoIntrinsics::ArrayBuffer => todo!(),
+        ProtoIntrinsics::BigInt => todo!(),
+        ProtoIntrinsics::Boolean => todo!(),
+        ProtoIntrinsics::Error => todo!(),
+        ProtoIntrinsics::EvalError => todo!(),
+        ProtoIntrinsics::Function => todo!(),
+        ProtoIntrinsics::Number => todo!(),
+        ProtoIntrinsics::Object => agent.heap.create_object(vec![]).into(),
+        ProtoIntrinsics::RangeError => todo!(),
+        ProtoIntrinsics::ReferenceError => todo!(),
+        ProtoIntrinsics::String => todo!(),
+        ProtoIntrinsics::Symbol => todo!(),
+        ProtoIntrinsics::SyntaxError => todo!(),
+        ProtoIntrinsics::TypeError => todo!(),
+        ProtoIntrinsics::UriError => todo!(),
+    }
 }
 
 /// ### [10.1.14 GetPrototypeFromConstructor ( constructor, intrinsicDefaultProto )](https://tc39.es/ecma262/#sec-getprototypefromconstructor)
