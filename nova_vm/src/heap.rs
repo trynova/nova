@@ -120,22 +120,28 @@ macro_rules! impl_heap_data {
                 self.$table
                     .get(id.into_index())
                     .expect(&format!(
-                        "Invalid HeapIndex ({:#?}): Pointed beyond Vec end",
+                        "Invalid HeapIndex for Heap::get ({:#?}): Index is out of bounds",
                         id
                     ))
                     .as_ref()
-                    .expect(&format!("Invalid HeapIndex ({:#?}): Pointed to None", id))
+                    .expect(&format!(
+                        "Invalid HeapIndex for Heap::get ({:#?}): No item at index",
+                        id
+                    ))
             }
 
             fn get_mut(&'a mut self, id: BaseIndex<$in>) -> &'a mut $out {
                 self.$table
                     .get_mut(id.into_index())
                     .expect(&format!(
-                        "Invalid HeapIndex ({:#?}): Pointed beyond Vec end",
+                        "Invalid HeapIndex Heap::get_mut ({:#?}): Index is out of bounds",
                         id
                     ))
                     .as_mut()
-                    .expect(&format!("Invalid HeapIndex ({:#?}): Pointed to None", id))
+                    .expect(&format!(
+                        "Invalid HeapIndex Heap::get_mut ({:#?}): No item at index",
+                        id
+                    ))
             }
         }
     };
@@ -146,9 +152,15 @@ macro_rules! impl_heap_data {
                     .$table
                     .get(id.into_index())
                     .as_ref()
-                    .expect("Invalid HeapIndex (get 2): Pointed beyond Vec end")
+                    .expect(&format!(
+                        "Invalid HeapIndex Heap::get ({:#?}): Index is out of bounds",
+                        id
+                    ))
                     .as_ref()
-                    .expect("Invalid HeapIndex (get 2): Pointed to None")
+                    .expect(&format!(
+                        "Invalid HeapIndex Heap::get ({:#?}): No item at index",
+                        id
+                    ))
                     .$accessor
             }
 
@@ -156,9 +168,15 @@ macro_rules! impl_heap_data {
                 &mut self
                     .$table
                     .get_mut(id.into_index())
-                    .expect("Invalid HeapIndex (get_mut 2): Pointed beyond Vec end")
+                    .expect(&format!(
+                        "Invalid HeapIndex Heap::get_mut ({:#?}): Index is out of bounds",
+                        id
+                    ))
                     .as_mut()
-                    .expect("Invalid HeapIndex (get_mut 2): Pointed to None")
+                    .expect(&format!(
+                        "Invalid HeapIndex Heap::get_mut ({:#?}): No item at index",
+                        id
+                    ))
                     .$accessor
             }
         }
