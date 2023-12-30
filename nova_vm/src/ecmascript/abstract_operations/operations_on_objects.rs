@@ -68,7 +68,7 @@ pub(crate) fn get_v(agent: &mut Agent, v: Value, p: PropertyKey) -> JsResult<Val
 /// (a property key), and V (an ECMAScript language value) and returns either a
 /// normal completion containing a Boolean or a throw completion. It is used to
 /// create a new own property of an object.
-/// 
+///
 /// > NOTE: This abstract operation creates a property whose attributes are set
 /// to the same defaults used for properties created by the ECMAScript language
 /// assignment operator. Normally, the property will not already exist. If it
@@ -115,7 +115,7 @@ pub(crate) fn create_data_property_or_throw(
 }
 
 /// ### [7.3.9 DefinePropertyOrThrow ( O, P, desc )](https://tc39.es/ecma262/#sec-definepropertyorthrow)
-/// 
+///
 /// The abstract operation DefinePropertyOrThrow takes arguments O (an Object),
 /// P (a property key), and desc (a Property Descriptor) and returns either a
 /// normal completion containing UNUSED or a throw completion. It is used to
@@ -126,19 +126,21 @@ pub(crate) fn define_property_or_throw(
     agent: &mut Agent,
     object: Object,
     property_key: PropertyKey,
-    desc: PropertyDescriptor
+    desc: PropertyDescriptor,
 ) -> JsResult<()> {
     // 1. Let success be ? O.[[DefineOwnProperty]](P, desc).
     let success = object.define_own_property(agent, property_key, desc)?;
     // 2. If success is false, throw a TypeError exception.
     if !success {
-        Err(agent.throw_exception(ExceptionType::TypeError, "Failed to defined property on object"))
+        Err(agent.throw_exception(
+            ExceptionType::TypeError,
+            "Failed to defined property on object",
+        ))
     } else {
         // 3. Return UNUSED.
         Ok(())
     }
 }
-
 
 /// ### [7.3.11 GetMethod ( V, P )](https://tc39.es/ecma262/#sec-getmethod)
 ///

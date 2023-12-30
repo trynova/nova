@@ -1,6 +1,6 @@
 use crate::ecmascript::{
     abstract_operations::{
-        operations_on_objects::{get, get_function_realm, make_basic_object, create_data_property},
+        operations_on_objects::{create_data_property, get, get_function_realm, make_basic_object},
         testing_and_comparison::same_value,
     },
     execution::{Agent, JsResult, ProtoIntrinsics},

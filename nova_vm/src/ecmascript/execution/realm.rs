@@ -4,7 +4,10 @@ use super::{
     environments::GlobalEnvironmentIndex, Agent, ExecutionContext, GlobalEnvironment, JsResult,
 };
 use crate::{
-    ecmascript::{types::{Object, PropertyDescriptor, PropertyKey, Value}, abstract_operations::operations_on_objects::define_property_or_throw},
+    ecmascript::{
+        abstract_operations::operations_on_objects::define_property_or_throw,
+        types::{Object, PropertyDescriptor, PropertyKey, Value},
+    },
     heap::indexes::ObjectIndex,
 };
 pub use intrinsics::Intrinsics;
