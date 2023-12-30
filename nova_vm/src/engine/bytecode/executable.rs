@@ -318,7 +318,7 @@ impl Compile for ast::BinaryExpression<'_> {
             }
             _ => {
                 // TODO(@carter): Figure out if this fallthough is correct?
-            },
+            }
         }
 
         // 1. Let lref be ? Evaluation of leftOperand.
