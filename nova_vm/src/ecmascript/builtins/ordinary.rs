@@ -765,17 +765,22 @@ pub(crate) fn ordinary_own_property_keys(
     Ok(keys)
 }
 
-/// ## [10.1.12 OrdinaryObjectCreate ( proto \[ , additionalInternalSlotsList \] )]()
+/// ## [10.1.12 OrdinaryObjectCreate ( proto \[ , additionalInternalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinaryobjectcreate)
 ///
 /// The abstract operation OrdinaryObjectCreate takes argument proto (an Object
 /// or null) and optional argument additionalInternalSlotsList (a List of names
 /// of internal slots) and returns an Object. It is used to specify the runtime
 /// creation of new ordinary objects. additionalInternalSlotsList contains the
 /// names of additional internal slots that must be defined as part of the
-/// object, beyond [[Prototype]] and [[Extensible]].
-/// If additionalInternalSlotsList is not provided, a new empty List is used.
+/// object, beyond [[Prototype]] and [[Extensible]]. If
+/// additionalInternalSlotsList is not provided, a new empty List is used.
 ///
-/// NOTE:
+/// > NOTE: Although OrdinaryObjectCreate does little more than call
+/// MakeBasicObject, its use communicates the intention to create an ordinary
+/// object, and not an exotic one. Thus, within this specification, it is not
+/// called by any algorithm that subsequently modifies the internal methods of
+/// the object in ways that would make the result non-ordinary. Operations that
+/// create exotic objects invoke MakeBasicObject directly.
 pub(crate) fn ordinary_object_create_with_intrinsics(
     agent: &mut Agent,
     prototype: Option<ProtoIntrinsics>,
