@@ -317,7 +317,7 @@ impl Compile for ast::BinaryExpression<'_> {
                 ctx.exe.add_instruction(Instruction::LessThan);
             }
             _ => {
-                // TODO(@carter): Figure out if this fallthough is correct?
+                // TODO(@carter): Figure out if this fallthrough is correct?
             }
         }
 
