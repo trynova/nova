@@ -1,6 +1,6 @@
 use crate::ecmascript::{
     abstract_operations::{
-        operations_on_objects::{get, get_function_realm, make_basic_object},
+        operations_on_objects::{get, get_function_realm, make_basic_object, create_data_property},
         testing_and_comparison::same_value,
     },
     execution::{Agent, JsResult, ProtoIntrinsics},
@@ -672,7 +672,7 @@ pub(crate) fn ordinary_set_with_own_descriptor(
             debug_assert!(!receiver.property_storage().has(agent, property_key));
 
             // ii. Return ? CreateDataProperty(Receiver, P, V).
-            return receiver.create_data_property(agent, property_key, value);
+            return create_data_property(agent, receiver, property_key, value);
         }
     }
 

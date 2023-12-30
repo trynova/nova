@@ -4,7 +4,7 @@ use super::{
     environments::GlobalEnvironmentIndex, Agent, ExecutionContext, GlobalEnvironment, JsResult,
 };
 use crate::{
-    ecmascript::types::{Object, PropertyDescriptor, PropertyKey, Value},
+    ecmascript::{types::{Object, PropertyDescriptor, PropertyKey, Value}, abstract_operations::operations_on_objects::define_property_or_throw},
     heap::indexes::ObjectIndex,
 };
 pub use intrinsics::Intrinsics;
@@ -230,7 +230,7 @@ pub(crate) fn set_default_global_bindings(
         };
 
         // c. Perform ? DefinePropertyOrThrow(global, name, desc).
-        global.define_property_or_throw(agent, name, desc)?;
+        define_property_or_throw(agent, global, name, desc)?;
     }
 
     // 3. Return global.

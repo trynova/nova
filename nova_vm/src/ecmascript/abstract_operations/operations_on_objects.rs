@@ -62,14 +62,25 @@ pub(crate) fn get_v(agent: &mut Agent, v: Value, p: PropertyKey) -> JsResult<Val
     o.get(agent, p, o.into())
 }
 
-/// ### [7.3.5] CreateDataProperty ( O, P, V )[]
+/// ### [7.3.5] CreateDataProperty ( O, P, V )[https://tc39.es/ecma262/#sec-createdataproperty]
 ///
+/// The abstract operation CreateDataProperty takes arguments O (an Object), P
+/// (a property key), and V (an ECMAScript language value) and returns either a
+/// normal completion containing a Boolean or a throw completion. It is used to
+/// create a new own property of an object.
+/// 
+/// > NOTE: This abstract operation creates a property whose attributes are set
+/// to the same defaults used for properties created by the ECMAScript language
+/// assignment operator. Normally, the property will not already exist. If it
+/// does exist and is not configurable or if O is not extensible,
+/// \[\[DefineOwnProperty]] will return false.
 pub(crate) fn create_data_property(
     agent: &mut Agent,
     object: Object,
     property_key: PropertyKey,
     value: Value,
 ) -> JsResult<bool> {
+    // 1. Let newDesc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: true }.
     let new_desc = PropertyDescriptor {
         value: Some(value),
         writable: Some(true),
@@ -78,12 +89,17 @@ pub(crate) fn create_data_property(
         enumerable: Some(true),
         configurable: Some(true),
     };
+    // 2. Return ? O.[[DefineOwnProperty]](P, newDesc).
     object.define_own_property(agent, property_key, new_desc)
 }
 
 /// ### [7.3.7 CreateDataPropertyOrThrow ( O, P, V )](https://tc39.es/ecma262/#sec-createdatapropertyorthrow)
 ///
-/// The abstract operation CreateDataPropertyOrThrow takes arguments O (an Object), P (a property key), and V (an ECMAScript language value) and returns either a normal completion containing UNUSED or a throw completion. It is used to create a new own property of an object. It throws a TypeError exception if the requested property update cannot be performed.
+/// The abstract operation CreateDataPropertyOrThrow takes arguments O (an
+/// Object), P (a property key), and V (an ECMAScript language value) and
+/// returns either a normal completion containing UNUSED or a throw completion.
+/// It is used to create a new own property of an object. It throws a TypeError
+/// exception if the requested property update cannot be performed.
 pub(crate) fn create_data_property_or_throw(
     agent: &mut Agent,
     object: Object,
@@ -97,6 +113,32 @@ pub(crate) fn create_data_property_or_throw(
         Ok(())
     }
 }
+
+/// ### [7.3.9 DefinePropertyOrThrow ( O, P, desc )](https://tc39.es/ecma262/#sec-definepropertyorthrow)
+/// 
+/// The abstract operation DefinePropertyOrThrow takes arguments O (an Object),
+/// P (a property key), and desc (a Property Descriptor) and returns either a
+/// normal completion containing UNUSED or a throw completion. It is used to
+/// call the \[\[DefineOwnProperty]] internal method of an object in a manner
+/// that will throw a TypeError exception if the requested property update
+/// cannot be performed.
+pub(crate) fn define_property_or_throw(
+    agent: &mut Agent,
+    object: Object,
+    property_key: PropertyKey,
+    desc: PropertyDescriptor
+) -> JsResult<()> {
+    // 1. Let success be ? O.[[DefineOwnProperty]](P, desc).
+    let success = object.define_own_property(agent, property_key, desc)?;
+    // 2. If success is false, throw a TypeError exception.
+    if !success {
+        Err(agent.throw_exception(ExceptionType::TypeError, "Failed to defined property on object"))
+    } else {
+        // 3. Return UNUSED.
+        Ok(())
+    }
+}
+
 
 /// ### [7.3.11 GetMethod ( V, P )](https://tc39.es/ecma262/#sec-getmethod)
 ///
