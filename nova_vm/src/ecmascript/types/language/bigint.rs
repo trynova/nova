@@ -81,7 +81,7 @@ impl BigInt {
     /// containing a BigInt or a throw completion.
     pub(crate) fn exponentiate(
         agent: &mut Agent,
-        base: BigInt,
+        _base: BigInt,
         exponent: BigInt,
     ) -> JsResult<BigInt> {
         // 1. If exponent < 0ℤ, throw a RangeError exception.
@@ -114,7 +114,7 @@ impl BigInt {
                 let result = x * y;
 
                 if let Ok(result) = SmallInteger::try_from(result) {
-                    BigInt::SmallBigInt(SmallInteger::try_from(result).unwrap())
+                    BigInt::SmallBigInt(result)
                 } else {
                     agent.heap.create(BigIntHeapData {
                         data: result.into(),

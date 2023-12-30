@@ -353,7 +353,9 @@ impl Heap {
     /// a possible matching string and if found will return its StringIndex
     /// instead of allocating a copy.
     ///
-    /// SAFETY: The string being allocated must not be representable as a
+    /// # Safety
+    ///
+    /// The string being allocated must not be representable as a
     /// SmallString. All SmallStrings must be kept on the stack to ensure that
     /// comparison between heap allocated strings and SmallStrings can be
     /// guaranteed to never equal true.
@@ -380,7 +382,9 @@ impl Heap {
 
     /// Allocate a 64-bit floating point number onto the Agent heap
     ///
-    /// SAFETY: The number being allocated must not be representable
+    /// # Safety
+    ///
+    /// The number being allocated must not be representable
     /// as a SmallInteger or f32. All stack-allocated numbers must be
     /// inequal to any heap-allocated number.
     pub unsafe fn alloc_number(&mut self, number: f64) -> NumberIndex {
@@ -413,7 +417,7 @@ impl Heap {
             keys,
             values,
             prototype: Some(Object::Object(
-                BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+                BuiltinObjectIndexes::FunctionPrototype.into(),
             )),
         };
         self.objects.push(Some(func_object_data));
@@ -434,9 +438,7 @@ impl Heap {
             extensible: true,
             keys,
             values,
-            prototype: Some(Object::Object(
-                BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
-            )),
+            prototype: Some(Object::Object(BuiltinObjectIndexes::ObjectPrototype.into())),
         };
         self.objects.push(Some(object_data));
         ObjectIndex::last(&self.objects)
@@ -482,6 +484,12 @@ impl Heap {
         };
         self.objects[index as usize] = Some(object_data);
         ObjectIndex::last(&self.objects)
+    }
+}
+
+impl Default for Heap {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

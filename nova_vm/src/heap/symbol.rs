@@ -1,8 +1,4 @@
-use super::{
-    indexes::{BuiltinFunctionIndex, SymbolIndex},
-    object::ObjectEntry,
-    CreateHeapData,
-};
+use super::{indexes::BuiltinFunctionIndex, object::ObjectEntry, CreateHeapData};
 use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
@@ -105,7 +101,7 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new_constructor_prototype_entry(
             heap,
-            BuiltinObjectIndexes::SymbolPrototypeIndex.into(),
+            BuiltinObjectIndexes::SymbolPrototype.into(),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "Replace"),
@@ -137,17 +133,17 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
         ),
     ];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::SymbolConstructorIndex,
+        BuiltinObjectIndexes::SymbolConstructor,
         true,
         Some(Object::BuiltinFunction(
-            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+            BuiltinObjectIndexes::FunctionPrototype.into(),
         )),
         entries,
     );
     heap.builtin_functions
-        [get_constructor_index(BuiltinObjectIndexes::SymbolConstructorIndex).into_index()] =
+        [get_constructor_index(BuiltinObjectIndexes::SymbolConstructor).into_index()] =
         Some(BuiltinFunctionHeapData {
-            object_index: Some(BuiltinObjectIndexes::SymbolConstructorIndex.into()),
+            object_index: Some(BuiltinObjectIndexes::SymbolConstructor.into()),
             length: 1,
             initial_name: Value::Null,
             behaviour: Behaviour::Constructor(constructor_binding),
@@ -156,7 +152,7 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
             PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
-                BuiltinObjectIndexes::SymbolConstructorIndex,
+                BuiltinObjectIndexes::SymbolConstructor,
             ))),
         ),
         ObjectEntry::new(
@@ -183,11 +179,9 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
         ),
     ];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::SymbolPrototypeIndex,
+        BuiltinObjectIndexes::SymbolPrototype,
         true,
-        Some(Object::Object(
-            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
-        )),
+        Some(Object::Object(BuiltinObjectIndexes::ObjectPrototype.into())),
         entries,
     );
 }

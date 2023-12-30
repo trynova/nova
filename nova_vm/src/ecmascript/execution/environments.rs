@@ -100,10 +100,10 @@ create_environment_index!(PrivateEnvironment, PrivateEnvironmentIndex);
 #[repr(u8)]
 pub(crate) enum EnvironmentIndex {
     // Leave 0 for None option
-    DeclarativeEnvironment(DeclarativeEnvironmentIndex) = 1,
-    FunctionEnvironment(FunctionEnvironmentIndex),
-    GlobalEnvironment(GlobalEnvironmentIndex),
-    ObjectEnvironment(ObjectEnvironmentIndex),
+    Declarative(DeclarativeEnvironmentIndex) = 1,
+    Function(FunctionEnvironmentIndex),
+    Global(GlobalEnvironmentIndex),
+    Object(ObjectEnvironmentIndex),
 }
 
 #[derive(Debug)]
@@ -155,22 +155,22 @@ pub(crate) fn get_identifier_reference(
 
     // 2. Let exists be ? env.HasBinding(name).
     let exists = match env {
-        EnvironmentIndex::DeclarativeEnvironment(index) => agent
+        EnvironmentIndex::Declarative(index) => agent
             .heap
             .environments
             .get_declarative_environment(index)
             .has_binding(name),
-        EnvironmentIndex::FunctionEnvironment(index) => agent
+        EnvironmentIndex::Function(index) => agent
             .heap
             .environments
             .get_function_environment(index)
             .has_binding(name),
-        EnvironmentIndex::GlobalEnvironment(index) => agent
+        EnvironmentIndex::Global(index) => agent
             .heap
             .environments
             .get_global_environment(index)
             .has_binding(name),
-        EnvironmentIndex::ObjectEnvironment(index) => todo!(),
+        EnvironmentIndex::Object(_index) => todo!(),
     };
 
     // 3. If exists is true, then
@@ -192,22 +192,22 @@ pub(crate) fn get_identifier_reference(
     else {
         // a. Let outer be env.[[OuterEnv]].
         let outer = match env {
-            EnvironmentIndex::DeclarativeEnvironment(index) => {
+            EnvironmentIndex::Declarative(index) => {
                 agent
                     .heap
                     .environments
                     .get_declarative_environment(index)
                     .outer_env
             }
-            EnvironmentIndex::FunctionEnvironment(index) => {
+            EnvironmentIndex::Function(index) => {
                 agent
                     .heap
                     .environments
                     .get_function_environment(index)
                     .outer_env
             }
-            EnvironmentIndex::GlobalEnvironment(_) => None,
-            EnvironmentIndex::ObjectEnvironment(index) => {
+            EnvironmentIndex::Global(_) => None,
+            EnvironmentIndex::Object(index) => {
                 agent
                     .heap
                     .environments

@@ -1,4 +1,4 @@
-use std::{mem::size_of, ops::Bound};
+use std::mem::size_of;
 
 use crate::{
     ecmascript::{

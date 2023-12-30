@@ -1,5 +1,3 @@
-use oxc_span::Atom;
-
 use super::{
     environments::get_identifier_reference, EnvironmentIndex, ExecutionContext, Realm,
     RealmIdentifier,
@@ -7,9 +5,8 @@ use super::{
 use crate::{
     ecmascript::{
         scripts_and_modules::ScriptOrModule,
-        types::{Function, Object, Reference, Symbol, Value},
+        types::{Function, Reference, Symbol, Value},
     },
-    heap::GetHeapData,
     Heap,
 };
 use std::collections::HashMap;

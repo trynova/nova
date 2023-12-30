@@ -90,7 +90,7 @@ pub(crate) fn get_iterator(
             };
 
             // iii. Let syncIteratorRecord be ? GetIteratorFromMethod(obj, syncMethod).
-            let sync_iterator_record = get_iterator_from_method(agent, obj, sync_method)?;
+            let _sync_iterator_record = get_iterator_from_method(agent, obj, sync_method)?;
 
             // iv. Return CreateAsyncFromSyncIterator(syncIteratorRecord).
             todo!("Implement create_async_from_sync_iterator(sync_iterator_record)")
@@ -138,7 +138,7 @@ pub(crate) fn iterator_next(
         agent,
         iterator_record.next_method,
         iterator_record.iterator.into(),
-        value.as_ref().map(|v| std::slice::from_ref(v)),
+        value.as_ref().map(std::slice::from_ref),
     )?;
 
     // 3. If result is not an Object, throw a TypeError exception.
@@ -211,9 +211,9 @@ pub(crate) fn iterator_step(
 /// Completion Record. It is used to notify an iterator that it should perform
 /// any actions it would normally perform when it has reached its completed state.
 pub(crate) fn iterator_close(
-    agent: &mut Agent,
-    iterator_record: &IteratorRecord,
-    completion: JsResult<Value>,
+    _agent: &mut Agent,
+    _iterator_record: &IteratorRecord,
+    _completion: JsResult<Value>,
 ) -> JsResult<Value> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
@@ -233,9 +233,9 @@ pub(crate) fn iterator_close(
 ///
 /// IfAbruptCloseIterator is a shorthand for a sequence of algorithm steps that use an Iterator Record.
 pub(crate) fn if_abrupt_close_iterator(
-    agent: &mut Agent,
-    value: JsResult<Value>,
-    iterator_record: &IteratorRecord,
+    _agent: &mut Agent,
+    _value: JsResult<Value>,
+    _iterator_record: &IteratorRecord,
 ) -> JsResult<Value> {
     // 1. Assert: value is a Completion Record.
     // 2. If value is an abrupt completion, return ? IteratorClose(iteratorRecord, value).
@@ -251,9 +251,9 @@ pub(crate) fn if_abrupt_close_iterator(
 /// perform any actions it would normally perform when it has reached its
 /// completed state.
 pub(crate) fn async_iterator_close(
-    agent: &mut Agent,
-    iterator_record: &IteratorRecord,
-    completion: JsResult<Value>,
+    _agent: &mut Agent,
+    _iterator_record: &IteratorRecord,
+    _completion: JsResult<Value>,
 ) -> JsResult<Value> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
@@ -276,7 +276,7 @@ pub(crate) fn async_iterator_close(
 /// ECMAScript language value) and done (a Boolean) and returns an Object that
 /// conforms to the IteratorResult interface. It creates an object that conforms
 /// to the IteratorResult interface.
-pub(crate) fn create_iter_result_object(agent: &mut Agent, value: Value, done: bool) -> Value {
+pub(crate) fn create_iter_result_object(_agent: &mut Agent, _value: Value, _done: bool) -> Value {
     // 1. Let obj be OrdinaryObjectCreate(%Object.prototype%).
     // 2. Perform ! CreateDataPropertyOrThrow(obj, "value", value).
     // 3. Perform ! CreateDataPropertyOrThrow(obj, "done", done).
@@ -290,7 +290,7 @@ pub(crate) fn create_iter_result_object(agent: &mut Agent, value: Value, done: b
 /// of ECMAScript language values) and returns an Iterator Record. It creates
 /// an Iterator (27.1.1.2) object record whose next method returns the
 /// successive elements of list.
-pub(crate) fn create_list_iterator_record(agent: &mut Agent, list: &[Value]) -> JsResult<Value> {
+pub(crate) fn create_list_iterator_record(_agent: &mut Agent, _list: &[Value]) -> JsResult<Value> {
     // 1. Let closure be a new Abstract Closure with no parameters that captures list and performs the following steps when called:
     // a. For each element E of list, do
     // i. Perform ? GeneratorYield(CreateIterResultObject(E, false)).

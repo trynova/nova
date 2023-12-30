@@ -41,6 +41,7 @@ pub fn decode_u32<R: std::io::Read>(reader: &mut R) -> Result<DecodedResult<u32>
     })
 }
 
+#[allow(dead_code)]
 pub fn decode_u64<R: std::io::Read>(reader: &mut R) -> Result<DecodedResult<u64>, Error> {
     let mut length = 0;
     let mut value = 0;
@@ -65,15 +66,12 @@ pub fn decode_u64<R: std::io::Read>(reader: &mut R) -> Result<DecodedResult<u64>
         }
     }
 
-    Ok(DecodedResult {
-        value,
-        bytes_read: bytes_read,
-    })
+    Ok(DecodedResult { value, bytes_read })
 }
 
 #[cfg(test)]
 mod test {
-    use crate::error::Error;
+
     #[test]
     fn decode_u32() {
         let mut bytes: &[u8] = &[0x00];

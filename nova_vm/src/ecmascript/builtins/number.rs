@@ -312,7 +312,7 @@ impl NumberConstructor {
 
     // ### [21.1.2.5 Number.isSafeInteger ( number )](21.1.2.5 Number.isSafeInteger ( number ))
     fn is_safe_integer(
-        agent: &mut Agent,
+        _agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {

@@ -115,33 +115,33 @@ pub(crate) enum ProtoIntrinsics {
 
 impl Default for Intrinsics {
     fn default() -> Self {
-        let array = BuiltinObjectIndexes::ArrayConstructorIndex.into();
-        let array_prototype = BuiltinObjectIndexes::ArrayPrototypeIndex.into();
-        let array_buffer = BuiltinObjectIndexes::ArrayBufferConstructorIndex.into();
-        let array_buffer_prototype = BuiltinObjectIndexes::ArrayBufferPrototypeIndex.into();
-        let big_int = BuiltinObjectIndexes::BigintConstructorIndex.into();
-        let big_int_prototype = BuiltinObjectIndexes::BigintPrototypeIndex.into();
-        let boolean = BuiltinObjectIndexes::BooleanConstructorIndex.into();
-        let boolean_prototype = BuiltinObjectIndexes::BooleanPrototypeIndex.into();
-        let error = BuiltinObjectIndexes::ErrorConstructorIndex.into();
-        let error_prototype = BuiltinObjectIndexes::ErrorPrototypeIndex.into();
+        let array = BuiltinObjectIndexes::ArrayConstructor.into();
+        let array_prototype = BuiltinObjectIndexes::ArrayPrototype.into();
+        let array_buffer = BuiltinObjectIndexes::ArrayBufferConstructor.into();
+        let array_buffer_prototype = BuiltinObjectIndexes::ArrayBufferPrototype.into();
+        let big_int = BuiltinObjectIndexes::BigintConstructor.into();
+        let big_int_prototype = BuiltinObjectIndexes::BigintPrototype.into();
+        let boolean = BuiltinObjectIndexes::BooleanConstructor.into();
+        let boolean_prototype = BuiltinObjectIndexes::BooleanPrototype.into();
+        let error = BuiltinObjectIndexes::ErrorConstructor.into();
+        let error_prototype = BuiltinObjectIndexes::ErrorPrototype.into();
         // TODO: Placeholder.
         let eval = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
         let eval_error = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
         let eval_error_prototype = ObjectIndex::from_u32_index(0);
-        let function = BuiltinObjectIndexes::FunctionConstructorIndex.into();
-        let function_prototype = BuiltinObjectIndexes::FunctionPrototypeIndex.into();
+        let function = BuiltinObjectIndexes::FunctionConstructor.into();
+        let function_prototype = BuiltinObjectIndexes::FunctionPrototype.into();
         // TODO: Placeholder.
         let is_finite = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
         let is_nan = BuiltinFunctionIndex::from_u32_index(0);
-        let math = BuiltinObjectIndexes::MathObjectIndex.into();
-        let number = BuiltinObjectIndexes::NumberConstructorIndex.into();
-        let number_prototype = BuiltinObjectIndexes::NumberPrototypeIndex.into();
-        let object = BuiltinObjectIndexes::ObjectConstructorIndex.into();
-        let object_prototype = BuiltinObjectIndexes::ObjectPrototypeIndex.into();
+        let math = BuiltinObjectIndexes::MathObject.into();
+        let number = BuiltinObjectIndexes::NumberConstructor.into();
+        let number_prototype = BuiltinObjectIndexes::NumberPrototype.into();
+        let object = BuiltinObjectIndexes::ObjectConstructor.into();
+        let object_prototype = BuiltinObjectIndexes::ObjectPrototype.into();
         // TODO: Placeholder.
         let object_prototype_to_string = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
@@ -152,11 +152,11 @@ impl Default for Intrinsics {
         let reference_error = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
         let reference_error_prototype = ObjectIndex::from_u32_index(0);
-        let reflect = BuiltinObjectIndexes::ReflectObjectIndex.into();
-        let string = BuiltinObjectIndexes::StringConstructorIndex.into();
-        let string_prototype = BuiltinObjectIndexes::StringPrototypeIndex.into();
-        let symbol = BuiltinObjectIndexes::SymbolConstructorIndex.into();
-        let symbol_prototype = BuiltinObjectIndexes::SymbolPrototypeIndex.into();
+        let reflect = BuiltinObjectIndexes::ReflectObject.into();
+        let string = BuiltinObjectIndexes::StringConstructor.into();
+        let string_prototype = BuiltinObjectIndexes::StringPrototype.into();
+        let symbol = BuiltinObjectIndexes::SymbolConstructor.into();
+        let symbol_prototype = BuiltinObjectIndexes::SymbolPrototype.into();
         // TODO: Placeholder.
         let syntax_error = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.

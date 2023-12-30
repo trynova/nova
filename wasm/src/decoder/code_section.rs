@@ -3,6 +3,7 @@ use super::util;
 use crate::error::Result;
 use crate::varint::decode_u32;
 
+#[allow(clippy::read_zero_byte_vec)]
 pub fn decode_code_section<R: std::io::Read>(reader: &mut R) -> Result<CodeBlock> {
     let body_size = decode_u32(reader)?.value;
 

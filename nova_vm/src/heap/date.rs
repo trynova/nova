@@ -1,8 +1,4 @@
-use super::{
-    heap_constants::WellKnownSymbolIndexes,
-    indexes::{BuiltinFunctionIndex, ObjectIndex},
-    object::ObjectEntry,
-};
+use super::{heap_constants::WellKnownSymbolIndexes, indexes::ObjectIndex, object::ObjectEntry};
 use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
@@ -28,22 +24,22 @@ pub fn initialize_date_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "parse", 1, false),
         ObjectEntry::new_constructor_prototype_entry(
             heap,
-            BuiltinObjectIndexes::DatePrototypeIndex.into(),
+            BuiltinObjectIndexes::DatePrototype.into(),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "UTC", 7, false),
     ];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::DateConstructorIndex,
+        BuiltinObjectIndexes::DateConstructor,
         true,
         Some(Object::BuiltinFunction(
-            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+            BuiltinObjectIndexes::FunctionPrototype.into(),
         )),
         entries,
     );
     heap.builtin_functions
-        [get_constructor_index(BuiltinObjectIndexes::DateConstructorIndex).into_index()] =
+        [get_constructor_index(BuiltinObjectIndexes::DateConstructor).into_index()] =
         Some(BuiltinFunctionHeapData {
-            object_index: Some(BuiltinObjectIndexes::DateConstructorIndex.into()),
+            object_index: Some(BuiltinObjectIndexes::DateConstructor.into()),
             length: 1,
             initial_name: Value::Null,
             behaviour: Behaviour::Constructor(constructor_binding),
@@ -52,7 +48,7 @@ pub fn initialize_date_heap(heap: &mut Heap) {
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
             PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
-                BuiltinObjectIndexes::DateConstructorIndex,
+                BuiltinObjectIndexes::DateConstructor,
             ))),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "getDate", 0, false),
@@ -106,11 +102,9 @@ pub fn initialize_date_heap(heap: &mut Heap) {
         ),
     ];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::DatePrototypeIndex,
+        BuiltinObjectIndexes::DatePrototype,
         true,
-        Some(Object::Object(
-            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
-        )),
+        Some(Object::Object(BuiltinObjectIndexes::ObjectPrototype.into())),
         entries,
     );
 }

@@ -20,7 +20,7 @@ pub(crate) enum Ordering {
     Init,
 }
 
-/// #### [25.1.3.1 AllocateArrayBuffer ( constructor, byteLength \[ , maxByteLength \] )](https://tc39.es/ecma262/#sec-allocatearraybuffer)
+/// ### [25.1.3.1 AllocateArrayBuffer ( constructor, byteLength \[ , maxByteLength \] )](https://tc39.es/ecma262/#sec-allocatearraybuffer)
 ///
 /// The abstract operation AllocateArrayBuffer takes arguments *constructor*
 /// (a constructor) and *byteLength* (a non-negative integer) and optional
@@ -71,7 +71,7 @@ pub(crate) fn allocate_array_buffer(
     )))
 }
 
-/// #### [25.1.3.2 ArrayBufferByteLength ( arrayBuffer, order )](https://tc39.es/ecma262/#sec-arraybufferbytelength)
+/// ### [25.1.3.2 ArrayBufferByteLength ( arrayBuffer, order )](https://tc39.es/ecma262/#sec-arraybufferbytelength)
 ///
 /// The abstract operation ArrayBufferByteLength takes arguments arrayBuffer
 /// (an ArrayBuffer or SharedArrayBuffer) and order (SEQ-CST or UNORDERED)
@@ -101,7 +101,7 @@ pub(crate) fn array_buffer_byte_length(
     }
 }
 
-/// #### [25.1.3.3 IsDetachedBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isdetachedbuffer)
+/// ### [25.1.3.3 IsDetachedBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isdetachedbuffer)
 ///
 /// The abstract operation IsDetachedBuffer takes argument *arrayBuffer* (an ArrayBuffer or a
 /// SharedArrayBuffer) and returns a Boolean.
@@ -111,7 +111,7 @@ pub(crate) fn is_detached_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bo
     agent.heap.get(*array_buffer).is_detached_buffer()
 }
 
-/// #### [25.1.3.4 DetachArrayBuffer ( arrayBuffer \[ , key \] )](https://tc39.es/ecma262/#sec-detacharraybuffer)
+/// ### [25.1.3.4 DetachArrayBuffer ( arrayBuffer \[ , key \] )](https://tc39.es/ecma262/#sec-detacharraybuffer)
 ///
 /// The abstract operation DetachArrayBuffer takes argument *arrayBuffer* (an ArrayBuffer)
 /// and optional argument *key* (anything) and returns either a normal completion
@@ -138,7 +138,7 @@ pub(crate) fn detach_array_buffer(
     // 6. Return UNUSED.
 }
 
-/// #### [25.1.3.5 CloneArrayBuffer ( srcBuffer, srcByteOffset, srcLength )](https://tc39.es/ecma262/#sec-clonearraybuffer)
+/// ### [25.1.3.5 CloneArrayBuffer ( srcBuffer, srcByteOffset, srcLength )](https://tc39.es/ecma262/#sec-clonearraybuffer)
 ///
 /// The abstract operation CloneArrayBuffer takes arguments srcBuffer (an ArrayBuffer
 /// or a SharedArrayBuffer), srcByteOffset (a non-negative integer), and srcLength
@@ -191,7 +191,7 @@ pub(crate) fn clone_array_buffer(
     Ok(target_buffer)
 }
 
-/// #### [25.1.3.6 GetArrayBufferMaxByteLengthOption ( options )](https://tc39.es/ecma262/#sec-getarraybuffermaxbytelengthoption)
+/// ### [25.1.3.6 GetArrayBufferMaxByteLengthOption ( options )](https://tc39.es/ecma262/#sec-getarraybuffermaxbytelengthoption)
 ///
 /// The abstract operation GetArrayBufferMaxByteLengthOption takes argument options (an ECMAScript language value) and returns either a normal completion containing either a non-negative integer or EMPTY, or a throw completion. It performs the following steps when called:
 pub(crate) fn get_array_buffer_max_byte_length_option(
@@ -231,7 +231,7 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
     }
 }
 
-/// #### [25.1.3.7 HostResizeArrayBuffer ( buffer, newByteLength )](https://tc39.es/ecma262/#sec-hostresizearraybuffer)
+/// ### [25.1.3.7 HostResizeArrayBuffer ( buffer, newByteLength )](https://tc39.es/ecma262/#sec-hostresizearraybuffer)
 ///
 /// The host-defined abstract operation HostResizeArrayBuffer takes arguments buffer
 /// (an ArrayBuffer) and newByteLength (a non-negative integer) and returns either a
@@ -263,7 +263,7 @@ pub(crate) fn host_resize_array_buffer(
     }
 }
 
-/// #### [25.1.3.8 IsFixedLengthArrayBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isfixedlengtharraybuffer)
+/// ### [25.1.3.8 IsFixedLengthArrayBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isfixedlengtharraybuffer)
 ///
 /// The abstract operation IsFixedLengthArrayBuffer takes argument
 /// arrayBuffer (an ArrayBuffer or a SharedArrayBuffer) and returns a
@@ -278,7 +278,7 @@ pub(crate) fn is_fixed_length_array_buffer(agent: &Agent, array_buffer: ArrayBuf
     )
 }
 
-/// #### [25.1.3.9 IsUnsignedElementType ( type )](https://tc39.es/ecma262/#sec-isunsignedelementtype)
+/// ### [25.1.3.9 IsUnsignedElementType ( type )](https://tc39.es/ecma262/#sec-isunsignedelementtype)
 ///
 /// The abstract operation IsUnsignedElementType takes argument type (a
 /// TypedArray element type) and returns a Boolean. It verifies if the
@@ -289,7 +289,7 @@ pub(crate) const fn is_unsigned_element_type(_type: ()) -> bool {
     false
 }
 
-/// #### [25.1.3.10 IsUnclampedIntegerElementType ( type )](https://tc39.es/ecma262/#sec-isunclampedintegerelementtype)
+/// ### [25.1.3.10 IsUnclampedIntegerElementType ( type )](https://tc39.es/ecma262/#sec-isunclampedintegerelementtype)
 ///
 /// The abstract operation IsUnclampedIntegerElementType takes argument
 /// type (a TypedArray element type) and returns a Boolean. It verifies if
@@ -301,7 +301,7 @@ pub(crate) const fn is_unclamped_integer_element_type(_type: ()) -> bool {
     false
 }
 
-/// #### [25.1.3.11 IsBigIntElementType ( type )](https://tc39.es/ecma262/#sec-isbigintelementtype)
+/// ### [25.1.3.11 IsBigIntElementType ( type )](https://tc39.es/ecma262/#sec-isbigintelementtype)
 ///
 /// The abstract operation IsBigIntElementType takes argument type (a
 /// TypedArray element type) and returns a Boolean. It verifies if the
@@ -312,18 +312,16 @@ pub(crate) const fn is_big_int_element_type(_type: ()) -> bool {
     false
 }
 
-/// #### [25.1.3.12 IsNoTearConfiguration ( type, order )](https://tc39.es/ecma262/#sec-isnotearconfiguration)
+/// ### [25.1.3.12 IsNoTearConfiguration ( type, order )](https://tc39.es/ecma262/#sec-isnotearconfiguration)
 ///
 /// The abstract operation IsNoTearConfiguration takes arguments type (a
 /// TypedArray element type) and order (SEQ-CST, UNORDERED, or INIT) and
 /// returns a Boolean.
 pub(crate) const fn is_no_tear_configuration(r#type: (), order: Ordering) -> bool {
-    if is_unclamped_integer_element_type(r#type) {
-        // 1. If IsUnclampedIntegerElementType(type) is true, return true.
-        true
-    } else if is_big_int_element_type(r#type)
-        && !matches!(order, Ordering::Init | Ordering::Unordered)
+    if is_unclamped_integer_element_type(r#type)
+        || is_big_int_element_type(r#type) && !matches!(order, Ordering::Init | Ordering::Unordered)
     {
+        // 1. If IsUnclampedIntegerElementType(type) is true, return true.
         // 2. If IsBigIntElementType(type) is true and order is neither INIT nor UNORDERED, return true.
         true
     } else {
@@ -332,7 +330,7 @@ pub(crate) const fn is_no_tear_configuration(r#type: (), order: Ordering) -> boo
     }
 }
 
-/// #### [25.1.3.13 RawBytesToNumeric ( type, rawBytes, isLittleEndian )](https://tc39.es/ecma262/#sec-rawbytestonumeric)
+/// ### [25.1.3.13 RawBytesToNumeric ( type, rawBytes, isLittleEndian )](https://tc39.es/ecma262/#sec-rawbytestonumeric)
 ///
 /// The abstract operation RawBytesToNumeric takes arguments type (a
 /// TypedArray element type), rawBytes (a List of byte values), and
@@ -356,7 +354,7 @@ pub(crate) const fn raw_bytes_to_numeric(_type: (), _raw_bytes: &[u8], _is_littl
     // 8. Otherwise, return the Number value that corresponds to intValue.
 }
 
-/// #### [25.1.3.14 GetRawBytesFromSharedBlock ( block, byteIndex, type, isTypedArray, order )](https://tc39.es/ecma262/#sec-getrawbytesfromsharedblock)
+/// ### [25.1.3.14 GetRawBytesFromSharedBlock ( block, byteIndex, type, isTypedArray, order )](https://tc39.es/ecma262/#sec-getrawbytesfromsharedblock)
 ///
 /// The abstract operation GetRawBytesFromSharedBlock takes arguments block
 /// (a Shared Data Block), byteIndex (a non-negative integer), type (a
@@ -382,7 +380,7 @@ pub(crate) fn get_raw_bytes_from_shared_block(
     // 10. Return rawValue.
 }
 
-/// #### [25.1.3.15 GetValueFromBuffer ( arrayBuffer, byteIndex, type, isTypedArray, order \[ , isLittleEndian \] )](https://tc39.es/ecma262/#sec-getvaluefrombuffer)
+/// ### [25.1.3.15 GetValueFromBuffer ( arrayBuffer, byteIndex, type, isTypedArray, order \[ , isLittleEndian \] )](https://tc39.es/ecma262/#sec-getvaluefrombuffer)
 ///
 /// The abstract operation GetValueFromBuffer takes arguments arrayBuffer
 /// (an ArrayBuffer or SharedArrayBuffer), byteIndex (a non-negative
@@ -411,7 +409,7 @@ pub(crate) fn get_value_from_buffer(
     // 9. Return RawBytesToNumeric(type, rawValue, isLittleEndian).
 }
 
-/// #### [25.1.3.16 NumericToRawBytes ( type, value, isLittleEndian )](https://tc39.es/ecma262/#sec-numerictorawbytes)
+/// ### [25.1.3.16 NumericToRawBytes ( type, value, isLittleEndian )](https://tc39.es/ecma262/#sec-numerictorawbytes)
 ///
 /// The abstract operation NumericToRawBytes takes arguments type (a
 /// TypedArray element type), value (a Number or a BigInt), and
@@ -438,7 +436,7 @@ pub(crate) fn numeric_to_raw_bytes(
     // 5. Return rawBytes.
 }
 
-/// #### [25.1.3.17 SetValueInBuffer ( arrayBuffer, byteIndex, type, value, isTypedArray, order \[ , isLittleEndian \] )](https://tc39.es/ecma262/#sec-setvalueinbuffer)
+/// ### [25.1.3.17 SetValueInBuffer ( arrayBuffer, byteIndex, type, value, isTypedArray, order \[ , isLittleEndian \] )](https://tc39.es/ecma262/#sec-setvalueinbuffer)
 ///
 /// The abstract operation SetValueInBuffer takes arguments arrayBuffer (an
 /// ArrayBuffer or SharedArrayBuffer), byteIndex (a non-negative integer),
@@ -471,7 +469,7 @@ pub(crate) fn set_value_in_buffer(
     // 10. Return UNUSED.
 }
 
-/// #### [25.1.3.18 GetModifySetValueInBuffer ( arrayBuffer, byteIndex, type, value, op )](https://tc39.es/ecma262/#sec-getmodifysetvalueinbuffer)
+/// ### [25.1.3.18 GetModifySetValueInBuffer ( arrayBuffer, byteIndex, type, value, op )](https://tc39.es/ecma262/#sec-getmodifysetvalueinbuffer)
 ///
 /// The abstract operation GetModifySetValueInBuffer takes arguments arrayBuffer (an ArrayBuffer or a SharedArrayBuffer), byteIndex (a non-negative integer), type (a TypedArray element type), value (a Number or a BigInt), and op (a read-modify-write modification function) and returns a Number or a BigInt. It performs the following steps when called:
 pub(crate) fn get_modify_set_value_in_buffer(

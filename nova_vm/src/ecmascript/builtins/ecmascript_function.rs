@@ -75,7 +75,17 @@ pub(crate) struct ECMAScriptFunction {
     pub is_class_constructor: bool,
 }
 
-/// ## [10.2.3 OrdinaryFunctionCreate ( functionPrototype, sourceText, ParameterList, Body, thisMode, env, privateEnv )](https://tc39.es/ecma262/#sec-ordinaryfunctioncreate)
+pub(crate) struct OrdinaryFunctionCreateParams<'program> {
+    pub function_prototype: Option<Object>,
+    pub source_text: Span,
+    pub parameters_list: &'program FormalParameters<'program>,
+    pub body: &'program FunctionBody<'program>,
+    pub this_mode: ThisMode,
+    pub env: EnvironmentIndex,
+    pub private_env: Option<PrivateEnvironmentIndex>,
+}
+
+/// ### [10.2.3 OrdinaryFunctionCreate ( functionPrototype, sourceText, ParameterList, Body, thisMode, env, privateEnv )](https://tc39.es/ecma262/#sec-ordinaryfunctioncreate)
 ///
 /// The abstract operation OrdinaryFunctionCreate takes arguments
 /// functionPrototype (an Object), sourceText (a sequence of Unicode code
@@ -89,22 +99,16 @@ pub(crate) struct ECMAScriptFunction {
 /// the syntactic definition of the function to be created.
 pub(crate) fn ordinary_function_create<'program>(
     agent: &mut Agent,
-    function_prototype: Option<Object>,
-    source_text: Span,
-    parameters_list: &'program FormalParameters<'program>,
-    body: &'program FunctionBody<'program>,
-    this_mode: ThisMode,
-    env: EnvironmentIndex,
-    private_env: Option<PrivateEnvironmentIndex>,
+    params: OrdinaryFunctionCreateParams<'program>,
 ) -> Function {
     // 1. Let internalSlotsList be the internal slots listed in Table 30.
     // 2. Let F be OrdinaryObjectCreate(functionPrototype, internalSlotsList).
     // 3. Set F.[[Call]] to the definition specified in 10.2.1.
     let ecmascript_function = ECMAScriptFunction {
         // 13. Set F.[[Environment]] to env.
-        environment: env,
+        environment: params.env,
         // 14. Set F.[[PrivateEnvironment]] to privateEnv.
-        private_environment: private_env,
+        private_environment: params.private_env,
         // 5. Set F.[[FormalParameters]] to ParameterList.
         // SAFETY: The reference to FormalParameters points to ScriptOrModule
         // and is valid until it gets dropped. Our GC keeps ScriptOrModule
@@ -114,13 +118,13 @@ pub(crate) fn ordinary_function_create<'program>(
             std::mem::transmute::<
                 NonNull<FormalParameters<'program>>,
                 NonNull<FormalParameters<'static>>,
-            >(parameters_list.into())
+            >(params.parameters_list.into())
         },
         // 6. Set F.[[ECMAScriptCode]] to Body.
         // SAFETY: Same as above: Self-referential reference to ScriptOrModule.
         ecmascript_code: unsafe {
             std::mem::transmute::<NonNull<FunctionBody<'program>>, NonNull<FunctionBody<'static>>>(
-                body.into(),
+                params.body.into(),
             )
         },
         constructor_kind: ConstructorKind::Base,
@@ -131,14 +135,14 @@ pub(crate) fn ordinary_function_create<'program>(
         // 9. If thisMode is LEXICAL-THIS, set F.[[ThisMode]] to LEXICAL.
         // 10. Else if Strict is true, set F.[[ThisMode]] to STRICT.
         // 11. Else, set F.[[ThisMode]] to GLOBAL.
-        this_mode,
+        this_mode: params.this_mode,
         // 7. If the source text matched by Body is strict mode code, let Strict be true; else let Strict be false.
         // 8. Set F.[[Strict]] to Strict.
         strict: true,
         // 17. Set F.[[HomeObject]] to undefined.
         home_object: None,
         // 4. Set F.[[SourceText]] to sourceText.
-        source_text,
+        source_text: params.source_text,
         // 12. Set F.[[IsClassConstructor]] to false.
         is_class_constructor: false,
     };
@@ -149,14 +153,11 @@ pub(crate) fn ordinary_function_create<'program>(
         initial_name: Value::Undefined,
         ecmascript_function,
     };
-    if function_prototype.is_some()
-        && function_prototype != Some(agent.current_realm().intrinsics().function_prototype())
-    {
-        function.object_index = Some(
-            agent
-                .heap
-                .create_object_with_prototype(function_prototype.unwrap()),
-        );
+    if let Some(function_prototype) = params.function_prototype {
+        if function_prototype != agent.current_realm().intrinsics().function_prototype() {
+            function.object_index =
+                Some(agent.heap.create_object_with_prototype(function_prototype));
+        }
     }
 
     // 18. Set F.[[Fields]] to a new empty List.
@@ -167,7 +168,8 @@ pub(crate) fn ordinary_function_create<'program>(
     set_ecmascript_function_length(
         agent,
         &mut function,
-        parameters_list
+        params
+            .parameters_list
             .items
             .iter()
             .filter(|par| !par.pattern.kind.is_binding_identifier())

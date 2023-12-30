@@ -146,10 +146,10 @@ pub(crate) fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<V
 
         ecmascript_code: Some(ECMAScriptCode {
             // 6. Set the VariableEnvironment of scriptContext to globalEnv.
-            variable_environment: EnvironmentIndex::GlobalEnvironment(global_env.unwrap()),
+            variable_environment: EnvironmentIndex::Global(global_env.unwrap()),
 
             // 7. Set the LexicalEnvironment of scriptContext to globalEnv.
-            lexical_environment: EnvironmentIndex::GlobalEnvironment(global_env.unwrap()),
+            lexical_environment: EnvironmentIndex::Global(global_env.unwrap()),
 
             // 8. Set the PrivateEnvironment of scriptContext to null.
             private_environment: None,
@@ -165,7 +165,7 @@ pub(crate) fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<V
     // NOTE: We cannot define the script here due to reference safety.
 
     // 12. Let result be Completion(GlobalDeclarationInstantiation(script, globalEnv)).
-    let _ = global_declaration_instantiation(agent, script, global_env.unwrap())?;
+    global_declaration_instantiation(agent, script, global_env.unwrap())?;
 
     // TODO: Follow step 13.
     // 13. If result.[[Type]] is normal, then

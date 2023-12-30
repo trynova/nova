@@ -1,8 +1,4 @@
-use super::{
-    heap_constants::WellKnownSymbolIndexes,
-    indexes::{BuiltinFunctionIndex, ObjectIndex},
-    object::ObjectEntry,
-};
+use super::{heap_constants::WellKnownSymbolIndexes, indexes::ObjectIndex, object::ObjectEntry};
 use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
@@ -26,7 +22,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
     let entries = vec![
         ObjectEntry::new_constructor_prototype_entry(
             heap,
-            BuiltinObjectIndexes::RegExpPrototypeIndex.into(),
+            BuiltinObjectIndexes::RegExpPrototype.into(),
         ),
         ObjectEntry::new(
             PropertyKey::Symbol(WellKnownSymbolIndexes::Species.into()),
@@ -38,17 +34,17 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
         ),
     ];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::RegExpConstructorIndex,
+        BuiltinObjectIndexes::RegExpConstructor,
         true,
         Some(Object::BuiltinFunction(
-            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+            BuiltinObjectIndexes::FunctionPrototype.into(),
         )),
         entries,
     );
     heap.builtin_functions
-        [get_constructor_index(BuiltinObjectIndexes::RegExpConstructorIndex).into_index()] =
+        [get_constructor_index(BuiltinObjectIndexes::RegExpConstructor).into_index()] =
         Some(BuiltinFunctionHeapData {
-            object_index: Some(BuiltinObjectIndexes::RegExpConstructorIndex.into()),
+            object_index: Some(BuiltinObjectIndexes::RegExpConstructor.into()),
             length: 1,
             initial_name: Value::Null,
             behaviour: Behaviour::Constructor(constructor_binding),
@@ -57,7 +53,7 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
             PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
-                BuiltinObjectIndexes::RegExpConstructorIndex,
+                BuiltinObjectIndexes::RegExpConstructor,
             ))),
         ),
         // TODO: Write out all the getters
@@ -102,11 +98,9 @@ pub fn initialize_regexp_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
     ];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::RegExpPrototypeIndex,
+        BuiltinObjectIndexes::RegExpPrototype,
         true,
-        Some(Object::Object(
-            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
-        )),
+        Some(Object::Object(BuiltinObjectIndexes::ObjectPrototype.into())),
         entries,
     );
 }

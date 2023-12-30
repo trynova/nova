@@ -1,7 +1,4 @@
-use super::{
-    indexes::{BuiltinFunctionIndex, ObjectIndex},
-    object::ObjectEntry,
-};
+use super::{indexes::ObjectIndex, object::ObjectEntry};
 use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
@@ -23,20 +20,20 @@ pub struct ErrorHeapData {
 pub fn initialize_error_heap(heap: &mut Heap) {
     let entries = vec![ObjectEntry::new_constructor_prototype_entry(
         heap,
-        BuiltinObjectIndexes::ErrorPrototypeIndex.into(),
+        BuiltinObjectIndexes::ErrorPrototype.into(),
     )];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::ErrorConstructorIndex,
+        BuiltinObjectIndexes::ErrorConstructor,
         true,
         Some(Object::BuiltinFunction(
-            BuiltinObjectIndexes::FunctionPrototypeIndex.into(),
+            BuiltinObjectIndexes::FunctionPrototype.into(),
         )),
         entries,
     );
     heap.builtin_functions
-        [get_constructor_index(BuiltinObjectIndexes::ErrorConstructorIndex).into_index()] =
+        [get_constructor_index(BuiltinObjectIndexes::ErrorConstructor).into_index()] =
         Some(BuiltinFunctionHeapData {
-            object_index: Some(BuiltinObjectIndexes::ErrorConstructorIndex.into()),
+            object_index: Some(BuiltinObjectIndexes::ErrorConstructor.into()),
             length: 1,
             initial_name: Value::Null,
             behaviour: Behaviour::Constructor(constructor_binding),
@@ -45,7 +42,7 @@ pub fn initialize_error_heap(heap: &mut Heap) {
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
             PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
-                BuiltinObjectIndexes::ErrorConstructorIndex,
+                BuiltinObjectIndexes::ErrorConstructor,
             ))),
         ),
         ObjectEntry::new(
@@ -59,11 +56,9 @@ pub fn initialize_error_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
     ];
     heap.insert_builtin_object(
-        BuiltinObjectIndexes::ErrorPrototypeIndex,
+        BuiltinObjectIndexes::ErrorPrototype,
         true,
-        Some(Object::Object(
-            BuiltinObjectIndexes::ObjectPrototypeIndex.into(),
-        )),
+        Some(Object::Object(BuiltinObjectIndexes::ObjectPrototype.into())),
         entries,
     );
 }

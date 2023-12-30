@@ -2,10 +2,7 @@
 
 use crate::ecmascript::{
     execution::{agent::JsError, Agent, JsResult},
-    types::{
-        bigint::{self, BigInt},
-        Number, Value,
-    },
+    types::{bigint::BigInt, Number, Value},
 };
 
 use super::type_conversion::{string_to_big_int, to_number, to_primitive, PreferredType};

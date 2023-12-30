@@ -1,7 +1,7 @@
 use super::Object;
 use crate::ecmascript::execution::Agent;
 
-/// ## [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
+/// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 pub trait OrdinaryObjectInternalSlots
 where
     Self: Sized + Into<Object>,

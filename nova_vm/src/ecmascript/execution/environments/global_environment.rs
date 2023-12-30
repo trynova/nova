@@ -1,10 +1,7 @@
 use oxc_span::Atom;
 
-use crate::ecmascript::execution::agent::ExceptionType;
-use crate::ecmascript::execution::{Agent, JsResult};
-// use super::declarative_environment::Binding;
-use crate::ecmascript::types::{Object, String, Value};
-use crate::heap::element_array::ElementsVector;
+use crate::ecmascript::execution::Agent;
+use crate::ecmascript::types::Object;
 use std::collections::HashSet;
 
 use super::{DeclarativeEnvironment, ObjectEnvironment};
@@ -56,7 +53,7 @@ impl GlobalEnvironment {
     /// The abstract operation NewGlobalEnvironment takes arguments G (an
     /// Object) and thisValue (an Object) and returns a Global Environment
     /// Record.
-    pub(crate) fn new(agent: &mut Agent, global: Object, this_value: Object) -> GlobalEnvironment {
+    pub(crate) fn new(_agent: &mut Agent, global: Object, this_value: Object) -> GlobalEnvironment {
         // 1. Let objRec be NewObjectEnvironment(G, false, null).
         let object_record = ObjectEnvironment::new(global, false, None);
 

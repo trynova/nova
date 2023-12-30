@@ -101,7 +101,7 @@ impl InternalMethods for OrdinaryObject {
     }
 }
 
-/// #### [10.1.1.1 OrdinaryGetPrototypeOf ( O )](https://tc39.es/ecma262/#sec-ordinarygetprototypeof)
+/// ### [10.1.1.1 OrdinaryGetPrototypeOf ( O )](https://tc39.es/ecma262/#sec-ordinarygetprototypeof)
 pub(crate) fn ordinary_get_prototype_of(agent: &mut Agent, object: Object) -> Option<Object> {
     // 1. Return O.[[Prototype]].
     object.prototype(agent)

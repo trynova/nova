@@ -6,7 +6,7 @@ use crate::ecmascript::{
         testing_and_comparison::is_same_type,
         type_conversion::{to_number, to_numeric, to_primitive, to_string},
     },
-    builtins::ordinary_function_create,
+    builtins::{ordinary_function_create, OrdinaryFunctionCreateParams, ThisMode},
     execution::{
         agent::{resolve_binding, ExceptionType},
         Agent, EnvironmentIndex, JsResult,
@@ -53,9 +53,9 @@ impl Vm {
     pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> JsResult<Value> {
         let mut vm = Vm::new();
 
-        let mut iter = InstructionIter::new(&executable.instructions);
+        let iter = InstructionIter::new(&executable.instructions);
 
-        while let Some(instr) = iter.next() {
+        for instr in iter {
             eprintln!("{:?} {:?}", instr.kind, instr.args);
 
             match instr.kind {
@@ -64,28 +64,28 @@ impl Vm {
                         vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
                     println!("{}", identifier);
 
-                    let reference = resolve_binding(agent, &identifier, None)?;
+                    let reference = resolve_binding(agent, identifier, None)?;
 
                     vm.result = match reference.base {
                         Base::Value(value) => value,
                         Base::Environment(env) => match env {
-                            EnvironmentIndex::DeclarativeEnvironment(idx) => agent
+                            EnvironmentIndex::Declarative(idx) => agent
                                 .heap
                                 .environments
                                 .get_declarative_environment(idx)
                                 .get_binding_value(identifier, false)?,
-                            EnvironmentIndex::FunctionEnvironment(idx) => agent
+                            EnvironmentIndex::Function(idx) => agent
                                 .heap
                                 .environments
                                 .get_function_environment(idx)
                                 .get_binding_value(identifier, false)?,
-                            EnvironmentIndex::GlobalEnvironment(idx) => agent
+                            EnvironmentIndex::Global(idx) => agent
                                 .heap
                                 .environments
                                 .get_global_environment(idx)
                                 .declarative_record
                                 .get_binding_value(identifier, false)?,
-                            EnvironmentIndex::ObjectEnvironment(_idx) => todo!(),
+                            EnvironmentIndex::Object(_idx) => todo!(),
                         },
                         Base::Unresolvable => {
                             return Err(agent.throw_exception(
@@ -179,21 +179,21 @@ impl Vm {
                         .function_expressions
                         .get(instr.args[0].unwrap() as usize)
                         .unwrap();
-                    let function = ordinary_function_create(
-                        agent,
-                        None,
-                        function_expression.expression.span,
-                        &function_expression.expression.params,
-                        &function_expression.expression.body.as_ref().unwrap(),
-                        crate::ecmascript::builtins::ThisMode::Lexical,
-                        agent
+                    let params = OrdinaryFunctionCreateParams {
+                        function_prototype: None,
+                        source_text: function_expression.expression.span,
+                        parameters_list: &function_expression.expression.params,
+                        body: function_expression.expression.body.as_ref().unwrap(),
+                        this_mode: ThisMode::Lexical,
+                        env: agent
                             .running_execution_context()
                             .ecmascript_code
                             .as_ref()
                             .unwrap()
                             .lexical_environment,
-                        None,
-                    );
+                        private_env: None,
+                    };
+                    let function = ordinary_function_create(agent, params);
                     vm.result = function.into();
                 }
                 other => todo!("{other:?}"),
@@ -229,10 +229,10 @@ fn apply_string_or_numeric_binary_operator(
         // c. If lprim is a String or rprim is a String, then
         if lprim.is_string() || rprim.is_string() {
             // i. Let lstr be ? ToString(lprim).
-            let lstr = to_string(agent, lprim)?;
+            let _lstr = to_string(agent, lprim)?;
 
             // ii. Let rstr be ? ToString(rprim).
-            let rstr = to_string(agent, rprim)?;
+            let _rstr = to_string(agent, rprim)?;
 
             // iii. Return the string-concatenation of lstr and rstr.
             todo!("Concatenate the strings.")
