@@ -316,7 +316,9 @@ impl Compile for ast::BinaryExpression<'_> {
                 // 6. If r is undefined, return false. Otherwise, return r.
                 ctx.exe.add_instruction(Instruction::LessThan);
             }
-            _ => todo!(),
+            _ => {
+                // TODO(@carter): Figure out if this fallthough is correct?
+            },
         }
 
         // 1. Let lref be ? Evaluation of leftOperand.
