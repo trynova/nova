@@ -3,6 +3,7 @@ use oxc_syntax::operator::BinaryOperator;
 
 use crate::ecmascript::{
     abstract_operations::{
+        operations_on_objects::create_data_property_or_throw,
         testing_and_comparison::is_same_type,
         type_conversion::{to_number, to_numeric, to_primitive, to_string},
     },
@@ -14,7 +15,7 @@ use crate::ecmascript::{
         agent::{resolve_binding, ExceptionType},
         Agent, EnvironmentIndex, JsResult, ProtoIntrinsics,
     },
-    types::{Base, BigInt, Number, Reference, String, Value},
+    types::{Base, BigInt, Number, Object, PropertyKey, Reference, String, Value},
 };
 
 use super::{Executable, Instruction, InstructionIter};
@@ -145,6 +146,13 @@ impl Vm {
                     let rval = vm.stack.pop().unwrap();
                     vm.result =
                         apply_string_or_numeric_binary_operator(agent, lval, op_text, rval)?;
+                }
+                Instruction::ObjectSetProperty => {
+                    let value = vm.stack.pop().unwrap();
+                    let key = PropertyKey::try_from(vm.stack.pop().unwrap()).unwrap();
+                    let object = *vm.stack.last().unwrap();
+                    let object = Object::try_from(object).unwrap();
+                    create_data_property_or_throw(agent, object, key, value).unwrap()
                 }
                 Instruction::PushReference => {
                     vm.reference_stack.push(vm.reference.take().unwrap());

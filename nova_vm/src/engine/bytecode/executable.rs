@@ -1,9 +1,10 @@
 use super::Instruction;
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::to_property_key,
         execution::Agent,
         scripts_and_modules::script::ScriptIdentifier,
-        types::{BigIntHeapData, Reference, Value},
+        types::{BigIntHeapData, Reference, String, Value},
     },
     heap::CreateHeapData,
 };
@@ -398,10 +399,16 @@ impl Compile for ast::ObjectExpression<'_> {
                 ast::ObjectPropertyKind::ObjectProperty(prop) => {
                     match &prop.key {
                         ast::PropertyKey::Identifier(id) => {
-                            ctx.exe.add_instruction_with_identifier(
-                                Instruction::Load,
-                                id.name.clone(),
+                            // TODO: If property key is __proto__ and it is not a shorthand ({ __proto__ })
+                            // then we should dispatch a SetPrototype instruction.
+                            let property_key = String::from_str(&mut ctx.agent, &id.name.as_str());
+                            let property_key =
+                                to_property_key(&mut ctx.agent, property_key.into()).unwrap();
+                            ctx.exe.add_instruction_with_constant(
+                                Instruction::StoreConstant,
+                                property_key,
                             );
+                            ctx.exe.add_instruction(Instruction::Load);
                         }
                         ast::PropertyKey::PrivateIdentifier(_) => todo!(),
                         ast::PropertyKey::Expression(_) => todo!(),

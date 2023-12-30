@@ -221,9 +221,8 @@ pub(crate) fn ordinary_get_own_property(
 
         // b. Set D.[[Writable]] to the value of X's [[Writable]] attribute.
         descriptor.writable = x.writable;
-    }
-    // 5. Else,
-    else {
+    } else {
+        // 5. Else,
         // a. Assert: X is an accessor property.
         debug_assert!(x.is_accessor_descriptor());
 

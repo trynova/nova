@@ -355,7 +355,7 @@ mod test {
             agent::Options, create_realm, set_realm_global_object, Agent, DefaultHostHooks,
         },
         scripts_and_modules::script::{parse_script, script_evaluation},
-        types::Value,
+        types::{InternalMethods, Object, PropertyKey, Value},
     };
     use oxc_allocator::Allocator;
 
@@ -503,6 +503,30 @@ mod test {
         let script = parse_script(&allocator, "var foo = {};".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_object());
+    }
+
+    #[test]
+    fn non_empty_object() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(&allocator, "var foo = { a: 3 };".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert!(result.is_object());
+        let result = Object::try_from(result).unwrap();
+        let key = PropertyKey::from_str(&mut agent.heap, "a");
+        assert!(result.has_property(&mut agent, key).unwrap());
+        assert_eq!(
+            result
+                .get_own_property(&mut agent, key)
+                .unwrap()
+                .unwrap()
+                .value,
+            Some(Value::from(3))
+        );
     }
 
     #[test]
