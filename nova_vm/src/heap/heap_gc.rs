@@ -508,8 +508,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
     });
     let mut iter = bits.objects.iter();
     heap.objects.retain_mut(|_object| {
-        iter
-            .next()
+        iter.next()
             .map(|bit| bit.load(Ordering::Relaxed))
             .unwrap_or(true)
     });
