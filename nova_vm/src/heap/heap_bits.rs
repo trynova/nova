@@ -1,10 +1,11 @@
 use super::{
+    element_array::{ElementArrayKey, ElementsVector},
     indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
         DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, NumberIndex, ObjectIndex,
         RegExpIndex, StringIndex, SymbolIndex,
     },
-    Heap,
+    Heap, ObjectHeapData,
 };
 use crate::ecmascript::{
     execution::{
@@ -12,7 +13,7 @@ use crate::ecmascript::{
         ObjectEnvironmentIndex, RealmIdentifier,
     },
     scripts_and_modules::{module::ModuleIdentifier, script::ScriptIdentifier},
-    types::Value,
+    types::{Object, Value},
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -441,5 +442,111 @@ impl CompactionLists {
             strings: CompactionList::from_mark_bits(&bits.strings),
             symbols: CompactionList::from_mark_bits(&bits.symbols),
         }
+    }
+}
+
+pub(crate) trait HeapCompaction {
+    fn compact_self_values(&mut self, compactions: &CompactionLists);
+}
+
+impl<T> HeapCompaction for Option<T>
+where
+    T: HeapCompaction,
+{
+    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+        if let Some(content) = self {
+            content.compact_self_values(compactions);
+        }
+    }
+}
+
+impl HeapCompaction for ArrayIndex {
+    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.into_u32_index();
+        *self = ArrayIndex::from_u32_index(
+            self_index - compactions.arrays.get_shift_for_index(self_index),
+        );
+    }
+}
+
+impl HeapCompaction for NumberIndex {
+    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.into_u32_index();
+        *self = NumberIndex::from_u32_index(
+            self_index - compactions.numbers.get_shift_for_index(self_index),
+        );
+    }
+}
+
+impl HeapCompaction for ObjectIndex {
+    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.into_u32_index();
+        *self = ObjectIndex::from_u32_index(
+            self_index - compactions.objects.get_shift_for_index(self_index),
+        );
+    }
+}
+
+impl HeapCompaction for StringIndex {
+    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.into_u32_index();
+        *self = StringIndex::from_u32_index(
+            self_index - compactions.strings.get_shift_for_index(self_index),
+        );
+    }
+}
+
+impl HeapCompaction for Value {
+    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            Self::Array(idx) => {
+                idx.compact_self_values(compactions);
+            }
+            Self::Number(idx) => {
+                idx.compact_self_values(compactions);
+            }
+            Self::Object(idx) => {
+                idx.compact_self_values(compactions);
+            }
+            Self::String(idx) => {
+                idx.compact_self_values(compactions);
+            }
+            _ => todo!(),
+        }
+    }
+}
+
+impl HeapCompaction for Object {
+    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            Self::Object(idx) => idx.compact_self_values(compactions),
+            Self::Array(idx) => idx.compact_self_values(compactions),
+            _ => todo!(),
+        }
+    }
+}
+
+impl HeapCompaction for ElementsVector {
+    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.elements_index.into_u32_index();
+        let shift = match self.cap {
+            ElementArrayKey::E4 => compactions.e_2_4.get_shift_for_index(self_index),
+            ElementArrayKey::E6 => compactions.e_2_6.get_shift_for_index(self_index),
+            ElementArrayKey::E8 => compactions.e_2_8.get_shift_for_index(self_index),
+            ElementArrayKey::E10 => compactions.e_2_10.get_shift_for_index(self_index),
+            ElementArrayKey::E12 => compactions.e_2_12.get_shift_for_index(self_index),
+            ElementArrayKey::E16 => compactions.e_2_16.get_shift_for_index(self_index),
+            ElementArrayKey::E24 => compactions.e_2_24.get_shift_for_index(self_index),
+            ElementArrayKey::E32 => compactions.e_2_32.get_shift_for_index(self_index),
+        };
+        self.elements_index = ElementIndex::from_u32_index(self_index - shift);
+    }
+}
+
+impl HeapCompaction for ObjectHeapData {
+    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+        self.keys.compact_self_values(compactions);
+        self.values.compact_self_values(compactions);
+        self.prototype.compact_self_values(compactions);
     }
 }

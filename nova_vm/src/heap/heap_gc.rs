@@ -1,6 +1,6 @@
 use super::{
     element_array::ElementArrayKey,
-    heap_bits::{CompactionLists, HeapBits, WorkQueues},
+    heap_bits::{CompactionLists, HeapBits, HeapCompaction, WorkQueues},
     indexes::{
         ArrayIndex, BuiltinFunctionIndex, DateIndex, ElementIndex, ErrorIndex, ObjectIndex,
         RegExpIndex, StringIndex, SymbolIndex,
@@ -354,13 +354,24 @@ pub fn heap_gc(heap: &mut Heap) {
 }
 
 fn sweep(heap: &mut Heap, bits: &HeapBits) {
-    let _compaction_lists = CompactionLists::create_from_bits(bits);
+    let compactions = CompactionLists::create_from_bits(bits);
 
     let mut iter = bits.e_2_4.iter();
-    heap.elements.e2pow4.values.retain_mut(|_vec| {
-        iter.next()
+    heap.elements.e2pow4.values.retain_mut(|vec| {
+        if iter
+            .next()
             .map(|bit| bit.load(Ordering::Relaxed))
             .unwrap_or(true)
+        {
+            vec.map(|mut vec| {
+                vec.iter_mut().for_each(|value| {
+                    value.compact_self_values(&compactions);
+                })
+            });
+            true
+        } else {
+            false
+        }
     });
     let mut iter = bits.e_2_4.iter();
     heap.elements.e2pow6.values.retain_mut(|_vec| {
@@ -507,10 +518,17 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
             .unwrap_or(true)
     });
     let mut iter = bits.objects.iter();
-    heap.objects.retain_mut(|_object| {
-        iter.next()
+    heap.objects.retain_mut(|object| {
+        if iter
+            .next()
             .map(|bit| bit.load(Ordering::Relaxed))
             .unwrap_or(true)
+        {
+            object.compact_self_values(&compactions);
+            true
+        } else {
+            false
+        }
     });
     let mut iter = bits.regexps.iter();
     heap.regexps.retain_mut(|_vec| {
