@@ -295,7 +295,7 @@ impl CompactionList {
         }
     }
 
-    pub(crate) fn from_mark_bits(marks: &Box<[AtomicBool]>) -> Self {
+    pub(crate) fn from_mark_bits(marks: &[AtomicBool]) -> Self {
         let mut builder = CompactionListBuilder::default();
         marks.iter().for_each(|bit| {
             if bit.load(Ordering::Relaxed) {
