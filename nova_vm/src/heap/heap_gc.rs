@@ -1,6 +1,6 @@
 use super::{
     element_array::ElementArrayKey,
-    heap_bits::{HeapBits, WorkQueues},
+    heap_bits::{CompactionLists, HeapBits, WorkQueues},
     indexes::{
         ArrayIndex, BuiltinFunctionIndex, DateIndex, ElementIndex, ErrorIndex, ObjectIndex,
         RegExpIndex, StringIndex, SymbolIndex,
@@ -354,6 +354,8 @@ pub fn heap_gc(heap: &mut Heap) {
 }
 
 fn sweep(heap: &mut Heap, bits: &HeapBits) {
+    let compaction_lists = CompactionLists::create_from_bits(bits);
+
     let mut iter = bits.e_2_4.iter();
     heap.elements.e2pow4.values.retain_mut(|_vec| {
         iter.next()
@@ -505,10 +507,16 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
             .unwrap_or(true)
     });
     let mut iter = bits.objects.iter();
-    heap.objects.retain_mut(|_vec| {
-        iter.next()
+    heap.objects.retain_mut(|object| {
+        if iter
+            .next()
             .map(|bit| bit.load(Ordering::Relaxed))
             .unwrap_or(true)
+        {
+            true
+        } else {
+            false
+        }
     });
     let mut iter = bits.regexps.iter();
     heap.regexps.retain_mut(|_vec| {
@@ -528,27 +536,16 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
             .map(|bit| bit.load(Ordering::Relaxed))
             .unwrap_or(true)
     });
-
-    compact(heap);
 }
 
-fn compact(heap: &mut Heap) {
-    let mut object_compactions = Vec::<(u32, u32)>::with_capacity(heap.objects.len() / 5);
-    let mut last_none_start_index: Option<u32> = None;
-    let mut none_count: u32 = 0;
-    for index in 0..(heap.objects.len() + 1) {
-        if let Some(None) = heap.objects.get(index) {
-            match last_none_start_index {
-                Some(_) => none_count += 1,
-                None => {
-                    last_none_start_index = Some(index as u32);
-                    none_count = 1;
-                }
-            }
-        } else if let Some(start_index) = last_none_start_index {
-            object_compactions.push((start_index, none_count));
-            last_none_start_index = None;
-            none_count = 0;
-        }
-    }
+#[test]
+fn test_heap_gc() {
+    let mut heap: Heap = Default::default();
+    assert!(heap.objects.len() > 0);
+    let obj = Value::Object(heap.create_null_object(vec![]));
+    println!("Object: {:#?}", obj);
+    heap.globals.push(obj);
+    heap_gc(&mut heap);
+    println!("Objects: {:#?}", heap.objects);
+    assert_eq!(heap.objects.len(), 0);
 }

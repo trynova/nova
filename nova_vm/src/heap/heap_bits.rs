@@ -14,8 +14,9 @@ use crate::ecmascript::{
     scripts_and_modules::{module::ModuleIdentifier, script::ScriptIdentifier},
     types::Value,
 };
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 
+#[derive(Debug)]
 pub struct HeapBits {
     pub modules: Box<[AtomicBool]>,
     pub scripts: Box<[AtomicBool]>,
@@ -47,6 +48,7 @@ pub struct HeapBits {
     pub symbols: Box<[AtomicBool]>,
 }
 
+#[derive(Debug)]
 pub struct WorkQueues {
     pub modules: Vec<ModuleIdentifier>,
     pub scripts: Vec<ScriptIdentifier>,
@@ -80,40 +82,95 @@ pub struct WorkQueues {
 
 impl HeapBits {
     pub fn new(heap: &Heap) -> Self {
+        let mut modules = Vec::with_capacity(heap.modules.len());
+        modules.resize_with(modules.capacity(), || AtomicBool::new(false));
+        let mut scripts = Vec::with_capacity(heap.scripts.len());
+        scripts.resize_with(scripts.capacity(), || AtomicBool::new(false));
+        let mut realms = Vec::with_capacity(heap.realms.len());
+        realms.resize_with(realms.capacity(), || AtomicBool::new(false));
+        let mut declarative_environments = Vec::with_capacity(heap.environments.declarative.len());
+        declarative_environments.resize_with(declarative_environments.capacity(), || {
+            AtomicBool::new(false)
+        });
+        let mut function_environments = Vec::with_capacity(heap.environments.function.len());
+        function_environments
+            .resize_with(function_environments.capacity(), || AtomicBool::new(false));
+        let mut global_environments = Vec::with_capacity(heap.environments.global.len());
+        global_environments.resize_with(global_environments.capacity(), || AtomicBool::new(false));
+        let mut object_environments = Vec::with_capacity(heap.environments.object.len());
+        object_environments.resize_with(object_environments.capacity(), || AtomicBool::new(false));
+        let mut e_2_4 = Vec::with_capacity(heap.elements.e2pow4.values.len());
+        e_2_4.resize_with(e_2_4.capacity(), || AtomicBool::new(false));
+        let mut e_2_6 = Vec::with_capacity(heap.elements.e2pow6.values.len());
+        e_2_6.resize_with(e_2_6.capacity(), || AtomicBool::new(false));
+        let mut e_2_8 = Vec::with_capacity(heap.elements.e2pow8.values.len());
+        e_2_8.resize_with(e_2_8.capacity(), || AtomicBool::new(false));
+        let mut e_2_10 = Vec::with_capacity(heap.elements.e2pow10.values.len());
+        e_2_10.resize_with(e_2_10.capacity(), || AtomicBool::new(false));
+        let mut e_2_12 = Vec::with_capacity(heap.elements.e2pow12.values.len());
+        e_2_12.resize_with(e_2_12.capacity(), || AtomicBool::new(false));
+        let mut e_2_16 = Vec::with_capacity(heap.elements.e2pow16.values.len());
+        e_2_16.resize_with(e_2_16.capacity(), || AtomicBool::new(false));
+        let mut e_2_24 = Vec::with_capacity(heap.elements.e2pow24.values.len());
+        e_2_24.resize_with(e_2_24.capacity(), || AtomicBool::new(false));
+        let mut e_2_32 = Vec::with_capacity(heap.elements.e2pow32.values.len());
+        e_2_32.resize_with(e_2_32.capacity(), || AtomicBool::new(false));
+        let mut arrays = Vec::with_capacity(heap.arrays.len());
+        arrays.resize_with(arrays.capacity(), || AtomicBool::new(false));
+        let mut array_buffers = Vec::with_capacity(heap.array_buffers.len());
+        array_buffers.resize_with(array_buffers.capacity(), || AtomicBool::new(false));
+        let mut bigints = Vec::with_capacity(heap.bigints.len());
+        bigints.resize_with(bigints.capacity(), || AtomicBool::new(false));
+        let mut errors = Vec::with_capacity(heap.errors.len());
+        errors.resize_with(errors.capacity(), || AtomicBool::new(false));
+        let mut bound_functions = Vec::with_capacity(heap.bound_functions.len());
+        bound_functions.resize_with(bound_functions.capacity(), || AtomicBool::new(false));
+        let mut builtin_functions = Vec::with_capacity(heap.builtin_functions.len());
+        builtin_functions.resize_with(builtin_functions.capacity(), || AtomicBool::new(false));
+        let mut ecmascript_functions = Vec::with_capacity(heap.ecmascript_functions.len());
+        ecmascript_functions
+            .resize_with(ecmascript_functions.capacity(), || AtomicBool::new(false));
+        let mut dates = Vec::with_capacity(heap.dates.len());
+        dates.resize_with(dates.capacity(), || AtomicBool::new(false));
+        let mut numbers = Vec::with_capacity(heap.numbers.len());
+        numbers.resize_with(numbers.capacity(), || AtomicBool::new(false));
+        let mut objects = Vec::with_capacity(heap.objects.len());
+        objects.resize_with(objects.capacity(), || AtomicBool::new(false));
+        let mut regexps = Vec::with_capacity(heap.regexps.len());
+        regexps.resize_with(regexps.capacity(), || AtomicBool::new(false));
+        let mut strings = Vec::with_capacity(heap.strings.len());
+        strings.resize_with(strings.capacity(), || AtomicBool::new(false));
+        let mut symbols = Vec::with_capacity(heap.symbols.len());
+        symbols.resize_with(symbols.capacity(), || AtomicBool::new(false));
         Self {
-            modules: Vec::with_capacity(heap.modules.len()).into_boxed_slice(),
-            scripts: Vec::with_capacity(heap.scripts.len()).into_boxed_slice(),
-            realms: Vec::with_capacity(heap.realms.len()).into_boxed_slice(),
-            declarative_environments: Vec::with_capacity(heap.environments.declarative.len())
-                .into_boxed_slice(),
-            function_environments: Vec::with_capacity(heap.environments.function.len())
-                .into_boxed_slice(),
-            global_environments: Vec::with_capacity(heap.environments.global.len())
-                .into_boxed_slice(),
-            object_environments: Vec::with_capacity(heap.environments.object.len())
-                .into_boxed_slice(),
-            e_2_4: Vec::with_capacity(heap.elements.e2pow4.values.len()).into_boxed_slice(),
-            e_2_6: Vec::with_capacity(heap.elements.e2pow6.values.len()).into_boxed_slice(),
-            e_2_8: Vec::with_capacity(heap.elements.e2pow8.values.len()).into_boxed_slice(),
-            e_2_10: Vec::with_capacity(heap.elements.e2pow10.values.len()).into_boxed_slice(),
-            e_2_12: Vec::with_capacity(heap.elements.e2pow12.values.len()).into_boxed_slice(),
-            e_2_16: Vec::with_capacity(heap.elements.e2pow16.values.len()).into_boxed_slice(),
-            e_2_24: Vec::with_capacity(heap.elements.e2pow24.values.len()).into_boxed_slice(),
-            e_2_32: Vec::with_capacity(heap.elements.e2pow32.values.len()).into_boxed_slice(),
-            arrays: Vec::with_capacity(heap.arrays.len()).into_boxed_slice(),
-            array_buffers: Vec::with_capacity(heap.array_buffers.len()).into_boxed_slice(),
-            bigints: Vec::with_capacity(heap.bigints.len()).into_boxed_slice(),
-            errors: Vec::with_capacity(heap.errors.len()).into_boxed_slice(),
-            bound_functions: Vec::with_capacity(heap.bound_functions.len()).into_boxed_slice(),
-            builtin_functions: Vec::with_capacity(heap.builtin_functions.len()).into_boxed_slice(),
-            ecmascript_functions: Vec::with_capacity(heap.ecmascript_functions.len())
-                .into_boxed_slice(),
-            dates: Vec::with_capacity(heap.dates.len()).into_boxed_slice(),
-            numbers: Vec::with_capacity(heap.numbers.len()).into_boxed_slice(),
-            objects: Vec::with_capacity(heap.objects.len()).into_boxed_slice(),
-            regexps: Vec::with_capacity(heap.regexps.len()).into_boxed_slice(),
-            strings: Vec::with_capacity(heap.strings.len()).into_boxed_slice(),
-            symbols: Vec::with_capacity(heap.symbols.len()).into_boxed_slice(),
+            modules: modules.into_boxed_slice(),
+            scripts: scripts.into_boxed_slice(),
+            realms: realms.into_boxed_slice(),
+            declarative_environments: declarative_environments.into_boxed_slice(),
+            function_environments: function_environments.into_boxed_slice(),
+            global_environments: global_environments.into_boxed_slice(),
+            object_environments: object_environments.into_boxed_slice(),
+            e_2_4: e_2_4.into_boxed_slice(),
+            e_2_6: e_2_6.into_boxed_slice(),
+            e_2_8: e_2_8.into_boxed_slice(),
+            e_2_10: e_2_10.into_boxed_slice(),
+            e_2_12: e_2_12.into_boxed_slice(),
+            e_2_16: e_2_16.into_boxed_slice(),
+            e_2_24: e_2_24.into_boxed_slice(),
+            e_2_32: e_2_32.into_boxed_slice(),
+            errors: errors.into_boxed_slice(),
+            arrays: arrays.into_boxed_slice(),
+            array_buffers: array_buffers.into_boxed_slice(),
+            bigints: bigints.into_boxed_slice(),
+            bound_functions: bound_functions.into_boxed_slice(),
+            builtin_functions: builtin_functions.into_boxed_slice(),
+            ecmascript_functions: ecmascript_functions.into_boxed_slice(),
+            dates: dates.into_boxed_slice(),
+            numbers: numbers.into_boxed_slice(),
+            objects: objects.into_boxed_slice(),
+            regexps: regexps.into_boxed_slice(),
+            strings: strings.into_boxed_slice(),
+            symbols: symbols.into_boxed_slice(),
         }
     }
 }
@@ -210,5 +267,179 @@ impl WorkQueues {
             && self.regexps.is_empty()
             && self.strings.is_empty()
             && self.symbols.is_empty()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct CompactionList {
+    indexes: Box<[u32]>,
+    shifts: Box<[u32]>,
+}
+
+impl CompactionList {
+    pub fn get_shift_for_index(&self, index: u32) -> u32 {
+        self.indexes
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, candidate)| **candidate <= index)
+            .map(|(index, _)| *self.shifts.get(index).unwrap())
+            .unwrap_or(0)
+    }
+
+    fn build(indexes: Vec<u32>, shifts: Vec<u32>) -> Self {
+        assert_eq!(indexes.len(), shifts.len());
+        Self {
+            indexes: indexes.into_boxed_slice(),
+            shifts: shifts.into_boxed_slice(),
+        }
+    }
+
+    pub(crate) fn from_mark_bits(marks: &Box<[AtomicBool]>) -> Self {
+        let mut builder = CompactionListBuilder::default();
+        marks.iter().for_each(|bit| {
+            if bit.load(Ordering::Relaxed) {
+                builder.mark_used();
+            } else {
+                builder.mark_unused();
+            }
+        });
+        builder.done()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct CompactionListBuilder {
+    indexes: Vec<u32>,
+    shifts: Vec<u32>,
+    current_index: u32,
+    current_shift: u32,
+    current_used: bool,
+    current_unused_start_index: u32,
+}
+
+impl CompactionListBuilder {
+    fn push_index_with_shift(&mut self, index: u32, shift: u32) {
+        assert_eq!(self.shifts.len(), self.indexes.len());
+        assert!(self.indexes.is_empty() || *self.indexes.last().unwrap() < index);
+        assert!(self.shifts.is_empty() || *self.shifts.last().unwrap() < shift);
+        self.shifts.push(shift);
+        self.indexes.push(index);
+    }
+
+    pub fn mark_used(&mut self) {
+        if !self.current_used {
+            let shift_start_index = if self.current_unused_start_index == 0 {
+                self.current_index
+            } else {
+                self.current_unused_start_index
+            };
+            self.push_index_with_shift(shift_start_index, self.current_shift);
+            self.current_used = true;
+        }
+        self.current_index += 1;
+    }
+
+    pub fn mark_unused(&mut self) {
+        if self.current_used {
+            self.current_unused_start_index = self.current_index;
+            self.current_used = false;
+        }
+        self.current_shift += 1;
+        self.current_index += 1;
+    }
+
+    pub fn done(self) -> CompactionList {
+        CompactionList::build(self.indexes, self.shifts)
+    }
+}
+
+impl Default for CompactionListBuilder {
+    fn default() -> Self {
+        Self {
+            indexes: Vec::with_capacity(16),
+            shifts: Vec::with_capacity(16),
+            current_index: 0,
+            current_shift: 0,
+            current_used: true,
+            current_unused_start_index: 0,
+        }
+    }
+}
+
+pub(crate) struct CompactionLists {
+    pub modules: CompactionList,
+    pub scripts: CompactionList,
+    pub realms: CompactionList,
+    pub declarative_environments: CompactionList,
+    pub function_environments: CompactionList,
+    pub global_environments: CompactionList,
+    pub object_environments: CompactionList,
+    pub e_2_4: CompactionList,
+    pub e_2_6: CompactionList,
+    pub e_2_8: CompactionList,
+    pub e_2_10: CompactionList,
+    pub e_2_12: CompactionList,
+    pub e_2_16: CompactionList,
+    pub e_2_24: CompactionList,
+    pub e_2_32: CompactionList,
+    pub arrays: CompactionList,
+    pub array_buffers: CompactionList,
+    pub bigints: CompactionList,
+    pub bound_functions: CompactionList,
+    pub builtin_functions: CompactionList,
+    pub ecmascript_functions: CompactionList,
+    pub dates: CompactionList,
+    pub errors: CompactionList,
+    pub numbers: CompactionList,
+    pub objects: CompactionList,
+    pub regexps: CompactionList,
+    pub strings: CompactionList,
+    pub symbols: CompactionList,
+}
+
+impl CompactionLists {
+    pub fn create_from_bits(bits: &HeapBits) -> Self {
+        // TODO: Instead of each list creating its own Vecs, this
+        // could instead be a singular Vec segmented into slices.
+        // The total number of vector items needed for compactions can
+        // be estimated from bits.len() / 2 - bits_marked. If only one bit
+        // is marked then two compaction parts can exist. If only one bit
+        // is unmarked then two compaction parts can exist. If exactly half
+        // of bits are marked or unmarked then bits.len() / 2 number of compaction
+        // areas can exist. We can use this mathematical bound to estimate a good
+        // vector allocation.
+        Self {
+            modules: CompactionList::from_mark_bits(&bits.modules),
+            scripts: CompactionList::from_mark_bits(&bits.scripts),
+            realms: CompactionList::from_mark_bits(&bits.realms),
+            declarative_environments: CompactionList::from_mark_bits(
+                &bits.declarative_environments,
+            ),
+            function_environments: CompactionList::from_mark_bits(&bits.function_environments),
+            global_environments: CompactionList::from_mark_bits(&bits.global_environments),
+            object_environments: CompactionList::from_mark_bits(&bits.object_environments),
+            e_2_4: CompactionList::from_mark_bits(&bits.e_2_4),
+            e_2_6: CompactionList::from_mark_bits(&bits.e_2_6),
+            e_2_8: CompactionList::from_mark_bits(&bits.e_2_8),
+            e_2_10: CompactionList::from_mark_bits(&bits.e_2_10),
+            e_2_12: CompactionList::from_mark_bits(&bits.e_2_12),
+            e_2_16: CompactionList::from_mark_bits(&bits.e_2_16),
+            e_2_24: CompactionList::from_mark_bits(&bits.e_2_24),
+            e_2_32: CompactionList::from_mark_bits(&bits.e_2_32),
+            arrays: CompactionList::from_mark_bits(&bits.arrays),
+            array_buffers: CompactionList::from_mark_bits(&bits.array_buffers),
+            bigints: CompactionList::from_mark_bits(&bits.bigints),
+            bound_functions: CompactionList::from_mark_bits(&bits.bound_functions),
+            builtin_functions: CompactionList::from_mark_bits(&bits.builtin_functions),
+            ecmascript_functions: CompactionList::from_mark_bits(&bits.ecmascript_functions),
+            dates: CompactionList::from_mark_bits(&bits.dates),
+            errors: CompactionList::from_mark_bits(&bits.errors),
+            numbers: CompactionList::from_mark_bits(&bits.numbers),
+            objects: CompactionList::from_mark_bits(&bits.objects),
+            regexps: CompactionList::from_mark_bits(&bits.regexps),
+            strings: CompactionList::from_mark_bits(&bits.strings),
+            symbols: CompactionList::from_mark_bits(&bits.symbols),
+        }
     }
 }
