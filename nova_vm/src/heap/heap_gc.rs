@@ -407,7 +407,8 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
     // heap.environments.function.compact_bool_vec_values(&bits.function_environments, &compactions);
     // heap.environments.global.compact_bool_vec_values(&bits.global_environments, &compactions);
     // heap.environments.object.compact_bool_vec_values(&bits.object_environments, &compactions);
-    // heap.arrays.compact_bool_vec_values(&bits.arrays, &compactions);
+    heap.arrays
+        .compact_bool_vec_values(&bits.arrays, &compactions);
     // heap.array_buffers.compact_bool_vec_values(&bits.array_buffers);
     // heap.bigints.compact_bool_vec_values(&bits.bigints, &compactions);
     // heap.errors.compact_bool_vec_values(&bits.errors, &compactions);
@@ -415,12 +416,18 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
     // heap.builtin_functions.compact_bool_vec_values(&bits.builtin_functions, &compactions);
     // heap.ecmascript_functions.compact_bool_vec_values(&bits.ecmascript_functions, &compactions);
     // heap.dates.compact_bool_vec_values(&bits.dates, &compactions);
-    // heap.numbers.compact_bool_vec_values(&bits.numbers, &compactions);
+    heap.globals.iter_mut().for_each(|value| {
+        value.compact_self_values(&compactions);
+    });
+    heap.numbers
+        .compact_bool_vec_values(&bits.numbers, &compactions);
     heap.objects
         .compact_bool_vec_values(&bits.objects, &compactions);
     // heap.regexps.compact_bool_vec_values(&bits.regexps, &compactions);
-    // heap.strings.compact_bool_vec_values(&bits.strings, &compactions);
-    // heap.symbols.compact_bool_vec_values(&bits.symbols, &compactions);
+    heap.strings
+        .compact_bool_vec_values(&bits.strings, &compactions);
+    heap.symbols
+        .compact_bool_vec_values(&bits.symbols, &compactions);
 }
 
 #[test]
@@ -434,4 +441,6 @@ fn test_heap_gc() {
     println!("Objects: {:#?}", heap.objects);
     assert_eq!(heap.objects.len(), 1);
     assert_eq!(heap.elements.e2pow4.values.len(), 2);
+    assert!(heap.globals.last().is_some());
+    println!("Global #1: {:#?}", heap.globals.last().unwrap());
 }

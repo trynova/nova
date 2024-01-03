@@ -5,7 +5,7 @@ use super::{
         DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, NumberIndex, ObjectIndex,
         RegExpIndex, StringIndex, SymbolIndex,
     },
-    Heap, ObjectHeapData,
+    ArrayHeapData, Heap, NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
 };
 use crate::ecmascript::{
     execution::{
@@ -13,7 +13,7 @@ use crate::ecmascript::{
         ObjectEnvironmentIndex, RealmIdentifier,
     },
     scripts_and_modules::{module::ModuleIdentifier, script::ScriptIdentifier},
-    types::{Object, Value},
+    types::{Number, Object, String, Value},
 };
 
 #[derive(Debug)]
@@ -521,6 +521,54 @@ pub(crate) trait HeapCompaction {
     }
 }
 
+impl HeapCompaction for u8 {
+    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+}
+
+impl HeapCompaction for i8 {
+    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+}
+
+impl HeapCompaction for u16 {
+    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+}
+
+impl HeapCompaction for i16 {
+    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+}
+
+impl HeapCompaction for u32 {
+    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+}
+
+impl HeapCompaction for i32 {
+    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+}
+
+impl HeapCompaction for u64 {
+    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+}
+
+impl HeapCompaction for i64 {
+    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+}
+
+impl HeapCompaction for usize {
+    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+}
+
+impl HeapCompaction for isize {
+    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+}
+
+impl HeapCompaction for f32 {
+    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+}
+
+impl HeapCompaction for f64 {
+    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+}
+
 impl<T> HeapCompaction for Option<T>
 where
     T: HeapCompaction,
@@ -670,12 +718,30 @@ impl HeapCompaction for Value {
     }
 }
 
+impl HeapCompaction for Number {
+    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            Self::Number(idx) => idx.compact_self_values(compactions),
+            _ => {}
+        }
+    }
+}
+
 impl HeapCompaction for Object {
     fn compact_self_values(&mut self, compactions: &CompactionLists) {
         match self {
             Self::Object(idx) => idx.compact_self_values(compactions),
             Self::Array(idx) => idx.compact_self_values(compactions),
             _ => todo!(),
+        }
+    }
+}
+
+impl HeapCompaction for String {
+    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            Self::String(idx) => idx.compact_self_values(compactions),
+            _ => {}
         }
     }
 }
@@ -697,10 +763,31 @@ impl HeapCompaction for ElementsVector {
     }
 }
 
+impl HeapCompaction for ArrayHeapData {
+    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+        self.elements.compact_self_values(compactions);
+        self.object_index.compact_self_values(compactions);
+    }
+}
+
 impl HeapCompaction for ObjectHeapData {
     fn compact_self_values(&mut self, compactions: &CompactionLists) {
         self.keys.compact_self_values(compactions);
         self.values.compact_self_values(compactions);
         self.prototype.compact_self_values(compactions);
+    }
+}
+
+impl HeapCompaction for NumberHeapData {
+    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+}
+
+impl HeapCompaction for StringHeapData {
+    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+}
+
+impl HeapCompaction for SymbolHeapData {
+    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+        self.descriptor.compact_self_values(compactions);
     }
 }
