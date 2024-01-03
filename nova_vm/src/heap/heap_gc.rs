@@ -318,7 +318,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     panic!("ElementsVector was not unique");
                 }
                 *marked = true;
-                *length = len as u32;
+                *length = len;
                 collect_values(
                     &mut queues,
                     &heap
@@ -345,7 +345,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     panic!("ElementsVector was not unique");
                 }
                 *marked = true;
-                *length = len as u32;
+                *length = len;
                 collect_values(
                     &mut queues,
                     &heap

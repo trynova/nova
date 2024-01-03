@@ -653,7 +653,7 @@ where
         self.retain_mut(|item| {
             let (mark, length) = iter.next().unwrap();
             if *mark {
-                item.compact_array_values(*length as u32, compactions);
+                item.compact_array_values(*length, compactions);
                 true
             } else {
                 false
@@ -720,9 +720,8 @@ impl HeapCompaction for Value {
 
 impl HeapCompaction for Number {
     fn compact_self_values(&mut self, compactions: &CompactionLists) {
-        match self {
-            Self::Number(idx) => idx.compact_self_values(compactions),
-            _ => {}
+        if let Self::Number(idx) = self {
+            idx.compact_self_values(compactions);
         }
     }
 }
@@ -739,9 +738,8 @@ impl HeapCompaction for Object {
 
 impl HeapCompaction for String {
     fn compact_self_values(&mut self, compactions: &CompactionLists) {
-        match self {
-            Self::String(idx) => idx.compact_self_values(compactions),
-            _ => {}
+        if let Self::String(idx) = self {
+            idx.compact_self_values(compactions);
         }
     }
 }
