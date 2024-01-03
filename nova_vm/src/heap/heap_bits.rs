@@ -460,6 +460,17 @@ where
     }
 }
 
+impl<T, const N: usize> HeapCompaction for [T; N]
+where
+    T: HeapCompaction,
+{
+    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+        self.iter_mut().for_each(|value| {
+            value.compact_self_values(compactions);
+        });
+    }
+}
+
 impl HeapCompaction for ArrayIndex {
     fn compact_self_values(&mut self, compactions: &CompactionLists) {
         let self_index = self.into_u32_index();

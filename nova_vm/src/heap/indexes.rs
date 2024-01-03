@@ -117,10 +117,6 @@ impl<T: ?Sized> BaseIndex<T> {
         assert!(!vec.is_empty());
         Self::from_usize(vec.len())
     }
-
-    pub fn shift(&mut self, compactions: CompactionList) {
-        compactions.fin
-    }
 }
 
 pub type ArrayBufferIndex = BaseIndex<ArrayBufferHeapData>;

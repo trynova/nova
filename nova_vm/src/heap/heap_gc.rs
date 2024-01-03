@@ -363,11 +363,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
             .map(|bit| bit.load(Ordering::Relaxed))
             .unwrap_or(true)
         {
-            vec.map(|mut vec| {
-                vec.iter_mut().for_each(|value| {
-                    value.compact_self_values(&compactions);
-                })
-            });
+            vec.compact_self_values(&compactions);
             true
         } else {
             false
