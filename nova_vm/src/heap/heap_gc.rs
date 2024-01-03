@@ -1,32 +1,12 @@
 use super::{
-    element_array::ElementArrayKey,
     heap_bits::{CompactionLists, HeapBits, HeapCompaction, WorkQueues},
     indexes::{
         ArrayIndex, BuiltinFunctionIndex, DateIndex, ElementIndex, ErrorIndex, ObjectIndex,
         RegExpIndex, StringIndex, SymbolIndex,
     },
-    ElementsVector, Heap,
+    Heap,
 };
 use crate::ecmascript::types::Value;
-use std::sync::atomic::Ordering;
-
-fn collect_elements(queues: &mut WorkQueues, elements: &ElementsVector) {
-    let ElementsVector {
-        elements_index,
-        cap,
-        ..
-    } = &elements;
-    match cap {
-        ElementArrayKey::E4 => queues.e_2_4.push(*elements_index),
-        ElementArrayKey::E6 => queues.e_2_6.push(*elements_index),
-        ElementArrayKey::E8 => queues.e_2_8.push(*elements_index),
-        ElementArrayKey::E10 => queues.e_2_10.push(*elements_index),
-        ElementArrayKey::E12 => queues.e_2_12.push(*elements_index),
-        ElementArrayKey::E16 => queues.e_2_16.push(*elements_index),
-        ElementArrayKey::E24 => queues.e_2_24.push(*elements_index),
-        ElementArrayKey::E32 => queues.e_2_32.push(*elements_index),
-    }
-}
 
 fn collect_values(queues: &mut WorkQueues, values: &[Option<Value>]) {
     values.iter().for_each(|maybe_value| {
@@ -37,7 +17,7 @@ fn collect_values(queues: &mut WorkQueues, values: &[Option<Value>]) {
 }
 
 pub fn heap_gc(heap: &mut Heap) {
-    let bits = HeapBits::new(heap);
+    let mut bits = HeapBits::new(heap);
     let mut queues = WorkQueues::new(heap);
 
     heap.globals.iter().for_each(|&value| {
@@ -49,29 +29,29 @@ pub fn heap_gc(heap: &mut Heap) {
         arrays.sort();
         arrays.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if let Some(marked) = bits.arrays.get(index) {
-                if marked.load(Ordering::Acquire) {
+            if let Some(marked) = bits.arrays.get_mut(index) {
+                if *marked {
                     // Already marked, ignore
                     return;
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
                 let heap_data = heap.arrays.get(index).unwrap().as_ref().unwrap();
                 if let Some(object_index) = heap_data.object_index {
                     queues.push_value(Value::Object(object_index));
                 }
-                collect_elements(&mut queues, &heap_data.elements);
+                queues.push_elements_vector(&heap_data.elements);
             }
         });
         let mut errors: Box<[ErrorIndex]> = queues.errors.drain(..).collect();
         errors.sort();
         errors.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if let Some(marked) = bits.errors.get(index) {
-                if marked.load(Ordering::Acquire) {
+            if let Some(marked) = bits.errors.get_mut(index) {
+                if *marked {
                     // Already marked, ignore
                     return;
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
                 let data = heap.errors.get(index).unwrap().as_ref().unwrap();
                 queues.objects.push(data.object_index);
             }
@@ -81,12 +61,12 @@ pub fn heap_gc(heap: &mut Heap) {
         builtin_functions.sort();
         builtin_functions.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if let Some(marked) = bits.builtin_functions.get(index) {
-                if marked.load(Ordering::Acquire) {
+            if let Some(marked) = bits.builtin_functions.get_mut(index) {
+                if *marked {
                     // Already marked, ignore
                     return;
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
                 let data = heap.builtin_functions.get(index).unwrap().as_ref().unwrap();
                 if let Some(object_index) = data.object_index {
                     queues.objects.push(object_index);
@@ -97,12 +77,12 @@ pub fn heap_gc(heap: &mut Heap) {
         dates.sort();
         dates.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if let Some(marked) = bits.dates.get(index) {
-                if marked.load(Ordering::Acquire) {
+            if let Some(marked) = bits.dates.get_mut(index) {
+                if *marked {
                     // Already marked, ignore
                     return;
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
                 let data = heap.dates.get(index).unwrap().as_ref().unwrap();
                 queues.objects.push(data.object_index);
             }
@@ -111,27 +91,27 @@ pub fn heap_gc(heap: &mut Heap) {
         objects.sort();
         objects.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if let Some(marked) = bits.objects.get(index) {
-                if marked.load(Ordering::Acquire) {
+            if let Some(marked) = bits.objects.get_mut(index) {
+                if *marked {
                     // Already marked, ignore
                     return;
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
                 let heap_data = heap.objects.get(index).unwrap().as_ref().unwrap();
-                collect_elements(&mut queues, &heap_data.keys);
-                collect_elements(&mut queues, &heap_data.values);
+                queues.push_elements_vector(&heap_data.keys);
+                queues.push_elements_vector(&heap_data.values);
             }
         });
         let mut regexps: Box<[RegExpIndex]> = queues.regexps.drain(..).collect();
         regexps.sort();
         regexps.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if let Some(marked) = bits.regexps.get(index) {
-                if marked.load(Ordering::Acquire) {
+            if let Some(marked) = bits.regexps.get_mut(index) {
+                if *marked {
                     // Already marked, ignore
                     return;
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
                 let data = heap.regexps.get(index).unwrap().as_ref().unwrap();
                 queues.objects.push(data.object_index);
             }
@@ -140,211 +120,243 @@ pub fn heap_gc(heap: &mut Heap) {
         strings.sort();
         strings.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if let Some(marked) = bits.strings.get(index) {
-                if marked.load(Ordering::Acquire) {
+            if let Some(marked) = bits.strings.get_mut(index) {
+                if *marked {
                     // Already marked, ignore
                     return;
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
             }
         });
         let mut symbols: Box<[SymbolIndex]> = queues.symbols.drain(..).collect();
         symbols.sort();
         symbols.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if let Some(marked) = bits.symbols.get(index) {
-                if marked.load(Ordering::Acquire) {
+            if let Some(marked) = bits.symbols.get_mut(index) {
+                if *marked {
                     // Already marked, ignore
                     return;
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
                 let data = heap.symbols.get(index).unwrap().as_ref().unwrap();
                 if let Some(string_index) = data.descriptor {
                     queues.push_value(string_index.into());
                 }
             }
         });
-        let mut e_2_4: Box<[ElementIndex]> = queues.e_2_4.drain(..).collect();
+        let mut e_2_4: Box<[(ElementIndex, u32)]> = queues.e_2_4.drain(..).collect();
         e_2_4.sort();
-        e_2_4.iter().for_each(|&idx| {
+        e_2_4.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some(marked) = bits.e_2_4.get(index) {
-                if marked.load(Ordering::Acquire) {
-                    // Already marked, ignore
-                    return;
+            if let Some((marked, length)) = bits.e_2_4.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
+                *length = len as u8;
                 collect_values(
                     &mut queues,
-                    heap.elements
+                    &heap
+                        .elements
                         .e2pow4
                         .values
                         .get(index)
                         .unwrap()
                         .as_ref()
                         .unwrap()
-                        .as_slice(),
+                        .as_slice()[..(len as usize)],
                 )
             }
         });
-        let mut e_2_6: Box<[ElementIndex]> = queues.e_2_6.drain(..).collect();
+        let mut e_2_6: Box<[(ElementIndex, u32)]> = queues.e_2_6.drain(..).collect();
         e_2_6.sort();
-        e_2_6.iter().for_each(|&idx| {
+        e_2_6.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some(marked) = bits.e_2_6.get(index) {
-                if marked.load(Ordering::Acquire) {
-                    // Already marked, ignore
-                    return;
+            if let Some((marked, length)) = bits.e_2_6.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
+                *length = len as u8;
                 collect_values(
                     &mut queues,
-                    heap.elements
+                    &heap
+                        .elements
                         .e2pow6
                         .values
                         .get(index)
                         .unwrap()
                         .as_ref()
                         .unwrap()
-                        .as_slice(),
+                        .as_slice()[..(len as usize)],
                 );
             }
         });
-        let mut e_2_8: Box<[ElementIndex]> = queues.e_2_8.drain(..).collect();
+        let mut e_2_8: Box<[(ElementIndex, u32)]> = queues.e_2_8.drain(..).collect();
         e_2_8.sort();
-        e_2_8.iter().for_each(|&idx| {
+        e_2_8.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some(marked) = bits.e_2_8.get(index) {
-                if marked.load(Ordering::Acquire) {
-                    // Already marked, ignore
-                    return;
+            if let Some((marked, length)) = bits.e_2_8.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
+                *length = len as u8;
                 collect_values(
                     &mut queues,
-                    heap.elements
+                    &heap
+                        .elements
                         .e2pow8
                         .values
                         .get(index)
                         .unwrap()
                         .as_ref()
                         .unwrap()
-                        .as_slice(),
+                        .as_slice()[..len as usize],
                 );
             }
         });
-        let mut e_2_10: Box<[ElementIndex]> = queues.e_2_10.drain(..).collect();
+        let mut e_2_10: Box<[(ElementIndex, u32)]> = queues.e_2_10.drain(..).collect();
         e_2_10.sort();
-        e_2_10.iter().for_each(|&idx| {
+        e_2_10.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some(marked) = bits.e_2_10.get(index) {
-                if marked.load(Ordering::Acquire) {
-                    // Already marked, ignore
-                    return;
+            if let Some((marked, length)) = bits.e_2_10.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
+                *length = len as u16;
                 collect_values(
                     &mut queues,
-                    heap.elements
+                    &heap
+                        .elements
                         .e2pow10
                         .values
                         .get(index)
                         .unwrap()
                         .as_ref()
                         .unwrap()
-                        .as_slice(),
+                        .as_slice()[..len as usize],
                 );
             }
         });
-        let mut e_2_12: Box<[ElementIndex]> = queues.e_2_12.drain(..).collect();
+        let mut e_2_12: Box<[(ElementIndex, u32)]> = queues.e_2_12.drain(..).collect();
         e_2_12.sort();
-        e_2_12.iter().for_each(|&idx| {
+        e_2_12.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some(marked) = bits.e_2_12.get(index) {
-                if marked.load(Ordering::Acquire) {
-                    // Already marked, ignore
-                    return;
+            if let Some((marked, length)) = bits.e_2_12.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
+                *length = len as u16;
                 collect_values(
                     &mut queues,
-                    heap.elements
+                    &heap
+                        .elements
                         .e2pow12
                         .values
                         .get(index)
                         .unwrap()
                         .as_ref()
                         .unwrap()
-                        .as_slice(),
+                        .as_slice()[..len as usize],
                 );
             }
         });
-        let mut e_2_16: Box<[ElementIndex]> = queues.e_2_16.drain(..).collect();
+        let mut e_2_16: Box<[(ElementIndex, u32)]> = queues.e_2_16.drain(..).collect();
         e_2_16.sort();
-        e_2_16.iter().for_each(|&idx| {
+        e_2_16.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some(marked) = bits.e_2_16.get(index) {
-                if marked.load(Ordering::Acquire) {
-                    // Already marked, ignore
-                    return;
+            if let Some((marked, length)) = bits.e_2_16.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
+                *length = len as u16;
                 collect_values(
                     &mut queues,
-                    heap.elements
+                    &heap
+                        .elements
                         .e2pow16
                         .values
                         .get(index)
                         .unwrap()
                         .as_ref()
                         .unwrap()
-                        .as_slice(),
+                        .as_slice()[..len as usize],
                 );
             }
         });
-        let mut e_2_24: Box<[ElementIndex]> = queues.e_2_24.drain(..).collect();
+        let mut e_2_24: Box<[(ElementIndex, u32)]> = queues.e_2_24.drain(..).collect();
         e_2_24.sort();
-        e_2_24.iter().for_each(|&idx| {
+        e_2_24.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some(marked) = bits.e_2_24.get(index) {
-                if marked.load(Ordering::Acquire) {
-                    // Already marked, ignore
-                    return;
+            if let Some((marked, length)) = bits.e_2_24.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
+                *length = len as u32;
                 collect_values(
                     &mut queues,
-                    heap.elements
+                    &heap
+                        .elements
                         .e2pow24
                         .values
                         .get(index)
                         .unwrap()
                         .as_ref()
                         .unwrap()
-                        .as_slice(),
+                        .as_slice()[..len as usize],
                 );
             }
         });
-        let mut e_2_32: Box<[ElementIndex]> = queues.e_2_32.drain(..).collect();
+        let mut e_2_32: Box<[(ElementIndex, u32)]> = queues.e_2_32.drain(..).collect();
         e_2_32.sort();
-        e_2_32.iter().for_each(|&idx| {
+        e_2_32.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some(marked) = bits.e_2_32.get(index) {
-                if marked.load(Ordering::Acquire) {
-                    // Already marked, ignore
-                    return;
+            if let Some((marked, length)) = bits.e_2_32.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
                 }
-                marked.store(true, Ordering::Relaxed);
+                *marked = true;
+                *length = len as u32;
                 collect_values(
                     &mut queues,
-                    heap.elements
+                    &heap
+                        .elements
                         .e2pow32
                         .values
                         .get(index)
                         .unwrap()
                         .as_ref()
                         .unwrap()
-                        .as_slice(),
+                        .as_slice()[..len as usize],
                 );
             }
         });
@@ -356,194 +368,59 @@ pub fn heap_gc(heap: &mut Heap) {
 fn sweep(heap: &mut Heap, bits: &HeapBits) {
     let compactions = CompactionLists::create_from_bits(bits);
 
-    let mut iter = bits.e_2_4.iter();
-    heap.elements.e2pow4.values.retain_mut(|vec| {
-        if iter
-            .next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-        {
-            vec.compact_self_values(&compactions);
-            true
-        } else {
-            false
-        }
-    });
-    let mut iter = bits.e_2_4.iter();
-    heap.elements.e2pow6.values.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.e_2_6.iter();
-    heap.elements.e2pow6.values.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.e_2_8.iter();
-    heap.elements.e2pow10.values.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.e_2_10.iter();
-    heap.elements.e2pow12.values.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.e_2_16.iter();
-    heap.elements.e2pow16.values.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.e_2_24.iter();
-    heap.elements.e2pow24.values.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.e_2_32.iter();
-    heap.elements.e2pow32.values.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.e_2_32.iter();
-    heap.elements.e2pow32.values.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.modules.iter();
-    heap.modules.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.realms.iter();
-    heap.realms.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.scripts.iter();
-    heap.scripts.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.declarative_environments.iter();
-    heap.environments.declarative.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.function_environments.iter();
-    heap.environments.function.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.global_environments.iter();
-    heap.environments.global.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.object_environments.iter();
-    heap.environments.object.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.arrays.iter();
-    heap.arrays.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.array_buffers.iter();
-    heap.array_buffers.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.bigints.iter();
-    heap.bigints.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.errors.iter();
-    heap.errors.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.bound_functions.iter();
-    heap.bound_functions.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.builtin_functions.iter();
-    heap.builtin_functions.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.ecmascript_functions.iter();
-    heap.ecmascript_functions.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.dates.iter();
-    heap.dates.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.numbers.iter();
-    heap.numbers.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.objects.iter();
-    heap.objects.retain_mut(|object| {
-        if iter
-            .next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-        {
-            object.compact_self_values(&compactions);
-            true
-        } else {
-            false
-        }
-    });
-    let mut iter = bits.regexps.iter();
-    heap.regexps.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.strings.iter();
-    heap.strings.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
-    let mut iter = bits.symbols.iter();
-    heap.symbols.retain_mut(|_vec| {
-        iter.next()
-            .map(|bit| bit.load(Ordering::Relaxed))
-            .unwrap_or(true)
-    });
+    heap.elements
+        .e2pow4
+        .values
+        .compact_u8_vec_values(&bits.e_2_4, &compactions);
+    heap.elements
+        .e2pow6
+        .values
+        .compact_u8_vec_values(&bits.e_2_6, &compactions);
+    heap.elements
+        .e2pow8
+        .values
+        .compact_u8_vec_values(&bits.e_2_8, &compactions);
+    heap.elements
+        .e2pow10
+        .values
+        .compact_u16_vec_values(&bits.e_2_10, &compactions);
+    heap.elements
+        .e2pow12
+        .values
+        .compact_u16_vec_values(&bits.e_2_12, &compactions);
+    heap.elements
+        .e2pow16
+        .values
+        .compact_u16_vec_values(&bits.e_2_16, &compactions);
+    heap.elements
+        .e2pow24
+        .values
+        .compact_u32_vec_values(&bits.e_2_24, &compactions);
+    heap.elements
+        .e2pow32
+        .values
+        .compact_u32_vec_values(&bits.e_2_32, &compactions);
+    // heap.modules.compact_bool_vec_values(&bits.modules, &compactions);
+    // heap.realms.compact_bool_vec_values(&bits.realms, &compactions);
+    // heap.scripts.compact_bool_vec_values(&bits.scripts, &compactions);
+    // heap.environments.declarative.compact_bool_vec_values(&bits.declarative_environments, &compactions);
+    // heap.environments.function.compact_bool_vec_values(&bits.function_environments, &compactions);
+    // heap.environments.global.compact_bool_vec_values(&bits.global_environments, &compactions);
+    // heap.environments.object.compact_bool_vec_values(&bits.object_environments, &compactions);
+    // heap.arrays.compact_bool_vec_values(&bits.arrays, &compactions);
+    // heap.array_buffers.compact_bool_vec_values(&bits.array_buffers);
+    // heap.bigints.compact_bool_vec_values(&bits.bigints, &compactions);
+    // heap.errors.compact_bool_vec_values(&bits.errors, &compactions);
+    // heap.bound_functions.compact_bool_vec_values(&bits.bound_functions, &compactions);
+    // heap.builtin_functions.compact_bool_vec_values(&bits.builtin_functions, &compactions);
+    // heap.ecmascript_functions.compact_bool_vec_values(&bits.ecmascript_functions, &compactions);
+    // heap.dates.compact_bool_vec_values(&bits.dates, &compactions);
+    // heap.numbers.compact_bool_vec_values(&bits.numbers, &compactions);
+    heap.objects
+        .compact_bool_vec_values(&bits.objects, &compactions);
+    // heap.regexps.compact_bool_vec_values(&bits.regexps, &compactions);
+    // heap.strings.compact_bool_vec_values(&bits.strings, &compactions);
+    // heap.symbols.compact_bool_vec_values(&bits.symbols, &compactions);
 }
 
 #[test]
@@ -555,5 +432,6 @@ fn test_heap_gc() {
     heap.globals.push(obj);
     heap_gc(&mut heap);
     println!("Objects: {:#?}", heap.objects);
-    assert_eq!(heap.objects.len(), 0);
+    assert_eq!(heap.objects.len(), 1);
+    assert_eq!(heap.elements.e2pow4.values.len(), 2);
 }
