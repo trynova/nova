@@ -7,89 +7,89 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct Intrinsics {
+pub(crate) struct Intrinsics {
     /// %Array%
-    array: BuiltinFunctionIndex,
+    pub(crate) array: BuiltinFunctionIndex,
     /// %Array.prototype%
-    array_prototype: ObjectIndex,
+    pub(crate) array_prototype: ObjectIndex,
     /// %ArrayBuffer%
-    array_buffer: BuiltinFunctionIndex,
+    pub(crate) array_buffer: BuiltinFunctionIndex,
     /// %ArrayBuffer.prototype%
-    array_buffer_prototype: ObjectIndex,
+    pub(crate) array_buffer_prototype: ObjectIndex,
     /// %BigInt%
-    big_int: BuiltinFunctionIndex,
+    pub(crate) big_int: BuiltinFunctionIndex,
     /// %BigInt.prototype%
-    big_int_prototype: ObjectIndex,
+    pub(crate) big_int_prototype: ObjectIndex,
     /// %Boolean%
-    boolean: BuiltinFunctionIndex,
+    pub(crate) boolean: BuiltinFunctionIndex,
     /// %Boolean.prototype%
-    boolean_prototype: ObjectIndex,
+    pub(crate) boolean_prototype: ObjectIndex,
     /// %Error%
-    error: BuiltinFunctionIndex,
+    pub(crate) error: BuiltinFunctionIndex,
     /// %Error.prototype%
-    error_prototype: ObjectIndex,
+    pub(crate) error_prototype: ObjectIndex,
     /// %eval%
-    eval: BuiltinFunctionIndex,
+    pub(crate) eval: BuiltinFunctionIndex,
     /// %EvalError%
-    eval_error: BuiltinFunctionIndex,
+    pub(crate) eval_error: BuiltinFunctionIndex,
     /// %EvalError.prototype%
-    eval_error_prototype: ObjectIndex,
+    pub(crate) eval_error_prototype: ObjectIndex,
     /// %Function%
-    function: BuiltinFunctionIndex,
+    pub(crate) function: BuiltinFunctionIndex,
     /// %Function.prototype%
     ///
     /// NOTE: This is not spec-compliant. Function prototype should
     /// be a function that always returns undefined no matter how
     /// it is called. That's stupid so we do not have that.
-    function_prototype: ObjectIndex,
+    pub(crate) function_prototype: ObjectIndex,
     /// %isFinite%
-    is_finite: BuiltinFunctionIndex,
+    pub(crate) is_finite: BuiltinFunctionIndex,
     /// %isNaN%
-    is_nan: BuiltinFunctionIndex,
+    pub(crate) is_nan: BuiltinFunctionIndex,
     /// %Math%
-    math: ObjectIndex,
+    pub(crate) math: ObjectIndex,
     /// %Number%
-    number: BuiltinFunctionIndex,
+    pub(crate) number: BuiltinFunctionIndex,
     /// %Number.prototype%
-    number_prototype: ObjectIndex,
+    pub(crate) number_prototype: ObjectIndex,
     /// %Object%
-    object: BuiltinFunctionIndex,
+    pub(crate) object: BuiltinFunctionIndex,
     /// %Object.prototype%
-    object_prototype: ObjectIndex,
+    pub(crate) object_prototype: ObjectIndex,
     /// %Object.prototype.toString%
-    object_prototype_to_string: BuiltinFunctionIndex,
+    pub(crate) object_prototype_to_string: BuiltinFunctionIndex,
     /// %RangeError%
-    range_error: BuiltinFunctionIndex,
+    pub(crate) range_error: BuiltinFunctionIndex,
     /// %RangeError.prototype%
-    range_error_prototype: ObjectIndex,
+    pub(crate) range_error_prototype: ObjectIndex,
     /// %ReferenceError%
-    reference_error: BuiltinFunctionIndex,
+    pub(crate) reference_error: BuiltinFunctionIndex,
     /// %ReferenceError.prototype%
-    reference_error_prototype: ObjectIndex,
+    pub(crate) reference_error_prototype: ObjectIndex,
     /// %Reflect%
-    reflect: BuiltinFunctionIndex,
+    pub(crate) reflect: BuiltinFunctionIndex,
     /// %String%
-    string: BuiltinFunctionIndex,
+    pub(crate) string: BuiltinFunctionIndex,
     /// %String.prototype%
-    string_prototype: ObjectIndex,
+    pub(crate) string_prototype: ObjectIndex,
     /// %Symbol%
-    symbol: BuiltinFunctionIndex,
+    pub(crate) symbol: BuiltinFunctionIndex,
     /// %Symbol.prototype%
-    symbol_prototype: ObjectIndex,
+    pub(crate) symbol_prototype: ObjectIndex,
     /// %SyntaxError%
-    syntax_error: BuiltinFunctionIndex,
+    pub(crate) syntax_error: BuiltinFunctionIndex,
     /// %SyntaxError.prototype%
-    syntax_error_prototype: ObjectIndex,
+    pub(crate) syntax_error_prototype: ObjectIndex,
     /// %ThrowTypeError%
-    throw_type_error: BuiltinFunctionIndex,
+    pub(crate) throw_type_error: BuiltinFunctionIndex,
     /// %TypeError%
-    type_error: BuiltinFunctionIndex,
+    pub(crate) type_error: BuiltinFunctionIndex,
     /// %TypeError.prototype%
-    type_error_prototype: ObjectIndex,
+    pub(crate) type_error_prototype: ObjectIndex,
     /// %URIError%
-    uri_error: BuiltinFunctionIndex,
+    pub(crate) uri_error: BuiltinFunctionIndex,
     /// %URIError.prototype%
-    uri_error_prototype: ObjectIndex,
+    pub(crate) uri_error_prototype: ObjectIndex,
 }
 
 /// Enumeration of intrinsics intended to be used as the [[Prototype]] value of

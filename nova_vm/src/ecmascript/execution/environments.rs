@@ -28,11 +28,11 @@ mod global_environment;
 mod object_environment;
 mod private_environment;
 
-pub use declarative_environment::DeclarativeEnvironment;
-pub use function_environment::FunctionEnvironment;
-pub use global_environment::GlobalEnvironment;
-pub use object_environment::ObjectEnvironment;
-pub use private_environment::PrivateEnvironment;
+pub(crate) use declarative_environment::DeclarativeEnvironment;
+pub(crate) use function_environment::FunctionEnvironment;
+pub(crate) use global_environment::GlobalEnvironment;
+pub(crate) use object_environment::ObjectEnvironment;
+pub(crate) use private_environment::PrivateEnvironment;
 
 use crate::ecmascript::types::{Base, Reference, ReferencedName};
 
@@ -60,7 +60,7 @@ macro_rules! create_environment_index {
         /// plus one. This allows us to not use an empty value in storage for
         /// the zero index while still saving room for a [`None`] value when
         /// stored in an [`Option`].
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         pub(crate) struct $index(NonZeroU32, PhantomData<$name>);
 
         impl $index {
@@ -77,6 +77,10 @@ macro_rules! create_environment_index {
 
             pub(crate) const fn into_index(self) -> usize {
                 self.0.get() as usize - 1
+            }
+
+            pub(crate) const fn into_u32(self) -> u32 {
+                self.0.get()
             }
         }
     };

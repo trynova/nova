@@ -1,19 +1,34 @@
+use std::borrow::{Borrow, BorrowMut};
+
 use super::{
+    date::DateHeapData,
     element_array::{ElementArrayKey, ElementsVector},
+    error::ErrorHeapData,
     indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
         DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, NumberIndex, ObjectIndex,
         RegExpIndex, StringIndex, SymbolIndex,
     },
+    regexp::RegExpHeapData,
     ArrayHeapData, Heap, NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
 };
 use crate::ecmascript::{
+    builtins::ArrayBufferHeapData,
     execution::{
-        DeclarativeEnvironmentIndex, FunctionEnvironmentIndex, GlobalEnvironmentIndex,
-        ObjectEnvironmentIndex, RealmIdentifier,
+        DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironment,
+        FunctionEnvironmentIndex, GlobalEnvironment, GlobalEnvironmentIndex, Intrinsics,
+        ObjectEnvironment, ObjectEnvironmentIndex, PrivateEnvironment, PrivateEnvironmentIndex,
+        Realm, RealmIdentifier,
     },
-    scripts_and_modules::{module::ModuleIdentifier, script::ScriptIdentifier},
-    types::{Number, Object, String, Value},
+    scripts_and_modules::{
+        module::{Module, ModuleIdentifier},
+        script::{Script, ScriptIdentifier},
+        ScriptOrModule,
+    },
+    types::{
+        BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
+        Function, Number, Object, String, Value,
+    },
 };
 
 #[derive(Debug)]
@@ -461,264 +476,450 @@ impl CompactionLists {
     }
 }
 
-pub(crate) trait HeapCompaction {
-    #[allow(unused_variables)]
-    fn compact_self_values(&mut self, compactions: &CompactionLists) {
-        unreachable!();
-    }
-
-    #[allow(unused_variables)]
-    fn compact_array_values(&mut self, _length: u32, compactions: &CompactionLists) {
-        unreachable!();
-    }
-
-    #[allow(unused_variables)]
-    fn compact_bool_vec_values(&mut self, bits: &[bool], compactions: &CompactionLists) {
-        unreachable!();
-    }
-
-    #[allow(unused_variables)]
-    fn compact_u8_vec_values(&mut self, u8s: &[(bool, u8)], compactions: &CompactionLists) {
-        unreachable!();
-    }
-
-    #[allow(unused_variables)]
-    fn compact_u16_vec_values(&mut self, u16s: &[(bool, u16)], compactions: &CompactionLists) {
-        unreachable!();
-    }
-
-    #[allow(unused_variables)]
-    fn compact_u32_vec_values(&mut self, u32s: &[(bool, u32)], compactions: &CompactionLists) {
-        unreachable!();
-    }
-}
-
-impl HeapCompaction for u8 {
-    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
-}
-
-impl HeapCompaction for i8 {
-    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
-}
-
-impl HeapCompaction for u16 {
-    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
-}
-
-impl HeapCompaction for i16 {
-    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
-}
-
-impl HeapCompaction for u32 {
-    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
-}
-
-impl HeapCompaction for i32 {
-    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
-}
-
-impl HeapCompaction for u64 {
-    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
-}
-
-impl HeapCompaction for i64 {
-    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
-}
-
-impl HeapCompaction for usize {
-    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
-}
-
-impl HeapCompaction for isize {
-    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
-}
-
-impl HeapCompaction for f32 {
-    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
-}
-
-impl HeapCompaction for f64 {
-    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
-}
-
-impl<T> HeapCompaction for Option<T>
+pub(crate) trait HeapMarkAndSweep<Data>
 where
-    T: HeapCompaction,
+    Data: ?Sized,
 {
-    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+    /// Mark all Heap references contained in self
+    ///
+    /// To mark a HeapIndex, push it into the relevant queue in
+    /// WorkQueues.
+    #[allow(unused_variables)]
+    fn mark_values(&self, queues: &mut WorkQueues, data: impl BorrowMut<Data>);
+
+    /// Handle potential sweep of and update Heap references in self
+    ///
+    /// Sweeping of self is needed for Heap vectors: They must compact
+    /// according to the `compactions` parameter. Additionally, any
+    /// Heap references in self must be updated according to the
+    /// compactions list.
+    #[allow(unused_variables)]
+    fn sweep_values(&mut self, compactions: &CompactionLists, data: impl Borrow<Data>);
+}
+
+impl<T, Data> HeapMarkAndSweep<Data> for &T
+where
+    T: HeapMarkAndSweep<Data>,
+{
+    fn mark_values(&self, queues: &mut WorkQueues, data: impl BorrowMut<Data>) {
+        (*self).mark_values(queues, data);
+    }
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists, _data: impl Borrow<Data>) {
+        unreachable!();
+    }
+}
+
+impl<T, Data> HeapMarkAndSweep<Data> for Option<T>
+where
+    T: HeapMarkAndSweep<Data>,
+{
+    fn mark_values(&self, queues: &mut WorkQueues, data: impl BorrowMut<Data>) {
         if let Some(content) = self {
-            content.compact_self_values(compactions);
+            content.mark_values(queues, data);
         }
     }
 
-    fn compact_array_values(&mut self, length: u32, compactions: &CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists, data: impl Borrow<Data>) {
         if let Some(content) = self {
-            content.compact_array_values(length, compactions);
+            content.sweep_values(compactions, data);
         }
     }
 }
 
-impl<T, const N: usize> HeapCompaction for [T; N]
+impl<T, const N: usize> HeapMarkAndSweep<u32> for [T; N]
 where
-    T: HeapCompaction,
+    T: HeapMarkAndSweep<()>,
 {
-    fn compact_array_values(&mut self, length: u32, compactions: &CompactionLists) {
+    fn mark_values(&self, queues: &mut WorkQueues, length: impl BorrowMut<u32>) {
+        let length: u32 = *length.borrow();
+
+        self.as_slice()[..length as usize].iter().for_each(|value| {
+            value.mark_values(queues, ());
+        });
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, length: impl Borrow<u32>) {
+        let length: u32 = *length.borrow();
         if length == 0 {
             return;
         }
         self.as_mut_slice()[..length as usize]
             .iter_mut()
             .for_each(|value| {
-                value.compact_self_values(compactions);
+                value.sweep_values(compactions, ());
             });
     }
 }
 
-impl<T> HeapCompaction for Vec<T>
-where
-    T: HeapCompaction + std::fmt::Debug,
-{
-    fn compact_bool_vec_values(&mut self, bits: &[bool], compactions: &CompactionLists) {
-        assert_eq!(self.len(), bits.len());
-        let mut iter = bits.iter();
-        self.retain_mut(|item| {
-            if *iter.next().unwrap() {
-                item.compact_self_values(compactions);
-                true
-            } else {
-                false
-            }
-        });
+pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep<()>>(
+    vec: &mut Vec<T>,
+    compactions: &CompactionLists,
+    bits: &[bool],
+) {
+    assert_eq!(vec.len(), bits.len());
+    let mut iter = bits.iter();
+    vec.retain_mut(|item| {
+        if *iter.next().unwrap() {
+            item.sweep_values(compactions, ());
+            true
+        } else {
+            false
+        }
+    });
+}
+
+pub(crate) fn sweep_heap_u8_elements_vector_values<const N: usize>(
+    vec: &mut Vec<Option<[Option<Value>; N]>>,
+    compactions: &CompactionLists,
+    u8s: &[(bool, u8)],
+) {
+    assert_eq!(vec.len(), u8s.len());
+    let mut iter = u8s.iter();
+    vec.retain_mut(|item| {
+        let (mark, length) = iter.next().unwrap();
+        if *mark {
+            item.sweep_values(compactions, *length as u32);
+            true
+        } else {
+            false
+        }
+    });
+}
+
+pub(crate) fn sweep_heap_u16_elements_vector_values<const N: usize>(
+    vec: &mut Vec<Option<[Option<Value>; N]>>,
+    compactions: &CompactionLists,
+    u16s: &[(bool, u16)],
+) {
+    assert_eq!(vec.len(), u16s.len());
+    let mut iter = u16s.iter();
+    vec.retain_mut(|item| {
+        let (mark, length) = iter.next().unwrap();
+        if *mark {
+            item.sweep_values(compactions, *length as u32);
+            true
+        } else {
+            false
+        }
+    });
+}
+
+pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
+    vec: &mut Vec<Option<[Option<Value>; N]>>,
+    compactions: &CompactionLists,
+    u32s: &[(bool, u32)],
+) {
+    assert_eq!(vec.len(), u32s.len());
+    let mut iter = u32s.iter();
+    vec.retain_mut(|item| {
+        let (mark, length) = iter.next().unwrap();
+        if *mark {
+            item.sweep_values(compactions, *length);
+            true
+        } else {
+            false
+        }
+    });
+}
+
+impl HeapMarkAndSweep<()> for ArrayIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.arrays.push(*self);
     }
 
-    fn compact_u8_vec_values(&mut self, u8s: &[(bool, u8)], compactions: &CompactionLists) {
-        assert_eq!(self.len(), u8s.len());
-        let mut iter = u8s.iter();
-        self.retain_mut(|item| {
-            let (mark, length) = iter.next().unwrap();
-            if *mark {
-                item.compact_array_values(*length as u32, compactions);
-                true
-            } else {
-                false
-            }
-        });
-    }
-
-    fn compact_u16_vec_values(&mut self, u16s: &[(bool, u16)], compactions: &CompactionLists) {
-        assert_eq!(self.len(), u16s.len());
-        let mut iter = u16s.iter();
-        self.retain_mut(|item| {
-            let (mark, length) = iter.next().unwrap();
-            if *mark {
-                item.compact_array_values(*length as u32, compactions);
-                true
-            } else {
-                false
-            }
-        });
-    }
-
-    fn compact_u32_vec_values(&mut self, u32s: &[(bool, u32)], compactions: &CompactionLists) {
-        assert_eq!(self.len(), u32s.len());
-        let mut iter = u32s.iter();
-        self.retain_mut(|item| {
-            let (mark, length) = iter.next().unwrap();
-            if *mark {
-                item.compact_array_values(*length, compactions);
-                true
-            } else {
-                false
-            }
-        });
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.arrays.get_shift_for_index(self_index));
     }
 }
 
-impl HeapCompaction for ArrayIndex {
-    fn compact_self_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32_index();
-        *self = ArrayIndex::from_u32_index(
-            self_index - compactions.arrays.get_shift_for_index(self_index),
+impl HeapMarkAndSweep<()> for ArrayBufferIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.array_buffers.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self =
+            Self::from_u32(self_index - compactions.array_buffers.get_shift_for_index(self_index));
+    }
+}
+
+impl HeapMarkAndSweep<()> for BigIntIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.bigints.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.bigints.get_shift_for_index(self_index));
+    }
+}
+
+impl HeapMarkAndSweep<()> for BoundFunctionIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.bound_functions.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(
+            self_index - compactions.bound_functions.get_shift_for_index(self_index),
         );
     }
 }
 
-impl HeapCompaction for NumberIndex {
-    fn compact_self_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32_index();
-        *self = NumberIndex::from_u32_index(
-            self_index - compactions.numbers.get_shift_for_index(self_index),
+impl HeapMarkAndSweep<()> for BuiltinFunctionIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.builtin_functions.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(
+            self_index
+                - compactions
+                    .builtin_functions
+                    .get_shift_for_index(self_index),
         );
     }
 }
 
-impl HeapCompaction for ObjectIndex {
-    fn compact_self_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32_index();
-        *self = ObjectIndex::from_u32_index(
-            self_index - compactions.objects.get_shift_for_index(self_index),
+impl HeapMarkAndSweep<()> for DateIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.dates.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.dates.get_shift_for_index(self_index));
+    }
+}
+
+impl HeapMarkAndSweep<()> for ECMAScriptFunctionIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.ecmascript_functions.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(
+            self_index
+                - compactions
+                    .ecmascript_functions
+                    .get_shift_for_index(self_index),
         );
     }
 }
 
-impl HeapCompaction for StringIndex {
-    fn compact_self_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32_index();
-        *self = StringIndex::from_u32_index(
-            self_index - compactions.strings.get_shift_for_index(self_index),
-        );
+impl HeapMarkAndSweep<()> for ErrorIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.errors.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.errors.get_shift_for_index(self_index));
     }
 }
 
-impl HeapCompaction for Value {
-    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+impl HeapMarkAndSweep<()> for NumberIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.numbers.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.numbers.get_shift_for_index(self_index));
+    }
+}
+
+impl HeapMarkAndSweep<()> for ObjectIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.objects.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.objects.get_shift_for_index(self_index));
+    }
+}
+
+impl HeapMarkAndSweep<()> for RegExpIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.regexps.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.regexps.get_shift_for_index(self_index));
+    }
+}
+
+impl HeapMarkAndSweep<()> for StringIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.strings.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.strings.get_shift_for_index(self_index));
+    }
+}
+
+impl HeapMarkAndSweep<()> for SymbolIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.symbols.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.symbols.get_shift_for_index(self_index));
+    }
+}
+
+impl HeapMarkAndSweep<()> for Value {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        println!("Marking Value");
         match self {
-            Self::Array(idx) => {
-                idx.compact_self_values(compactions);
+            Value::Undefined
+            | Value::Null
+            | Value::Boolean(_)
+            | Value::SmallString(_)
+            | Value::Integer(_)
+            | Value::Float(_)
+            | Value::SmallBigInt(_) => {
+                // Stack values: Nothing to mark
             }
-            Self::Number(idx) => {
-                idx.compact_self_values(compactions);
+            Value::String(idx) => idx.mark_values(queues, ()),
+            Value::Symbol(idx) => idx.mark_values(queues, ()),
+            Value::Number(idx) => idx.mark_values(queues, ()),
+            Value::BigInt(idx) => idx.mark_values(queues, ()),
+            Value::Object(idx) => idx.mark_values(queues, ()),
+            Value::Array(idx) => idx.mark_values(queues, ()),
+            Value::ArrayBuffer(idx) => idx.mark_values(queues, ()),
+            Value::Date(idx) => idx.mark_values(queues, ()),
+            Value::Error(idx) => idx.mark_values(queues, ()),
+            Value::BoundFunction(idx) => idx.mark_values(queues, ()),
+            Value::BuiltinFunction(idx) => idx.mark_values(queues, ()),
+            Value::ECMAScriptFunction(idx) => idx.mark_values(queues, ()),
+            Value::RegExp(idx) => idx.mark_values(queues, ()),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        match self {
+            Value::Undefined
+            | Value::Null
+            | Value::Boolean(_)
+            | Value::SmallString(_)
+            | Value::Integer(_)
+            | Value::Float(_)
+            | Value::SmallBigInt(_) => {
+                // Stack values: Nothing to sweep
             }
-            Self::Object(idx) => {
-                idx.compact_self_values(compactions);
-            }
-            Self::String(idx) => {
-                idx.compact_self_values(compactions);
-            }
-            _ => todo!(),
+            Value::String(idx) => idx.sweep_values(compactions, ()),
+            Value::Symbol(idx) => idx.sweep_values(compactions, ()),
+            Value::Number(idx) => idx.sweep_values(compactions, ()),
+            Value::BigInt(idx) => idx.sweep_values(compactions, ()),
+            Value::Object(idx) => idx.sweep_values(compactions, ()),
+            Value::Array(idx) => idx.sweep_values(compactions, ()),
+            Value::ArrayBuffer(idx) => idx.sweep_values(compactions, ()),
+            Value::Date(idx) => idx.sweep_values(compactions, ()),
+            Value::Error(idx) => idx.sweep_values(compactions, ()),
+            Value::BoundFunction(idx) => idx.sweep_values(compactions, ()),
+            Value::BuiltinFunction(idx) => idx.sweep_values(compactions, ()),
+            Value::ECMAScriptFunction(idx) => idx.sweep_values(compactions, ()),
+            Value::RegExp(idx) => idx.sweep_values(compactions, ()),
         }
     }
 }
 
-impl HeapCompaction for Number {
-    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+impl HeapMarkAndSweep<()> for Function {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        match self {
+            Function::BoundFunction(idx) => idx.mark_values(queues, ()),
+            Function::BuiltinFunction(idx) => idx.mark_values(queues, ()),
+            Function::ECMAScriptFunction(idx) => idx.mark_values(queues, ()),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        match self {
+            Function::BoundFunction(idx) => idx.sweep_values(compactions, ()),
+            Function::BuiltinFunction(idx) => idx.sweep_values(compactions, ()),
+            Function::ECMAScriptFunction(idx) => idx.sweep_values(compactions, ()),
+        }
+    }
+}
+
+impl HeapMarkAndSweep<()> for Number {
+    fn mark_values(&self, queues: &mut WorkQueues, data: impl BorrowMut<()>) {
         if let Self::Number(idx) = self {
-            idx.compact_self_values(compactions);
+            idx.mark_values(queues, data);
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, data: impl Borrow<()>) {
+        if let Self::Number(idx) = self {
+            idx.sweep_values(compactions, data);
         }
     }
 }
 
-impl HeapCompaction for Object {
-    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+impl HeapMarkAndSweep<()> for Object {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        println!("Marking Object");
         match self {
-            Self::Object(idx) => idx.compact_self_values(compactions),
-            Self::Array(idx) => idx.compact_self_values(compactions),
+            Object::Object(idx) => idx.mark_values(queues, ()),
+            Object::Array(idx) => idx.mark_values(queues, ()),
+            Object::ArrayBuffer(idx) => idx.mark_values(queues, ()),
+            Object::BoundFunction(_) => todo!(),
+            Object::BuiltinFunction(_) => todo!(),
+            Object::ECMAScriptFunction(_) => todo!(),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        match self {
+            Self::Object(idx) => idx.sweep_values(compactions, ()),
+            Self::Array(idx) => idx.sweep_values(compactions, ()),
             _ => todo!(),
         }
     }
 }
 
-impl HeapCompaction for String {
-    fn compact_self_values(&mut self, compactions: &CompactionLists) {
+impl HeapMarkAndSweep<()> for String {
+    fn mark_values(&self, queues: &mut WorkQueues, data: impl BorrowMut<()>) {
         if let Self::String(idx) = self {
-            idx.compact_self_values(compactions);
+            idx.mark_values(queues, data);
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, data: impl Borrow<()>) {
+        if let Self::String(idx) = self {
+            idx.sweep_values(compactions, data);
         }
     }
 }
 
-impl HeapCompaction for ElementsVector {
-    fn compact_self_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.elements_index.into_u32_index();
+impl HeapMarkAndSweep<()> for ElementsVector {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        match self.cap {
+            ElementArrayKey::E4 => queues.e_2_4.push((self.elements_index, self.len)),
+            ElementArrayKey::E6 => queues.e_2_6.push((self.elements_index, self.len)),
+            ElementArrayKey::E8 => queues.e_2_8.push((self.elements_index, self.len)),
+            ElementArrayKey::E10 => queues.e_2_10.push((self.elements_index, self.len)),
+            ElementArrayKey::E12 => queues.e_2_12.push((self.elements_index, self.len)),
+            ElementArrayKey::E16 => queues.e_2_16.push((self.elements_index, self.len)),
+            ElementArrayKey::E24 => queues.e_2_24.push((self.elements_index, self.len)),
+            ElementArrayKey::E32 => queues.e_2_32.push((self.elements_index, self.len)),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.elements_index.into_u32();
         let shift = match self.cap {
             ElementArrayKey::E4 => compactions.e_2_4.get_shift_for_index(self_index),
             ElementArrayKey::E6 => compactions.e_2_6.get_shift_for_index(self_index),
@@ -729,35 +930,475 @@ impl HeapCompaction for ElementsVector {
             ElementArrayKey::E24 => compactions.e_2_24.get_shift_for_index(self_index),
             ElementArrayKey::E32 => compactions.e_2_32.get_shift_for_index(self_index),
         };
-        self.elements_index = ElementIndex::from_u32_index(self_index - shift);
+        self.elements_index = ElementIndex::from_u32(self_index - shift);
     }
 }
 
-impl HeapCompaction for ArrayHeapData {
-    fn compact_self_values(&mut self, compactions: &CompactionLists) {
-        self.elements.compact_self_values(compactions);
-        self.object_index.compact_self_values(compactions);
+impl HeapMarkAndSweep<()> for ArrayHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.elements.mark_values(queues, ());
+        self.object_index.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.elements.sweep_values(compactions, ());
+        self.object_index.sweep_values(compactions, ());
     }
 }
 
-impl HeapCompaction for ObjectHeapData {
-    fn compact_self_values(&mut self, compactions: &CompactionLists) {
-        self.keys.compact_self_values(compactions);
-        self.values.compact_self_values(compactions);
-        self.prototype.compact_self_values(compactions);
+impl HeapMarkAndSweep<()> for ArrayBufferHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
     }
 }
 
-impl HeapCompaction for NumberHeapData {
-    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+impl HeapMarkAndSweep<()> for BigIntHeapData {
+    fn mark_values(&self, _queues: &mut WorkQueues, _data: impl BorrowMut<()>) {}
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists, _data: impl Borrow<()>) {}
 }
 
-impl HeapCompaction for StringHeapData {
-    fn compact_self_values(&mut self, _compactions: &CompactionLists) {}
+impl HeapMarkAndSweep<()> for BoundFunctionHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.function.mark_values(queues, ());
+        self.object_index.mark_values(queues, ());
+        self.bound_values.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.function.sweep_values(compactions, ());
+        self.object_index.sweep_values(compactions, ());
+        self.bound_values.sweep_values(compactions, ());
+    }
 }
 
-impl HeapCompaction for SymbolHeapData {
-    fn compact_self_values(&mut self, compactions: &CompactionLists) {
-        self.descriptor.compact_self_values(compactions);
+impl HeapMarkAndSweep<()> for BuiltinFunctionHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.initial_name.mark_values(queues, ());
+        self.object_index.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.initial_name.sweep_values(compactions, ());
+        self.object_index.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for ECMAScriptFunctionHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.initial_name.mark_values(queues, ());
+        self.object_index.mark_values(queues, ());
+
+        self.ecmascript_function.environment.mark_values(queues, ());
+        self.ecmascript_function
+            .private_environment
+            .mark_values(queues, ());
+        self.ecmascript_function.realm.mark_values(queues, ());
+        self.ecmascript_function
+            .script_or_module
+            .mark_values(queues, ());
+        self.ecmascript_function.home_object.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists, _data: impl Borrow<()>) {
+        todo!()
+    }
+}
+
+impl HeapMarkAndSweep<()> for DateHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for ErrorHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for ObjectHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.keys.mark_values(queues, ());
+        self.values.mark_values(queues, ());
+        self.prototype.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.keys.sweep_values(compactions, ());
+        self.values.sweep_values(compactions, ());
+        self.prototype.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for NumberHeapData {
+    fn mark_values(&self, _queues: &mut WorkQueues, _data: impl BorrowMut<()>) {}
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists, _data: impl Borrow<()>) {}
+}
+
+impl HeapMarkAndSweep<()> for RegExpHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for StringHeapData {
+    fn mark_values(&self, _queues: &mut WorkQueues, _data: impl BorrowMut<()>) {}
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists, _data: impl Borrow<()>) {}
+}
+
+impl HeapMarkAndSweep<()> for SymbolHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.descriptor.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.descriptor.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for ModuleIdentifier {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.modules.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.modules.get_shift_for_index(self_index));
+    }
+}
+
+impl HeapMarkAndSweep<()> for Module {
+    fn mark_values(&self, _queues: &mut WorkQueues, _data: impl BorrowMut<()>) {}
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists, _data: impl Borrow<()>) {}
+}
+
+impl HeapMarkAndSweep<()> for RealmIdentifier {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.realms.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.realms.get_shift_for_index(self_index));
+    }
+}
+
+impl HeapMarkAndSweep<()> for Realm {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.intrinsics().mark_values(queues, ());
+        self.global_env.mark_values(queues, ());
+        self.global_object.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.intrinsics().sweep_values(compactions, ());
+        self.global_env.sweep_values(compactions, ());
+        self.global_object.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for Intrinsics {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.array().mark_values(queues, ());
+        self.array_prototype().mark_values(queues, ());
+        self.array_buffer().mark_values(queues, ());
+        self.array_buffer_prototype().mark_values(queues, ());
+        self.big_int().mark_values(queues, ());
+        self.big_int_prototype().mark_values(queues, ());
+        self.boolean().mark_values(queues, ());
+        self.boolean_prototype().mark_values(queues, ());
+        self.error().mark_values(queues, ());
+        self.error_prototype().mark_values(queues, ());
+        self.eval().mark_values(queues, ());
+        self.eval_error().mark_values(queues, ());
+        self.eval_error_prototype().mark_values(queues, ());
+        self.function().mark_values(queues, ());
+        self.function_prototype().mark_values(queues, ());
+        self.is_finite().mark_values(queues, ());
+        self.is_nan().mark_values(queues, ());
+        self.math().mark_values(queues, ());
+        self.number().mark_values(queues, ());
+        self.number_prototype().mark_values(queues, ());
+        self.object().mark_values(queues, ());
+        self.object_prototype().mark_values(queues, ());
+        self.object_prototype_to_string().mark_values(queues, ());
+        self.range_error().mark_values(queues, ());
+        self.range_error_prototype().mark_values(queues, ());
+        self.reference_error().mark_values(queues, ());
+        self.reference_error_prototype().mark_values(queues, ());
+        self.reflect().mark_values(queues, ());
+        self.string().mark_values(queues, ());
+        self.string_prototype().mark_values(queues, ());
+        self.symbol().mark_values(queues, ());
+        self.symbol_prototype().mark_values(queues, ());
+        self.syntax_error().mark_values(queues, ());
+        self.syntax_error_prototype().mark_values(queues, ());
+        self.throw_type_error().mark_values(queues, ());
+        self.type_error().mark_values(queues, ());
+        self.type_error_prototype().mark_values(queues, ());
+        self.uri_error().mark_values(queues, ());
+        self.uri_error_prototype().mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.array.sweep_values(compactions, ());
+        self.array_prototype.sweep_values(compactions, ());
+        self.array_buffer.sweep_values(compactions, ());
+        self.array_buffer_prototype.sweep_values(compactions, ());
+        self.big_int.sweep_values(compactions, ());
+        self.big_int_prototype.sweep_values(compactions, ());
+        self.boolean.sweep_values(compactions, ());
+        self.boolean_prototype.sweep_values(compactions, ());
+        self.error.sweep_values(compactions, ());
+        self.error_prototype.sweep_values(compactions, ());
+        self.eval.sweep_values(compactions, ());
+        self.eval_error.sweep_values(compactions, ());
+        self.eval_error_prototype.sweep_values(compactions, ());
+        self.function.sweep_values(compactions, ());
+        self.function_prototype.sweep_values(compactions, ());
+        self.is_finite.sweep_values(compactions, ());
+        self.is_nan.sweep_values(compactions, ());
+        self.math.sweep_values(compactions, ());
+        self.number.sweep_values(compactions, ());
+        self.number_prototype.sweep_values(compactions, ());
+        self.object.sweep_values(compactions, ());
+        self.object_prototype.sweep_values(compactions, ());
+        self.object_prototype_to_string
+            .sweep_values(compactions, ());
+        self.range_error.sweep_values(compactions, ());
+        self.range_error_prototype.sweep_values(compactions, ());
+        self.reference_error.sweep_values(compactions, ());
+        self.reference_error_prototype.sweep_values(compactions, ());
+        self.reflect.sweep_values(compactions, ());
+        self.string.sweep_values(compactions, ());
+        self.string_prototype.sweep_values(compactions, ());
+        self.symbol.sweep_values(compactions, ());
+        self.symbol_prototype.sweep_values(compactions, ());
+        self.syntax_error.sweep_values(compactions, ());
+        self.syntax_error_prototype.sweep_values(compactions, ());
+        self.throw_type_error.sweep_values(compactions, ());
+        self.type_error.sweep_values(compactions, ());
+        self.type_error_prototype.sweep_values(compactions, ());
+        self.uri_error.sweep_values(compactions, ());
+        self.uri_error_prototype.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for ScriptIdentifier {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.scripts.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.scripts.get_shift_for_index(self_index));
+    }
+}
+
+impl HeapMarkAndSweep<()> for Script {
+    fn mark_values(&self, queues: &mut WorkQueues, data: impl BorrowMut<()>) {
+        self.realm.mark_values(queues, data);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, data: impl Borrow<()>) {
+        self.realm.sweep_values(compactions, data);
+    }
+}
+
+impl HeapMarkAndSweep<()> for ScriptOrModule {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        match self {
+            ScriptOrModule::Script(idx) => idx.mark_values(queues, ()),
+            ScriptOrModule::Module(idx) => idx.mark_values(queues, ()),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        match self {
+            ScriptOrModule::Script(idx) => idx.sweep_values(compactions, ()),
+            ScriptOrModule::Module(idx) => idx.sweep_values(compactions, ()),
+        }
+    }
+}
+
+impl HeapMarkAndSweep<()> for DeclarativeEnvironmentIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.declarative_environments.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(
+            self_index
+                - compactions
+                    .declarative_environments
+                    .get_shift_for_index(self_index),
+        );
+    }
+}
+
+impl HeapMarkAndSweep<()> for FunctionEnvironmentIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.function_environments.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(
+            self_index
+                - compactions
+                    .function_environments
+                    .get_shift_for_index(self_index),
+        );
+    }
+}
+
+impl HeapMarkAndSweep<()> for GlobalEnvironmentIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.global_environments.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(
+            self_index
+                - compactions
+                    .global_environments
+                    .get_shift_for_index(self_index),
+        );
+    }
+}
+
+impl HeapMarkAndSweep<()> for ObjectEnvironmentIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.object_environments.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(
+            self_index
+                - compactions
+                    .object_environments
+                    .get_shift_for_index(self_index),
+        );
+    }
+}
+
+impl HeapMarkAndSweep<()> for PrivateEnvironmentIndex {
+    fn mark_values(&self, _queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        todo!()
+    }
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists, _data: impl Borrow<()>) {
+        todo!()
+    }
+}
+
+impl HeapMarkAndSweep<()> for EnvironmentIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        match self {
+            EnvironmentIndex::Declarative(idx) => idx.mark_values(queues, ()),
+            EnvironmentIndex::Function(idx) => idx.mark_values(queues, ()),
+            EnvironmentIndex::Global(idx) => idx.mark_values(queues, ()),
+            EnvironmentIndex::Object(idx) => idx.mark_values(queues, ()),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        match self {
+            EnvironmentIndex::Declarative(idx) => idx.sweep_values(compactions, ()),
+            EnvironmentIndex::Function(idx) => idx.sweep_values(compactions, ()),
+            EnvironmentIndex::Global(idx) => idx.sweep_values(compactions, ()),
+            EnvironmentIndex::Object(idx) => idx.sweep_values(compactions, ()),
+        }
+    }
+}
+
+impl HeapMarkAndSweep<()> for DeclarativeEnvironment {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.outer_env.mark_values(queues, ());
+        for binding in self.bindings.values() {
+            binding.value.mark_values(queues, ());
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.outer_env.sweep_values(compactions, ());
+        for binding in self.bindings.values_mut() {
+            binding.value.sweep_values(compactions, ());
+        }
+    }
+}
+
+impl HeapMarkAndSweep<()> for FunctionEnvironment {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.declarative_environment.mark_values(queues, ());
+        self.function_object.mark_values(queues, ());
+        self.new_target.mark_values(queues, ());
+        self.this_value.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.declarative_environment.sweep_values(compactions, ());
+        self.function_object.sweep_values(compactions, ());
+        self.new_target.sweep_values(compactions, ());
+        self.this_value.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for GlobalEnvironment {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.declarative_record.mark_values(queues, ());
+        self.global_this_value.mark_values(queues, ());
+        self.object_record.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.declarative_record.sweep_values(compactions, ());
+        self.global_this_value.sweep_values(compactions, ());
+        self.object_record.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for ObjectEnvironment {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.outer_env.mark_values(queues, ());
+        self.binding_object.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.outer_env.sweep_values(compactions, ());
+        self.binding_object.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for PrivateEnvironment {
+    fn mark_values(&self, _queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        todo!()
+    }
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists, _data: impl Borrow<()>) {
+        todo!()
     }
 }

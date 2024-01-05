@@ -21,7 +21,7 @@ pub struct ObjectEnvironment {
     /// ### \[\[BindingObject\]\]
     ///
     /// The binding object of this Environment Record.
-    binding_object: Object,
+    pub(crate) binding_object: Object,
 
     /// ### \[\[IsWithEnvironment\]\]
     ///

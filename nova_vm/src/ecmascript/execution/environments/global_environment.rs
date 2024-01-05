@@ -21,7 +21,7 @@ pub struct GlobalEnvironment {
     /// bindings as well as FunctionDeclaration, GeneratorDeclaration,
     /// AsyncFunctionDeclaration, AsyncGeneratorDeclaration, and
     /// VariableDeclaration bindings in global code for the associated realm.
-    object_record: ObjectEnvironment,
+    pub(crate) object_record: ObjectEnvironment,
 
     /// ### \[\[GlobalThisValue\]\]
     ///

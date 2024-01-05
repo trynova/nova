@@ -26,35 +26,35 @@ pub enum ThisBindingStatus {
 /// also contains the state that is used to perform super method invocations
 /// from within the function.
 #[derive(Debug)]
-pub struct FunctionEnvironment {
+pub(crate) struct FunctionEnvironment {
     /// ### \[\[ThisValue\]\]
     ///
     /// This is the this value used for this invocation of the function.
-    this_value: Option<Value>,
+    pub(crate) this_value: Option<Value>,
 
     /// ### \[\[ThisBindingStatus\]\]
     ///
     /// If the value is LEXICAL, this is an ArrowFunction and does not have a
     /// local this value.
-    this_binding_status: ThisBindingStatus,
+    pub(crate) this_binding_status: ThisBindingStatus,
 
     /// ### \[\[FunctionObject\]\]
     ///
     /// The function object whose invocation caused this Environment Record to
     /// be created.
-    function_object: Function,
+    pub(crate) function_object: Function,
 
     /// ### \[\[NewTarget\]\]
     ///
     /// If this Environment Record was created by the \[\[Construct\]\] internal
     /// method, \[\[NewTarget\]\] is the value of the \[\[Construct\]\]
     /// newTarget parameter. Otherwise, its value is undefined.
-    new_target: Option<Object>,
+    pub(crate) new_target: Option<Object>,
 
     /// Function Environment Records support all of the Declarative Environment
     /// Record methods listed in Table 16 and share the same specifications for
     /// all of those methods except for HasThisBinding and HasSuperBinding.
-    declarative_environment: DeclarativeEnvironment,
+    pub(crate) declarative_environment: DeclarativeEnvironment,
 }
 
 impl std::ops::Deref for FunctionEnvironment {
