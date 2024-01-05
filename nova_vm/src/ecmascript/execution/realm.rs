@@ -156,7 +156,7 @@ pub(crate) fn create_intrinsics() -> Intrinsics {
 }
 
 /// 9.3.3 SetRealmGlobalObject ( realmRec, globalObj, thisValue ), https://tc39.es/ecma262/#sec-setrealmglobalobject
-pub(crate) fn set_realm_global_object(
+pub fn set_realm_global_object(
     agent: &mut Agent,
     realm_id: RealmIdentifier,
     global_object: Option<Object>,
