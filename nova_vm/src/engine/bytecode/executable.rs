@@ -44,7 +44,7 @@ impl Executable {
             function_expressions: Vec::new(),
         };
 
-        // SAFETY: Script uniquely owns the Program and it the body buffer does
+        // SAFETY: Script uniquely owns the Program and the body buffer does
         // not move under any circumstances during heap operations.
         let body: &[Statement] = unsafe {
             std::mem::transmute(

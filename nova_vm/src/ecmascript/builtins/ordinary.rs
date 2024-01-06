@@ -791,8 +791,7 @@ pub(crate) fn get_prototype_from_constructor(
     match Object::try_from(proto) {
         Err(_) => {
             // a. Let realm be ? GetFunctionRealm(constructor).
-            // SAFETY: Lifetimes are currently just badly guessed, meaningless lumps.
-            let realm = get_function_realm(unsafe { std::mem::transmute(agent) }, constructor)?;
+            let realm = get_function_realm(agent, constructor)?;
             // b. Set proto to realm's intrinsic object named intrinsicDefaultProto.
             Ok(realm
                 .intrinsics()

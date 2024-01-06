@@ -13,19 +13,19 @@ use std::collections::HashMap;
 /// VariableDeclarations, and Catch clauses that directly associate identifier
 /// bindings with ECMAScript language values.
 #[derive(Debug)]
-pub struct DeclarativeEnvironment {
+pub(crate) struct DeclarativeEnvironment {
     /// ### \[\[OuterEnv\]\]
     ///
     /// See [OuterEnv].
     pub(crate) outer_env: OuterEnv,
 
     /// The environment's bindings.
-    bindings: HashMap<Atom, Binding>,
+    pub(crate) bindings: HashMap<Atom, Binding>,
 }
 
 #[derive(Debug)]
-struct Binding {
-    value: Option<Value>,
+pub(crate) struct Binding {
+    pub(crate) value: Option<Value>,
     // TODO: Pack these into bitfields.
     strict: bool,
     mutable: bool,

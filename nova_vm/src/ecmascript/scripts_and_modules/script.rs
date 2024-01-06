@@ -17,7 +17,7 @@ use std::{any::Any, marker::PhantomData};
 
 pub type HostDefined = &'static mut dyn Any;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct ScriptIdentifier(u32, PhantomData<Script>);
 
 impl ScriptIdentifier {
@@ -30,6 +30,11 @@ impl ScriptIdentifier {
         Self(value as u32, PhantomData)
     }
 
+    /// Creates a module identififer from a u32.
+    pub(crate) const fn from_u32(value: u32) -> Self {
+        Self(value, PhantomData)
+    }
+
     pub(crate) fn last(scripts: &Vec<Option<Script>>) -> Self {
         let index = scripts.len() - 1;
         Self::from_index(index)
@@ -37,6 +42,10 @@ impl ScriptIdentifier {
 
     pub(crate) const fn into_index(self) -> usize {
         self.0 as usize
+    }
+
+    pub(crate) const fn into_u32(self) -> u32 {
+        self.0
     }
 }
 
@@ -75,6 +84,8 @@ pub struct Script {
     /// Parsing a script takes ownership of the text.
     source_text: Box<str>,
 }
+
+unsafe impl Send for Script {}
 
 pub type ScriptOrErrors = Result<Script, Vec<oxc_diagnostics::Error>>;
 
