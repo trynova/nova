@@ -12,7 +12,5 @@ pub(crate) use environments::{
     ObjectEnvironment, ObjectEnvironmentIndex, PrivateEnvironment, PrivateEnvironmentIndex,
 };
 pub(crate) use execution_context::{ECMAScriptCode, ExecutionContext};
-pub use realm::create_realm;
-#[allow(unused_imports)]
-pub(crate) use realm::{set_realm_global_object, Realm, RealmIdentifier};
-pub(crate) use realm::{Intrinsics, ProtoIntrinsics};
+pub use realm::{create_realm, set_realm_global_object};
+pub(crate) use realm::{Intrinsics, ProtoIntrinsics, Realm, RealmIdentifier};

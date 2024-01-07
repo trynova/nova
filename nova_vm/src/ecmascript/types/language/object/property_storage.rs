@@ -82,12 +82,12 @@ impl PropertyStorage {
                     .iter()
                     .enumerate()
                     .find(|(_, element_key)| {
-                        PropertyKey::try_from(element_key.unwrap()).clone().unwrap() == key
+                        PropertyKey::try_from(element_key.unwrap()).unwrap() == key
                     })
                     .map(|res| res.0);
                 let values = agent.heap.elements.get(values);
                 result.map(|index| PropertyDescriptor {
-                    value: values.get(index).unwrap().clone(),
+                    value: *values.get(index).unwrap(),
                     configurable: Some(true),
                     enumerable: Some(true),
                     get: None,
@@ -113,7 +113,7 @@ impl PropertyStorage {
                     .iter()
                     .enumerate()
                     .find(|(_, element_key)| {
-                        PropertyKey::try_from(element_key.unwrap()).clone().unwrap() == property_key
+                        PropertyKey::try_from(element_key.unwrap()).unwrap() == property_key
                     })
                     .map(|res| res.0);
                 if let Some(index) = result {

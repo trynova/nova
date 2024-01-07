@@ -951,7 +951,6 @@ impl ElementArrays {
                 .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize],
-            _ => unreachable!(),
         }
     }
 
@@ -1021,7 +1020,6 @@ impl ElementArrays {
                 .as_mut()
                 .unwrap()
                 .as_mut_slice()[0..vector.len as usize],
-            _ => unreachable!(),
         }
     }
 

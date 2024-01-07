@@ -15,7 +15,7 @@ use super::{
 use crate::{
     ecmascript::{
         builtins::{Array, ArrayBuffer},
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{Agent, JsResult},
         types::PropertyDescriptor,
     },
     heap::{
