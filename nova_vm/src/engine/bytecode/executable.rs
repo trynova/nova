@@ -401,9 +401,9 @@ impl Compile for ast::ObjectExpression<'_> {
                         ast::PropertyKey::Identifier(id) => {
                             // TODO: If property key is __proto__ and it is not a shorthand ({ __proto__ })
                             // then we should dispatch a SetPrototype instruction.
-                            let property_key = String::from_str(&mut ctx.agent, &id.name.as_str());
+                            let property_key = String::from_str(ctx.agent, id.name.as_str());
                             let property_key =
-                                to_property_key(&mut ctx.agent, property_key.into()).unwrap();
+                                to_property_key(ctx.agent, property_key.into()).unwrap();
                             ctx.exe.add_instruction_with_constant(
                                 Instruction::StoreConstant,
                                 property_key,
