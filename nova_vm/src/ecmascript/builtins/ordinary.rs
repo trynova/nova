@@ -1,6 +1,6 @@
 use crate::ecmascript::{
     abstract_operations::{
-        operations_on_objects::{get, get_function_realm},
+        operations_on_objects::{create_data_property, get, get_function_realm, make_basic_object},
         testing_and_comparison::same_value,
     },
     execution::{Agent, JsResult, ProtoIntrinsics},
@@ -221,9 +221,8 @@ pub(crate) fn ordinary_get_own_property(
 
         // b. Set D.[[Writable]] to the value of X's [[Writable]] attribute.
         descriptor.writable = x.writable;
-    }
-    // 5. Else,
-    else {
+    } else {
+        // 5. Else,
         // a. Assert: X is an accessor property.
         debug_assert!(x.is_accessor_descriptor());
 
@@ -673,7 +672,7 @@ pub(crate) fn ordinary_set_with_own_descriptor(
             debug_assert!(!receiver.property_storage().has(agent, property_key));
 
             // ii. Return ? CreateDataProperty(Receiver, P, V).
-            return receiver.create_data_property(agent, property_key, value);
+            return create_data_property(agent, receiver, property_key, value);
         }
     }
 
@@ -764,6 +763,50 @@ pub(crate) fn ordinary_own_property_keys(
 
     // 5. Return keys.
     Ok(keys)
+}
+
+/// ## [10.1.12 OrdinaryObjectCreate ( proto \[ , additionalInternalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinaryobjectcreate)
+///
+/// The abstract operation OrdinaryObjectCreate takes argument proto (an Object
+/// or null) and optional argument additionalInternalSlotsList (a List of names
+/// of internal slots) and returns an Object. It is used to specify the runtime
+/// creation of new ordinary objects. additionalInternalSlotsList contains the
+/// names of additional internal slots that must be defined as part of the
+/// object, beyond [[Prototype]] and [[Extensible]]. If
+/// additionalInternalSlotsList is not provided, a new empty List is used.
+///
+/// > NOTE: Although OrdinaryObjectCreate does little more than call
+/// MakeBasicObject, its use communicates the intention to create an ordinary
+/// object, and not an exotic one. Thus, within this specification, it is not
+/// called by any algorithm that subsequently modifies the internal methods of
+/// the object in ways that would make the result non-ordinary. Operations that
+/// create exotic objects invoke MakeBasicObject directly.
+pub(crate) fn ordinary_object_create_with_intrinsics(
+    agent: &mut Agent,
+    prototype: Option<ProtoIntrinsics>,
+) -> Object {
+    let Some(prototype) = prototype else {
+        return agent.heap.create_null_object(vec![]).into();
+    };
+
+    match prototype {
+        ProtoIntrinsics::Array => todo!(),
+        ProtoIntrinsics::ArrayBuffer => todo!(),
+        ProtoIntrinsics::BigInt => todo!(),
+        ProtoIntrinsics::Boolean => todo!(),
+        ProtoIntrinsics::Error => todo!(),
+        ProtoIntrinsics::EvalError => todo!(),
+        ProtoIntrinsics::Function => todo!(),
+        ProtoIntrinsics::Number => todo!(),
+        ProtoIntrinsics::Object => agent.heap.create_object(vec![]).into(),
+        ProtoIntrinsics::RangeError => todo!(),
+        ProtoIntrinsics::ReferenceError => todo!(),
+        ProtoIntrinsics::String => todo!(),
+        ProtoIntrinsics::Symbol => todo!(),
+        ProtoIntrinsics::SyntaxError => todo!(),
+        ProtoIntrinsics::TypeError => todo!(),
+        ProtoIntrinsics::UriError => todo!(),
+    }
 }
 
 /// ### [10.1.14 GetPrototypeFromConstructor ( constructor, intrinsicDefaultProto )](https://tc39.es/ecma262/#sec-getprototypefromconstructor)

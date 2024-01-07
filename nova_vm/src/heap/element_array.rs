@@ -52,9 +52,126 @@ impl From<usize> for ElementArrayKey {
 
 #[derive(Debug, Clone, Copy)]
 pub struct ElementsVector {
-    pub elements_index: ElementIndex,
-    pub cap: ElementArrayKey,
-    pub len: u32,
+    pub(crate) elements_index: ElementIndex,
+    pub(crate) cap: ElementArrayKey,
+    pub(crate) len: u32,
+}
+
+impl ElementsVector {
+    pub fn cap(&self) -> u32 {
+        match self.cap {
+            ElementArrayKey::E4 => 2u32.pow(4),
+            ElementArrayKey::E6 => 2u32.pow(6),
+            ElementArrayKey::E8 => 2u32.pow(8),
+            ElementArrayKey::E10 => 2u32.pow(10),
+            ElementArrayKey::E12 => 2u32.pow(12),
+            ElementArrayKey::E16 => 2u32.pow(16),
+            ElementArrayKey::E24 => 2u32.pow(24),
+            ElementArrayKey::E32 => 2u32.pow(32),
+        }
+    }
+
+    pub fn len(&self) -> u32 {
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.len == self.cap()
+    }
+
+    pub fn push(
+        &mut self,
+        elements: &mut ElementArrays,
+        value: Option<Value>,
+        descriptor: Option<ElementDescriptor>,
+    ) {
+        if self.is_full() {
+            todo!("Grow ElementsVector");
+        }
+        let next_over_end = match self.cap {
+            ElementArrayKey::E4 => elements
+                .e2pow4
+                .values
+                .get_mut(self.elements_index.into_index())
+                .expect("Invalid ElementsVector: No item at index")
+                .as_mut()
+                .expect("Invalid ElementsVector: Found None at index")
+                .get_mut(self.len as usize)
+                .expect("Invalid ElementsVector: Length points beyond vector bounds"),
+            ElementArrayKey::E6 => elements
+                .e2pow6
+                .values
+                .get_mut(self.elements_index.into_index())
+                .expect("Invalid ElementsVector: No item at index")
+                .as_mut()
+                .expect("Invalid ElementsVector: Found None at index")
+                .get_mut(self.len as usize)
+                .expect("Invalid ElementsVector: Length points beyond vector bounds"),
+            ElementArrayKey::E8 => elements
+                .e2pow8
+                .values
+                .get_mut(self.elements_index.into_index())
+                .expect("Invalid ElementsVector: No item at index")
+                .as_mut()
+                .expect("Invalid ElementsVector: Found None at index")
+                .get_mut(self.len as usize)
+                .expect("Invalid ElementsVector: Length points beyond vector bounds"),
+            ElementArrayKey::E10 => elements
+                .e2pow10
+                .values
+                .get_mut(self.elements_index.into_index())
+                .expect("Invalid ElementsVector: No item at index")
+                .as_mut()
+                .expect("Invalid ElementsVector: Found None at index")
+                .get_mut(self.len as usize)
+                .expect("Invalid ElementsVector: Length points beyond vector bounds"),
+            ElementArrayKey::E12 => elements
+                .e2pow12
+                .values
+                .get_mut(self.elements_index.into_index())
+                .expect("Invalid ElementsVector: No item at index")
+                .as_mut()
+                .expect("Invalid ElementsVector: Found None at index")
+                .get_mut(self.len as usize)
+                .expect("Invalid ElementsVector: Length points beyond vector bounds"),
+            ElementArrayKey::E16 => elements
+                .e2pow16
+                .values
+                .get_mut(self.elements_index.into_index())
+                .expect("Invalid ElementsVector: No item at index")
+                .as_mut()
+                .expect("Invalid ElementsVector: Found None at index")
+                .get_mut(self.len as usize)
+                .expect("Invalid ElementsVector: Length points beyond vector bounds"),
+            ElementArrayKey::E24 => elements
+                .e2pow24
+                .values
+                .get_mut(self.elements_index.into_index())
+                .expect("Invalid ElementsVector: No item at index")
+                .as_mut()
+                .expect("Invalid ElementsVector: Found None at index")
+                .get_mut(self.len as usize)
+                .expect("Invalid ElementsVector: Length points beyond vector bounds"),
+            ElementArrayKey::E32 => elements
+                .e2pow32
+                .values
+                .get_mut(self.elements_index.into_index())
+                .expect("Invalid ElementsVector: No item at index")
+                .as_mut()
+                .expect("Invalid ElementsVector: Found None at index")
+                .get_mut(self.len as usize)
+                .expect("Invalid ElementsVector: Length points beyond vector bounds"),
+        };
+        *next_over_end = value;
+        if let Some(_descriptor) = descriptor {
+            todo!("Descriptors");
+        }
+        self.len += 1;
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -768,65 +885,144 @@ impl ElementArrays {
         )
     }
 
-    pub fn get(&self, _vector: ElementsVector) {
-        // match vector.cap {
-        //     ElementArrayKey::E4 => &self
-        //         .e2pow4
-        //         .values
-        //         .get(vector.elements_index.into_index())
-        //         .unwrap()
-        //         .unwrap()
-        //         .as_slice()[0..vector.len as usize],
-        //     ElementArrayKey::E6 => &self
-        //         .e2pow6
-        //         .values
-        //         .get(vector.elements_index.into_index())
-        //         .unwrap()
-        //         .unwrap()
-        //         .as_slice()[0..vector.len as usize],
-        //     ElementArrayKey::E8 => &self
-        //         .e2pow8
-        //         .values
-        //         .get(vector.elements_index.into_index())
-        //         .unwrap()
-        //         .unwrap()
-        //         .as_slice()[0..vector.len as usize],
-        //     ElementArrayKey::E10 => &self
-        //         .e2pow10
-        //         .values
-        //         .get(vector.elements_index.into_index())
-        //         .unwrap()
-        //         .unwrap()
-        //         .as_slice()[0..vector.len as usize],
-        //     ElementArrayKey::E12 => &self
-        //         .e2pow12
-        //         .values
-        //         .get(vector.elements_index.into_index())
-        //         .unwrap()
-        //         .unwrap()
-        //         .as_slice()[0..vector.len as usize],
-        //     ElementArrayKey::E16 => &self
-        //         .e2pow16
-        //         .values
-        //         .get(vector.elements_index.into_index())
-        //         .unwrap()
-        //         .unwrap()
-        //         .as_slice()[0..vector.len as usize],
-        //     ElementArrayKey::E24 => &self
-        //         .e2pow24
-        //         .values
-        //         .get(vector.elements_index.into_index())
-        //         .unwrap()
-        //         .unwrap()
-        //         .as_slice()[0..vector.len as usize],
-        //     ElementArrayKey::E32 => &self
-        //         .e2pow32
-        //         .values
-        //         .get(vector.elements_index.into_index())
-        //         .unwrap()
-        //         .unwrap()
-        //         .as_slice()[0..vector.len as usize],
-        //     _ => unreachable!(),
+    pub fn get(&self, vector: ElementsVector) -> &[Option<Value>] {
+        match vector.cap {
+            ElementArrayKey::E4 => &self
+                .e2pow4
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .as_slice()[0..vector.len as usize],
+            ElementArrayKey::E6 => &self
+                .e2pow6
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .as_slice()[0..vector.len as usize],
+            ElementArrayKey::E8 => &self
+                .e2pow8
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .as_slice()[0..vector.len as usize],
+            ElementArrayKey::E10 => &self
+                .e2pow10
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .as_slice()[0..vector.len as usize],
+            ElementArrayKey::E12 => &self
+                .e2pow12
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .as_slice()[0..vector.len as usize],
+            ElementArrayKey::E16 => &self
+                .e2pow16
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .as_slice()[0..vector.len as usize],
+            ElementArrayKey::E24 => &self
+                .e2pow24
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .as_slice()[0..vector.len as usize],
+            ElementArrayKey::E32 => &self
+                .e2pow32
+                .values
+                .get(vector.elements_index.into_index())
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .as_slice()[0..vector.len as usize],
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn get_mut(&mut self, vector: ElementsVector) -> &mut [Option<Value>] {
+        match vector.cap {
+            ElementArrayKey::E4 => &mut self
+                .e2pow4
+                .values
+                .get_mut(vector.elements_index.into_index())
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .as_mut_slice()[0..vector.len as usize],
+            ElementArrayKey::E6 => &mut self
+                .e2pow6
+                .values
+                .get_mut(vector.elements_index.into_index())
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .as_mut_slice()[0..vector.len as usize],
+            ElementArrayKey::E8 => &mut self
+                .e2pow8
+                .values
+                .get_mut(vector.elements_index.into_index())
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .as_mut_slice()[0..vector.len as usize],
+            ElementArrayKey::E10 => &mut self
+                .e2pow10
+                .values
+                .get_mut(vector.elements_index.into_index())
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .as_mut_slice()[0..vector.len as usize],
+            ElementArrayKey::E12 => &mut self
+                .e2pow12
+                .values
+                .get_mut(vector.elements_index.into_index())
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .as_mut_slice()[0..vector.len as usize],
+            ElementArrayKey::E16 => &mut self
+                .e2pow16
+                .values
+                .get_mut(vector.elements_index.into_index())
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .as_mut_slice()[0..vector.len as usize],
+            ElementArrayKey::E24 => &mut self
+                .e2pow24
+                .values
+                .get_mut(vector.elements_index.into_index())
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .as_mut_slice()[0..vector.len as usize],
+            ElementArrayKey::E32 => &mut self
+                .e2pow32
+                .values
+                .get_mut(vector.elements_index.into_index())
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .as_mut_slice()[0..vector.len as usize],
+            _ => unreachable!(),
+        }
     }
 
     pub fn has(&self, vector: ElementsVector, element: Value) -> bool {
