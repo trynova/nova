@@ -3,7 +3,7 @@ use crate::{
         builtins::{Behaviour, ECMAScriptFunction},
         types::Value,
     },
-    heap::indexes::ObjectIndex,
+    heap::{element_array::ElementsVector, indexes::ObjectIndex},
 };
 
 use super::Function;
@@ -13,6 +13,7 @@ pub struct BoundFunctionHeapData {
     pub(crate) object_index: Option<ObjectIndex>,
     pub(crate) function: Function,
     pub(crate) length: u8,
+    pub(crate) bound_values: ElementsVector,
 }
 
 #[derive(Debug, Clone)]
@@ -31,3 +32,5 @@ pub struct ECMAScriptFunctionHeapData {
     pub(crate) initial_name: Value,
     pub(crate) ecmascript_function: ECMAScriptFunction,
 }
+
+unsafe impl Send for ECMAScriptFunctionHeapData {}

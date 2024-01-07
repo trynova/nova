@@ -14,10 +14,12 @@ pub(crate) enum InternalBuffer {
 
 #[derive(Debug)]
 pub struct ArrayBufferHeapData {
-    pub(super) object_index: Option<ObjectIndex>,
+    pub(crate) object_index: Option<ObjectIndex>,
     pub(super) buffer: InternalBuffer,
     // detach_key
 }
+
+unsafe impl Send for ArrayBufferHeapData {}
 
 impl ArrayBufferHeapData {
     pub(crate) fn new_resizable(db: DataBlock) -> Self {

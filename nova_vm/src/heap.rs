@@ -117,15 +117,31 @@ macro_rules! impl_heap_data {
     ($table: ident, $in: ty, $out: ty) => {
         impl<'a> GetHeapData<'a, $in, $out> for Heap {
             fn get(&'a self, id: BaseIndex<$in>) -> &'a $out {
-                self.$table.get(id.into_index()).unwrap().as_ref().unwrap()
+                self.$table
+                    .get(id.into_index())
+                    .expect(&format!(
+                        "Invalid HeapIndex for Heap::get ({:#?}): Index is out of bounds",
+                        id
+                    ))
+                    .as_ref()
+                    .expect(&format!(
+                        "Invalid HeapIndex for Heap::get ({:#?}): No item at index",
+                        id
+                    ))
             }
 
             fn get_mut(&'a mut self, id: BaseIndex<$in>) -> &'a mut $out {
                 self.$table
                     .get_mut(id.into_index())
-                    .unwrap()
+                    .expect(&format!(
+                        "Invalid HeapIndex Heap::get_mut ({:#?}): Index is out of bounds",
+                        id
+                    ))
                     .as_mut()
-                    .unwrap()
+                    .expect(&format!(
+                        "Invalid HeapIndex Heap::get_mut ({:#?}): No item at index",
+                        id
+                    ))
             }
         }
     };
@@ -136,9 +152,15 @@ macro_rules! impl_heap_data {
                     .$table
                     .get(id.into_index())
                     .as_ref()
-                    .unwrap()
+                    .expect(&format!(
+                        "Invalid HeapIndex Heap::get ({:#?}): Index is out of bounds",
+                        id
+                    ))
                     .as_ref()
-                    .unwrap()
+                    .expect(&format!(
+                        "Invalid HeapIndex Heap::get ({:#?}): No item at index",
+                        id
+                    ))
                     .$accessor
             }
 
@@ -146,9 +168,15 @@ macro_rules! impl_heap_data {
                 &mut self
                     .$table
                     .get_mut(id.into_index())
-                    .unwrap()
+                    .expect(&format!(
+                        "Invalid HeapIndex Heap::get_mut ({:#?}): Index is out of bounds",
+                        id
+                    ))
                     .as_mut()
-                    .unwrap()
+                    .expect(&format!(
+                        "Invalid HeapIndex Heap::get_mut ({:#?}): No item at index",
+                        id
+                    ))
                     .$accessor
             }
         }

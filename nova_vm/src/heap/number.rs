@@ -24,7 +24,7 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "isSafeInteger", 1, false),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MAX_SAFE_INTEGER"),
-            PropertyDescriptor::roh(Number::try_from(SmallInteger::MAX_NUMBER).unwrap().into()),
+            PropertyDescriptor::roh(Number::from(SmallInteger::MAX_NUMBER).into()),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MAX_VALUE"),
@@ -32,7 +32,7 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MIN_SAFE_INTEGER"),
-            PropertyDescriptor::roh(Number::try_from(SmallInteger::MIN_NUMBER).unwrap().into()),
+            PropertyDescriptor::roh(Number::from(SmallInteger::MIN_NUMBER).into()),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MIN_VALUE"),

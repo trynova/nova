@@ -17,7 +17,7 @@ use std::{any::Any, marker::PhantomData};
 
 pub type HostDefined = &'static mut dyn Any;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct ScriptIdentifier(u32, PhantomData<Script>);
 
 impl ScriptIdentifier {
@@ -30,6 +30,11 @@ impl ScriptIdentifier {
         Self(value as u32, PhantomData)
     }
 
+    /// Creates a module identififer from a u32.
+    pub(crate) const fn from_u32(value: u32) -> Self {
+        Self(value, PhantomData)
+    }
+
     pub(crate) fn last(scripts: &Vec<Option<Script>>) -> Self {
         let index = scripts.len() - 1;
         Self::from_index(index)
@@ -37,6 +42,10 @@ impl ScriptIdentifier {
 
     pub(crate) const fn into_index(self) -> usize {
         self.0 as usize
+    }
+
+    pub(crate) const fn into_u32(self) -> u32 {
+        self.0
     }
 }
 
@@ -75,6 +84,8 @@ pub struct Script {
     /// Parsing a script takes ownership of the text.
     source_text: Box<str>,
 }
+
+unsafe impl Send for Script {}
 
 pub type ScriptOrErrors = Result<Script, Vec<oxc_diagnostics::Error>>;
 
@@ -355,7 +366,7 @@ mod test {
             agent::Options, create_realm, set_realm_global_object, Agent, DefaultHostHooks,
         },
         scripts_and_modules::script::{parse_script, script_evaluation},
-        types::Value,
+        types::{InternalMethods, Object, PropertyKey, Value},
     };
     use oxc_allocator::Allocator;
 
@@ -490,6 +501,43 @@ mod test {
         let script = parse_script(&allocator, "var foo = 3;".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Undefined);
+    }
+
+    #[test]
+    fn empty_object() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(&allocator, "var foo = {};".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert!(result.is_object());
+    }
+
+    #[test]
+    fn non_empty_object() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(&allocator, "var foo = { a: 3 };".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert!(result.is_object());
+        let result = Object::try_from(result).unwrap();
+        let key = PropertyKey::from_str(&mut agent.heap, "a");
+        assert!(result.has_property(&mut agent, key).unwrap());
+        assert_eq!(
+            result
+                .get_own_property(&mut agent, key)
+                .unwrap()
+                .unwrap()
+                .value,
+            Some(Value::from(3))
+        );
     }
 
     #[test]

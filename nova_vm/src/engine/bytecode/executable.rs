@@ -1,9 +1,10 @@
 use super::Instruction;
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::to_property_key,
         execution::Agent,
         scripts_and_modules::script::ScriptIdentifier,
-        types::{BigIntHeapData, Reference, Value},
+        types::{BigIntHeapData, Reference, String, Value},
     },
     heap::CreateHeapData,
 };
@@ -44,7 +45,7 @@ impl Executable {
             function_expressions: Vec::new(),
         };
 
-        // SAFETY: Script uniquely owns the Program and it the body buffer does
+        // SAFETY: Script uniquely owns the Program and the body buffer does
         // not move under any circumstances during heap operations.
         let body: &[Statement] = unsafe {
             std::mem::transmute(
@@ -389,6 +390,43 @@ impl Compile for ast::Function<'_> {
     }
 }
 
+impl Compile for ast::ObjectExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        // TODO: Consider preparing the size of the object here.
+        ctx.exe.add_instruction(Instruction::ObjectCreate);
+        for property in self.properties.iter() {
+            match property {
+                ast::ObjectPropertyKind::ObjectProperty(prop) => {
+                    match &prop.key {
+                        ast::PropertyKey::Identifier(id) => {
+                            // TODO: If property key is __proto__ and it is not a shorthand ({ __proto__ })
+                            // then we should dispatch a SetPrototype instruction.
+                            let property_key = String::from_str(&mut ctx.agent, &id.name.as_str());
+                            let property_key =
+                                to_property_key(&mut ctx.agent, property_key.into()).unwrap();
+                            ctx.exe.add_instruction_with_constant(
+                                Instruction::StoreConstant,
+                                property_key,
+                            );
+                            ctx.exe.add_instruction(Instruction::Load);
+                        }
+                        ast::PropertyKey::PrivateIdentifier(_) => todo!(),
+                        ast::PropertyKey::Expression(_) => todo!(),
+                    }
+
+                    prop.value.compile(ctx);
+
+                    ctx.exe.add_instruction(Instruction::Load);
+                    ctx.exe.add_instruction(Instruction::ObjectSetProperty);
+                }
+                ast::ObjectPropertyKind::SpreadProperty(_) => {
+                    todo!("...spread not yet implemented")
+                }
+            }
+        }
+    }
+}
+
 impl Compile for ast::Expression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
@@ -403,6 +441,7 @@ impl Compile for ast::Expression<'_> {
             ast::Expression::NullLiteral(x) => x.compile(ctx),
             ast::Expression::StringLiteral(x) => x.compile(ctx),
             ast::Expression::FunctionExpression(x) => x.compile(ctx),
+            ast::Expression::ObjectExpression(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }

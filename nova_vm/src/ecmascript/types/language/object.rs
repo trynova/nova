@@ -157,52 +157,6 @@ impl Object {
     pub fn property_storage(self) -> PropertyStorage {
         PropertyStorage::new(self)
     }
-
-    /// /// 7.3.9 DefinePropertyOrThrow ( O, P, desc )
-    /// https://tc39.es/ecma262/#sec-definepropertyorthrow
-    pub fn define_property_or_throw(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
-    ) -> JsResult<()> {
-        // 1. Let success be ? O.[[DefineOwnProperty]](P, desc).
-        let success = self.define_own_property(agent, property_key, property_descriptor)?;
-
-        // 2. If success is false, throw a TypeError exception.
-        if !success {
-            return Err(agent.throw_exception(
-                ExceptionType::TypeError,
-                "Cannot assign to property on object.",
-            ));
-        }
-
-        // 3. Return unused.
-        Ok(())
-    }
-
-    /// 7.3.5 CreateDataProperty ( O, P, V )
-    /// https://tc39.es/ecma262/#sec-createdataproperty
-    pub fn create_data_property(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-    ) -> JsResult<bool> {
-        // 1. Let newDesc be the PropertyDescriptor {
-        //      [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: true
-        //    }.
-        let new_descriptor = PropertyDescriptor {
-            value: Some(value),
-            writable: Some(true),
-            enumerable: Some(true),
-            configurable: Some(true),
-            ..Default::default()
-        };
-
-        // 2. Return ? O.[[DefineOwnProperty]](P, newDesc).
-        self.define_own_property(agent, property_key, new_descriptor)
-    }
 }
 
 impl OrdinaryObjectInternalSlots for Object {
