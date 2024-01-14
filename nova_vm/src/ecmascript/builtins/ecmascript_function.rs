@@ -5,9 +5,15 @@ use oxc_span::Span;
 
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::to_object,
         execution::{
-            agent::{get_active_script_or_module, ExceptionType::SyntaxError},
-            Agent, EnvironmentIndex, JsResult, PrivateEnvironmentIndex, RealmIdentifier,
+            agent::{
+                get_active_script_or_module,
+                ExceptionType::{self, SyntaxError},
+            },
+            new_function_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
+            ExecutionContext, JsResult, PrivateEnvironmentIndex, RealmIdentifier,
+            ThisBindingStatus,
         },
         scripts_and_modules::ScriptOrModule,
         types::{ECMAScriptFunctionHeapData, Function, Object, Value},
@@ -15,13 +21,15 @@ use crate::{
     heap::CreateHeapData,
 };
 
+use super::ArgumentsList;
+
 #[derive(Debug, Clone, Copy)]
 pub enum ConstructorKind {
     Base,
     Derived,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ThisMode {
     Lexical,
     Strict,
@@ -83,6 +91,226 @@ pub(crate) struct OrdinaryFunctionCreateParams<'program> {
     pub this_mode: ThisMode,
     pub env: EnvironmentIndex,
     pub private_env: Option<PrivateEnvironmentIndex>,
+}
+
+impl ECMAScriptFunction {
+    /// ### [10.2.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-call)
+    ///
+    /// The \[\[Call]] internal method of an ECMAScript function object `F`
+    /// takes arguments `thisArgument` (an ECMAScript language value) and
+    /// `argumentsList` (a List of ECMAScript language values) and returns
+    /// either a normal completion containing an ECMAScript language value or a
+    /// throw completion.
+    pub(crate) fn call(
+        &self,
+        agent: &mut Agent,
+        f: Function,
+        this_argument: Value,
+        arguments_list: ArgumentsList<'_>,
+    ) -> JsResult<Value> {
+        // 1. Let callerContext be the running execution context.
+        let _ = agent.running_execution_context();
+        // 2. Let calleeContext be PrepareForOrdinaryCall(F, undefined).
+        let callee_context = prepare_for_ordinary_call(agent, f, self, None);
+        // 3. Assert: calleeContext is now the running execution context.
+        // assert!(std::ptr::eq(agent.running_execution_context(), callee_context));
+        // 4. If F.[[IsClassConstructor]] is true, then
+        if self.is_class_constructor {
+            // a. Let error be a newly created TypeError object.
+            // b. NOTE: error is created in calleeContext with F's associated Realm Record.
+            let error = agent.throw_exception(ExceptionType::TypeError, "fail");
+            // c. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
+            agent.execution_context_stack.pop();
+            // d. Return ThrowCompletion(error).
+            return Err(error);
+        }
+        // 5. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
+        // Note: "4. Let localEnv be the LexicalEnvironment of calleeContext."
+        let local_env = callee_context
+            .ecmascript_code
+            .as_ref()
+            .unwrap()
+            .lexical_environment;
+        ordinary_call_bind_this(agent, self, local_env, this_argument);
+        // 6. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
+        let result = ordinary_call_evaluate_body(agent, self, arguments_list);
+        // 7. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
+        // NOTE: calleeContext must not be destroyed if it is suspended and retained for later resumption by an accessible Generator.
+        agent.execution_context_stack.pop();
+        // 8. If result is a return completion, return result.[[Value]].
+        // 9. ReturnIfAbrupt(result).
+        // 10. Return undefined.
+        result
+    }
+}
+
+/// ### [10.2.1.1 PrepareForOrdinaryCall ( F, newTarget )](https://tc39.es/ecma262/#sec-prepareforordinarycall)
+///
+/// The abstract operation PrepareForOrdinaryCall takes arguments `F` (an
+/// ECMAScript function object) and newTarget (an Object or undefined) and
+/// returns an execution context.
+pub(crate) fn prepare_for_ordinary_call<'a>(
+    agent: &'a mut Agent,
+    f: Function,
+    ecmascript_function_object: &ECMAScriptFunction,
+    new_target: Option<Object>,
+) -> &'a ExecutionContext {
+    // 1. Let callerContext be the running execution context.
+    let _caller_context = agent.running_execution_context();
+    // 4. Let calleeRealm be F.[[Realm]].
+    let callee_realm = ecmascript_function_object.realm;
+    // 7. Let localEnv be NewFunctionEnvironment(F, newTarget).
+    let local_env = new_function_environment(agent, f, ecmascript_function_object, new_target);
+    // 2. Let calleeContext be a new ECMAScript code execution context.
+    let callee_context = ExecutionContext {
+        // 8. Set the LexicalEnvironment of calleeContext to localEnv.
+        // 9. Set the VariableEnvironment of calleeContext to localEnv.
+        // 10. Set the PrivateEnvironment of calleeContext to F.[[PrivateEnvironment]].
+        ecmascript_code: Some(ECMAScriptCodeEvaluationState {
+            lexical_environment: EnvironmentIndex::Function(local_env),
+            variable_environment: EnvironmentIndex::Function(local_env),
+            private_environment: ecmascript_function_object.private_environment,
+        }),
+        // 3. Set the Function of calleeContext to F.
+        function: Some(f),
+        // 5. Set the Realm of calleeContext to calleeRealm.
+        realm: callee_realm,
+        // 6. Set the ScriptOrModule of calleeContext to F.[[ScriptOrModule]].
+        script_or_module: Some(ecmascript_function_object.script_or_module),
+    };
+    // 11. If callerContext is not already suspended, suspend callerContext.
+    // 12. Push calleeContext onto the execution context stack; calleeContext is now the running execution context.
+    agent.execution_context_stack.push(callee_context);
+    // 13. NOTE: Any exception objects produced after this point are associated with calleeRealm.
+    // 14. Return calleeContext.
+    agent.execution_context_stack.last().unwrap()
+}
+
+/// ### [10.2.1.2 OrdinaryCallBindThis ( F, calleeContext, thisArgument )]()
+/// The abstract operation OrdinaryCallBindThis takes arguments `F` (an
+/// ECMAScript function object), calleeContext (an execution context), and
+/// `thisArgument` (an ECMAScript language value) and returns UNUSED.
+///
+/// NOTE: calleeContext is replaced by localEnv which is the only thing it is
+/// truly used for.
+pub(crate) fn ordinary_call_bind_this(
+    agent: &mut Agent,
+    f: &ECMAScriptFunction,
+    local_env: EnvironmentIndex,
+    this_argument: Value,
+) {
+    // 1. Let thisMode be F.[[ThisMode]].
+    let this_mode = f.this_mode;
+    // 2. If thisMode is LEXICAL, return UNUSED.
+    if this_mode == ThisMode::Lexical {
+        return;
+    }
+    // 3. Let calleeRealm be F.[[Realm]].
+    let callee_realm = f.realm;
+    // 4. Let localEnv be the LexicalEnvironment of calleeContext.
+    // 5. If thisMode is STRICT, then
+    let this_value = if this_mode == ThisMode::Strict {
+        // a. Let thisValue be thisArgument.
+        this_argument
+    } else {
+        // 6. Else,
+        // a. If thisArgument is either undefined or null, then
+        if this_argument == Value::Undefined || this_argument == Value::Null {
+            // i. Let globalEnv be calleeRealm.[[GlobalEnv]].
+            let global_env = agent.get_realm(callee_realm).global_env;
+            // ii. Assert: globalEnv is a Global Environment Record.
+            let global_env = global_env.unwrap();
+            // iii. Let thisValue be globalEnv.[[GlobalThisValue]].
+            agent
+                .heap
+                .environments
+                .get_global_environment(global_env)
+                .global_this_value
+                .into_value()
+        } else {
+            // b. Else,
+            // i. Let thisValue be ! ToObject(thisArgument).
+            to_object(agent, this_argument).unwrap().into_value()
+            // ii. NOTE: ToObject produces wrapper objects using calleeRealm.
+        }
+    };
+    // 7. Assert: localEnv is a Function Environment Record.
+    let EnvironmentIndex::Function(local_env) = local_env else {
+        panic!("localEnv is not a Function Environment Record");
+    };
+    // 8. Assert: The next step never returns an abrupt completion because localEnv.[[ThisBindingStatus]] is not INITIALIZED.
+    assert_ne!(
+        agent
+            .heap
+            .environments
+            .get_function_environment(local_env)
+            .this_binding_status,
+        ThisBindingStatus::Initialized
+    );
+    // 9. Perform ! localEnv.BindThisValue(thisValue).
+    agent
+        .heap
+        .environments
+        .get_function_environment_mut(local_env)
+        .bind_this_value(this_value)
+        .unwrap();
+    // 10. Return UNUSED.
+}
+
+/// ### [10.2.1.3 Runtime Semantics: EvaluateBody]()
+/// The syntax-directed operation EvaluateBody takes arguments `functionObject`
+/// (an ECMAScript function object) and `argumentsList` (a List of ECMAScript
+/// language values) and returns either a normal completion containing an
+/// ECMAScript language value or an abrupt completion. It is defined piecewise
+/// over the following productions:
+pub(crate) fn evaluate_body(
+    _agent: &mut Agent,
+    _function_object: &ECMAScriptFunction,
+    _arguments_list: ArgumentsList,
+) -> JsResult<Value> {
+    todo!()
+    // FunctionBody : FunctionStatementList
+    // 1. Return ? EvaluateFunctionBody of FunctionBody with arguments functionObject and argumentsList.
+    // ConciseBody : ExpressionBody
+    // 1. Return ? EvaluateConciseBody of ConciseBody with arguments functionObject and argumentsList.
+    // GeneratorBody : FunctionBody
+    // 1. Return ? EvaluateGeneratorBody of GeneratorBody with arguments functionObject and argumentsList.
+    // AsyncGeneratorBody : FunctionBody
+    // 1. Return ? EvaluateAsyncGeneratorBody of AsyncGeneratorBody with arguments functionObject and argumentsList.
+    // AsyncFunctionBody : FunctionBody
+    // 1. Return ? EvaluateAsyncFunctionBody of AsyncFunctionBody with arguments functionObject and argumentsList.
+    // AsyncConciseBody : ExpressionBody
+    // 1. Return ? EvaluateAsyncConciseBody of AsyncConciseBody with arguments functionObject and argumentsList.
+    // Initializer :
+    // = AssignmentExpression
+    // 1. Assert: argumentsList is empty.
+    // 2. Assert: functionObject.[[ClassFieldInitializerName]] is not EMPTY.
+    // 3. If IsAnonymousFunctionDefinition(AssignmentExpression) is true, then
+    // a. Let value be ? NamedEvaluation of Initializer with argument functionObject.[[ClassFieldInitializerName]].
+    // 4. Else,
+    // a. Let rhs be ? Evaluation of AssignmentExpression.
+    // b. Let value be ? GetValue(rhs).
+    // 5. Return Completion Record { [[Type]]: RETURN, [[Value]]: value, [[Target]]: EMPTY }.
+    // NOTE
+    // Even though field initializers constitute a function boundary, calling FunctionDeclarationInstantiation does not have any observable effect and so is omitted.
+    // ClassStaticBlockBody : ClassStaticBlockStatementList
+    // 1. Assert: argumentsList is empty.
+    // 2. Return ? EvaluateClassStaticBlockBody of ClassStaticBlockBody with argument functionObject.
+}
+
+/// ### [10.2.1.4 OrdinaryCallEvaluateBody ( F, argumentsList )](https://tc39.es/ecma262/#sec-ordinarycallevaluatebody)
+///
+/// The abstract operation OrdinaryCallEvaluateBody takes arguments `F` (an
+/// ECMAScript function object) and `argumentsList` (a List of ECMAScript
+/// language values) and returns either a normal completion containing an
+/// ECMAScript language value or an abrupt completion.
+pub(crate) fn ordinary_call_evaluate_body(
+    agent: &mut Agent,
+    f: &ECMAScriptFunction,
+    arguments_list: ArgumentsList,
+) -> JsResult<Value> {
+    // 1. Return ? EvaluateBody of F.[[ECMAScriptCode]] with arguments F and argumentsList.
+    evaluate_body(agent, f, arguments_list)
 }
 
 /// ### [10.2.3 OrdinaryFunctionCreate ( functionPrototype, sourceText, ParameterList, Body, thisMode, env, privateEnv )](https://tc39.es/ecma262/#sec-ordinaryfunctioncreate)

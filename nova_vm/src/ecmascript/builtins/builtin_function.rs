@@ -7,7 +7,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct ArgumentsList<'a>(&'a [Value]);
+pub struct ArgumentsList<'a>(pub &'a [Value]);
 
 impl ArgumentsList<'_> {
     #[inline]

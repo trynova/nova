@@ -29,7 +29,9 @@ mod object_environment;
 mod private_environment;
 
 pub(crate) use declarative_environment::DeclarativeEnvironment;
-pub(crate) use function_environment::FunctionEnvironment;
+pub(crate) use function_environment::{
+    new_function_environment, FunctionEnvironment, ThisBindingStatus,
+};
 pub(crate) use global_environment::GlobalEnvironment;
 pub(crate) use object_environment::ObjectEnvironment;
 pub(crate) use private_environment::PrivateEnvironment;
@@ -269,6 +271,17 @@ impl Environments {
             .expect("DeclarativeEnvironmentIndex pointed to a None")
     }
 
+    pub(crate) fn get_declarative_environment_mut(
+        &mut self,
+        index: DeclarativeEnvironmentIndex,
+    ) -> &mut DeclarativeEnvironment {
+        self.declarative
+            .get_mut(index.into_index())
+            .expect("DeclarativeEnvironmentIndex did not match to any vector index")
+            .as_mut()
+            .expect("DeclarativeEnvironmentIndex pointed to a None")
+    }
+
     pub(crate) fn get_function_environment(
         &self,
         index: FunctionEnvironmentIndex,
@@ -277,6 +290,17 @@ impl Environments {
             .get(index.into_index())
             .expect("FunctionEnvironmentIndex did not match to any vector index")
             .as_ref()
+            .expect("FunctionEnvironmentIndex pointed to a None")
+    }
+
+    pub(crate) fn get_function_environment_mut(
+        &mut self,
+        index: FunctionEnvironmentIndex,
+    ) -> &mut FunctionEnvironment {
+        self.function
+            .get_mut(index.into_index())
+            .expect("FunctionEnvironmentIndex did not match to any vector index")
+            .as_mut()
             .expect("FunctionEnvironmentIndex pointed to a None")
     }
 

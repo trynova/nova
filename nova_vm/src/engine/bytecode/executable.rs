@@ -8,7 +8,7 @@ use crate::{
     },
     heap::CreateHeapData,
 };
-use oxc_ast::ast::{self, Statement};
+use oxc_ast::ast::{self, CallExpression, Statement};
 use oxc_span::Atom;
 use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 
@@ -98,6 +98,11 @@ impl Executable {
         let index = self.identifiers.len();
         self.identifiers.push(identifier);
         index
+    }
+
+    fn add_instruction_with_immediate(&mut self, instruction: Instruction, immediate: usize) {
+        self.add_instruction(instruction);
+        self.add_index(immediate);
     }
 
     fn add_instruction_with_constant(
@@ -431,6 +436,27 @@ impl Compile for ast::ObjectExpression<'_> {
     }
 }
 
+impl Compile for CallExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        self.callee.compile(ctx);
+        ctx.exe.add_instruction(Instruction::Load);
+        for ele in &self.arguments {
+            match ele {
+                ast::Argument::SpreadElement(_) => {
+                    panic!("Cannot support SpreadElements currently")
+                }
+                ast::Argument::Expression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::Load);
+                }
+            }
+        }
+
+        ctx.exe
+            .add_instruction_with_immediate(Instruction::EvaluateCall, self.arguments.len());
+    }
+}
+
 impl Compile for ast::Expression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
@@ -446,6 +472,7 @@ impl Compile for ast::Expression<'_> {
             ast::Expression::StringLiteral(x) => x.compile(ctx),
             ast::Expression::FunctionExpression(x) => x.compile(ctx),
             ast::Expression::ObjectExpression(x) => x.compile(ctx),
+            ast::Expression::CallExpression(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }

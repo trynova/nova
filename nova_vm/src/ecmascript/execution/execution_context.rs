@@ -9,7 +9,7 @@ pub type ECMAScriptCode = ECMAScriptCodeEvaluationState;
 /// ECMAScript code execution contexts have the additional state components
 /// listed in Table 26.
 #[derive(Debug)]
-pub struct ECMAScriptCodeEvaluationState {
+pub(crate) struct ECMAScriptCodeEvaluationState {
     /// ### LexicalEnvironment
     ///
     /// Identifies the Environment Record used to resolve identifier references

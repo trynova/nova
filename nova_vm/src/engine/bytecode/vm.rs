@@ -3,7 +3,7 @@ use oxc_syntax::operator::BinaryOperator;
 
 use crate::ecmascript::{
     abstract_operations::{
-        operations_on_objects::create_data_property_or_throw,
+        operations_on_objects::{call, create_data_property_or_throw},
         testing_and_comparison::is_same_type,
         type_conversion::{to_number, to_numeric, to_primitive, to_string},
     },
@@ -15,7 +15,7 @@ use crate::ecmascript::{
         agent::{resolve_binding, ExceptionType},
         Agent, EnvironmentIndex, JsResult, ProtoIntrinsics,
     },
-    types::{Base, BigInt, Number, Object, PropertyKey, Reference, String, Value},
+    types::{Base, BigInt, Number, Object, PropertyKey, Reference, ReferencedName, String, Value},
 };
 
 use super::{Executable, Instruction, InstructionIter};
@@ -70,7 +70,6 @@ impl Vm {
                 Instruction::ResolveBinding => {
                     let identifier =
                         vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                    println!("{}", identifier);
 
                     let reference = resolve_binding(agent, identifier, None)?;
 
@@ -96,6 +95,7 @@ impl Vm {
                             EnvironmentIndex::Object(_idx) => todo!(),
                         },
                         Base::Unresolvable => {
+                            println!("{:#?}", reference);
                             return Err(agent.throw_exception(
                                 ExceptionType::ReferenceError,
                                 "Unable to resolve identifier.",
@@ -104,6 +104,7 @@ impl Vm {
                     };
 
                     vm.reference = Some(reference);
+                    println!("After resolving: {:#?}", vm);
                 }
                 Instruction::LoadConstant => {
                     let constant = vm.fetch_constant(executable, instr.args[0].unwrap() as usize);
@@ -165,8 +166,48 @@ impl Vm {
                     vm.reference_stack.pop();
                 }
                 Instruction::PutValue => {
+                    let value = vm.stack.pop().unwrap();
                     let reference = vm.reference_stack.last_mut().unwrap();
-                    reference.base = Base::Value(vm.stack.pop().unwrap());
+                    if let ReferencedName::String(identifier) = &reference.referenced_name {
+                        if let Base::Environment(env) = reference.base {
+                            match env {
+                                EnvironmentIndex::Declarative(env) => {
+                                    agent
+                                        .heap
+                                        .environments
+                                        .get_declarative_environment_mut(env)
+                                        .bindings
+                                        .get_mut(identifier)
+                                        .unwrap()
+                                        .value = Some(value)
+                                }
+                                EnvironmentIndex::Function(env) => {
+                                    agent
+                                        .heap
+                                        .environments
+                                        .get_function_environment_mut(env)
+                                        .declarative_environment
+                                        .bindings
+                                        .get_mut(identifier)
+                                        .unwrap()
+                                        .value = Some(value)
+                                }
+                                EnvironmentIndex::Global(env) => {
+                                    agent
+                                        .heap
+                                        .environments
+                                        .get_global_environment_mut(env)
+                                        .declarative_record
+                                        .bindings
+                                        .get_mut(identifier)
+                                        .unwrap()
+                                        .value = Some(value)
+                                }
+                                EnvironmentIndex::Object(_) => todo!(),
+                            }
+                        }
+                    }
+                    reference.base = Base::Value(value);
                 }
                 Instruction::GetValue => {
                     let reference = if let Some(reference) = &vm.reference {
@@ -215,8 +256,16 @@ impl Vm {
                             .lexical_environment,
                         private_env: None,
                     };
-                    let function = ordinary_function_create(agent, params);
-                    vm.result = function.into();
+                    let function = ordinary_function_create(agent, params).into_value();
+                    vm.result = function;
+                }
+                Instruction::EvaluateCall => {
+                    let arg_count = instr.args[0].unwrap() as usize;
+                    println!("{:#?}", vm);
+                    let args = vm.stack.split_off(vm.stack.len() - arg_count);
+                    // let this_arg = vm.stack.pop();
+                    let func = vm.stack.pop().unwrap();
+                    vm.result = call(agent, func, Value::Undefined, Some(&args)).unwrap();
                 }
                 other => todo!("{other:?}"),
             }

@@ -254,10 +254,15 @@ impl InternalMethods for Function {
     fn call(
         self,
         _agent: &mut Agent,
-        _this_value: Value,
+        _this_argument: Value,
         _arguments_list: &[Value],
     ) -> JsResult<Value> {
-        todo!()
+        match self {
+            Function::BoundFunction(_idx) => todo!(),
+            Function::BuiltinFunction(_idx) => todo!(),
+            Function::ECMAScriptFunction(_idx) => Ok(Value::Undefined),
+            //Function::ECMAScriptFunction(idx) => agent.heap.get(idx).ecmascript_function.call(agent, self, this_argument, ArgumentsList(arguments_list)),
+        }
     }
 
     fn construct(
