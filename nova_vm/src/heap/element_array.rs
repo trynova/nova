@@ -657,180 +657,240 @@ impl ElementArrays {
         vector: Vec<Option<Value>>,
         descriptors: Option<HashMap<u32, ElementDescriptor>>,
     ) -> ElementIndex {
+        debug_assert_eq!(
+            std::mem::size_of::<Option<[Option<Value>; 1]>>(),
+            std::mem::size_of::<[Option<Value>; 1]>()
+        );
         match key {
             ElementArrayKey::E4 => {
-                self.e2pow4.values.reserve(1);
-                let remaining = self.e2pow4.values.spare_capacity_mut();
+                let elements = &mut self.e2pow4;
+                const N: usize = usize::pow(2, 4);
+                elements.values.reserve(1);
+                let remaining = elements.values.spare_capacity_mut();
                 let length = vector.len();
+                assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: Not really safe but still mostly safe.
-                // Unsafety comes from the fact that we have not initialized the memory and thus
-                // the Option<Value> cases we have in this memory are bound to be all wrong.
-                // The safety comes from Option<Value> being a copyable type so no dropping will be
-                // done either way, and we initialize all values to either valid Values or None.
+                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
+                // length is smaller or equal to that. The vector is valid for reads up to length.
+                // Both are property aligned and do not alias.
                 unsafe {
-                    let last_slice = last.assume_init_mut().as_mut().unwrap();
-                    last_slice[0..length].copy_from_slice(vector.as_slice());
-                    last_slice[vector.len()..].fill(None);
-                    self.e2pow4.values.set_len(self.e2pow4.values.len() + 1);
+                    debug_assert_eq!(
+                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                        std::mem::size_of::<[Option<Value>; N]>()
+                    );
+                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
+                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
+                    for index in length..N {
+                        element_ptr.add(index).write(None);
+                    }
+                    elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&self.e2pow4.values);
+                let index = ElementIndex::last(&elements.values);
                 if let Some(descriptors) = descriptors {
-                    self.e2pow4.descriptors.insert(index, descriptors);
+                    elements.descriptors.insert(index, descriptors);
                 }
                 index
             }
             ElementArrayKey::E6 => {
-                self.e2pow6.values.reserve(1);
-                let remaining = self.e2pow6.values.spare_capacity_mut();
+                let elements = &mut self.e2pow6;
+                const N: usize = usize::pow(2, 6);
+                elements.values.reserve(1);
+                let remaining = elements.values.spare_capacity_mut();
                 let length = vector.len();
+                assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: Not really safe but still mostly safe.
-                // Unsafety comes from the fact that we have not initialized the memory and thus
-                // the Option<Value> cases we have in this memory are bound to be all wrong.
-                // The safety comes from Option<Value> being a copyable type so no dropping will be
-                // done either way, and we initialize all values to either valid Values or None.
+                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
+                // length is smaller or equal to that. The vector is valid for reads up to length.
+                // Both are property aligned and do not alias.
                 unsafe {
-                    let last_slice = last.assume_init_mut().as_mut().unwrap();
-                    last_slice[0..length].copy_from_slice(vector.as_slice());
-                    last_slice[vector.len()..].fill(None);
-                    self.e2pow6.values.set_len(self.e2pow6.values.len() + 1);
+                    debug_assert_eq!(
+                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                        std::mem::size_of::<[Option<Value>; N]>()
+                    );
+                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
+                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
+                    for index in length..N {
+                        element_ptr.add(index).write(None);
+                    }
+                    elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&self.e2pow6.values);
+                let index = ElementIndex::last(&elements.values);
                 if let Some(descriptors) = descriptors {
-                    self.e2pow6.descriptors.insert(index, descriptors);
+                    elements.descriptors.insert(index, descriptors);
                 }
                 index
             }
             ElementArrayKey::E8 => {
-                self.e2pow8.values.reserve(1);
-                let remaining = self.e2pow8.values.spare_capacity_mut();
+                let elements = &mut self.e2pow8;
+                const N: usize = usize::pow(2, 8);
+                elements.values.reserve(1);
+                let remaining = elements.values.spare_capacity_mut();
                 let length = vector.len();
+                assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: Not really safe but still mostly safe.
-                // Unsafety comes from the fact that we have not initialized the memory and thus
-                // the Option<Value> cases we have in this memory are bound to be all wrong.
-                // The safety comes from Option<Value> being a copyable type so no dropping will be
-                // done either way, and we initialize all values to either valid Values or None.
+                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
+                // length is smaller or equal to that. The vector is valid for reads up to length.
+                // Both are property aligned and do not alias.
                 unsafe {
-                    let last_slice = last.assume_init_mut().as_mut().unwrap();
-                    last_slice[0..length].copy_from_slice(vector.as_slice());
-                    last_slice[vector.len()..].fill(None);
-                    self.e2pow8.values.set_len(self.e2pow8.values.len() + 1);
+                    debug_assert_eq!(
+                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                        std::mem::size_of::<[Option<Value>; N]>()
+                    );
+                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
+                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
+                    for index in length..N {
+                        element_ptr.add(index).write(None);
+                    }
+                    elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&self.e2pow8.values);
+                let index = ElementIndex::last(&elements.values);
                 if let Some(descriptors) = descriptors {
-                    self.e2pow8.descriptors.insert(index, descriptors);
+                    elements.descriptors.insert(index, descriptors);
                 }
                 index
             }
             ElementArrayKey::E10 => {
-                self.e2pow10.values.reserve(1);
-                let remaining = self.e2pow10.values.spare_capacity_mut();
+                let elements = &mut self.e2pow10;
+                const N: usize = usize::pow(2, 10);
+                elements.values.reserve(1);
+                let remaining = elements.values.spare_capacity_mut();
                 let length = vector.len();
+                assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: Not really safe but still mostly safe.
-                // Unsafety comes from the fact that we have not initialized the memory and thus
-                // the Option<Value> cases we have in this memory are bound to be all wrong.
-                // The safety comes from Option<Value> being a copyable type so no dropping will be
-                // done either way, and we initialize all values to either valid Values or None.
+                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
+                // length is smaller or equal to that. The vector is valid for reads up to length.
+                // Both are property aligned and do not alias.
                 unsafe {
-                    let last_slice = last.assume_init_mut().as_mut().unwrap();
-                    last_slice[0..length].copy_from_slice(vector.as_slice());
-                    last_slice[vector.len()..].fill(None);
-                    self.e2pow10.values.set_len(self.e2pow10.values.len() + 1);
+                    debug_assert_eq!(
+                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                        std::mem::size_of::<[Option<Value>; N]>()
+                    );
+                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
+                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
+                    for index in length..N {
+                        element_ptr.add(index).write(None);
+                    }
+                    elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&self.e2pow10.values);
+                let index = ElementIndex::last(&elements.values);
                 if let Some(descriptors) = descriptors {
-                    self.e2pow10.descriptors.insert(index, descriptors);
+                    elements.descriptors.insert(index, descriptors);
                 }
                 index
             }
             ElementArrayKey::E12 => {
-                self.e2pow12.values.reserve(1);
-                let remaining = self.e2pow12.values.spare_capacity_mut();
+                let elements = &mut self.e2pow12;
+                const N: usize = usize::pow(2, 12);
+                elements.values.reserve(1);
+                let remaining = elements.values.spare_capacity_mut();
                 let length = vector.len();
+                assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: Not really safe but still mostly safe.
-                // Unsafety comes from the fact that we have not initialized the memory and thus
-                // the Option<Value> cases we have in this memory are bound to be all wrong.
-                // The safety comes from Option<Value> being a copyable type so no dropping will be
-                // done either way, and we initialize all values to either valid Values or None.
+                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
+                // length is smaller or equal to that. The vector is valid for reads up to length.
+                // Both are property aligned and do not alias.
                 unsafe {
-                    let last_slice = last.assume_init_mut().as_mut().unwrap();
-                    last_slice[0..length].copy_from_slice(vector.as_slice());
-                    last_slice[vector.len()..].fill(None);
-                    self.e2pow12.values.set_len(self.e2pow12.values.len() + 1);
+                    debug_assert_eq!(
+                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                        std::mem::size_of::<[Option<Value>; N]>()
+                    );
+                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
+                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
+                    for index in length..N {
+                        element_ptr.add(index).write(None);
+                    }
+                    elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&self.e2pow12.values);
+                let index = ElementIndex::last(&elements.values);
                 if let Some(descriptors) = descriptors {
-                    self.e2pow12.descriptors.insert(index, descriptors);
+                    elements.descriptors.insert(index, descriptors);
                 }
                 index
             }
             ElementArrayKey::E16 => {
-                self.e2pow16.values.reserve(1);
-                let remaining = self.e2pow16.values.spare_capacity_mut();
+                let elements = &mut self.e2pow16;
+                const N: usize = usize::pow(2, 16);
+                elements.values.reserve(1);
+                let remaining = elements.values.spare_capacity_mut();
                 let length = vector.len();
+                assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: Not really safe but still mostly safe.
-                // Unsafety comes from the fact that we have not initialized the memory and thus
-                // the Option<Value> cases we have in this memory are bound to be all wrong.
-                // The safety comes from Option<Value> being a copyable type so no dropping will be
-                // done either way, and we initialize all values to either valid Values or None.
+                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
+                // length is smaller or equal to that. The vector is valid for reads up to length.
+                // Both are property aligned and do not alias.
                 unsafe {
-                    let last_slice = last.assume_init_mut().as_mut().unwrap();
-                    last_slice[0..length].copy_from_slice(vector.as_slice());
-                    last_slice[vector.len()..].fill(None);
-                    self.e2pow16.values.set_len(self.e2pow16.values.len() + 1);
+                    debug_assert_eq!(
+                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                        std::mem::size_of::<[Option<Value>; N]>()
+                    );
+                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
+                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
+                    for index in length..N {
+                        element_ptr.add(index).write(None);
+                    }
+                    elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&self.e2pow16.values);
+                let index = ElementIndex::last(&elements.values);
                 if let Some(descriptors) = descriptors {
-                    self.e2pow16.descriptors.insert(index, descriptors);
+                    elements.descriptors.insert(index, descriptors);
                 }
                 index
             }
             ElementArrayKey::E24 => {
-                self.e2pow24.values.reserve(1);
-                let remaining = self.e2pow24.values.spare_capacity_mut();
+                let elements = &mut self.e2pow24;
+                const N: usize = usize::pow(2, 24);
+                elements.values.reserve(1);
+                let remaining = elements.values.spare_capacity_mut();
                 let length = vector.len();
+                assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: Not really safe but still mostly safe.
-                // Unsafety comes from the fact that we have not initialized the memory and thus
-                // the Option<Value> cases we have in this memory are bound to be all wrong.
-                // The safety comes from Option<Value> being a copyable type so no dropping will be
-                // done either way, and we initialize all values to either valid Values or None.
+                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
+                // length is smaller or equal to that. The vector is valid for reads up to length.
+                // Both are property aligned and do not alias.
                 unsafe {
-                    let last_slice = last.assume_init_mut().as_mut().unwrap();
-                    last_slice[0..length].copy_from_slice(vector.as_slice());
-                    last_slice[vector.len()..].fill(None);
-                    self.e2pow24.values.set_len(self.e2pow24.values.len() + 1);
+                    debug_assert_eq!(
+                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                        std::mem::size_of::<[Option<Value>; N]>()
+                    );
+                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
+                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
+                    for index in length..N {
+                        element_ptr.add(index).write(None);
+                    }
+                    elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&self.e2pow24.values);
+                let index = ElementIndex::last(&elements.values);
                 if let Some(descriptors) = descriptors {
-                    self.e2pow24.descriptors.insert(index, descriptors);
+                    elements.descriptors.insert(index, descriptors);
                 }
                 index
             }
             ElementArrayKey::E32 => {
-                self.e2pow32.values.reserve(1);
-                let remaining = self.e2pow32.values.spare_capacity_mut();
+                let elements = &mut self.e2pow32;
+                const N: usize = usize::pow(2, 32);
+                elements.values.reserve(1);
+                let remaining = elements.values.spare_capacity_mut();
                 let length = vector.len();
+                assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: Not really safe but still mostly safe.
-                // Unsafety comes from the fact that we have not initialized the memory and thus
-                // the Option<Value> cases we have in this memory are bound to be all wrong.
-                // The safety comes from Option<Value> being a copyable type so no dropping will be
-                // done either way, and we initialize all values to either valid Values or None.
+                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
+                // length is smaller or equal to that. The vector is valid for reads up to length.
+                // Both are property aligned and do not alias.
                 unsafe {
-                    let last_slice = last.assume_init_mut().as_mut().unwrap();
-                    last_slice[0..length].copy_from_slice(vector.as_slice());
-                    last_slice[vector.len()..].fill(None);
-                    self.e2pow32.values.set_len(self.e2pow32.values.len() + 1);
+                    debug_assert_eq!(
+                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                        std::mem::size_of::<[Option<Value>; N]>()
+                    );
+                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
+                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
+                    for index in length..N {
+                        element_ptr.add(index).write(None);
+                    }
+                    elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&self.e2pow32.values);
+                let index = ElementIndex::last(&elements.values);
                 if let Some(descriptors) = descriptors {
-                    self.e2pow32.descriptors.insert(index, descriptors);
+                    elements.descriptors.insert(index, descriptors);
                 }
                 index
             }

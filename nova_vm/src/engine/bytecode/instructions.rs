@@ -183,10 +183,19 @@ impl Iterator for InstructionIter<'_> {
         let mut args: [Option<IndexType>; 2] = [None, None];
 
         for item in args.iter_mut().take(kind.argument_count() as usize) {
-            let bytes: &[IndexType] =
-                unsafe { std::mem::transmute(&self.instructions[self.index..]) };
-            self.index += 2;
-            *item = Some(bytes[0]);
+            let length = self.instructions[self.index..].len();
+            if length >= 2 {
+                let bytes = IndexType::from_ne_bytes(unsafe {
+                    *std::mem::transmute::<*const u8, *const [u8; 2]>(
+                        self.instructions[self.index..].as_ptr(),
+                    )
+                });
+                self.index += 2;
+                *item = Some(bytes);
+            } else {
+                self.index += 1;
+                *item = None;
+            }
         }
 
         Some(Instr { kind, args })
