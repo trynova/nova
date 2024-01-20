@@ -550,7 +550,7 @@ mod test {
 
         let script = parse_script(&allocator, "function() {}".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
-        assert!(result.is_object());
+        assert!(result.is_function());
     }
 
     #[test]

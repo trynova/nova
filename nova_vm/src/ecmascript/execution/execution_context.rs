@@ -2,7 +2,7 @@ use super::{EnvironmentIndex, PrivateEnvironmentIndex, RealmIdentifier};
 use crate::ecmascript::{scripts_and_modules::ScriptOrModule, types::*};
 
 // TODO: Remove this.
-pub type ECMAScriptCode = ECMAScriptCodeEvaluationState;
+pub(crate) type ECMAScriptCode = ECMAScriptCodeEvaluationState;
 
 /// ### [code evaluation state](https://tc39.es/ecma262/#table-state-components-for-all-execution-contexts)
 ///

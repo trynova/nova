@@ -64,7 +64,7 @@ pub struct HeapBits {
 }
 
 #[derive(Debug)]
-pub struct WorkQueues {
+pub(crate) struct WorkQueues {
     pub modules: Vec<ModuleIdentifier>,
     pub scripts: Vec<ScriptIdentifier>,
     pub realms: Vec<RealmIdentifier>,
