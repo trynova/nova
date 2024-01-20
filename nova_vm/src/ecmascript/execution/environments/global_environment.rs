@@ -1,6 +1,6 @@
 use oxc_span::Atom;
 
-use crate::ecmascript::execution::Agent;
+use crate::ecmascript::{execution::Agent, types::InternalMethods};
 use crate::ecmascript::types::Object;
 use std::collections::HashSet;
 
@@ -132,15 +132,20 @@ impl GlobalEnvironment {
     /// completion containing a Boolean or a throw completion. It determines if
     /// the argument identifier is the name of a property of the global object
     /// that must not be shadowed by a global lexical binding.
-    pub(crate) fn has_restricted_global_property(&self, _name: &str) -> bool {
-        // TODO: Implement this. We just return true for testing.
+    pub(crate) fn has_restricted_global_property(&self, name: &str) -> JsResult<bool> {
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
+        let obj_rec = self.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
+        let global_object = obj_rec.binding_object;
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        // 4. If existingProp is undefined, return false.
+        let existing_prop = global_object.get_own_property(agent, name)?;
+        let Some(existing_prop) = existing_prop else {
+            // 4. If existingProp is undefined, return false.
+            return Ok(false);
+        };
         // 5. If existingProp.[[Configurable]] is true, return false.
         // 6. Return true.
-        false
+        Ok(existing_prop.configurable != Some(true))
     }
 
     /// ### [9.1.1.4.17 CreateGlobalVarBinding ( N, D )](https://tc39.es/ecma262/#sec-createglobalvarbinding)

@@ -5,7 +5,7 @@ use crate::{
             GlobalEnvironmentIndex, JsResult, RealmIdentifier,
         },
         scripts_and_modules::ScriptOrModule,
-        types::Value,
+        types::Value, syntax_directed_operations::scope_analysis::{LexicallyDeclaredNames, script_lexically_declared_names, script_var_declared_names},
     },
     engine::{Executable, Vm},
 };
@@ -217,59 +217,42 @@ pub(crate) fn global_declaration_instantiation(
     let env = agent.heap.environments.get_global_environment(env_index);
 
     // 1. Let lexNames be the LexicallyDeclaredNames of script.
+    let lex_names = script_lexically_declared_names(&script.ecmascript_code);
     // 2. Let varNames be the VarDeclaredNames of script.
+    let var_names = script_var_declared_names(&script.ecmascript_code);
 
-    // TODO: Remove this variable later.
-    let mut var_names = Vec::new();
+    // 3. For each element name of lexNames, do
+    for name in lex_names {
+        if
+        // a. If env.HasVarDeclaration(name) is true, throw a SyntaxError exception.
+        env.has_var_declaration(&name)
+            // b. If env.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
+            || env.has_lexical_declaration(&name)
+            // c. Let hasRestrictedGlobal be ? env.HasRestrictedGlobalProperty(name).
+            // d. If hasRestrictedGlobal is true, throw a SyntaxError exception.
+            || env.has_restricted_global_property(&name)
+        {
+            return Err(agent.throw_exception(
+                ExceptionType::SyntaxError,
+                "Variable already defined.",
+            ));
+        }
+        
+    }
 
-    for statement in script.ecmascript_code.body.iter() {
-        if let Statement::Declaration(Declaration::VariableDeclaration(decls)) = statement {
-            if decls.kind.is_lexical() {
-                // 3. For each element name of lexNames, do
-                for decl in &decls.declarations {
-                    let BindingPatternKind::BindingIdentifier(identifier) = &decl.id.kind else {
-                        todo!("{:?}", decl.kind);
-                    };
-
-                    if
-                    // a. If env.HasVarDeclaration(name) is true, throw a SyntaxError exception.
-                    env.has_var_declaration(&identifier.name)
-                        // b. If env.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
-                        || env.has_lexical_declaration(&identifier.name)
-                        // c. Let hasRestrictedGlobal be ? env.HasRestrictedGlobalProperty(name).
-                        // d. If hasRestrictedGlobal is true, throw a SyntaxError exception.
-                        || env.has_restricted_global_property(&identifier.name)
-                    {
-                        return Err(agent.throw_exception(
-                            ExceptionType::SyntaxError,
-                            "Variable already defined.",
-                        ));
-                    }
-
-                    // TODO: Remove this and follow the specification later.
-                    var_names.push(identifier.name.clone());
-                }
-            } else {
-                // 4. For each element name of varNames, do
-                for decl in &decls.declarations {
-                    let BindingPatternKind::BindingIdentifier(identifier) = &decl.id.kind else {
-                        todo!("{:?}", decl.kind);
-                    };
-
-                    // a. If env.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
-                    if env.has_lexical_declaration(&identifier.name) {
-                        return Err(agent.throw_exception(
-                            ExceptionType::SyntaxError,
-                            "Variable already defined.",
-                        ));
-                    }
-
-                    // TODO: Remove this and follow the specification later.
-                    var_names.push(identifier.name.clone());
-                }
-            }
+    // 4. For each element name of varNames, do
+    for name in var_names {
+        // a. If env.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
+        if env.has_lexical_declaration(&name) {
+            return Err(agent.throw_exception(
+                ExceptionType::SyntaxError,
+                "Variable already defined.",
+            ));
         }
     }
+
+    // 5. Let varDeclarations be the VarScopedDeclarations of script.
+    let var_declarations = script_var_scoped_declarations
 
     // TODO: Remove this once steps 5-17 are implemented.
     let env = agent
@@ -286,7 +269,6 @@ pub(crate) fn global_declaration_instantiation(
     }
 
     // TODO: Finish this.
-    // 5. Let varDeclarations be the VarScopedDeclarations of script.
     // 6. Let functionsToInitialize be a new empty List.
     // 7. Let declaredFunctionNames be a new empty List.
     // 8. For each element d of varDeclarations, in reverse List order, do
