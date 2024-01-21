@@ -15,7 +15,7 @@ use crate::ecmascript::{
         agent::{resolve_binding, ExceptionType},
         Agent, EnvironmentIndex, JsResult, ProtoIntrinsics,
     },
-    types::{Base, BigInt, Number, Object, PropertyKey, Reference, ReferencedName, String, Value},
+    types::{put_value, Base, BigInt, Number, Object, PropertyKey, Reference, String, Value},
 };
 
 use super::{Executable, Instruction, InstructionIter};
@@ -86,12 +86,12 @@ impl Vm {
                                 .environments
                                 .get_function_environment(idx)
                                 .get_binding_value(identifier, false)?,
-                            EnvironmentIndex::Global(idx) => agent
-                                .heap
-                                .environments
-                                .get_global_environment(idx)
-                                .declarative_record
-                                .get_binding_value(identifier, false)?,
+                            EnvironmentIndex::Global(idx) => {
+                                // TODO: Get rid of this clone
+                                let global_env =
+                                    agent.heap.environments.get_global_environment(idx).clone();
+                                global_env.get_binding_value(agent, identifier, false)?
+                            }
                             EnvironmentIndex::Object(_idx) => todo!(),
                         },
                         Base::Unresolvable => {
@@ -104,7 +104,6 @@ impl Vm {
                     };
 
                     vm.reference = Some(reference);
-                    println!("After resolving: {:#?}", vm);
                 }
                 Instruction::LoadConstant => {
                     let constant = vm.fetch_constant(executable, instr.args[0].unwrap() as usize);
@@ -168,45 +167,7 @@ impl Vm {
                 Instruction::PutValue => {
                     let value = vm.stack.pop().unwrap();
                     let reference = vm.reference_stack.last_mut().unwrap();
-                    if let ReferencedName::String(identifier) = &reference.referenced_name {
-                        if let Base::Environment(env) = reference.base {
-                            match env {
-                                EnvironmentIndex::Declarative(env) => {
-                                    agent
-                                        .heap
-                                        .environments
-                                        .get_declarative_environment_mut(env)
-                                        .bindings
-                                        .get_mut(identifier)
-                                        .unwrap()
-                                        .value = Some(value)
-                                }
-                                EnvironmentIndex::Function(env) => {
-                                    agent
-                                        .heap
-                                        .environments
-                                        .get_function_environment_mut(env)
-                                        .declarative_environment
-                                        .bindings
-                                        .get_mut(identifier)
-                                        .unwrap()
-                                        .value = Some(value)
-                                }
-                                EnvironmentIndex::Global(env) => {
-                                    agent
-                                        .heap
-                                        .environments
-                                        .get_global_environment_mut(env)
-                                        .declarative_record
-                                        .bindings
-                                        .get_mut(identifier)
-                                        .unwrap()
-                                        .value = Some(value)
-                                }
-                                EnvironmentIndex::Object(_) => todo!(),
-                            }
-                        }
-                    }
+                    put_value(agent, reference, value)?;
                     reference.base = Base::Value(value);
                 }
                 Instruction::GetValue => {

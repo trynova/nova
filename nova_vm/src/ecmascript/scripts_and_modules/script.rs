@@ -2,18 +2,25 @@ use crate::{
     ecmascript::{
         execution::{
             agent::ExceptionType, Agent, ECMAScriptCode, EnvironmentIndex, ExecutionContext,
-            GlobalEnvironmentIndex, JsResult, RealmIdentifier,
+            GlobalEnvironment, GlobalEnvironmentIndex, JsResult, RealmIdentifier,
         },
         scripts_and_modules::ScriptOrModule,
-        types::Value, syntax_directed_operations::scope_analysis::{LexicallyDeclaredNames, script_lexically_declared_names, script_var_declared_names},
+        syntax_directed_operations::{
+            miscellaneous::instantiate_function_object,
+            scope_analysis::{
+                script_lexically_declared_names, script_var_declared_names,
+                script_var_scoped_declarations, VarScopedDeclaration,
+            },
+        },
+        types::Value,
     },
     engine::{Executable, Vm},
 };
 use oxc_allocator::Allocator;
-use oxc_ast::ast::{BindingPatternKind, Declaration, Program, Statement};
+use oxc_ast::{ast::Program, syntax_directed_operations::BoundNames};
 use oxc_parser::{Parser, ParserReturn};
 use oxc_span::SourceType;
-use std::{any::Any, marker::PhantomData};
+use std::{any::Any, collections::HashSet, marker::PhantomData};
 
 pub type HostDefined = &'static mut dyn Any;
 
@@ -213,13 +220,26 @@ pub(crate) fn global_declaration_instantiation(
     env_index: GlobalEnvironmentIndex,
 ) -> JsResult<()> {
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
-    let script = agent.heap.get_script(script);
-    let env = agent.heap.environments.get_global_environment(env_index);
+    let Script {
+        ecmascript_code, ..
+    } = agent.heap.get_script(script);
+    // SAFETY: Analysing the script cannot cause the script to move even though we change other parts of the Heap.
+    let script =
+        unsafe { std::mem::transmute::<&Program<'_>, &'static Program<'static>>(ecmascript_code) };
+    // SAFETY: Analysing the script cannot cause the environment to move even though we change other parts of the Heap.
+    let env = unsafe {
+        std::mem::transmute::<&mut GlobalEnvironment, &'static mut GlobalEnvironment>(
+            agent
+                .heap
+                .environments
+                .get_global_environment_mut(env_index),
+        )
+    };
 
     // 1. Let lexNames be the LexicallyDeclaredNames of script.
-    let lex_names = script_lexically_declared_names(&script.ecmascript_code);
+    let lex_names = script_lexically_declared_names(script);
     // 2. Let varNames be the VarDeclaredNames of script.
-    let var_names = script_var_declared_names(&script.ecmascript_code);
+    let var_names = script_var_declared_names(script);
 
     // 3. For each element name of lexNames, do
     for name in lex_names {
@@ -230,88 +250,104 @@ pub(crate) fn global_declaration_instantiation(
             || env.has_lexical_declaration(&name)
             // c. Let hasRestrictedGlobal be ? env.HasRestrictedGlobalProperty(name).
             // d. If hasRestrictedGlobal is true, throw a SyntaxError exception.
-            || env.has_restricted_global_property(&name)
+            || env.has_restricted_global_property(agent, &name)?
         {
-            return Err(agent.throw_exception(
-                ExceptionType::SyntaxError,
-                "Variable already defined.",
-            ));
+            return Err(
+                agent.throw_exception(ExceptionType::SyntaxError, "Variable already defined.")
+            );
         }
-        
     }
 
     // 4. For each element name of varNames, do
-    for name in var_names {
+    for name in &var_names {
         // a. If env.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
-        if env.has_lexical_declaration(&name) {
-            return Err(agent.throw_exception(
-                ExceptionType::SyntaxError,
-                "Variable already defined.",
-            ));
+        if env.has_lexical_declaration(name) {
+            return Err(
+                agent.throw_exception(ExceptionType::SyntaxError, "Variable already defined.")
+            );
         }
     }
 
     // 5. Let varDeclarations be the VarScopedDeclarations of script.
-    let var_declarations = script_var_scoped_declarations
+    let var_declarations = script_var_scoped_declarations(script);
 
-    // TODO: Remove this once steps 5-17 are implemented.
-    let env = agent
-        .heap
-        .environments
-        .get_global_environment_mut(env_index);
-
-    for var_name in var_names {
-        eprintln!("var name: {:?}", var_name);
-        env.declarative_record
-            .create_mutable_binding(var_name.clone(), false);
-        env.declarative_record
-            .initialize_binding(&var_name, Value::Undefined);
-    }
-
-    // TODO: Finish this.
     // 6. Let functionsToInitialize be a new empty List.
+    let mut functions_to_initialize = vec![];
     // 7. Let declaredFunctionNames be a new empty List.
+    let mut declared_function_names = HashSet::new();
     // 8. For each element d of varDeclarations, in reverse List order, do
-    {
+    for d in var_declarations.iter().rev() {
         // a. If d is not either a VariableDeclaration, a ForBinding, or a BindingIdentifier, then
-        {
+        if let VarScopedDeclaration::FunctionDeclaration(d) = *d {
             // i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an AsyncGeneratorDeclaration.
             // ii. NOTE: If there are multiple function declarations for the same name, the last declaration is used.
             // iii. Let fn be the sole element of the BoundNames of d.
+            let mut function_name = None;
+            d.bound_names(&mut |identifier| {
+                assert!(function_name.is_none());
+                function_name = Some(identifier.name.clone());
+            });
+            let function_name = function_name.unwrap();
             // iv. If declaredFunctionNames does not contain fn, then
-            {
-
+            if declared_function_names.insert(function_name.clone()) {
                 // 1. Let fnDefinable be ? env.CanDeclareGlobalFunction(fn).
+                let fn_definable =
+                    env.can_declare_global_function(agent, function_name.as_str())?;
                 // 2. If fnDefinable is false, throw a TypeError exception.
+                if !fn_definable {
+                    return Err(agent.throw_exception(
+                        ExceptionType::TypeError,
+                        "Cannot declare global function.",
+                    ));
+                }
                 // 3. Append fn to declaredFunctionNames.
                 // 4. Insert d as the first element of functionsToInitialize.
+                functions_to_initialize.push(d);
             }
         }
     }
+
     // 9. Let declaredVarNames be a new empty List.
+    let mut declared_var_names = HashSet::new();
     // 10. For each element d of varDeclarations, do
-    {
+    for d in var_declarations {
         // a. If d is either a VariableDeclaration, a ForBinding, or a BindingIdentifier, then
-        {
+        if let VarScopedDeclaration::VariableDeclaration(d) = d {
             // i. For each String vn of the BoundNames of d, do
-        }
-        // 1. If declaredFunctionNames does not contain vn, then
-        {
-            // a. Let vnDefinable be ? env.CanDeclareGlobalVar(vn).
-            // b. If vnDefinable is false, throw a TypeError exception.
-            // c. If declaredVarNames does not contain vn, then
-            {
-                // i. Append vn to declaredVarNames.
+            let mut bound_names = vec![];
+            d.id.bound_names(&mut |identifier| {
+                bound_names.push(identifier.name.clone());
+            });
+            for vn in bound_names {
+                // 1. If declaredFunctionNames does not contain vn, then
+                if !declared_function_names.contains(&vn) {
+                    // a. Let vnDefinable be ? env.CanDeclareGlobalVar(vn).
+                    let vn_definable = env.can_declare_global_var(agent, &vn)?;
+                    // b. If vnDefinable is false, throw a TypeError exception.
+                    if !vn_definable {
+                        return Err(agent.throw_exception(
+                            ExceptionType::TypeError,
+                            "Cannot declare global variable.",
+                        ));
+                    }
+                    // c. If declaredVarNames does not contain vn, then
+                    // i. Append vn to declaredVarNames.
+                    declared_var_names.insert(vn.clone());
+                }
             }
         }
     }
+
     // 11. NOTE: No abnormal terminations occur after this algorithm step if the
     //     global object is an ordinary object. However, if the global object is
     //     a Proxy exotic object it may exhibit behaviours that cause abnormal
     //     terminations in some of the following steps.
     // 12. NOTE: Annex B.3.2.2 adds additional steps at this point.
     // 13. Let lexDeclarations be the LexicallyScopedDeclarations of script.
+    // let lex_declarations = script_lexically_scoped_declarations()
+
     // 14. Let privateEnv be null.
+    let private_env = None;
     // 15. For each element d of lexDeclarations, do
     {
         // a. NOTE: Lexically declared names are only instantiated here but not initialized.
@@ -328,14 +364,25 @@ pub(crate) fn global_declaration_instantiation(
         }
     }
     // 16. For each Parse Node f of functionsToInitialize, do
-    {
+    for f in functions_to_initialize {
         // a. Let fn be the sole element of the BoundNames of f.
+        let mut function_name = None;
+        f.bound_names(&mut |identifier| {
+            assert!(function_name.is_none());
+            function_name = Some(identifier.name.clone());
+        });
+        let function_name = function_name.unwrap();
         // b. Let fo be InstantiateFunctionObject of f with arguments env and privateEnv.
+        let fo =
+            instantiate_function_object(agent, f, EnvironmentIndex::Global(env_index), private_env);
         // c. Perform ? env.CreateGlobalFunctionBinding(fn, fo, false).
+        env.create_global_function_binding(agent, function_name, fo.into_value(), false)?;
     }
+    {}
     // 17. For each String vn of declaredVarNames, do
-    {
+    for vn in declared_var_names {
         // a. Perform ? env.CreateGlobalVarBinding(vn, false).
+        env.create_global_var_binding(agent, vn, false)?;
     }
     // 18. Return UNUSED.
     Ok(())
@@ -530,7 +577,7 @@ mod test {
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "function() {}".into(), realm, None).unwrap();
+        let script = parse_script(&allocator, "function foo() {}".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_function());
     }

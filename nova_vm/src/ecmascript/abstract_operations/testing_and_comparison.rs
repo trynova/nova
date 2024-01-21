@@ -2,7 +2,7 @@
 
 use crate::ecmascript::{
     execution::{agent::JsError, Agent, JsResult},
-    types::{bigint::BigInt, Number, Value},
+    types::{bigint::BigInt, InternalMethods, Number, Object, Value},
 };
 
 use super::type_conversion::{string_to_big_int, to_number, to_primitive, PreferredType};
@@ -52,6 +52,17 @@ pub(crate) fn is_callable(argument: Value) -> bool {
         argument,
         Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_)
     )
+}
+
+/// ### [7.2.5 IsExtensible ( O )](https://tc39.es/ecma262/#sec-isextensible-o)
+///
+/// The abstract operation IsExtensible takes argument O (an Object) and
+/// returns either a normal completion containing a Boolean or a throw
+/// completion. It is used to determine whether additional properties can be
+/// added to O.
+pub(crate) fn is_extensible(agent: &mut Agent, o: Object) -> JsResult<bool> {
+    // 1. Return ? O.[[IsExtensible]]().
+    o.is_extensible(agent)
 }
 
 pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1, y: V2) -> bool {

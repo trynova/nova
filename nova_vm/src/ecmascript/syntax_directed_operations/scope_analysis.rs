@@ -1,7 +1,8 @@
 use oxc_ast::{
     ast::{
-        BindingIdentifier, Declaration, Expression, ForStatementInit, LabeledStatement,
-        ModuleDeclaration, Program, Statement, VariableDeclarationKind,
+        BindingIdentifier, Declaration, ForStatementInit, ForStatementLeft, Function, FunctionBody,
+        LabeledStatement, ModuleDeclaration, Program, Statement, StaticBlock, VariableDeclaration,
+        VariableDeclarationKind, VariableDeclarator,
     },
     syntax_directed_operations::BoundNames,
 };
@@ -49,6 +50,19 @@ pub(crate) fn module_lexically_declared_names(script: &Program<'_>) -> Vec<Atom>
     lexically_declared_names
 }
 
+// FunctionStatementList : [empty]
+// 1. Return a new empty List.
+// FunctionStatementList : StatementList
+// 1. Return TopLevelLexicallyDeclaredNames of StatementList.
+// ClassStaticBlockStatementList : [empty]
+// 1. Return a new empty List.
+// ClassStaticBlockStatementList : StatementList
+// 1. Return the TopLevelLexicallyDeclaredNames of StatementList.
+// ConciseBody : ExpressionBody
+// 1. Return a new empty List.
+// AsyncConciseBody : ExpressionBody
+// 1. Return a new empty List.
+
 impl<'a> LexicallyDeclaredNames<'a> for oxc_allocator::Vec<'_, Statement<'_>> {
     fn lexically_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F) {
         // StatementList : StatementList StatementListItem
@@ -66,24 +80,10 @@ impl<'a> LexicallyDeclaredNames<'a> for Statement<'_> {
         match self {
             // Block : { }
             // 1. Return a new empty List.
-            Statement::BlockStatement(st) => {}
-            Statement::BreakStatement(st) => {}
-            Statement::ContinueStatement(st) => {}
-            Statement::DebuggerStatement(st) => {}
-            Statement::DoWhileStatement(st) => {}
-            Statement::EmptyStatement(st) => {}
-            Statement::ExpressionStatement(st) => {
-                st.expression.lexically_declared_names(f);
-            }
-            Statement::ForInStatement(st) => {}
-            Statement::ForOfStatement(st) => {}
-            Statement::ForStatement(st) => {}
-            Statement::IfStatement(st) => {}
             // StatementListItem : Statement
             // 1. If Statement is Statement : LabelledStatement , return LexicallyDeclaredNames of LabelledStatement.
             Statement::LabeledStatement(st) => st.lexically_declared_names(f),
             // 2. Return a new empty List.
-            Statement::ReturnStatement(st) => {}
             Statement::SwitchStatement(st) => {
                 // CaseBlock : { }
                 // 1. Return a new empty List.
@@ -108,10 +108,6 @@ impl<'a> LexicallyDeclaredNames<'a> for Statement<'_> {
                     ele.consequent.lexically_declared_names(f);
                 }
             }
-            Statement::ThrowStatement(st) => {}
-            Statement::TryStatement(st) => {}
-            Statement::WhileStatement(st) => {}
-            Statement::WithStatement(st) => {}
             Statement::ModuleDeclaration(st) => {
                 match &st.0 {
                     // ModuleItem : ImportDeclaration
@@ -119,9 +115,9 @@ impl<'a> LexicallyDeclaredNames<'a> for Statement<'_> {
                     // NOTE 2
                     // The LexicallyDeclaredNames of a Module includes the names of all of its imported bindings.
                     ModuleDeclaration::ImportDeclaration(decl) => decl.bound_names(f),
-                    ModuleDeclaration::ExportAllDeclaration(decl) => {}
+                    ModuleDeclaration::ExportAllDeclaration(_decl) => {}
                     // ModuleItem : ExportDeclaration
-                    ModuleDeclaration::ExportDefaultDeclaration(decl) => {
+                    ModuleDeclaration::ExportDefaultDeclaration(_decl) => {
                         // TODO: We should bind *default* and the declaration's bound names here I think
                     }
                     ModuleDeclaration::ExportNamedDeclaration(decl) => {
@@ -142,53 +138,22 @@ impl<'a> LexicallyDeclaredNames<'a> for Statement<'_> {
             // StatementListItem : Declaration
             // 1. Return the BoundNames of Declaration.
             Statement::Declaration(st) => st.bound_names(f),
-        }
-    }
-}
-
-impl<'a> LexicallyDeclaredNames<'a> for Expression<'_> {
-    fn lexically_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F) {
-        match self {
-            Expression::BooleanLiteral(_) => todo!(),
-            Expression::NullLiteral(_) => todo!(),
-            Expression::NumberLiteral(_) => todo!(),
-            Expression::BigintLiteral(_) => todo!(),
-            Expression::RegExpLiteral(_) => todo!(),
-            Expression::StringLiteral(_) => todo!(),
-            Expression::TemplateLiteral(_) => todo!(),
-            Expression::Identifier(_) => todo!(),
-            Expression::MetaProperty(_) => todo!(),
-            Expression::Super(_) => todo!(),
-            Expression::ArrayExpression(_) => todo!(),
-            Expression::ArrowExpression(_) => todo!(),
-            Expression::AssignmentExpression(_) => todo!(),
-            Expression::AwaitExpression(_) => todo!(),
-            Expression::BinaryExpression(_) => todo!(),
-            Expression::CallExpression(_) => todo!(),
-            Expression::ChainExpression(_) => todo!(),
-            Expression::ClassExpression(_) => todo!(),
-            Expression::ConditionalExpression(_) => todo!(),
-            Expression::FunctionExpression(_) => todo!(),
-            Expression::ImportExpression(_) => todo!(),
-            Expression::LogicalExpression(_) => todo!(),
-            Expression::MemberExpression(_) => todo!(),
-            Expression::NewExpression(_) => todo!(),
-            Expression::ObjectExpression(_) => todo!(),
-            Expression::ParenthesizedExpression(_) => todo!(),
-            Expression::SequenceExpression(_) => todo!(),
-            Expression::TaggedTemplateExpression(_) => todo!(),
-            Expression::ThisExpression(_) => todo!(),
-            Expression::UnaryExpression(_) => todo!(),
-            Expression::UpdateExpression(_) => todo!(),
-            Expression::YieldExpression(_) => todo!(),
-            Expression::PrivateInExpression(_) => todo!(),
-            Expression::JSXElement(_) => todo!(),
-            Expression::JSXFragment(_) => todo!(),
-            Expression::TSAsExpression(_) => todo!(),
-            Expression::TSSatisfiesExpression(_) => todo!(),
-            Expression::TSTypeAssertion(_) => todo!(),
-            Expression::TSNonNullExpression(_) => todo!(),
-            Expression::TSInstantiationExpression(_) => todo!(),
+            Statement::BlockStatement(_)
+            | Statement::BreakStatement(_)
+            | Statement::ContinueStatement(_)
+            | Statement::DebuggerStatement(_)
+            | Statement::DoWhileStatement(_)
+            | Statement::EmptyStatement(_)
+            | Statement::ExpressionStatement(_)
+            | Statement::ForInStatement(_)
+            | Statement::ForOfStatement(_)
+            | Statement::ForStatement(_)
+            | Statement::IfStatement(_)
+            | Statement::ReturnStatement(_)
+            | Statement::ThrowStatement(_)
+            | Statement::TryStatement(_)
+            | Statement::WhileStatement(_)
+            | Statement::WithStatement(_) => {}
         }
     }
 }
@@ -204,19 +169,6 @@ impl<'a> LexicallyDeclaredNames<'a> for LabeledStatement<'_> {
         self.body.lexically_declared_names(f);
     }
 }
-
-// FunctionStatementList : [empty]
-// 1. Return a new empty List.
-// FunctionStatementList : StatementList
-// 1. Return TopLevelLexicallyDeclaredNames of StatementList.
-// ClassStaticBlockStatementList : [empty]
-// 1. Return a new empty List.
-// ClassStaticBlockStatementList : StatementList
-// 1. Return the TopLevelLexicallyDeclaredNames of StatementList.
-// ConciseBody : ExpressionBody
-// 1. Return a new empty List.
-// AsyncConciseBody : ExpressionBody
-// 1. Return a new empty List.
 
 /// 8.2.6 Static Semantics: VarDeclaredNames
 /// The syntax-directed operation VarDeclaredNames takes no arguments and returns a List of Strings. It is defined piecewise over the following productions:
@@ -250,6 +202,48 @@ pub(crate) fn module_var_declared_names(module: &Program<'_>) -> Vec<Atom> {
     var_declared_names
 }
 
+pub(crate) fn function_var_declared_names(function: &FunctionBody<'_>) -> Vec<Atom> {
+    let mut var_declared_names = Vec::new();
+    // NOTE
+    // This section is extended by Annex B.3.5.
+
+    // FunctionStatementList : [empty]
+    // 1. Return a new empty List.
+    // FunctionStatementList : StatementList
+    // 1. Return TopLevelVarDeclaredNames of StatementList.
+    function
+        .statements
+        .top_level_var_declared_names(&mut |identifier| {
+            var_declared_names.push(identifier.name.clone());
+        });
+    var_declared_names
+}
+
+pub(crate) fn class_static_block_var_declared_names(static_block: &StaticBlock<'_>) -> Vec<Atom> {
+    let mut var_declared_names = Vec::new();
+    // ClassStaticBlockStatementList : [empty]
+    // 1. Return a new empty List.
+    // ClassStaticBlockStatementList : StatementList
+    // 1. Return the TopLevelVarDeclaredNames of StatementList.
+    static_block
+        .body
+        .top_level_var_declared_names(&mut |identifier| {
+            var_declared_names.push(identifier.name.clone());
+        });
+    var_declared_names
+}
+
+pub(crate) fn arrow_function_var_declared_names(arrow_function: &FunctionBody<'_>) -> Vec<Atom> {
+    debug_assert!(arrow_function.statements.len() <= 1);
+    if let Some(body) = arrow_function.statements.get(0) {
+        matches!(body, Statement::ExpressionStatement(_));
+    }
+    // ConciseBody : ExpressionBody
+    // 1. Return a new empty List.
+    // AsyncConciseBody : ExpressionBody
+    // 1. Return a new empty List.
+    vec![]
+}
 
 impl<'a> VarDeclaredNames<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
     fn var_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F) {
@@ -287,7 +281,6 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
                 if st.body.is_empty() {
                     // Block : { }
                     // 1. Return a new empty List.
-                    return;
                 }
             }
             Statement::DoWhileStatement(st) => {
@@ -312,18 +305,16 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
                 // 2. Let names2 be the VarDeclaredNames of Statement.
                 // 3. Return the list-concatenation of names1 and names2.
                 if !st.left.is_lexical_declaration() {
-                    match &st.left {
-                        oxc_ast::ast::ForStatementLeft::VariableDeclaration(decl) => decl.bound_names(f),
-                        _ => {},
+                    if let ForStatementLeft::VariableDeclaration(decl) = &st.left {
+                        decl.bound_names(f);
                     }
                 }
                 st.body.var_declared_names(f);
             },
             Statement::ForOfStatement(st) => {
                 if !st.left.is_lexical_declaration() {
-                    match &st.left {
-                        oxc_ast::ast::ForStatementLeft::VariableDeclaration(decl) => decl.bound_names(f),
-                        _ => {},
+                    if let ForStatementLeft::VariableDeclaration(decl) = &st.left {
+                        decl.bound_names(f);
                     }
                 }
                 st.body.var_declared_names(f);
@@ -358,9 +349,7 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
                 // IfStatement : if ( Expression ) Statement
                 // 1. Return the VarDeclaredNames of Statement.
                 st.consequent.var_declared_names(f);
-                st.alternate.as_ref().map(|st| {
-                    st.var_declared_names(f);
-                });
+                if let Some(st) = st.alternate.as_ref() { st.var_declared_names(f); }
             },
             Statement::LabeledStatement(st) => {
                 // LabelledStatement : LabelIdentifier : LabelledItem
@@ -434,11 +423,8 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
                     // 1. If ExportDeclaration is export VariableStatement, return BoundNames of ExportDeclaration.
                     // 2. Return a new empty List.
                     ModuleDeclaration::ExportNamedDeclaration(decl) => {
-                        if let Some(decl) = &decl.declaration {
-                            match decl {
-                                Declaration::VariableDeclaration(decl) => decl.bound_names(f),
-                                _ => {},
-                            }
+                        if let Some(Declaration::VariableDeclaration(decl)) = &decl.declaration {
+                          decl.bound_names(f);
                         }
                     },
                     ModuleDeclaration::TSExportAssignment(_) |
@@ -469,25 +455,274 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
     }
 }
 
-// NOTE
-// This section is extended by Annex B.3.5.
+/// ### [8.2.7 Static Semantics: VarScopedDeclarations](https://tc39.es/ecma262/#sec-static-semantics-varscopeddeclarations)
+/// The syntax-directed operation VarScopedDeclarations takes no arguments and returns a List of Parse Nodes.
+pub(crate) trait VarScopedDeclarations<'a> {
+    fn var_scoped_declarations<F: FnMut(VarScopedDeclaration<'a>)>(&'a self, f: &mut F);
+}
 
+pub(crate) fn script_var_scoped_declarations<'a>(
+    script: &'a Program<'a>,
+) -> Vec<VarScopedDeclaration<'a>> {
+    let mut var_scoped_declarations = Vec::new();
+    // Script : [empty]
+    // 1. Return a new empty List.
+    // ScriptBody : StatementList
+    // 1. Return TopLevelVarScopedDeclarations of StatementList.
+    script
+        .body
+        .top_level_var_scoped_declarations(&mut |declarator| {
+            var_scoped_declarations.push(declarator);
+        });
+    var_scoped_declarations
+}
+
+pub(crate) fn module_var_scoped_declarations<'a>(
+    module: &'a Program<'a>,
+) -> Vec<VarScopedDeclaration<'a>> {
+    let mut var_scoped_declarations = Vec::new();
+    // Module : [empty]
+    // 1. Return a new empty List.
+    // ModuleItemList : ModuleItemList ModuleItem
+    // 1. Let declarations1 be VarScopedDeclarations of ModuleItemList.
+    // 2. Let declarations2 be VarScopedDeclarations of ModuleItem.
+    // 3. Return the list-concatenation of declarations1 and declarations2.
+    module.body.var_scoped_declarations(&mut |declarator| {
+        var_scoped_declarations.push(declarator);
+    });
+    var_scoped_declarations
+}
 // FunctionStatementList : [empty]
 // 1. Return a new empty List.
 // FunctionStatementList : StatementList
-// 1. Return TopLevelVarDeclaredNames of StatementList.
+// 1. Return the TopLevelVarScopedDeclarations of StatementList.
 // ClassStaticBlockStatementList : [empty]
 // 1. Return a new empty List.
 // ClassStaticBlockStatementList : StatementList
-// 1. Return the TopLevelVarDeclaredNames of StatementList.
+// 1. Return the TopLevelVarScopedDeclarations of StatementList.
 // ConciseBody : ExpressionBody
 // 1. Return a new empty List.
 // AsyncConciseBody : ExpressionBody
 // 1. Return a new empty List.
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum VarScopedDeclaration<'a> {
+    VariableDeclaration(&'a VariableDeclarator<'a>),
+    FunctionDeclaration(&'a Function<'a>),
+}
+
+impl<'a> VarScopedDeclarations<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
+    fn var_scoped_declarations<F: FnMut(VarScopedDeclaration<'a>)>(&'a self, f: &mut F) {
+        // StatementList : StatementList StatementListItem
+        // 1. Let declarations1 be VarScopedDeclarations of StatementList.
+        // 2. Let declarations2 be VarScopedDeclarations of StatementListItem.
+        // 3. Return the list-concatenation of declarations1 and declarations2.
+        for ele in self {
+            ele.var_scoped_declarations(f);
+        }
+    }
+}
+
+impl<'a> VarScopedDeclarations<'a> for Statement<'a> {
+    fn var_scoped_declarations<F: FnMut(VarScopedDeclaration<'a>)>(&'a self, f: &mut F) {
+        match self {
+            // Statement :
+            // EmptyStatement
+            Statement::EmptyStatement(_) |
+            // ExpressionStatement
+            Statement::ExpressionStatement(_) |
+            // ContinueStatement
+            Statement::ContinueStatement(_) |
+            // BreakStatement
+            Statement::BreakStatement(_) |
+            // ReturnStatement
+            Statement::ReturnStatement(_) |
+            // ThrowStatement
+            Statement::ThrowStatement(_) |
+            // DebuggerStatement
+            Statement::DebuggerStatement(_) => {
+                // 1. Return a new empty List.
+            }
+            Statement::BlockStatement(st) => {
+                // Block : { }
+                if st.body.is_empty() {
+                    // 1. Return a new empty List.
+                }
+            },
+            // StatementListItem : Declaration
+            Statement::Declaration(decl) => {
+                match decl {
+                    Declaration::VariableDeclaration(decl) => {
+                        decl.var_scoped_declarations(f);
+                    },
+                    _ => {
+                        // 1. Return a new empty List.
+                    },
+                }
+            },
+            Statement::IfStatement(st) => {
+                // IfStatement : if ( Expression ) Statement else Statement
+                // 1. Let declarations1 be VarScopedDeclarations of the first Statement.
+                // 2. Let declarations2 be VarScopedDeclarations of the second Statement.
+                // 3. Return the list-concatenation of declarations1 and declarations2.
+                // IfStatement : if ( Expression ) Statement
+                // 1. Return the VarScopedDeclarations of Statement.
+                st.consequent.var_scoped_declarations(f);
+                if let Some(alternate) = &st.alternate {
+                    alternate.var_scoped_declarations(f);
+                }
+            },
+            Statement::DoWhileStatement(st) => {
+                // DoWhileStatement : do Statement while ( Expression ) ;
+                // 1. Return the VarScopedDeclarations of Statement.
+                st.body.var_scoped_declarations(f);
+            },
+            Statement::WhileStatement(st) => {
+                // WhileStatement : while ( Expression ) Statement
+                // 1. Return the VarScopedDeclarations of Statement.
+                st.body.var_scoped_declarations(f);
+            },
+            Statement::ForStatement(st) => {
+                // ForStatement : for ( var VariableDeclarationList ; Expressionopt ; Expressionopt ) Statement
+                if let Some(ForStatementInit::VariableDeclaration(var_decl)) = &st.init {
+                    // 1. Let declarations1 be VarScopedDeclarations of VariableDeclarationList.
+                    var_decl.var_scoped_declarations(f);
+                }
+                // 2. Let declarations2 be VarScopedDeclarations of Statement.
+                st.body.var_scoped_declarations(f);
+                // 3. Return the list-concatenation of declarations1 and declarations2.
+            },
+            Statement::ForInStatement(st) => {
+                if let ForStatementLeft::VariableDeclaration(var_decl) = &st.left {
+                    // ForInOfStatement :
+                    // for ( var ForBinding in Expression ) Statement
+                    // for ( var ForBinding of AssignmentExpression ) Statement
+                    // for await ( var ForBinding of AssignmentExpression ) Statement
+                    // 1. Let declarations1 be « ForBinding ».
+                    var_decl.var_scoped_declarations(f);
+                }
+                // 2. Let declarations2 be VarScopedDeclarations of Statement.
+                st.body.var_scoped_declarations(f);
+                // 3. Return the list-concatenation of declarations1 and declarations2.
+            },
+            Statement::ForOfStatement(st) => {
+                if let ForStatementLeft::VariableDeclaration(var_decl) = &st.left {
+                    // ForInOfStatement :
+                    // for ( var ForBinding in Expression ) Statement
+                    // for ( var ForBinding of AssignmentExpression ) Statement
+                    // for await ( var ForBinding of AssignmentExpression ) Statement
+                    // 1. Let declarations1 be « ForBinding ».
+                    var_decl.var_scoped_declarations(f);
+                }
+                // 2. Let declarations2 be VarScopedDeclarations of Statement.
+                st.body.var_scoped_declarations(f);
+                // 3. Return the list-concatenation of declarations1 and declarations2.
+            },
+            Statement::WithStatement(st) => {
+                // NOTE
+                // This section is extended by Annex B.3.5.
+
+                // WithStatement : with ( Expression ) Statement
+                // 1. Return the VarScopedDeclarations of Statement.
+                st.body.var_scoped_declarations(f);
+            },
+            Statement::SwitchStatement(st) => {
+                // SwitchStatement : switch ( Expression ) CaseBlock
+                // 1. Return the VarScopedDeclarations of CaseBlock.
+                for ele in &st.cases {
+                    // CaseBlock : { }
+                    // 1. Return a new empty List.
+                    // CaseBlock : { CaseClausesopt DefaultClause CaseClausesopt }
+                    // 1. If the first CaseClauses is present, let declarations1 be the VarScopedDeclarations of the first CaseClauses.
+                    // 2. Else, let declarations1 be a new empty List.
+                    // 3. Let declarations2 be VarScopedDeclarations of DefaultClause.
+                    // 4. If the second CaseClauses is present, let declarations3 be the VarScopedDeclarations of the second CaseClauses.
+                    // 5. Else, let declarations3 be a new empty List.
+                    // 6. Return the list-concatenation of declarations1, declarations2, and declarations3.
+                    // CaseClauses : CaseClauses CaseClause
+                    // 1. Let declarations1 be VarScopedDeclarations of CaseClauses.
+                    // 2. Let declarations2 be VarScopedDeclarations of CaseClause.
+                    // 3. Return the list-concatenation of declarations1 and declarations2.
+                    // CaseClause : case Expression : StatementListopt
+                    // 1. If the StatementList is present, return the VarScopedDeclarations of StatementList.
+                    // 2. Return a new empty List.
+                    // DefaultClause : default : StatementListopt
+                    // 1. If the StatementList is present, return the VarScopedDeclarations of StatementList.
+                    // 2. Return a new empty List.
+                    ele.consequent.var_scoped_declarations(f);
+                }
+            },
+            Statement::LabeledStatement(st) => {
+                // LabelledStatement : LabelIdentifier : LabelledItem
+                // 1. Return the VarScopedDeclarations of LabelledItem.
+                // LabelledItem : FunctionDeclaration
+                if let Statement::Declaration(Declaration::FunctionDeclaration(_)) = &st.body {
+                    // 1. Return a new empty List.
+                    return;
+                }
+                st.body.var_scoped_declarations(f);
+            },
+            Statement::TryStatement(st) => {
+                // TryStatement : try Block Catch Finally
+                // 1. Let declarations1 be VarScopedDeclarations of Block.
+                st.block.body.var_scoped_declarations(f);
+                // 2. Let declarations2 be VarScopedDeclarations of Catch.
+                if let Some(handler) = &st.handler {
+                    // Catch : catch ( CatchParameter ) Block
+                    // 1. Return the VarScopedDeclarations of Block.
+                    handler.body.body.var_scoped_declarations(f);
+                }
+                // 3. Let declarations3 be VarScopedDeclarations of Finally.
+                if let Some(finally) = &st.finalizer {
+                    finally.body.var_scoped_declarations(f);
+                }
+                // 4. Return the list-concatenation of declarations1, declarations2, and declarations3.
+            },
+            Statement::ModuleDeclaration(st) => {
+                match &st.0 {
+                    // ModuleItem : ImportDeclaration
+                    ModuleDeclaration::ImportDeclaration(_) => {
+                        // 1. Return a new empty List.
+                    },
+                    // ModuleItem : ExportDeclaration
+                    ModuleDeclaration::ExportAllDeclaration(_) |
+                    ModuleDeclaration::ExportDefaultDeclaration(_) => {}
+                    ModuleDeclaration::ExportNamedDeclaration(decl) => {
+                        // 1. If ExportDeclaration is export VariableStatement, return VarScopedDeclarations of VariableStatement.
+                        if let Some(Declaration::VariableDeclaration(decl)) = &decl.declaration {
+                            decl.var_scoped_declarations(f);
+                        }
+                    },
+                    ModuleDeclaration::TSExportAssignment(_) |
+                    ModuleDeclaration::TSNamespaceExportDeclaration(_) => unreachable!(),
+                }
+                // 2. Return a new empty List.
+            },
+        }
+    }
+}
+
+impl<'a> VarScopedDeclarations<'a> for VariableDeclaration<'a> {
+    fn var_scoped_declarations<F: FnMut(VarScopedDeclaration<'a>)>(&'a self, f: &mut F) {
+        if self.kind != VariableDeclarationKind::Var {
+            return;
+        }
+        // VariableDeclarationList : VariableDeclaration
+        // 1. Return « VariableDeclaration ».
+        // VariableDeclarationList : VariableDeclarationList , VariableDeclaration
+        // 1. Let declarations1 be VarScopedDeclarations of VariableDeclarationList.
+        // 2. Return the list-concatenation of declarations1 and « VariableDeclaration ».
+        for declarator in &self.declarations {
+            f(VarScopedDeclaration::VariableDeclaration(unsafe {
+                std::mem::transmute(declarator)
+            }));
+        }
+    }
+}
+
 /// ### [8.2.8 Static Semantics: TopLevelLexicallyDeclaredNames]()
 /// The syntax-directed operation TopLevelLexicallyDeclaredNames takes no arguments and returns a List of Strings.
-pub(crate) trait TopLevelLexicallyDeclaredNames<'a> {
+trait TopLevelLexicallyDeclaredNames<'a> {
     fn top_level_lexically_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F);
 }
 
@@ -509,32 +744,28 @@ impl<'a> TopLevelLexicallyDeclaredNames<'a> for Statement<'_> {
         // 1. Return a new empty List.
         // NOTE
         // At the top level of a function, or script, function declarations are treated like var declarations rather than like lexical declarations.
-        match self {
-            // StatementListItem : Declaration
-            Statement::Declaration(decl) => {
-                match decl {
-                    // 1. If Declaration is Declaration : HoistableDeclaration , then
-                    // a. Return a new empty List.
-                    Declaration::FunctionDeclaration(_) => {}
-                    // 2. Return the BoundNames of Declaration.
-                    Declaration::VariableDeclaration(decl) => decl.bound_names(f),
-                    Declaration::ClassDeclaration(decl) => decl.bound_names(f),
-                    Declaration::UsingDeclaration(decl) => decl.bound_names(f),
-                    Declaration::TSTypeAliasDeclaration(_)
-                    | Declaration::TSInterfaceDeclaration(_)
-                    | Declaration::TSEnumDeclaration(_)
-                    | Declaration::TSModuleDeclaration(_)
-                    | Declaration::TSImportEqualsDeclaration(_) => unreachable!(),
-                }
+        if let Statement::Declaration(decl) = self {
+            match decl {
+                // 1. If Declaration is Declaration : HoistableDeclaration , then
+                // a. Return a new empty List.
+                Declaration::FunctionDeclaration(_) => {}
+                // 2. Return the BoundNames of Declaration.
+                Declaration::VariableDeclaration(decl) => decl.bound_names(f),
+                Declaration::ClassDeclaration(decl) => decl.bound_names(f),
+                Declaration::UsingDeclaration(decl) => decl.bound_names(f),
+                Declaration::TSTypeAliasDeclaration(_)
+                | Declaration::TSInterfaceDeclaration(_)
+                | Declaration::TSEnumDeclaration(_)
+                | Declaration::TSModuleDeclaration(_)
+                | Declaration::TSImportEqualsDeclaration(_) => unreachable!(),
             }
-            _ => {}
         }
     }
 }
 
 /// ### [8.2.9 Static Semantics: TopLevelLexicallyScopedDeclarations](https://tc39.es/ecma262/#sec-static-semantics-toplevellexicallyscopeddeclarations)
 /// The syntax-directed operation TopLevelLexicallyScopedDeclarations takes no arguments and returns a List of Parse Nodes.
-pub(crate) trait TopLevelLexicallyScopedDeclarations<'a> {
+trait TopLevelLexicallyScopedDeclarations<'a> {
     fn top_level_lexically_scoped_declarations<F: FnMut(&Declaration<'a>)>(&self, f: &mut F);
 }
 
@@ -569,7 +800,7 @@ impl<'a> TopLevelLexicallyScopedDeclarations<'a> for Statement<'a> {
 
 /// ### [8.2.10 Static Semantics: TopLevelVarDeclaredNames](https://tc39.es/ecma262/#sec-static-semantics-toplevelvardeclarednames)
 /// The syntax-directed operation TopLevelVarDeclaredNames takes no arguments and returns a List of Strings. It is defined piecewise over the following productions:
-pub(crate) trait TopLevelVarDeclaredNames<'a> {
+trait TopLevelVarDeclaredNames<'a> {
     fn top_level_var_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F);
 }
 
@@ -634,5 +865,95 @@ impl<'a> TopLevelVarDeclaredNames<'a> for LabeledStatement<'a> {
             // 1. Return BoundNames of FunctionDeclaration.´
             decl.bound_names(f);
         }
+    }
+}
+
+/// ### [8.2.11 Static Semantics: TopLevelVarScopedDeclarations](https://tc39.es/ecma262/#sec-static-semantics-toplevelvarscopeddeclarations)
+///
+/// The syntax-directed operation TopLevelVarScopedDeclarations takes no arguments and returns a List of Parse Nodes.
+trait TopLevelVarScopedDeclarations<'a> {
+    fn top_level_var_scoped_declarations<F: FnMut(VarScopedDeclaration<'a>)>(&'a self, f: &mut F);
+}
+
+impl<'a> TopLevelVarScopedDeclarations<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
+    fn top_level_var_scoped_declarations<F: FnMut(VarScopedDeclaration<'a>)>(&'a self, f: &mut F) {
+        // StatementList : StatementList StatementListItem
+        // 1. Let declarations1 be TopLevelVarScopedDeclarations of StatementList.
+        // 2. Let declarations2 be TopLevelVarScopedDeclarations of StatementListItem.
+        // 3. Return the list-concatenation of declarations1 and declarations2.
+        for ele in self {
+            ele.top_level_var_scoped_declarations(f);
+        }
+    }
+}
+
+impl<'a> TopLevelVarScopedDeclarations<'a> for Statement<'a> {
+    fn top_level_var_scoped_declarations<F: FnMut(VarScopedDeclaration<'a>)>(&'a self, f: &mut F) {
+        match self {
+            // StatementListItem : Statement
+            Statement::LabeledStatement(st) => {
+                // 1. If Statement is Statement : LabelledStatement , return TopLevelVarScopedDeclarations of Statement.
+                st.top_level_var_scoped_declarations(f);
+            }
+            // StatementListItem : Declaration
+            Statement::Declaration(decl) => {
+                // 1. If Declaration is Declaration : HoistableDeclaration , then
+                match decl {
+                    Declaration::VariableDeclaration(decl) => {
+                        // VariableDeclarations are actually VariableStatements and fall into
+                        // 2. Return VarScopedDeclarations of Statement.
+                        decl.var_scoped_declarations(f);
+                    }
+                    Declaration::FunctionDeclaration(decl) => {
+                        // a. Let declaration be DeclarationPart of HoistableDeclaration.
+                        // b. Return « declaration ».
+                        f(VarScopedDeclaration::FunctionDeclaration(decl));
+                    }
+                    _ => {
+                        // 2. Return a new empty List.
+                    }
+                }
+            }
+            // 2. Return VarScopedDeclarations of Statement.
+            Statement::BlockStatement(_)
+            | Statement::BreakStatement(_)
+            | Statement::ContinueStatement(_)
+            | Statement::DebuggerStatement(_)
+            | Statement::DoWhileStatement(_)
+            | Statement::EmptyStatement(_)
+            | Statement::ExpressionStatement(_)
+            | Statement::ForInStatement(_)
+            | Statement::ForOfStatement(_)
+            | Statement::ForStatement(_)
+            | Statement::IfStatement(_)
+            | Statement::ReturnStatement(_)
+            | Statement::SwitchStatement(_)
+            | Statement::ThrowStatement(_)
+            | Statement::TryStatement(_)
+            | Statement::WhileStatement(_)
+            | Statement::WithStatement(_)
+            | Statement::ModuleDeclaration(_) => {
+                self.var_scoped_declarations(f);
+            }
+        }
+    }
+}
+
+impl<'a> TopLevelVarScopedDeclarations<'a> for LabeledStatement<'a> {
+    fn top_level_var_scoped_declarations<F: FnMut(VarScopedDeclaration<'a>)>(&'a self, f: &mut F) {
+        // 1. If Statement is Statement : LabelledStatement , return TopLevelVarScopedDeclarations of Statement.
+        if let Statement::LabeledStatement(st) = &self.body {
+            // LabelledStatement : LabelIdentifier : LabelledItem
+            // 1. Return the TopLevelVarScopedDeclarations of LabelledItem.
+            // LabelledItem : Statement
+            // 1. If Statement is Statement : LabelledStatement , return TopLevelVarScopedDeclarations of Statement.
+            st.top_level_var_scoped_declarations(f);
+        } else if let Statement::Declaration(Declaration::FunctionDeclaration(decl)) = &self.body {
+            // LabelledItem : FunctionDeclaration
+            // 1. Return « FunctionDeclaration ».
+            f(VarScopedDeclaration::FunctionDeclaration(decl));
+        }
+        // 2. Return VarScopedDeclarations of Statement.
+        self.body.var_scoped_declarations(f);
     }
 }

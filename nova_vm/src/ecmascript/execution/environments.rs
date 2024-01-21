@@ -34,9 +34,10 @@ pub(crate) use function_environment::{
 };
 pub(crate) use global_environment::GlobalEnvironment;
 pub(crate) use object_environment::ObjectEnvironment;
+use oxc_span::Atom;
 pub(crate) use private_environment::PrivateEnvironment;
 
-use crate::ecmascript::types::{Base, Reference, ReferencedName};
+use crate::ecmascript::types::{Base, Reference, ReferencedName, Value};
 
 use super::{Agent, JsResult};
 
@@ -112,6 +113,43 @@ pub(crate) enum EnvironmentIndex {
     Object(ObjectEnvironmentIndex),
 }
 
+impl EnvironmentIndex {
+    pub(crate) fn set_mutable_binding(
+        self,
+        agent: &mut Agent,
+        name: &Atom,
+        value: Value,
+        is_strict: bool,
+    ) -> JsResult<()> {
+        match self {
+            EnvironmentIndex::Declarative(idx) => agent
+                .heap
+                .environments
+                .get_declarative_environment_mut(idx)
+                .set_mutable_binding(name, value, is_strict),
+            EnvironmentIndex::Function(idx) => agent
+                .heap
+                .environments
+                .get_function_environment_mut(idx)
+                .declarative_environment
+                .set_mutable_binding(name, value, is_strict),
+            EnvironmentIndex::Global(idx) => {
+                // TODO: Get rid of this clone. It stops lexical bindings from working and is all around bad.
+                let mut global_environment = agent
+                    .heap
+                    .environments
+                    .get_global_environment_mut(idx)
+                    .clone();
+                global_environment.set_mutable_binding(agent, name, value, is_strict)
+            }
+            EnvironmentIndex::Object(_idx) => {
+                todo!();
+                // agent.heap.environments.get_object_environment_mut(idx).set_mutable_binding(agent, name, value, is_strict)
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Environments {
     pub(crate) declarative: Vec<Option<DeclarativeEnvironment>>,
@@ -140,7 +178,7 @@ impl Default for Environments {
 pub(crate) fn get_identifier_reference(
     agent: &mut Agent,
     env: Option<EnvironmentIndex>,
-    name: &str,
+    name: &Atom,
     strict: bool,
 ) -> JsResult<Reference> {
     // 1. If env is null, then
@@ -150,7 +188,7 @@ pub(crate) fn get_identifier_reference(
             // [[Base]]: UNRESOLVABLE,
             base: Base::Unresolvable,
             // [[ReferencedName]]: name,
-            referenced_name: ReferencedName::String(name.into()),
+            referenced_name: ReferencedName::String(name.clone()),
             // [[Strict]]: strict,
             strict,
             // [[ThisValue]]: EMPTY
@@ -171,11 +209,15 @@ pub(crate) fn get_identifier_reference(
             .environments
             .get_function_environment(index)
             .has_binding(name),
-        EnvironmentIndex::Global(index) => agent
-            .heap
-            .environments
-            .get_global_environment(index)
-            .has_binding(name),
+        EnvironmentIndex::Global(index) => {
+            // TODO: Get rid of this clone.
+            let global_environment = agent
+                .heap
+                .environments
+                .get_global_environment(index)
+                .clone();
+            global_environment.has_binding(agent, name)?
+        }
         EnvironmentIndex::Object(_index) => todo!(),
     };
 
@@ -186,7 +228,7 @@ pub(crate) fn get_identifier_reference(
             // [[Base]]: env,
             base: Base::Environment(env),
             // [[ReferencedName]]: name,
-            referenced_name: ReferencedName::String(name.into()),
+            referenced_name: ReferencedName::String(name.clone()),
             // [[Strict]]: strict,
             strict,
             // [[ThisValue]]: EMPTY

@@ -1,6 +1,6 @@
 use super::OuterEnv;
 use crate::ecmascript::{
-    execution::{agent::ExceptionType, Agent, JsResult},
+    execution::JsResult,
     types::{Object, Value},
 };
 use oxc_span::Atom;
@@ -12,7 +12,7 @@ use std::collections::HashMap;
 /// language syntactic elements such as FunctionDeclarations,
 /// VariableDeclarations, and Catch clauses that directly associate identifier
 /// bindings with ECMAScript language values.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct DeclarativeEnvironment {
     /// ### \[\[OuterEnv\]\]
     ///
@@ -23,7 +23,7 @@ pub(crate) struct DeclarativeEnvironment {
     pub(crate) bindings: HashMap<Atom, Binding>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct Binding {
     pub(crate) value: Option<Value>,
     // TODO: Pack these into bitfields.
@@ -67,15 +67,15 @@ impl DeclarativeEnvironment {
     /// for the name N that is uninitialized. A binding must not already exist
     /// in this Environment Record for N. If D is true, the new binding is
     /// marked as being subject to deletion.
-    pub fn create_mutable_binding(&mut self, name: Atom, is_deletable: bool) {
+    pub fn create_mutable_binding(&mut self, name: &Atom, is_deletable: bool) {
         // 1. Assert: envRec does not already have a binding for N.
-        debug_assert!(!self.has_binding(&name));
+        debug_assert!(!self.has_binding(name));
 
         // 2. Create a mutable binding in envRec for N and record that it is
         // uninitialized. If D is true, record that the newly created binding
         // may be deleted by a subsequent DeleteBinding call.
         self.bindings.insert(
-            name,
+            name.clone(),
             Binding {
                 value: None,
                 // TODO: Figure out how/if we should propagate this.
@@ -147,24 +147,25 @@ impl DeclarativeEnvironment {
     /// if S is true.
     pub(crate) fn set_mutable_binding(
         &mut self,
-        agent: &mut Agent,
-        name: Atom,
+        // agent: &mut Agent,
+        name: &Atom,
         value: Value,
         mut is_strict: bool,
     ) -> JsResult<()> {
         // 1. If envRec does not have a binding for N, then
-        let Some(binding) = self.bindings.get_mut(&name) else {
+        let Some(binding) = self.bindings.get_mut(name) else {
             // a. If S is true, throw a ReferenceError exception.
             if is_strict {
-                return Err(agent
-                    .throw_exception(ExceptionType::ReferenceError, "Identifier is not defined."));
+                panic!("Identifier is not defined");
+                // return Err(agent
+                //     .throw_exception(ExceptionType::ReferenceError, "Identifier is not defined."));
             }
 
             // b. Perform ! envRec.CreateMutableBinding(N, true).
-            self.create_mutable_binding(name.clone(), true);
+            self.create_mutable_binding(name, true);
 
             // c. Perform ! envRec.InitializeBinding(N, V).
-            self.initialize_binding(&name, value);
+            self.initialize_binding(name, value);
 
             // d. Return UNUSED.
             return Ok(());
@@ -178,9 +179,10 @@ impl DeclarativeEnvironment {
         // 3. If the binding for N in envRec has not yet been initialized, then
         if binding.value.is_none() {
             // a. Throw a ReferenceError exception.
-            return Err(
-                agent.throw_exception(ExceptionType::ReferenceError, "Identifier is not defined.")
-            );
+            panic!("Identifier is not defined");
+            // return Err(
+            //     agent.throw_exception(ExceptionType::ReferenceError, "Identifier is not defined.")
+            // );
         }
 
         // 4. Else if the binding for N in envRec is a mutable binding, then
@@ -195,9 +197,10 @@ impl DeclarativeEnvironment {
 
             // b. If S is true, throw a TypeError exception.
             if is_strict {
-                return Err(
-                    agent.throw_exception(ExceptionType::TypeError, "Cannot assign to constant.")
-                );
+                panic!("Cannot assign to constant");
+                // return Err(
+                //     agent.throw_exception(ExceptionType::TypeError, "Cannot assign to constant.")
+                // );
             }
         }
 

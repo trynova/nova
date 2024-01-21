@@ -62,6 +62,30 @@ pub(crate) fn get_v(agent: &mut Agent, v: Value, p: PropertyKey) -> JsResult<Val
     o.get(agent, p, o.into())
 }
 
+/// ### [7.3.4 Set ( O, P, V, Throw )](https://tc39.es/ecma262/#sec-set-o-p-v-throw)
+///
+/// The abstract operation Set takes arguments O (an Object), P (a property
+/// key), V (an ECMAScript language value), and Throw (a Boolean) and returns
+/// either a normal completion containing UNUSED or a throw completion. It is
+/// used to set the value of a specific property of an object. V is the new
+/// value for the property.
+pub(crate) fn set(
+    agent: &mut Agent,
+    o: Object,
+    p: PropertyKey,
+    v: Value,
+    throw: bool,
+) -> JsResult<()> {
+    // 1. Let success be ? O.[[Set]](P, V, O).
+    let success = o.set(agent, p, v, o.into_value())?;
+    // 2. If success is false and Throw is true, throw a TypeError exception.
+    if !success && throw {
+        return Err(agent.throw_exception(ExceptionType::TypeError, "Could not set property."));
+    }
+    // 3. Return UNUSED.
+    Ok(())
+}
+
 /// ### [7.3.5] CreateDataProperty ( O, P, V )[https://tc39.es/ecma262/#sec-createdataproperty]
 ///
 /// The abstract operation CreateDataProperty takes arguments O (an Object), P
@@ -171,6 +195,32 @@ pub(crate) fn get_method(
         Value::BuiltinFunction(idx) => Ok(Some(Function::from(idx))),
         Value::ECMAScriptFunction(idx) => Ok(Some(Function::from(idx))),
         _ => unreachable!(),
+    }
+}
+
+/// ### [7.3.12 HasProperty ( O, P )](https://tc39.es/ecma262/#sec-hasproperty)
+/// The abstract operation HasProperty takes arguments O (an Object) and P (a
+/// property key) and returns either a normal completion containing a Boolean
+/// or a throw completion. It is used to determine whether an object has a
+/// property with the specified property key. The property may be either own or
+/// inherited.
+pub(crate) fn has_property(agent: &mut Agent, o: Object, p: PropertyKey) -> JsResult<bool> {
+    // 1. Return ? O.[[HasProperty]](P).
+    o.has_property(agent, p)
+}
+
+/// ### [7.3.13 HasOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-hasownproperty)
+///
+/// The abstract operation HasOwnProperty takes arguments O (an Object) and P (a property key) and returns either a normal completion containing a Boolean or a throw completion. It is used to determine whether an object has an own property with the specified property key. It performs the following steps when called:
+pub(crate) fn has_own_property(agent: &mut Agent, o: Object, p: PropertyKey) -> JsResult<bool> {
+    // 1. Let desc be ? O.[[GetOwnProperty]](P).
+    let desc = o.get_own_property(agent, p)?;
+    // 2. If desc is undefined, return false.
+    if desc.is_none() {
+        Ok(false)
+    } else {
+        // 3. Return true.
+        Ok(true)
     }
 }
 

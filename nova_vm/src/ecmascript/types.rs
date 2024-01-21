@@ -9,7 +9,7 @@ pub(crate) use language::{
     BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
     NumberHeapData, ObjectHeapData, StringHeapData,
 };
-pub(crate) use spec::{Base, DataBlock, Reference};
+pub(crate) use spec::*;
 pub use spec::{PropertyDescriptor, ReferencedName};
 
 #[derive(Debug)]

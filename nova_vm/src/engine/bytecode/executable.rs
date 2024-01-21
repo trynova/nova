@@ -508,41 +508,63 @@ impl Compile for ast::IfStatement<'_> {
 
 impl Compile for ast::VariableDeclaration<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        for decl in &self.declarations {
-            match self.kind {
-                ast::VariableDeclarationKind::Var => {
+        match self.kind {
+            // VariableStatement : var VariableDeclarationList ;
+            ast::VariableDeclarationKind::Var => {
+                for decl in &self.declarations {
+                    // VariableDeclaration : BindingIdentifier
+                    if decl.init.is_none() {
+                        // 1. Return EMPTY.
+                        return;
+                    }
                     let ast::BindingPatternKind::BindingIdentifier(identifier) = &decl.id.kind
                     else {
                         todo!("{:?}", decl.id.kind);
                     };
 
-                    if let Some(init) = &decl.init {
-                        // Put undefined to stack
-                        ctx.exe.add_instruction(Instruction::Load);
+                    // VariableDeclaration : BindingIdentifier Initializer
+                    let init = decl.init.as_ref().unwrap();
 
-                        ctx.exe.add_instruction_with_identifier(
-                            Instruction::ResolveBinding,
-                            identifier.name.clone(),
-                        );
+                    // Put undefined to stack
+                    ctx.exe.add_instruction(Instruction::Load);
 
-                        ctx.exe.add_instruction(Instruction::PushReference);
+                    // 1. Let bindingId be StringValue of BindingIdentifier.
+                    // 2. Let lhs be ? ResolveBinding(bindingId).
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::ResolveBinding,
+                        identifier.name.clone(),
+                    );
 
-                        init.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::PushReference);
 
-                        if is_reference(init) {
-                            ctx.exe.add_instruction(Instruction::GetValue);
-                        }
-
-                        ctx.exe.add_instruction(Instruction::Load);
-                        ctx.exe.add_instruction(Instruction::PutValue);
-                        ctx.exe.add_instruction(Instruction::PopReference);
-
-                        // Pop out undefined from stack to return it.
-                        ctx.exe.add_instruction(Instruction::Store);
+                    // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
+                    if init.is_function() {
+                        let _is_anonymous = match &init {
+                            ast::Expression::ArrowExpression(_) => true,
+                            ast::Expression::FunctionExpression(expr) => expr.id.is_none(),
+                            _ => unreachable!(),
+                        };
+                        // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
+                        // TODO: How do we do NamedEvaluation?
                     }
+                    // 4. Else,
+                    // a. Let rhs be ? Evaluation of Initializer.
+                    init.compile(ctx);
+                    // b. Let value be ? GetValue(rhs).
+                    if is_reference(init) {
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    // 5. Perform ? PutValue(lhs, value).
+                    ctx.exe.add_instruction(Instruction::Load);
+                    ctx.exe.add_instruction(Instruction::PutValue);
+                    ctx.exe.add_instruction(Instruction::PopReference);
+
+                    // 6. Return EMPTY.
+                    // Pop out undefined from stack to return it.
+                    ctx.exe.add_instruction(Instruction::Store);
                 }
-                other => todo!("{other:?}"),
             }
+            other => todo!("{other:?}"),
         }
     }
 }

@@ -12,8 +12,6 @@ pub(crate) use environments::{
     GlobalEnvironment, GlobalEnvironmentIndex, ObjectEnvironment, ObjectEnvironmentIndex,
     PrivateEnvironment, PrivateEnvironmentIndex, ThisBindingStatus,
 };
-pub(crate) use execution_context::{
-    ECMAScriptCode, ECMAScriptCodeEvaluationState, ExecutionContext,
-};
+pub(crate) use execution_context::*;
 pub use realm::{create_realm, set_realm_global_object};
 pub(crate) use realm::{Intrinsics, ProtoIntrinsics, Realm, RealmIdentifier};
