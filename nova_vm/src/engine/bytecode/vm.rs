@@ -20,10 +20,10 @@ use crate::ecmascript::{
 
 use super::{Executable, Instruction, InstructionIter};
 
-/// Note:
+/// ## Notes
 ///
-/// This is inspired by and/or copied from Kiesel engine:
-/// Copyright (c) 2023-2024 Linus Groh
+/// - This is inspired by and/or copied from Kiesel engine:
+///   Copyright (c) 2023-2024 Linus Groh
 #[derive(Debug)]
 pub(crate) struct Vm {
     /// Instruction pointer.
