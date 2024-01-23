@@ -6,7 +6,11 @@ Nova is a [JavaScript](https://tc39.es/ecma262) and
 [WebAssembly](https://webassembly.org) engine written in Rust.
 
 The engine is exposed as a library with an API for implementation in Rust
-projects which themselves must serve as a runtime for JavaScript code.
+projects which themselves must serve as a runtime for JavaScript code. The
+execution model is currently greatly inspired by
+[Kiesel](https://codeberg.org/kiesel-js/kiesel) and
+[SerenityOS's LibJS](https://github.com/SerenityOS/serenity). See the code for
+more details.
 
 The core of our team is on our [Discord server](https://discord.gg/RTrgJzXKUM).
 
