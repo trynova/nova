@@ -62,10 +62,13 @@ impl Vm {
         let mut vm = Vm::new();
 
         let iter = InstructionIter::new(&executable.instructions);
-
         for instr in iter {
             eprintln!("{:?} {:?}", instr.kind, instr.args);
+        }
+        let iter = InstructionIter::new(&executable.instructions);
 
+
+        for instr in iter {
             match instr.kind {
                 Instruction::ResolveBinding => {
                     let identifier =
