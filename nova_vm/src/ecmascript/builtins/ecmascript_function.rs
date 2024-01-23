@@ -248,12 +248,7 @@ pub(crate) fn ordinary_call_bind_this(
         ThisBindingStatus::Initialized
     );
     // 9. Perform ! localEnv.BindThisValue(thisValue).
-    agent
-        .heap
-        .environments
-        .get_function_environment_mut(local_env)
-        .bind_this_value(this_value)
-        .unwrap();
+    local_env.bind_this_value(agent, this_value).unwrap();
     // 10. Return UNUSED.
 }
 

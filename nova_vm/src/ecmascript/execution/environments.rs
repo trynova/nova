@@ -37,7 +37,7 @@ pub(crate) use object_environment::ObjectEnvironment;
 use oxc_span::Atom;
 pub(crate) use private_environment::PrivateEnvironment;
 
-use crate::ecmascript::types::{Base, Reference, ReferencedName, Value};
+use crate::ecmascript::types::{Base, Object, Reference, ReferencedName, Value};
 
 use super::{Agent, JsResult};
 
@@ -85,6 +85,10 @@ macro_rules! create_environment_index {
             pub(crate) const fn into_u32(self) -> u32 {
                 self.0.get()
             }
+
+            pub(crate) fn last(vec: &Vec<Option<$name>>) -> Self {
+                Self::from_u32(vec.len() as u32)
+            }
         }
     };
 }
@@ -114,6 +118,100 @@ pub(crate) enum EnvironmentIndex {
 }
 
 impl EnvironmentIndex {
+    pub(crate) fn get_outer_env(self, agent: &Agent) -> OuterEnv {
+        match self {
+            EnvironmentIndex::Declarative(index) => index.get(agent).outer_env,
+            EnvironmentIndex::Function(index) => {
+                index
+                    .get(agent)
+                    .declarative_environment
+                    .get(agent)
+                    .outer_env
+            }
+            EnvironmentIndex::Global(_) => None,
+            EnvironmentIndex::Object(index) => index.get(agent).outer_env,
+        }
+    }
+
+    /// ### [HasBinding(N)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// Determine if an Environment Record has a binding for the String value N. Return true if it does and false if it does not.
+    pub(crate) fn has_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
+        match self {
+            EnvironmentIndex::Declarative(idx) => Ok(idx.has_binding(agent, name)),
+            EnvironmentIndex::Function(idx) => Ok(idx.has_binding(agent, name)),
+            EnvironmentIndex::Global(idx) => idx.has_binding(agent, name),
+            EnvironmentIndex::Object(idx) => idx.has_binding(agent, name),
+        }
+    }
+
+    /// ### [CreateMutableBinding(N, D)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// Create a new but uninitialized mutable binding in an Environment Record. The String value N is the text of the bound name. If the Boolean argument D is true the binding may be subsequently deleted.
+    pub(crate) fn create_mutable_binding(
+        self,
+        agent: &mut Agent,
+        name: &Atom,
+        is_deletable: bool,
+    ) -> JsResult<()> {
+        match self {
+            EnvironmentIndex::Declarative(idx) => {
+                Ok(idx.create_mutable_binding(agent, name, is_deletable))
+            }
+            EnvironmentIndex::Function(idx) => {
+                Ok(idx.create_mutable_binding(agent, name, is_deletable))
+            }
+            EnvironmentIndex::Global(idx) => idx.create_mutable_binding(agent, name, is_deletable),
+            EnvironmentIndex::Object(idx) => idx.create_mutable_binding(agent, name, is_deletable),
+        }
+    }
+
+    /// ### [CreateImmutableBinding(N, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// Create a new but uninitialized immutable binding in an Environment Record. The String value N is the text of the bound name. If S is true then attempts to set it after it has been initialized will always throw an exception, regardless of the strict mode setting of operations that reference that binding.
+    pub(crate) fn create_immutable_binding(
+        self,
+        agent: &mut Agent,
+        name: &Atom,
+        is_strict: bool,
+    ) -> JsResult<()> {
+        match self {
+            EnvironmentIndex::Declarative(idx) => {
+                Ok(idx.create_immutable_binding(agent, name, is_strict))
+            }
+            EnvironmentIndex::Function(idx) => {
+                Ok(idx.create_immutable_binding(agent, name, is_strict))
+            }
+            EnvironmentIndex::Global(idx) => idx.create_immutable_binding(agent, name, is_strict),
+            EnvironmentIndex::Object(idx) => {
+                Ok(idx.create_immutable_binding(agent, name, is_strict))
+            }
+        }
+    }
+
+    /// ### [InitializeBinding(N, V)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// Set the value of an already existing but uninitialized binding in an
+    /// Environment Record. The String value N is the text of the bound name.
+    /// V is the value for the binding and is a value of any ECMAScript
+    /// language type.
+    pub(crate) fn initialize_binding(
+        self,
+        agent: &mut Agent,
+        name: &Atom,
+        value: Value,
+    ) -> JsResult<()> {
+        match self {
+            EnvironmentIndex::Declarative(idx) => Ok(idx.initialize_binding(agent, name, value)),
+            EnvironmentIndex::Function(idx) => Ok(idx.initialize_binding(agent, name, value)),
+            EnvironmentIndex::Global(idx) => idx.initialize_binding(agent, name, value),
+            EnvironmentIndex::Object(idx) => idx.initialize_binding(agent, name, value),
+        }
+    }
+
+    /// ### [SetMutableBinding(N, V, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// Set the value of an already existing mutable binding in an Environment Record. The String value N is the text of the bound name. V is the value for the binding and may be a value of any ECMAScript language type. S is a Boolean flag. If S is true and the binding cannot be set throw a TypeError exception.
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
@@ -122,30 +220,88 @@ impl EnvironmentIndex {
         is_strict: bool,
     ) -> JsResult<()> {
         match self {
-            EnvironmentIndex::Declarative(idx) => agent
-                .heap
-                .environments
-                .get_declarative_environment_mut(idx)
-                .set_mutable_binding(name, value, is_strict),
-            EnvironmentIndex::Function(idx) => agent
-                .heap
-                .environments
-                .get_function_environment_mut(idx)
-                .declarative_environment
-                .set_mutable_binding(name, value, is_strict),
-            EnvironmentIndex::Global(idx) => {
-                // TODO: Get rid of this clone. It stops lexical bindings from working and is all around bad.
-                let mut global_environment = agent
-                    .heap
-                    .environments
-                    .get_global_environment_mut(idx)
-                    .clone();
-                global_environment.set_mutable_binding(agent, name, value, is_strict)
+            EnvironmentIndex::Declarative(idx) => {
+                idx.set_mutable_binding(agent, name, value, is_strict)
             }
-            EnvironmentIndex::Object(_idx) => {
-                todo!();
-                // agent.heap.environments.get_object_environment_mut(idx).set_mutable_binding(agent, name, value, is_strict)
+            EnvironmentIndex::Function(idx) => {
+                idx.set_mutable_binding(agent, name, value, is_strict)
             }
+            EnvironmentIndex::Global(idx) => idx.set_mutable_binding(agent, name, value, is_strict),
+            EnvironmentIndex::Object(idx) => idx.set_mutable_binding(agent, name, value, is_strict),
+        }
+    }
+
+    /// ### [GetBindingValue(N, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// Returns the value of an already existing binding from an Environment
+    /// Record. The String value N is the text of the bound name. S is used to
+    /// identify references originating in strict mode code or that otherwise
+    /// require strict mode reference semantics. If S is true and the binding
+    /// does not exist throw a ReferenceError exception. If the binding exists
+    /// but is uninitialized a ReferenceError is thrown, regardless of the
+    /// value of S.
+    pub(crate) fn get_binding_value(
+        self,
+        agent: &mut Agent,
+        name: &Atom,
+        is_strict: bool,
+    ) -> JsResult<Value> {
+        match self {
+            EnvironmentIndex::Declarative(idx) => idx.get_binding_value(agent, name, is_strict),
+            EnvironmentIndex::Function(idx) => idx.get_binding_value(agent, name, is_strict),
+            EnvironmentIndex::Global(idx) => idx.get_binding_value(agent, name, is_strict),
+            EnvironmentIndex::Object(idx) => idx.get_binding_value(agent, name, is_strict),
+        }
+    }
+
+    /// ### [DeleteBinding(N)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// Delete a binding from an Environment Record. The String value N is the
+    /// text of the bound name. If a binding for N exists, remove the binding
+    /// and return true. If the binding exists but cannot be removed return
+    /// false.
+    pub(crate) fn delete_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
+        match self {
+            EnvironmentIndex::Declarative(idx) => Ok(idx.delete_binding(agent, name)),
+            EnvironmentIndex::Function(idx) => Ok(idx.delete_binding(agent, name)),
+            EnvironmentIndex::Global(idx) => idx.delete_binding(agent, name),
+            EnvironmentIndex::Object(idx) => idx.delete_binding(agent, name),
+        }
+    }
+
+    /// ### [HasThisBinding()](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// Determine if an Environment Record establishes a this binding. Return true if it does and false if it does not.
+    pub(crate) fn has_this_binding(self, agent: &mut Agent) -> bool {
+        match self {
+            EnvironmentIndex::Declarative(idx) => idx.has_this_binding(),
+            EnvironmentIndex::Function(idx) => idx.has_this_binding(agent),
+            EnvironmentIndex::Global(idx) => idx.has_this_binding(),
+            EnvironmentIndex::Object(idx) => idx.has_this_binding(),
+        }
+    }
+
+    /// ### [HasSuperBinding()](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// Determine if an Environment Record establishes a super method binding. Return true if it does and false if it does not.
+    pub(crate) fn has_super_binding(self, agent: &mut Agent) -> bool {
+        match self {
+            EnvironmentIndex::Declarative(idx) => idx.has_super_binding(),
+            EnvironmentIndex::Function(idx) => idx.has_super_binding(agent),
+            EnvironmentIndex::Global(idx) => idx.has_super_binding(),
+            EnvironmentIndex::Object(idx) => idx.has_super_binding(),
+        }
+    }
+
+    /// ### [WithBaseObject()](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// If this Environment Record is associated with a with statement, return the with object. Otherwise, return undefined.
+    pub(crate) fn with_base_object(self, agent: &mut Agent) -> Option<Object> {
+        match self {
+            EnvironmentIndex::Declarative(idx) => idx.with_base_object(),
+            EnvironmentIndex::Function(idx) => idx.with_base_object(),
+            EnvironmentIndex::Global(idx) => idx.with_base_object(),
+            EnvironmentIndex::Object(idx) => idx.with_base_object(agent),
         }
     }
 }
@@ -198,28 +354,7 @@ pub(crate) fn get_identifier_reference(
     };
 
     // 2. Let exists be ? env.HasBinding(name).
-    let exists = match env {
-        EnvironmentIndex::Declarative(index) => agent
-            .heap
-            .environments
-            .get_declarative_environment(index)
-            .has_binding(name),
-        EnvironmentIndex::Function(index) => agent
-            .heap
-            .environments
-            .get_function_environment(index)
-            .has_binding(name),
-        EnvironmentIndex::Global(index) => {
-            // TODO: Get rid of this clone.
-            let global_environment = agent
-                .heap
-                .environments
-                .get_global_environment(index)
-                .clone();
-            global_environment.has_binding(agent, name)?
-        }
-        EnvironmentIndex::Object(_index) => todo!(),
-    };
+    let exists = env.has_binding(agent, name)?;
 
     // 3. If exists is true, then
     if exists {
@@ -239,30 +374,7 @@ pub(crate) fn get_identifier_reference(
     // 4. Else,
     else {
         // a. Let outer be env.[[OuterEnv]].
-        let outer = match env {
-            EnvironmentIndex::Declarative(index) => {
-                agent
-                    .heap
-                    .environments
-                    .get_declarative_environment(index)
-                    .outer_env
-            }
-            EnvironmentIndex::Function(index) => {
-                agent
-                    .heap
-                    .environments
-                    .get_function_environment(index)
-                    .outer_env
-            }
-            EnvironmentIndex::Global(_) => None,
-            EnvironmentIndex::Object(index) => {
-                agent
-                    .heap
-                    .environments
-                    .get_object_environment(index)
-                    .outer_env
-            }
-        };
+        let outer = env.get_outer_env(agent);
 
         // b. Return ? GetIdentifierReference(outer, name, strict).
         get_identifier_reference(agent, outer, name, strict)
@@ -376,6 +488,17 @@ impl Environments {
             .get(index.into_index())
             .expect("ObjectEnvironmentIndex did not match to any vector index")
             .as_ref()
+            .expect("ObjectEnvironmentIndex pointed to a None")
+    }
+
+    pub(crate) fn get_object_environment_mut(
+        &mut self,
+        index: ObjectEnvironmentIndex,
+    ) -> &mut ObjectEnvironment {
+        self.object
+            .get_mut(index.into_index())
+            .expect("ObjectEnvironmentIndex did not match to any vector index")
+            .as_mut()
             .expect("ObjectEnvironmentIndex pointed to a None")
     }
 }

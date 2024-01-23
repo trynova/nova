@@ -1,8 +1,8 @@
 use oxc_ast::{
     ast::{
-        BindingIdentifier, Declaration, ForStatementInit, ForStatementLeft, Function, FunctionBody,
-        LabeledStatement, ModuleDeclaration, Program, Statement, StaticBlock, VariableDeclaration,
-        VariableDeclarationKind, VariableDeclarator,
+        BindingIdentifier, Declaration, ExportDefaultDeclarationKind, ForStatementInit,
+        ForStatementLeft, Function, FunctionBody, LabeledStatement, ModuleDeclaration, Program,
+        Statement, StaticBlock, VariableDeclaration, VariableDeclarationKind, VariableDeclarator,
     },
     syntax_directed_operations::BoundNames,
 };
@@ -117,19 +117,27 @@ impl<'a> LexicallyDeclaredNames<'a> for Statement<'_> {
                     ModuleDeclaration::ImportDeclaration(decl) => decl.bound_names(f),
                     ModuleDeclaration::ExportAllDeclaration(_decl) => {}
                     // ModuleItem : ExportDeclaration
-                    ModuleDeclaration::ExportDefaultDeclaration(_decl) => {
-                        // TODO: We should bind *default* and the declaration's bound names here I think
-                    }
                     ModuleDeclaration::ExportNamedDeclaration(decl) => {
-                        if matches!(
-                            decl.0.declaration,
-                            Some(Declaration::VariableDeclaration(_))
-                        ) {
+                        if matches!(decl.declaration, Some(Declaration::VariableDeclaration(_))) {
                             // 1. If ExportDeclaration is export VariableStatement, return a new empty List.
                             return;
                         }
                         // 2. Return the BoundNames of ExportDeclaration.
-                        decl.0.bound_names(f)
+                        decl.bound_names(f)
+                    }
+                    ModuleDeclaration::ExportDefaultDeclaration(decl) => {
+                        // 2. Return the BoundNames of ExportDeclaration.
+                        match &decl.declaration {
+                            ExportDefaultDeclarationKind::Expression(_) => {}
+                            ExportDefaultDeclarationKind::FunctionDeclaration(decl) => {
+                                decl.bound_names(f)
+                            }
+                            ExportDefaultDeclarationKind::ClassDeclaration(decl) => {
+                                decl.bound_names(f)
+                            }
+                            ExportDefaultDeclarationKind::TSInterfaceDeclaration(_)
+                            | ExportDefaultDeclarationKind::TSEnumDeclaration(_) => unreachable!(),
+                        }
                     }
                     ModuleDeclaration::TSExportAssignment(_)
                     | ModuleDeclaration::TSNamespaceExportDeclaration(_) => unreachable!(),
@@ -236,7 +244,7 @@ pub(crate) fn class_static_block_var_declared_names(static_block: &StaticBlock<'
 pub(crate) fn arrow_function_var_declared_names(arrow_function: &FunctionBody<'_>) -> Vec<Atom> {
     debug_assert!(arrow_function.statements.len() <= 1);
     if let Some(body) = arrow_function.statements.get(0) {
-        matches!(body, Statement::ExpressionStatement(_));
+        debug_assert!(matches!(body, Statement::ExpressionStatement(_)));
     }
     // ConciseBody : ExpressionBody
     // 1. Return a new empty List.

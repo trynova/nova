@@ -4,12 +4,16 @@ use crate::ecmascript::abstract_operations::operations_on_objects::{
     define_property_or_throw, has_own_property, set,
 };
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_extensible;
+use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::types::{Object, PropertyDescriptor, PropertyKey, Value};
 use crate::ecmascript::{execution::Agent, types::InternalMethods};
 use std::collections::HashSet;
 
-use super::{DeclarativeEnvironment, ObjectEnvironment};
+use super::{
+    DeclarativeEnvironment, DeclarativeEnvironmentIndex, GlobalEnvironmentIndex, ObjectEnvironment,
+    ObjectEnvironmentIndex,
+};
 
 /// ### [9.1.1.4 Global Environment Records](https://tc39.es/ecma262/#sec-global-environment-records)
 ///
@@ -26,7 +30,7 @@ pub struct GlobalEnvironment {
     /// bindings as well as FunctionDeclaration, GeneratorDeclaration,
     /// AsyncFunctionDeclaration, AsyncGeneratorDeclaration, and
     /// VariableDeclaration bindings in global code for the associated realm.
-    pub(crate) object_record: ObjectEnvironment,
+    pub(crate) object_record: ObjectEnvironmentIndex,
 
     /// ### \[\[GlobalThisValue\]\]
     ///
@@ -40,7 +44,7 @@ pub struct GlobalEnvironment {
     /// realm code except for FunctionDeclaration, GeneratorDeclaration,
     /// AsyncFunctionDeclaration, AsyncGeneratorDeclaration, and
     /// VariableDeclaration bindings.
-    pub(crate) declarative_record: DeclarativeEnvironment,
+    pub(crate) declarative_record: DeclarativeEnvironmentIndex,
 
     /// ### \[\[VarNames\]\]
     ///
@@ -58,12 +62,17 @@ impl GlobalEnvironment {
     /// The abstract operation NewGlobalEnvironment takes arguments G (an
     /// Object) and thisValue (an Object) and returns a Global Environment
     /// Record.
-    pub(crate) fn new(_agent: &mut Agent, global: Object, this_value: Object) -> GlobalEnvironment {
+    pub(crate) fn new(agent: &mut Agent, global: Object, this_value: Object) -> GlobalEnvironment {
         // 1. Let objRec be NewObjectEnvironment(G, false, null).
-        let object_record = ObjectEnvironment::new(global, false, None);
+        let obj_rec = ObjectEnvironment::new(global, false, None);
+        agent.heap.environments.object.push(Some(obj_rec));
+        let object_record = ObjectEnvironmentIndex::last(&agent.heap.environments.object);
 
         // 2. Let dclRec be NewDeclarativeEnvironment(null).
-        let declarative_record = DeclarativeEnvironment::new(None);
+        let dcl_rec = DeclarativeEnvironment::new(None);
+        agent.heap.environments.declarative.push(Some(dcl_rec));
+        let declarative_record =
+            DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative);
 
         // 3. Let env be a new Global Environment Record.
         GlobalEnvironment {
@@ -83,6 +92,16 @@ impl GlobalEnvironment {
         }
         // 9. Return env.
     }
+}
+
+impl GlobalEnvironmentIndex {
+    fn get(self, agent: &Agent) -> &GlobalEnvironment {
+        agent.heap.environments.get_global_environment(self)
+    }
+
+    fn get_mut(self, agent: &mut Agent) -> &mut GlobalEnvironment {
+        agent.heap.environments.get_global_environment_mut(self)
+    }
 
     /// ### [9.1.1.4.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-global-environment-records-hasbinding-n)
     ///
@@ -90,37 +109,123 @@ impl GlobalEnvironment {
     /// takes argument N (a String) and returns either a normal completion
     /// containing a Boolean or a throw completion. It determines if the
     /// argument identifier is one of the identifiers bound by the record.
-    pub(crate) fn has_binding(&self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
+    pub(crate) fn has_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
+        let env_rec = self.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         // 2. If ! DclRec.HasBinding(N) is true, return true.
-        if self.declarative_record.has_binding(name) {
+        if env_rec.declarative_record.has_binding(agent, name) {
             return Ok(true);
         }
 
         // 3. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = &self.object_record;
+        let obj_rec = env_rec.object_record;
         // 4. Return ? ObjRec.HasBinding(N).
         obj_rec.has_binding(agent, name)
     }
 
+    /// ### [9.1.1.4.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-global-environment-records-createmutablebinding-n-d)
+    ///
+    /// The CreateMutableBinding concrete method of a Global Environment Record
+    /// envRec takes arguments N (a String) and D (a Boolean) and returns either a
+    /// normal completion containing UNUSED or a throw completion. It creates a new
+    /// mutable binding for the name N that is uninitialized. The binding is
+    /// created in the associated DeclarativeRecord. A binding for N must not
+    /// already exist in the DeclarativeRecord. If D is true, the new binding is
+    /// marked as being subject to deletion.
+    pub(crate) fn create_mutable_binding(
+        self,
+        agent: &mut Agent,
+        name: &Atom,
+        is_deletable: bool,
+    ) -> JsResult<()> {
+        let env_rec = self.get(agent);
+        // 1. Let DclRec be envRec.[[DeclarativeRecord]].
+        let dcl_rec = env_rec.declarative_record;
+        // 2. If ! DclRec.HasBinding(N) is true, throw a TypeError exception.
+        if dcl_rec.has_binding(agent, name) {
+            Err(agent.throw_exception(ExceptionType::TypeError, "Binding exists"))
+        } else {
+            // 3. Return ! DclRec.CreateMutableBinding(N, D).
+            Ok(dcl_rec.create_mutable_binding(agent, name, is_deletable))
+        }
+    }
+
+    /// ### [9.1.1.4.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-global-environment-records-createimmutablebinding-n-s)
+    ///
+    /// The CreateImmutableBinding concrete method of a Global Environment Record
+    /// envRec takes arguments N (a String) and S (a Boolean) and returns either a
+    /// normal completion containing UNUSED or a throw completion. It creates a new
+    /// immutable binding for the name N that is uninitialized. A binding must not
+    /// already exist in this Environment Record for N. If S is true, the new
+    /// binding is marked as a strict binding.
+    pub(crate) fn create_immutable_binding(
+        self,
+        agent: &mut Agent,
+        name: &Atom,
+        is_strict: bool,
+    ) -> JsResult<()> {
+        let env_rec = self.get(agent);
+        // 1. Let DclRec be envRec.[[DeclarativeRecord]].
+        let dcl_rec = env_rec.declarative_record;
+        // 2. If ! DclRec.HasBinding(N) is true, throw a TypeError exception.
+        if dcl_rec.has_binding(agent, name) {
+            Err(agent.throw_exception(ExceptionType::TypeError, "Binding exists"))
+        } else {
+            // 3. Return ! DclRec.CreateImmutableBinding(N, S).
+            Ok(dcl_rec.create_immutable_binding(agent, name, is_strict))
+        }
+    }
+
+    /// ### [9.1.1.4.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-global-environment-records-initializebinding-n-v)
+    ///
+    /// The InitializeBinding concrete method of a Global Environment Record envRec
+    /// takes arguments N (a String) and V (an ECMAScript language value) and
+    /// returns either a normal completion containing UNUSED or a throw completion.
+    /// It is used to set the bound value of the current binding of the identifier
+    /// whose name is N to the value V. An uninitialized binding for N must already
+    /// exist.
+    pub(crate) fn initialize_binding(
+        self,
+        agent: &mut Agent,
+        name: &Atom,
+        value: Value,
+    ) -> JsResult<()> {
+        let env_rec = self.get(agent);
+        // 1. Let DclRec be envRec.[[DeclarativeRecord]].
+        let dcl_rec = env_rec.declarative_record;
+        // 2. If ! DclRec.HasBinding(N) is true, then
+        if dcl_rec.has_binding(agent, name) {
+            // a. Return ! DclRec.InitializeBinding(N, V).
+            Ok(dcl_rec.initialize_binding(agent, name, value))
+        } else {
+            // 3. Assert: If the binding exists, it must be in the Object Environment Record.
+            // 4. Let ObjRec be envRec.[[ObjectRecord]].
+            let obj_rec = env_rec.object_record;
+            // 5. Return ? ObjRec.InitializeBinding(N, V).
+            obj_rec.initialize_binding(agent, name, value)
+        }
+    }
+
     /// ### [9.1.1.4.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-global-environment-records-setmutablebinding-n-v-s)
+    ///
     /// The SetMutableBinding concrete method of a Global Environment Record envRec takes arguments N (a String), V (an ECMAScript language value), and S (a Boolean) and returns either a normal completion containing UNUSED or a throw completion. It attempts to change the bound value of the current binding of the identifier whose name is N to the value V. If the binding is an immutable binding and S is true, a TypeError is thrown. A property named N normally already exists but if it does not or is not currently writable, error handling is determined by S. It performs the following steps when called:
     pub(crate) fn set_mutable_binding(
-        &mut self,
+        self,
         agent: &mut Agent,
         name: &Atom,
         value: Value,
         is_strict: bool,
     ) -> JsResult<()> {
+        let env_rec = self.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
-        let dcl_rec = &mut self.declarative_record;
+        let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
-        if dcl_rec.has_binding(name.as_str()) {
+        if dcl_rec.has_binding(agent, name.as_str()) {
             // a. Return ? DclRec.SetMutableBinding(N, V, S).
-            dcl_rec.set_mutable_binding(name, value, is_strict)
+            dcl_rec.set_mutable_binding(agent, name, value, is_strict)
         } else {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
-            let obj_rec = &mut self.object_record;
+            let obj_rec = env_rec.object_record;
             // 4. Return ? ObjRec.SetMutableBinding(N, V, S).
             obj_rec.set_mutable_binding(agent, name, value, is_strict)
         }
@@ -135,24 +240,96 @@ impl GlobalEnvironment {
     /// binding is an uninitialized binding throw a ReferenceError exception. A
     /// property named N normally already exists but if it does not or is not
     /// currently writable, error handling is determined by S.
-    pub(crate) fn get_binding_value(
-        &self,
-        agent: &mut Agent,
-        n: &Atom,
-        s: bool,
-    ) -> JsResult<Value> {
+    pub(crate) fn get_binding_value(self, agent: &mut Agent, n: &Atom, s: bool) -> JsResult<Value> {
+        let env_rec = self.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
-        let dcl_rec = &self.declarative_record;
+        let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
-        if dcl_rec.has_binding(n.as_str()) {
+        if dcl_rec.has_binding(agent, n.as_str()) {
             // a. Return ? DclRec.GetBindingValue(N, S).
-            dcl_rec.get_binding_value(n, s)
+            dcl_rec.get_binding_value(agent, n, s)
         } else {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
-            let obj_rec = &self.object_record;
+            let obj_rec = env_rec.object_record;
             // 4. Return ? ObjRec.GetBindingValue(N, S).
             obj_rec.get_binding_value(agent, n, s)
         }
+    }
+
+    /// ### [9.1.1.4.7 DeleteBinding ( N )]()
+    ///
+    /// The DeleteBinding concrete method of a Global Environment Record envRec takes argument N (a String) and returns either a normal completion containing a Boolean or a throw completion. It can only delete bindings that have been explicitly designated as being subject to deletion.
+    pub(crate) fn delete_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
+        let env_rec = self.get(agent);
+        // 1. Let DclRec be envRec.[[DeclarativeRecord]].
+        let dcl_rec = env_rec.declarative_record;
+        // 2. If ! DclRec.HasBinding(N) is true, then
+        if dcl_rec.has_binding(agent, name.as_str()) {
+            // a. Return ! DclRec.DeleteBinding(N).
+            return Ok(dcl_rec.delete_binding(agent, name));
+        }
+        // 3. Let ObjRec be envRec.[[ObjectRecord]].
+        let obj_rec = env_rec.object_record;
+        // 4. Let globalObject be ObjRec.[[BindingObject]].
+        let global_object = obj_rec.get(agent).binding_object;
+        // 5. Let existingProp be ? HasOwnProperty(globalObject, N).
+        let n = PropertyKey::from_str(&mut agent.heap, name.as_str());
+        let existing_prop = has_own_property(agent, global_object, n)?;
+        // 6. If existingProp is true, then
+        if existing_prop {
+            // a. Let status be ? ObjRec.DeleteBinding(N).
+            let status = obj_rec.delete_binding(agent, name)?;
+            // b. If status is true and envRec.[[VarNames]] contains N, then
+            if status {
+                let env_rec = self.get_mut(agent);
+                if env_rec.var_names.contains(name) {
+                    // i. Remove N from envRec.[[VarNames]].
+                    env_rec.var_names.remove(name);
+                }
+            }
+            // c. Return status.
+            Ok(status)
+        } else {
+            // 7. Return true.
+            Ok(true)
+        }
+    }
+
+    /// ### [9.1.1.4.8 HasThisBinding ( )]()
+    ///
+    /// The HasThisBinding concrete method of a Global Environment Record envRec takes no arguments and returns true.
+    pub(crate) fn has_this_binding(self) -> bool {
+        // 1. Return true.
+        true
+        // NOTE
+        // Global Environment Records always provide a this binding.
+    }
+
+    /// ### [9.1.1.4.9 HasSuperBinding ( )]()
+    ///
+    /// The HasSuperBinding concrete method of a Global Environment Record envRec takes no arguments and returns false.
+    pub(crate) fn has_super_binding(self) -> bool {
+        // 1. Return false.
+        false
+        // NOTE
+        // Global Environment Records do not provide a super binding.
+    }
+
+    /// ### [9.1.1.4.10 WithBaseObject ( )]()
+    ///
+    /// The WithBaseObject concrete method of a Global Environment Record envRec takes no arguments and returns undefined.
+    pub(crate) fn with_base_object(self) -> Option<Object> {
+        // 1. Return undefined.
+        None
+    }
+
+    /// ### [9.1.1.4.11 GetThisBinding ( )]()
+    ///
+    /// The GetThisBinding concrete method of a Global Environment Record envRec takes no arguments and returns a normal completion containing an Object.
+    pub(crate) fn get_this_binding(self, agent: &mut Agent) -> Object {
+        let env_rec = self.get(agent);
+        // 1. Return envRec.[[GlobalThisValue]].
+        env_rec.global_this_value
     }
 
     /// ### [9.1.1.4.12 HasVarDeclaration ( N )](https://tc39.es/ecma262/#sec-hasvardeclaration)
@@ -161,11 +338,13 @@ impl GlobalEnvironment {
     /// envRec takes argument N (a String) and returns a Boolean. It determines
     /// if the argument identifier has a binding in this record that was created
     /// using a VariableStatement or a FunctionDeclaration.
-    pub(crate) fn has_var_declaration(&self, name: &str) -> bool {
+    pub(crate) fn has_var_declaration(self, agent: &Agent, name: &str) -> bool {
+        let env_rec = self.get(agent);
         // 1. Let varDeclaredNames be envRec.[[VarNames]].
+        let var_declared_names = &env_rec.var_names;
         // 2. If varDeclaredNames contains N, return true.
         // 3. Return false.
-        self.var_names.contains(name)
+        var_declared_names.contains(name)
     }
 
     /// ### [9.1.1.4.13 HasLexicalDeclaration ( N )](https://tc39.es/ecma262/#sec-haslexicaldeclaration)
@@ -175,10 +354,12 @@ impl GlobalEnvironment {
     /// if the argument identifier has a binding in this record that was created
     /// using a lexical declaration such as a LexicalDeclaration or a
     /// ClassDeclaration.
-    pub(crate) fn has_lexical_declaration(&self, name: &str) -> bool {
+    pub(crate) fn has_lexical_declaration(self, agent: &Agent, name: &str) -> bool {
+        let env_rec = self.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
+        let dcl_rec = env_rec.declarative_record;
         // 2. Return ! DclRec.HasBinding(N).
-        self.declarative_record.has_binding(name)
+        dcl_rec.has_binding(agent, name)
     }
 
     /// ### [9.1.1.4.14 HasRestrictedGlobalProperty ( N )](https://tc39.es/ecma262/#sec-hasrestrictedglobalproperty)
@@ -189,14 +370,15 @@ impl GlobalEnvironment {
     /// the argument identifier is the name of a property of the global object
     /// that must not be shadowed by a global lexical binding.
     pub(crate) fn has_restricted_global_property(
-        &self,
+        self,
         agent: &mut Agent,
         name: &str,
     ) -> JsResult<bool> {
+        let env_rec = self.get(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = &self.object_record;
+        let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.binding_object;
+        let global_object = obj_rec.get(agent).binding_object;
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let n = PropertyKey::from_str(&mut agent.heap, name);
         let existing_prop = global_object.get_own_property(agent, n)?;
@@ -221,11 +403,12 @@ impl GlobalEnvironment {
     /// a corresponding CreateGlobalVarBinding call would succeed if called for
     /// the same argument N. Redundant var declarations and var declarations
     /// for pre-existing global object properties are allowed.
-    pub(crate) fn can_declare_global_var(&self, agent: &mut Agent, name: &str) -> JsResult<bool> {
+    pub(crate) fn can_declare_global_var(self, agent: &mut Agent, name: &str) -> JsResult<bool> {
+        let env_rec = self.get(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = &self.object_record;
+        let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.binding_object;
+        let global_object = obj_rec.get(agent).binding_object;
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from_str(&mut agent.heap, name);
         let has_property = has_own_property(agent, global_object, n)?;
@@ -246,14 +429,15 @@ impl GlobalEnvironment {
     /// a corresponding CreateGlobalFunctionBinding call would succeed if
     /// called for the same argument N.
     pub(crate) fn can_declare_global_function(
-        &self,
+        self,
         agent: &mut Agent,
         name: &str,
     ) -> JsResult<bool> {
+        let env_rec = self.get(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = &self.object_record;
+        let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.binding_object;
+        let global_object = obj_rec.get(agent).binding_object;
         let n = PropertyKey::from_str(&mut agent.heap, name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let existing_prop = global_object.get_own_property(agent, n)?;
@@ -285,15 +469,16 @@ impl GlobalEnvironment {
     /// \[\[VarNames]] List. If a binding already exists, it is reused and
     /// assumed to be initialized.
     pub(crate) fn create_global_var_binding(
-        &mut self,
+        self,
         agent: &mut Agent,
         name: Atom,
         is_deletable: bool,
     ) -> JsResult<()> {
+        let env_rec = self.get(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = &mut self.object_record;
+        let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.binding_object;
+        let global_object = obj_rec.get(agent).binding_object;
         let n = PropertyKey::from_str(&mut agent.heap, name.as_str());
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let has_property = has_own_property(agent, global_object, n)?;
@@ -309,7 +494,8 @@ impl GlobalEnvironment {
 
         // 6. If envRec.[[VarNames]] does not contain N, then
         //    a. Append N to envRec.[[VarNames]].
-        self.var_names.insert(name);
+        let env_rec = self.get_mut(agent);
+        env_rec.var_names.insert(name);
 
         // 7. Return UNUSED.
         Ok(())
@@ -324,16 +510,17 @@ impl GlobalEnvironment {
     /// the bound name in the associated [[VarNames]] List. If a binding
     /// already exists, it is replaced.
     pub(crate) fn create_global_function_binding(
-        &mut self,
+        self,
         agent: &mut Agent,
         name: Atom,
         value: Value,
         d: bool,
     ) -> JsResult<()> {
+        let env_rec = self.get(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = &self.object_record;
+        let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.binding_object;
+        let global_object = obj_rec.get(agent).binding_object;
         let n = PropertyKey::from_str(&mut agent.heap, name.as_str());
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let existing_prop = global_object.get_own_property(agent, n)?;
@@ -366,7 +553,8 @@ impl GlobalEnvironment {
         set(agent, global_object, n, value, false)?;
         // 8. If envRec.[[VarNames]] does not contain N, then
         // a. Append N to envRec.[[VarNames]].
-        self.var_names.insert(name);
+        let env_rec = self.get_mut(agent);
+        env_rec.var_names.insert(name);
         // 9. Return UNUSED.
         Ok(())
         // NOTE

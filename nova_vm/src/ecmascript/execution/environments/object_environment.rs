@@ -1,6 +1,6 @@
 use oxc_span::Atom;
 
-use super::OuterEnv;
+use super::{ObjectEnvironmentIndex, OuterEnv};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -67,13 +67,21 @@ impl ObjectEnvironment {
         }
         // 5. Return env.
     }
+}
+
+impl ObjectEnvironmentIndex {
+    pub(super) fn get(self, agent: &Agent) -> &ObjectEnvironment {
+        agent.heap.environments.get_object_environment(self)
+    }
 
     /// ### [9.1.1.2.1 HasBinding ( N )]()
     ///
     /// The HasBinding concrete method of an Object Environment Record envRec takes argument N (a String) and returns either a normal completion containing a Boolean or a throw completion. It determines if its associated binding object has a property whose name is N.
-    pub(crate) fn has_binding(&self, agent: &mut Agent, n: &Atom) -> JsResult<bool> {
+    pub(crate) fn has_binding(self, agent: &mut Agent, n: &Atom) -> JsResult<bool> {
+        let env_rec = self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
-        let binding_object = self.binding_object;
+        let binding_object = env_rec.binding_object;
+        let is_with_environment = env_rec.is_with_environment;
         let name = PropertyKey::from_str(&mut agent.heap, n.as_str());
         // 2. Let foundBinding be ? HasProperty(bindingObject, N).
         let found_binding = has_property(agent, binding_object, name)?;
@@ -82,7 +90,7 @@ impl ObjectEnvironment {
             return Ok(false);
         }
         // 4. If envRec.[[IsWithEnvironment]] is false, return true.
-        if !self.is_with_environment {
+        if !is_with_environment {
             return Ok(true);
         }
         // 5. Let unscopables be ? Get(bindingObject, @@unscopables).
@@ -113,13 +121,14 @@ impl ObjectEnvironment {
     /// undefined. If D is true, the new property's [[Configurable]] attribute
     /// is set to true; otherwise it is set to false.
     pub(crate) fn create_mutable_binding(
-        &self,
+        self,
         agent: &mut Agent,
         n: &Atom,
         d: bool,
     ) -> JsResult<()> {
+        let env_rec = self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
-        let binding_object = self.binding_object;
+        let binding_object = env_rec.binding_object;
         // 2. Perform ? DefinePropertyOrThrow(bindingObject, N, PropertyDescriptor { [[Value]]: undefined, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: D }).
         let n = PropertyKey::from_str(&mut agent.heap, n.as_str());
         define_property_or_throw(
@@ -145,10 +154,8 @@ impl ObjectEnvironment {
     }
 
     /// ### [9.1.1.2.3 CreateImmutableBinding ( N, S )]()
-    ///
-    /// The CreateImmutableBinding concrete method of an Object Environment Record is never used within this specification.
-    pub(crate) fn create_immutable_binding() {
-        unreachable!()
+    pub(crate) fn create_immutable_binding(self, _: &mut Agent, _: &Atom, _: bool) {
+        unreachable!("The CreateImmutableBinding concrete method of an Object Environment Record is never used within this specification.")
     }
     /// ### [9.1.1.2.4 InitializeBinding ( N, V )]()
     ///
@@ -157,7 +164,7 @@ impl ObjectEnvironment {
     /// value) and returns either a normal completion containing UNUSED or a
     /// throw completion. It is used to set the bound value of the current
     /// binding of the identifier whose name is N to the value V.
-    pub(crate) fn initialize_binding(&self, agent: &mut Agent, n: &Atom, v: Value) -> JsResult<()> {
+    pub(crate) fn initialize_binding(self, agent: &mut Agent, n: &Atom, v: Value) -> JsResult<()> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
         self.set_mutable_binding(agent, n, v, false)?;
         // 2. Return UNUSED.
@@ -181,14 +188,15 @@ impl ObjectEnvironment {
     /// does not or is not currently writable, error handling is determined by
     /// S.
     pub(crate) fn set_mutable_binding(
-        &self,
+        self,
         agent: &mut Agent,
         n: &Atom,
         v: Value,
         s: bool,
     ) -> JsResult<()> {
+        let env_rec = self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
-        let binding_object = self.binding_object;
+        let binding_object = env_rec.binding_object;
         // 2. Let stillExists be ? HasProperty(bindingObject, N).
         let n = PropertyKey::from_str(&mut agent.heap, n.as_str());
         let still_exists = has_property(agent, binding_object, n)?;
@@ -210,14 +218,10 @@ impl ObjectEnvironment {
     /// throw completion. It returns the value of its associated binding
     /// object's property whose name is N. The property should already exist
     /// but if it does not the result depends upon S.
-    pub(crate) fn get_binding_value(
-        &self,
-        agent: &mut Agent,
-        n: &Atom,
-        s: bool,
-    ) -> JsResult<Value> {
+    pub(crate) fn get_binding_value(self, agent: &mut Agent, n: &Atom, s: bool) -> JsResult<Value> {
+        let env_rec = self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
-        let binding_object = self.binding_object;
+        let binding_object = env_rec.binding_object;
         let name = PropertyKey::from_str(&mut agent.heap, n.as_str());
         // 2. Let value be ? HasProperty(bindingObject, N).
         let value = has_property(agent, binding_object, name)?;
@@ -242,10 +246,11 @@ impl ObjectEnvironment {
     /// completion containing a Boolean or a throw completion. It can only
     /// delete bindings that correspond to properties of the environment
     /// object whose [[Configurable]] attribute have the value true.
-    pub(crate) fn delete_binding(&self, agent: &mut Agent, n: &Atom) -> JsResult<bool> {
+    pub(crate) fn delete_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
+        let env_rec = self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
-        let binding_boject = self.binding_object;
-        let name = PropertyKey::from_str(&mut agent.heap, n.as_str());
+        let binding_boject = env_rec.binding_object;
+        let name = PropertyKey::from_str(&mut agent.heap, name.as_str());
         // 2. Return ? bindingObject.[[Delete]](N).
         binding_boject.delete(agent, name)
     }
@@ -273,10 +278,11 @@ impl ObjectEnvironment {
     /// ### [9.1.1.2.10 WithBaseObject ( )]()
     ///
     /// The WithBaseObject concrete method of an Object Environment Record envRec takes no arguments and returns an Object or undefined.
-    pub(crate) fn with_base_object(&self) -> Option<Object> {
+    pub(crate) fn with_base_object(&self, agent: &Agent) -> Option<Object> {
+        let env_rec = self.get(agent);
         // 1. If envRec.[[IsWithEnvironment]] is true, return envRec.[[BindingObject]].
-        if self.is_with_environment {
-            Some(self.binding_object)
+        if env_rec.is_with_environment {
+            Some(env_rec.binding_object)
         } else {
             // 2. Otherwise, return undefined.
             None

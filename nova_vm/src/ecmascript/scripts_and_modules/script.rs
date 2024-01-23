@@ -2,7 +2,7 @@ use crate::{
     ecmascript::{
         execution::{
             agent::ExceptionType, Agent, ECMAScriptCode, EnvironmentIndex, ExecutionContext,
-            GlobalEnvironment, GlobalEnvironmentIndex, JsResult, RealmIdentifier,
+            GlobalEnvironmentIndex, JsResult, RealmIdentifier,
         },
         scripts_and_modules::ScriptOrModule,
         syntax_directed_operations::{
@@ -183,20 +183,33 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
     // NOTE: We cannot define the script here due to reference safety.
 
     // 12. Let result be Completion(GlobalDeclarationInstantiation(script, globalEnv)).
-    global_declaration_instantiation(agent, script, global_env.unwrap())?;
+    let result = global_declaration_instantiation(agent, script, global_env.unwrap());
 
-    // TODO: Follow step 13.
     // 13. If result.[[Type]] is normal, then
-    //     a. Set result to Completion(Evaluation of script).
-    //     b. If result.[[Type]] is normal and result.[[Value]] is empty, then
-    //        i. Set result to NormalCompletion(undefined).
-    let exe = Executable::compile(agent, script);
-    let result = Vm::execute(agent, &exe)?;
+    let result: JsResult<Value> = if let Ok(_) = result {
+        let exe = Executable::compile(agent, script);
+        // a. Set result to Completion(Evaluation of script).
+        let result = Vm::execute(agent, &exe);
+        // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
+        if let Ok(result) = result {
+            if result.is_none() {
+                // i. Set result to NormalCompletion(undefined).
+                Ok(Value::Undefined)
+            } else {
+                Ok(result.unwrap())
+            }
+        } else {
+            Err(result.err().unwrap())
+        }
+    } else {
+        Err(result.err().unwrap())
+    };
 
     // 14. Suspend scriptContext and remove it from the execution context stack.
     _ = agent.execution_context_stack.pop();
 
     // TODO: 15. Assert: The execution context stack is not empty.
+    // This is not currently true as we do not push an "empty" context stack to the root before running script evaluation.
     // debug_assert!(!agent.execution_context_stack.is_empty());
 
     // 16. Resume the context that is now on the top of the execution context stack as the
@@ -204,7 +217,7 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
     // NOTE: This is done automatically.
 
     // 17. Return ? result.
-    Ok(result)
+    result
 }
 
 /// ### [16.1.7 GlobalDeclarationInstantiation ( script, env )](https://tc39.es/ecma262/#sec-globaldeclarationinstantiation)
@@ -217,7 +230,7 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
 pub(crate) fn global_declaration_instantiation(
     agent: &mut Agent,
     script: ScriptIdentifier,
-    env_index: GlobalEnvironmentIndex,
+    env: GlobalEnvironmentIndex,
 ) -> JsResult<()> {
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
     let Script {
@@ -227,14 +240,6 @@ pub(crate) fn global_declaration_instantiation(
     let script =
         unsafe { std::mem::transmute::<&Program<'_>, &'static Program<'static>>(ecmascript_code) };
     // SAFETY: Analysing the script cannot cause the environment to move even though we change other parts of the Heap.
-    let env = unsafe {
-        std::mem::transmute::<&mut GlobalEnvironment, &'static mut GlobalEnvironment>(
-            agent
-                .heap
-                .environments
-                .get_global_environment_mut(env_index),
-        )
-    };
 
     // 1. Let lexNames be the LexicallyDeclaredNames of script.
     let lex_names = script_lexically_declared_names(script);
@@ -245,9 +250,9 @@ pub(crate) fn global_declaration_instantiation(
     for name in lex_names {
         if
         // a. If env.HasVarDeclaration(name) is true, throw a SyntaxError exception.
-        env.has_var_declaration(&name)
+        env.has_var_declaration(agent, &name)
             // b. If env.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
-            || env.has_lexical_declaration(&name)
+            || env.has_lexical_declaration(agent, &name)
             // c. Let hasRestrictedGlobal be ? env.HasRestrictedGlobalProperty(name).
             // d. If hasRestrictedGlobal is true, throw a SyntaxError exception.
             || env.has_restricted_global_property(agent, &name)?
@@ -261,7 +266,7 @@ pub(crate) fn global_declaration_instantiation(
     // 4. For each element name of varNames, do
     for name in &var_names {
         // a. If env.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
-        if env.has_lexical_declaration(name) {
+        if env.has_lexical_declaration(agent, name) {
             return Err(
                 agent.throw_exception(ExceptionType::SyntaxError, "Variable already defined.")
             );
@@ -373,8 +378,7 @@ pub(crate) fn global_declaration_instantiation(
         });
         let function_name = function_name.unwrap();
         // b. Let fo be InstantiateFunctionObject of f with arguments env and privateEnv.
-        let fo =
-            instantiate_function_object(agent, f, EnvironmentIndex::Global(env_index), private_env);
+        let fo = instantiate_function_object(agent, f, EnvironmentIndex::Global(env), private_env);
         // c. Perform ? env.CreateGlobalFunctionBinding(fn, fo, false).
         env.create_global_function_binding(agent, function_name, fo.into_value(), false)?;
     }

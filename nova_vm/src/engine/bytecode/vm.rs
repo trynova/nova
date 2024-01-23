@@ -13,7 +13,7 @@ use crate::ecmascript::{
     },
     execution::{
         agent::{resolve_binding, ExceptionType},
-        Agent, EnvironmentIndex, JsResult, ProtoIntrinsics,
+        Agent, JsResult, ProtoIntrinsics,
     },
     types::{put_value, Base, BigInt, Number, Object, PropertyKey, Reference, String, Value},
 };
@@ -31,7 +31,7 @@ pub(crate) struct Vm {
     stack: Vec<Value>,
     reference_stack: Vec<Reference>,
     exception_jump_target_stack: Vec<usize>,
-    result: Value,
+    result: Option<Value>,
     exception: Option<Value>,
     reference: Option<Reference>,
 }
@@ -43,7 +43,7 @@ impl Vm {
             stack: Vec::with_capacity(32),
             reference_stack: Vec::new(),
             exception_jump_target_stack: Vec::new(),
-            result: Value::Undefined,
+            result: None,
             exception: None,
             reference: None,
         }
@@ -58,7 +58,7 @@ impl Vm {
     }
 
     /// Executes an executable using the virtual machine.
-    pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> JsResult<Value> {
+    pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> JsResult<Option<Value>> {
         let mut vm = Vm::new();
 
         let iter = InstructionIter::new(&executable.instructions);
@@ -73,36 +73,6 @@ impl Vm {
 
                     let reference = resolve_binding(agent, identifier, None)?;
 
-                    vm.result = match reference.base {
-                        Base::Value(value) => value,
-                        Base::Environment(env) => match env {
-                            EnvironmentIndex::Declarative(idx) => agent
-                                .heap
-                                .environments
-                                .get_declarative_environment(idx)
-                                .get_binding_value(identifier, false)?,
-                            EnvironmentIndex::Function(idx) => agent
-                                .heap
-                                .environments
-                                .get_function_environment(idx)
-                                .get_binding_value(identifier, false)?,
-                            EnvironmentIndex::Global(idx) => {
-                                // TODO: Get rid of this clone
-                                let global_env =
-                                    agent.heap.environments.get_global_environment(idx).clone();
-                                global_env.get_binding_value(agent, identifier, false)?
-                            }
-                            EnvironmentIndex::Object(_idx) => todo!(),
-                        },
-                        Base::Unresolvable => {
-                            println!("{:#?}", reference);
-                            return Err(agent.throw_exception(
-                                ExceptionType::ReferenceError,
-                                "Unable to resolve identifier.",
-                            ));
-                        }
-                    };
-
                     vm.reference = Some(reference);
                 }
                 Instruction::LoadConstant => {
@@ -110,25 +80,25 @@ impl Vm {
                     vm.stack.push(constant);
                 }
                 Instruction::Load => {
-                    vm.stack.push(vm.result);
+                    vm.stack.push(vm.result.unwrap());
                 }
                 Instruction::Return => {
                     return Ok(vm.result);
                 }
                 Instruction::Store => {
-                    vm.result = vm.stack.pop().unwrap();
+                    vm.result = Some(vm.stack.pop().expect("Trying to pop from empty stack"));
                 }
                 Instruction::StoreConstant => {
                     let constant = vm.fetch_constant(executable, instr.args[0].unwrap() as usize);
-                    vm.result = constant;
+                    vm.result = Some(constant);
                 }
                 Instruction::UnaryMinus => {
-                    let old_value = vm.result;
+                    let old_value = vm.result.unwrap();
 
                     // 3. If oldValue is a Number, then
                     if let Ok(old_value) = Number::try_from(old_value) {
                         // a. Return Number::unaryMinus(oldValue).
-                        vm.result = Number::unary_minus(old_value, agent).into();
+                        vm.result = Some(Number::unary_minus(old_value, agent).into());
                     }
                     // 4. Else,
                     else {
@@ -136,20 +106,22 @@ impl Vm {
                         let old_value = BigInt::try_from(old_value).unwrap();
 
                         // b. Return BigInt::unaryMinus(oldValue).
-                        vm.result = BigInt::unary_minus(agent, old_value).into();
+                        vm.result = Some(BigInt::unary_minus(agent, old_value).into());
                     }
                 }
                 Instruction::ToNumber => {
-                    vm.result = to_number(agent, vm.result).map(|number| number.into())?;
+                    vm.result =
+                        to_number(agent, vm.result.unwrap()).map(|number| Some(number.into()))?;
                 }
                 Instruction::ToNumeric => {
-                    vm.result = to_numeric(agent, vm.result)?;
+                    vm.result = Some(to_numeric(agent, vm.result.unwrap())?);
                 }
                 Instruction::ApplyStringOrNumericBinaryOperator(op_text) => {
                     let lval = vm.stack.pop().unwrap();
                     let rval = vm.stack.pop().unwrap();
-                    vm.result =
-                        apply_string_or_numeric_binary_operator(agent, lval, op_text, rval)?;
+                    vm.result = Some(apply_string_or_numeric_binary_operator(
+                        agent, lval, op_text, rval,
+                    )?);
                 }
                 Instruction::ObjectSetProperty => {
                     let value = vm.stack.pop().unwrap();
@@ -178,7 +150,7 @@ impl Vm {
                     };
 
                     vm.result = match reference.base {
-                        Base::Value(value) => value,
+                        Base::Value(value) => Some(value),
                         _ => {
                             return Err(agent.throw_exception(
                                 ExceptionType::ReferenceError,
@@ -188,8 +160,8 @@ impl Vm {
                     };
                 }
                 Instruction::Typeof => {
-                    let val = vm.result;
-                    vm.result = typeof_operator(agent, val).into()
+                    let val = vm.result.unwrap();
+                    vm.result = Some(typeof_operator(agent, val).into())
                 }
                 Instruction::ObjectCreate => {
                     let object = ordinary_object_create_with_intrinsics(
@@ -218,7 +190,7 @@ impl Vm {
                         private_env: None,
                     };
                     let function = ordinary_function_create(agent, params).into_value();
-                    vm.result = function;
+                    vm.result = Some(function);
                 }
                 Instruction::EvaluateCall => {
                     let arg_count = instr.args[0].unwrap() as usize;
@@ -226,7 +198,7 @@ impl Vm {
                     let args = vm.stack.split_off(vm.stack.len() - arg_count);
                     // let this_arg = vm.stack.pop();
                     let func = vm.stack.pop().unwrap();
-                    vm.result = call(agent, func, Value::Undefined, Some(&args)).unwrap();
+                    vm.result = Some(call(agent, func, Value::Undefined, Some(&args)).unwrap());
                 }
                 other => todo!("{other:?}"),
             }

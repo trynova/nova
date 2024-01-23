@@ -1,8 +1,13 @@
-use super::{DeclarativeEnvironment, FunctionEnvironmentIndex};
+use oxc_span::Atom;
+
+use super::{DeclarativeEnvironment, DeclarativeEnvironmentIndex, FunctionEnvironmentIndex};
 use crate::ecmascript::{
     builtins::ECMAScriptFunction,
-    execution::{agent::JsError, Agent, JsResult},
-    types::{Function, Object, Value},
+    execution::{
+        agent::{ExceptionType, JsError},
+        Agent, JsResult,
+    },
+    types::{Function, InternalMethods, Object, Value},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -52,11 +57,14 @@ pub(crate) struct FunctionEnvironment {
     /// Function Environment Records support all of the Declarative Environment
     /// Record methods listed in Table 16 and share the same specifications for
     /// all of those methods except for HasThisBinding and HasSuperBinding.
-    pub(crate) declarative_environment: DeclarativeEnvironment,
+    ///
+    /// TODO: Use Struct of Arrays to keep the DeclarativeEnvironment alignside
+    /// FunctionEnvironment
+    pub(crate) declarative_environment: DeclarativeEnvironmentIndex,
 }
 
 impl std::ops::Deref for FunctionEnvironment {
-    type Target = DeclarativeEnvironment;
+    type Target = DeclarativeEnvironmentIndex;
     fn deref(&self) -> &Self::Target {
         &self.declarative_environment
     }
@@ -74,6 +82,10 @@ pub(crate) fn new_function_environment(
     new_target: Option<Object>,
 ) -> FunctionEnvironmentIndex {
     // 1. Let env be a new Function Environment Record containing no bindings.
+    let dcl_env = DeclarativeEnvironment::new(Some(ecmascript_function_object.environment));
+    agent.heap.environments.declarative.push(Some(dcl_env));
+    let declarative_environment =
+        DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative);
     let env = FunctionEnvironment {
         this_value: None,
 
@@ -88,32 +100,152 @@ pub(crate) fn new_function_environment(
         new_target,
 
         // 6. Set env.[[OuterEnv]] to F.[[Environment]].
-        declarative_environment: DeclarativeEnvironment::new(Some(
-            ecmascript_function_object.environment,
-        )),
+        declarative_environment,
     };
     // 7. Return env.
     agent.heap.environments.push_function_environment(env)
 }
-impl FunctionEnvironment {
+
+impl FunctionEnvironmentIndex {
+    pub(super) fn get(self, agent: &Agent) -> &FunctionEnvironment {
+        agent.heap.environments.get_function_environment(self)
+    }
+
+    fn get_mut(self, agent: &mut Agent) -> &mut FunctionEnvironment {
+        agent.heap.environments.get_function_environment_mut(self)
+    }
+
+    /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
+    pub fn has_binding(self, agent: &Agent, name: &str) -> bool {
+        let env_rec = self.get(agent);
+        env_rec.has_binding(agent, name)
+    }
+
+    /// ### [9.1.1.1.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-declarative-environment-records-createmutablebinding-n-d)
+    pub fn create_mutable_binding(self, agent: &mut Agent, name: &Atom, is_deletable: bool) {
+        let env_rec = self.get_mut(agent);
+        env_rec.create_mutable_binding(agent, name, is_deletable);
+    }
+
+    /// ### [9.1.1.1.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-createimmutablebinding-n-s)
+    pub(crate) fn create_immutable_binding(self, agent: &mut Agent, name: &Atom, is_strict: bool) {
+        let env_rec = self.get_mut(agent);
+        env_rec.create_immutable_binding(agent, name, is_strict);
+    }
+
+    /// ### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
+    pub(crate) fn initialize_binding(self, agent: &mut Agent, name: &Atom, value: Value) {
+        let env_rec = self.get_mut(agent);
+        env_rec.initialize_binding(agent, name, value)
+    }
+
+    /// ### [9.1.1.1.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-setmutablebinding-n-v-s)
+    pub(crate) fn set_mutable_binding(
+        self,
+        agent: &mut Agent,
+        name: &Atom,
+        value: Value,
+        mut is_strict: bool,
+    ) -> JsResult<()> {
+        let env_rec = self.get(agent);
+        let dcl_rec = env_rec.declarative_environment;
+        // 1. If envRec does not have a binding for N, then
+        if !dcl_rec.has_binding(agent, name) {
+            // a. If S is true, throw a ReferenceError exception.
+            if is_strict {
+                return Err(agent
+                    .throw_exception(ExceptionType::ReferenceError, "Identifier is not defined."));
+            }
+
+            // b. Perform ! envRec.CreateMutableBinding(N, true).
+            dcl_rec.create_mutable_binding(agent, name, true);
+
+            // c. Perform ! envRec.InitializeBinding(N, V).
+            dcl_rec.initialize_binding(agent, name, value);
+
+            // d. Return UNUSED.
+            return Ok(());
+        };
+
+        let binding = dcl_rec.get_mut(agent).bindings.get_mut(name).unwrap();
+
+        // 2. If the binding for N in envRec is a strict binding, set S to true.
+        if binding.strict {
+            is_strict = true;
+        }
+
+        // 3. If the binding for N in envRec has not yet been initialized, then
+        if binding.value.is_none() {
+            // a. Throw a ReferenceError exception.
+            return Err(
+                agent.throw_exception(ExceptionType::ReferenceError, "Identifier is not defined.")
+            );
+        }
+
+        // 4. Else if the binding for N in envRec is a mutable binding, then
+        if binding.mutable {
+            // a. Change its bound value to V.
+            binding.value = Some(value);
+        }
+        // 5. Else,
+        else {
+            // a. Assert: This is an attempt to change the value of an immutable binding.
+            debug_assert!(!binding.mutable);
+
+            // b. If S is true, throw a TypeError exception.
+            if is_strict {
+                return Err(
+                    agent.throw_exception(ExceptionType::TypeError, "Cannot assign to constant.")
+                );
+            }
+        }
+
+        // 6. Return UNUSED.
+        Ok(())
+    }
+
+    /// ### [9.1.1.1.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-getbindingvalue-n-s)
+    pub(crate) fn get_binding_value(
+        self,
+        agent: &mut Agent,
+        name: &Atom,
+        is_strict: bool,
+    ) -> JsResult<Value> {
+        let env_rec = self.get(agent);
+        env_rec.get_binding_value(agent, name, is_strict)
+    }
+
+    /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
+    pub(crate) fn delete_binding(self, agent: &mut Agent, name: &Atom) -> bool {
+        let env_rec = self.get(agent);
+        env_rec.delete_binding(agent, name)
+    }
+
+    /// ### [9.1.1.1.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-declarative-environment-records-withbaseobject)
+    pub(crate) fn with_base_object(self) -> Option<Object> {
+        // 1. Return undefined.
+        None
+    }
+
     /// ### [9.1.1.3.1 BindThisValue ( V )](https://tc39.es/ecma262/#sec-bindthisvalue)
     ///
     /// The BindThisValue concrete method of a Function Environment Record envRec takes argument V (an ECMAScript language value) and returns either a normal completion containing an ECMAScript language value or a throw completion. It performs the following steps when called:
-    pub(crate) fn bind_this_value(&mut self, value: Value) -> JsResult<Value> {
+    pub(crate) fn bind_this_value(self, agent: &mut Agent, value: Value) -> JsResult<Value> {
+        let env_rec = self.get_mut(agent);
         // 1. Assert: envRec.[[ThisBindingStatus]] is not LEXICAL.
-        debug_assert!(self.this_binding_status != ThisBindingStatus::Lexical);
+        debug_assert!(env_rec.this_binding_status != ThisBindingStatus::Lexical);
 
         // 2. If envRec.[[ThisBindingStatus]] is INITIALIZED, throw a
         // ReferenceError exception.
-        if self.this_binding_status == ThisBindingStatus::Initialized {
+        if env_rec.this_binding_status == ThisBindingStatus::Initialized {
             return Err(JsError {});
         }
 
         // 3. Set envRec.[[ThisValue]] to V.
-        self.this_value = Some(value);
+        env_rec.this_value = Some(value);
 
         // 4. Set envRec.[[ThisBindingStatus]] to INITIALIZED.
-        self.this_binding_status = ThisBindingStatus::Initialized;
+        env_rec.this_binding_status = ThisBindingStatus::Initialized;
 
         // 5. Return V.
         Ok(value)
@@ -123,24 +255,39 @@ impl FunctionEnvironment {
     ///
     /// The HasThisBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns a Boolean.
-    pub(crate) fn has_this_binding(&self) -> bool {
+    pub(crate) fn has_this_binding(self, agent: &Agent) -> bool {
+        let env_rec = self.get(agent);
         // 1. If envRec.[[ThisBindingStatus]] is LEXICAL, return false;
         // otherwise, return true.
-        self.this_binding_status != ThisBindingStatus::Lexical
+        env_rec.this_binding_status != ThisBindingStatus::Lexical
     }
 
     /// ### [9.1.1.3.3 HasSuperBinding ( )](https://tc39.es/ecma262/#sec-function-environment-records-hassuperbinding)
     ///
     /// The HasSuperBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns a Boolean.
-    pub(crate) fn has_super_binding(&self, _agent: &Agent) -> bool {
+    pub(crate) fn has_super_binding(self, agent: &Agent) -> bool {
+        let env_rec = self.get(agent);
         // 1. If envRec.[[ThisBindingStatus]] is LEXICAL, return false.
-        if self.this_binding_status == ThisBindingStatus::Lexical {
+        if env_rec.this_binding_status == ThisBindingStatus::Lexical {
             return false;
         }
 
-        // TODO: 2. If envRec.[[FunctionObject]].[[HomeObject]] is undefined, return false; otherwise, return true.
-        todo!("Finish this")
+        // 2. If envRec.[[FunctionObject]].[[HomeObject]] is undefined, return false; otherwise, return true.
+        match env_rec.function_object {
+            Function::BoundFunction(_) => todo!(),
+            Function::BuiltinFunction(_) => unreachable!(),
+            Function::ECMAScriptFunction(idx) => {
+                let data = agent
+                    .heap
+                    .ecmascript_functions
+                    .get(idx.into_index())
+                    .unwrap()
+                    .as_ref()
+                    .unwrap();
+                data.ecmascript_function.home_object.is_some()
+            }
+        }
     }
 
     /// ### [9.1.1.3.5 GetSuperBase ( )](https://tc39.es/ecma262/#sec-getsuperbase)
@@ -148,12 +295,32 @@ impl FunctionEnvironment {
     /// The GetSuperBase concrete method of a Function Environment Record envRec
     /// takes no arguments and returns either a normal completion containing
     /// either an Object, null, or undefined, or a throw completion.
-    pub(crate) fn get_super_base(&self) -> Value {
-        todo!("Finish this")
+    pub(crate) fn get_super_base(self, agent: &mut Agent) -> JsResult<Value> {
+        let env_rec = self.get(agent);
 
         // 1. Let home be envRec.[[FunctionObject]].[[HomeObject]].
+        let home = match env_rec.function_object {
+            Function::BoundFunction(_) => todo!(),
+            Function::BuiltinFunction(_) => unreachable!(),
+            Function::ECMAScriptFunction(idx) => {
+                let data = agent
+                    .heap
+                    .ecmascript_functions
+                    .get(idx.into_index())
+                    .unwrap()
+                    .as_ref()
+                    .unwrap();
+                data.ecmascript_function.home_object
+            }
+        };
         // 2. If home is undefined, return undefined.
+        let Some(home) = home else {
+            return Ok(Value::Undefined);
+        };
         // 3. Assert: home is an Object.
+        // Type guarantees Objectness.
         // 4. Return ? home.[[GetPrototypeOf]]().
+        home.get_prototype_of(agent)
+            .map(|proto| proto.map_or_else(|| Value::Null, |proto| proto.into_value()))
     }
 }
