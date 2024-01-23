@@ -1,4 +1,4 @@
-use oxc_ast::ast;
+use oxc_ast::ast::{self, FormalParameters, FunctionBody};
 
 use crate::ecmascript::{
     builtins::{ordinary_function_create, OrdinaryFunctionCreateParams},
@@ -27,8 +27,16 @@ pub(crate) fn instantiate_ordinary_function_object(
         let params = OrdinaryFunctionCreateParams {
             function_prototype: None,
             source_text,
-            parameters_list: unsafe { std::mem::transmute(&function.params) },
-            body: unsafe { std::mem::transmute(&function.body.as_ref().unwrap()) },
+            parameters_list: unsafe {
+                std::mem::transmute::<&FormalParameters<'_>, &'static FormalParameters<'static>>(
+                    &function.params,
+                )
+            },
+            body: unsafe {
+                std::mem::transmute::<&FunctionBody<'_>, &'static FunctionBody<'static>>(
+                    &function.body.as_deref().unwrap(),
+                )
+            },
             this_mode: crate::ecmascript::builtins::ThisMode::Global,
             env,
             private_env,

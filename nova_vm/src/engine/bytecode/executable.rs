@@ -526,7 +526,10 @@ impl Compile for ast::VariableDeclaration<'_> {
                     let init = decl.init.as_ref().unwrap();
 
                     // Put undefined to stack
-                    ctx.exe.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+                    ctx.exe.add_instruction_with_constant(
+                        Instruction::StoreConstant,
+                        Value::Undefined,
+                    );
                     ctx.exe.add_instruction(Instruction::Load);
 
                     // 1. Let bindingId be StringValue of BindingIdentifier.

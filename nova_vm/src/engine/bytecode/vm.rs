@@ -67,7 +67,6 @@ impl Vm {
         }
         let iter = InstructionIter::new(&executable.instructions);
 
-
         for instr in iter {
             match instr.kind {
                 Instruction::ResolveBinding => {
