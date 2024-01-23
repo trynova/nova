@@ -26,6 +26,10 @@ pub(crate) struct FunctionExpression {
     pub(crate) home_object: Option<usize>,
 }
 
+/// Note:
+///
+/// This is inspired by and/or copied from Kiesel engine:
+/// Copyright (c) 2023-2024 Linus Groh
 #[derive(Debug)]
 pub(crate) struct Executable {
     pub(crate) instructions: Vec<u8>,
