@@ -203,6 +203,7 @@ impl_heap_data!(
 impl_heap_data!(numbers, NumberHeapData, f64, data);
 impl_heap_data!(objects, ObjectHeapData, ObjectHeapData);
 impl_heap_data!(strings, StringHeapData, Wtf8Buf, data);
+impl_heap_data!(symbols, SymbolHeapData, SymbolHeapData);
 impl_heap_data!(bigints, BigIntHeapData, BigIntHeapData);
 
 impl CreateHeapData<&str, String> for Heap {
@@ -452,8 +453,9 @@ impl Heap {
         let func_data = BuiltinFunctionHeapData {
             object_index: Some(ObjectIndex::last(&self.objects)),
             length,
-            initial_name: Value::Null,
+            initial_name: None,
             behaviour: Behaviour::Regular(fn_todo),
+            name: None,
         };
         let index = BuiltinFunctionIndex::from_index(self.builtin_functions.len());
         self.builtin_functions.push(Some(func_data));

@@ -546,7 +546,19 @@ mod test {
 
         let script = parse_script(&allocator, "var foo = {};".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
-        assert!(result.is_object());
+        assert!(result.is_undefined());
+        let key = PropertyKey::from_str(&mut agent.heap, "foo");
+        let foo = agent
+            .get_realm(realm)
+            .global_object
+            .get_own_property(&mut agent, key)
+            .unwrap()
+            .unwrap()
+            .value
+            .unwrap();
+        assert!(foo.is_object());
+        let result = Object::try_from(foo).unwrap();
+        assert!(result.own_property_keys(&mut agent).unwrap().is_empty());
     }
 
     #[test]
@@ -559,8 +571,18 @@ mod test {
 
         let script = parse_script(&allocator, "var foo = { a: 3 };".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
-        assert!(result.is_object());
-        let result = Object::try_from(result).unwrap();
+        assert!(result.is_undefined());
+        let key = PropertyKey::from_str(&mut agent.heap, "foo");
+        let foo = agent
+            .get_realm(realm)
+            .global_object
+            .get_own_property(&mut agent, key)
+            .unwrap()
+            .unwrap()
+            .value
+            .unwrap();
+        assert!(foo.is_object());
+        let result = Object::try_from(foo).unwrap();
         let key = PropertyKey::from_str(&mut agent.heap, "a");
         assert!(result.has_property(&mut agent, key).unwrap());
         assert_eq!(

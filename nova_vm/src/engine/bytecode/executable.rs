@@ -32,7 +32,7 @@ pub(crate) struct FunctionExpression {
 ///   Copyright (c) 2023-2024 Linus Groh
 #[derive(Debug)]
 pub(crate) struct Executable {
-    pub(crate) instructions: Vec<u8>,
+    pub instructions: Vec<u8>,
     pub(crate) constants: Vec<Value>,
     pub(crate) identifiers: Vec<Atom>,
     pub(crate) references: Vec<Reference>,
@@ -83,9 +83,19 @@ impl Executable {
         ctx.exe
     }
 
-    fn add_instruction(&mut self, instruction: Instruction) {
+    fn _push_instruction(&mut self, instruction: Instruction) {
         self.instructions
             .push(unsafe { std::mem::transmute(instruction) });
+    }
+
+    fn add_instruction(&mut self, instruction: Instruction) {
+        debug_assert_eq!(instruction.argument_count(), 0);
+        debug_assert!(
+            !instruction.has_constant_index()
+                && !instruction.has_function_expression_index()
+                && !instruction.has_identifier_index()
+        );
+        self._push_instruction(instruction);
     }
 
     fn add_constant(&mut self, constant: Value) -> usize {
@@ -95,13 +105,23 @@ impl Executable {
     }
 
     fn add_identifier(&mut self, identifier: Atom) -> usize {
-        let index = self.identifiers.len();
-        self.identifiers.push(identifier);
-        index
+        let duplicate = self
+            .identifiers
+            .iter()
+            .enumerate()
+            .find(|item| item.1 == &identifier)
+            .map(|(idx, _)| idx);
+
+        duplicate.unwrap_or_else(|| {
+            let result = self.identifiers.len();
+            self.identifiers.push(identifier);
+            result
+        })
     }
 
     fn add_instruction_with_immediate(&mut self, instruction: Instruction, immediate: usize) {
-        self.add_instruction(instruction);
+        debug_assert_eq!(instruction.argument_count(), 1);
+        self._push_instruction(instruction);
         self.add_index(immediate);
     }
 
@@ -110,14 +130,17 @@ impl Executable {
         instruction: Instruction,
         constant: impl Into<Value>,
     ) {
+        debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_constant_index());
-        self.add_instruction(instruction);
+        self._push_instruction(instruction);
         let constant = self.add_constant(constant.into());
         self.add_index(constant);
     }
 
     fn add_instruction_with_identifier(&mut self, instruction: Instruction, identifier: Atom) {
-        self.add_instruction(instruction);
+        debug_assert_eq!(instruction.argument_count(), 1);
+        debug_assert!(instruction.has_identifier_index());
+        self._push_instruction(instruction);
         let identifier = self.add_identifier(identifier);
         self.add_index(identifier);
     }
@@ -129,7 +152,10 @@ impl Executable {
     }
 
     fn add_function_expression(&mut self, function_expression: FunctionExpression) {
-        self.add_instruction(Instruction::InstantiateOrdinaryFunctionExpression);
+        let instruction = Instruction::InstantiateOrdinaryFunctionExpression;
+        debug_assert_eq!(instruction.argument_count(), 1);
+        debug_assert!(instruction.has_function_expression_index());
+        self._push_instruction(instruction);
         self.function_expressions.push(function_expression);
         let index = self.function_expressions.len() - 1;
         self.add_index(index);
@@ -159,8 +185,12 @@ pub(crate) struct JumpIndex {
     pub(crate) index: usize,
 }
 
-pub(crate) trait Compile {
+pub(crate) trait CompileEvaluation {
     fn compile(&self, ctx: &mut CompileContext);
+}
+
+pub(crate) trait CompileNamedEvaluation {
+    fn compile_named(&self, ctx: &mut CompileContext, identifier: &ast::BindingIdentifier);
 }
 
 fn is_reference(expression: &ast::Expression) -> bool {
@@ -175,7 +205,7 @@ fn is_reference(expression: &ast::Expression) -> bool {
     }
 }
 
-impl Compile for ast::NumberLiteral<'_> {
+impl CompileEvaluation for ast::NumberLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let constant = ctx.agent.heap.create(self.value);
         ctx.exe
@@ -183,14 +213,14 @@ impl Compile for ast::NumberLiteral<'_> {
     }
 }
 
-impl Compile for ast::BooleanLiteral {
+impl CompileEvaluation for ast::BooleanLiteral {
     fn compile(&self, ctx: &mut CompileContext) {
         ctx.exe
             .add_instruction_with_constant(Instruction::StoreConstant, self.value);
     }
 }
 
-impl Compile for ast::BigintLiteral {
+impl CompileEvaluation for ast::BigintLiteral {
     fn compile(&self, ctx: &mut CompileContext) {
         let constant = ctx.agent.heap.create(BigIntHeapData {
             data: self.value.clone(),
@@ -200,14 +230,14 @@ impl Compile for ast::BigintLiteral {
     }
 }
 
-impl Compile for ast::NullLiteral {
+impl CompileEvaluation for ast::NullLiteral {
     fn compile(&self, ctx: &mut CompileContext) {
         ctx.exe
             .add_instruction_with_constant(Instruction::StoreConstant, Value::Null);
     }
 }
 
-impl Compile for ast::StringLiteral {
+impl CompileEvaluation for ast::StringLiteral {
     fn compile(&self, ctx: &mut CompileContext) {
         let constant = Value::from_str(&mut ctx.agent.heap, self.value.as_str());
         ctx.exe
@@ -215,7 +245,7 @@ impl Compile for ast::StringLiteral {
     }
 }
 
-impl Compile for ast::IdentifierReference {
+impl CompileEvaluation for ast::IdentifierReference {
     fn compile(&self, ctx: &mut CompileContext) {
         if self.name == "undefined" {
             // TODO(@aapoalas): This is correct for strict mode but not correct
@@ -229,14 +259,14 @@ impl Compile for ast::IdentifierReference {
     }
 }
 
-impl Compile for ast::BindingIdentifier {
+impl CompileEvaluation for ast::BindingIdentifier {
     fn compile(&self, ctx: &mut CompileContext) {
         ctx.exe
             .add_instruction_with_identifier(Instruction::ResolveBinding, self.name.clone());
     }
 }
 
-impl Compile for ast::UnaryExpression<'_> {
+impl CompileEvaluation for ast::UnaryExpression<'_> {
     /// ### [13.5 Unary Operators](https://tc39.es/ecma262/#sec-unary-operators)
     fn compile(&self, ctx: &mut CompileContext) {
         match self.operator {
@@ -299,7 +329,7 @@ impl Compile for ast::UnaryExpression<'_> {
     }
 }
 
-impl Compile for ast::BinaryExpression<'_> {
+impl CompileEvaluation for ast::BinaryExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self.operator {
             BinaryOperator::LessThan => {
@@ -358,7 +388,7 @@ impl Compile for ast::BinaryExpression<'_> {
     }
 }
 
-impl Compile for ast::AssignmentExpression<'_> {
+impl CompileEvaluation for ast::AssignmentExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let ast::AssignmentTarget::SimpleAssignmentTarget(target) = &self.left else {
             todo!("{:?}", self.left);
@@ -377,31 +407,59 @@ impl Compile for ast::AssignmentExpression<'_> {
             ctx.exe.add_instruction(Instruction::GetValue);
         }
 
-        ctx.exe
-            .add_instruction_with_identifier(Instruction::PutValue, identifier.name.clone());
+        ctx.exe.add_instruction(Instruction::Debug);
+        ctx.exe.add_instruction(Instruction::PutValue);
         ctx.exe.add_instruction(Instruction::PopReference);
     }
 }
 
-impl Compile for ast::ParenthesizedExpression<'_> {
+impl CompileEvaluation for ast::ParenthesizedExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         self.expression.compile(ctx);
     }
 }
 
-impl Compile for ast::Function<'_> {
+impl CompileEvaluation for ast::ArrowExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileNamedEvaluation for ast::ArrowExpression<'_> {
+    fn compile_named(&self, _ctx: &mut CompileContext, _identifier: &ast::BindingIdentifier) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::Function<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         ctx.exe.add_function_expression(FunctionExpression {
-            expression: unsafe { std::mem::transmute(self) },
+            expression: unsafe {
+                std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(self)
+            },
             identifier: None,
             home_object: None,
         });
     }
 }
 
-impl Compile for ast::ObjectExpression<'_> {
+impl CompileNamedEvaluation for ast::Function<'_> {
+    fn compile_named(&self, ctx: &mut CompileContext, identifier: &ast::BindingIdentifier) {
+        let identifier = Some(ctx.exe.add_identifier(identifier.name.clone()));
+        ctx.exe.add_function_expression(FunctionExpression {
+            expression: unsafe {
+                std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(self)
+            },
+            identifier,
+            home_object: None,
+        });
+    }
+}
+
+impl CompileEvaluation for ast::ObjectExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        // TODO: Consider preparing the size of the object here.
+        // TODO: Consider preparing the properties onto the stack and creating
+        // the object with a known size.
         ctx.exe.add_instruction(Instruction::ObjectCreate);
         for property in self.properties.iter() {
             match property {
@@ -414,10 +472,9 @@ impl Compile for ast::ObjectExpression<'_> {
                             let property_key =
                                 to_property_key(ctx.agent, property_key.into()).unwrap();
                             ctx.exe.add_instruction_with_constant(
-                                Instruction::StoreConstant,
+                                Instruction::LoadConstant,
                                 property_key,
                             );
-                            ctx.exe.add_instruction(Instruction::Load);
                         }
                         ast::PropertyKey::PrivateIdentifier(_) => todo!(),
                         ast::PropertyKey::Expression(_) => todo!(),
@@ -425,7 +482,6 @@ impl Compile for ast::ObjectExpression<'_> {
 
                     prop.value.compile(ctx);
 
-                    ctx.exe.add_instruction(Instruction::Load);
                     ctx.exe.add_instruction(Instruction::ObjectSetProperty);
                 }
                 ast::ObjectPropertyKind::SpreadProperty(_) => {
@@ -433,13 +489,15 @@ impl Compile for ast::ObjectExpression<'_> {
                 }
             }
         }
+        // 3. Return obj
+        ctx.exe.add_instruction(Instruction::Store);
     }
 }
 
-impl Compile for CallExpression<'_> {
+impl CompileEvaluation for CallExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         self.callee.compile(ctx);
-        ctx.exe.add_instruction(Instruction::Load);
+        ctx.exe.add_instruction(Instruction::GetValue);
         for ele in &self.arguments {
             match ele {
                 ast::Argument::SpreadElement(_) => {
@@ -457,7 +515,7 @@ impl Compile for CallExpression<'_> {
     }
 }
 
-impl Compile for ast::Expression<'_> {
+impl CompileEvaluation for ast::Expression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
             ast::Expression::NumberLiteral(x) => x.compile(ctx),
@@ -478,13 +536,13 @@ impl Compile for ast::Expression<'_> {
     }
 }
 
-impl Compile for ast::ExpressionStatement<'_> {
+impl CompileEvaluation for ast::ExpressionStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         self.expression.compile(ctx);
     }
 }
 
-impl Compile for ast::ReturnStatement<'_> {
+impl CompileEvaluation for ast::ReturnStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         if let Some(expr) = &self.argument {
             expr.compile(ctx);
@@ -497,7 +555,7 @@ impl Compile for ast::ReturnStatement<'_> {
     }
 }
 
-impl Compile for ast::IfStatement<'_> {
+impl CompileEvaluation for ast::IfStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         self.test.compile(ctx);
         let jump = ctx.exe.add_jump_index();
@@ -506,7 +564,7 @@ impl Compile for ast::IfStatement<'_> {
     }
 }
 
-impl Compile for ast::VariableDeclaration<'_> {
+impl CompileEvaluation for ast::VariableDeclaration<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self.kind {
             // VariableStatement : var VariableDeclarationList ;
@@ -526,11 +584,8 @@ impl Compile for ast::VariableDeclaration<'_> {
                     let init = decl.init.as_ref().unwrap();
 
                     // Put undefined to stack
-                    ctx.exe.add_instruction_with_constant(
-                        Instruction::StoreConstant,
-                        Value::Undefined,
-                    );
-                    ctx.exe.add_instruction(Instruction::Load);
+                    ctx.exe
+                        .add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
 
                     // 1. Let bindingId be StringValue of BindingIdentifier.
                     // 2. Let lhs be ? ResolveBinding(bindingId).
@@ -543,19 +598,31 @@ impl Compile for ast::VariableDeclaration<'_> {
 
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
                     if init.is_function() {
-                        let _is_anonymous = match &init {
-                            ast::Expression::ArrowExpression(_) => true,
-                            ast::Expression::FunctionExpression(expr) => expr.id.is_none(),
+                        match &init {
+                            ast::Expression::ArrowExpression(expr) => {
+                                // Always anonymous
+                                // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
+                                expr.compile_named(ctx, identifier);
+                            }
+                            ast::Expression::FunctionExpression(expr) => {
+                                if expr.id.is_none() {
+                                    // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
+                                    expr.compile_named(ctx, identifier);
+                                } else {
+                                    // 4. Else,
+                                    // a. Let rhs be ? Evaluation of Initializer.
+                                    init.compile(ctx);
+                                    // b. Let value be ? GetValue(rhs).
+                                    ctx.exe.add_instruction(Instruction::GetValue);
+                                }
+                            }
                             _ => unreachable!(),
                         };
-                        // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                        // TODO: How do we do NamedEvaluation?
-                    }
-                    // 4. Else,
-                    // a. Let rhs be ? Evaluation of Initializer.
-                    init.compile(ctx);
-                    // b. Let value be ? GetValue(rhs).
-                    if is_reference(init) {
+                    } else {
+                        // 4. Else,
+                        // a. Let rhs be ? Evaluation of Initializer.
+                        init.compile(ctx);
+                        // b. Let value be ? GetValue(rhs).
                         ctx.exe.add_instruction(Instruction::GetValue);
                     }
                     // 5. Perform ? PutValue(lhs, value).
@@ -573,7 +640,7 @@ impl Compile for ast::VariableDeclaration<'_> {
     }
 }
 
-impl Compile for ast::Declaration<'_> {
+impl CompileEvaluation for ast::Declaration<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
             ast::Declaration::VariableDeclaration(x) => x.compile(ctx),
@@ -583,7 +650,7 @@ impl Compile for ast::Declaration<'_> {
     }
 }
 
-impl Compile for ast::Statement<'_> {
+impl CompileEvaluation for ast::Statement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
             ast::Statement::ExpressionStatement(x) => x.compile(ctx),

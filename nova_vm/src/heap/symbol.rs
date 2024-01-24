@@ -13,7 +13,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub struct SymbolHeapData {
-    pub(super) descriptor: Option<String>,
+    pub(crate) descriptor: Option<String>,
 }
 
 pub fn initialize_symbol_heap(heap: &mut Heap) {
@@ -145,8 +145,9 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
         Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::SymbolConstructor.into()),
             length: 1,
-            initial_name: Value::Null,
+            initial_name: None,
             behaviour: Behaviour::Constructor(constructor_binding),
+            name: None,
         });
     let entries = vec![
         ObjectEntry::new(

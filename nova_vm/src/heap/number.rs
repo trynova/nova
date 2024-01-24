@@ -70,8 +70,9 @@ pub fn initialize_number_heap(heap: &mut Heap) {
         Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::NumberConstructor.into()),
             length: 1,
-            initial_name: Value::Null,
+            initial_name: None,
             behaviour: Behaviour::Constructor(constructor_binding),
+            name: None,
         });
     let entries = vec![
         ObjectEntry::new(

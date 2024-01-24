@@ -5,23 +5,28 @@ use oxc_span::Span;
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_object,
+        abstract_operations::{
+            operations_on_objects::define_property_or_throw, type_conversion::to_object,
+        },
         execution::{
             agent::{
                 get_active_script_or_module,
                 ExceptionType::{self, SyntaxError},
             },
             new_function_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
-            ExecutionContext, JsResult, PrivateEnvironmentIndex, RealmIdentifier,
+            ExecutionContext, JsResult, PrivateEnvironmentIndex, ProtoIntrinsics, RealmIdentifier,
             ThisBindingStatus,
         },
         scripts_and_modules::ScriptOrModule,
-        types::{ECMAScriptFunctionHeapData, Function, Object, Value},
+        types::{
+            ECMAScriptFunctionHeapData, Function, Object, PropertyDescriptor, PropertyKey, String,
+            Value,
+        },
     },
     heap::{indexes::ECMAScriptFunctionIndex, CreateHeapData, GetHeapData},
 };
 
-use super::ArgumentsList;
+use super::{ordinary::ordinary_object_create_with_intrinsics, ArgumentsList};
 
 #[derive(Debug, Clone, Copy)]
 pub enum ConstructorKind {
@@ -378,8 +383,8 @@ pub(crate) fn ordinary_function_create<'program>(
     let mut function = ECMAScriptFunctionHeapData {
         object_index: None,
         length: 0,
-        initial_name: Value::Undefined,
         ecmascript_function,
+        name: None,
     };
     if let Some(function_prototype) = params.function_prototype {
         if function_prototype != agent.current_realm().intrinsics().function_prototype() {
@@ -406,6 +411,128 @@ pub(crate) fn ordinary_function_create<'program>(
     .unwrap();
     // 23. Return F.
     agent.heap.create(function)
+}
+
+/// ### [10.2.5 MakeConstructor ( F \[ , writablePrototype \[ , prototype \] \] )](https://tc39.es/ecma262/#sec-makeconstructor)
+/// The abstract operation MakeConstructor takes argument F (an ECMAScript
+/// function object or a built-in function object) and optional arguments
+/// writablePrototype (a Boolean) and prototype (an Object) and returns
+/// UNUSED. It converts F into a constructor.
+pub(crate) fn make_constructor(
+    agent: &mut Agent,
+    function: Function,
+    writable_prototype: Option<bool>,
+    prototype: Option<Object>,
+) {
+    // 4. If writablePrototype is not present, set writablePrototype to true.
+    let writable_prototype = writable_prototype.unwrap_or(true);
+    match function {
+        Function::BoundFunction(_) => unreachable!(),
+        // 1. If F is an ECMAScript function object, then
+        Function::ECMAScriptFunction(idx) => {
+            // a. Assert: IsConstructor(F) is false.
+            // TODO: How do we separate constructors and non-constructors?
+            let data = agent.heap.get_mut(idx);
+            // b. Assert: F is an extensible object that does not have a "prototype" own property.
+            // TODO: Handle Some() object indexes?
+            assert!(data.object_index.is_none());
+            // c. Set F.[[Construct]] to the definition specified in 10.2.2.
+            // 3. Set F.[[ConstructorKind]] to BASE.
+            data.ecmascript_function.constructor_kind = ConstructorKind::Base;
+        }
+        Function::BuiltinFunction(_) => {
+            // 2. Else,
+            // a. Set F.[[Construct]] to the definition specified in 10.3.2.
+        }
+    }
+    // 5. If prototype is not present, then
+    let prototype = prototype.unwrap_or_else(|| {
+        // a. Set prototype to OrdinaryObjectCreate(%Object.prototype%).
+        let prototype =
+            ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object));
+        // b. Perform ! DefinePropertyOrThrow(prototype, "constructor", PropertyDescriptor { [[Value]]: F, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: true }).
+        let key = PropertyKey::from_str(&mut agent.heap, "constructor");
+        define_property_or_throw(
+            agent,
+            prototype,
+            key,
+            PropertyDescriptor {
+                value: Some(function.into_value()),
+                writable: Some(writable_prototype),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        prototype
+    });
+    // 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: false }).
+    let key = PropertyKey::from_str(&mut agent.heap, "prototype");
+    define_property_or_throw(
+        agent,
+        prototype,
+        key,
+        PropertyDescriptor {
+            value: Some(prototype.into_value()),
+            writable: Some(writable_prototype),
+            enumerable: Some(false),
+            configurable: Some(true),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    // 7. Return UNUSED.
+}
+
+/// ### [10.2.9 SetFunctionName ( F, name \[ , prefix \] )](https://tc39.es/ecma262/#sec-setfunctionname)
+/// The abstract operation SetFunctionName takes arguments F (a function
+/// object) and name (a property key or Private Name) and optional argument
+/// prefix (a String) and returns UNUSED. It adds a "name" property to F.
+pub(crate) fn set_function_name(
+    agent: &mut Agent,
+    function: Function,
+    name: PropertyKey,
+    _prefix: Option<String>,
+) {
+    // 2. If name is a Symbol, then
+    let name: String = match name {
+        PropertyKey::Symbol(idx) => {
+            // a. Let description be name's [[Description]] value.
+            // b. If description is undefined, set name to the empty String.
+            // c. Else, set name to the string-concatenation of "[", description, and "]".
+            let symbol_data = agent.heap.get(idx);
+            symbol_data
+                .descriptor
+                .map_or(String::from_small_string(""), |descriptor| {
+                    let descriptor = descriptor.as_str(agent).unwrap();
+                    String::from_str(agent, &format!("[{}]", descriptor))
+                })
+        }
+        // TODO: Private Name
+        // 3. Else if name is a Private Name, then
+        // a. Set name to name.[[Description]].
+        PropertyKey::Integer(_integer) => todo!(),
+        PropertyKey::SmallString(str) => str.into(),
+        PropertyKey::String(str) => str.into(),
+    };
+    // 5. If prefix is present, then
+    // a. Set name to the string-concatenation of prefix, the code unit 0x0020 (SPACE), and name.
+    // TODO: Handle prefixing
+
+    match function {
+        Function::BoundFunction(_idx) => todo!(),
+        Function::BuiltinFunction(_idx) => todo!(),
+        Function::ECMAScriptFunction(idx) => {
+            let function = agent.heap.get_mut(idx);
+            // 1. Assert: F is an extensible object that does not have a "name" own property.
+            // TODO: Also potentially allow running this function with Some() object index if needed.
+            assert!(function.object_index.is_none() && function.name.is_none());
+            // 6. Perform ! DefinePropertyOrThrow(F, "name", PropertyDescriptor { [[Value]]: name, [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
+            function.name = Some(name);
+            // 7. Return UNUSED.
+        }
+    }
 }
 
 /// ### [10.2.10 SetFunctionLength ( F, length )](https://tc39.es/ecma262/#sec-setfunctionlength)

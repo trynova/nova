@@ -245,8 +245,9 @@ pub fn initialize_object_heap(heap: &mut Heap) {
         Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::ObjectConstructor.into()),
             length: 1,
-            initial_name: Value::Null,
+            initial_name: None,
             behaviour: Behaviour::Constructor(object_constructor_binding),
+            name: None,
         });
     let entries = vec![
         ObjectEntry::new(

@@ -781,7 +781,6 @@ impl HeapMarkAndSweep<()> for SymbolIndex {
 
 impl HeapMarkAndSweep<()> for Value {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
-        println!("Marking Value");
         match self {
             Value::Undefined
             | Value::Null
@@ -870,7 +869,6 @@ impl HeapMarkAndSweep<()> for Number {
 
 impl HeapMarkAndSweep<()> for Object {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
-        println!("Marking Object");
         match self {
             Object::Object(idx) => idx.mark_values(queues, ()),
             Object::Array(idx) => idx.mark_values(queues, ()),
@@ -964,12 +962,14 @@ impl HeapMarkAndSweep<()> for BigIntHeapData {
 
 impl HeapMarkAndSweep<()> for BoundFunctionHeapData {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.name.mark_values(queues, ());
         self.function.mark_values(queues, ());
         self.object_index.mark_values(queues, ());
         self.bound_values.mark_values(queues, ());
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.name.sweep_values(compactions, ());
         self.function.sweep_values(compactions, ());
         self.object_index.sweep_values(compactions, ());
         self.bound_values.sweep_values(compactions, ());
@@ -978,11 +978,13 @@ impl HeapMarkAndSweep<()> for BoundFunctionHeapData {
 
 impl HeapMarkAndSweep<()> for BuiltinFunctionHeapData {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.name.mark_values(queues, ());
         self.initial_name.mark_values(queues, ());
         self.object_index.mark_values(queues, ());
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.name.sweep_values(compactions, ());
         self.initial_name.sweep_values(compactions, ());
         self.object_index.sweep_values(compactions, ());
     }
@@ -990,7 +992,7 @@ impl HeapMarkAndSweep<()> for BuiltinFunctionHeapData {
 
 impl HeapMarkAndSweep<()> for ECMAScriptFunctionHeapData {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
-        self.initial_name.mark_values(queues, ());
+        self.name.mark_values(queues, ());
         self.object_index.mark_values(queues, ());
 
         self.ecmascript_function.environment.mark_values(queues, ());

@@ -42,8 +42,9 @@ pub fn initialize_array_buffer_heap(heap: &mut Heap) {
         Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::ArrayBufferConstructor.into()),
             length: 1,
-            initial_name: Value::Null,
+            initial_name: None,
             behaviour: Behaviour::Constructor(constructor_binding),
+            name: None,
         });
     let entries = vec![
         ObjectEntry::new(

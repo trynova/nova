@@ -31,8 +31,9 @@ pub fn initialize_function_heap(heap: &mut Heap) {
         Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::FunctionConstructor.into()),
             length: 1,
-            initial_name: Value::Null,
+            initial_name: None,
             behaviour: Behaviour::Constructor(function_constructor_binding),
+            name: None,
         });
     let entries = vec![
         ObjectEntry::new_prototype_function_entry(heap, "apply", 2, false),

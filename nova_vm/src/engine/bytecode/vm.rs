@@ -13,9 +13,11 @@ use crate::ecmascript::{
     },
     execution::{
         agent::{resolve_binding, ExceptionType},
-        Agent, JsResult, ProtoIntrinsics,
+        Agent, ECMAScriptCodeEvaluationState, JsResult, ProtoIntrinsics,
     },
-    types::{put_value, Base, BigInt, Number, Object, PropertyKey, Reference, String, Value},
+    types::{
+        get_value, put_value, Base, BigInt, Number, Object, PropertyKey, Reference, String, Value,
+    },
 };
 
 use super::{Executable, Instruction, InstructionIter};
@@ -61,14 +63,36 @@ impl Vm {
     pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> JsResult<Option<Value>> {
         let mut vm = Vm::new();
 
+        eprintln!("Constants: {:?}", executable.constants);
+        eprintln!("Identifiers: {:?}", executable.identifiers);
+        eprintln!();
+
         let iter = InstructionIter::new(&executable.instructions);
         for instr in iter {
-            eprintln!("{:?} {:?}", instr.kind, instr.args);
+            match instr.kind.argument_count() {
+                0 => {
+                    eprintln!("{:?}()", instr.kind);
+                }
+                1 => {
+                    let arg0 = instr.args.first().unwrap().unwrap();
+                    eprintln!("{:?}({})", instr.kind, arg0);
+                }
+                2 => {
+                    let arg0 = instr.args.first().unwrap().unwrap();
+                    let arg1 = instr.args.last().unwrap();
+                    eprintln!("{:?}({}, {:?})", instr.kind, arg0, arg1);
+                }
+                _ => unreachable!(),
+            }
         }
         let iter = InstructionIter::new(&executable.instructions);
 
         for instr in iter {
+            eprintln!("Executing instruction {:?}", instr.kind);
             match instr.kind {
+                Instruction::Debug => {
+                    eprintln!("Debug: {:#?}", vm);
+                }
                 Instruction::ResolveBinding => {
                     let identifier =
                         vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
@@ -82,7 +106,7 @@ impl Vm {
                     vm.stack.push(constant);
                 }
                 Instruction::Load => {
-                    vm.stack.push(vm.result.unwrap());
+                    vm.stack.push(vm.result.take().unwrap());
                 }
                 Instruction::Return => {
                     return Ok(vm.result);
@@ -126,7 +150,7 @@ impl Vm {
                     )?);
                 }
                 Instruction::ObjectSetProperty => {
-                    let value = vm.stack.pop().unwrap();
+                    let value = vm.result.take().unwrap();
                     let key = PropertyKey::try_from(vm.stack.pop().unwrap()).unwrap();
                     let object = *vm.stack.last().unwrap();
                     let object = Object::try_from(object).unwrap();
@@ -145,21 +169,13 @@ impl Vm {
                     reference.base = Base::Value(value);
                 }
                 Instruction::GetValue => {
-                    let reference = if let Some(reference) = &vm.reference {
-                        reference
-                    } else {
+                    // 1. If V is not a Reference Record, return V.
+                    let Some(reference) = &vm.reference else {
+                        debug_assert!(vm.result.is_some());
                         continue;
                     };
 
-                    vm.result = match reference.base {
-                        Base::Value(value) => Some(value),
-                        _ => {
-                            return Err(agent.throw_exception(
-                                ExceptionType::ReferenceError,
-                                "Unable to resolve identifier.",
-                            ));
-                        }
-                    };
+                    vm.result = Some(get_value(agent, reference)?);
                 }
                 Instruction::Typeof => {
                     let val = vm.result.unwrap();
@@ -177,32 +193,57 @@ impl Vm {
                         .function_expressions
                         .get(instr.args[0].unwrap() as usize)
                         .unwrap();
+                    let ECMAScriptCodeEvaluationState {
+                        lexical_environment,
+                        private_environment,
+                        ..
+                    } = *agent
+                        .running_execution_context()
+                        .ecmascript_code
+                        .as_ref()
+                        .unwrap();
                     let params = OrdinaryFunctionCreateParams {
                         function_prototype: None,
                         source_text: function_expression.expression.span,
                         parameters_list: &function_expression.expression.params,
                         body: function_expression.expression.body.as_ref().unwrap(),
                         this_mode: ThisMode::Lexical,
-                        env: agent
-                            .running_execution_context()
-                            .ecmascript_code
-                            .as_ref()
-                            .unwrap()
-                            .lexical_environment,
-                        private_env: None,
+                        env: lexical_environment,
+                        private_env: private_environment,
                     };
                     let function = ordinary_function_create(agent, params).into_value();
                     vm.result = Some(function);
                 }
                 Instruction::EvaluateCall => {
                     let arg_count = instr.args[0].unwrap() as usize;
-                    println!("{:#?}", vm);
                     let args = vm.stack.split_off(vm.stack.len() - arg_count);
+                    let reference = vm.reference.take();
+                    // 1. If ref is a Reference Record, then
+                    let this_value = if let Some(reference) = reference {
+                        // a. If IsPropertyReference(ref) is true, then
+                        match reference.base {
+                            // i. Let thisValue be GetThisValue(ref).
+                            Base::Value(value) => value,
+                            // b. Else,
+                            Base::Environment(ref_env) => {
+                                // i. Let refEnv be ref.[[Base]].
+                                // iii. Let thisValue be refEnv.WithBaseObject().
+                                ref_env
+                                    .with_base_object(agent)
+                                    .map_or(Value::Undefined, |object| object.into_value())
+                            }
+                            // ii. Assert: refEnv is an Environment Record.
+                            Base::Unresolvable => unreachable!(),
+                        }
+                    } else {
+                        // 2. Else,
+                        // a. Let thisValue be undefined.
+                        Value::Undefined
+                    };
                     // let this_arg = vm.stack.pop();
-                    let func = vm.stack.pop().unwrap();
-                    vm.result = Some(
-                        call(agent, func, Value::Undefined, Some(ArgumentsList(&args))).unwrap(),
-                    );
+                    let func = vm.result.take().unwrap();
+                    vm.result =
+                        Some(call(agent, func, this_value, Some(ArgumentsList(&args))).unwrap());
                 }
                 other => todo!("{other:?}"),
             }

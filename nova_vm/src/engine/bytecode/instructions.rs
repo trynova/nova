@@ -8,6 +8,7 @@ use super::IndexType;
 ///   Copyright (c) 2023-2024 Linus Groh
 #[derive(Debug, Clone, Copy)]
 pub enum Instruction {
+    Debug,
     /// Store ApplyStringOrNumericBinaryOperator() as the result value.
     ApplyStringOrNumericBinaryOperator(BinaryOperator),
     /// Store ArrayCreate(0) as the result value.
@@ -28,8 +29,8 @@ pub enum Instruction {
     /// Store EvaluateCall() as the result value.
     ///
     /// This instruction has the number of argument values that need to be
-    /// popped from the stack (last to first) as an argument, the values on the
-    /// stack afterwards are the this value and lastly the function to call.
+    /// popped from the stack (last to first) as an argument, and finally the
+    /// function to call.
     EvaluateCall,
     /// Store EvaluateNew() as the result value.
     ///
@@ -42,7 +43,8 @@ pub enum Instruction {
     EvaluatePropertyAccessWithExpressionKey,
     /// Store EvaluatePropertyAccessWithIdentifierKey() as the result value.
     EvaluatePropertyAccessWithIdentifierKey,
-    /// Store GetValue() as the result value.
+    /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
+    /// value.
     GetValue,
     /// Compare the last two values on the stack using the '>' operator rules.
     GreaterThan,
@@ -79,7 +81,7 @@ pub enum Instruction {
     /// Apply logical NOT to the last value on the stack and store it as the
     /// result value.
     LogicalNot,
-    /// Store OrdinaryObjectCreate(%Object.prototype%) as the result value.
+    /// Store OrdinaryObjectCreate(%Object.prototype%) on the stack.
     ObjectCreate,
     /// Set an object's property to the key/value pair from the last two values
     /// on the stack.
@@ -123,12 +125,11 @@ pub enum Instruction {
 impl Instruction {
     pub fn argument_count(self) -> u8 {
         match self {
-            Self::EvaluateCall
-            | Self::EvaluatePropertyAccessWithIdentifierKey
-            | Self::JumpConditional => 2,
+            Self::EvaluatePropertyAccessWithIdentifierKey | Self::JumpConditional => 2,
             Self::ArraySetLength
             | Self::ArraySetValue
             | Self::CreateCatchBinding
+            | Self::EvaluateCall
             | Self::EvaluateNew
             | Self::EvaluatePropertyAccessWithExpressionKey
             | Self::InstantiateArrowFunctionExpression
