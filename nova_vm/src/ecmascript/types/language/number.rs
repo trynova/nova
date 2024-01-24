@@ -222,7 +222,8 @@ impl Number {
 
     /// Compare two Numbers with each other: This is used when the spec asks if
     /// `x is y` when talking of Numbers. Generally this is asked after various
-    /// NaN and non-zero checks, depending on which spec algorithm is being used.
+    /// NaN and non-zero checks, depending on which spec algorithm is being
+    /// used.
     #[inline(always)]
     fn is(self, agent: &mut Agent, y: Self) -> bool {
         match (self, y) {
@@ -469,10 +470,10 @@ impl Number {
 
     /// ### [6.1.6.1.7 Number::add ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-add)
     ///
-    /// The abstract operation Number::add takes arguments x (a Number) and y (a
-    /// Number) and returns a Number. It performs addition according to the
-    /// rules of IEEE 754-2019 binary double-precision arithmetic, producing the
-    /// sum of its arguments.
+    /// The abstract operation Number::add takes arguments x (a Number) and y
+    /// (a Number) and returns a Number. It performs addition according to the
+    /// rules of IEEE 754-2019 binary double-precision arithmetic, producing
+    /// the sum of its arguments.
     pub(crate) fn add(agent: &mut Agent, x: Number, y: Number) -> Number {
         // 1. If x is NaN or y is NaN, return NaN.
         if x.is_nan(agent) || y.is_nan(agent) {
@@ -513,9 +514,9 @@ impl Number {
 
     /// ### [6.1.6.1.8 Number::subtract ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-subtract)
     ///
-    /// The abstract operation Number::subtract takes arguments x (a Number) and
-    /// y (a Number) and returns a Number. It performs subtraction, producing
-    /// the difference of its operands; x is the minuend and y is the
+    /// The abstract operation Number::subtract takes arguments x (a Number)
+    /// and y (a Number) and returns a Number. It performs subtraction,
+    /// producing the difference of its operands; x is the minuend and y is the
     /// subtrahend.
     pub(crate) fn subtract(agent: &mut Agent, x: Number, y: Number) -> Number {
         // 1. Return Number::add(x, Number::unaryMinus(y)).

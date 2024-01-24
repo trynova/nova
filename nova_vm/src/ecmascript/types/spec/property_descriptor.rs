@@ -6,22 +6,22 @@ use crate::ecmascript::{
 /// ### [6.2.6 The Property Descriptor Specification Type](https://tc39.es/ecma262/#sec-property-descriptor-specification-type)
 #[derive(Debug, Clone, Default)]
 pub struct PropertyDescriptor {
-    /// [[Value]]
+    /// \[\[Value]]
     pub value: Option<Value>,
 
-    /// [[Writable]]
+    /// \[\[Writable]]
     pub writable: Option<bool>,
 
-    /// [[Get]]
+    /// \[\[Get]]
     pub get: Option<Function>,
 
-    /// [[Set]]
+    /// \[\[Set]]
     pub set: Option<Function>,
 
-    /// [[Enumerable]]
+    /// \[\[Enumerable]]
     pub enumerable: Option<bool>,
 
-    /// [[Configurable]]
+    /// \[\[Configurable]]
     pub configurable: Option<bool>,
 }
 

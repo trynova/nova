@@ -48,10 +48,11 @@ impl RealmIdentifier {
 
 /// ### [9.3 Realms](https://tc39.es/ecma262/#sec-code-realms)
 ///
-/// Before it is evaluated, all ECMAScript code must be associated with a realm.
-/// Conceptually, a realm consists of a set of intrinsic objects, an ECMAScript
-/// global environment, all of the ECMAScript code that is loaded within the
-/// scope of that global environment, and other associated state and resources.
+/// Before it is evaluated, all ECMAScript code must be associated with a
+/// realm. Conceptually, a realm consists of a set of intrinsic objects, an
+/// ECMAScript global environment, all of the ECMAScript code that is loaded
+/// within the scope of that global environment, and other associated state and
+/// resources.
 #[derive(Debug)]
 pub struct Realm {
     /// ### \[\[AgentSignifier]]
@@ -214,8 +215,8 @@ pub fn set_realm_global_object(
 /// ### [9.3.4 SetDefaultGlobalBindings ( realmRec )](https://tc39.es/ecma262/#sec-setdefaultglobalbindings)
 ///
 /// The abstract operation SetDefaultGlobalBindings takes argument realmRec (a
-/// Realm Record) and returns either a normal completion containing an Object or
-/// a throw completion.
+/// Realm Record) and returns either a normal completion containing an Object
+/// or a throw completion.
 pub(crate) fn set_default_global_bindings(
     agent: &mut Agent,
     realm_id: RealmIdentifier,

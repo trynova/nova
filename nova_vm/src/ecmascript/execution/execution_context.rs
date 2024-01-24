@@ -36,8 +36,8 @@ pub(crate) struct ECMAScriptCodeEvaluationState {
 /// runtime evaluation of code by an ECMAScript implementation. At any point in
 /// time, there is at most one execution context per agent that is actually
 /// executing code. This is known as the agent's running execution context. All
-/// references to the running execution context in this specification denote the
-/// running execution context of the surrounding agent.
+/// references to the running execution context in this specification denote
+/// the running execution context of the surrounding agent.
 #[derive(Debug)]
 pub(crate) struct ExecutionContext {
     /// ### code evaluation state
@@ -49,8 +49,9 @@ pub(crate) struct ExecutionContext {
     /// ### Function
     ///
     /// If this execution context is evaluating the code of a function object,
-    /// then the value of this component is that function object. If the context
-    /// is evaluating the code of a Script or Module, the value is null.
+    /// then the value of this component is that function object. If the
+    /// context is evaluating the code of a Script or Module, the value is
+    /// null.
     pub function: Option<Function>,
 
     /// ### Realm

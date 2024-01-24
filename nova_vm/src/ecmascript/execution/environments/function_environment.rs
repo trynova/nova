@@ -28,9 +28,9 @@ pub(crate) enum ThisBindingStatus {
 /// A Function Environment Record is a Declarative Environment Record that is
 /// used to represent the top-level scope of a function and, if the function is
 /// not an ArrowFunction, provides a this binding. If a function is not an
-/// ArrowFunction function and references super, its Function Environment Record
-/// also contains the state that is used to perform super method invocations
-/// from within the function.
+/// ArrowFunction function and references super, its Function Environment
+/// Record also contains the state that is used to perform super method
+/// invocations from within the function.
 #[derive(Debug)]
 pub(crate) struct FunctionEnvironment {
     /// ### \[\[ThisValue\]\]
@@ -52,9 +52,10 @@ pub(crate) struct FunctionEnvironment {
 
     /// ### \[\[NewTarget\]\]
     ///
-    /// If this Environment Record was created by the \[\[Construct\]\] internal
-    /// method, \[\[NewTarget\]\] is the value of the \[\[Construct\]\]
-    /// newTarget parameter. Otherwise, its value is undefined.
+    /// If this Environment Record was created by the \[\[Construct\]\]
+    /// internal method, \[\[NewTarget\]\] is the value of the
+    /// \[\[Construct\]\] newTarget parameter. Otherwise, its value is
+    /// undefined.
     pub(crate) new_target: Option<Object>,
 
     /// Function Environment Records support all of the Declarative Environment
@@ -243,7 +244,10 @@ impl FunctionEnvironmentIndex {
 
     /// ### [9.1.1.3.1 BindThisValue ( V )](https://tc39.es/ecma262/#sec-bindthisvalue)
     ///
-    /// The BindThisValue concrete method of a Function Environment Record envRec takes argument V (an ECMAScript language value) and returns either a normal completion containing an ECMAScript language value or a throw completion.
+    /// The BindThisValue concrete method of a Function Environment Record
+    /// envRec takes argument V (an ECMAScript language value) and returns
+    /// either a normal completion containing an ECMAScript language value or a
+    /// throw completion.
     pub(crate) fn bind_this_value(self, agent: &mut Agent, value: Value) -> JsResult<Value> {
         let env_rec = self.get_mut(agent);
         // 1. Assert: envRec.[[ThisBindingStatus]] is not LEXICAL.
@@ -306,9 +310,9 @@ impl FunctionEnvironmentIndex {
 
     /// ### [9.1.1.3.5 GetSuperBase ( )](https://tc39.es/ecma262/#sec-getsuperbase)
     ///
-    /// The GetSuperBase concrete method of a Function Environment Record envRec
-    /// takes no arguments and returns either a normal completion containing
-    /// either an Object, null, or undefined, or a throw completion.
+    /// The GetSuperBase concrete method of a Function Environment Record
+    /// envRec takes no arguments and returns either a normal completion
+    /// containing either an Object, null, or undefined, or a throw completion.
     pub(crate) fn get_super_base(self, agent: &mut Agent) -> JsResult<Value> {
         let env_rec = self.get(agent);
 

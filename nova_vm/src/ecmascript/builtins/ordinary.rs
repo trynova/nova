@@ -743,7 +743,7 @@ pub(crate) fn ordinary_own_property_keys(
     Ok(keys)
 }
 
-/// ## [10.1.12 OrdinaryObjectCreate ( proto \[ , additionalInternalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinaryobjectcreate)
+/// ### [10.1.12 OrdinaryObjectCreate ( proto \[ , additionalInternalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinaryobjectcreate)
 ///
 /// The abstract operation OrdinaryObjectCreate takes argument proto (an Object
 /// or null) and optional argument additionalInternalSlotsList (a List of names

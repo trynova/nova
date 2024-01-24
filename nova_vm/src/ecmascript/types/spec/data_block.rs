@@ -230,8 +230,9 @@ impl DataBlock {
 
     /// ### [6.2.9.1 CreateByteDataBlock ( size )](https://tc39.es/ecma262/#sec-createbytedatablock)
     ///
-    /// The abstract operation CreateByteDataBlock takes argument size (a non-negative integer)
-    /// and returns either a normal completion containing a Data Block or a throw completion.
+    /// The abstract operation CreateByteDataBlock takes argument size (a
+    /// non-negative integer) and returns either a normal completion containing
+    /// a Data Block or a throw completion.
     pub fn create_byte_data_block(_agent: &Agent, size: u64) -> JsResult<Self> {
         // 1. If size > 2**53 - 1, throw a RangeError exception.
         if size > u64::pow(2, 53) - 1 {
@@ -251,8 +252,9 @@ impl DataBlock {
 
     /// ### [6.2.9.2 CreateSharedByteDataBlock ( size )](https://tc39.es/ecma262/#sec-createsharedbytedatablock)
     ///
-    /// The abstract operation CreateSharedByteDataBlock takes argument size (a non-negative integer)
-    /// and returns either a normal completion containing a Shared Data Block or a throw completion.
+    /// The abstract operation CreateSharedByteDataBlock takes argument size (a
+    /// non-negative integer) and returns either a normal completion containing
+    /// a Shared Data Block or a throw completion.
     pub fn create_shared_byte_data_block(size: u64) -> JsResult<Self> {
         // 1. Let db be a new Shared Data Block value consisting of size bytes. If it is impossible to create such a Shared Data Block, throw a RangeError exception.
         if let Ok(size) = u32::try_from(size) {
@@ -270,9 +272,11 @@ impl DataBlock {
 
     /// ### [6.2.9.3 CopyDataBlockBytes ( toBlock, toIndex, fromBlock, fromIndex, count )](https://tc39.es/ecma262/#sec-copydatablockbytes)
     ///
-    /// The abstract operation CopyDataBlockBytes takes arguments toBlock (a Data Block or a Shared
-    /// Data Block), toIndex (a non-negative integer), fromBlock (a Data Block or a Shared Data Block),
-    /// fromIndex (a non-negative integer), and count (a non-negative integer) and returns UNUSED.
+    /// The abstract operation CopyDataBlockBytes takes arguments toBlock (a
+    /// Data Block or a Shared Data Block), toIndex (a non-negative integer),
+    /// fromBlock (a Data Block or a Shared Data Block), fromIndex (a
+    /// non-negative integer), and count (a non-negative integer) and returns
+    /// UNUSED.
     pub fn copy_data_block_bytes(
         &mut self,
         to_index: u32,

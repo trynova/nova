@@ -11,10 +11,10 @@ use oxc_span::Atom;
 
 /// ### [6.2.5 The Reference Record Specification Type](https://tc39.es/ecma262/#sec-reference-record-specification-type)
 ///
-/// The Reference Record type is used to explain the behaviour of such operators
-/// as delete, typeof, the assignment operators, the super keyword and other
-/// language features. For example, the left-hand operand of an assignment is
-/// expected to produce a Reference Record.
+/// The Reference Record type is used to explain the behaviour of such
+/// operators as delete, typeof, the assignment operators, the super keyword
+/// and other language features. For example, the left-hand operand of an
+/// assignment is expected to produce a Reference Record.
 #[derive(Debug)]
 pub struct Reference {
     /// ### \[\[Base]]
@@ -79,7 +79,9 @@ pub(crate) fn is_super_reference(reference: &Reference) -> bool {
 }
 
 /// ### [6.2.5.4 IsPrivateReference ( V )](https://tc39.es/ecma262/#sec-isprivatereference)
-/// The abstract operation IsPrivateReference takes argument V (a Reference Record) and returns a Boolean.
+///
+/// The abstract operation IsPrivateReference takes argument V (a Reference
+/// Record) and returns a Boolean.
 pub(crate) fn is_private_reference(reference: &Reference) -> bool {
     // 1. If V.[[ReferencedName]] is a Private Name, return true; otherwise return false.
     matches!(reference.referenced_name, ReferencedName::PrivateName)

@@ -21,12 +21,12 @@ use crate::{
 /// binding object. Property keys that are not strings in the form of an
 /// IdentifierName are not included in the set of bound identifiers. Both own
 /// and inherited properties are included in the set regardless of the setting
-/// of their \[\[Enumerable\]\] attribute. Because properties can be dynamically
-/// added and deleted from objects, the set of identifiers bound by an Object
-/// Environment Record may potentially change as a side-effect of any operation
-/// that adds or deletes properties. Any bindings that are created as a result
-/// of such a side-effect are considered to be a mutable binding even if the
-/// Writable attribute of the corresponding property is false. Immutable
+/// of their \[\[Enumerable\]\] attribute. Because properties can be
+/// dynamically added and deleted from objects, the set of identifiers bound by
+/// an Object Environment Record may potentially change as a side-effect of any
+/// operation that adds or deletes properties. Any bindings that are created as
+/// a result of such a side-effect are considered to be a mutable binding even
+/// if the Writable attribute of the corresponding property is false. Immutable
 /// bindings do not exist for Object Environment Records.
 #[derive(Debug, Clone)]
 pub struct ObjectEnvironment {
@@ -50,7 +50,9 @@ pub struct ObjectEnvironment {
 impl ObjectEnvironment {
     /// ### [9.1.2.3 NewObjectEnvironment ( O, W, E )](https://tc39.es/ecma262/#sec-newobjectenvironmenthttps://tc39.es/ecma262/#sec-newobjectenvironment)
     ///
-    /// The abstract operation NewObjectEnvironment takes arguments O (an Object), W (a Boolean), and E (an Environment Record or null) and returns an Object Environment Record.
+    /// The abstract operation NewObjectEnvironment takes arguments O (an
+    /// Object), W (a Boolean), and E (an Environment Record or null) and
+    /// returns an Object Environment Record.
     pub(crate) fn new(
         binding_object: Object,
         is_with_environment: bool,
@@ -76,7 +78,10 @@ impl ObjectEnvironmentIndex {
 
     /// ### [9.1.1.2.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-hasbinding-n)
     ///
-    /// The HasBinding concrete method of an Object Environment Record envRec takes argument N (a String) and returns either a normal completion containing a Boolean or a throw completion. It determines if its associated binding object has a property whose name is N.
+    /// The HasBinding concrete method of an Object Environment Record envRec
+    /// takes argument N (a String) and returns either a normal completion
+    /// containing a Boolean or a throw completion. It determines if its
+    /// associated binding object has a property whose name is N.
     pub(crate) fn has_binding(self, agent: &mut Agent, n: &Atom) -> JsResult<bool> {
         let env_rec = self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
@@ -257,7 +262,8 @@ impl ObjectEnvironmentIndex {
 
     /// ### [9.1.1.2.8 HasThisBinding ( )](https://tc39.es/ecma262/#sec-object-environment-records-hasthisbinding)
     ///
-    /// The HasThisBinding concrete method of an Object Environment Record envRec takes no arguments and returns false.
+    /// The HasThisBinding concrete method of an Object Environment Record
+    /// envRec takes no arguments and returns false.
     pub(crate) fn has_this_binding(&self) -> bool {
         // 1. Return false.
         false
@@ -267,7 +273,8 @@ impl ObjectEnvironmentIndex {
 
     /// ### [9.1.1.2.9 HasSuperBinding ( )](https://tc39.es/ecma262/#sec-object-environment-records-hassuperbinding)
     ///
-    /// The HasSuperBinding concrete method of an Object Environment Record envRec takes no arguments and returns false.
+    /// The HasSuperBinding concrete method of an Object Environment Record
+    /// envRec takes no arguments and returns false.
     pub(crate) fn has_super_binding(&self) -> bool {
         // 1. Return false.
         false
@@ -277,7 +284,8 @@ impl ObjectEnvironmentIndex {
 
     /// ### [9.1.1.2.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-object-environment-records-withbaseobject)
     ///
-    /// The WithBaseObject concrete method of an Object Environment Record envRec takes no arguments and returns an Object or undefined.
+    /// The WithBaseObject concrete method of an Object Environment Record
+    /// envRec takes no arguments and returns an Object or undefined.
     pub(crate) fn with_base_object(&self, agent: &Agent) -> Option<Object> {
         let env_rec = self.get(agent);
         // 1. If envRec.[[IsWithEnvironment]] is true, return envRec.[[BindingObject]].

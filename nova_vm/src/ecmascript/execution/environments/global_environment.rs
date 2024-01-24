@@ -19,9 +19,9 @@ use super::{
 ///
 /// A Global Environment Record is used to represent the outer most scope that
 /// is shared by all of the ECMAScript Script elements that are processed in a
-/// common realm. A Global Environment Record provides the bindings for built-in
-/// globals (clause 19), properties of the global object, and for all top-level
-/// declarations (8.2.9, 8.2.11) that occur within a Script.
+/// common realm. A Global Environment Record provides the bindings for
+/// built-in globals (clause 19), properties of the global object, and for all
+/// top-level declarations (8.2.9, 8.2.11) that occur within a Script.
 #[derive(Debug, Clone)]
 pub struct GlobalEnvironment {
     /// ### \[\[ObjectRecord\]\]
@@ -40,10 +40,10 @@ pub struct GlobalEnvironment {
 
     /// ### \[\[DeclarativeRecord\]\]
     ///
-    /// Contains bindings for all declarations in global code for the associated
-    /// realm code except for FunctionDeclaration, GeneratorDeclaration,
-    /// AsyncFunctionDeclaration, AsyncGeneratorDeclaration, and
-    /// VariableDeclaration bindings.
+    /// Contains bindings for all declarations in global code for the
+    /// associated realm code except for FunctionDeclaration,
+    /// GeneratorDeclaration, AsyncFunctionDeclaration,
+    /// AsyncGeneratorDeclaration, and VariableDeclaration bindings.
     pub(crate) declarative_record: DeclarativeEnvironmentIndex,
 
     /// ### \[\[VarNames\]\]
@@ -126,12 +126,12 @@ impl GlobalEnvironmentIndex {
     /// ### [9.1.1.4.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-global-environment-records-createmutablebinding-n-d)
     ///
     /// The CreateMutableBinding concrete method of a Global Environment Record
-    /// envRec takes arguments N (a String) and D (a Boolean) and returns either a
-    /// normal completion containing UNUSED or a throw completion. It creates a new
-    /// mutable binding for the name N that is uninitialized. The binding is
-    /// created in the associated DeclarativeRecord. A binding for N must not
-    /// already exist in the DeclarativeRecord. If D is true, the new binding is
-    /// marked as being subject to deletion.
+    /// envRec takes arguments N (a String) and D (a Boolean) and returns
+    /// either a normal completion containing UNUSED or a throw completion. It
+    /// creates a new mutable binding for the name N that is uninitialized. The
+    /// binding is created in the associated DeclarativeRecord. A binding for N
+    /// must not already exist in the DeclarativeRecord. If D is true, the new
+    /// binding is marked as being subject to deletion.
     pub(crate) fn create_mutable_binding(
         self,
         agent: &mut Agent,
@@ -153,12 +153,13 @@ impl GlobalEnvironmentIndex {
 
     /// ### [9.1.1.4.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-global-environment-records-createimmutablebinding-n-s)
     ///
-    /// The CreateImmutableBinding concrete method of a Global Environment Record
-    /// envRec takes arguments N (a String) and S (a Boolean) and returns either a
-    /// normal completion containing UNUSED or a throw completion. It creates a new
-    /// immutable binding for the name N that is uninitialized. A binding must not
-    /// already exist in this Environment Record for N. If S is true, the new
-    /// binding is marked as a strict binding.
+    /// The CreateImmutableBinding concrete method of a Global Environment
+    /// Record envRec takes arguments N (a String) and S (a Boolean) and
+    /// returns either a normal completion containing UNUSED or a throw
+    /// completion. It creates a new immutable binding for the name N that is
+    /// uninitialized. A binding must not already exist in this Environment
+    /// Record for N. If S is true, the new binding is marked as a strict
+    /// binding.
     pub(crate) fn create_immutable_binding(
         self,
         agent: &mut Agent,
@@ -180,12 +181,12 @@ impl GlobalEnvironmentIndex {
 
     /// ### [9.1.1.4.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-global-environment-records-initializebinding-n-v)
     ///
-    /// The InitializeBinding concrete method of a Global Environment Record envRec
-    /// takes arguments N (a String) and V (an ECMAScript language value) and
-    /// returns either a normal completion containing UNUSED or a throw completion.
-    /// It is used to set the bound value of the current binding of the identifier
-    /// whose name is N to the value V. An uninitialized binding for N must already
-    /// exist.
+    /// The InitializeBinding concrete method of a Global Environment Record
+    /// envRec takes arguments N (a String) and V (an ECMAScript language
+    /// value) and returns either a normal completion containing UNUSED or a
+    /// throw completion. It is used to set the bound value of the current
+    /// binding of the identifier whose name is N to the value V. An
+    /// uninitialized binding for N must already exist.
     pub(crate) fn initialize_binding(
         self,
         agent: &mut Agent,
@@ -211,7 +212,14 @@ impl GlobalEnvironmentIndex {
 
     /// ### [9.1.1.4.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-global-environment-records-setmutablebinding-n-v-s)
     ///
-    /// The SetMutableBinding concrete method of a Global Environment Record envRec takes arguments N (a String), V (an ECMAScript language value), and S (a Boolean) and returns either a normal completion containing UNUSED or a throw completion. It attempts to change the bound value of the current binding of the identifier whose name is N to the value V. If the binding is an immutable binding and S is true, a TypeError is thrown. A property named N normally already exists but if it does not or is not currently writable, error handling is determined by S.
+    /// The SetMutableBinding concrete method of a Global Environment Record
+    /// envRec takes arguments N (a String), V (an ECMAScript language value),
+    /// and S (a Boolean) and returns either a normal completion containing
+    /// UNUSED or a throw completion. It attempts to change the bound value of
+    /// the current binding of the identifier whose name is N to the value V.
+    /// If the binding is an immutable binding and S is true, a TypeError is
+    /// thrown. A property named N normally already exists but if it does not
+    /// or is not currently writable, error handling is determined by S.
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
@@ -236,13 +244,14 @@ impl GlobalEnvironmentIndex {
 
     /// ### [9.1.1.4.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-global-environment-records-getbindingvalue-n-s)
     ///
-    /// The GetBindingValue concrete method of a Global Environment Record envRec
-    /// takes arguments N (a String) and S (a Boolean) and returns either a normal
-    /// completion containing an ECMAScript language value or a throw completion.
-    /// It returns the value of its bound identifier whose name is N. If the
-    /// binding is an uninitialized binding throw a ReferenceError exception. A
-    /// property named N normally already exists but if it does not or is not
-    /// currently writable, error handling is determined by S.
+    /// The GetBindingValue concrete method of a Global Environment Record
+    /// envRec takes arguments N (a String) and S (a Boolean) and returns
+    /// either a normal completion containing an ECMAScript language value or a
+    /// throw completion. It returns the value of its bound identifier whose
+    /// name is N. If the binding is an uninitialized binding throw a
+    /// ReferenceError exception. A property named N normally already exists
+    /// but if it does not or is not currently writable, error handling is
+    /// determined by S.
     pub(crate) fn get_binding_value(self, agent: &mut Agent, n: &Atom, s: bool) -> JsResult<Value> {
         let env_rec = self.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -261,7 +270,10 @@ impl GlobalEnvironmentIndex {
 
     /// ### [9.1.1.4.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-global-environment-records-deletebinding-n)
     ///
-    /// The DeleteBinding concrete method of a Global Environment Record envRec takes argument N (a String) and returns either a normal completion containing a Boolean or a throw completion. It can only delete bindings that have been explicitly designated as being subject to deletion.
+    /// The DeleteBinding concrete method of a Global Environment Record envRec
+    /// takes argument N (a String) and returns either a normal completion
+    /// containing a Boolean or a throw completion. It can only delete bindings
+    /// that have been explicitly designated as being subject to deletion.
     pub(crate) fn delete_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
         let env_rec = self.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -300,7 +312,8 @@ impl GlobalEnvironmentIndex {
 
     /// ### [9.1.1.4.8 HasThisBinding ( )](https://tc39.es/ecma262/#sec-global-environment-records-hasthisbinding)
     ///
-    /// The HasThisBinding concrete method of a Global Environment Record envRec takes no arguments and returns true.
+    /// The HasThisBinding concrete method of a Global Environment Record
+    /// envRec takes no arguments and returns true.
     pub(crate) fn has_this_binding(self) -> bool {
         // 1. Return true.
         true
@@ -310,7 +323,8 @@ impl GlobalEnvironmentIndex {
 
     /// ### [9.1.1.4.9 HasSuperBinding ( )](https://tc39.es/ecma262/#sec-global-environment-records-hassuperbinding)
     ///
-    /// The HasSuperBinding concrete method of a Global Environment Record envRec takes no arguments and returns false.
+    /// The HasSuperBinding concrete method of a Global Environment Record
+    /// envRec takes no arguments and returns false.
     pub(crate) fn has_super_binding(self) -> bool {
         // 1. Return false.
         false
@@ -320,7 +334,8 @@ impl GlobalEnvironmentIndex {
 
     /// ### [9.1.1.4.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-global-environment-records-withbaseobject)
     ///
-    /// The WithBaseObject concrete method of a Global Environment Record envRec takes no arguments and returns undefined.
+    /// The WithBaseObject concrete method of a Global Environment Record
+    /// envRec takes no arguments and returns undefined.
     pub(crate) fn with_base_object(self) -> Option<Object> {
         // 1. Return undefined.
         None
@@ -328,7 +343,9 @@ impl GlobalEnvironmentIndex {
 
     /// ### [9.1.1.4.11 GetThisBinding ( )](https://tc39.es/ecma262/#sec-global-environment-records-getthisbinding)
     ///
-    /// The GetThisBinding concrete method of a Global Environment Record envRec takes no arguments and returns a normal completion containing an Object.
+    /// The GetThisBinding concrete method of a Global Environment Record
+    /// envRec takes no arguments and returns a normal completion containing an
+    /// Object.
     pub(crate) fn get_this_binding(self, agent: &Agent) -> Object {
         let env_rec = self.get(agent);
         // 1. Return envRec.[[GlobalThisValue]].
@@ -339,7 +356,8 @@ impl GlobalEnvironmentIndex {
     ///
     /// The HasVarDeclaration concrete method of a Global Environment Record
     /// envRec takes argument N (a String) and returns a Boolean. It determines
-    /// if the argument identifier has a binding in this record that was created
+    /// if the argument identifier has a binding in this record that was
+    /// created
     /// using a VariableStatement or a FunctionDeclaration.
     pub(crate) fn has_var_declaration(self, agent: &Agent, name: &str) -> bool {
         let env_rec = self.get(agent);
@@ -352,11 +370,11 @@ impl GlobalEnvironmentIndex {
 
     /// ### [9.1.1.4.13 HasLexicalDeclaration ( N )](https://tc39.es/ecma262/#sec-haslexicaldeclaration)
     ///
-    /// The HasLexicalDeclaration concrete method of a Global Environment Record
-    /// envRec takes argument N (a String) and returns a Boolean. It determines
-    /// if the argument identifier has a binding in this record that was created
-    /// using a lexical declaration such as a LexicalDeclaration or a
-    /// ClassDeclaration.
+    /// The HasLexicalDeclaration concrete method of a Global Environment
+    /// Record envRec takes argument N (a String) and returns a Boolean. It
+    /// determines if the argument identifier has a binding in this record that
+    /// was created using a lexical declaration such as a LexicalDeclaration or
+    /// a ClassDeclaration.
     pub(crate) fn has_lexical_declaration(self, agent: &Agent, name: &str) -> bool {
         let env_rec = self.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -465,12 +483,12 @@ impl GlobalEnvironmentIndex {
     /// ### [9.1.1.4.17 CreateGlobalVarBinding ( N, D )](https://tc39.es/ecma262/#sec-createglobalvarbinding)
     ///
     /// The CreateGlobalVarBinding concrete method of a Global Environment
-    /// Record envRec takes arguments N (a String) and D (a Boolean) and returns
-    /// either a normal completion containing UNUSED or a throw completion. It
-    /// creates and initializes a mutable binding in the associated Object
-    /// Environment Record and records the bound name in the associated
-    /// \[\[VarNames]] List. If a binding already exists, it is reused and
-    /// assumed to be initialized.
+    /// Record envRec takes arguments N (a String) and D (a Boolean) and
+    /// returns either a normal completion containing UNUSED or a throw
+    /// completion. It creates and initializes a mutable binding in the
+    /// associated Object Environment Record and records the bound name in the
+    /// associated \[\[VarNames]] List. If a binding already exists, it is
+    /// reused and assumed to be initialized.
     pub(crate) fn create_global_var_binding(
         self,
         agent: &mut Agent,
@@ -505,6 +523,7 @@ impl GlobalEnvironmentIndex {
     }
 
     /// ### [9.1.1.4.18 CreateGlobalFunctionBinding ( N, V, D )](https://tc39.es/ecma262/#sec-createglobalfunctionbinding)
+    ///
     /// The CreateGlobalFunctionBinding concrete method of a Global Environment
     /// Record envRec takes arguments N (a String), V (an ECMAScript language
     /// value), and D (a Boolean) and returns either a normal completion

@@ -9,7 +9,9 @@ use oxc_ast::{
 use oxc_span::Atom;
 
 /// ### [8.2.4 Static Semantics: LexicallyDeclaredNames](https://tc39.es/ecma262/#sec-static-semantics-lexicallydeclarednames)
-/// The syntax-directed operation LexicallyDeclaredNames takes no arguments and returns a List of Strings.
+///
+/// The syntax-directed operation LexicallyDeclaredNames takes no arguments and
+/// returns a List of Strings.
 pub(crate) trait LexicallyDeclaredNames<'a> {
     fn lexically_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F);
 }
@@ -179,7 +181,9 @@ impl<'a> LexicallyDeclaredNames<'a> for LabeledStatement<'_> {
 }
 
 /// ### [8.2.6 Static Semantics: VarDeclaredNames](https://tc39.es/ecma262/#sec-static-semantics-vardeclarednames)
-/// The syntax-directed operation VarDeclaredNames takes no arguments and returns a List of Strings.
+///
+/// The syntax-directed operation VarDeclaredNames takes no arguments and
+/// returns a List of Strings.
 pub(crate) trait VarDeclaredNames<'a> {
     fn var_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F);
 }
@@ -464,7 +468,9 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
 }
 
 /// ### [8.2.7 Static Semantics: VarScopedDeclarations](https://tc39.es/ecma262/#sec-static-semantics-varscopeddeclarations)
-/// The syntax-directed operation VarScopedDeclarations takes no arguments and returns a List of Parse Nodes.
+///
+/// The syntax-directed operation VarScopedDeclarations takes no arguments and
+/// returns a List of Parse Nodes.
 pub(crate) trait VarScopedDeclarations<'a> {
     fn var_scoped_declarations<F: FnMut(VarScopedDeclaration<'a>)>(&'a self, f: &mut F);
 }
@@ -729,7 +735,9 @@ impl<'a> VarScopedDeclarations<'a> for VariableDeclaration<'a> {
 }
 
 /// ### [8.2.8 Static Semantics: TopLevelLexicallyDeclaredNames](https://tc39.es/ecma262/#sec-static-semantics-toplevellexicallydeclarednames)
-/// The syntax-directed operation TopLevelLexicallyDeclaredNames takes no arguments and returns a List of Strings.
+///
+/// The syntax-directed operation TopLevelLexicallyDeclaredNames takes no
+/// arguments and returns a List of Strings.
 trait TopLevelLexicallyDeclaredNames<'a> {
     fn top_level_lexically_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F);
 }
@@ -772,7 +780,9 @@ impl<'a> TopLevelLexicallyDeclaredNames<'a> for Statement<'_> {
 }
 
 /// ### [8.2.9 Static Semantics: TopLevelLexicallyScopedDeclarations](https://tc39.es/ecma262/#sec-static-semantics-toplevellexicallyscopeddeclarations)
-/// The syntax-directed operation TopLevelLexicallyScopedDeclarations takes no arguments and returns a List of Parse Nodes.
+///
+/// The syntax-directed operation TopLevelLexicallyScopedDeclarations takes no
+/// arguments and returns a List of Parse Nodes.
 trait TopLevelLexicallyScopedDeclarations<'a> {
     fn top_level_lexically_scoped_declarations<F: FnMut(&Declaration<'a>)>(&self, f: &mut F);
 }
@@ -807,7 +817,9 @@ impl<'a> TopLevelLexicallyScopedDeclarations<'a> for Statement<'a> {
 }
 
 /// ### [8.2.10 Static Semantics: TopLevelVarDeclaredNames](https://tc39.es/ecma262/#sec-static-semantics-toplevelvardeclarednames)
-/// The syntax-directed operation TopLevelVarDeclaredNames takes no arguments and returns a List of Strings.
+///
+/// The syntax-directed operation TopLevelVarDeclaredNames takes no arguments
+/// and returns a List of Strings.
 trait TopLevelVarDeclaredNames<'a> {
     fn top_level_var_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F);
 }
@@ -878,7 +890,8 @@ impl<'a> TopLevelVarDeclaredNames<'a> for LabeledStatement<'a> {
 
 /// ### [8.2.11 Static Semantics: TopLevelVarScopedDeclarations](https://tc39.es/ecma262/#sec-static-semantics-toplevelvarscopeddeclarations)
 ///
-/// The syntax-directed operation TopLevelVarScopedDeclarations takes no arguments and returns a List of Parse Nodes.
+/// The syntax-directed operation TopLevelVarScopedDeclarations takes no
+/// arguments and returns a List of Parse Nodes.
 trait TopLevelVarScopedDeclarations<'a> {
     fn top_level_var_scoped_declarations<F: FnMut(VarScopedDeclaration<'a>)>(&'a self, f: &mut F);
 }

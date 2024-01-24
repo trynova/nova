@@ -7,8 +7,9 @@ use oxc_ast::ast;
 
 /// ### [8.6.1 Runtime Semantics: InstantiateFunctionObject](https://tc39.es/ecma262/#sec-runtime-semantics-instantiatefunctionobject)
 ///
-/// The syntax-directed operation InstantiateFunctionObject takes arguments env (an Environment Record) and privateEnv (a PrivateEnvironment Record or null) and returns an ECMAScript function object.
-
+/// The syntax-directed operation InstantiateFunctionObject takes arguments env
+/// (an Environment Record) and privateEnv (a PrivateEnvironment Record or
+/// null) and returns an ECMAScript function object.
 pub(crate) fn instantiate_function_object(
     agent: &mut Agent,
     function: &ast::Function<'_>,

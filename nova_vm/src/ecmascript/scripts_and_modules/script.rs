@@ -75,9 +75,9 @@ pub struct Script {
 
     /// ### \[\[LoadedModules]]
     ///
-    /// A map from the specifier strings imported by this script to the resolved
-    /// Module Record. The list does not contain two different Records with the
-    /// same \[\[Specifier]].
+    /// A map from the specifier strings imported by this script to the
+    /// resolved Module Record. The list does not contain two different Records
+    /// with the same \[\[Specifier]].
     pub(crate) loaded_modules: (),
 
     /// ### \[\[HostDefined]]
@@ -222,11 +222,11 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
 
 /// ### [16.1.7 GlobalDeclarationInstantiation ( script, env )](https://tc39.es/ecma262/#sec-globaldeclarationinstantiation)
 ///
-/// The abstract operation GlobalDeclarationInstantiation takes arguments script
-/// (a Script Parse Node) and env (a Global Environment Record) and returns
-/// either a normal completion containing UNUSED or a throw completion. script
-/// is the Script for which the execution context is being established. env is
-/// the global environment in which bindings are to be created.
+/// The abstract operation GlobalDeclarationInstantiation takes arguments
+/// script (a Script Parse Node) and env (a Global Environment Record) and
+/// returns either a normal completion containing UNUSED or a throw completion.
+/// script is the Script for which the execution context is being established.
+/// env is the global environment in which bindings are to be created.
 pub(crate) fn global_declaration_instantiation(
     agent: &mut Agent,
     script: ScriptIdentifier,

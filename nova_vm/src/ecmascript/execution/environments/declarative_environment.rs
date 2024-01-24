@@ -36,7 +36,8 @@ impl DeclarativeEnvironment {
     /// ### [9.1.2.2 NewDeclarativeEnvironment ( E )](https://tc39.es/ecma262/#sec-newdeclarativeenvironment)
     ///
     /// The abstract operation NewDeclarativeEnvironment takes argument E (an
-    /// Environment Record or null) and returns a Declarative Environment Record.
+    /// Environment Record or null) and returns a Declarative Environment
+    /// Record.
     pub(crate) fn new(outer_env: OuterEnv) -> DeclarativeEnvironment {
         // 1. Let env be a new Declarative Environment Record containing no bindings.
         // 2. Set env.[[OuterEnv]] to E.
@@ -160,8 +161,8 @@ impl DeclarativeEnvironmentIndex {
     ///
     /// The HasBinding concrete method of a Declarative Environment Record
     /// envRec takes argument N (a String) and returns a normal completion
-    /// containing a Boolean. It determines if the argument identifier is one of
-    /// the identifiers bound by the record.
+    /// containing a Boolean. It determines if the argument identifier is one
+    /// of the identifiers bound by the record.
     pub fn has_binding(self, agent: &Agent, name: &str) -> bool {
         let env_rec = self.get(agent);
         // Delegate to heap data record method.
@@ -171,11 +172,11 @@ impl DeclarativeEnvironmentIndex {
     /// ### [9.1.1.1.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-declarative-environment-records-createmutablebinding-n-d)
     ///
     /// The CreateMutableBinding concrete method of a Declarative Environment
-    /// Record envRec takes arguments N (a String) and D (a Boolean) and returns
-    /// a normal completion containing UNUSED. It creates a new mutable binding
-    /// for the name N that is uninitialized. A binding must not already exist
-    /// in this Environment Record for N. If D is true, the new binding is
-    /// marked as being subject to deletion.
+    /// Record envRec takes arguments N (a String) and D (a Boolean) and
+    /// returns a normal completion containing UNUSED. It creates a new mutable
+    /// binding for the name N that is uninitialized. A binding must not
+    /// already exist in this Environment Record for N. If D is true, the new
+    /// binding is marked as being subject to deletion.
     pub fn create_mutable_binding(self, agent: &mut Agent, name: &Atom, is_deletable: bool) {
         let env_rec = self.get_mut(agent);
         // Delegate to heap data record method.
@@ -185,11 +186,11 @@ impl DeclarativeEnvironmentIndex {
     /// ### [9.1.1.1.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-createimmutablebinding-n-s)
     ///
     /// The CreateImmutableBinding concrete method of a Declarative Environment
-    /// Record envRec takes arguments N (a String) and S (a Boolean) and returns
-    /// a normal completion containing UNUSED. It creates a new immutable
-    /// binding for the name N that is uninitialized. A binding must not already
-    /// exist in this Environment Record for N. If S is true, the new binding is
-    /// marked as a strict binding.
+    /// Record envRec takes arguments N (a String) and S (a Boolean) and
+    /// returns a normal completion containing UNUSED. It creates a new
+    /// immutable binding for the name N that is uninitialized. A binding must
+    /// not already exist in this Environment Record for N. If S is true, the
+    /// new binding is marked as a strict binding.
     pub(crate) fn create_immutable_binding(self, agent: &mut Agent, name: &Atom, is_strict: bool) {
         let env_rec = self.get_mut(agent);
         // Delegate to heap data record method.
@@ -199,10 +200,11 @@ impl DeclarativeEnvironmentIndex {
     /// ### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
     ///
     /// The InitializeBinding concrete method of a Declarative Environment
-    /// Record envRec takes arguments N (a String) and V (an ECMAScript language
-    /// value) and returns a normal completion containing UNUSED. It is used to
-    /// set the bound value of the current binding of the identifier whose name
-    /// is N to the value V. An uninitialized binding for N must already exist.
+    /// Record envRec takes arguments N (a String) and V (an ECMAScript
+    /// language value) and returns a normal completion containing UNUSED. It
+    /// is used to set the bound value of the current binding of the identifier
+    /// whose name is N to the value V. An uninitialized binding for N must
+    /// already exist.
     pub(crate) fn initialize_binding(self, agent: &mut Agent, name: &Atom, value: Value) {
         let env_rec = self.get_mut(agent);
         // Delegate to heap data record method.
@@ -214,11 +216,11 @@ impl DeclarativeEnvironmentIndex {
     /// The SetMutableBinding concrete method of a Declarative Environment
     /// Record envRec takes arguments N (a String), V (an ECMAScript language
     /// value), and S (a Boolean) and returns either a normal completion
-    /// containing UNUSED or a throw completion. It attempts to change the bound
-    /// value of the current binding of the identifier whose name is N to the
-    /// value V. A binding for N normally already exists, but in rare cases it
-    /// may not. If the binding is an immutable binding, a TypeError is thrown
-    /// if S is true.
+    /// containing UNUSED or a throw completion. It attempts to change the
+    /// bound value of the current binding of the identifier whose name is N to
+    /// the value V. A binding for N normally already exists, but in rare cases
+    /// it may not. If the binding is an immutable binding, a TypeError is
+    /// thrown if S is true.
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
@@ -283,11 +285,11 @@ impl DeclarativeEnvironmentIndex {
     /// ### [9.1.1.1.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-getbindingvalue-n-s)
     ///
     /// The GetBindingValue concrete method of a Declarative Environment Record
-    /// envRec takes arguments N (a String) and S (a Boolean) and returns either
-    /// a normal completion containing an ECMAScript language value or a throw
-    /// completion. It returns the value of its bound identifier whose name is
-    /// N. If the binding exists but is uninitialized a ReferenceError is
-    /// thrown, regardless of the value of S.
+    /// envRec takes arguments N (a String) and S (a Boolean) and returns
+    /// either a normal completion containing an ECMAScript language value or a
+    /// throw completion. It returns the value of its bound identifier whose
+    /// name is N. If the binding exists but is uninitialized a ReferenceError
+    /// is thrown, regardless of the value of S.
     pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,

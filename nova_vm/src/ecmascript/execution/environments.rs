@@ -43,17 +43,17 @@ use super::{Agent, JsResult};
 
 /// ### [\[\[OuterEnv\]\]](https://tc39.es/ecma262/#sec-environment-records)
 ///
-/// Every Environment Record has an \[\[OuterEnv\]\] field, which is either null
-/// or a reference to an outer Environment Record. This is used to model the
-/// logical nesting of Environment Record values. The outer reference of an
+/// Every Environment Record has an \[\[OuterEnv\]\] field, which is either
+/// null or a reference to an outer Environment Record. This is used to model
+/// the logical nesting of Environment Record values. The outer reference of an
 /// (inner) Environment Record is a reference to the Environment Record that
 /// logically surrounds the inner Environment Record. An outer Environment
-/// Record may, of course, have its own outer Environment Record. An Environment
-/// Record may serve as the outer environment for multiple inner Environment
-/// Records. For example, if a FunctionDeclaration contains two nested
-/// FunctionDeclarations then the Environment Records of each of the nested
-/// functions will have as their outer Environment Record the Environment Record
-/// of the current evaluation of the surrounding function.
+/// Record may, of course, have its own outer Environment Record. An
+/// Environment Record may serve as the outer environment for multiple inner
+/// Environment Records. For example, if a FunctionDeclaration contains two
+/// nested FunctionDeclarations then the Environment Records of each of the
+/// nested functions will have as their outer Environment Record the
+/// Environment Record of the current evaluation of the surrounding function.
 pub(super) type OuterEnv = Option<EnvironmentIndex>;
 
 macro_rules! create_environment_index {
@@ -102,8 +102,8 @@ create_environment_index!(PrivateEnvironment, PrivateEnvironmentIndex);
 /// ### [9.1.1 The Environment Record Type Hierarchy](https://tc39.es/ecma262/#sec-the-environment-record-type-hierarchy)
 ///
 /// Environment Records can be thought of as existing in a simple
-/// object-oriented hierarchy where Environment Record is an abstract class with
-/// three concrete subclasses: Declarative Environment Record, Object
+/// object-oriented hierarchy where Environment Record is an abstract class
+/// with three concrete subclasses: Declarative Environment Record, Object
 /// Environment Record, and Global Environment Record. Function Environment
 /// Records and Module Environment Records are subclasses of Declarative
 /// Environment Record.
@@ -135,7 +135,8 @@ impl EnvironmentIndex {
 
     /// ### [HasBinding(N)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
-    /// Determine if an Environment Record has a binding for the String value N. Return true if it does and false if it does not.
+    /// Determine if an Environment Record has a binding for the String value
+    /// N. Return true if it does and false if it does not.
     pub(crate) fn has_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
         match self {
             EnvironmentIndex::Declarative(idx) => Ok(idx.has_binding(agent, name)),
@@ -147,7 +148,9 @@ impl EnvironmentIndex {
 
     /// ### [CreateMutableBinding(N, D)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
-    /// Create a new but uninitialized mutable binding in an Environment Record. The String value N is the text of the bound name. If the Boolean argument D is true the binding may be subsequently deleted.
+    /// Create a new but uninitialized mutable binding in an Environment
+    /// Record. The String value N is the text of the bound name. If the
+    /// Boolean argument D is true the binding may be subsequently deleted.
     pub(crate) fn create_mutable_binding(
         self,
         agent: &mut Agent,
@@ -170,7 +173,11 @@ impl EnvironmentIndex {
 
     /// ### [CreateImmutableBinding(N, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
-    /// Create a new but uninitialized immutable binding in an Environment Record. The String value N is the text of the bound name. If S is true then attempts to set it after it has been initialized will always throw an exception, regardless of the strict mode setting of operations that reference that binding.
+    /// Create a new but uninitialized immutable binding in an Environment
+    /// Record. The String value N is the text of the bound name. If S is true
+    /// then attempts to set it after it has been initialized will always throw
+    /// an exception, regardless of the strict mode setting of operations that
+    /// reference that binding.
     pub(crate) fn create_immutable_binding(
         self,
         agent: &mut Agent,
@@ -222,7 +229,11 @@ impl EnvironmentIndex {
 
     /// ### [SetMutableBinding(N, V, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
-    /// Set the value of an already existing mutable binding in an Environment Record. The String value N is the text of the bound name. V is the value for the binding and may be a value of any ECMAScript language type. S is a Boolean flag. If S is true and the binding cannot be set throw a TypeError exception.
+    /// Set the value of an already existing mutable binding in an Environment
+    /// Record. The String value N is the text of the bound name. V is the
+    /// value for the binding and may be a value of any ECMAScript language
+    /// type. S is a Boolean flag. If S is true and the binding cannot be set
+    /// throw a TypeError exception.
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
@@ -282,7 +293,8 @@ impl EnvironmentIndex {
 
     /// ### [HasThisBinding()](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
-    /// Determine if an Environment Record establishes a this binding. Return true if it does and false if it does not.
+    /// Determine if an Environment Record establishes a this binding. Return
+    /// true if it does and false if it does not.
     pub(crate) fn has_this_binding(self, agent: &mut Agent) -> bool {
         match self {
             EnvironmentIndex::Declarative(idx) => idx.has_this_binding(),
@@ -294,7 +306,8 @@ impl EnvironmentIndex {
 
     /// ### [HasSuperBinding()](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
-    /// Determine if an Environment Record establishes a super method binding. Return true if it does and false if it does not.
+    /// Determine if an Environment Record establishes a super method binding.
+    /// Return true if it does and false if it does not.
     pub(crate) fn has_super_binding(self, agent: &mut Agent) -> bool {
         match self {
             EnvironmentIndex::Declarative(idx) => idx.has_super_binding(),
@@ -306,7 +319,8 @@ impl EnvironmentIndex {
 
     /// ### [WithBaseObject()](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
-    /// If this Environment Record is associated with a with statement, return the with object. Otherwise, return undefined.
+    /// If this Environment Record is associated with a with statement, return
+    /// the with object. Otherwise, return undefined.
     pub(crate) fn with_base_object(self, agent: &mut Agent) -> Option<Object> {
         match self {
             EnvironmentIndex::Declarative(idx) => idx.with_base_object(),

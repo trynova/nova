@@ -200,6 +200,7 @@ pub(crate) fn get_method(
 }
 
 /// ### [7.3.12 HasProperty ( O, P )](https://tc39.es/ecma262/#sec-hasproperty)
+///
 /// The abstract operation HasProperty takes arguments O (an Object) and P (a
 /// property key) and returns either a normal completion containing a Boolean
 /// or a throw completion. It is used to determine whether an object has a
@@ -212,7 +213,10 @@ pub(crate) fn has_property(agent: &mut Agent, o: Object, p: PropertyKey) -> JsRe
 
 /// ### [7.3.13 HasOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-hasownproperty)
 ///
-/// The abstract operation HasOwnProperty takes arguments O (an Object) and P (a property key) and returns either a normal completion containing a Boolean or a throw completion. It is used to determine whether an object has an own property with the specified property key.
+/// The abstract operation HasOwnProperty takes arguments O (an Object) and P
+/// (a property key) and returns either a normal completion containing a
+/// Boolean or a throw completion. It is used to determine whether an object
+/// has an own property with the specified property key.
 pub(crate) fn has_own_property(agent: &mut Agent, o: Object, p: PropertyKey) -> JsResult<bool> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let desc = o.get_own_property(agent, p)?;
@@ -270,6 +274,7 @@ pub(crate) fn call_function(
 }
 
 /// ### [7.3.25 GetFunctionRealm ( obj )](https://tc39.es/ecma262/#sec-getfunctionrealm)
+///
 /// The abstract operation GetFunctionRealm takes argument obj (a function
 /// object) and returns either a normal completion containing a Realm Record or
 /// a throw completion.

@@ -72,9 +72,11 @@ pub enum Value {
     // SymbolObject(u32),
 }
 
-/// We want to guarantee that all handles to JS values are register sized. This assert must never be removed or broken.
+/// We want to guarantee that all handles to JS values are register sized. This
+/// assert must never be removed or broken.
 const _VALUE_SIZE_IS_WORD: () = assert!(size_of::<Value>() == size_of::<usize>());
-// We may also want to keep Option<Value> register sized so that eg. holes in arrays do not start requiring extra bookkeeping.
+/// We may also want to keep Option<Value> register sized so that eg. holes in
+/// arrays do not start requiring extra bookkeeping.
 const _OPTIONAL_VALUE_SIZE_IS_WORD: () = assert!(size_of::<Option<Value>>() == size_of::<usize>());
 
 #[derive(Debug, Clone, Copy)]

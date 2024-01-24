@@ -24,17 +24,17 @@ impl PrivateName {
 /// A PrivateEnvironment Record is a specification mechanism used to track
 /// Private Names based upon the lexical nesting structure of ClassDeclarations
 /// and ClassExpressions in ECMAScript code. They are similar to, but distinct
-/// from, Environment Records. Each PrivateEnvironment Record is associated with
-/// a ClassDeclaration or ClassExpression. Each time such a class is evaluated,
-/// a new PrivateEnvironment Record is created to record the Private Names
-/// declared by that class.
+/// from, Environment Records. Each PrivateEnvironment Record is associated
+/// with a ClassDeclaration or ClassExpression. Each time such a class is
+/// evaluated, a new PrivateEnvironment Record is created to record the Private
+/// Names declared by that class.
 #[derive(Debug)]
 pub struct PrivateEnvironment {
     /// ### \[\[OuterPrivateEnvironment\]\]
     ///
     /// The PrivateEnvironment Record of the nearest containing class. null if
-    /// the class with which this PrivateEnvironment Record is associated is not
-    /// contained in any other class.
+    /// the class with which this PrivateEnvironment Record is associated is
+    /// not contained in any other class.
     outer_private_environment: Option<PrivateEnvironmentIndex>,
 
     /// ### \[\[Names\]\]
