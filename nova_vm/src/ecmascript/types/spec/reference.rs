@@ -79,7 +79,7 @@ pub(crate) fn is_super_reference(reference: &Reference) -> bool {
 }
 
 /// ### [6.2.5.4 IsPrivateReference ( V )](https://tc39.es/ecma262/#sec-isprivatereference)
-/// The abstract operation IsPrivateReference takes argument V (a Reference Record) and returns a Boolean. It performs the following steps when called:
+/// The abstract operation IsPrivateReference takes argument V (a Reference Record) and returns a Boolean.
 pub(crate) fn is_private_reference(reference: &Reference) -> bool {
     // 1. If V.[[ReferencedName]] is a Private Name, return true; otherwise return false.
     matches!(reference.referenced_name, ReferencedName::PrivateName)

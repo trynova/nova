@@ -8,7 +8,7 @@ use crate::ecmascript::{
         type_conversion::{to_number, to_numeric, to_primitive, to_string},
     },
     builtins::{
-        ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
+        ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create, ArgumentsList,
         OrdinaryFunctionCreateParams, ThisMode,
     },
     execution::{
@@ -200,7 +200,9 @@ impl Vm {
                     let args = vm.stack.split_off(vm.stack.len() - arg_count);
                     // let this_arg = vm.stack.pop();
                     let func = vm.stack.pop().unwrap();
-                    vm.result = Some(call(agent, func, Value::Undefined, Some(&args)).unwrap());
+                    vm.result = Some(
+                        call(agent, func, Value::Undefined, Some(ArgumentsList(&args))).unwrap(),
+                    );
                 }
                 other => todo!("{other:?}"),
             }

@@ -12,8 +12,7 @@ use crate::{
 
 pub use data::NumberHeapData;
 
-/// 6.1.6.1 The Number Type
-/// https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type
+/// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
 #[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum Number {
@@ -294,8 +293,7 @@ impl Number {
         y.less_than(agent, self).map(|x| !x)
     }
 
-    /// 6.1.6.1.1 Number::unaryMinus ( x )
-    /// https://tc39.es/ecma262/#sec-numeric-types-number-unaryMinus
+    /// ### [6.1.6.1.1 Number::unaryMinus ( x )](https://tc39.es/ecma262/#sec-numeric-types-number-unaryMinus)
     pub fn unary_minus(self, agent: &mut Agent) -> Self {
         // 1. If x is NaN, return NaN.
         // NOTE: Computers do this automatically.
@@ -311,8 +309,7 @@ impl Number {
         }
     }
 
-    /// 6.1.6.1.2 Number::bitwiseNOT ( x )
-    /// https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseNOT
+    /// ### [6.1.6.1.2 Number::bitwiseNOT ( x )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseNOT)
     pub fn bitwise_not(self, agent: &mut Agent) -> JsResult<Self> {
         let x = self.into_value();
 
@@ -323,8 +320,7 @@ impl Number {
         Ok(Number::from(!old_value))
     }
 
-    /// 6.1.6.1.3 Number::exponentiate ( base, exponent )
-    /// https://tc39.es/ecma262/#sec-numeric-types-number-exponentiate
+    /// ### [6.1.6.1.3 Number::exponentiate ( base, exponent )](https://tc39.es/ecma262/#sec-numeric-types-number-exponentiate)
     pub fn exponentiate(self, agent: &mut Agent, exponent: Self) -> Self {
         let base = self;
 
@@ -529,8 +525,7 @@ impl Number {
 
     // ...
 
-    /// 6.1.6.1.12 Number::lessThan ( x, y )
-    /// https://tc39.es/ecma262/#sec-numeric-types-number-lessThan
+    /// ### [6.1.6.1.12 Number::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-lessThan)
     pub fn less_than(self, agent: &mut Agent, y: Self) -> Option<bool> {
         let x = self;
 
@@ -598,8 +593,7 @@ impl Number {
         })
     }
 
-    /// 6.1.6.1.13 Number::equal ( x, y )
-    /// https://tc39.es/ecma262/#sec-numeric-types-number-equal
+    /// ### [6.1.6.1.13 Number::equal ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-equal)
     pub fn equal(self, agent: &mut Agent, y: Self) -> bool {
         let x = self;
 
@@ -632,8 +626,7 @@ impl Number {
         false
     }
 
-    /// 6.1.6.1.14 Number::sameValue ( x, y )
-    /// https://tc39.es/ecma262/#sec-numeric-types-number-sameValue
+    /// ### [6.1.6.1.14 Number::sameValue ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValue)
     pub fn same_value(self, agent: &mut Agent, y: Self) -> bool {
         let x = self;
 
@@ -661,8 +654,7 @@ impl Number {
         false
     }
 
-    /// 6.1.6.1.15 Number::sameValueZero ( x, y )
-    /// https://tc39.es/ecma262/#sec-numeric-types-number-sameValueZero
+    /// ### [6.1.6.1.15 Number::sameValueZero ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValueZero)
     pub fn same_value_zero(self, agent: &mut Agent, y: Self) -> bool {
         let x = self;
 
@@ -690,8 +682,7 @@ impl Number {
         false
     }
 
-    /// 6.1.6.1.16 NumberBitwiseOp ( op, x, y )
-    /// https://tc39.es/ecma262/#sec-numberbitwiseop
+    /// ### [6.1.6.1.16 NumberBitwiseOp ( op, x, y )](https://tc39.es/ecma262/#sec-numberbitwiseop)
     pub fn bitwise_op(self, agent: &mut Agent, op: BitwiseOp, y: Self) -> JsResult<Self> {
         let x = self;
 
@@ -730,8 +721,7 @@ impl Number {
         Ok(Number::from(result))
     }
 
-    /// 6.1.6.1.17 Number::bitwiseAND ( x, y )
-    /// https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseAND
+    /// ### [6.1.6.1.17 Number::bitwiseAND ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseAND)
     pub fn bitwise_and(self, agent: &mut Agent, y: Self) -> JsResult<Self> {
         let x = self;
 
@@ -739,8 +729,7 @@ impl Number {
         x.bitwise_op(agent, BitwiseOp::And, y)
     }
 
-    /// 6.1.6.1.18 Number::bitwiseXOR ( x, y )
-    /// https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseXOR
+    /// ### [6.1.6.1.18 Number::bitwiseXOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseXOR)
     pub fn bitwise_xor(self, agent: &mut Agent, y: Self) -> JsResult<Self> {
         let x = self;
 
@@ -748,8 +737,7 @@ impl Number {
         x.bitwise_op(agent, BitwiseOp::Xor, y)
     }
 
-    /// 6.1.6.1.19 Number::bitwiseOR ( x, y )
-    /// https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseOR
+    /// ### [6.1.6.1.19 Number::bitwiseOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseOR)
     pub fn bitwise_or(self, agent: &mut Agent, y: Self) -> JsResult<Self> {
         let x = self;
 

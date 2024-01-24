@@ -74,7 +74,7 @@ impl ObjectEnvironmentIndex {
         agent.heap.environments.get_object_environment(self)
     }
 
-    /// ### [9.1.1.2.1 HasBinding ( N )]()
+    /// ### [9.1.1.2.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of an Object Environment Record envRec takes argument N (a String) and returns either a normal completion containing a Boolean or a throw completion. It determines if its associated binding object has a property whose name is N.
     pub(crate) fn has_binding(self, agent: &mut Agent, n: &Atom) -> JsResult<bool> {
@@ -111,7 +111,7 @@ impl ObjectEnvironmentIndex {
             Ok(true)
         }
     }
-    /// ### [9.1.1.2.2 CreateMutableBinding ( N, D )]()
+    /// ### [9.1.1.2.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-object-environment-records-createmutablebinding-n-d)
     ///
     /// The CreateMutableBinding concrete method of an Object Environment
     /// Record envRec takes arguments N (a String) and D (a Boolean) and
@@ -153,11 +153,11 @@ impl ObjectEnvironmentIndex {
         // returned.
     }
 
-    /// ### [9.1.1.2.3 CreateImmutableBinding ( N, S )]()
+    /// ### [9.1.1.2.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-object-environment-records-createimmutablebinding-n-s)
     pub(crate) fn create_immutable_binding(self, _: &mut Agent, _: &Atom, _: bool) {
         unreachable!("The CreateImmutableBinding concrete method of an Object Environment Record is never used within this specification.")
     }
-    /// ### [9.1.1.2.4 InitializeBinding ( N, V )]()
+    /// ### [9.1.1.2.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-object-environment-records-initializebinding-n-v)
     ///
     /// The InitializeBinding concrete method of an Object Environment Record
     /// envRec takes arguments N (a String) and V (an ECMAScript language
@@ -177,7 +177,7 @@ impl ObjectEnvironmentIndex {
         // Environment Records.
     }
 
-    /// ### [9.1.1.2.5 SetMutableBinding ( N, V, S )]()
+    /// ### [9.1.1.2.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-object-environment-records-setmutablebinding-n-v-s)
     ///
     /// The SetMutableBinding concrete method of an Object Environment Record
     /// envRec takes arguments N (a String), V (an ECMAScript language value),
@@ -210,7 +210,7 @@ impl ObjectEnvironmentIndex {
             Ok(())
         }
     }
-    /// ### [9.1.1.2.6 GetBindingValue ( N, S )]()
+    /// ### [9.1.1.2.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-object-environment-records-getbindingvalue-n-s)
     ///
     /// The GetBindingValue concrete method of an Object Environment Record
     /// envRec takes arguments N (a String) and S (a Boolean) and returns
@@ -239,7 +239,7 @@ impl ObjectEnvironmentIndex {
         }
     }
 
-    /// ### [9.1.1.2.7 DeleteBinding ( N )]()
+    /// ### [9.1.1.2.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-deletebinding-n)
     ///
     /// The DeleteBinding concrete method of an Object Environment Record
     /// envRec takes argument N (a String) and returns either a normal
@@ -255,7 +255,7 @@ impl ObjectEnvironmentIndex {
         binding_boject.delete(agent, name)
     }
 
-    /// ### [9.1.1.2.8 HasThisBinding ( )]()
+    /// ### [9.1.1.2.8 HasThisBinding ( )](https://tc39.es/ecma262/#sec-object-environment-records-hasthisbinding)
     ///
     /// The HasThisBinding concrete method of an Object Environment Record envRec takes no arguments and returns false.
     pub(crate) fn has_this_binding(&self) -> bool {
@@ -265,7 +265,7 @@ impl ObjectEnvironmentIndex {
         // Object Environment Records do not provide a this binding.
     }
 
-    /// ### [9.1.1.2.9 HasSuperBinding ( )]()
+    /// ### [9.1.1.2.9 HasSuperBinding ( )](https://tc39.es/ecma262/#sec-object-environment-records-hassuperbinding)
     ///
     /// The HasSuperBinding concrete method of an Object Environment Record envRec takes no arguments and returns false.
     pub(crate) fn has_super_binding(&self) -> bool {
@@ -275,7 +275,7 @@ impl ObjectEnvironmentIndex {
         // Object Environment Records do not provide a super binding.
     }
 
-    /// ### [9.1.1.2.10 WithBaseObject ( )]()
+    /// ### [9.1.1.2.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-object-environment-records-withbaseobject)
     ///
     /// The WithBaseObject concrete method of an Object Environment Record envRec takes no arguments and returns an Object or undefined.
     pub(crate) fn with_base_object(&self, agent: &Agent) -> Option<Object> {

@@ -18,7 +18,7 @@ use crate::{
         scripts_and_modules::ScriptOrModule,
         types::{ECMAScriptFunctionHeapData, Function, Object, Value},
     },
-    heap::CreateHeapData,
+    heap::{indexes::ECMAScriptFunctionIndex, CreateHeapData, GetHeapData},
 };
 
 use super::ArgumentsList;
@@ -93,7 +93,11 @@ pub(crate) struct OrdinaryFunctionCreateParams<'program> {
     pub private_env: Option<PrivateEnvironmentIndex>,
 }
 
-impl ECMAScriptFunction {
+impl ECMAScriptFunctionIndex {
+    pub(crate) fn get(self, agent: &Agent) -> &ECMAScriptFunction {
+        &agent.heap.get(self).ecmascript_function
+    }
+
     /// ### [10.2.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-call)
     ///
     /// The \[\[Call]] internal method of an ECMAScript function object `F`
@@ -102,20 +106,26 @@ impl ECMAScriptFunction {
     /// either a normal completion containing an ECMAScript language value or a
     /// throw completion.
     pub(crate) fn call(
-        &self,
+        self,
         agent: &mut Agent,
-        f: Function,
         this_argument: Value,
         arguments_list: ArgumentsList<'_>,
     ) -> JsResult<Value> {
         // 1. Let callerContext be the running execution context.
         let _ = agent.running_execution_context();
         // 2. Let calleeContext be PrepareForOrdinaryCall(F, undefined).
-        let callee_context = prepare_for_ordinary_call(agent, f, self, None);
+        let callee_context = prepare_for_ordinary_call(agent, self, None);
+        // This is step 4. or OrdinaryCallBindThis:
+        // "Let localEnv be the LexicalEnvironment of calleeContext."
+        let local_env = callee_context
+            .ecmascript_code
+            .as_ref()
+            .unwrap()
+            .lexical_environment;
         // 3. Assert: calleeContext is now the running execution context.
         // assert!(std::ptr::eq(agent.running_execution_context(), callee_context));
         // 4. If F.[[IsClassConstructor]] is true, then
-        if self.is_class_constructor {
+        if self.get(agent).is_class_constructor {
             // a. Let error be a newly created TypeError object.
             // b. NOTE: error is created in calleeContext with F's associated Realm Record.
             let error = agent.throw_exception(ExceptionType::TypeError, "fail");
@@ -125,12 +135,7 @@ impl ECMAScriptFunction {
             return Err(error);
         }
         // 5. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
-        // Note: "4. Let localEnv be the LexicalEnvironment of calleeContext."
-        let local_env = callee_context
-            .ecmascript_code
-            .as_ref()
-            .unwrap()
-            .lexical_environment;
+        // Note: We pass in the localEnv directly to avoid borrow issues.
         ordinary_call_bind_this(agent, self, local_env, this_argument);
         // 6. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
         let result = ordinary_call_evaluate_body(agent, self, arguments_list);
@@ -149,18 +154,20 @@ impl ECMAScriptFunction {
 /// The abstract operation PrepareForOrdinaryCall takes arguments `F` (an
 /// ECMAScript function object) and newTarget (an Object or undefined) and
 /// returns an execution context.
-pub(crate) fn prepare_for_ordinary_call<'a>(
-    agent: &'a mut Agent,
-    f: Function,
-    ecmascript_function_object: &ECMAScriptFunction,
+pub(crate) fn prepare_for_ordinary_call(
+    agent: &mut Agent,
+    f: ECMAScriptFunctionIndex,
     new_target: Option<Object>,
-) -> &'a ExecutionContext {
+) -> &ExecutionContext {
+    let ecmascript_function_object = f.get(agent);
+    let private_environment = ecmascript_function_object.private_environment;
+    let script_or_module = ecmascript_function_object.script_or_module;
     // 1. Let callerContext be the running execution context.
     let _caller_context = agent.running_execution_context();
     // 4. Let calleeRealm be F.[[Realm]].
     let callee_realm = ecmascript_function_object.realm;
     // 7. Let localEnv be NewFunctionEnvironment(F, newTarget).
-    let local_env = new_function_environment(agent, f, ecmascript_function_object, new_target);
+    let local_env = new_function_environment(agent, f, new_target);
     // 2. Let calleeContext be a new ECMAScript code execution context.
     let callee_context = ExecutionContext {
         // 8. Set the LexicalEnvironment of calleeContext to localEnv.
@@ -169,14 +176,14 @@ pub(crate) fn prepare_for_ordinary_call<'a>(
         ecmascript_code: Some(ECMAScriptCodeEvaluationState {
             lexical_environment: EnvironmentIndex::Function(local_env),
             variable_environment: EnvironmentIndex::Function(local_env),
-            private_environment: ecmascript_function_object.private_environment,
+            private_environment,
         }),
         // 3. Set the Function of calleeContext to F.
-        function: Some(f),
+        function: Some(Function::ECMAScriptFunction(f)),
         // 5. Set the Realm of calleeContext to calleeRealm.
         realm: callee_realm,
         // 6. Set the ScriptOrModule of calleeContext to F.[[ScriptOrModule]].
-        script_or_module: Some(ecmascript_function_object.script_or_module),
+        script_or_module: Some(script_or_module),
     };
     // 11. If callerContext is not already suspended, suspend callerContext.
     // 12. Push calleeContext onto the execution context stack; calleeContext is now the running execution context.
@@ -186,27 +193,29 @@ pub(crate) fn prepare_for_ordinary_call<'a>(
     agent.execution_context_stack.last().unwrap()
 }
 
-/// ### [10.2.1.2 OrdinaryCallBindThis ( F, calleeContext, thisArgument )]()
+/// ### [10.2.1.2 OrdinaryCallBindThis ( F, calleeContext, thisArgument )](https://tc39.es/ecma262/#sec-ordinarycallbindthis)
+///
 /// The abstract operation OrdinaryCallBindThis takes arguments `F` (an
 /// ECMAScript function object), calleeContext (an execution context), and
 /// `thisArgument` (an ECMAScript language value) and returns UNUSED.
 ///
-/// NOTE: calleeContext is replaced by localEnv which is the only thing it is
+/// Note: calleeContext is replaced by localEnv which is the only thing it is
 /// truly used for.
 pub(crate) fn ordinary_call_bind_this(
     agent: &mut Agent,
-    f: &ECMAScriptFunction,
+    f: ECMAScriptFunctionIndex,
     local_env: EnvironmentIndex,
     this_argument: Value,
 ) {
+    let function_heap_data = f.get(agent);
     // 1. Let thisMode be F.[[ThisMode]].
-    let this_mode = f.this_mode;
+    let this_mode = function_heap_data.this_mode;
     // 2. If thisMode is LEXICAL, return UNUSED.
     if this_mode == ThisMode::Lexical {
         return;
     }
     // 3. Let calleeRealm be F.[[Realm]].
-    let callee_realm = f.realm;
+    let callee_realm = function_heap_data.realm;
     // 4. Let localEnv be the LexicalEnvironment of calleeContext.
     // 5. If thisMode is STRICT, then
     let this_value = if this_mode == ThisMode::Strict {
@@ -221,12 +230,7 @@ pub(crate) fn ordinary_call_bind_this(
             // ii. Assert: globalEnv is a Global Environment Record.
             let global_env = global_env.unwrap();
             // iii. Let thisValue be globalEnv.[[GlobalThisValue]].
-            agent
-                .heap
-                .environments
-                .get_global_environment(global_env)
-                .global_this_value
-                .into_value()
+            global_env.get_this_binding(agent).into_value()
         } else {
             // b. Else,
             // i. Let thisValue be ! ToObject(thisArgument).
@@ -240,11 +244,7 @@ pub(crate) fn ordinary_call_bind_this(
     };
     // 8. Assert: The next step never returns an abrupt completion because localEnv.[[ThisBindingStatus]] is not INITIALIZED.
     assert_ne!(
-        agent
-            .heap
-            .environments
-            .get_function_environment(local_env)
-            .this_binding_status,
+        local_env.get_this_binding_status(agent),
         ThisBindingStatus::Initialized
     );
     // 9. Perform ! localEnv.BindThisValue(thisValue).
@@ -252,15 +252,15 @@ pub(crate) fn ordinary_call_bind_this(
     // 10. Return UNUSED.
 }
 
-/// ### [10.2.1.3 Runtime Semantics: EvaluateBody]()
+/// ### [10.2.1.3 Runtime Semantics: EvaluateBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluatebody)
+///
 /// The syntax-directed operation EvaluateBody takes arguments `functionObject`
 /// (an ECMAScript function object) and `argumentsList` (a List of ECMAScript
 /// language values) and returns either a normal completion containing an
-/// ECMAScript language value or an abrupt completion. It is defined piecewise
-/// over the following productions:
+/// ECMAScript language value or an abrupt completion.
 pub(crate) fn evaluate_body(
     _agent: &mut Agent,
-    _function_object: &ECMAScriptFunction,
+    _function_object: ECMAScriptFunctionIndex,
     _arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
     todo!()
@@ -301,7 +301,7 @@ pub(crate) fn evaluate_body(
 /// ECMAScript language value or an abrupt completion.
 pub(crate) fn ordinary_call_evaluate_body(
     agent: &mut Agent,
-    f: &ECMAScriptFunction,
+    f: ECMAScriptFunctionIndex,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
     // 1. Return ? EvaluateBody of F.[[ECMAScriptCode]] with arguments F and argumentsList.
@@ -403,8 +403,7 @@ pub(crate) fn ordinary_function_create<'program>(
     agent.heap.create(function)
 }
 
-/// 10.2.10 SetFunctionLength ( F, length )
-/// https://tc39.es/ecma262/#sec-setfunctionlength
+/// ### [10.2.10 SetFunctionLength ( F, length )](https://tc39.es/ecma262/#sec-setfunctionlength)
 fn set_ecmascript_function_length(
     agent: &mut Agent,
     function: &mut ECMAScriptFunctionHeapData,

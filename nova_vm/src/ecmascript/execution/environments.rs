@@ -156,10 +156,12 @@ impl EnvironmentIndex {
     ) -> JsResult<()> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
-                Ok(idx.create_mutable_binding(agent, name, is_deletable))
+                idx.create_mutable_binding(agent, name, is_deletable);
+                Ok(())
             }
             EnvironmentIndex::Function(idx) => {
-                Ok(idx.create_mutable_binding(agent, name, is_deletable))
+                idx.create_mutable_binding(agent, name, is_deletable);
+                Ok(())
             }
             EnvironmentIndex::Global(idx) => idx.create_mutable_binding(agent, name, is_deletable),
             EnvironmentIndex::Object(idx) => idx.create_mutable_binding(agent, name, is_deletable),
@@ -177,14 +179,17 @@ impl EnvironmentIndex {
     ) -> JsResult<()> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
-                Ok(idx.create_immutable_binding(agent, name, is_strict))
+                idx.create_immutable_binding(agent, name, is_strict);
+                Ok(())
             }
             EnvironmentIndex::Function(idx) => {
-                Ok(idx.create_immutable_binding(agent, name, is_strict))
+                idx.create_immutable_binding(agent, name, is_strict);
+                Ok(())
             }
             EnvironmentIndex::Global(idx) => idx.create_immutable_binding(agent, name, is_strict),
             EnvironmentIndex::Object(idx) => {
-                Ok(idx.create_immutable_binding(agent, name, is_strict))
+                idx.create_immutable_binding(agent, name, is_strict);
+                Ok(())
             }
         }
     }
@@ -202,8 +207,14 @@ impl EnvironmentIndex {
         value: Value,
     ) -> JsResult<()> {
         match self {
-            EnvironmentIndex::Declarative(idx) => Ok(idx.initialize_binding(agent, name, value)),
-            EnvironmentIndex::Function(idx) => Ok(idx.initialize_binding(agent, name, value)),
+            EnvironmentIndex::Declarative(idx) => {
+                idx.initialize_binding(agent, name, value);
+                Ok(())
+            }
+            EnvironmentIndex::Function(idx) => {
+                idx.initialize_binding(agent, name, value);
+                Ok(())
+            }
             EnvironmentIndex::Global(idx) => idx.initialize_binding(agent, name, value),
             EnvironmentIndex::Object(idx) => idx.initialize_binding(agent, name, value),
         }

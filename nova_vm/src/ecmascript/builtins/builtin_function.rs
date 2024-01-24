@@ -6,7 +6,7 @@ use crate::{
     heap::CreateHeapData,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct ArgumentsList<'a>(pub &'a [Value]);
 
 impl ArgumentsList<'_> {
@@ -50,8 +50,7 @@ impl BuiltinFunctionArgs {
     }
 }
 
-/// 10.3.3 CreateBuiltinFunction ( behaviour, length, name, additionalInternalSlotsList [ , realm [ , prototype [ , prefix ] ] ] )
-/// https://tc39.es/ecma262/#sec-createbuiltinfunction
+/// ### [10.3.3 CreateBuiltinFunction ( behaviour, length, name, additionalInternalSlotsList \[ , realm \[ , prototype \[ , prefix \] \] \] )](https://tc39.es/ecma262/#sec-createbuiltinfunction)
 pub fn create_builtin_function(
     agent: &mut Agent,
     _behaviour: Behaviour,

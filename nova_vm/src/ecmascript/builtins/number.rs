@@ -224,8 +224,7 @@ impl Builtin for NumberConstructor {
 }
 
 impl NumberConstructor {
-    /// 21.1.1.1 Number ( value )
-    /// https://tc39.es/ecma262/#sec-number-constructor-number-value
+    /// ### [21.1.1.1 Number ( value )](https://tc39.es/ecma262/#sec-number-constructor-number-value)
     fn behaviour(
         agent: &mut Agent,
         _this_value: Value,

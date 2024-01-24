@@ -146,7 +146,8 @@ impl GlobalEnvironmentIndex {
             Err(agent.throw_exception(ExceptionType::TypeError, "Binding exists"))
         } else {
             // 3. Return ! DclRec.CreateMutableBinding(N, D).
-            Ok(dcl_rec.create_mutable_binding(agent, name, is_deletable))
+            dcl_rec.create_mutable_binding(agent, name, is_deletable);
+            Ok(())
         }
     }
 
@@ -172,7 +173,8 @@ impl GlobalEnvironmentIndex {
             Err(agent.throw_exception(ExceptionType::TypeError, "Binding exists"))
         } else {
             // 3. Return ! DclRec.CreateImmutableBinding(N, S).
-            Ok(dcl_rec.create_immutable_binding(agent, name, is_strict))
+            dcl_rec.create_immutable_binding(agent, name, is_strict);
+            Ok(())
         }
     }
 
@@ -196,7 +198,8 @@ impl GlobalEnvironmentIndex {
         // 2. If ! DclRec.HasBinding(N) is true, then
         if dcl_rec.has_binding(agent, name) {
             // a. Return ! DclRec.InitializeBinding(N, V).
-            Ok(dcl_rec.initialize_binding(agent, name, value))
+            dcl_rec.initialize_binding(agent, name, value);
+            Ok(())
         } else {
             // 3. Assert: If the binding exists, it must be in the Object Environment Record.
             // 4. Let ObjRec be envRec.[[ObjectRecord]].
@@ -208,7 +211,7 @@ impl GlobalEnvironmentIndex {
 
     /// ### [9.1.1.4.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-global-environment-records-setmutablebinding-n-v-s)
     ///
-    /// The SetMutableBinding concrete method of a Global Environment Record envRec takes arguments N (a String), V (an ECMAScript language value), and S (a Boolean) and returns either a normal completion containing UNUSED or a throw completion. It attempts to change the bound value of the current binding of the identifier whose name is N to the value V. If the binding is an immutable binding and S is true, a TypeError is thrown. A property named N normally already exists but if it does not or is not currently writable, error handling is determined by S. It performs the following steps when called:
+    /// The SetMutableBinding concrete method of a Global Environment Record envRec takes arguments N (a String), V (an ECMAScript language value), and S (a Boolean) and returns either a normal completion containing UNUSED or a throw completion. It attempts to change the bound value of the current binding of the identifier whose name is N to the value V. If the binding is an immutable binding and S is true, a TypeError is thrown. A property named N normally already exists but if it does not or is not currently writable, error handling is determined by S.
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
@@ -256,7 +259,7 @@ impl GlobalEnvironmentIndex {
         }
     }
 
-    /// ### [9.1.1.4.7 DeleteBinding ( N )]()
+    /// ### [9.1.1.4.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-global-environment-records-deletebinding-n)
     ///
     /// The DeleteBinding concrete method of a Global Environment Record envRec takes argument N (a String) and returns either a normal completion containing a Boolean or a throw completion. It can only delete bindings that have been explicitly designated as being subject to deletion.
     pub(crate) fn delete_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
@@ -295,7 +298,7 @@ impl GlobalEnvironmentIndex {
         }
     }
 
-    /// ### [9.1.1.4.8 HasThisBinding ( )]()
+    /// ### [9.1.1.4.8 HasThisBinding ( )](https://tc39.es/ecma262/#sec-global-environment-records-hasthisbinding)
     ///
     /// The HasThisBinding concrete method of a Global Environment Record envRec takes no arguments and returns true.
     pub(crate) fn has_this_binding(self) -> bool {
@@ -305,7 +308,7 @@ impl GlobalEnvironmentIndex {
         // Global Environment Records always provide a this binding.
     }
 
-    /// ### [9.1.1.4.9 HasSuperBinding ( )]()
+    /// ### [9.1.1.4.9 HasSuperBinding ( )](https://tc39.es/ecma262/#sec-global-environment-records-hassuperbinding)
     ///
     /// The HasSuperBinding concrete method of a Global Environment Record envRec takes no arguments and returns false.
     pub(crate) fn has_super_binding(self) -> bool {
@@ -315,7 +318,7 @@ impl GlobalEnvironmentIndex {
         // Global Environment Records do not provide a super binding.
     }
 
-    /// ### [9.1.1.4.10 WithBaseObject ( )]()
+    /// ### [9.1.1.4.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-global-environment-records-withbaseobject)
     ///
     /// The WithBaseObject concrete method of a Global Environment Record envRec takes no arguments and returns undefined.
     pub(crate) fn with_base_object(self) -> Option<Object> {
@@ -323,10 +326,10 @@ impl GlobalEnvironmentIndex {
         None
     }
 
-    /// ### [9.1.1.4.11 GetThisBinding ( )]()
+    /// ### [9.1.1.4.11 GetThisBinding ( )](https://tc39.es/ecma262/#sec-global-environment-records-getthisbinding)
     ///
     /// The GetThisBinding concrete method of a Global Environment Record envRec takes no arguments and returns a normal completion containing an Object.
-    pub(crate) fn get_this_binding(self, agent: &mut Agent) -> Object {
+    pub(crate) fn get_this_binding(self, agent: &Agent) -> Object {
         let env_rec = self.get(agent);
         // 1. Return envRec.[[GlobalThisValue]].
         env_rec.global_this_value
@@ -421,7 +424,7 @@ impl GlobalEnvironmentIndex {
         }
     }
 
-    /// ### [9.1.1.4.16 CanDeclareGlobalFunction ( N )]()
+    /// ### [9.1.1.4.16 CanDeclareGlobalFunction ( N )](https://tc39.es/ecma262/#sec-candeclareglobalfunction)
     ///
     /// The CanDeclareGlobalFunction concrete method of a Global Environment
     /// Record envRec takes argument N (a String) and returns either a normal

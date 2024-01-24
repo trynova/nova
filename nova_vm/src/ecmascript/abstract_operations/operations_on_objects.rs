@@ -2,6 +2,7 @@
 
 use super::{testing_and_comparison::is_callable, type_conversion::to_object};
 use crate::ecmascript::{
+    builtins::ArgumentsList,
     execution::{
         agent::{ExceptionType, JsError},
         Agent, JsResult, Realm,
@@ -211,7 +212,7 @@ pub(crate) fn has_property(agent: &mut Agent, o: Object, p: PropertyKey) -> JsRe
 
 /// ### [7.3.13 HasOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-hasownproperty)
 ///
-/// The abstract operation HasOwnProperty takes arguments O (an Object) and P (a property key) and returns either a normal completion containing a Boolean or a throw completion. It is used to determine whether an object has an own property with the specified property key. It performs the following steps when called:
+/// The abstract operation HasOwnProperty takes arguments O (an Object) and P (a property key) and returns either a normal completion containing a Boolean or a throw completion. It is used to determine whether an object has an own property with the specified property key.
 pub(crate) fn has_own_property(agent: &mut Agent, o: Object, p: PropertyKey) -> JsResult<bool> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let desc = o.get_own_property(agent, p)?;
@@ -239,10 +240,10 @@ pub(crate) fn call(
     agent: &mut Agent,
     f: Value,
     v: Value,
-    arguments_list: Option<&[Value]>,
+    arguments_list: Option<ArgumentsList>,
 ) -> JsResult<Value> {
     // 1. If argumentsList is not present, set argumentsList to a new empty List.
-    let arguments_list = arguments_list.unwrap_or(&[]);
+    let arguments_list = arguments_list.unwrap_or_default();
     // 2. If IsCallable(F) is false, throw a TypeError exception.
     if !is_callable(f) {
         Err(JsError {})
@@ -251,7 +252,7 @@ pub(crate) fn call(
         match f {
             Value::BoundFunction(idx) => Function::from(idx).call(agent, v, arguments_list),
             Value::BuiltinFunction(idx) => Function::from(idx).call(agent, v, arguments_list),
-            Value::ECMAScriptFunction(idx) => Function::from(idx).call(agent, v, arguments_list),
+            Value::ECMAScriptFunction(idx) => idx.call(agent, v, arguments_list),
             _ => unreachable!(),
         }
     }
@@ -262,9 +263,9 @@ pub(crate) fn call_function(
     agent: &mut Agent,
     f: Function,
     v: Value,
-    arguments_list: Option<&[Value]>,
+    arguments_list: Option<ArgumentsList>,
 ) -> JsResult<Value> {
-    let arguments_list = arguments_list.unwrap_or(&[]);
+    let arguments_list = arguments_list.unwrap_or_default();
     f.call(agent, v, arguments_list)
 }
 

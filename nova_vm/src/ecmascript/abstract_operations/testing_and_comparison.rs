@@ -102,8 +102,7 @@ pub(crate) fn is_integral_number(agent: &mut Agent, argument: impl Copy + Into<V
     argument.into_value().to_real(agent).unwrap().fract() == 0.0
 }
 
-/// 7.2.10 SameValue ( x, y )
-/// https://tc39.es/ecma262/#sec-samevalue
+/// ### [7.2.10 SameValue ( x, y )](https://tc39.es/ecma262/#sec-samevalue)
 pub(crate) fn same_value<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(
     agent: &mut Agent,
     x: V1,

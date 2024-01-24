@@ -38,8 +38,7 @@ pub trait HostHooks: std::fmt::Debug {
     fn host_has_source_text_available(&self, func: Function) -> bool;
 }
 
-/// 9.7 Agents
-/// https://tc39.es/ecma262/#sec-agents
+/// ### [9.7 Agents](https://tc39.es/ecma262/#sec-agents)
 #[derive(Debug)]
 pub struct Agent {
     pub(crate) heap: Heap,

@@ -193,7 +193,7 @@ pub(crate) fn clone_array_buffer(
 
 /// ### [25.1.3.6 GetArrayBufferMaxByteLengthOption ( options )](https://tc39.es/ecma262/#sec-getarraybuffermaxbytelengthoption)
 ///
-/// The abstract operation GetArrayBufferMaxByteLengthOption takes argument options (an ECMAScript language value) and returns either a normal completion containing either a non-negative integer or EMPTY, or a throw completion. It performs the following steps when called:
+/// The abstract operation GetArrayBufferMaxByteLengthOption takes argument options (an ECMAScript language value) and returns either a normal completion containing either a non-negative integer or EMPTY, or a throw completion.
 pub(crate) fn get_array_buffer_max_byte_length_option(
     agent: &mut Agent,
     options: Value,
@@ -471,7 +471,7 @@ pub(crate) fn set_value_in_buffer(
 
 /// ### [25.1.3.18 GetModifySetValueInBuffer ( arrayBuffer, byteIndex, type, value, op )](https://tc39.es/ecma262/#sec-getmodifysetvalueinbuffer)
 ///
-/// The abstract operation GetModifySetValueInBuffer takes arguments arrayBuffer (an ArrayBuffer or a SharedArrayBuffer), byteIndex (a non-negative integer), type (a TypedArray element type), value (a Number or a BigInt), and op (a read-modify-write modification function) and returns a Number or a BigInt. It performs the following steps when called:
+/// The abstract operation GetModifySetValueInBuffer takes arguments arrayBuffer (an ArrayBuffer or a SharedArrayBuffer), byteIndex (a non-negative integer), type (a TypedArray element type), value (a Number or a BigInt), and op (a read-modify-write modification function) and returns a Number or a BigInt.
 pub(crate) fn get_modify_set_value_in_buffer(
     _array_buffer: ArrayBuffer,
     _byte_index: u32,

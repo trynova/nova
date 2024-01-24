@@ -7,6 +7,7 @@ use super::{
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get_method,
+        builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{Function, Object, PropertyKey, String, Value},
     },
@@ -138,7 +139,9 @@ pub(crate) fn iterator_next(
         agent,
         iterator_record.next_method,
         iterator_record.iterator.into(),
-        value.as_ref().map(std::slice::from_ref),
+        value
+            .as_ref()
+            .map(|data| ArgumentsList(std::slice::from_ref(data))),
     )?;
 
     // 3. If result is not an Object, throw a TypeError exception.

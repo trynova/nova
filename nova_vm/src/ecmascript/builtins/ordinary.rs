@@ -10,8 +10,7 @@ use crate::ecmascript::{
     },
 };
 
-/// 10.1 Ordinary Object Internal Methods and Internal Slots
-/// https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots
+/// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 impl InternalMethods for OrdinaryObject {
     /// ### [10.1.1 \[\[GetPrototypeOf\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-getprototypeof)
     fn get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
@@ -23,22 +22,19 @@ impl InternalMethods for OrdinaryObject {
         Ok(ordinary_set_prototype_of(agent, self.into(), prototype))
     }
 
-    /// 10.1.3 [[IsExtensible]] ( )
-    /// https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-isextensible
+    /// ### [10.1.3 \[\[IsExtensible\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-isextensible)
     fn is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
         // 1. Return OrdinaryIsExtensible(O).
         Ok(ordinary_is_extensible(agent, self.into()))
     }
 
-    /// 10.1.4 [[PreventExtensions]] ( )
-    /// https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-preventextensions
+    /// ### [10.1.4 \[\[PreventExtensions\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-preventextensions)
     fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
         // 1. Return OrdinaryPreventExtensions(O).
         Ok(ordinary_prevent_extensions(agent, self.into()))
     }
 
-    /// 10.1.5 [[GetOwnProperty]] ( P )
-    /// https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-getownproperty-p
+    /// ### [10.1.5 \[\[GetOwnProperty\]\] ( P )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-getownproperty-p)
     fn get_own_property(
         self,
         agent: &mut Agent,
@@ -48,8 +44,7 @@ impl InternalMethods for OrdinaryObject {
         Ok(ordinary_get_own_property(agent, self.into(), property_key))
     }
 
-    /// 10.1.6 [[DefineOwnProperty]] ( P, Desc )
-    /// https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-defineownproperty-p-desc
+    /// ### [10.1.6 \[\[DefineOwnProperty\]\] ( P, Desc )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-defineownproperty-p-desc)
     fn define_own_property(
         self,
         agent: &mut Agent,
@@ -59,22 +54,19 @@ impl InternalMethods for OrdinaryObject {
         ordinary_define_own_property(agent, self.into(), property_key, descriptor)
     }
 
-    /// 10.1.7 [[HasProperty]] ( P )
-    /// https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-hasproperty-p
+    /// ### [10.1.7 \[\[HasProperty\]\] ( P )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-hasproperty-p)
     fn has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         // 1. Return ? OrdinaryHasProperty(O, P).
         ordinary_has_property(agent, self.into(), property_key)
     }
 
-    /// 10.1.8 [[Get]] ( P, Receiver )
-    /// https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-get-p-receiver
+    /// ### [10.1.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-get-p-receiver)
     fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         ordinary_get(agent, self.into(), property_key, receiver)
     }
 
-    /// 10.1.9 [[Set]] ( P, V, Receiver )
-    /// https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-set-p-v-receiver
+    /// ### [10.1.9 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-set-p-v-receiver)
     fn set(
         self,
         agent: &mut Agent,
@@ -86,15 +78,13 @@ impl InternalMethods for OrdinaryObject {
         ordinary_set(agent, self.into(), property_key, value, receiver)
     }
 
-    /// 10.1.10 [[Delete]] ( P )
-    /// https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-delete-p
+    /// ### [10.1.10 \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-delete-p)
     fn delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         // 1. Return ? OrdinaryDelete(O, P).
         ordinary_delete(agent, self.into(), property_key)
     }
 
-    /// 10.1.11 [[OwnPropertyKeys]] ( )
-    /// https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-ownpropertykeys
+    /// ### [10.1.11 \[\[OwnPropertyKeys\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-ownpropertykeys)
     fn own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         // 1. Return OrdinaryOwnPropertyKeys(O).
         ordinary_own_property_keys(agent, self.into())
@@ -146,8 +136,7 @@ pub(crate) fn ordinary_set_prototype_of_check_loop(
     true
 }
 
-/// 10.1.2.1 OrdinarySetPrototypeOf ( O, V )
-/// https://tc39.es/ecma262/#sec-ordinarysetprototypeof
+/// ### [10.1.2.1 OrdinarySetPrototypeOf ( O, V )](https://tc39.es/ecma262/#sec-ordinarysetprototypeof)
 pub(crate) fn ordinary_set_prototype_of(
     agent: &mut Agent,
     object: Object,
@@ -183,15 +172,13 @@ pub(crate) fn ordinary_set_prototype_of(
     true
 }
 
-/// 10.1.3.1 OrdinaryIsExtensible ( O )
-/// https://tc39.es/ecma262/#sec-ordinaryisextensible
+/// ### [10.1.3.1 OrdinaryIsExtensible ( O )](https://tc39.es/ecma262/#sec-ordinaryisextensible)
 pub(crate) fn ordinary_is_extensible(agent: &mut Agent, object: Object) -> bool {
     // 1. Return O.[[Extensible]].
     object.extensible(agent)
 }
 
-/// 10.1.4.1 OrdinaryPreventExtensions ( O )
-/// https://tc39.es/ecma262/#sec-ordinarypreventextensions
+/// ### [10.1.4.1 OrdinaryPreventExtensions ( O )](https://tc39.es/ecma262/#sec-ordinarypreventextensions)
 pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: Object) -> bool {
     // 1. Set O.[[Extensible]] to false.
     object.set_extensible(agent, false);
@@ -200,8 +187,7 @@ pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: Object) -> 
     true
 }
 
-/// 10.1.5.1 OrdinaryGetOwnProperty ( O, P )
-/// https://tc39.es/ecma262/#sec-ordinarygetownproperty
+/// ### [10.1.5.1 OrdinaryGetOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinarygetownproperty)
 pub(crate) fn ordinary_get_own_property(
     agent: &mut Agent,
     object: Object,
@@ -243,8 +229,7 @@ pub(crate) fn ordinary_get_own_property(
     Some(descriptor)
 }
 
-/// 10.1.6.1 OrdinaryDefineOwnProperty ( O, P, Desc )
-/// https://tc39.es/ecma262/#sec-ordinarydefineownproperty
+/// ### [10.1.6.1 OrdinaryDefineOwnProperty ( O, P, Desc )](https://tc39.es/ecma262/#sec-ordinarydefineownproperty)
 pub(crate) fn ordinary_define_own_property(
     agent: &mut Agent,
     object: Object,
@@ -268,8 +253,7 @@ pub(crate) fn ordinary_define_own_property(
     )
 }
 
-/// 10.1.6.3 ValidateAndApplyPropertyDescriptor ( O, P, extensible, Desc, current )
-/// https://tc39.es/ecma262/#sec-validateandapplypropertydescriptor
+/// ### [10.1.6.3 ValidateAndApplyPropertyDescriptor ( O, P, extensible, Desc, current )](https://tc39.es/ecma262/#sec-validateandapplypropertydescriptor)
 fn validate_and_apply_property_descriptor(
     agent: &mut Agent,
     object: Option<Object>,
@@ -509,8 +493,7 @@ fn validate_and_apply_property_descriptor(
     Ok(true)
 }
 
-/// 10.1.7.1 OrdinaryHasProperty ( O, P )
-/// https://tc39.es/ecma262/#sec-ordinaryhasproperty
+/// ### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)
 pub(crate) fn ordinary_has_property(
     agent: &mut Agent,
     object: Object,
@@ -537,8 +520,7 @@ pub(crate) fn ordinary_has_property(
     Ok(false)
 }
 
-/// 10.1.8.1 OrdinaryGet ( O, P, Receiver )
-/// https://tc39.es/ecma262/#sec-ordinaryget
+/// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
 pub(crate) fn ordinary_get(
     agent: &mut Agent,
     object: Object,
@@ -577,8 +559,7 @@ pub(crate) fn ordinary_get(
     todo!()
 }
 
-/// 10.1.9.1 OrdinarySet ( O, P, V, Receiver )
-/// https://tc39.es/ecma262/#sec-ordinaryset
+/// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
 pub(crate) fn ordinary_set(
     agent: &mut Agent,
     object: Object,
@@ -593,8 +574,7 @@ pub(crate) fn ordinary_set(
     ordinary_set_with_own_descriptor(agent, object, property_key, value, receiver, own_descriptor)
 }
 
-/// 10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )
-/// https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor
+/// ### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
 pub(crate) fn ordinary_set_with_own_descriptor(
     agent: &mut Agent,
     object: Object,
@@ -690,8 +670,7 @@ pub(crate) fn ordinary_set_with_own_descriptor(
     // 7. Return true.
 }
 
-/// 10.1.10.1 OrdinaryDelete ( O, P )
-/// https://tc39.es/ecma262/#sec-ordinarydelete
+/// ### [10.1.10.1 OrdinaryDelete ( O, P )](https://tc39.es/ecma262/#sec-ordinarydelete)
 pub(crate) fn ordinary_delete(
     agent: &mut Agent,
     object: Object,
@@ -718,8 +697,7 @@ pub(crate) fn ordinary_delete(
     Ok(false)
 }
 
-/// 10.1.11.1 OrdinaryOwnPropertyKeys ( O )
-/// https://tc39.es/ecma262/#sec-ordinaryownpropertykeys
+/// ### [10.1.11.1 OrdinaryOwnPropertyKeys ( O )](https://tc39.es/ecma262/#sec-ordinaryownpropertykeys)
 pub(crate) fn ordinary_own_property_keys(
     _agent: &mut Agent,
     _object: Object,

@@ -186,17 +186,17 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
     let result = global_declaration_instantiation(agent, script, global_env.unwrap());
 
     // 13. If result.[[Type]] is normal, then
-    let result: JsResult<Value> = if let Ok(_) = result {
+    let result: JsResult<Value> = if result.is_ok() {
         let exe = Executable::compile(agent, script);
         // a. Set result to Completion(Evaluation of script).
         let result = Vm::execute(agent, &exe);
         // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
         if let Ok(result) = result {
-            if result.is_none() {
+            if let Some(result) = result {
+                Ok(result)
+            } else {
                 // i. Set result to NormalCompletion(undefined).
                 Ok(Value::Undefined)
-            } else {
-                Ok(result.unwrap())
             }
         } else {
             Err(result.err().unwrap())

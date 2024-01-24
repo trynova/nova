@@ -178,8 +178,8 @@ impl<'a> LexicallyDeclaredNames<'a> for LabeledStatement<'_> {
     }
 }
 
-/// 8.2.6 Static Semantics: VarDeclaredNames
-/// The syntax-directed operation VarDeclaredNames takes no arguments and returns a List of Strings. It is defined piecewise over the following productions:
+/// ### [8.2.6 Static Semantics: VarDeclaredNames](https://tc39.es/ecma262/#sec-static-semantics-vardeclarednames)
+/// The syntax-directed operation VarDeclaredNames takes no arguments and returns a List of Strings.
 pub(crate) trait VarDeclaredNames<'a> {
     fn var_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F);
 }
@@ -243,7 +243,7 @@ pub(crate) fn class_static_block_var_declared_names(static_block: &StaticBlock<'
 
 pub(crate) fn arrow_function_var_declared_names(arrow_function: &FunctionBody<'_>) -> Vec<Atom> {
     debug_assert!(arrow_function.statements.len() <= 1);
-    if let Some(body) = arrow_function.statements.get(0) {
+    if let Some(body) = arrow_function.statements.first() {
         debug_assert!(matches!(body, Statement::ExpressionStatement(_)));
     }
     // ConciseBody : ExpressionBody
@@ -728,7 +728,7 @@ impl<'a> VarScopedDeclarations<'a> for VariableDeclaration<'a> {
     }
 }
 
-/// ### [8.2.8 Static Semantics: TopLevelLexicallyDeclaredNames]()
+/// ### [8.2.8 Static Semantics: TopLevelLexicallyDeclaredNames](https://tc39.es/ecma262/#sec-static-semantics-toplevellexicallydeclarednames)
 /// The syntax-directed operation TopLevelLexicallyDeclaredNames takes no arguments and returns a List of Strings.
 trait TopLevelLexicallyDeclaredNames<'a> {
     fn top_level_lexically_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F);
@@ -807,7 +807,7 @@ impl<'a> TopLevelLexicallyScopedDeclarations<'a> for Statement<'a> {
 }
 
 /// ### [8.2.10 Static Semantics: TopLevelVarDeclaredNames](https://tc39.es/ecma262/#sec-static-semantics-toplevelvardeclarednames)
-/// The syntax-directed operation TopLevelVarDeclaredNames takes no arguments and returns a List of Strings. It is defined piecewise over the following productions:
+/// The syntax-directed operation TopLevelVarDeclaredNames takes no arguments and returns a List of Strings.
 trait TopLevelVarDeclaredNames<'a> {
     fn top_level_var_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F);
 }

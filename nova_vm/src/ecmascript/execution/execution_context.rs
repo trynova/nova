@@ -68,9 +68,11 @@ pub(crate) struct ExecutionContext {
     pub script_or_module: Option<ScriptOrModule>,
 }
 
-/// ### {9.4.6 GetGlobalObject ( )}(https://tc39.es/ecma262/#sec-getglobalobject)
+/// ### [9.4.6 GetGlobalObject ( )](https://tc39.es/ecma262/#sec-getglobalobject)
 ///
-/// The abstract operation GetGlobalObject takes no arguments and returns an Object. It returns the global object used by the currently running execution context. It performs the following steps when called:
+/// The abstract operation GetGlobalObject takes no arguments and returns an
+/// Object. It returns the global object used by the currently running
+/// execution context.
 pub(crate) fn get_global_object(agent: &Agent) -> Object {
     // 1. Let currentRealm be the current Realm Record.
     let current_realm = agent.current_realm();

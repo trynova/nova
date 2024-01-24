@@ -9,8 +9,7 @@ use crate::{
 
 pub use data::StringHeapData;
 
-/// 6.1.4 The String Type
-/// https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type
+/// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum String {
@@ -88,8 +87,7 @@ impl String {
         }
     }
 
-    /// 6.1.4.1 StringIndexOf ( string, searchValue, fromIndex )
-    /// https://tc39.es/ecma262/#sec-stringindexof
+    /// ### [6.1.4.1 StringIndexOf ( string, searchValue, fromIndex )](https://tc39.es/ecma262/#sec-stringindexof)
     pub fn index_of(self, agent: &mut Agent, search_value: Self, from_index: i64) -> i64 {
         // TODO: Figure out what we should do for invalid cases.
         let string = self.as_str(agent).unwrap();

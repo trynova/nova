@@ -34,7 +34,7 @@ pub(crate) fn instantiate_ordinary_function_object(
             },
             body: unsafe {
                 std::mem::transmute::<&FunctionBody<'_>, &'static FunctionBody<'static>>(
-                    &function.body.as_deref().unwrap(),
+                    function.body.as_deref().unwrap(),
                 )
             },
             this_mode: crate::ecmascript::builtins::ThisMode::Global,

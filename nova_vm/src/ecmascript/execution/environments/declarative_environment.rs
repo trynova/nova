@@ -79,7 +79,7 @@ impl DeclarativeEnvironment {
     /// ### [9.1.1.1.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-createimmutablebinding-n-s)
     pub(super) fn create_immutable_binding(&mut self, name: &Atom, is_strict: bool) {
         // 1. Assert: envRec does not already have a binding for N.
-        debug_assert!(!self.has_binding(&name));
+        debug_assert!(!self.has_binding(name));
 
         // 2. Create an immutable binding in envRec for N and record that it is
         // uninitialized. If S is true, record that the newly created binding is

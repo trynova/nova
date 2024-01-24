@@ -1,13 +1,16 @@
 use oxc_span::Atom;
 
 use super::{DeclarativeEnvironment, DeclarativeEnvironmentIndex, FunctionEnvironmentIndex};
-use crate::ecmascript::{
-    builtins::ECMAScriptFunction,
-    execution::{
-        agent::{ExceptionType, JsError},
-        Agent, JsResult,
+use crate::{
+    ecmascript::{
+        builtins::ThisMode,
+        execution::{
+            agent::{ExceptionType, JsError},
+            Agent, JsResult,
+        },
+        types::{Function, InternalMethods, Object, Value},
     },
-    types::{Function, InternalMethods, Object, Value},
+    heap::indexes::ECMAScriptFunctionIndex,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -77,24 +80,31 @@ impl std::ops::Deref for FunctionEnvironment {
 /// returns a Function Environment Record.
 pub(crate) fn new_function_environment(
     agent: &mut Agent,
-    f: Function,
-    ecmascript_function_object: &ECMAScriptFunction,
+    f: ECMAScriptFunctionIndex,
     new_target: Option<Object>,
 ) -> FunctionEnvironmentIndex {
+    let ecmascript_function_object = f.get(agent);
+    let this_mode = ecmascript_function_object.this_mode;
     // 1. Let env be a new Function Environment Record containing no bindings.
     let dcl_env = DeclarativeEnvironment::new(Some(ecmascript_function_object.environment));
     agent.heap.environments.declarative.push(Some(dcl_env));
     let declarative_environment =
         DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative);
+    // 2. Set env.[[FunctionObject]] to F.
+    let function_object = Function::ECMAScriptFunction(f);
+    // 3. If F.[[ThisMode]] is LEXICAL, set env.[[ThisBindingStatus]] to LEXICAL.
+    let this_binding_status = if this_mode == ThisMode::Lexical {
+        ThisBindingStatus::Lexical
+    } else {
+        // 4. Else, set env.[[ThisBindingStatus]] to UNINITIALIZED.
+        ThisBindingStatus::Uninitialized
+    };
     let env = FunctionEnvironment {
         this_value: None,
 
-        // 2. Set env.[[FunctionObject]] to F.
-        function_object: f,
+        function_object,
 
-        // 3. If F.[[ThisMode]] is LEXICAL, set env.[[ThisBindingStatus]] to LEXICAL.
-        // 4. Else, set env.[[ThisBindingStatus]] to UNINITIALIZED.
-        this_binding_status: ThisBindingStatus::Uninitialized,
+        this_binding_status,
 
         // 5. Set env.[[NewTarget]] to newTarget.
         new_target,
@@ -115,14 +125,18 @@ impl FunctionEnvironmentIndex {
         agent.heap.environments.get_function_environment_mut(self)
     }
 
+    pub(crate) fn get_this_binding_status(self, agent: &Agent) -> ThisBindingStatus {
+        self.get(agent).this_binding_status
+    }
+
     /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
-    pub fn has_binding(self, agent: &Agent, name: &str) -> bool {
+    pub(crate) fn has_binding(self, agent: &Agent, name: &str) -> bool {
         let env_rec = self.get(agent);
         env_rec.has_binding(agent, name)
     }
 
     /// ### [9.1.1.1.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-declarative-environment-records-createmutablebinding-n-d)
-    pub fn create_mutable_binding(self, agent: &mut Agent, name: &Atom, is_deletable: bool) {
+    pub(crate) fn create_mutable_binding(self, agent: &mut Agent, name: &Atom, is_deletable: bool) {
         let env_rec = self.get_mut(agent);
         env_rec.create_mutable_binding(agent, name, is_deletable);
     }
@@ -229,7 +243,7 @@ impl FunctionEnvironmentIndex {
 
     /// ### [9.1.1.3.1 BindThisValue ( V )](https://tc39.es/ecma262/#sec-bindthisvalue)
     ///
-    /// The BindThisValue concrete method of a Function Environment Record envRec takes argument V (an ECMAScript language value) and returns either a normal completion containing an ECMAScript language value or a throw completion. It performs the following steps when called:
+    /// The BindThisValue concrete method of a Function Environment Record envRec takes argument V (an ECMAScript language value) and returns either a normal completion containing an ECMAScript language value or a throw completion.
     pub(crate) fn bind_this_value(self, agent: &mut Agent, value: Value) -> JsResult<Value> {
         let env_rec = self.get_mut(agent);
         // 1. Assert: envRec.[[ThisBindingStatus]] is not LEXICAL.
