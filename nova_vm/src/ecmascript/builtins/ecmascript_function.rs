@@ -259,10 +259,15 @@ pub(crate) fn ordinary_call_bind_this(
 /// language values) and returns either a normal completion containing an
 /// ECMAScript language value or an abrupt completion.
 pub(crate) fn evaluate_body(
-    _agent: &mut Agent,
-    _function_object: ECMAScriptFunctionIndex,
+    agent: &mut Agent,
+    function_object: ECMAScriptFunctionIndex,
     _arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
+    let function_heap_data = function_object.get(agent);
+    let body = unsafe { function_heap_data.ecmascript_code.as_ref() };
+    if body.statements.is_empty() {
+        return Ok(Value::Undefined);
+    }
     todo!()
     // FunctionBody : FunctionStatementList
     // 1. Return ? EvaluateFunctionBody of FunctionBody with arguments functionObject and argumentsList.
