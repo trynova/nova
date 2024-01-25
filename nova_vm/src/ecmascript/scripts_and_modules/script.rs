@@ -234,17 +234,27 @@ pub(crate) fn global_declaration_instantiation(
 ) -> JsResult<()> {
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
     let Script {
-        ecmascript_code, ..
+        ecmascript_code: script,
+        ..
     } = agent.heap.get_script(script);
-    // SAFETY: Analysing the script cannot cause the script to move even though we change other parts of the Heap.
-    let script =
-        unsafe { std::mem::transmute::<&Program<'_>, &'static Program<'static>>(ecmascript_code) };
     // SAFETY: Analysing the script cannot cause the environment to move even though we change other parts of the Heap.
 
     // 1. Let lexNames be the LexicallyDeclaredNames of script.
     let lex_names = script_lexically_declared_names(script);
     // 2. Let varNames be the VarDeclaredNames of script.
     let var_names = script_var_declared_names(script);
+
+    // 5. Let varDeclarations be the VarScopedDeclarations of script.
+    let var_declarations = {
+        // SAFETY: The borrow of Program is valid for the duration of this
+        // call; the contents of Program are guaranteed to be valid for as long
+        // as the Script is alive in the heap as they are not reallocated.
+        // Thus in effect VarScopedDeclaration<'_> is valid for the duration
+        // of the global_declaration_instantiation call.
+        let script =
+            unsafe { std::mem::transmute::<&Program<'_>, &'static Program<'static>>(script) };
+        script_var_scoped_declarations(script)
+    };
 
     // 3. For each element name of lexNames, do
     for name in lex_names {
@@ -272,9 +282,6 @@ pub(crate) fn global_declaration_instantiation(
             );
         }
     }
-
-    // 5. Let varDeclarations be the VarScopedDeclarations of script.
-    let var_declarations = script_var_scoped_declarations(script);
 
     // 6. Let functionsToInitialize be a new empty List.
     let mut functions_to_initialize = vec![];

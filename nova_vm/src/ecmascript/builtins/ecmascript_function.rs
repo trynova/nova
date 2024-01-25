@@ -1,5 +1,3 @@
-use std::ptr::NonNull;
-
 use oxc_ast::ast::{FormalParameters, FunctionBody};
 use oxc_span::Span;
 
@@ -54,13 +52,13 @@ pub(crate) struct ECMAScriptFunction {
     ///
     /// SAFETY: ScriptOrModule owns the Program which this refers to.
     /// Our GC algorithm keeps it alive as long as this function is alive.
-    pub formal_parameters: NonNull<FormalParameters<'static>>,
+    pub formal_parameters: &'static FormalParameters<'static>,
 
     /// \[\[ECMAScriptCode]]
     ///
     /// SAFETY: ScriptOrModule owns the Program which this refers to.
     /// Our GC algorithm keeps it alive as long as this function is alive.
-    pub ecmascript_code: NonNull<FunctionBody<'static>>,
+    pub ecmascript_code: &'static FunctionBody<'static>,
 
     /// \[\[ConstructorKind]]
     pub constructor_kind: ConstructorKind,
@@ -88,11 +86,11 @@ pub(crate) struct ECMAScriptFunction {
     pub is_class_constructor: bool,
 }
 
-pub(crate) struct OrdinaryFunctionCreateParams<'program> {
+pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
     pub function_prototype: Option<Object>,
     pub source_text: Span,
-    pub parameters_list: &'program FormalParameters<'program>,
-    pub body: &'program FunctionBody<'program>,
+    pub parameters_list: &'agent FormalParameters<'program>,
+    pub body: &'agent FunctionBody<'program>,
     pub this_mode: ThisMode,
     pub env: EnvironmentIndex,
     pub private_env: Option<PrivateEnvironmentIndex>,
@@ -269,7 +267,8 @@ pub(crate) fn evaluate_body(
     _arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
     let function_heap_data = function_object.heap_data(agent);
-    let body = unsafe { function_heap_data.ecmascript_code.as_ref() };
+    // SAFETY: Heap is self-referential: This
+    let body = function_heap_data.ecmascript_code;
     if body.statements.is_empty() {
         return Ok(Value::Undefined);
     }
@@ -330,9 +329,9 @@ pub(crate) fn ordinary_call_evaluate_body(
 /// \[\[Construct\]\] internal method (although one may be subsequently added
 /// by an operation such as MakeConstructor). sourceText is the source text of
 /// the syntactic definition of the function to be created.
-pub(crate) fn ordinary_function_create<'program>(
-    agent: &mut Agent,
-    params: OrdinaryFunctionCreateParams<'program>,
+pub(crate) fn ordinary_function_create<'agent, 'program>(
+    agent: &'agent mut Agent,
+    params: OrdinaryFunctionCreateParams<'agent, 'program>,
 ) -> Function {
     // 1. Let internalSlotsList be the internal slots listed in Table 30.
     // 2. Let F be OrdinaryObjectCreate(functionPrototype, internalSlotsList).
@@ -349,15 +348,15 @@ pub(crate) fn ordinary_function_create<'program>(
         // lifetime here is justified.
         formal_parameters: unsafe {
             std::mem::transmute::<
-                NonNull<FormalParameters<'program>>,
-                NonNull<FormalParameters<'static>>,
-            >(params.parameters_list.into())
+                &'agent FormalParameters<'program>,
+                &'static FormalParameters<'static>,
+            >(params.parameters_list)
         },
         // 6. Set F.[[ECMAScriptCode]] to Body.
         // SAFETY: Same as above: Self-referential reference to ScriptOrModule.
         ecmascript_code: unsafe {
-            std::mem::transmute::<NonNull<FunctionBody<'program>>, NonNull<FunctionBody<'static>>>(
-                params.body.into(),
+            std::mem::transmute::<&'agent FunctionBody<'program>, &FunctionBody<'static>>(
+                params.body,
             )
         },
         constructor_kind: ConstructorKind::Base,

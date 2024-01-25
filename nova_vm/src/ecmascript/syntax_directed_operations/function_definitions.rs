@@ -1,4 +1,4 @@
-use oxc_ast::ast::{self, FormalParameters, FunctionBody};
+use oxc_ast::ast::{self};
 use oxc_span::Atom;
 
 use crate::{
@@ -35,16 +35,8 @@ pub(crate) fn instantiate_ordinary_function_object(
         let params = OrdinaryFunctionCreateParams {
             function_prototype: None,
             source_text,
-            parameters_list: unsafe {
-                std::mem::transmute::<&FormalParameters<'_>, &'static FormalParameters<'static>>(
-                    &function.params,
-                )
-            },
-            body: unsafe {
-                std::mem::transmute::<&FunctionBody<'_>, &'static FunctionBody<'static>>(
-                    function.body.as_deref().unwrap(),
-                )
-            },
+            parameters_list: &function.params,
+            body: function.body.as_deref().unwrap(),
             this_mode: crate::ecmascript::builtins::ThisMode::Global,
             env,
             private_env,
@@ -64,8 +56,8 @@ pub(crate) fn instantiate_ordinary_function_object(
         let params = OrdinaryFunctionCreateParams {
             function_prototype: None,
             source_text,
-            parameters_list: unsafe { std::mem::transmute(&function.params) },
-            body: unsafe { std::mem::transmute(&function.body.as_ref().unwrap()) },
+            parameters_list: &function.params,
+            body: function.body.as_ref().unwrap(),
             this_mode: crate::ecmascript::builtins::ThisMode::Global,
             env,
             private_env,
