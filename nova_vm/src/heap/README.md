@@ -108,8 +108,8 @@ though:
 1. V8's garbage collection is based on a tracing mark-and-sweep algorithm.
 
 Then Boa: Boa uses a modified version of the [gc](https://crates.io/crates/gc)
-crate which is built around reference counting and created using basic Rust
-structs. Thus it follows that:
+crate, which is a tracing garbage collector based on a `Trace`, trait and
+created using basic Rust structs. Thus it follows that:
 
 1. The Boa heap is not located in a defined area. Each heap object is allocated
    separately according to the whims of the allocator. I believe Boa does use
@@ -119,7 +119,6 @@ structs. Thus it follows that:
    and/or static vtable references to implement most if not all of their inner
    workings.
 1. Objects refer to other objects using pointers.
-1. Boa's garbage collection is reference counting.
 
 ### Advantages and disadvantages of Boa
 
@@ -137,7 +136,6 @@ Disadvantages are also of course present.
 1. Any `dyn Trait` accessing and vtable usage incurs an indirection that the CPU
    has to spend time resolving.
 1. All intra-heap references are 8 bytes in size.
-1. Reference counting cannot collect cycles.
 
 ### Advantages and disadvantages of V8
 
