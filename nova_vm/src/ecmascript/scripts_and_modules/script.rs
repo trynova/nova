@@ -8,8 +8,9 @@ use crate::{
         syntax_directed_operations::{
             miscellaneous::instantiate_function_object,
             scope_analysis::{
-                script_lexically_declared_names, script_var_declared_names,
-                script_var_scoped_declarations, VarScopedDeclaration,
+                lexically_scoped_declarations, script_lexically_declared_names,
+                script_var_declared_names, script_var_scoped_declarations,
+                LexicallyScopedDeclaration, VarScopedDeclaration,
             },
         },
         types::Value,
@@ -17,9 +18,12 @@ use crate::{
     engine::{Executable, Vm},
 };
 use oxc_allocator::Allocator;
-use oxc_ast::{ast::Program, syntax_directed_operations::BoundNames};
+use oxc_ast::{
+    ast::{BindingIdentifier, Program, VariableDeclarationKind},
+    syntax_directed_operations::BoundNames,
+};
 use oxc_parser::{Parser, ParserReturn};
-use oxc_span::SourceType;
+use oxc_span::{Atom, SourceType};
 use std::{any::Any, collections::HashSet, marker::PhantomData};
 
 pub type HostDefined = &'static mut dyn Any;
@@ -247,13 +251,21 @@ pub(crate) fn global_declaration_instantiation(
     // 5. Let varDeclarations be the VarScopedDeclarations of script.
     let var_declarations = {
         // SAFETY: The borrow of Program is valid for the duration of this
-        // call; the contents of Program are guaranteed to be valid for as long
-        // as the Script is alive in the heap as they are not reallocated.
+        // block; the contents of Program are guaranteed to be valid for as
+        // long as the Script is alive in the heap as they are not reallocated.
         // Thus in effect VarScopedDeclaration<'_> is valid for the duration
         // of the global_declaration_instantiation call.
         let script =
             unsafe { std::mem::transmute::<&Program<'_>, &'static Program<'static>>(script) };
         script_var_scoped_declarations(script)
+    };
+    // 13. Let lexDeclarations be the LexicallyScopedDeclarations of script.
+    let lex_declarations = {
+        // SAFETY: As above, Program is valid in this block, declarations are
+        // valid for the duration of global_declaration_instantiation call.
+        let script =
+            unsafe { std::mem::transmute::<&Program<'_>, &'static Program<'static>>(script) };
+        lexically_scoped_declarations(script)
     };
 
     // 3. For each element name of lexNames, do
@@ -355,26 +367,46 @@ pub(crate) fn global_declaration_instantiation(
     //     a Proxy exotic object it may exhibit behaviours that cause abnormal
     //     terminations in some of the following steps.
     // 12. NOTE: Annex B.3.2.2 adds additional steps at this point.
-    // 13. Let lexDeclarations be the LexicallyScopedDeclarations of script.
-    // let lex_declarations = script_lexically_scoped_declarations()
 
     // 14. Let privateEnv be null.
     let private_env = None;
     // 15. For each element d of lexDeclarations, do
-    {
+    for d in lex_declarations {
         // a. NOTE: Lexically declared names are only instantiated here but not initialized.
-        // b. For each element dn of the BoundNames of d, do
-        {
-            // i. If IsConstantDeclaration of d is true, then
-            {
-                // 1. Perform ? env.CreateImmutableBinding(dn, true).
+        let mut bound_names = vec![];
+        let mut const_bound_names = vec![];
+        let mut closure = |identifier: &BindingIdentifier| {
+            bound_names.push(identifier.name.clone());
+        };
+        match d {
+            LexicallyScopedDeclaration::VariableDeclaration(decl) => {
+                if decl.kind == VariableDeclarationKind::Const {
+                    decl.id.bound_names(&mut |identifier| {
+                        const_bound_names.push(identifier.name.clone())
+                    });
+                } else {
+                    decl.id.bound_names(&mut closure)
+                }
             }
-            // ii. Else,
-            {
-                // 1. Perform ? env.CreateMutableBinding(dn, false).
+            LexicallyScopedDeclaration::FunctionDeclaration(decl) => decl.bound_names(&mut closure),
+            LexicallyScopedDeclaration::ClassDeclaration(decl) => decl.bound_names(&mut closure),
+            LexicallyScopedDeclaration::DefaultExportDeclaration => {
+                bound_names.push(Atom::new_inline("*default*"))
             }
         }
+        // b. For each element dn of the BoundNames of d, do
+        for dn in const_bound_names {
+            // i. If IsConstantDeclaration of d is true, then
+            // 1. Perform ? env.CreateImmutableBinding(dn, true).
+            env.create_immutable_binding(agent, &dn, true)?;
+        }
+        for dn in bound_names {
+            // ii. Else,
+            // 1. Perform ? env.CreateMutableBinding(dn, false).
+            env.create_mutable_binding(agent, &dn, false)?;
+        }
     }
+
     // 16. For each Parse Node f of functionsToInitialize, do
     for f in functions_to_initialize {
         // a. Let fn be the sole element of the BoundNames of f.
