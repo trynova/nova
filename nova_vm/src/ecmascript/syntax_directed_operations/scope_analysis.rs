@@ -310,9 +310,13 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                             // 2. Return a new empty List.
                         }
                     },
-                    Declaration::FunctionDeclaration(_) => todo!(),
-                    Declaration::ClassDeclaration(_) => todo!(),
-                    Declaration::UsingDeclaration(_) => todo!(),
+                    Declaration::FunctionDeclaration(decl) => {
+                        f(LexicallyScopedDeclaration::Function(decl));
+                    },
+                    Declaration::ClassDeclaration(decl) => {
+                        f(LexicallyScopedDeclaration::Class(decl));
+                    },
+                    Declaration::UsingDeclaration(_) |
                     Declaration::TSTypeAliasDeclaration(_) |
                     Declaration::TSInterfaceDeclaration(_) |
                     Declaration::TSEnumDeclaration(_) |

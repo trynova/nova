@@ -59,8 +59,6 @@ impl DeclarativeEnvironment {
         // 1. Assert: envRec does not already have a binding for N.
         debug_assert!(!self.has_binding(name));
 
-        self.create_mutable_binding(name, is_deletable);
-
         // 2. Create a mutable binding in envRec for N and record that it is
         // uninitialized. If D is true, record that the newly created binding
         // may be deleted by a subsequent DeleteBinding call.
