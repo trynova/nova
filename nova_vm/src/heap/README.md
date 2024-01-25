@@ -156,8 +156,8 @@ Still, V8 does have some disadvantages as well.
    general case.
 1. Since each object is prepared to accept properties, it means that the object
    struct size is relatively large for what it's doing. A single `Uint8Array` is
-   72 bytes in size, when its most important usage is being a boxed slice of up
-   to 2^32 elements: That can be done in 16 bytes with padding.
+   72 bytes in size, when its most important usage is being a (potentially
+   resizable) vector of up to 2^53 elements: That can be done in 24 bytes.
 
 ### Advantages and disadvantages of Nova
 
