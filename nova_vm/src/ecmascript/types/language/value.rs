@@ -175,7 +175,7 @@ impl Value {
     }
 
     pub fn is_function(self) -> bool {
-        matches!(self, |Value::BoundFunction(_)| Value::BuiltinFunction(_)
+        matches!(self, Value::BoundFunction(_) | Value::BuiltinFunction(_)
             | Value::ECMAScriptFunction(_))
     }
 
