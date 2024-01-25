@@ -204,8 +204,8 @@ Rust's ownership model. When a JavaScript object contains another object, we
 cannot represent that as a Rust borrow such as `struct A { key: &'b B }`.
 
 From Rust's point of view the most direct way to represent these contains
-relations would be something like `Rc<RefCell<A>>`. This is then similar to the
-`gc` crate that Boa uses.
+relations would be something like `Rc<RefCell<A>>`. This is then (superficially)
+similar to the `gc` crate that Boa uses.
 
 We do not want to do reference counting, so that way is barred to us. But we
 cannot do references either, the borrow checker will not allow such a thing. So
