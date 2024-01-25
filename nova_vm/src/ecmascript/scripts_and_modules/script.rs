@@ -379,7 +379,7 @@ pub(crate) fn global_declaration_instantiation(
             bound_names.push(identifier.name.clone());
         };
         match d {
-            LexicallyScopedDeclaration::VariableDeclaration(decl) => {
+            LexicallyScopedDeclaration::Variable(decl) => {
                 if decl.kind == VariableDeclarationKind::Const {
                     decl.id.bound_names(&mut |identifier| {
                         const_bound_names.push(identifier.name.clone())
@@ -388,9 +388,9 @@ pub(crate) fn global_declaration_instantiation(
                     decl.id.bound_names(&mut closure)
                 }
             }
-            LexicallyScopedDeclaration::FunctionDeclaration(decl) => decl.bound_names(&mut closure),
-            LexicallyScopedDeclaration::ClassDeclaration(decl) => decl.bound_names(&mut closure),
-            LexicallyScopedDeclaration::DefaultExportDeclaration => {
+            LexicallyScopedDeclaration::Function(decl) => decl.bound_names(&mut closure),
+            LexicallyScopedDeclaration::Class(decl) => decl.bound_names(&mut closure),
+            LexicallyScopedDeclaration::DefaultExport => {
                 bound_names.push(Atom::new_inline("*default*"))
             }
         }

@@ -1,11 +1,8 @@
-use std::ops::Deref;
-
 use oxc_ast::{
     ast::{
-        BindingIdentifier, Class, Declaration, ExportDefaultDeclarationKind, Expression,
-        ForStatementInit, ForStatementLeft, Function, FunctionBody, LabeledStatement,
-        ModuleDeclaration, Program, Statement, StaticBlock, VariableDeclaration,
-        VariableDeclarationKind, VariableDeclarator,
+        BindingIdentifier, Class, Declaration, ExportDefaultDeclarationKind, ForStatementInit,
+        ForStatementLeft, Function, FunctionBody, LabeledStatement, ModuleDeclaration, Program,
+        Statement, StaticBlock, VariableDeclaration, VariableDeclarationKind, VariableDeclarator,
     },
     syntax_directed_operations::BoundNames,
 };
@@ -184,10 +181,10 @@ impl<'a> LexicallyDeclaredNames<'a> for LabeledStatement<'_> {
 }
 
 pub(crate) enum LexicallyScopedDeclaration<'a> {
-    VariableDeclaration(&'a VariableDeclarator<'a>),
-    FunctionDeclaration(&'a Function<'a>),
-    ClassDeclaration(&'a Class<'a>),
-    DefaultExportDeclaration,
+    Variable(&'a VariableDeclarator<'a>),
+    Function(&'a Function<'a>),
+    Class(&'a Class<'a>),
+    DefaultExport,
 }
 
 /// ### [8.2.5 Static Semantics: LexicallyScopedDeclarations](https://tc39.es/ecma262/#sec-static-semantics-lexicallyscopeddeclarations)
@@ -311,7 +308,6 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                         if decl.kind == VariableDeclarationKind::Var {
                             // VariableStatement
                             // 2. Return a new empty List.
-                            return;
                         }
                     },
                     Declaration::FunctionDeclaration(_) => todo!(),
@@ -346,7 +342,7 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                             // ExportDeclaration : export Declaration
                             // 1. Return a List whose sole element is DeclarationPart of Declaration.
                             debug_assert_eq!(decl.declarations.len(), 1);
-                            f(LexicallyScopedDeclaration::VariableDeclaration(decl.declarations.first().unwrap()));
+                            f(LexicallyScopedDeclaration::Variable(decl.declarations.first().unwrap()));
                         }
                         // No declaration means this is NamedExports (possibly in an ExportFromClause)
                     },
@@ -355,17 +351,17 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                             // ExportDeclaration : export default HoistableDeclaration
                             ExportDefaultDeclarationKind::FunctionDeclaration(decl) => {
                                 // 1. Return a List whose sole element is DeclarationPart of HoistableDeclaration.
-                                f(LexicallyScopedDeclaration::FunctionDeclaration(decl));
+                                f(LexicallyScopedDeclaration::Function(decl));
                             },
                             // ExportDeclaration : export default ClassDeclaration
                             // 1. Return a List whose sole element is ClassDeclaration.
                             ExportDefaultDeclarationKind::ClassDeclaration(decl) => {
-                                f(LexicallyScopedDeclaration::ClassDeclaration(decl));
+                                f(LexicallyScopedDeclaration::Class(decl));
                             },
                             // ExportDeclaration : export default AssignmentExpression ;
                             // 1. Return a List whose sole element is this ExportDeclaration.
-                            ExportDefaultDeclarationKind::Expression(decl) => {
-                                f(LexicallyScopedDeclaration::DefaultExportDeclaration);
+                            ExportDefaultDeclarationKind::Expression(_) => {
+                                f(LexicallyScopedDeclaration::DefaultExport);
                             },
                             ExportDefaultDeclarationKind::TSInterfaceDeclaration(_) |
                             ExportDefaultDeclarationKind::TSEnumDeclaration(_) => unreachable!(),
@@ -373,7 +369,6 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                     }
                     ModuleDeclaration::TSExportAssignment(_) |
                     ModuleDeclaration::TSNamespaceExportDeclaration(_) => unreachable!(),
-                    _ => {},
                 }
                 // 2. Return a new empty List.
             },
@@ -392,11 +387,8 @@ impl<'a> LexicallyScopedDeclarations<'a> for LabeledStatement<'a> {
         // 1. Return a new empty List.
         // LabelledItem : FunctionDeclaration
         // 1. Return « FunctionDeclaration ».
-        match &self.body {
-            Statement::Declaration(Declaration::FunctionDeclaration(decl)) => {
-                f(LexicallyScopedDeclaration::FunctionDeclaration(decl));
-            }
-            _ => {}
+        if let Statement::Declaration(Declaration::FunctionDeclaration(decl)) = &self.body {
+            f(LexicallyScopedDeclaration::Function(decl));
         }
     }
 }
