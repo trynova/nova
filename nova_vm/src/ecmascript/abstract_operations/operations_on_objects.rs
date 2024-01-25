@@ -221,12 +221,8 @@ pub(crate) fn has_own_property(agent: &mut Agent, o: Object, p: PropertyKey) -> 
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let desc = o.get_own_property(agent, p)?;
     // 2. If desc is undefined, return false.
-    if desc.is_none() {
-        Ok(false)
-    } else {
-        // 3. Return true.
-        Ok(true)
-    }
+    // 3. Return true.
+    Ok(desc.is_some())
 }
 
 /// ### [7.3.14 Call ( F, V \[ , argumentsList \] )](https://tc39.es/ecma262/#sec-call)
