@@ -408,12 +408,8 @@ impl GlobalEnvironmentIndex {
             return Ok(false);
         };
         // 5. If existingProp.[[Configurable]] is true, return false.
-        if existing_prop.configurable == Some(true) {
-            Ok(false)
-        } else {
-            // 6. Return true.
-            Ok(true)
-        }
+        // 6. Return true.
+        Ok(existing_prop.configurable != Some(true))
     }
 
     /// ### [9.1.1.4.15 CanDeclareGlobalVar ( N )](https://tc39.es/ecma262/#sec-candeclareglobalvar)
