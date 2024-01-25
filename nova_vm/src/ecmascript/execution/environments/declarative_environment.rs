@@ -146,11 +146,11 @@ impl DeclarativeEnvironment {
 }
 
 impl DeclarativeEnvironmentIndex {
-    pub(super) fn get(self, agent: &Agent) -> &DeclarativeEnvironment {
+    pub(super) fn heap_data(self, agent: &Agent) -> &DeclarativeEnvironment {
         agent.heap.environments.get_declarative_environment(self)
     }
 
-    pub(super) fn get_mut(self, agent: &mut Agent) -> &mut DeclarativeEnvironment {
+    pub(super) fn heap_data_mut(self, agent: &mut Agent) -> &mut DeclarativeEnvironment {
         agent
             .heap
             .environments
@@ -164,7 +164,7 @@ impl DeclarativeEnvironmentIndex {
     /// containing a Boolean. It determines if the argument identifier is one
     /// of the identifiers bound by the record.
     pub fn has_binding(self, agent: &Agent, name: &str) -> bool {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // Delegate to heap data record method.
         env_rec.has_binding(name)
     }
@@ -178,7 +178,7 @@ impl DeclarativeEnvironmentIndex {
     /// already exist in this Environment Record for N. If D is true, the new
     /// binding is marked as being subject to deletion.
     pub fn create_mutable_binding(self, agent: &mut Agent, name: &Atom, is_deletable: bool) {
-        let env_rec = self.get_mut(agent);
+        let env_rec = self.heap_data_mut(agent);
         // Delegate to heap data record method.
         env_rec.create_mutable_binding(name, is_deletable);
     }
@@ -192,7 +192,7 @@ impl DeclarativeEnvironmentIndex {
     /// not already exist in this Environment Record for N. If S is true, the
     /// new binding is marked as a strict binding.
     pub(crate) fn create_immutable_binding(self, agent: &mut Agent, name: &Atom, is_strict: bool) {
-        let env_rec = self.get_mut(agent);
+        let env_rec = self.heap_data_mut(agent);
         // Delegate to heap data record method.
         env_rec.create_immutable_binding(name, is_strict);
     }
@@ -206,7 +206,7 @@ impl DeclarativeEnvironmentIndex {
     /// whose name is N to the value V. An uninitialized binding for N must
     /// already exist.
     pub(crate) fn initialize_binding(self, agent: &mut Agent, name: &Atom, value: Value) {
-        let env_rec = self.get_mut(agent);
+        let env_rec = self.heap_data_mut(agent);
         // Delegate to heap data record method.
         env_rec.initialize_binding(name, value)
     }
@@ -228,7 +228,7 @@ impl DeclarativeEnvironmentIndex {
         value: Value,
         mut is_strict: bool,
     ) -> JsResult<()> {
-        let env_rec = self.get_mut(agent);
+        let env_rec = self.heap_data_mut(agent);
         // 1. If envRec does not have a binding for N, then
         let Some(binding) = env_rec.bindings.get_mut(name) else {
             // a. If S is true, throw a ReferenceError exception.
@@ -296,7 +296,7 @@ impl DeclarativeEnvironmentIndex {
         name: &Atom,
         is_strict: bool,
     ) -> JsResult<Value> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // Delegate to heap data record method.
         env_rec.get_binding_value(name, is_strict).map_or_else(
             || {
@@ -316,7 +316,7 @@ impl DeclarativeEnvironmentIndex {
     /// containing a Boolean. It can only delete bindings that have been
     /// explicitly designated as being subject to deletion.
     pub(crate) fn delete_binding(self, agent: &mut Agent, name: &Atom) -> bool {
-        let env_rec = self.get_mut(agent);
+        let env_rec = self.heap_data_mut(agent);
         // Delegate to heap data record method.
         env_rec.delete_binding(name)
     }

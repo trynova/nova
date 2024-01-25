@@ -120,16 +120,16 @@ pub(crate) enum EnvironmentIndex {
 impl EnvironmentIndex {
     pub(crate) fn get_outer_env(self, agent: &Agent) -> OuterEnv {
         match self {
-            EnvironmentIndex::Declarative(index) => index.get(agent).outer_env,
+            EnvironmentIndex::Declarative(index) => index.heap_data(agent).outer_env,
             EnvironmentIndex::Function(index) => {
                 index
-                    .get(agent)
+                    .heap_data(agent)
                     .declarative_environment
-                    .get(agent)
+                    .heap_data(agent)
                     .outer_env
             }
             EnvironmentIndex::Global(_) => None,
-            EnvironmentIndex::Object(index) => index.get(agent).outer_env,
+            EnvironmentIndex::Object(index) => index.heap_data(agent).outer_env,
         }
     }
 

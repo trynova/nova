@@ -99,7 +99,7 @@ pub(crate) struct OrdinaryFunctionCreateParams<'program> {
 }
 
 impl ECMAScriptFunctionIndex {
-    pub(crate) fn get(self, agent: &Agent) -> &ECMAScriptFunction {
+    pub(crate) fn heap_data(self, agent: &Agent) -> &ECMAScriptFunction {
         &agent.heap.get(self).ecmascript_function
     }
 
@@ -130,7 +130,7 @@ impl ECMAScriptFunctionIndex {
         // 3. Assert: calleeContext is now the running execution context.
         // assert!(std::ptr::eq(agent.running_execution_context(), callee_context));
         // 4. If F.[[IsClassConstructor]] is true, then
-        if self.get(agent).is_class_constructor {
+        if self.heap_data(agent).is_class_constructor {
             // a. Let error be a newly created TypeError object.
             // b. NOTE: error is created in calleeContext with F's associated Realm Record.
             let error = agent.throw_exception(ExceptionType::TypeError, "fail");
@@ -164,7 +164,7 @@ pub(crate) fn prepare_for_ordinary_call(
     f: ECMAScriptFunctionIndex,
     new_target: Option<Object>,
 ) -> &ExecutionContext {
-    let ecmascript_function_object = f.get(agent);
+    let ecmascript_function_object = f.heap_data(agent);
     let private_environment = ecmascript_function_object.private_environment;
     let script_or_module = ecmascript_function_object.script_or_module;
     // 1. Let callerContext be the running execution context.
@@ -212,7 +212,7 @@ pub(crate) fn ordinary_call_bind_this(
     local_env: EnvironmentIndex,
     this_argument: Value,
 ) {
-    let function_heap_data = f.get(agent);
+    let function_heap_data = f.heap_data(agent);
     // 1. Let thisMode be F.[[ThisMode]].
     let this_mode = function_heap_data.this_mode;
     // 2. If thisMode is LEXICAL, return UNUSED.
@@ -268,7 +268,7 @@ pub(crate) fn evaluate_body(
     function_object: ECMAScriptFunctionIndex,
     _arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
-    let function_heap_data = function_object.get(agent);
+    let function_heap_data = function_object.heap_data(agent);
     let body = unsafe { function_heap_data.ecmascript_code.as_ref() };
     if body.statements.is_empty() {
         return Ok(Value::Undefined);

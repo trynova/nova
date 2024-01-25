@@ -95,11 +95,11 @@ impl GlobalEnvironment {
 }
 
 impl GlobalEnvironmentIndex {
-    fn get(self, agent: &Agent) -> &GlobalEnvironment {
+    fn heap_data(self, agent: &Agent) -> &GlobalEnvironment {
         agent.heap.environments.get_global_environment(self)
     }
 
-    fn get_mut(self, agent: &mut Agent) -> &mut GlobalEnvironment {
+    fn heap_data_mut(self, agent: &mut Agent) -> &mut GlobalEnvironment {
         agent.heap.environments.get_global_environment_mut(self)
     }
 
@@ -110,7 +110,7 @@ impl GlobalEnvironmentIndex {
     /// containing a Boolean or a throw completion. It determines if the
     /// argument identifier is one of the identifiers bound by the record.
     pub(crate) fn has_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         // 2. If ! DclRec.HasBinding(N) is true, return true.
         if env_rec.declarative_record.has_binding(agent, name) {
@@ -138,7 +138,7 @@ impl GlobalEnvironmentIndex {
         name: &Atom,
         is_deletable: bool,
     ) -> JsResult<()> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, throw a TypeError exception.
@@ -166,7 +166,7 @@ impl GlobalEnvironmentIndex {
         name: &Atom,
         is_strict: bool,
     ) -> JsResult<()> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, throw a TypeError exception.
@@ -193,7 +193,7 @@ impl GlobalEnvironmentIndex {
         name: &Atom,
         value: Value,
     ) -> JsResult<()> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -227,7 +227,7 @@ impl GlobalEnvironmentIndex {
         value: Value,
         is_strict: bool,
     ) -> JsResult<()> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -253,7 +253,7 @@ impl GlobalEnvironmentIndex {
     /// but if it does not or is not currently writable, error handling is
     /// determined by S.
     pub(crate) fn get_binding_value(self, agent: &mut Agent, n: &Atom, s: bool) -> JsResult<Value> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -275,7 +275,7 @@ impl GlobalEnvironmentIndex {
     /// containing a Boolean or a throw completion. It can only delete bindings
     /// that have been explicitly designated as being subject to deletion.
     pub(crate) fn delete_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -286,7 +286,7 @@ impl GlobalEnvironmentIndex {
         // 3. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 4. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get(agent).binding_object;
+        let global_object = obj_rec.heap_data(agent).binding_object;
         // 5. Let existingProp be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from_str(&mut agent.heap, name.as_str());
         let existing_prop = has_own_property(agent, global_object, n)?;
@@ -296,7 +296,7 @@ impl GlobalEnvironmentIndex {
             let status = obj_rec.delete_binding(agent, name)?;
             // b. If status is true and envRec.[[VarNames]] contains N, then
             if status {
-                let env_rec = self.get_mut(agent);
+                let env_rec = self.heap_data_mut(agent);
                 if env_rec.var_names.contains(name) {
                     // i. Remove N from envRec.[[VarNames]].
                     env_rec.var_names.remove(name);
@@ -347,7 +347,7 @@ impl GlobalEnvironmentIndex {
     /// envRec takes no arguments and returns a normal completion containing an
     /// Object.
     pub(crate) fn get_this_binding(self, agent: &Agent) -> Object {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. Return envRec.[[GlobalThisValue]].
         env_rec.global_this_value
     }
@@ -360,7 +360,7 @@ impl GlobalEnvironmentIndex {
     /// created
     /// using a VariableStatement or a FunctionDeclaration.
     pub(crate) fn has_var_declaration(self, agent: &Agent, name: &str) -> bool {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. Let varDeclaredNames be envRec.[[VarNames]].
         let var_declared_names = &env_rec.var_names;
         // 2. If varDeclaredNames contains N, return true.
@@ -376,7 +376,7 @@ impl GlobalEnvironmentIndex {
     /// was created using a lexical declaration such as a LexicalDeclaration or
     /// a ClassDeclaration.
     pub(crate) fn has_lexical_declaration(self, agent: &Agent, name: &str) -> bool {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. Return ! DclRec.HasBinding(N).
@@ -395,11 +395,11 @@ impl GlobalEnvironmentIndex {
         agent: &mut Agent,
         name: &str,
     ) -> JsResult<bool> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get(agent).binding_object;
+        let global_object = obj_rec.heap_data(agent).binding_object;
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let n = PropertyKey::from_str(&mut agent.heap, name);
         let existing_prop = global_object.get_own_property(agent, n)?;
@@ -425,11 +425,11 @@ impl GlobalEnvironmentIndex {
     /// the same argument N. Redundant var declarations and var declarations
     /// for pre-existing global object properties are allowed.
     pub(crate) fn can_declare_global_var(self, agent: &mut Agent, name: &str) -> JsResult<bool> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get(agent).binding_object;
+        let global_object = obj_rec.heap_data(agent).binding_object;
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from_str(&mut agent.heap, name);
         let has_property = has_own_property(agent, global_object, n)?;
@@ -454,11 +454,11 @@ impl GlobalEnvironmentIndex {
         agent: &mut Agent,
         name: &str,
     ) -> JsResult<bool> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get(agent).binding_object;
+        let global_object = obj_rec.heap_data(agent).binding_object;
         let n = PropertyKey::from_str(&mut agent.heap, name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let existing_prop = global_object.get_own_property(agent, n)?;
@@ -495,11 +495,11 @@ impl GlobalEnvironmentIndex {
         name: Atom,
         is_deletable: bool,
     ) -> JsResult<()> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get(agent).binding_object;
+        let global_object = obj_rec.heap_data(agent).binding_object;
         let n = PropertyKey::from_str(&mut agent.heap, name.as_str());
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let has_property = has_own_property(agent, global_object, n)?;
@@ -515,7 +515,7 @@ impl GlobalEnvironmentIndex {
 
         // 6. If envRec.[[VarNames]] does not contain N, then
         //    a. Append N to envRec.[[VarNames]].
-        let env_rec = self.get_mut(agent);
+        let env_rec = self.heap_data_mut(agent);
         env_rec.var_names.insert(name);
 
         // 7. Return UNUSED.
@@ -538,11 +538,11 @@ impl GlobalEnvironmentIndex {
         value: Value,
         d: bool,
     ) -> JsResult<()> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get(agent).binding_object;
+        let global_object = obj_rec.heap_data(agent).binding_object;
         let n = PropertyKey::from_str(&mut agent.heap, name.as_str());
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let existing_prop = global_object.get_own_property(agent, n)?;
@@ -575,7 +575,7 @@ impl GlobalEnvironmentIndex {
         set(agent, global_object, n, value, false)?;
         // 8. If envRec.[[VarNames]] does not contain N, then
         // a. Append N to envRec.[[VarNames]].
-        let env_rec = self.get_mut(agent);
+        let env_rec = self.heap_data_mut(agent);
         env_rec.var_names.insert(name);
         // 9. Return UNUSED.
         Ok(())

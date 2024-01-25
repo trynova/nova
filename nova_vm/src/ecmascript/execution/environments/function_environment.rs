@@ -84,7 +84,7 @@ pub(crate) fn new_function_environment(
     f: ECMAScriptFunctionIndex,
     new_target: Option<Object>,
 ) -> FunctionEnvironmentIndex {
-    let ecmascript_function_object = f.get(agent);
+    let ecmascript_function_object = f.heap_data(agent);
     let this_mode = ecmascript_function_object.this_mode;
     // 1. Let env be a new Function Environment Record containing no bindings.
     let dcl_env = DeclarativeEnvironment::new(Some(ecmascript_function_object.environment));
@@ -118,39 +118,39 @@ pub(crate) fn new_function_environment(
 }
 
 impl FunctionEnvironmentIndex {
-    pub(super) fn get(self, agent: &Agent) -> &FunctionEnvironment {
+    pub(super) fn heap_data(self, agent: &Agent) -> &FunctionEnvironment {
         agent.heap.environments.get_function_environment(self)
     }
 
-    fn get_mut(self, agent: &mut Agent) -> &mut FunctionEnvironment {
+    fn heap_data_mut(self, agent: &mut Agent) -> &mut FunctionEnvironment {
         agent.heap.environments.get_function_environment_mut(self)
     }
 
     pub(crate) fn get_this_binding_status(self, agent: &Agent) -> ThisBindingStatus {
-        self.get(agent).this_binding_status
+        self.heap_data(agent).this_binding_status
     }
 
     /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
     pub(crate) fn has_binding(self, agent: &Agent, name: &str) -> bool {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         env_rec.has_binding(agent, name)
     }
 
     /// ### [9.1.1.1.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-declarative-environment-records-createmutablebinding-n-d)
     pub(crate) fn create_mutable_binding(self, agent: &mut Agent, name: &Atom, is_deletable: bool) {
-        let env_rec = self.get_mut(agent);
+        let env_rec = self.heap_data_mut(agent);
         env_rec.create_mutable_binding(agent, name, is_deletable);
     }
 
     /// ### [9.1.1.1.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-createimmutablebinding-n-s)
     pub(crate) fn create_immutable_binding(self, agent: &mut Agent, name: &Atom, is_strict: bool) {
-        let env_rec = self.get_mut(agent);
+        let env_rec = self.heap_data_mut(agent);
         env_rec.create_immutable_binding(agent, name, is_strict);
     }
 
     /// ### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
     pub(crate) fn initialize_binding(self, agent: &mut Agent, name: &Atom, value: Value) {
-        let env_rec = self.get_mut(agent);
+        let env_rec = self.heap_data_mut(agent);
         env_rec.initialize_binding(agent, name, value)
     }
 
@@ -162,7 +162,7 @@ impl FunctionEnvironmentIndex {
         value: Value,
         mut is_strict: bool,
     ) -> JsResult<()> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         let dcl_rec = env_rec.declarative_environment;
         // 1. If envRec does not have a binding for N, then
         if !dcl_rec.has_binding(agent, name) {
@@ -182,7 +182,7 @@ impl FunctionEnvironmentIndex {
             return Ok(());
         };
 
-        let binding = dcl_rec.get_mut(agent).bindings.get_mut(name).unwrap();
+        let binding = dcl_rec.heap_data_mut(agent).bindings.get_mut(name).unwrap();
 
         // 2. If the binding for N in envRec is a strict binding, set S to true.
         if binding.strict {
@@ -226,13 +226,13 @@ impl FunctionEnvironmentIndex {
         name: &Atom,
         is_strict: bool,
     ) -> JsResult<Value> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         env_rec.get_binding_value(agent, name, is_strict)
     }
 
     /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
     pub(crate) fn delete_binding(self, agent: &mut Agent, name: &Atom) -> bool {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         env_rec.delete_binding(agent, name)
     }
 
@@ -249,7 +249,7 @@ impl FunctionEnvironmentIndex {
     /// either a normal completion containing an ECMAScript language value or a
     /// throw completion.
     pub(crate) fn bind_this_value(self, agent: &mut Agent, value: Value) -> JsResult<Value> {
-        let env_rec = self.get_mut(agent);
+        let env_rec = self.heap_data_mut(agent);
         // 1. Assert: envRec.[[ThisBindingStatus]] is not LEXICAL.
         debug_assert!(env_rec.this_binding_status != ThisBindingStatus::Lexical);
 
@@ -274,7 +274,7 @@ impl FunctionEnvironmentIndex {
     /// The HasThisBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns a Boolean.
     pub(crate) fn has_this_binding(self, agent: &Agent) -> bool {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. If envRec.[[ThisBindingStatus]] is LEXICAL, return false;
         // otherwise, return true.
         env_rec.this_binding_status != ThisBindingStatus::Lexical
@@ -285,7 +285,7 @@ impl FunctionEnvironmentIndex {
     /// The HasSuperBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns a Boolean.
     pub(crate) fn has_super_binding(self, agent: &Agent) -> bool {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
         // 1. If envRec.[[ThisBindingStatus]] is LEXICAL, return false.
         if env_rec.this_binding_status == ThisBindingStatus::Lexical {
             return false;
@@ -314,7 +314,7 @@ impl FunctionEnvironmentIndex {
     /// envRec takes no arguments and returns either a normal completion
     /// containing either an Object, null, or undefined, or a throw completion.
     pub(crate) fn get_super_base(self, agent: &mut Agent) -> JsResult<Value> {
-        let env_rec = self.get(agent);
+        let env_rec = self.heap_data(agent);
 
         // 1. Let home be envRec.[[FunctionObject]].[[HomeObject]].
         let home = match env_rec.function_object {
