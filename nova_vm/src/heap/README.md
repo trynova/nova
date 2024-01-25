@@ -181,7 +181,7 @@ There are disadvantages as well.
    always take an extra pointer indirection, or all objects carry inline
    properties even if they're not used. This is may be somewhat offset by key
    checks requiring object shape access by pointer anyhow and the two reads are
-   not 100% dependent on one another (conditional on the number of elements).
+   not 100% dependent of one another (conditional on the number of elements).
 1. Heap vectors need reallocation when growing. This may prove to be such a
    performance demerit that it requires changing from heap vectors into vectors
    of heap chunks, trading reallocation need for worse cache locality.
@@ -228,7 +228,7 @@ JavaScript code running inside the engine.
 But this does also mean that we're now in charge of tracking the JavaScript-wise
 ownership of objects ourselves: The borrow checker will not give us a helping
 hand with that. This means that it's possible that we create bugs that from
-JavaScript's point of view sense are use-after-free or similar memory safety
+JavaScript's point of view are use-after-free or similar memory safety
 related errors. The borrow checker will just make sure that we're not causing
 actual memory corruption with this, even if we do cause heap corruption.
 
