@@ -1,15 +1,15 @@
-use super::{EnvironmentIndex, PrivateEnvironmentIndex, RealmIdentifier};
+use super::{Agent, EnvironmentIndex, PrivateEnvironmentIndex, RealmIdentifier};
 use crate::ecmascript::{scripts_and_modules::ScriptOrModule, types::*};
 
 // TODO: Remove this.
-pub type ECMAScriptCode = ECMAScriptCodeEvaluationState;
+pub(crate) type ECMAScriptCode = ECMAScriptCodeEvaluationState;
 
 /// ### [code evaluation state](https://tc39.es/ecma262/#table-state-components-for-all-execution-contexts)
 ///
 /// ECMAScript code execution contexts have the additional state components
 /// listed in Table 26.
 #[derive(Debug)]
-pub struct ECMAScriptCodeEvaluationState {
+pub(crate) struct ECMAScriptCodeEvaluationState {
     /// ### LexicalEnvironment
     ///
     /// Identifies the Environment Record used to resolve identifier references
@@ -36,8 +36,8 @@ pub struct ECMAScriptCodeEvaluationState {
 /// runtime evaluation of code by an ECMAScript implementation. At any point in
 /// time, there is at most one execution context per agent that is actually
 /// executing code. This is known as the agent's running execution context. All
-/// references to the running execution context in this specification denote the
-/// running execution context of the surrounding agent.
+/// references to the running execution context in this specification denote
+/// the running execution context of the surrounding agent.
 #[derive(Debug)]
 pub(crate) struct ExecutionContext {
     /// ### code evaluation state
@@ -49,8 +49,9 @@ pub(crate) struct ExecutionContext {
     /// ### Function
     ///
     /// If this execution context is evaluating the code of a function object,
-    /// then the value of this component is that function object. If the context
-    /// is evaluating the code of a Script or Module, the value is null.
+    /// then the value of this component is that function object. If the
+    /// context is evaluating the code of a Script or Module, the value is
+    /// null.
     pub function: Option<Function>,
 
     /// ### Realm
@@ -66,4 +67,16 @@ pub(crate) struct ExecutionContext {
     /// for the original execution context created in
     /// InitializeHostDefinedRealm, the value is null.
     pub script_or_module: Option<ScriptOrModule>,
+}
+
+/// ### [9.4.6 GetGlobalObject ( )](https://tc39.es/ecma262/#sec-getglobalobject)
+///
+/// The abstract operation GetGlobalObject takes no arguments and returns an
+/// Object. It returns the global object used by the currently running
+/// execution context.
+pub(crate) fn get_global_object(agent: &Agent) -> Object {
+    // 1. Let currentRealm be the current Realm Record.
+    let current_realm = agent.current_realm();
+    // 2. Return currentRealm.[[GlobalObject]].
+    current_realm.global_object
 }

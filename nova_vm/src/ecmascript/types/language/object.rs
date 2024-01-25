@@ -14,7 +14,7 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        builtins::{Array, ArrayBuffer},
+        builtins::{ArgumentsList, Array, ArrayBuffer},
         execution::{Agent, JsResult},
         types::PropertyDescriptor,
     },
@@ -33,8 +33,7 @@ pub use internal_slots::OrdinaryObjectInternalSlots;
 pub use property_key::PropertyKey;
 pub use property_storage::PropertyStorage;
 
-/// 6.1.7 The Object Type
-/// https://tc39.es/ecma262/#sec-object-type
+/// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
 ///
 /// In Nova
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -382,7 +381,7 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         this_value: Value,
-        arguments_list: &[Value],
+        arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
         match self {
             Object::BoundFunction(idx) => {
@@ -401,7 +400,7 @@ impl InternalMethods for Object {
     fn construct(
         self,
         agent: &mut Agent,
-        arguments_list: &[Value],
+        arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
         match self {

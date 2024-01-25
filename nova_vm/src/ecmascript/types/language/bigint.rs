@@ -12,13 +12,14 @@ use crate::{
 
 pub use data::BigIntHeapData;
 
-/// [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+/// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
 ///
 /// The BigInt type represents an integer value. The value may be any size and
 /// is not limited to a particular bit-width. Generally, where not otherwise
-/// noted, operations are designed to return exact mathematically-based answers.
-/// For binary operations, BigInts act as two's complement binary strings, with
-/// negative numbers treated as having bits set infinitely to the left.
+/// noted, operations are designed to return exact mathematically-based
+/// answers. For binary operations, BigInts act as two's complement binary
+/// strings, with negative numbers treated as having bits set infinitely to the
+/// left.
 #[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum BigInt {
@@ -105,8 +106,8 @@ impl BigInt {
 
     /// ### [6.1.6.2.4 BigInt::multiply ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-multiply)
     ///
-    /// The abstract operation BigInt::multiply takes arguments x (a BigInt) and
-    /// y (a BigInt) and returns a BigInt.
+    /// The abstract operation BigInt::multiply takes arguments x (a BigInt)
+    /// and y (a BigInt) and returns a BigInt.
     pub(crate) fn multiply(agent: &mut Agent, x: BigInt, y: BigInt) -> BigInt {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
@@ -138,8 +139,8 @@ impl BigInt {
 
     /// ### [6.1.6.2.12 BigInt::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-lessThan)
     ///
-    /// The abstract operation BigInt::lessThan takes arguments x (a BigInt) and
-    /// y (a BigInt) and returns a Boolean.
+    /// The abstract operation BigInt::lessThan takes arguments x (a BigInt)
+    /// and y (a BigInt) and returns a Boolean.
     pub(crate) fn less_than(agent: &mut Agent, x: BigInt, y: BigInt) -> bool {
         // 1. If ℝ(x) < ℝ(y), return true; otherwise return false.
         match (x, y) {
@@ -155,8 +156,8 @@ impl BigInt {
 
     /// ### [6.1.6.2.13 BigInt::equal ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-equal)
     ///
-    /// The abstract operation BigInt::equal takes arguments x (a BigInt) and y (a
-    /// BigInt) and returns a Boolean.
+    /// The abstract operation BigInt::equal takes arguments x (a BigInt) and y
+    /// (a BigInt) and returns a Boolean.
     pub(crate) fn equal(agent: &mut Agent, x: BigInt, y: BigInt) -> bool {
         // 1. If ℝ(x) = ℝ(y), return true; otherwise return false.
         match (x, y) {

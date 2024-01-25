@@ -7,13 +7,14 @@ use super::{
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get_method,
+        builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{Function, Object, PropertyKey, String, Value},
     },
     heap::WellKnownSymbolIndexes,
 };
 
-/// [7.4.1 Iterator Records](https://tc39.es/ecma262/#sec-iterator-records)
+/// ### [7.4.1 Iterator Records](https://tc39.es/ecma262/#sec-iterator-records)
 ///
 /// An Iterator Record is a Record value used to encapsulate an Iterator or
 /// AsyncIterator along with the next method.
@@ -24,7 +25,7 @@ pub(crate) struct IteratorRecord {
     done: bool,
 }
 
-/// [7.4.2 GetIteratorFromMethod ( obj, method )](https://tc39.es/ecma262/#sec-getiteratorfrommethod)
+/// ### [7.4.2 GetIteratorFromMethod ( obj, method )](https://tc39.es/ecma262/#sec-getiteratorfrommethod)
 ///
 /// The abstract operation GetIteratorFromMethod takes arguments obj (an
 /// ECMAScript language value) and method (a function object) and returns
@@ -55,7 +56,7 @@ pub(crate) fn get_iterator_from_method(
     })
 }
 
-/// [7.4.3 GetIterator ( obj, kind )](https://tc39.es/ecma262/#sec-getiterator)
+/// ### [7.4.3 GetIterator ( obj, kind )](https://tc39.es/ecma262/#sec-getiterator)
 ///
 /// The abstract operation GetIterator takes arguments obj (an ECMAScript
 /// language value) and kind (sync or async) and returns either a normal
@@ -119,7 +120,7 @@ pub(crate) fn get_iterator(
     get_iterator_from_method(agent, obj, method)
 }
 
-/// [7.4.4 IteratorNext ( iteratorRecord [ , value ] )](https://tc39.es/ecma262/#sec-iteratornext)
+/// ### [7.4.4 IteratorNext ( iteratorRecord [ , value ] )](https://tc39.es/ecma262/#sec-iteratornext)
 ///
 /// The abstract operation IteratorNext takes argument iteratorRecord (an
 /// Iterator Record) and optional argument value (an ECMAScript language value)
@@ -138,7 +139,9 @@ pub(crate) fn iterator_next(
         agent,
         iterator_record.next_method,
         iterator_record.iterator.into(),
-        value.as_ref().map(std::slice::from_ref),
+        value
+            .as_ref()
+            .map(|data| ArgumentsList(std::slice::from_ref(data))),
     )?;
 
     // 3. If result is not an Object, throw a TypeError exception.
@@ -149,7 +152,7 @@ pub(crate) fn iterator_next(
     )))
 }
 
-/// [7.4.5 IteratorComplete ( iterResult )](https://tc39.es/ecma262/#sec-iteratorcomplete)
+/// ### [7.4.5 IteratorComplete ( iterResult )](https://tc39.es/ecma262/#sec-iteratorcomplete)
 ///
 /// The abstract operation IteratorComplete takes argument iterResult (an
 /// Object) and returns either a normal completion containing a Boolean or a
@@ -160,7 +163,7 @@ pub(crate) fn iterator_complete(agent: &mut Agent, iter_result: Object) -> JsRes
     Ok(to_boolean(agent, done))
 }
 
-/// [7.4.6 IteratorValue ( iterResult )](https://tc39.es/ecma262/#sec-iteratorvalue)
+/// ### [7.4.6 IteratorValue ( iterResult )](https://tc39.es/ecma262/#sec-iteratorvalue)
 ///
 /// The abstract operation IteratorValue takes argument iterResult (an
 /// Object) and returns either a normal completion containing an ECMAScript
@@ -174,17 +177,18 @@ pub(crate) fn iterator_value(agent: &mut Agent, iter_result: Object) -> JsResult
     )
 }
 
-/// [7.4.7 IteratorStep ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstep)
+/// ### [7.4.7 IteratorStep ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstep)
 ///
 /// The abstract operation IteratorStep takes argument iteratorRecord (an
 /// Iterator Record) and returns either a normal completion containing either
 /// an Object or false, or a throw completion. It requests the next value from
-/// iteratorRecord.\[\[Iterator\]\] by calling iteratorRecord.\[\[NextMethod\]\]
-/// and returns either false indicating that the iterator has reached its end
-/// or the IteratorResult object if a next value is available.
+/// iteratorRecord.\[\[Iterator\]\] by calling
+/// iteratorRecord.\[\[NextMethod\]\] and returns either false indicating that
+/// the iterator has reached its end or the IteratorResult object if a next
+/// value is available.
 ///
-/// > NOTE: Instead of returning the boolean value false we return an Option where
-/// > the false state is None. That way we can pass the Object as is.
+/// > NOTE: Instead of returning the boolean value false we return an Option
+/// > where the false state is None. That way we can pass the Object as is.
 pub(crate) fn iterator_step(
     agent: &mut Agent,
     iterator_record: &IteratorRecord,
@@ -204,12 +208,13 @@ pub(crate) fn iterator_step(
     Ok(Some(result))
 }
 
-/// [7.4.8 IteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-iteratorclose)
+/// ### [7.4.8 IteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-iteratorclose)
 ///
 /// The abstract operation IteratorClose takes arguments iteratorRecord (an
 /// Iterator Record) and completion (a Completion Record) and returns a
 /// Completion Record. It is used to notify an iterator that it should perform
-/// any actions it would normally perform when it has reached its completed state.
+/// any actions it would normally perform when it has reached its completed
+/// state.
 pub(crate) fn iterator_close(
     _agent: &mut Agent,
     _iterator_record: &IteratorRecord,
@@ -229,9 +234,10 @@ pub(crate) fn iterator_close(
     todo!()
 }
 
-/// [7.4.9 IfAbruptCloseIterator ( value, iteratorRecord )](https://tc39.es/ecma262/#sec-ifabruptcloseiterator)
+/// ### [7.4.9 IfAbruptCloseIterator ( value, iteratorRecord )](https://tc39.es/ecma262/#sec-ifabruptcloseiterator)
 ///
-/// IfAbruptCloseIterator is a shorthand for a sequence of algorithm steps that use an Iterator Record.
+/// IfAbruptCloseIterator is a shorthand for a sequence of algorithm steps that
+/// use an Iterator Record.
 pub(crate) fn if_abrupt_close_iterator(
     _agent: &mut Agent,
     _value: JsResult<Value>,
@@ -243,7 +249,7 @@ pub(crate) fn if_abrupt_close_iterator(
     todo!()
 }
 
-/// [7.4.10 AsyncIteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-asynciteratorclose)
+/// ### [7.4.10 AsyncIteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-asynciteratorclose)
 ///
 /// The abstract operation AsyncIteratorClose takes arguments iteratorRecord
 /// (an Iterator Record) and completion (a Completion Record) and returns a
@@ -270,12 +276,12 @@ pub(crate) fn async_iterator_close(
     todo!()
 }
 
-/// [7.4.11 CreateIterResultObject ( value, done )](https://tc39.es/ecma262/#sec-createiterresultobject)
+/// ### [7.4.11 CreateIterResultObject ( value, done )](https://tc39.es/ecma262/#sec-createiterresultobject)
 ///
 /// The abstract operation CreateIterResultObject takes arguments value (an
 /// ECMAScript language value) and done (a Boolean) and returns an Object that
-/// conforms to the IteratorResult interface. It creates an object that conforms
-/// to the IteratorResult interface.
+/// conforms to the IteratorResult interface. It creates an object that
+/// conforms to the IteratorResult interface.
 pub(crate) fn create_iter_result_object(_agent: &mut Agent, _value: Value, _done: bool) -> Value {
     // 1. Let obj be OrdinaryObjectCreate(%Object.prototype%).
     // 2. Perform ! CreateDataPropertyOrThrow(obj, "value", value).
@@ -284,7 +290,7 @@ pub(crate) fn create_iter_result_object(_agent: &mut Agent, _value: Value, _done
     todo!()
 }
 
-/// [7.4.12 CreateListIteratorRecord ( list )](https://tc39.es/ecma262/#sec-createlistiteratorRecord)
+/// ### [7.4.12 CreateListIteratorRecord ( list )](https://tc39.es/ecma262/#sec-createlistiteratorRecord)
 ///
 /// The abstract operation CreateListIteratorRecord takes argument list (a List
 /// of ECMAScript language values) and returns an Iterator Record. It creates
@@ -300,7 +306,7 @@ pub(crate) fn create_list_iterator_record(_agent: &mut Agent, _list: &[Value]) -
     todo!()
 }
 
-/// [7.4.13 IteratorToList ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratortolist)
+/// ### [7.4.13 IteratorToList ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratortolist)
 ///
 /// The abstract operation IteratorToList takes argument iteratorRecord (an
 /// Iterator Record) and returns either a normal completion containing a List

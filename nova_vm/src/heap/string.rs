@@ -25,8 +25,9 @@ pub fn initialize_string_heap(heap: &mut Heap) {
         Some(BuiltinFunctionHeapData {
             object_index: Some(BuiltinObjectIndexes::StringConstructor.into()),
             length: 1,
-            initial_name: Value::Null,
+            initial_name: None,
             behaviour: Behaviour::Constructor(constructor_binding),
+            name: None,
         });
     heap.insert_builtin_object(
         BuiltinObjectIndexes::StringPrototype,

@@ -23,6 +23,7 @@ pub enum PropertyKey {
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
     String(StringIndex) = STRING_DISCRIMINANT,
     Symbol(SymbolIndex) = SYMBOL_DISCRIMINANT,
+    // TODO: PrivateKey
 }
 
 impl PropertyKey {

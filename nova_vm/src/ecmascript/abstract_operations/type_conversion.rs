@@ -12,6 +12,7 @@
 
 use crate::{
     ecmascript::{
+        builtins::ArgumentsList,
         execution::{agent::ExceptionType, agent::JsError, Agent, JsResult},
         types::{BigInt, Number, Object, PropertyKey, String, Value},
     },
@@ -74,8 +75,12 @@ pub(crate) fn to_primitive(
                 Some(PreferredType::Number) => String::from_small_string("number"),
             };
             // iv. Let result be ? Call(exoticToPrim, input, « hint »).
-            let result: Value =
-                call_function(agent, exotic_to_prim, input.into(), Some(&[hint.into()]))?;
+            let result: Value = call_function(
+                agent,
+                exotic_to_prim,
+                input.into(),
+                Some(ArgumentsList(&[hint.into()])),
+            )?;
             if !result.is_object() {
                 // v. If result is not an Object, return result.
                 Ok(result)

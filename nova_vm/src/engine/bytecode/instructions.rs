@@ -8,6 +8,7 @@ use super::IndexType;
 ///   Copyright (c) 2023-2024 Linus Groh
 #[derive(Debug, Clone, Copy)]
 pub enum Instruction {
+    Debug,
     /// Store ApplyStringOrNumericBinaryOperator() as the result value.
     ApplyStringOrNumericBinaryOperator(BinaryOperator),
     /// Store ArrayCreate(0) as the result value.
@@ -16,27 +17,34 @@ pub enum Instruction {
     ArraySetValue,
     /// Set the length property of an array to the given index.
     ArraySetLength,
-    /// Apply bitwise NOT to the last value on the stack and store it as the result value.
+    /// Apply bitwise NOT to the last value on the stack and store it as the
+    /// result value.
     BitwiseNot,
-    /// Create a catch binding for the given name and populate it with the stored exception.
+    /// Create a catch binding for the given name and populate it with the
+    /// stored exception.
     CreateCatchBinding,
-    /// Apply the delete operation to the evaluated expression and set it as the result value.
+    /// Apply the delete operation to the evaluated expression and set it as
+    /// the result value.
     Delete,
     /// Store EvaluateCall() as the result value.
-    /// This instruction has the number of argument values that need to be popped from the stack
-    /// (last to first) as an argument, the values on the stack afterwards are the this value and
-    /// lastly the function to call.
+    ///
+    /// This instruction has the number of argument values that need to be
+    /// popped from the stack (last to first) as an argument, and finally the
+    /// function to call.
     EvaluateCall,
     /// Store EvaluateNew() as the result value.
-    /// This instruction has the number of argument values that need to be popped from the stack
-    /// (last to first) as an argument, the value on the stack afterwards is the constructor to
+    ///
+    /// This instruction has the number of argument values that need to be
+    /// popped from the stack (last to first) as an argument, the value on the
+    /// stack afterwards is the constructor to
     /// call.
     EvaluateNew,
     /// Store EvaluatePropertyAccessWithExpressionKey() as the result value.
     EvaluatePropertyAccessWithExpressionKey,
     /// Store EvaluatePropertyAccessWithIdentifierKey() as the result value.
     EvaluatePropertyAccessWithIdentifierKey,
-    /// Store GetValue() as the result value.
+    /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
+    /// value.
     GetValue,
     /// Compare the last two values on the stack using the '>' operator rules.
     GreaterThan,
@@ -56,8 +64,8 @@ pub enum Instruction {
     IsStrictlyEqual,
     /// Jump to another instruction by setting the instruction pointer.
     Jump,
-    /// Jump to one of two other instructions depending on whether the last value on the stack is
-    /// truthy or not.
+    /// Jump to one of two other instructions depending on whether the last
+    /// value on the stack is truthy or not.
     JumpConditional,
     /// Compare the last two values on the stack using the '<' operator rules.
     LessThan,
@@ -67,13 +75,16 @@ pub enum Instruction {
     Load,
     /// Load a constant and add it to the stack.
     LoadConstant,
-    /// Determine the this value for an upcoming evaluate_call instruction and add it to the stack.
+    /// Determine the this value for an upcoming evaluate_call instruction and
+    /// add it to the stack.
     LoadThisValue,
-    /// Apply logical NOT to the last value on the stack and store it as the result value.
+    /// Apply logical NOT to the last value on the stack and store it as the
+    /// result value.
     LogicalNot,
-    /// Store OrdinaryObjectCreate(%Object.prototype%) as the result value.
+    /// Store OrdinaryObjectCreate(%Object.prototype%) on the stack.
     ObjectCreate,
-    /// Set an object's property to the key/value pair from the last two values on the stack.
+    /// Set an object's property to the key/value pair from the last two values
+    /// on the stack.
     ObjectSetProperty,
     /// Pop a jump target for uncaught exceptions
     PopExceptionJumpTarget,
@@ -83,7 +94,8 @@ pub enum Instruction {
     PushExceptionJumpTarget,
     /// Push the last evaluated reference, if any.
     PushReference,
-    /// Call PutValue() with the last reference on the reference stack and the result value.
+    /// Call PutValue() with the last reference on the reference stack and the
+    /// result value.
     PutValue,
     /// Store ResolveBinding() as the result value.
     ResolveBinding,
@@ -103,7 +115,8 @@ pub enum Instruction {
     ToNumber,
     /// Store ToNumeric() as the result value.
     ToNumeric,
-    /// Apply the typeof operation to the evaluated expression and set it as the result value.
+    /// Apply the typeof operation to the evaluated expression and set it as
+    /// the result value.
     Typeof,
     /// Performs steps 3 and 4 from the [UnaryExpression - Runtime Semantics](https://tc39.es/ecma262/#sec-unary-minus-operator-runtime-semantics-evaluation).
     UnaryMinus,
@@ -112,12 +125,11 @@ pub enum Instruction {
 impl Instruction {
     pub fn argument_count(self) -> u8 {
         match self {
-            Self::EvaluateCall
-            | Self::EvaluatePropertyAccessWithIdentifierKey
-            | Self::JumpConditional => 2,
+            Self::EvaluatePropertyAccessWithIdentifierKey | Self::JumpConditional => 2,
             Self::ArraySetLength
             | Self::ArraySetValue
             | Self::CreateCatchBinding
+            | Self::EvaluateCall
             | Self::EvaluateNew
             | Self::EvaluatePropertyAccessWithExpressionKey
             | Self::InstantiateArrowFunctionExpression

@@ -3,32 +3,30 @@ use crate::ecmascript::{
     types::{Function, Object, Value},
 };
 
-/// 6.2.6 The Property Descriptor Specification Type
-/// https://tc39.es/ecma262/#sec-property-descriptor-specification-type
+/// ### [6.2.6 The Property Descriptor Specification Type](https://tc39.es/ecma262/#sec-property-descriptor-specification-type)
 #[derive(Debug, Clone, Default)]
 pub struct PropertyDescriptor {
-    /// [[Value]]
+    /// \[\[Value]]
     pub value: Option<Value>,
 
-    /// [[Writable]]
+    /// \[\[Writable]]
     pub writable: Option<bool>,
 
-    /// [[Get]]
+    /// \[\[Get]]
     pub get: Option<Function>,
 
-    /// [[Set]]
+    /// \[\[Set]]
     pub set: Option<Function>,
 
-    /// [[Enumerable]]
+    /// \[\[Enumerable]]
     pub enumerable: Option<bool>,
 
-    /// [[Configurable]]
+    /// \[\[Configurable]]
     pub configurable: Option<bool>,
 }
 
 impl PropertyDescriptor {
-    /// 6.2.6.1 IsAccessorDescriptor ( Desc )
-    /// https://tc39.es/ecma262/#sec-isaccessordescriptor
+    /// ### [6.2.6.1 IsAccessorDescriptor ( Desc )](https://tc39.es/ecma262/#sec-isaccessordescriptor)
     pub fn is_accessor_descriptor(&self) -> bool {
         // 1. If Desc is undefined, return false.
         match (self.get, self.set) {
@@ -41,8 +39,7 @@ impl PropertyDescriptor {
         }
     }
 
-    /// 6.2.6.2 IsDataDescriptor ( Desc )
-    /// https://tc39.es/ecma262/#sec-isdatadescriptor
+    /// ### [6.2.6.2 IsDataDescriptor ( Desc )](https://tc39.es/ecma262/#sec-isdatadescriptor)
     pub fn is_data_descriptor(&self) -> bool {
         // 1. If Desc is undefined, return false.
         match (self.value, self.writable) {
@@ -55,8 +52,7 @@ impl PropertyDescriptor {
         }
     }
 
-    /// 6.2.6.3 IsGenericDescriptor ( Desc )
-    /// https://tc39.es/ecma262/#sec-isgenericdescriptor
+    /// ### [6.2.6.3 IsGenericDescriptor ( Desc )](https://tc39.es/ecma262/#sec-isgenericdescriptor)
     pub fn is_generic_descriptor(&self) -> bool {
         // 1. If Desc is undefined, return false.
         // 2. If IsAccessorDescriptor(Desc) is true, return false.
@@ -65,8 +61,7 @@ impl PropertyDescriptor {
         !self.is_accessor_descriptor() && !self.is_data_descriptor()
     }
 
-    /// 6.2.6.4 FromPropertyDescriptor ( Desc )
-    /// https://tc39.es/ecma262/#sec-frompropertydescriptor
+    /// ### [6.2.6.4 FromPropertyDescriptor ( Desc )](https://tc39.es/ecma262/#sec-frompropertydescriptor)
     pub fn from_property_descriptor(&self, agent: &mut Agent) -> JsResult<Object> {
         let _realm = agent.current_realm();
 

@@ -20,46 +20,37 @@ use crate::{
 
 use super::{BigInt, Number};
 
-/// 6.1 ECMAScript Language Types
-/// https://tc39.es/ecma262/#sec-ecmascript-language-types
+/// ### [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[repr(u8)]
 pub enum Value {
-    /// 6.1.1 The Undefined Type
-    /// https://tc39.es/ecma262/#sec-ecmascript-language-types-undefined-type
+    /// ### [6.1.1 The Undefined Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-undefined-type)
     #[default]
     Undefined = 1,
 
-    /// 6.1.2 The Null Type
-    /// https://tc39.es/ecma262/#sec-ecmascript-language-types-null-type
+    /// ### [6.1.2 The Null Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-null-type)
     Null,
 
-    /// 6.1.3 The Boolean Type
-    /// https://tc39.es/ecma262/#sec-ecmascript-language-types-boolean-type
+    /// ### [6.1.3 The Boolean Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-boolean-type)
     Boolean(bool),
 
-    /// 6.1.4 The String Type
-    /// https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type
+    /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
     String(StringIndex),
     SmallString(SmallString),
 
-    /// 6.1.5 The Symbol Type
-    /// https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type
+    /// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
     Symbol(SymbolIndex),
 
-    /// 6.1.6.1 The Number Type
-    /// https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type
+    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     Number(NumberIndex),
     Integer(SmallInteger), // 56-bit signed integer.
     Float(f32),
 
-    /// 6.1.6.2 The BigInt Type
-    /// https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type
+    /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     BigInt(BigIntIndex),
     SmallBigInt(SmallInteger),
 
-    /// 6.1.7 The Object Type
-    /// https://tc39.es/ecma262/#sec-object-type
+    /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
     Object(ObjectIndex),
 
     // Well-known object types
@@ -81,9 +72,11 @@ pub enum Value {
     // SymbolObject(u32),
 }
 
-/// We want to guarantee that all handles to JS values are register sized. This assert must never be removed or broken.
+/// We want to guarantee that all handles to JS values are register sized. This
+/// assert must never be removed or broken.
 const _VALUE_SIZE_IS_WORD: () = assert!(size_of::<Value>() == size_of::<usize>());
-// We may also want to keep Option<Value> register sized so that eg. holes in arrays do not start requiring extra bookkeeping.
+/// We may also want to keep Option<Value> register sized so that eg. holes in
+/// arrays do not start requiring extra bookkeeping.
 const _OPTIONAL_VALUE_SIZE_IS_WORD: () = assert!(size_of::<Option<Value>>() == size_of::<usize>());
 
 #[derive(Debug, Clone, Copy)]
@@ -178,6 +171,13 @@ impl Value {
                 | Value::BoundFunction(_)
                 | Value::Error(_)
                 | Value::RegExp(_)
+        )
+    }
+
+    pub fn is_function(self) -> bool {
+        matches!(
+            self,
+            Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_)
         )
     }
 

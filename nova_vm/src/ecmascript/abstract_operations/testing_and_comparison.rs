@@ -2,7 +2,7 @@
 
 use crate::ecmascript::{
     execution::{agent::JsError, Agent, JsResult},
-    types::{bigint::BigInt, Number, Value},
+    types::{bigint::BigInt, InternalMethods, Number, Object, Value},
 };
 
 use super::type_conversion::{string_to_big_int, to_number, to_primitive, PreferredType};
@@ -54,6 +54,17 @@ pub(crate) fn is_callable(argument: Value) -> bool {
     )
 }
 
+/// ### [7.2.5 IsExtensible ( O )](https://tc39.es/ecma262/#sec-isextensible-o)
+///
+/// The abstract operation IsExtensible takes argument O (an Object) and
+/// returns either a normal completion containing a Boolean or a throw
+/// completion. It is used to determine whether additional properties can be
+/// added to O.
+pub(crate) fn is_extensible(agent: &mut Agent, o: Object) -> JsResult<bool> {
+    // 1. Return ? O.[[IsExtensible]]().
+    o.is_extensible(agent)
+}
+
 pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1, y: V2) -> bool {
     (x.into().is_undefined() && y.into().is_undefined())
         || (x.into().is_null() && y.into().is_null())
@@ -91,8 +102,7 @@ pub(crate) fn is_integral_number(agent: &mut Agent, argument: impl Copy + Into<V
     argument.into_value().to_real(agent).unwrap().fract() == 0.0
 }
 
-/// 7.2.10 SameValue ( x, y )
-/// https://tc39.es/ecma262/#sec-samevalue
+/// ### [7.2.10 SameValue ( x, y )](https://tc39.es/ecma262/#sec-samevalue)
 pub(crate) fn same_value<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(
     agent: &mut Agent,
     x: V1,
@@ -146,8 +156,7 @@ pub(crate) fn same_value_zero(
     same_value_non_number(agent, x, y)
 }
 
-/// 7.2.12 SameValueNonNumber ( x, y )
-/// https://tc39.es/ecma262/#sec-samevaluenonnumber
+/// ### [7.2.12 SameValueNonNumber ( x, y )](https://tc39.es/ecma262/#sec-samevaluenonnumber)
 pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(_agent: &mut Agent, x: T, y: T) -> bool {
     let x: Value = x.into();
     let y: Value = y.into();
@@ -183,21 +192,20 @@ pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(_agent: &mut Agent, x
     todo!()
 }
 
-/// [7.2.13 IsLessThan ( x, y, LeftFirst )](https://tc39.es/ecma262/#sec-islessthan)
+/// ### [7.2.13 IsLessThan ( x, y, LeftFirst )](https://tc39.es/ecma262/#sec-islessthan)
 ///
 /// The abstract operation IsLessThan takes arguments x (an ECMAScript language
 /// value), y (an ECMAScript language value), and LeftFirst (a Boolean) and
-/// returns either a normal completion containing either a Boolean or undefined,
-/// or a throw completion. It provides the semantics for the comparison x < y,
-/// returning true, false, or undefined (which indicates that at least one
-/// operand is NaN). The LeftFirst flag is used to control the order in which
-/// operations with potentially visible side-effects are performed upon x and y.
-/// It is necessary because ECMAScript specifies left to right evaluation of
-/// expressions. If LeftFirst is true, the x parameter corresponds to an
-/// expression that occurs to the left of the y parameter's corresponding
-/// expression. If LeftFirst is false, the reverse is the case and operations
-/// must be performed upon y before x. It performs the following steps when
-/// called:
+/// returns either a normal completion containing either a Boolean or
+/// undefined, or a throw completion. It provides the semantics for the
+/// comparison x < y, returning true, false, or undefined (which indicates that
+/// at least one operand is NaN). The LeftFirst flag is used to control the
+/// order in which operations with potentially visible side-effects are
+/// performed upon x and y. It is necessary because ECMAScript specifies left
+/// to right evaluation of expressions. If LeftFirst is true, the x parameter
+/// corresponds to an expression that occurs to the left of the y parameter's
+/// corresponding expression. If LeftFirst is false, the reverse is the case
+/// and operations must be performed upon y before x.
 pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
     agent: &mut Agent,
     x: impl Into<Value> + Copy,
@@ -308,7 +316,7 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
     }
 }
 
-/// [7.2.14 IsLooselyEqual ( x, y )](https://tc39.es/ecma262/#sec-islooselyequal)
+/// ### [7.2.14 IsLooselyEqual ( x, y )](https://tc39.es/ecma262/#sec-islooselyequal)
 ///
 /// The abstract operation IsLooselyEqual takes arguments x (an ECMAScript
 /// language value) and y (an ECMAScript language value) and returns either a
@@ -414,7 +422,7 @@ pub(crate) fn is_loosely_equal(
     Ok(false)
 }
 
-/// [7.2.14 IsStrictlyEqual ( x, y )](https://tc39.es/ecma262/#sec-isstrictlyequal)
+/// ### [7.2.14 IsStrictlyEqual ( x, y )](https://tc39.es/ecma262/#sec-isstrictlyequal)
 ///
 /// The abstract operation IsStrictlyEqual takes arguments x (an ECMAScript
 /// language value) and y (an ECMAScript language value) and returns a Boolean.

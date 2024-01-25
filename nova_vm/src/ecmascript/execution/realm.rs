@@ -48,10 +48,11 @@ impl RealmIdentifier {
 
 /// ### [9.3 Realms](https://tc39.es/ecma262/#sec-code-realms)
 ///
-/// Before it is evaluated, all ECMAScript code must be associated with a realm.
-/// Conceptually, a realm consists of a set of intrinsic objects, an ECMAScript
-/// global environment, all of the ECMAScript code that is loaded within the
-/// scope of that global environment, and other associated state and resources.
+/// Before it is evaluated, all ECMAScript code must be associated with a
+/// realm. Conceptually, a realm consists of a set of intrinsic objects, an
+/// ECMAScript global environment, all of the ECMAScript code that is loaded
+/// within the scope of that global environment, and other associated state and
+/// resources.
 #[derive(Debug)]
 pub struct Realm {
     /// ### \[\[AgentSignifier]]
@@ -169,7 +170,7 @@ pub(crate) fn create_intrinsics() -> Intrinsics {
     Intrinsics::default()
 }
 
-/// 9.3.3 SetRealmGlobalObject ( realmRec, globalObj, thisValue ), https://tc39.es/ecma262/#sec-setrealmglobalobject
+/// ### [9.3.3 SetRealmGlobalObject ( realmRec, globalObj, thisValue )](https://tc39.es/ecma262/#sec-setrealmglobalobject)
 pub fn set_realm_global_object(
     agent: &mut Agent,
     realm_id: RealmIdentifier,
@@ -214,8 +215,8 @@ pub fn set_realm_global_object(
 /// ### [9.3.4 SetDefaultGlobalBindings ( realmRec )](https://tc39.es/ecma262/#sec-setdefaultglobalbindings)
 ///
 /// The abstract operation SetDefaultGlobalBindings takes argument realmRec (a
-/// Realm Record) and returns either a normal completion containing an Object or
-/// a throw completion.
+/// Realm Record) and returns either a normal completion containing an Object
+/// or a throw completion.
 pub(crate) fn set_default_global_bindings(
     agent: &mut Agent,
     realm_id: RealmIdentifier,
@@ -232,14 +233,7 @@ pub(crate) fn set_default_global_bindings(
         // b. Let desc be the fully populated data Property Descriptor for the property, containing the specified attributes for the property. For properties listed in 19.2, 19.3, or 19.4 the value of the [[Value]] attribute is the corresponding intrinsic object from realmRec.
         let global_env = agent.heap.get_realm(realm_id).global_env;
         let desc = PropertyDescriptor {
-            value: Some(
-                agent
-                    .heap
-                    .environments
-                    .get_global_environment(global_env.unwrap())
-                    .global_this_value
-                    .into_value(),
-            ),
+            value: Some(global_env.unwrap().get_this_binding(agent).into_value()),
             ..Default::default()
         };
 
@@ -251,7 +245,7 @@ pub(crate) fn set_default_global_bindings(
     Ok(global)
 }
 
-/// 9.6 InitializeHostDefinedRealm ( ), https://tc39.es/ecma262/#sec-initializehostdefinedrealm
+/// ### [9.6 InitializeHostDefinedRealm ( )](https://tc39.es/ecma262/#sec-initializehostdefinedrealm)
 pub fn initialize_host_defined_realm(
     agent: &mut Agent,
     realm_id: RealmIdentifier,

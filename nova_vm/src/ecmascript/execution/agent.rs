@@ -3,6 +3,8 @@
 //! - This is inspired by and/or copied from Kiesel engine:
 //!   Copyright (c) 2023-2024 Linus Groh
 
+use oxc_span::Atom;
+
 use super::{
     environments::get_identifier_reference, EnvironmentIndex, ExecutionContext, Realm,
     RealmIdentifier,
@@ -36,8 +38,7 @@ pub trait HostHooks: std::fmt::Debug {
     fn host_has_source_text_available(&self, func: Function) -> bool;
 }
 
-/// 9.7 Agents
-/// https://tc39.es/ecma262/#sec-agents
+/// ### [9.7 Agents](https://tc39.es/ecma262/#sec-agents)
 #[derive(Debug)]
 pub struct Agent {
     pub(crate) heap: Heap,
@@ -83,8 +84,7 @@ impl Agent {
         self.heap.get_realm_mut(id)
     }
 
-    /// 5.2.3.2 Throw an Exception
-    /// https://tc39.es/ecma262/#sec-throw-an-exception
+    /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
     pub fn throw_exception(&mut self, kind: ExceptionType, message: &'static str) -> JsError {
         todo!("Uncaught {kind:?}: {message}")
     }
@@ -121,7 +121,7 @@ pub(crate) fn get_active_script_or_module(agent: &mut Agent) -> Option<ScriptOrM
 /// binding.
 pub(crate) fn resolve_binding(
     agent: &mut Agent,
-    name: &str,
+    name: &Atom,
     env: Option<EnvironmentIndex>,
 ) -> JsResult<Reference> {
     let env = env.unwrap_or_else(|| {

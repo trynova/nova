@@ -1,11 +1,11 @@
 use super::{Object, PropertyKey};
 use crate::ecmascript::{
+    builtins::ArgumentsList,
     execution::{Agent, JsResult},
     types::{Function, PropertyDescriptor, Value},
 };
 
-/// 6.1.7.2 Object Internal Methods and Internal Slots
-/// https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots
+/// ### [6.1.7.2 Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots)
 pub trait InternalMethods<T = Object>
 where
     Self: Sized + Clone + Copy + Into<Object>,
@@ -63,7 +63,7 @@ where
         self,
         _agent: &mut Agent,
         _this_value: Value,
-        _arguments_list: &[Value],
+        _arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
         unreachable!()
     }
@@ -72,7 +72,7 @@ where
     fn construct(
         self,
         _agent: &mut Agent,
-        _arguments_list: &[Value],
+        _arguments_list: ArgumentsList,
         _new_target: Function,
     ) -> JsResult<T> {
         unreachable!()

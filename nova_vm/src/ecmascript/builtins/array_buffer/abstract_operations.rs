@@ -103,8 +103,8 @@ pub(crate) fn array_buffer_byte_length(
 
 /// ### [25.1.3.3 IsDetachedBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isdetachedbuffer)
 ///
-/// The abstract operation IsDetachedBuffer takes argument *arrayBuffer* (an ArrayBuffer or a
-/// SharedArrayBuffer) and returns a Boolean.
+/// The abstract operation IsDetachedBuffer takes argument *arrayBuffer* (an
+/// ArrayBuffer or a SharedArrayBuffer) and returns a Boolean.
 pub(crate) fn is_detached_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bool {
     // 1. If arrayBuffer.[[ArrayBufferData]] is null, return true.
     // 2. Return false.
@@ -113,9 +113,9 @@ pub(crate) fn is_detached_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bo
 
 /// ### [25.1.3.4 DetachArrayBuffer ( arrayBuffer \[ , key \] )](https://tc39.es/ecma262/#sec-detacharraybuffer)
 ///
-/// The abstract operation DetachArrayBuffer takes argument *arrayBuffer* (an ArrayBuffer)
-/// and optional argument *key* (anything) and returns either a normal completion
-/// containing UNUSED or a throw completion.
+/// The abstract operation DetachArrayBuffer takes argument *arrayBuffer* (an
+/// ArrayBuffer) and optional argument *key* (anything) and returns either a
+/// normal completion containing UNUSED or a throw completion.
 pub(crate) fn detach_array_buffer(
     array_buffer: ArrayBuffer,
     agent: &mut Agent,
@@ -140,12 +140,12 @@ pub(crate) fn detach_array_buffer(
 
 /// ### [25.1.3.5 CloneArrayBuffer ( srcBuffer, srcByteOffset, srcLength )](https://tc39.es/ecma262/#sec-clonearraybuffer)
 ///
-/// The abstract operation CloneArrayBuffer takes arguments srcBuffer (an ArrayBuffer
-/// or a SharedArrayBuffer), srcByteOffset (a non-negative integer), and srcLength
-/// (a non-negative integer) and returns either a normal completion containing an
-/// ArrayBuffer or a throw completion. It creates a new ArrayBuffer whose data is a
-/// copy of srcBuffer's data over the range starting at srcByteOffset and continuing
-/// for srcLength bytes.
+/// The abstract operation CloneArrayBuffer takes arguments srcBuffer (an
+/// ArrayBuffer or a SharedArrayBuffer), srcByteOffset (a non-negative
+/// integer), and srcLength (a non-negative integer) and returns either a
+/// normal completion containing an ArrayBuffer or a throw completion. It
+/// creates a new ArrayBuffer whose data is a copy of srcBuffer's data over the
+/// range starting at srcByteOffset and continuing for srcLength bytes.
 pub(crate) fn clone_array_buffer(
     agent: &mut Agent,
     src_buffer: ArrayBuffer,
@@ -193,7 +193,10 @@ pub(crate) fn clone_array_buffer(
 
 /// ### [25.1.3.6 GetArrayBufferMaxByteLengthOption ( options )](https://tc39.es/ecma262/#sec-getarraybuffermaxbytelengthoption)
 ///
-/// The abstract operation GetArrayBufferMaxByteLengthOption takes argument options (an ECMAScript language value) and returns either a normal completion containing either a non-negative integer or EMPTY, or a throw completion. It performs the following steps when called:
+/// The abstract operation GetArrayBufferMaxByteLengthOption takes argument
+/// options (an ECMAScript language value) and returns either a normal
+/// completion containing either a non-negative integer or EMPTY, or a throw
+/// completion.
 pub(crate) fn get_array_buffer_max_byte_length_option(
     agent: &mut Agent,
     options: Value,
@@ -233,18 +236,22 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
 
 /// ### [25.1.3.7 HostResizeArrayBuffer ( buffer, newByteLength )](https://tc39.es/ecma262/#sec-hostresizearraybuffer)
 ///
-/// The host-defined abstract operation HostResizeArrayBuffer takes arguments buffer
-/// (an ArrayBuffer) and newByteLength (a non-negative integer) and returns either a
-/// normal completion containing either HANDLED or UNHANDLED, or a throw completion.
-/// It gives the host an opportunity to perform implementation-defined resizing of buffer.
-/// If the host chooses not to handle resizing of buffer,
-/// it may return UNHANDLED for the default behaviour.
+/// The host-defined abstract operation HostResizeArrayBuffer takes arguments
+/// buffer (an ArrayBuffer) and newByteLength (a non-negative integer) and
+/// returns either a normal completion containing either HANDLED or UNHANDLED,
+/// or a throw completion. It gives the host an opportunity to perform
+/// implementation-defined resizing of buffer. If the host chooses not to
+/// handle resizing of buffer, it may return UNHANDLED for the default
+/// behaviour.
 ///
-/// The implementation of HostResizeArrayBuffer must conform to the following requirements:
+/// The implementation of HostResizeArrayBuffer must conform to the following
+/// requirements:
 /// * The abstract operation does not detach buffer.
-/// * If the abstract operation completes normally with HANDLED, buffer.[[ArrayBufferByteLength]] is newByteLength.
+/// * If the abstract operation completes normally with HANDLED,
+/// buffer.[[ArrayBufferByteLength]] is newByteLength.
 ///
-/// The default implementation of HostResizeArrayBuffer is to return NormalCompletion(UNHANDLED).
+/// The default implementation of HostResizeArrayBuffer is to return
+/// NormalCompletion(UNHANDLED).
 pub(crate) fn host_resize_array_buffer(
     buffer: ArrayBuffer,
     agent: &mut Agent,
@@ -471,7 +478,11 @@ pub(crate) fn set_value_in_buffer(
 
 /// ### [25.1.3.18 GetModifySetValueInBuffer ( arrayBuffer, byteIndex, type, value, op )](https://tc39.es/ecma262/#sec-getmodifysetvalueinbuffer)
 ///
-/// The abstract operation GetModifySetValueInBuffer takes arguments arrayBuffer (an ArrayBuffer or a SharedArrayBuffer), byteIndex (a non-negative integer), type (a TypedArray element type), value (a Number or a BigInt), and op (a read-modify-write modification function) and returns a Number or a BigInt. It performs the following steps when called:
+/// The abstract operation GetModifySetValueInBuffer takes arguments
+/// arrayBuffer (an ArrayBuffer or a SharedArrayBuffer), byteIndex (a
+/// non-negative integer), type (a TypedArray element type), value (a Number or
+/// a BigInt), and op (a read-modify-write modification function) and returns a
+/// Number or a BigInt.
 pub(crate) fn get_modify_set_value_in_buffer(
     _array_buffer: ArrayBuffer,
     _byte_index: u32,

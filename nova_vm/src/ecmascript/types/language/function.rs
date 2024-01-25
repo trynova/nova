@@ -8,7 +8,10 @@ use super::{
     InternalMethods, Object, OrdinaryObjectInternalSlots, Value,
 };
 use crate::{
-    ecmascript::execution::{Agent, JsResult},
+    ecmascript::{
+        builtins::ArgumentsList,
+        execution::{Agent, JsResult},
+    },
     heap::{
         indexes::{BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex},
         GetHeapData,
@@ -253,17 +256,22 @@ impl InternalMethods for Function {
 
     fn call(
         self,
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments_list: &[Value],
+        agent: &mut Agent,
+        this_argument: Value,
+        arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        match self {
+            Function::BoundFunction(_idx) => todo!(),
+            Function::BuiltinFunction(_idx) => todo!(),
+            Function::ECMAScriptFunction(idx) => idx.call(agent, this_argument, arguments_list),
+            //Function::ECMAScriptFunction(idx) => agent.heap.get(idx).ecmascript_function.call(agent, self, this_argument, ArgumentsList(arguments_list)),
+        }
     }
 
     fn construct(
         self,
         _agent: &mut Agent,
-        _arguments_list: &[Value],
+        _arguments_list: ArgumentsList,
         _new_target: Function,
     ) -> JsResult<Object> {
         todo!()
