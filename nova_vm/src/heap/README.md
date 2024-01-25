@@ -228,9 +228,9 @@ JavaScript code running inside the engine.
 But this does also mean that we're now in charge of tracking the JavaScript-wise
 ownership of objects ourselves: The borrow checker will not give us a helping
 hand with that. This means that it's possible that we create bugs that from
-JavaScript's point of view are use-after-free or similar memory safety
-related errors. The borrow checker will just make sure that we're not causing
-actual memory corruption with this, even if we do cause heap corruption.
+JavaScript's point of view are use-after-free or similar memory safety related
+errors. The borrow checker will just make sure that we're not causing actual
+memory corruption with this, even if we do cause heap corruption.
 
 That is exactly how we want it to be as well: As said, JavaScript's ownership
 model cannot be represented in a way that would satisfy the Rust borrow checker
@@ -244,8 +244,7 @@ contains and manages that data's lifetime according to its own whims.
 ## Garbage collection
 
 Above I mentioned that our garbage collection is a tracing collection algorithm.
-It's also intended to be a compacting GC. Not that it properly exists or works
-yet.
+It is a compacting GC.
 
 Here're the broad strokes of it:
 
@@ -283,14 +282,14 @@ already-marked elements when it mutates them, and before a sweep is started all
 dirty elements must be re-traced from while the mutator thread is paused (stop
 the world).
 
-The compaction of the heap can also be done in a parallel manner: Every heap
-vector's unmarked slots can be gathered up into a list of compactions
-parallelly. These compaction lists must be combined into a complete whole after
-which each heap vector can then be compacted parallelly.
+The compaction of the heap can be (and is) done in a parallel manner: Every heap
+vector's unmarked slots can be gathered up into a list of compactions in
+parallel. These compaction lists must be combined into a complete whole after
+which each heap vector can then be compacted in parallel again.
 
 The complicated part is making sure that concurrent tracing of the heap is
 actually safe. Rust will help us making sure of this but there are things that
 need to be done manually as well. The most important thing is the heap vectors:
 At any time the mutator thread can end up needing to grow a vector which means a
 reallocation. This can be done safely with an RCU synchronization mechanism but
-does mean that it needs to be done.
+that does mean that it needs to be done.
