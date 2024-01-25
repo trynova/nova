@@ -302,7 +302,7 @@ pub(crate) fn global_declaration_instantiation(
     // 8. For each element d of varDeclarations, in reverse List order, do
     for d in var_declarations.iter().rev() {
         // a. If d is not either a VariableDeclaration, a ForBinding, or a BindingIdentifier, then
-        if let VarScopedDeclaration::FunctionDeclaration(d) = *d {
+        if let VarScopedDeclaration::Function(d) = *d {
             // i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an AsyncGeneratorDeclaration.
             // ii. NOTE: If there are multiple function declarations for the same name, the last declaration is used.
             // iii. Let fn be the sole element of the BoundNames of d.
@@ -336,7 +336,7 @@ pub(crate) fn global_declaration_instantiation(
     // 10. For each element d of varDeclarations, do
     for d in var_declarations {
         // a. If d is either a VariableDeclaration, a ForBinding, or a BindingIdentifier, then
-        if let VarScopedDeclaration::VariableDeclaration(d) = d {
+        if let VarScopedDeclaration::Variable(d) = d {
             // i. For each String vn of the BoundNames of d, do
             let mut bound_names = vec![];
             d.id.bound_names(&mut |identifier| {

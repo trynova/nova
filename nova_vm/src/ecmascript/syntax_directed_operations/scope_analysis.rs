@@ -734,8 +734,8 @@ pub(crate) fn module_var_scoped_declarations<'a>(
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum VarScopedDeclaration<'a> {
-    VariableDeclaration(&'a VariableDeclarator<'a>),
-    FunctionDeclaration(&'a Function<'a>),
+    Variable(&'a VariableDeclarator<'a>),
+    Function(&'a Function<'a>),
 }
 
 impl<'a> VarScopedDeclarations<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
@@ -940,7 +940,7 @@ impl<'a> VarScopedDeclarations<'a> for VariableDeclaration<'a> {
         // 1. Let declarations1 be VarScopedDeclarations of VariableDeclarationList.
         // 2. Return the list-concatenation of declarations1 and « VariableDeclaration ».
         for declarator in &self.declarations {
-            f(VarScopedDeclaration::VariableDeclaration(declarator));
+            f(VarScopedDeclaration::Variable(declarator));
         }
     }
 }
@@ -1139,7 +1139,7 @@ impl<'a> TopLevelVarScopedDeclarations<'a> for Statement<'a> {
                     Declaration::FunctionDeclaration(decl) => {
                         // a. Let declaration be DeclarationPart of HoistableDeclaration.
                         // b. Return « declaration ».
-                        f(VarScopedDeclaration::FunctionDeclaration(decl));
+                        f(VarScopedDeclaration::Function(decl));
                     }
                     _ => {
                         // 2. Return a new empty List.
@@ -1183,7 +1183,7 @@ impl<'a> TopLevelVarScopedDeclarations<'a> for LabeledStatement<'a> {
         } else if let Statement::Declaration(Declaration::FunctionDeclaration(decl)) = &self.body {
             // LabelledItem : FunctionDeclaration
             // 1. Return « FunctionDeclaration ».
-            f(VarScopedDeclaration::FunctionDeclaration(decl));
+            f(VarScopedDeclaration::Function(decl));
         }
         // 2. Return VarScopedDeclarations of Statement.
         self.body.var_scoped_declarations(f);
