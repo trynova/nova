@@ -290,17 +290,9 @@ impl DataBlock {
             to_block.ptr.is_none()
                 || from_block.ptr.is_none()
                 || unsafe {
-                    to_block
-                        .ptr
-                        .unwrap()
-                        .as_ptr()
-                        .add(to_block.capacity())
+                    to_block.ptr.unwrap().as_ptr().add(to_block.capacity())
                         <= from_block.ptr.unwrap().as_ptr()
-                        || from_block
-                            .ptr
-                            .unwrap()
-                            .as_ptr()
-                            .add(from_block.capacity())
+                        || from_block.ptr.unwrap().as_ptr().add(from_block.capacity())
                             <= to_block.ptr.unwrap().as_ptr()
                 }
         );
