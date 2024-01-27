@@ -108,8 +108,8 @@ though:
 1. V8's garbage collection is based on a tracing mark-and-sweep algorithm.
 
 Then Boa: Boa uses a modified version of the [gc](https://crates.io/crates/gc)
-crate which is built around reference counting and created using basic Rust
-structs. Thus it follows that:
+crate, which is a tracing garbage collector based on a `Trace`, trait and
+created using basic Rust structs. Thus it follows that:
 
 1. The Boa heap is not located in a defined area. Each heap object is allocated
    separately according to the whims of the allocator. I believe Boa does use
@@ -119,7 +119,6 @@ structs. Thus it follows that:
    and/or static vtable references to implement most if not all of their inner
    workings.
 1. Objects refer to other objects using pointers.
-1. Boa's garbage collection is reference counting.
 
 ### Advantages and disadvantages of Boa
 
@@ -137,7 +136,6 @@ Disadvantages are also of course present.
 1. Any `dyn Trait` accessing and vtable usage incurs an indirection that the CPU
    has to spend time resolving.
 1. All intra-heap references are 8 bytes in size.
-1. Reference counting cannot collect cycles.
 
 ### Advantages and disadvantages of V8
 
@@ -158,8 +156,8 @@ Still, V8 does have some disadvantages as well.
    general case.
 1. Since each object is prepared to accept properties, it means that the object
    struct size is relatively large for what it's doing. A single `Uint8Array` is
-   72 bytes in size, when its most important usage is being a boxed slice of up
-   to 2^32 elements: That can be done in 16 bytes with padding.
+   72 bytes in size, when its most important usage is being a (potentially
+   resizable) vector of up to 2^53 elements: That can be done in 24 bytes.
 
 ### Advantages and disadvantages of Nova
 
@@ -183,7 +181,7 @@ There are disadvantages as well.
    always take an extra pointer indirection, or all objects carry inline
    properties even if they're not used. This is may be somewhat offset by key
    checks requiring object shape access by pointer anyhow and the two reads are
-   not 100% dependent on one another (conditional on the number of elements).
+   not 100% dependent of one another (conditional on the number of elements).
 1. Heap vectors need reallocation when growing. This may prove to be such a
    performance demerit that it requires changing from heap vectors into vectors
    of heap chunks, trading reallocation need for worse cache locality.
@@ -206,8 +204,8 @@ Rust's ownership model. When a JavaScript object contains another object, we
 cannot represent that as a Rust borrow such as `struct A { key: &'b B }`.
 
 From Rust's point of view the most direct way to represent these contains
-relations would be something like `Rc<RefCell<A>>`. This is then similar to the
-`gc` crate that Boa uses.
+relations would be something like `Rc<RefCell<A>>`. This is then (superficially)
+similar to the `gc` crate that Boa uses.
 
 We do not want to do reference counting, so that way is barred to us. But we
 cannot do references either, the borrow checker will not allow such a thing. So
@@ -230,9 +228,9 @@ JavaScript code running inside the engine.
 But this does also mean that we're now in charge of tracking the JavaScript-wise
 ownership of objects ourselves: The borrow checker will not give us a helping
 hand with that. This means that it's possible that we create bugs that from
-JavaScript's point of view sense are use-after-free or similar memory safety
-related errors. The borrow checker will just make sure that we're not causing
-actual memory corruption with this, even if we do cause heap corruption.
+JavaScript's point of view are use-after-free or similar memory safety related
+errors. The borrow checker will just make sure that we're not causing actual
+memory corruption with this, even if we do cause heap corruption.
 
 That is exactly how we want it to be as well: As said, JavaScript's ownership
 model cannot be represented in a way that would satisfy the Rust borrow checker
@@ -246,8 +244,7 @@ contains and manages that data's lifetime according to its own whims.
 ## Garbage collection
 
 Above I mentioned that our garbage collection is a tracing collection algorithm.
-It's also intended to be a compacting GC. Not that it properly exists or works
-yet.
+It is a compacting GC.
 
 Here're the broad strokes of it:
 
@@ -285,14 +282,14 @@ already-marked elements when it mutates them, and before a sweep is started all
 dirty elements must be re-traced from while the mutator thread is paused (stop
 the world).
 
-The compaction of the heap can also be done in a parallel manner: Every heap
-vector's unmarked slots can be gathered up into a list of compactions
-parallelly. These compaction lists must be combined into a complete whole after
-which each heap vector can then be compacted parallelly.
+The compaction of the heap can be (and is) done in a parallel manner: Every heap
+vector's unmarked slots can be gathered up into a list of compactions in
+parallel. These compaction lists must be combined into a complete whole after
+which each heap vector can then be compacted in parallel again.
 
 The complicated part is making sure that concurrent tracing of the heap is
 actually safe. Rust will help us making sure of this but there are things that
 need to be done manually as well. The most important thing is the heap vectors:
 At any time the mutator thread can end up needing to grow a vector which means a
 reallocation. This can be done safely with an RCU synchronization mechanism but
-does mean that it needs to be done.
+that does mean that it needs to be done.
