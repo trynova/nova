@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ArgumentsList<'a>(pub &'a [Value]);
+pub struct ArgumentsList<'a>(pub(crate) &'a [Value]);
 
 impl<'a> Deref for ArgumentsList<'a> {
     type Target = &'a [Value];
