@@ -191,7 +191,7 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
 
     // 13. If result.[[Type]] is normal, then
     let result: JsResult<Value> = if result.is_ok() {
-        let exe = Executable::compile(agent, script);
+        let exe = Executable::compile_script(agent, script);
         // a. Set result to Completion(Evaluation of script).
         let result = Vm::execute(agent, &exe);
         // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
@@ -438,7 +438,7 @@ mod test {
             agent::Options, create_realm, set_realm_global_object, Agent, DefaultHostHooks,
         },
         scripts_and_modules::script::{parse_script, script_evaluation},
-        types::{InternalMethods, Object, PropertyKey, Value},
+        types::{InternalMethods, Number, Object, PropertyKey, Value},
     };
     use oxc_allocator::Allocator;
 
@@ -677,5 +677,24 @@ mod test {
         .unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
+    }
+
+    #[test]
+    fn non_empty_iife_function_call() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(
+            &allocator,
+            "(function() { return 3 })()".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Number::from(3).into_value());
     }
 }

@@ -8,7 +8,7 @@ use crate::{
     },
     heap::CreateHeapData,
 };
-use oxc_ast::ast::{self, CallExpression, Statement};
+use oxc_ast::ast::{self, CallExpression, FunctionBody, Statement};
 use oxc_span::Atom;
 use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 
@@ -40,15 +40,7 @@ pub(crate) struct Executable {
 }
 
 impl Executable {
-    pub(crate) fn compile(agent: &mut Agent, script: ScriptIdentifier) -> Executable {
-        let exe = Executable {
-            instructions: Vec::new(),
-            constants: Vec::new(),
-            identifiers: Vec::new(),
-            references: Vec::new(),
-            function_expressions: Vec::new(),
-        };
-
+    pub(crate) fn compile_script(agent: &mut Agent, script: ScriptIdentifier) -> Executable {
         // SAFETY: Script uniquely owns the Program and the body buffer does
         // not move under any circumstances during heap operations.
         let body: &[Statement] = unsafe {
@@ -62,22 +54,42 @@ impl Executable {
             )
         };
 
-        let mut ctx = CompileContext { agent, exe };
+        Self::_compile_statements(agent, body)
+    }
 
-        let iter = if !body.is_empty() {
-            body[..body.len() - 1].iter()
-        } else {
-            body.iter()
+    pub(crate) fn compile_function_body(agent: &mut Agent, body: &FunctionBody<'_>) -> Executable {
+        // SAFETY: Script referred by the Function uniquely owns the Program
+        // and the body buffer does not move under any circumstances during
+        // heap operations.
+        let body: &[Statement] = unsafe { std::mem::transmute(body.statements.as_slice()) };
+
+        Self::_compile_statements(agent, body)
+    }
+
+    fn _compile_statements(agent: &mut Agent, body: &[Statement]) -> Executable {
+        let mut ctx = CompileContext {
+            agent,
+            exe: Executable {
+                instructions: Vec::new(),
+                constants: Vec::new(),
+                identifiers: Vec::new(),
+                references: Vec::new(),
+                function_expressions: Vec::new(),
+            },
         };
+
+        let iter = body.iter();
 
         for stmt in iter {
             stmt.compile(&mut ctx);
         }
 
-        // TODO: Remove this and find another way to test.
-        if let Some(last) = body.last() {
-            last.compile(&mut ctx);
+        if ctx.exe.instructions.last()
+            != Some(&unsafe { std::mem::transmute::<Instruction, u8>(Instruction::Return) })
+        {
+            // If code did not end with a return statement, add it manually
             ctx.exe.add_instruction(Instruction::Return);
+            return ctx.exe;
         }
 
         ctx.exe
@@ -546,7 +558,6 @@ impl CompileEvaluation for ast::ReturnStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         if let Some(expr) = &self.argument {
             expr.compile(ctx);
-            ctx.exe.add_instruction(Instruction::Store);
         } else {
             ctx.exe
                 .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);

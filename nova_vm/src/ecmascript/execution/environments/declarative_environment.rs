@@ -346,3 +346,22 @@ impl DeclarativeEnvironmentIndex {
         None
     }
 }
+
+/// ### [9.1.2.2 NewDeclarativeEnvironment ( E )](https://tc39.es/ecma262/#sec-newdeclarativeenvironment)
+///
+/// The abstract operation NewDeclarativeEnvironment takes argument E (an
+/// Environment Record or null) and returns a Declarative Environment
+/// Record.
+pub(crate) fn new_declarative_environment(
+    agent: &mut Agent,
+    outer_env: OuterEnv,
+) -> DeclarativeEnvironmentIndex {
+    // 1. Let env be a new Declarative Environment Record containing no bindings.
+    // 2. Set env.[[OuterEnv]] to E.
+    agent
+        .heap
+        .environments
+        .push_declarative_environment(DeclarativeEnvironment::new(outer_env));
+    // 3. Return env.
+    DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative)
+}

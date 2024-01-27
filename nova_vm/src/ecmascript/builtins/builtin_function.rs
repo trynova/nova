@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, RealmIdentifier},
@@ -8,6 +10,14 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ArgumentsList<'a>(pub &'a [Value]);
+
+impl<'a> Deref for ArgumentsList<'a> {
+    type Target = &'a [Value];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl ArgumentsList<'_> {
     #[inline]

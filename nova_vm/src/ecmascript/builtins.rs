@@ -4,6 +4,7 @@
 //!
 //! https://tc39.es/ecma262/#sec-ordinary-and-exotic-objects-behaviours
 
+pub(crate) mod arguments;
 mod array;
 mod array_buffer;
 mod builtin_function;
@@ -11,6 +12,7 @@ mod ecmascript_function;
 mod number;
 pub mod ordinary;
 
+pub(crate) use arguments::*;
 pub(crate) use array::ArrayHeapData;
 pub use array::{Array, ArrayConstructor};
 pub use array_buffer::ArrayBuffer;
