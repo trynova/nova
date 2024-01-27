@@ -29,7 +29,7 @@ pub(crate) struct DataBlock {
 impl Drop for DataBlock {
     fn drop(&mut self) {
         if let Some(ptr) = self.ptr {
-            let layout = Layout::from_size_align(self.cap as usize, 8).unwrap();
+            let layout = Layout::from_size_align(self.cap, 8).unwrap();
             unsafe { dealloc(ptr.as_ptr(), layout) }
         }
     }
@@ -67,7 +67,7 @@ impl DataBlock {
         let ptr = if len == 0 {
             None
         } else {
-            let layout = Layout::from_size_align(len as usize, 8).unwrap();
+            let layout = Layout::from_size_align(len, 8).unwrap();
             // SAFETY: Size of allocation is non-zero.
             let data = unsafe { alloc_zeroed(layout) };
             if data.is_null() {
@@ -89,7 +89,7 @@ impl DataBlock {
         let ptr = if cap == 0 {
             None
         } else {
-            let layout = Layout::from_size_align(cap as usize, 8).unwrap();
+            let layout = Layout::from_size_align(cap, 8).unwrap();
             // SAFETY: Size of allocation is non-zero.
             let data = unsafe { alloc_zeroed(layout) };
             if data.is_null() {
@@ -122,7 +122,7 @@ impl DataBlock {
             if let Some(data) = self.ptr {
                 // SAFETY: The data is properly initialized, and the T being written is
                 // checked to be fully within the length of the data allocation.
-                unsafe { write_bytes(data.as_ptr().add(size as usize), 0, len - size) }
+                unsafe { write_bytes(data.as_ptr().add(size), 0, len - size) }
             }
         }
     }
@@ -139,7 +139,7 @@ impl DataBlock {
             self.ptr.map(|data| {
                 // SAFETY: The data is properly initialized, and the T being read is
                 // checked to be fully within the length of the data allocation.
-                unsafe { data.as_ptr().add(byte_offset as usize) as *const _ }
+                unsafe { data.as_ptr().add(byte_offset) as *const _ }
             })
         }
     }
@@ -151,7 +151,7 @@ impl DataBlock {
             self.ptr.map(|data| {
                 // SAFETY: The data is properly initialized, and the T being read is
                 // checked to be fully within the length of the data allocation.
-                unsafe { data.as_ptr().add(byte_offset as usize) }
+                unsafe { data.as_ptr().add(byte_offset) }
             })
         }
     }
@@ -165,7 +165,7 @@ impl DataBlock {
             self.ptr.map(|data| {
                 // SAFETY: The data is properly initialized, and the T being read is
                 // checked to be fully within the length of the data allocation.
-                unsafe { read_unaligned(data.as_ptr().add(offset as usize).cast()) }
+                unsafe { read_unaligned(data.as_ptr().add(offset).cast()) }
             })
         }
     }
@@ -177,7 +177,7 @@ impl DataBlock {
             if byte_offset <= self.byte_length {
                 // SAFETY: The data is properly initialized, and the T being written is
                 // checked to be fully within the length of the data allocation.
-                unsafe { write_unaligned(data.as_ptr().add(offset as usize).cast(), value) }
+                unsafe { write_unaligned(data.as_ptr().add(offset).cast(), value) }
             }
         }
     }
@@ -204,7 +204,7 @@ impl DataBlock {
             // SAFETY: Source buffer length is valid, destination buffer
             // is likewise at least equal in length to source, and both
             // are properly aligned for bytes.
-            unsafe { dst.copy_from_nonoverlapping(src, byte_length as usize) }
+            unsafe { dst.copy_from_nonoverlapping(src, byte_length) }
         }
     }
 
@@ -220,10 +220,10 @@ impl DataBlock {
         debug_assert!(src_byte_offset + byte_length <= self.byte_length);
         if let Some(ptr) = self.as_mut_ptr(0) {
             // SAFETY: Buffer is valid for reads and writes of u8 for the whole length.
-            let slice = unsafe { std::slice::from_raw_parts_mut(ptr, self.byte_length as usize) };
+            let slice = unsafe { std::slice::from_raw_parts_mut(ptr, self.byte_length) };
             slice.copy_within(
-                (src_byte_offset as usize)..(src_byte_offset + byte_length) as usize,
-                dst_byte_offset as usize,
+                src_byte_offset..(src_byte_offset + byte_length),
+                dst_byte_offset,
             );
         }
     }
@@ -294,13 +294,13 @@ impl DataBlock {
                         .ptr
                         .unwrap()
                         .as_ptr()
-                        .add(to_block.capacity() as usize)
+                        .add(to_block.capacity())
                         <= from_block.ptr.unwrap().as_ptr()
                         || from_block
                             .ptr
                             .unwrap()
                             .as_ptr()
-                            .add(from_block.capacity() as usize)
+                            .add(from_block.capacity())
                             <= to_block.ptr.unwrap().as_ptr()
                 }
         );
@@ -342,7 +342,7 @@ impl DataBlock {
             return;
         };
         // SAFETY: Pointers have been checked to not overlap.
-        unsafe { to_ptr.copy_from_nonoverlapping(from_ptr, count as usize) };
+        unsafe { to_ptr.copy_from_nonoverlapping(from_ptr, count) };
         // 7. Return UNUSED.
     }
 }
@@ -358,7 +358,7 @@ fn new_data_block() {
     assert_eq!(db.len(), 8);
     assert_eq!(db.capacity(), 8);
     for i in 0..8 {
-        assert_eq!(db.get::<u8>(i as usize), Some(0));
+        assert_eq!(db.get::<u8>(i), Some(0));
     }
 }
 
@@ -368,17 +368,17 @@ fn new_data_block_with_capacity() {
     assert_eq!(db.len(), 0);
     assert_eq!(db.capacity(), 8);
     for i in 0..8 {
-        assert_eq!(db.get::<u8>(i as usize), None);
+        assert_eq!(db.get::<u8>(i), None);
     }
 
     let db = DataBlock::new_with_capacity(8, 16);
     assert_eq!(db.len(), 8);
     assert_eq!(db.capacity(), 16);
     for i in 0..8 {
-        assert_eq!(db.get::<u8>(i as usize), Some(0));
+        assert_eq!(db.get::<u8>(i), Some(0));
     }
     for i in 8..16 {
-        assert_eq!(db.get::<u8>(i as usize), None);
+        assert_eq!(db.get::<u8>(i), None);
     }
 }
 
@@ -388,7 +388,7 @@ fn data_block_set() {
     assert_eq!(db.len(), 8);
     assert_eq!(db.capacity(), 8);
     for i in 0..8 {
-        assert_eq!(db.get::<u8>(i as usize), Some(0));
+        assert_eq!(db.get::<u8>(i), Some(0));
     }
 
     for i in 0..8 {
