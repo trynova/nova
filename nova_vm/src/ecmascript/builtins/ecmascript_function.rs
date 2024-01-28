@@ -29,8 +29,8 @@ use crate::{
             },
         },
         types::{
-            ECMAScriptFunctionHeapData, Function, Object, PropertyDescriptor, PropertyKey, String,
-            Value,
+            ECMAScriptFunctionHeapData, Function, IntoFunction, IntoObject, IntoValue, Object,
+            PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     heap::{indexes::ECMAScriptFunctionIndex, CreateHeapData, GetHeapData},
@@ -40,6 +40,24 @@ use super::{
     create_unmapped_arguments_object, ordinary::ordinary_object_create_with_intrinsics,
     ArgumentsList,
 };
+
+impl IntoValue for ECMAScriptFunctionIndex {
+    fn into_value(self) -> Value {
+        Value::ECMAScriptFunction(self)
+    }
+}
+
+impl IntoObject for ECMAScriptFunctionIndex {
+    fn into_object(self) -> Object {
+        Object::ECMAScriptFunction(self)
+    }
+}
+
+impl IntoFunction for ECMAScriptFunctionIndex {
+    fn into_function(self) -> Function {
+        Function::ECMAScriptFunction(self)
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum ConstructorKind {

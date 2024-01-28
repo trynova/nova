@@ -2,7 +2,7 @@ use super::indexes::ObjectIndex;
 use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
-        execution::{Agent, JsResult},
+        execution::{Agent, JsResult, RealmIdentifier},
         types::{Object, PropertyKey, Value},
     },
     heap::{
@@ -36,6 +36,7 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
             initial_name: None,
             behaviour: Behaviour::Constructor(constructor_binding),
             name: None,
+            realm: RealmIdentifier::from_index(0),
         });
     let entries = vec![
         ObjectEntry::new(

@@ -6,7 +6,7 @@ use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::is_integral_number,
         execution::{Agent, JsResult},
-        types::{Number, Object, PropertyDescriptor, Value},
+        types::{IntoObject, Number, Object, PropertyDescriptor, Value},
     },
     heap::CreateHeapData,
     SmallInteger,

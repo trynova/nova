@@ -69,6 +69,12 @@ pub(crate) struct ExecutionContext {
     pub script_or_module: Option<ScriptOrModule>,
 }
 
+impl ExecutionContext {
+    pub(crate) fn suspend(&self) {
+        // TODO: What does this actually mean in the end?
+    }
+}
+
 /// ### [9.4.6 GetGlobalObject ( )](https://tc39.es/ecma262/#sec-getglobalobject)
 ///
 /// The abstract operation GetGlobalObject takes no arguments and returns an

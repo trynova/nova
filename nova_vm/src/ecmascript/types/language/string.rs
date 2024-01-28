@@ -1,6 +1,6 @@
 mod data;
 
-use super::Value;
+use super::{IntoValue, Value};
 use crate::{
     ecmascript::execution::Agent,
     heap::{indexes::StringIndex, CreateHeapData, GetHeapData},
@@ -15,6 +15,21 @@ pub use data::StringHeapData;
 pub enum String {
     String(StringIndex),
     SmallString(SmallString),
+}
+
+impl IntoValue for StringIndex {
+    fn into_value(self) -> Value {
+        Value::String(self)
+    }
+}
+
+impl IntoValue for String {
+    fn into_value(self) -> Value {
+        match self {
+            String::String(idx) => Value::String(idx),
+            String::SmallString(data) => Value::SmallString(data),
+        }
+    }
 }
 
 impl From<StringIndex> for String {

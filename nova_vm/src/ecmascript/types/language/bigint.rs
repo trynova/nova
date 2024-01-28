@@ -2,7 +2,7 @@ mod data;
 
 use super::{
     value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT},
-    Value,
+    IntoValue, Value,
 };
 use crate::{
     ecmascript::execution::{agent::ExceptionType, Agent, JsResult},
@@ -11,6 +11,21 @@ use crate::{
 };
 
 pub use data::BigIntHeapData;
+
+impl IntoValue for BigIntIndex {
+    fn into_value(self) -> Value {
+        Value::BigInt(self)
+    }
+}
+
+impl IntoValue for BigInt {
+    fn into_value(self) -> Value {
+        match self {
+            BigInt::BigInt(idx) => Value::BigInt(idx),
+            BigInt::SmallBigInt(data) => Value::SmallBigInt(data),
+        }
+    }
+}
 
 /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
 ///

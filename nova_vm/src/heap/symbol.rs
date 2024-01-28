@@ -2,7 +2,7 @@ use super::{indexes::BuiltinFunctionIndex, object::ObjectEntry, CreateHeapData};
 use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
-        execution::{Agent, JsResult},
+        execution::{Agent, JsResult, RealmIdentifier},
         types::{Object, PropertyKey, String, Value},
     },
     heap::{
@@ -148,6 +148,7 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
             initial_name: None,
             behaviour: Behaviour::Constructor(constructor_binding),
             name: None,
+            realm: RealmIdentifier::from_index(0),
         });
     let entries = vec![
         ObjectEntry::new(

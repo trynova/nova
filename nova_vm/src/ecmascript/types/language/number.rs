@@ -2,7 +2,7 @@ mod data;
 
 use super::{
     value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
-    Value,
+    IntoValue, Value,
 };
 use crate::{
     ecmascript::execution::{Agent, JsResult},
@@ -20,6 +20,22 @@ pub enum Number {
     // 56-bit signed integer.
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     Float(f32) = FLOAT_DISCRIMINANT,
+}
+
+impl IntoValue for NumberIndex {
+    fn into_value(self) -> Value {
+        Value::Number(self)
+    }
+}
+
+impl IntoValue for Number {
+    fn into_value(self) -> Value {
+        match self {
+            Number::Number(idx) => Value::Number(idx),
+            Number::Integer(data) => Value::Integer(data),
+            Number::Float(data) => Value::Float(data),
+        }
+    }
 }
 
 impl std::fmt::Debug for Number {

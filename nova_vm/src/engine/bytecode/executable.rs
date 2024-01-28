@@ -1,4 +1,4 @@
-use super::Instruction;
+use super::{Instruction};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_property_key,
@@ -510,6 +510,7 @@ impl CompileEvaluation for CallExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         self.callee.compile(ctx);
         ctx.exe.add_instruction(Instruction::GetValue);
+        ctx.exe.add_instruction(Instruction::Load);
         for ele in &self.arguments {
             match ele {
                 ast::Argument::SpreadElement(_) => {

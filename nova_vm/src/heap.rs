@@ -456,6 +456,7 @@ impl Heap {
             initial_name: None,
             behaviour: Behaviour::Regular(fn_todo),
             name: None,
+            realm: RealmIdentifier::from_index(0),
         };
         let index = BuiltinFunctionIndex::from_index(self.builtin_functions.len());
         self.builtin_functions.push(Some(func_data));

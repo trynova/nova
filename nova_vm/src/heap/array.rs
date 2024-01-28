@@ -2,7 +2,7 @@ use super::{heap_constants::WellKnownSymbolIndexes, object::ObjectEntry};
 use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
-        execution::{Agent, JsResult},
+        execution::{Agent, JsResult, RealmIdentifier},
         types::{BuiltinFunctionHeapData, Object, PropertyKey, Value},
     },
     heap::{
@@ -62,6 +62,7 @@ pub fn initialize_array_heap(heap: &mut Heap) {
             initial_name: None,
             behaviour: Behaviour::Constructor(constructor_binding),
             name: None,
+            realm: RealmIdentifier::from_index(0),
         });
     let entries = vec![
         ObjectEntry::new_prototype_function_entry(heap, "at", 1, false),

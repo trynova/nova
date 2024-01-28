@@ -13,7 +13,7 @@ use crate::{
                 LexicallyScopedDeclaration, VarScopedDeclaration,
             },
         },
-        types::Value,
+        types::{IntoValue, Value},
     },
     engine::{Executable, Vm},
 };
@@ -434,11 +434,14 @@ pub(crate) fn global_declaration_instantiation(
 #[cfg(test)]
 mod test {
     use crate::ecmascript::{
+        abstract_operations::operations_on_objects::create_data_property_or_throw,
+        builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
         execution::{
             agent::Options, create_realm, set_realm_global_object, Agent, DefaultHostHooks,
+            ExecutionContext,
         },
         scripts_and_modules::script::{parse_script, script_evaluation},
-        types::{InternalMethods, Number, Object, PropertyKey, Value},
+        types::{InternalMethods, IntoValue, Number, Object, PropertyKey, Value},
     };
     use oxc_allocator::Allocator;
 
@@ -696,5 +699,55 @@ mod test {
         .unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Number::from(3).into_value());
+    }
+
+    #[test]
+    fn builtin_function_call() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+        let global = agent.heap.get_realm(realm).global_object;
+
+        agent.execution_context_stack.push(ExecutionContext {
+            ecmascript_code: None,
+            function: None,
+            realm,
+            script_or_module: None,
+        });
+
+        let key = PropertyKey::from_str(&mut agent.heap, "test");
+        let func = create_builtin_function(
+            &mut agent,
+            Behaviour::Regular(|_: &mut Agent, _: Value, arguments_list: ArgumentsList| {
+                let arg_0 = arguments_list.get(0);
+                if Value::Boolean(true) == arg_0 {
+                    Ok(Value::from(3))
+                } else {
+                    Ok(Value::Null)
+                }
+            }),
+            BuiltinFunctionArgs {
+                length: 1,
+                name: "test",
+                realm: Some(realm),
+                prototype: None,
+                prefix: None,
+            },
+        );
+        create_data_property_or_throw(&mut agent, global, key, func.into_value()).unwrap();
+
+        let script = parse_script(&allocator, "test(true)".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from(3));
+
+        let script = parse_script(&allocator, "test()".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Null);
+
+        let script = parse_script(&allocator, "test({})".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Null);
     }
 }

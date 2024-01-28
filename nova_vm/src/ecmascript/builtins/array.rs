@@ -11,15 +11,42 @@ use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::same_value_non_number,
         execution::{Agent, JsResult},
-        types::{InternalMethods, Object, OrdinaryObject, OrdinaryObjectInternalSlots, Value},
+        types::{
+            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
+            OrdinaryObjectInternalSlots, Value,
+        },
     },
     heap::{indexes::ArrayIndex, GetHeapData},
 };
+
+impl IntoValue for ArrayIndex {
+    fn into_value(self) -> Value {
+        Value::Array(self)
+    }
+}
+
+impl IntoObject for ArrayIndex {
+    fn into_object(self) -> Object {
+        Object::Array(self)
+    }
+}
 
 pub use data::ArrayHeapData;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Array(ArrayIndex);
+
+impl IntoValue for Array {
+    fn into_value(self) -> Value {
+        Value::Array(self.0)
+    }
+}
+
+impl IntoObject for Array {
+    fn into_object(self) -> Object {
+        Object::Array(self.0)
+    }
+}
 
 impl From<ArrayIndex> for Array {
     fn from(value: ArrayIndex) -> Self {
