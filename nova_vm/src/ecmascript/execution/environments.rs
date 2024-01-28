@@ -28,7 +28,7 @@ mod global_environment;
 mod object_environment;
 mod private_environment;
 
-pub(crate) use declarative_environment::DeclarativeEnvironment;
+pub(crate) use declarative_environment::{new_declarative_environment, DeclarativeEnvironment};
 pub(crate) use function_environment::{
     new_function_environment, FunctionEnvironment, ThisBindingStatus,
 };
@@ -107,7 +107,7 @@ create_environment_index!(PrivateEnvironment, PrivateEnvironmentIndex);
 /// Environment Record, and Global Environment Record. Function Environment
 /// Records and Module Environment Records are subclasses of Declarative
 /// Environment Record.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub(crate) enum EnvironmentIndex {
     // Leave 0 for None option

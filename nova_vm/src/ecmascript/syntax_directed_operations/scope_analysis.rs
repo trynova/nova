@@ -17,7 +17,7 @@ pub(crate) trait LexicallyDeclaredNames<'a> {
 }
 
 pub(crate) fn script_lexically_declared_names(script: &Program<'_>) -> Vec<Atom> {
-    let mut lexically_declared_names = Vec::new();
+    let mut lexically_declared_names = vec![];
     // Script : [empty]
     // 1. Return a new empty List.
     // ScriptBody : StatementList
@@ -33,7 +33,7 @@ pub(crate) fn script_lexically_declared_names(script: &Program<'_>) -> Vec<Atom>
 }
 
 pub(crate) fn module_lexically_declared_names(script: &Program<'_>) -> Vec<Atom> {
-    let mut lexically_declared_names = Vec::new();
+    let mut lexically_declared_names = vec![];
     // NOTE 2
     // The LexicallyDeclaredNames of a Module includes the names of all of its imported bindings.
 
@@ -52,14 +52,23 @@ pub(crate) fn module_lexically_declared_names(script: &Program<'_>) -> Vec<Atom>
     lexically_declared_names
 }
 
-// FunctionStatementList : [empty]
-// 1. Return a new empty List.
-// FunctionStatementList : StatementList
-// 1. Return TopLevelLexicallyDeclaredNames of StatementList.
-// ClassStaticBlockStatementList : [empty]
-// 1. Return a new empty List.
-// ClassStaticBlockStatementList : StatementList
-// 1. Return the TopLevelLexicallyDeclaredNames of StatementList.
+pub(crate) fn function_body_lexically_declared_names(body: &FunctionBody<'_>) -> Vec<Atom> {
+    let mut lexically_declared_names = vec![];
+    // FunctionStatementList : [empty]
+    // 1. Return a new empty List.
+    // FunctionStatementList : StatementList
+    // 1. Return TopLevelLexicallyDeclaredNames of StatementList.
+    // ClassStaticBlockStatementList : [empty]
+    // 1. Return a new empty List.
+    // ClassStaticBlockStatementList : StatementList
+    // 1. Return the TopLevelLexicallyDeclaredNames of StatementList.
+    body.statements
+        .top_level_lexically_declared_names(&mut |identifier| {
+            lexically_declared_names.push(identifier.name.clone());
+        });
+    lexically_declared_names
+}
+
 // ConciseBody : ExpressionBody
 // 1. Return a new empty List.
 // AsyncConciseBody : ExpressionBody
@@ -221,14 +230,23 @@ pub(crate) fn case_block_lexically_scoped_declarations() {
     // 2. Return a new empty List.
 }
 
-pub(crate) fn function_body_lexically_scoped_declarations() {
+pub(crate) fn function_body_lexically_scoped_declarations<'body>(
+    code: &'body FunctionBody<'body>,
+) -> Vec<&'body Declaration<'body>> {
+    let mut lexically_scoped_declarations = vec![];
     // FunctionStatementList : [empty]
     // 1. Return a new empty List.
 
     // FunctionStatementList : StatementList
     // 1. Return the TopLevelLexicallyScopedDeclarations of StatementList.
 
+    code.statements
+        .top_level_lexically_scoped_declarations(&mut |decl| {
+            lexically_scoped_declarations.push(decl);
+        });
+
     // Note: Concise bodies have no declarations and thus do not call this function.
+    lexically_scoped_declarations
 }
 
 pub(crate) fn class_static_block_lexically_scoped_declarations() {
@@ -244,12 +262,22 @@ pub(crate) fn lexically_scoped_declarations<'a>(
 ) -> Vec<LexicallyScopedDeclaration<'a>> {
     // Note: This algorithm doesn't functionally make a difference between
     // Script, Module, Function or Class static block.
-    let mut lexically_scoped_declarations = Vec::new();
+    let mut lexically_scoped_declarations = vec![];
     // 1. Return TopLevelLexicallyScopedDeclarations of StatementList.
     body.body.lexically_scoped_declarations(&mut |decl| {
         lexically_scoped_declarations.push(decl);
     });
 
+    lexically_scoped_declarations
+}
+
+pub(crate) fn function_body_lexically_scoped_decarations<'body>(
+    body: &'body FunctionBody<'body>,
+) -> Vec<LexicallyScopedDeclaration<'body>> {
+    let mut lexically_scoped_declarations = vec![];
+    body.statements.lexically_scoped_declarations(&mut |decl| {
+        lexically_scoped_declarations.push(decl);
+    });
     lexically_scoped_declarations
 }
 
@@ -406,7 +434,7 @@ pub(crate) trait VarDeclaredNames<'a> {
 }
 
 pub(crate) fn script_var_declared_names(script: &Program<'_>) -> Vec<Atom> {
-    let mut var_declared_names = Vec::new();
+    let mut var_declared_names = vec![];
     // Script : [empty]
     // 1. Return a new empty List.
     // ScriptBody : StatementList
@@ -420,7 +448,7 @@ pub(crate) fn script_var_declared_names(script: &Program<'_>) -> Vec<Atom> {
 }
 
 pub(crate) fn module_var_declared_names(module: &Program<'_>) -> Vec<Atom> {
-    let mut var_declared_names = Vec::new();
+    let mut var_declared_names = vec![];
     // ModuleItemList : ModuleItemList ModuleItem
     // 1. Let names1 be VarDeclaredNames of ModuleItemList.
     // 2. Let names2 be VarDeclaredNames of ModuleItem.
@@ -431,8 +459,8 @@ pub(crate) fn module_var_declared_names(module: &Program<'_>) -> Vec<Atom> {
     var_declared_names
 }
 
-pub(crate) fn function_var_declared_names(function: &FunctionBody<'_>) -> Vec<Atom> {
-    let mut var_declared_names = Vec::new();
+pub(crate) fn function_body_var_declared_names(function: &FunctionBody<'_>) -> Vec<Atom> {
+    let mut var_declared_names = vec![];
     // NOTE
     // This section is extended by Annex B.3.5.
 
@@ -449,7 +477,7 @@ pub(crate) fn function_var_declared_names(function: &FunctionBody<'_>) -> Vec<At
 }
 
 pub(crate) fn class_static_block_var_declared_names(static_block: &StaticBlock<'_>) -> Vec<Atom> {
-    let mut var_declared_names = Vec::new();
+    let mut var_declared_names = vec![];
     // ClassStaticBlockStatementList : [empty]
     // 1. Return a new empty List.
     // ClassStaticBlockStatementList : StatementList
@@ -695,7 +723,7 @@ pub(crate) trait VarScopedDeclarations<'a> {
 pub(crate) fn script_var_scoped_declarations<'a>(
     script: &'a Program<'a>,
 ) -> Vec<VarScopedDeclaration<'a>> {
-    let mut var_scoped_declarations = Vec::new();
+    let mut var_scoped_declarations = vec![];
     // Script : [empty]
     // 1. Return a new empty List.
     // ScriptBody : StatementList
@@ -711,7 +739,7 @@ pub(crate) fn script_var_scoped_declarations<'a>(
 pub(crate) fn module_var_scoped_declarations<'a>(
     module: &'a Program<'a>,
 ) -> Vec<VarScopedDeclaration<'a>> {
-    let mut var_scoped_declarations = Vec::new();
+    let mut var_scoped_declarations = vec![];
     // Module : [empty]
     // 1. Return a new empty List.
     // ModuleItemList : ModuleItemList ModuleItem
@@ -723,14 +751,25 @@ pub(crate) fn module_var_scoped_declarations<'a>(
     });
     var_scoped_declarations
 }
-// FunctionStatementList : [empty]
-// 1. Return a new empty List.
-// FunctionStatementList : StatementList
-// 1. Return the TopLevelVarScopedDeclarations of StatementList.
-// ClassStaticBlockStatementList : [empty]
-// 1. Return a new empty List.
-// ClassStaticBlockStatementList : StatementList
-// 1. Return the TopLevelVarScopedDeclarations of StatementList.
+
+pub(crate) fn function_body_var_scoped_declarations<'a>(
+    code: &'a FunctionBody<'a>,
+) -> Vec<VarScopedDeclaration<'a>> {
+    let mut var_scoped_declarations = vec![];
+    // FunctionStatementList : [empty]
+    // 1. Return a new empty List.
+    // FunctionStatementList : StatementList
+    // 1. Return the TopLevelVarScopedDeclarations of StatementList.
+    // ClassStaticBlockStatementList : [empty]
+    // 1. Return a new empty List.
+    // ClassStaticBlockStatementList : StatementList
+    // 1. Return the TopLevelVarScopedDeclarations of StatementList.
+    code.statements
+        .top_level_var_scoped_declarations(&mut |declarator| {
+            var_scoped_declarations.push(declarator);
+        });
+    var_scoped_declarations
+}
 // ConciseBody : ExpressionBody
 // 1. Return a new empty List.
 // AsyncConciseBody : ExpressionBody
@@ -999,11 +1038,11 @@ impl<'a> TopLevelLexicallyDeclaredNames<'a> for Statement<'_> {
 /// The syntax-directed operation TopLevelLexicallyScopedDeclarations takes no
 /// arguments and returns a List of Parse Nodes.
 trait TopLevelLexicallyScopedDeclarations<'a> {
-    fn top_level_lexically_scoped_declarations<F: FnMut(&Declaration<'a>)>(&self, f: &mut F);
+    fn top_level_lexically_scoped_declarations<F: FnMut(&'a Declaration<'a>)>(&'a self, f: &mut F);
 }
 
 impl<'a> TopLevelLexicallyScopedDeclarations<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
-    fn top_level_lexically_scoped_declarations<F: FnMut(&Declaration<'a>)>(&self, f: &mut F) {
+    fn top_level_lexically_scoped_declarations<F: FnMut(&'a Declaration<'a>)>(&'a self, f: &mut F) {
         // StatementList : StatementList StatementListItem
         // 1. Let declarations1 be TopLevelLexicallyScopedDeclarations of StatementList.
         // 2. Let declarations2 be TopLevelLexicallyScopedDeclarations of StatementListItem.
@@ -1015,7 +1054,7 @@ impl<'a> TopLevelLexicallyScopedDeclarations<'a> for oxc_allocator::Vec<'a, Stat
 }
 
 impl<'a> TopLevelLexicallyScopedDeclarations<'a> for Statement<'a> {
-    fn top_level_lexically_scoped_declarations<F: FnMut(&Declaration<'a>)>(&self, f: &mut F) {
+    fn top_level_lexically_scoped_declarations<F: FnMut(&'a Declaration<'a>)>(&'a self, f: &mut F) {
         // StatementListItem : Declaration
         if let Statement::Declaration(decl) = self {
             // 1. If Declaration is Declaration : HoistableDeclaration , then

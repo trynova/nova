@@ -4,14 +4,17 @@ use oxc_span::Atom;
 use crate::{
     ecmascript::{
         builtins::{
-            ordinary_function_create, set_function_name, OrdinaryFunctionCreateParams, ThisMode,
+            function_declaration_instantiation, ordinary_function_create, set_function_name,
+            ArgumentsList, OrdinaryFunctionCreateParams, ThisMode,
         },
         execution::{
-            Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, PrivateEnvironmentIndex,
+            Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult,
+            PrivateEnvironmentIndex,
         },
-        types::{Function, PropertyKey},
+        types::{Function, PropertyKey, Value},
     },
-    engine::FunctionExpression,
+    engine::{Executable, FunctionExpression, Vm},
+    heap::{indexes::ECMAScriptFunctionIndex, GetHeapData},
 };
 
 /// ### [15.2.4 Runtime Semantics: InstantiateOrdinaryFunctionObject](https://tc39.es/ecma262/#sec-runtime-semantics-instantiateordinaryfunctionobject)
@@ -118,4 +121,26 @@ pub(crate) fn instantiate_ordinary_function_expression(
         // 8. Return closure.
         closure
     }
+}
+
+/// ### [15.2.3 Runtime Semantics: EvaluateFunctionBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluatefunctionbody)
+/// The syntax-directed operation EvaluateFunctionBody takes arguments
+/// functionObject (an ECMAScript function object) and argumentsList (a List of
+/// ECMAScript language values) and returns either a normal completion
+/// containing an ECMAScript language value or an abrupt completion.
+pub(crate) fn evaluate_function_body(
+    agent: &mut Agent,
+    function_object: ECMAScriptFunctionIndex,
+    arguments_list: ArgumentsList,
+) -> JsResult<Value> {
+    // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
+    function_declaration_instantiation(agent, function_object, arguments_list)?;
+    // 2. Return ? Evaluation of FunctionStatementList.
+    let body = agent
+        .heap
+        .get(function_object)
+        .ecmascript_function
+        .ecmascript_code;
+    let exe = Executable::compile_function_body(agent, body);
+    Ok(Vm::execute(agent, &exe)?.unwrap_or(Value::Undefined))
 }

@@ -412,8 +412,8 @@ impl Intrinsics {
     }
 
     /// %ThrowTypeError%
-    pub const fn throw_type_error(&self) -> Object {
-        todo!()
+    pub const fn throw_type_error(&self) -> Function {
+        Function::BuiltinFunction(self.throw_type_error)
     }
 
     /// %TypeError%

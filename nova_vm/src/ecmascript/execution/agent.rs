@@ -92,6 +92,10 @@ impl Agent {
     pub(crate) fn running_execution_context(&self) -> &ExecutionContext {
         self.execution_context_stack.last().unwrap()
     }
+
+    pub(crate) fn running_execution_context_mut(&mut self) -> &mut ExecutionContext {
+        self.execution_context_stack.last_mut().unwrap()
+    }
 }
 
 /// ### [9.4.1 GetActiveScriptOrModule ()](https://tc39.es/ecma262/#sec-getactivescriptormodule)
