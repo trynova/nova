@@ -822,9 +822,9 @@ pub(crate) fn function_declaration_instantiation(
         // e. For each element n of varNames, do
         for n in &var_names {
             // i. If instantiatedVarNames does not contain n, then
-            if !instantiated_var_names.contains(n) {
+            if !instantiated_var_names.contains(&n) {
                 // 1. Append n to instantiatedVarNames.
-                instantiated_var_names.push(n.clone());
+                instantiated_var_names.push(n);
                 // 2. Perform ! varEnv.CreateMutableBinding(n, false).
                 var_env.create_mutable_binding(agent, n, false).unwrap();
                 // 3. If parameterBindings does not contain n, or if functionNames contains n, then
