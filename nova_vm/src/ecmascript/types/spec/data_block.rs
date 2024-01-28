@@ -22,14 +22,14 @@ use crate::ecmascript::execution::{agent::JsError, Agent, JsResult};
 #[derive(Debug, Clone)]
 pub(crate) struct DataBlock {
     ptr: Option<NonNull<u8>>,
-    cap: u32,
-    byte_length: u32,
+    cap: usize,
+    byte_length: usize,
 }
 
 impl Drop for DataBlock {
     fn drop(&mut self) {
         if let Some(ptr) = self.ptr {
-            let layout = Layout::from_size_align(self.cap as usize, 8).unwrap();
+            let layout = Layout::from_size_align(self.cap, 8).unwrap();
             unsafe { dealloc(ptr.as_ptr(), layout) }
         }
     }
@@ -63,11 +63,11 @@ impl Viewable for f32 {}
 impl Viewable for f64 {}
 
 impl DataBlock {
-    fn new(len: u32) -> Self {
+    fn new(len: usize) -> Self {
         let ptr = if len == 0 {
             None
         } else {
-            let layout = Layout::from_size_align(len as usize, 8).unwrap();
+            let layout = Layout::from_size_align(len, 8).unwrap();
             // SAFETY: Size of allocation is non-zero.
             let data = unsafe { alloc_zeroed(layout) };
             if data.is_null() {
@@ -84,12 +84,12 @@ impl DataBlock {
         }
     }
 
-    pub fn new_with_capacity(len: u32, cap: u32) -> Self {
+    pub fn new_with_capacity(len: usize, cap: usize) -> Self {
         debug_assert!(cap >= len);
         let ptr = if cap == 0 {
             None
         } else {
-            let layout = Layout::from_size_align(cap as usize, 8).unwrap();
+            let layout = Layout::from_size_align(cap, 8).unwrap();
             // SAFETY: Size of allocation is non-zero.
             let data = unsafe { alloc_zeroed(layout) };
             if data.is_null() {
@@ -105,15 +105,15 @@ impl DataBlock {
         }
     }
 
-    pub fn len(&self) -> u32 {
+    pub fn len(&self) -> usize {
         self.byte_length
     }
 
-    pub fn capacity(&self) -> u32 {
+    pub fn capacity(&self) -> usize {
         self.cap
     }
 
-    pub fn resize(&mut self, size: u32) {
+    pub fn resize(&mut self, size: usize) {
         debug_assert!(size <= self.cap);
         let len = self.byte_length;
         self.byte_length = size;
@@ -122,42 +122,42 @@ impl DataBlock {
             if let Some(data) = self.ptr {
                 // SAFETY: The data is properly initialized, and the T being written is
                 // checked to be fully within the length of the data allocation.
-                unsafe { write_bytes(data.as_ptr().add(size as usize), 0, (len - size) as usize) }
+                unsafe { write_bytes(data.as_ptr().add(size), 0, len - size) }
             }
         }
     }
 
-    pub fn view_len<T: Viewable>(&self, byte_offset: u32) -> u32 {
-        let size = std::mem::size_of::<T>() as u32;
+    pub fn view_len<T: Viewable>(&self, byte_offset: usize) -> usize {
+        let size = std::mem::size_of::<T>();
         (self.byte_length - byte_offset) / size
     }
 
-    fn as_ptr(&self, byte_offset: u32) -> Option<*const u8> {
+    fn as_ptr(&self, byte_offset: usize) -> Option<*const u8> {
         if byte_offset >= self.byte_length {
             None
         } else {
             self.ptr.map(|data| {
                 // SAFETY: The data is properly initialized, and the T being read is
                 // checked to be fully within the length of the data allocation.
-                unsafe { data.as_ptr().add(byte_offset as usize) as *const _ }
+                unsafe { data.as_ptr().add(byte_offset) as *const _ }
             })
         }
     }
 
-    fn as_mut_ptr(&mut self, byte_offset: u32) -> Option<*mut u8> {
+    fn as_mut_ptr(&mut self, byte_offset: usize) -> Option<*mut u8> {
         if byte_offset >= self.byte_length {
             None
         } else {
             self.ptr.map(|data| {
                 // SAFETY: The data is properly initialized, and the T being read is
                 // checked to be fully within the length of the data allocation.
-                unsafe { data.as_ptr().add(byte_offset as usize) }
+                unsafe { data.as_ptr().add(byte_offset) }
             })
         }
     }
 
-    pub fn get<T: Viewable>(&self, offset: u32) -> Option<T> {
-        let size = std::mem::size_of::<T>() as u32;
+    pub fn get<T: Viewable>(&self, offset: usize) -> Option<T> {
+        let size = std::mem::size_of::<T>();
         let byte_offset = offset * size;
         if byte_offset >= self.byte_length {
             None
@@ -165,31 +165,31 @@ impl DataBlock {
             self.ptr.map(|data| {
                 // SAFETY: The data is properly initialized, and the T being read is
                 // checked to be fully within the length of the data allocation.
-                unsafe { read_unaligned(data.as_ptr().add(offset as usize).cast()) }
+                unsafe { read_unaligned(data.as_ptr().add(offset).cast()) }
             })
         }
     }
 
-    pub fn set<T: Viewable>(&mut self, offset: u32, value: T) {
-        let size = std::mem::size_of::<T>() as u32;
+    pub fn set<T: Viewable>(&mut self, offset: usize, value: T) {
+        let size = std::mem::size_of::<T>();
         let byte_offset = offset * size;
         if let Some(data) = self.ptr {
             if byte_offset <= self.byte_length {
                 // SAFETY: The data is properly initialized, and the T being written is
                 // checked to be fully within the length of the data allocation.
-                unsafe { write_unaligned(data.as_ptr().add(offset as usize).cast(), value) }
+                unsafe { write_unaligned(data.as_ptr().add(offset).cast(), value) }
             }
         }
     }
 
     pub fn set_from<T: Viewable>(
         &mut self,
-        dst_offset: u32,
+        dst_offset: usize,
         src: &DataBlock,
-        src_offset: u32,
-        count: u32,
+        src_offset: usize,
+        count: usize,
     ) {
-        let size = std::mem::size_of::<T>() as u32;
+        let size = std::mem::size_of::<T>();
         let byte_length = count * size;
         if byte_length == 0 {
             return;
@@ -204,12 +204,12 @@ impl DataBlock {
             // SAFETY: Source buffer length is valid, destination buffer
             // is likewise at least equal in length to source, and both
             // are properly aligned for bytes.
-            unsafe { dst.copy_from_nonoverlapping(src, byte_length as usize) }
+            unsafe { dst.copy_from_nonoverlapping(src, byte_length) }
         }
     }
 
-    pub fn copy_within<T: Viewable>(&mut self, dst_offset: u32, src_offset: u32, count: u32) {
-        let size = std::mem::size_of::<T>() as u32;
+    pub fn copy_within<T: Viewable>(&mut self, dst_offset: usize, src_offset: usize, count: usize) {
+        let size = std::mem::size_of::<T>();
         let byte_length = count * size;
         if byte_length == 0 {
             return;
@@ -220,10 +220,10 @@ impl DataBlock {
         debug_assert!(src_byte_offset + byte_length <= self.byte_length);
         if let Some(ptr) = self.as_mut_ptr(0) {
             // SAFETY: Buffer is valid for reads and writes of u8 for the whole length.
-            let slice = unsafe { std::slice::from_raw_parts_mut(ptr, self.byte_length as usize) };
+            let slice = unsafe { std::slice::from_raw_parts_mut(ptr, self.byte_length) };
             slice.copy_within(
-                (src_byte_offset as usize)..(src_byte_offset + byte_length) as usize,
-                dst_byte_offset as usize,
+                src_byte_offset..(src_byte_offset + byte_length),
+                dst_byte_offset,
             );
         }
     }
@@ -238,7 +238,7 @@ impl DataBlock {
         if size > u64::pow(2, 53) - 1 {
             // TODO: throw a RangeError exception
             Err(JsError {})
-        } else if let Ok(size) = u32::try_from(size) {
+        } else if let Ok(size) = usize::try_from(size) {
             // 2. Let db be a new Data Block value consisting of size bytes.
             // 3. Set all of the bytes of db to 0.
             // 4. Return db.
@@ -257,7 +257,7 @@ impl DataBlock {
     /// a Shared Data Block or a throw completion.
     pub fn create_shared_byte_data_block(size: u64) -> JsResult<Self> {
         // 1. Let db be a new Shared Data Block value consisting of size bytes. If it is impossible to create such a Shared Data Block, throw a RangeError exception.
-        if let Ok(size) = u32::try_from(size) {
+        if let Ok(size) = usize::try_from(size) {
             // 2. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
             // 3. Let eventsRecord be the Agent Events Record of execution.[[EventsRecords]] whose [[AgentSignifier]] is AgentSignifier().
             // 4. Let zero be « 0 ».
@@ -279,10 +279,10 @@ impl DataBlock {
     /// UNUSED.
     pub fn copy_data_block_bytes(
         &mut self,
-        to_index: u32,
+        to_index: usize,
         from_block: &Self,
-        from_index: u32,
-        count: u32,
+        from_index: usize,
+        count: usize,
     ) {
         let to_block = self;
         // 1. Assert: fromBlock and toBlock are distinct values.
@@ -290,17 +290,9 @@ impl DataBlock {
             to_block.ptr.is_none()
                 || from_block.ptr.is_none()
                 || unsafe {
-                    to_block
-                        .ptr
-                        .unwrap()
-                        .as_ptr()
-                        .add(to_block.capacity() as usize)
+                    to_block.ptr.unwrap().as_ptr().add(to_block.capacity())
                         <= from_block.ptr.unwrap().as_ptr()
-                        || from_block
-                            .ptr
-                            .unwrap()
-                            .as_ptr()
-                            .add(from_block.capacity() as usize)
+                        || from_block.ptr.unwrap().as_ptr().add(from_block.capacity())
                             <= to_block.ptr.unwrap().as_ptr()
                 }
         );
@@ -342,7 +334,7 @@ impl DataBlock {
             return;
         };
         // SAFETY: Pointers have been checked to not overlap.
-        unsafe { to_ptr.copy_from_nonoverlapping(from_ptr, count as usize) };
+        unsafe { to_ptr.copy_from_nonoverlapping(from_ptr, count) };
         // 7. Return UNUSED.
     }
 }
@@ -358,7 +350,7 @@ fn new_data_block() {
     assert_eq!(db.len(), 8);
     assert_eq!(db.capacity(), 8);
     for i in 0..8 {
-        assert_eq!(db.get::<u8>(i as u32), Some(0));
+        assert_eq!(db.get::<u8>(i), Some(0));
     }
 }
 
@@ -368,17 +360,17 @@ fn new_data_block_with_capacity() {
     assert_eq!(db.len(), 0);
     assert_eq!(db.capacity(), 8);
     for i in 0..8 {
-        assert_eq!(db.get::<u8>(i as u32), None);
+        assert_eq!(db.get::<u8>(i), None);
     }
 
     let db = DataBlock::new_with_capacity(8, 16);
     assert_eq!(db.len(), 8);
     assert_eq!(db.capacity(), 16);
     for i in 0..8 {
-        assert_eq!(db.get::<u8>(i as u32), Some(0));
+        assert_eq!(db.get::<u8>(i), Some(0));
     }
     for i in 8..16 {
-        assert_eq!(db.get::<u8>(i as u32), None);
+        assert_eq!(db.get::<u8>(i), None);
     }
 }
 
@@ -388,15 +380,15 @@ fn data_block_set() {
     assert_eq!(db.len(), 8);
     assert_eq!(db.capacity(), 8);
     for i in 0..8 {
-        assert_eq!(db.get::<u8>(i as u32), Some(0));
+        assert_eq!(db.get::<u8>(i), Some(0));
     }
 
     for i in 0..8 {
-        db.set::<u8>(i as u32, i + 1);
+        db.set::<u8>(i as usize, i + 1);
     }
 
     for i in 0..8 {
-        assert_eq!(db.get::<u8>(i as u32), Some(i + 1));
+        assert_eq!(db.get::<u8>(i as usize), Some(i + 1));
     }
 }
 
@@ -407,11 +399,11 @@ fn data_block_resize() {
     assert_eq!(db.len(), 8);
     assert_eq!(db.capacity(), 8);
     for i in 0..8 {
-        assert_eq!(db.get::<u8>(i as u32), Some(0));
+        assert_eq!(db.get::<u8>(i as usize), Some(0));
     }
 
     for i in 0..8 {
-        db.set::<u8>(i as u32, i + 1);
+        db.set::<u8>(i as usize, i + 1);
     }
 
     let ptr = db.as_ptr(0).unwrap();
@@ -434,7 +426,7 @@ fn data_block_set_from() {
     let mut db2 = DataBlock::new(8);
     for i in 0..8 {
         assert_eq!(db.get::<u8>(0), Some(0));
-        db2.set::<u8>(i as u32, i + 1);
+        db2.set::<u8>(i as usize, i + 1);
     }
     assert_eq!(db2.get::<u8>(0), Some(1));
     assert_eq!(db2.get::<u8>(1), Some(2));
@@ -456,7 +448,7 @@ fn data_block_set_from() {
 
     // Reset
     for i in 0..8 {
-        db.set::<u8>(i as u32, i + 1);
+        db.set::<u8>(i as usize, i + 1);
     }
     db.copy_within::<u8>(2, 4, 4);
     assert_eq!(db.get::<u8>(0), Some(1));
@@ -473,7 +465,7 @@ fn data_block_set_from() {
 fn data_block_copy_within() {
     let mut db = DataBlock::new(8);
     for i in 0..8 {
-        db.set::<u8>(i as u32, i + 1);
+        db.set::<u8>(i as usize, i + 1);
     }
     assert_eq!(db.get::<u8>(0), Some(1));
     assert_eq!(db.get::<u8>(1), Some(2));
@@ -495,7 +487,7 @@ fn data_block_copy_within() {
 
     // Reset
     for i in 0..8 {
-        db.set::<u8>(i as u32, i + 1);
+        db.set::<u8>(i as usize, i + 1);
     }
     db.copy_within::<u8>(2, 4, 4);
     assert_eq!(db.get::<u8>(0), Some(1));

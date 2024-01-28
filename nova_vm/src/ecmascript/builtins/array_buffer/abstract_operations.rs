@@ -55,7 +55,7 @@ pub(crate) fn allocate_array_buffer(
     let mut block =
         DataBlock::create_byte_data_block(agent, max_byte_length.unwrap_or(byte_length))?;
     if allocating_resizable_buffer {
-        block.resize(byte_length as u32);
+        block.resize(byte_length as usize);
     }
     // 6. Set obj.[[ArrayBufferData]] to block.
     // 7. Set obj.[[ArrayBufferByteLength]] to byteLength.
@@ -149,8 +149,8 @@ pub(crate) fn detach_array_buffer(
 pub(crate) fn clone_array_buffer(
     agent: &mut Agent,
     src_buffer: ArrayBuffer,
-    src_byte_offset: u32,
-    src_length: u32,
+    src_byte_offset: usize,
+    src_length: usize,
 ) -> JsResult<ArrayBuffer> {
     {
         // 1. Assert: IsDetachedBuffer(srcBuffer) is false.
@@ -262,7 +262,7 @@ pub(crate) fn host_resize_array_buffer(
         InternalBuffer::Detached => false,
         InternalBuffer::FixedLength(_) => false,
         InternalBuffer::Resizable(block) => {
-            block.resize(new_byte_length as u32);
+            block.resize(new_byte_length as usize);
             true
         }
         InternalBuffer::SharedFixedLength(_) => false,
