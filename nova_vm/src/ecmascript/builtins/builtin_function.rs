@@ -217,7 +217,6 @@ impl InternalMethods for BuiltinFunction {
     ) -> JsResult<Value> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None)
-            .map(|result| result.into_value())
     }
 
     /// ### [10.3.2 \[\[Construct\]\] ( argumentsList, newTarget )](https://tc39.es/ecma262/#sec-built-in-function-objects-construct-argumentslist-newtarget)
@@ -234,6 +233,7 @@ impl InternalMethods for BuiltinFunction {
     ) -> JsResult<Object> {
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
         builtin_call_or_construct(agent, self, None, arguments_list, Some(new_target))
+            .map(|result| result.try_into().unwrap())
     }
 }
 
@@ -250,7 +250,7 @@ pub(crate) fn builtin_call_or_construct(
     this_argument: Option<Value>,
     arguments_list: ArgumentsList,
     new_target: Option<Function>,
-) -> JsResult<Object> {
+) -> JsResult<Value> {
     // 1. Let callerContext be the running execution context.
     let caller_context = agent.running_execution_context();
     // 2. If callerContext is not already suspended, suspend callerContext.
@@ -308,8 +308,7 @@ pub(crate) fn builtin_call_or_construct(
     // suspended and retained by an accessible Generator for later resumption.
     let _callee_context = agent.execution_context_stack.pop();
     // 13. Return ? result.
-    let result = result?;
-    Ok(result.try_into().unwrap())
+    result
 }
 
 /// ### [10.3.4 CreateBuiltinFunction ( behaviour, length, name, additionalInternalSlotsList \[ , realm \[ , prototype \[ , prefix \] \] \] )](https://tc39.es/ecma262/#sec-createbuiltinfunction)

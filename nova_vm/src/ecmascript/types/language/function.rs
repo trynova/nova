@@ -273,8 +273,7 @@ impl InternalMethods for Function {
             }
             Function::ECMAScriptFunction(idx) => {
                 ECMAScriptFunction::from(idx).call(agent, this_argument, arguments_list)
-            }
-            //Function::ECMAScriptFunction(idx) => agent.heap.get(idx).ecmascript_function.call(agent, self, this_argument, ArgumentsList(arguments_list)),
+            } //Function::ECMAScriptFunction(idx) => agent.heap.get(idx).ecmascript_function.call(agent, self, this_argument, ArgumentsList(arguments_list)),
         }
     }
 
