@@ -1,15 +1,16 @@
 mod data;
+pub mod into_function;
 
 use super::{
     value::{
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
         ECMASCRIPT_FUNCTION_DISCRIMINANT,
     },
-    InternalMethods, Object, OrdinaryObjectInternalSlots, Value,
+    InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots, Value,
 };
 use crate::{
     ecmascript::{
-        builtins::ArgumentsList,
+        builtins::{ArgumentsList, BuiltinFunction, ECMAScriptFunction},
         execution::{Agent, JsResult},
     },
     heap::{
@@ -19,6 +20,7 @@ use crate::{
 };
 
 pub(crate) use data::*;
+pub use into_function::IntoFunction;
 
 /// https://tc39.es/ecma262/#function-object
 #[derive(Clone, Copy, PartialEq)]
@@ -36,6 +38,18 @@ impl std::fmt::Debug for Function {
             Function::BuiltinFunction(d) => write!(f, "BuiltinFunction({:?})", d),
             Function::ECMAScriptFunction(d) => write!(f, "ECMAScriptFunction({:?})", d),
         }
+    }
+}
+
+impl IntoValue for Function {
+    fn into_value(self) -> Value {
+        self.into()
+    }
+}
+
+impl IntoObject for Function {
+    fn into_object(self) -> Object {
+        self.into()
     }
 }
 
@@ -104,14 +118,6 @@ impl From<Function> for Value {
 impl Function {
     pub(crate) const fn new_builtin_function(idx: BuiltinFunctionIndex) -> Self {
         Self::BuiltinFunction(idx)
-    }
-
-    pub fn into_value(self) -> Value {
-        self.into()
-    }
-
-    pub fn into_object(self) -> Object {
-        self.into()
     }
 }
 
@@ -262,9 +268,12 @@ impl InternalMethods for Function {
     ) -> JsResult<Value> {
         match self {
             Function::BoundFunction(_idx) => todo!(),
-            Function::BuiltinFunction(_idx) => todo!(),
-            Function::ECMAScriptFunction(idx) => idx.call(agent, this_argument, arguments_list),
-            //Function::ECMAScriptFunction(idx) => agent.heap.get(idx).ecmascript_function.call(agent, self, this_argument, ArgumentsList(arguments_list)),
+            Function::BuiltinFunction(idx) => {
+                BuiltinFunction::from(idx).call(agent, this_argument, arguments_list)
+            }
+            Function::ECMAScriptFunction(idx) => {
+                ECMAScriptFunction::from(idx).call(agent, this_argument, arguments_list)
+            } //Function::ECMAScriptFunction(idx) => agent.heap.get(idx).ecmascript_function.call(agent, self, this_argument, ArgumentsList(arguments_list)),
         }
     }
 

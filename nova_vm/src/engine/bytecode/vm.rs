@@ -16,7 +16,8 @@ use crate::ecmascript::{
         Agent, ECMAScriptCodeEvaluationState, JsResult, ProtoIntrinsics,
     },
     types::{
-        get_value, put_value, Base, BigInt, Number, Object, PropertyKey, Reference, String, Value,
+        get_value, put_value, Base, BigInt, IntoValue, Number, Object, PropertyKey, Reference,
+        String, Value,
     },
 };
 
@@ -241,7 +242,7 @@ impl Vm {
                         Value::Undefined
                     };
                     // let this_arg = vm.stack.pop();
-                    let func = vm.result.take().unwrap();
+                    let func = vm.stack.pop().unwrap();
                     vm.result =
                         Some(call(agent, func, this_value, Some(ArgumentsList(&args))).unwrap());
                 }

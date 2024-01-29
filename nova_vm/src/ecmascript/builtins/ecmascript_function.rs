@@ -29,8 +29,8 @@ use crate::{
             },
         },
         types::{
-            ECMAScriptFunctionHeapData, Function, Object, PropertyDescriptor, PropertyKey, String,
-            Value,
+            ECMAScriptFunctionHeapData, Function, InternalMethods, IntoFunction, IntoObject,
+            IntoValue, Object, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     heap::{indexes::ECMAScriptFunctionIndex, CreateHeapData, GetHeapData},
@@ -40,6 +40,57 @@ use super::{
     create_unmapped_arguments_object, ordinary::ordinary_object_create_with_intrinsics,
     ArgumentsList,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ECMAScriptFunction(ECMAScriptFunctionIndex);
+
+impl From<ECMAScriptFunction> for ECMAScriptFunctionIndex {
+    fn from(val: ECMAScriptFunction) -> Self {
+        val.0
+    }
+}
+
+impl From<ECMAScriptFunctionIndex> for ECMAScriptFunction {
+    fn from(value: ECMAScriptFunctionIndex) -> Self {
+        Self(value)
+    }
+}
+
+impl IntoValue for ECMAScriptFunction {
+    fn into_value(self) -> Value {
+        self.into()
+    }
+}
+
+impl IntoObject for ECMAScriptFunction {
+    fn into_object(self) -> Object {
+        self.into()
+    }
+}
+
+impl IntoFunction for ECMAScriptFunction {
+    fn into_function(self) -> Function {
+        self.into()
+    }
+}
+
+impl From<ECMAScriptFunction> for Value {
+    fn from(val: ECMAScriptFunction) -> Self {
+        Value::ECMAScriptFunction(val.0)
+    }
+}
+
+impl From<ECMAScriptFunction> for Object {
+    fn from(val: ECMAScriptFunction) -> Self {
+        Object::ECMAScriptFunction(val.0)
+    }
+}
+
+impl From<ECMAScriptFunction> for Function {
+    fn from(val: ECMAScriptFunction) -> Self {
+        Function::ECMAScriptFunction(val.0)
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum ConstructorKind {
@@ -56,7 +107,7 @@ pub enum ThisMode {
 
 /// ### [10.2 ECMAScript Function Objects](https://tc39.es/ecma262/#sec-ecmascript-function-objects)
 #[derive(Debug)]
-pub(crate) struct ECMAScriptFunction {
+pub(crate) struct ECMAScriptFunctionObjectHeapData {
     /// \[\[Environment]]
     pub environment: EnvironmentIndex,
 
@@ -111,9 +162,69 @@ pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
     pub private_env: Option<PrivateEnvironmentIndex>,
 }
 
-impl ECMAScriptFunctionIndex {
-    pub(crate) fn heap_data(self, agent: &Agent) -> &ECMAScriptFunction {
-        &agent.heap.get(self).ecmascript_function
+impl InternalMethods for ECMAScriptFunction {
+    fn get_prototype_of(self, _agent: &mut Agent) -> JsResult<Option<Object>> {
+        todo!()
+    }
+
+    fn set_prototype_of(self, _agent: &mut Agent, _prototype: Option<Object>) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn is_extensible(self, _agent: &mut Agent) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn prevent_extensions(self, _agent: &mut Agent) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn get_own_property(
+        self,
+        _agent: &mut Agent,
+        _property_key: PropertyKey,
+    ) -> JsResult<Option<PropertyDescriptor>> {
+        todo!()
+    }
+
+    fn define_own_property(
+        self,
+        _agent: &mut Agent,
+        _property_key: PropertyKey,
+        _property_descriptor: PropertyDescriptor,
+    ) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn has_property(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn get(
+        self,
+        _agent: &mut Agent,
+        _property_key: PropertyKey,
+        _receiver: Value,
+    ) -> JsResult<Value> {
+        todo!()
+    }
+
+    fn set(
+        self,
+        _agent: &mut Agent,
+        _property_key: PropertyKey,
+        _value: Value,
+        _receiver: Value,
+    ) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn delete(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+        todo!()
     }
 
     /// ### [10.2.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-call)
@@ -123,7 +234,7 @@ impl ECMAScriptFunctionIndex {
     /// `argumentsList` (a List of ECMAScript language values) and returns
     /// either a normal completion containing an ECMAScript language value or a
     /// throw completion.
-    pub(crate) fn call(
+    fn call(
         self,
         agent: &mut Agent,
         this_argument: Value,
@@ -165,6 +276,21 @@ impl ECMAScriptFunctionIndex {
         // 10. Return undefined.
         result
     }
+
+    fn construct(
+        self,
+        _agent: &mut Agent,
+        _arguments_list: ArgumentsList,
+        _new_target: Function,
+    ) -> JsResult<Object> {
+        todo!()
+    }
+}
+
+impl ECMAScriptFunction {
+    pub(crate) fn heap_data(self, agent: &Agent) -> &ECMAScriptFunctionObjectHeapData {
+        &agent.heap.get(self.0).ecmascript_function
+    }
 }
 
 /// ### [10.2.1.1 PrepareForOrdinaryCall ( F, newTarget )](https://tc39.es/ecma262/#sec-prepareforordinarycall)
@@ -174,7 +300,7 @@ impl ECMAScriptFunctionIndex {
 /// returns an execution context.
 pub(crate) fn prepare_for_ordinary_call(
     agent: &mut Agent,
-    f: ECMAScriptFunctionIndex,
+    f: ECMAScriptFunction,
     new_target: Option<Object>,
 ) -> &ExecutionContext {
     let ecmascript_function_object = f.heap_data(agent);
@@ -197,7 +323,7 @@ pub(crate) fn prepare_for_ordinary_call(
             private_environment,
         }),
         // 3. Set the Function of calleeContext to F.
-        function: Some(Function::ECMAScriptFunction(f)),
+        function: Some(f.into()),
         // 5. Set the Realm of calleeContext to calleeRealm.
         realm: callee_realm,
         // 6. Set the ScriptOrModule of calleeContext to F.[[ScriptOrModule]].
@@ -221,7 +347,7 @@ pub(crate) fn prepare_for_ordinary_call(
 /// truly used for.
 pub(crate) fn ordinary_call_bind_this(
     agent: &mut Agent,
-    f: ECMAScriptFunctionIndex,
+    f: ECMAScriptFunction,
     local_env: EnvironmentIndex,
     this_argument: Value,
 ) {
@@ -278,7 +404,7 @@ pub(crate) fn ordinary_call_bind_this(
 /// ECMAScript language value or an abrupt completion.
 pub(crate) fn evaluate_body(
     agent: &mut Agent,
-    function_object: ECMAScriptFunctionIndex,
+    function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
     let function_heap_data = function_object.heap_data(agent);
@@ -328,7 +454,7 @@ pub(crate) fn evaluate_body(
 /// ECMAScript language value or an abrupt completion.
 pub(crate) fn ordinary_call_evaluate_body(
     agent: &mut Agent,
-    f: ECMAScriptFunctionIndex,
+    f: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
     // 1. Return ? EvaluateBody of F.[[ECMAScriptCode]] with arguments F and argumentsList.
@@ -354,7 +480,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
     // 1. Let internalSlotsList be the internal slots listed in Table 30.
     // 2. Let F be OrdinaryObjectCreate(functionPrototype, internalSlotsList).
     // 3. Set F.[[Call]] to the definition specified in 10.2.1.
-    let ecmascript_function = ECMAScriptFunction {
+    let ecmascript_function = ECMAScriptFunctionObjectHeapData {
         // 13. Set F.[[Environment]] to env.
         environment: params.env,
         // 14. Set F.[[PrivateEnvironment]] to privateEnv.
@@ -594,7 +720,7 @@ fn set_ecmascript_function_length(
 /// All other bindings are initialized during evaluation of the function body.
 pub(crate) fn function_declaration_instantiation(
     agent: &mut Agent,
-    function_object: ECMAScriptFunctionIndex,
+    function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<()> {
     // 1. Let calleeContext be the running execution context.
@@ -606,7 +732,7 @@ pub(crate) fn function_declaration_instantiation(
         private_environment: callee_private_env,
     } = *callee_context.ecmascript_code.as_ref().unwrap();
     // 2. Let code be func.[[ECMAScriptCode]].
-    let heap_data = agent.heap.get(function_object);
+    let heap_data = agent.heap.get(function_object.0);
     let code = heap_data.ecmascript_function.ecmascript_code;
     // 3. Let strict be func.[[Strict]].
     let strict = heap_data.ecmascript_function.strict;

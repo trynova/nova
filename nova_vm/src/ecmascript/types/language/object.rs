@@ -1,6 +1,7 @@
 mod data;
 mod internal_methods;
 mod internal_slots;
+mod into_object;
 mod property_key;
 mod property_storage;
 use std::ops::Deref;
@@ -30,6 +31,7 @@ use crate::{
 pub use data::ObjectHeapData;
 pub use internal_methods::InternalMethods;
 pub use internal_slots::OrdinaryObjectInternalSlots;
+pub use into_object::IntoObject;
 pub use property_key::PropertyKey;
 pub use property_storage::PropertyStorage;
 

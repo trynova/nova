@@ -2,7 +2,7 @@
 
 use super::{testing_and_comparison::is_callable, type_conversion::to_object};
 use crate::ecmascript::{
-    builtins::ArgumentsList,
+    builtins::{ArgumentsList, BuiltinFunction, ECMAScriptFunction},
     execution::{
         agent::{ExceptionType, JsError},
         Agent, JsResult, Realm,
@@ -251,8 +251,12 @@ pub(crate) fn call(
         // 3. Return ? F.[[Call]](V, argumentsList).
         match f {
             Value::BoundFunction(idx) => Function::from(idx).call(agent, v, arguments_list),
-            Value::BuiltinFunction(idx) => Function::from(idx).call(agent, v, arguments_list),
-            Value::ECMAScriptFunction(idx) => idx.call(agent, v, arguments_list),
+            Value::BuiltinFunction(idx) => {
+                BuiltinFunction::from(idx).call(agent, v, arguments_list)
+            }
+            Value::ECMAScriptFunction(idx) => {
+                ECMAScriptFunction::from(idx).call(agent, v, arguments_list)
+            }
             _ => unreachable!(),
         }
     }

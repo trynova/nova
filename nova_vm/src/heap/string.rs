@@ -1,7 +1,7 @@
 use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
-        execution::{Agent, JsResult},
+        execution::{Agent, JsResult, RealmIdentifier},
         types::{Object, Value},
     },
     heap::{
@@ -28,6 +28,7 @@ pub fn initialize_string_heap(heap: &mut Heap) {
             initial_name: None,
             behaviour: Behaviour::Constructor(constructor_binding),
             name: None,
+            realm: RealmIdentifier::from_index(0),
         });
     heap.insert_builtin_object(
         BuiltinObjectIndexes::StringPrototype,
