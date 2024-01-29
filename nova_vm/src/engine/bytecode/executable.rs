@@ -1,4 +1,4 @@
-use super::{Instruction};
+use super::Instruction;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_property_key,
