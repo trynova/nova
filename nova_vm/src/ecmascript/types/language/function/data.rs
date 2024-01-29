@@ -1,6 +1,6 @@
 use crate::{
     ecmascript::{
-        builtins::{Behaviour, ECMAScriptFunction},
+        builtins::{Behaviour, ECMAScriptFunctionObjectHeapData},
         execution::RealmIdentifier,
         types::String,
     },
@@ -38,7 +38,7 @@ pub struct BuiltinFunctionHeapData {
 pub struct ECMAScriptFunctionHeapData {
     pub(crate) object_index: Option<ObjectIndex>,
     pub(crate) length: u8,
-    pub(crate) ecmascript_function: ECMAScriptFunction,
+    pub(crate) ecmascript_function: ECMAScriptFunctionObjectHeapData,
     pub(crate) name: Option<String>,
 }
 

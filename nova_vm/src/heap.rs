@@ -46,7 +46,7 @@ use self::{
     symbol::{initialize_symbol_heap, SymbolHeapData},
 };
 use crate::ecmascript::{
-    builtins::{ArgumentsList, ArrayBufferHeapData, ArrayHeapData, Behaviour},
+    builtins::{ArgumentsList, ArrayBufferHeapData, ArrayHeapData, Behaviour, BuiltinFunction},
     execution::{Agent, Environments, JsResult, Realm, RealmIdentifier},
     scripts_and_modules::{
         module::{Module, ModuleIdentifier},
@@ -225,10 +225,10 @@ impl CreateHeapData<BoundFunctionHeapData, Function> for Heap {
     }
 }
 
-impl CreateHeapData<BuiltinFunctionHeapData, Function> for Heap {
-    fn create(&mut self, data: BuiltinFunctionHeapData) -> Function {
+impl CreateHeapData<BuiltinFunctionHeapData, BuiltinFunction> for Heap {
+    fn create(&mut self, data: BuiltinFunctionHeapData) -> BuiltinFunction {
         self.builtin_functions.push(Some(data));
-        Function::from(BuiltinFunctionIndex::last(&self.builtin_functions))
+        BuiltinFunctionIndex::last(&self.builtin_functions).into()
     }
 }
 

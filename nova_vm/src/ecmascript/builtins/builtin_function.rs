@@ -4,11 +4,11 @@ use crate::{
     ecmascript::{
         execution::{agent::ExceptionType, Agent, ExecutionContext, JsResult, RealmIdentifier},
         types::{
-            BuiltinFunctionHeapData, Function, IntoFunction, IntoObject, IntoValue, Object,
-            PropertyDescriptor, String, Value,
+            BuiltinFunctionHeapData, Function, InternalMethods, IntoFunction, IntoObject,
+            IntoValue, Object, PropertyDescriptor, String, Value,
         },
     },
-    heap::{indexes::BuiltinFunctionIndex, GetHeapData},
+    heap::{indexes::BuiltinFunctionIndex, CreateHeapData, GetHeapData},
 };
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -81,7 +81,127 @@ impl BuiltinFunctionArgs {
     }
 }
 
-impl BuiltinFunctionIndex {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuiltinFunction(BuiltinFunctionIndex);
+
+impl From<BuiltinFunctionIndex> for BuiltinFunction {
+    fn from(value: BuiltinFunctionIndex) -> Self {
+        Self(value)
+    }
+}
+
+impl IntoValue for BuiltinFunction {
+    fn into_value(self) -> Value {
+        self.into()
+    }
+}
+
+impl IntoObject for BuiltinFunction {
+    fn into_object(self) -> Object {
+        self.into()
+    }
+}
+
+impl IntoFunction for BuiltinFunction {
+    fn into_function(self) -> Function {
+        self.into()
+    }
+}
+
+impl From<BuiltinFunction> for Value {
+    fn from(value: BuiltinFunction) -> Self {
+        Value::BuiltinFunction(value.0)
+    }
+}
+
+impl From<BuiltinFunction> for Object {
+    fn from(value: BuiltinFunction) -> Self {
+        Object::BuiltinFunction(value.0)
+    }
+}
+
+impl From<BuiltinFunction> for Function {
+    fn from(value: BuiltinFunction) -> Self {
+        Function::BuiltinFunction(value.0)
+    }
+}
+
+impl InternalMethods for BuiltinFunction {
+    fn get_prototype_of(self, _agent: &mut Agent) -> JsResult<Option<Object>> {
+        todo!()
+    }
+
+    fn set_prototype_of(self, _agent: &mut Agent, _prototype: Option<Object>) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn is_extensible(self, _agent: &mut Agent) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn prevent_extensions(self, _agent: &mut Agent) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn get_own_property(
+        self,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
+    ) -> JsResult<Option<PropertyDescriptor>> {
+        todo!()
+    }
+
+    fn define_own_property(
+        self,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
+        _property_descriptor: PropertyDescriptor,
+    ) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn has_property(
+        self,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
+    ) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn get(
+        self,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
+        _receiver: Value,
+    ) -> JsResult<Value> {
+        todo!()
+    }
+
+    fn set(
+        self,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
+        _value: Value,
+        _receiver: Value,
+    ) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn delete(
+        self,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
+    ) -> JsResult<bool> {
+        todo!()
+    }
+
+    fn own_property_keys(
+        self,
+        _agent: &mut Agent,
+    ) -> JsResult<Vec<crate::ecmascript::types::PropertyKey>> {
+        todo!()
+    }
+
     /// ### [10.3.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-built-in-function-objects-call-thisargument-argumentslist)
     ///
     /// The [[Call]] internal method of a built-in function object F takes
@@ -89,7 +209,7 @@ impl BuiltinFunctionIndex {
     /// (a List of ECMAScript language values) and returns either a normal
     /// completion containing an ECMAScript language value or a throw
     /// completion.
-    pub(crate) fn call(
+    fn call(
         self,
         agent: &mut Agent,
         this_argument: Value,
@@ -97,6 +217,7 @@ impl BuiltinFunctionIndex {
     ) -> JsResult<Value> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None)
+            .map(|result| result.into_value())
     }
 
     /// ### [10.3.2 \[\[Construct\]\] ( argumentsList, newTarget )](https://tc39.es/ecma262/#sec-built-in-function-objects-construct-argumentslist-newtarget)
@@ -105,12 +226,12 @@ impl BuiltinFunctionIndex {
     /// the method is present) takes arguments argumentsList (a List of
     /// ECMAScript language values) and newTarget (a constructor) and returns
     /// either a normal completion containing an Object or a throw completion.
-    pub(crate) fn construct(
+    fn construct(
         self,
         agent: &mut Agent,
         arguments_list: ArgumentsList,
         new_target: Function,
-    ) -> JsResult<Value> {
+    ) -> JsResult<Object> {
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
         builtin_call_or_construct(agent, self, None, arguments_list, Some(new_target))
     }
@@ -125,11 +246,11 @@ impl BuiltinFunctionIndex {
 /// completion containing an ECMAScript language value or a throw completion.
 pub(crate) fn builtin_call_or_construct(
     agent: &mut Agent,
-    f: BuiltinFunctionIndex,
+    f: BuiltinFunction,
     this_argument: Option<Value>,
     arguments_list: ArgumentsList,
     new_target: Option<Function>,
-) -> JsResult<Value> {
+) -> JsResult<Object> {
     // 1. Let callerContext be the running execution context.
     let caller_context = agent.running_execution_context();
     // 2. If callerContext is not already suspended, suspend callerContext.
@@ -140,14 +261,14 @@ pub(crate) fn builtin_call_or_construct(
         execution_context_stack,
         ..
     } = agent;
-    let heap_data = heap.get(f);
+    let heap_data = heap.get(f.0);
     let callee_realm = heap_data.realm;
     // 3. Let calleeContext be a new execution context.
     let callee_context = ExecutionContext {
         // 8. Perform any necessary implementation-defined initialization of calleeContext.
         ecmascript_code: None,
         // 4. Set the Function of calleeContext to F.
-        function: Some(Function::BuiltinFunction(f)),
+        function: Some(f.into()),
         // 6. Set the Realm of calleeContext to calleeRealm.
         realm: callee_realm,
         // 7. Set the ScriptOrModule of calleeContext to null.
@@ -187,7 +308,8 @@ pub(crate) fn builtin_call_or_construct(
     // suspended and retained by an accessible Generator for later resumption.
     let _callee_context = agent.execution_context_stack.pop();
     // 13. Return ? result.
-    result
+    let result = result?;
+    Ok(result.try_into().unwrap())
 }
 
 /// ### [10.3.4 CreateBuiltinFunction ( behaviour, length, name, additionalInternalSlotsList \[ , realm \[ , prototype \[ , prefix \] \] \] )](https://tc39.es/ecma262/#sec-createbuiltinfunction)
@@ -206,7 +328,7 @@ pub fn create_builtin_function(
     agent: &mut Agent,
     behaviour: Behaviour,
     args: BuiltinFunctionArgs,
-) -> BuiltinFunctionIndex {
+) -> BuiltinFunction {
     // 1. If realm is not present, set realm to the current Realm Record.
     let realm = args.realm.unwrap_or(agent.current_realm_id());
 
@@ -255,22 +377,18 @@ pub fn create_builtin_function(
         // a. Perform SetFunctionName(func, name).
         String::from_str(agent, args.name)
     };
-    agent
-        .heap
-        .builtin_functions
-        .push(Some(BuiltinFunctionHeapData {
-            behaviour,
-            initial_name: Some(initial_name),
-            name: Some(initial_name),
-            // 10. Perform SetFunctionLength(func, length).
-            length: args.length as u8,
-            // 8. Set func.[[Realm]] to realm.
-            realm,
-            object_index,
-        }));
 
     // 13. Return func.
-    BuiltinFunctionIndex::last(&agent.heap.builtin_functions)
+    agent.heap.create(BuiltinFunctionHeapData {
+        behaviour,
+        initial_name: Some(initial_name),
+        name: Some(initial_name),
+        // 10. Perform SetFunctionLength(func, length).
+        length: args.length as u8,
+        // 8. Set func.[[Realm]] to realm.
+        realm,
+        object_index,
+    })
 }
 
 pub fn define_builtin_function(

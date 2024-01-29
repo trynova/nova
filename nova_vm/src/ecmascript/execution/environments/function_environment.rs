@@ -1,16 +1,13 @@
 use oxc_span::Atom;
 
 use super::{DeclarativeEnvironment, DeclarativeEnvironmentIndex, FunctionEnvironmentIndex};
-use crate::{
-    ecmascript::{
-        builtins::ThisMode,
-        execution::{
-            agent::{ExceptionType, JsError},
-            Agent, JsResult,
-        },
-        types::{Function, InternalMethods, Object, Value},
+use crate::ecmascript::{
+    builtins::{ECMAScriptFunction, ThisMode},
+    execution::{
+        agent::{ExceptionType, JsError},
+        Agent, JsResult,
     },
-    heap::indexes::ECMAScriptFunctionIndex,
+    types::{Function, InternalMethods, IntoFunction, Object, Value},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -81,7 +78,7 @@ impl std::ops::Deref for FunctionEnvironment {
 /// returns a Function Environment Record.
 pub(crate) fn new_function_environment(
     agent: &mut Agent,
-    f: ECMAScriptFunctionIndex,
+    f: ECMAScriptFunction,
     new_target: Option<Object>,
 ) -> FunctionEnvironmentIndex {
     let ecmascript_function_object = f.heap_data(agent);
@@ -92,7 +89,7 @@ pub(crate) fn new_function_environment(
     let declarative_environment =
         DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative);
     // 2. Set env.[[FunctionObject]] to F.
-    let function_object = Function::ECMAScriptFunction(f);
+    let function_object = f.into_function();
     // 3. If F.[[ThisMode]] is LEXICAL, set env.[[ThisBindingStatus]] to LEXICAL.
     let this_binding_status = if this_mode == ThisMode::Lexical {
         ThisBindingStatus::Lexical

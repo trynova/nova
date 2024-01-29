@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        builtins::ArgumentsList,
+        builtins::{ArgumentsList, BuiltinFunction, ECMAScriptFunction},
         execution::{Agent, JsResult},
     },
     heap::{
@@ -268,8 +268,12 @@ impl InternalMethods for Function {
     ) -> JsResult<Value> {
         match self {
             Function::BoundFunction(_idx) => todo!(),
-            Function::BuiltinFunction(idx) => idx.call(agent, this_argument, arguments_list),
-            Function::ECMAScriptFunction(idx) => idx.call(agent, this_argument, arguments_list),
+            Function::BuiltinFunction(idx) => {
+                BuiltinFunction::from(idx).call(agent, this_argument, arguments_list)
+            }
+            Function::ECMAScriptFunction(idx) => {
+                ECMAScriptFunction::from(idx).call(agent, this_argument, arguments_list)
+            }
             //Function::ECMAScriptFunction(idx) => agent.heap.get(idx).ecmascript_function.call(agent, self, this_argument, ArgumentsList(arguments_list)),
         }
     }

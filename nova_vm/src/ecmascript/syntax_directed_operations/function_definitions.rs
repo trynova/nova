@@ -5,7 +5,7 @@ use crate::{
     ecmascript::{
         builtins::{
             function_declaration_instantiation, ordinary_function_create, set_function_name,
-            ArgumentsList, OrdinaryFunctionCreateParams, ThisMode,
+            ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams, ThisMode,
         },
         execution::{
             Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult,
@@ -14,7 +14,7 @@ use crate::{
         types::{Function, PropertyKey, Value},
     },
     engine::{Executable, FunctionExpression, Vm},
-    heap::{indexes::ECMAScriptFunctionIndex, GetHeapData},
+    heap::GetHeapData,
 };
 
 /// ### [15.2.4 Runtime Semantics: InstantiateOrdinaryFunctionObject](https://tc39.es/ecma262/#sec-runtime-semantics-instantiateordinaryfunctionobject)
@@ -130,7 +130,7 @@ pub(crate) fn instantiate_ordinary_function_expression(
 /// containing an ECMAScript language value or an abrupt completion.
 pub(crate) fn evaluate_function_body(
     agent: &mut Agent,
-    function_object: ECMAScriptFunctionIndex,
+    function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
@@ -138,7 +138,7 @@ pub(crate) fn evaluate_function_body(
     // 2. Return ? Evaluation of FunctionStatementList.
     let body = agent
         .heap
-        .get(function_object)
+        .get(function_object.into())
         .ecmascript_function
         .ecmascript_code;
     let exe = Executable::compile_function_body(agent, body);
