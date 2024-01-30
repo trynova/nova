@@ -5,7 +5,7 @@ use crate::ecmascript::{
     abstract_operations::{
         operations_on_objects::{call, create_data_property_or_throw},
         testing_and_comparison::is_same_type,
-        type_conversion::{to_number, to_numeric, to_primitive, to_string},
+        type_conversion::{to_boolean, to_number, to_numeric, to_primitive, to_string},
     },
     builtins::{
         ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create, ArgumentsList,
@@ -64,31 +64,34 @@ impl Vm {
     pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> JsResult<Option<Value>> {
         let mut vm = Vm::new();
 
+        eprintln!();
+        eprintln!("=== Executing Executable ===");
         eprintln!("Constants: {:?}", executable.constants);
         eprintln!("Identifiers: {:?}", executable.identifiers);
         eprintln!();
 
+        eprintln!("Instructions:");
         let iter = InstructionIter::new(&executable.instructions);
-        for instr in iter {
+        for (ip, instr) in iter {
             match instr.kind.argument_count() {
                 0 => {
-                    eprintln!("{:?}()", instr.kind);
+                    eprintln!("  {}: {:?}()", ip, instr.kind);
                 }
                 1 => {
                     let arg0 = instr.args.first().unwrap().unwrap();
-                    eprintln!("{:?}({})", instr.kind, arg0);
+                    eprintln!("  {}: {:?}({})", ip, instr.kind, arg0);
                 }
                 2 => {
                     let arg0 = instr.args.first().unwrap().unwrap();
                     let arg1 = instr.args.last().unwrap();
-                    eprintln!("{:?}({}, {:?})", instr.kind, arg0, arg1);
+                    eprintln!("  {}: {:?}({}, {:?})", ip, instr.kind, arg0, arg1);
                 }
                 _ => unreachable!(),
             }
         }
-        let iter = InstructionIter::new(&executable.instructions);
+        eprintln!();
 
-        for instr in iter {
+        while let Some(instr) = executable.get_instruction(&mut vm.ip) {
             eprintln!("Executing instruction {:?}", instr.kind);
             match instr.kind {
                 Instruction::Debug => {
@@ -245,6 +248,13 @@ impl Vm {
                     let func = vm.stack.pop().unwrap();
                     vm.result =
                         Some(call(agent, func, this_value, Some(ArgumentsList(&args))).unwrap());
+                }
+                Instruction::JumpIfNot => {
+                    let result = vm.result.take().unwrap();
+                    let ip = instr.args[0].unwrap() as usize;
+                    if !to_boolean(agent, result) {
+                        vm.ip = ip;
+                    }
                 }
                 other => todo!("{other:?}"),
             }
