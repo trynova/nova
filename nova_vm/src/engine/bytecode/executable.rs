@@ -202,6 +202,21 @@ impl Executable {
         self.add_index(identifier);
     }
 
+    fn add_instruction_with_identifier_and_constant(
+        &mut self,
+        instruction: Instruction,
+        identifier: Atom,
+        constant: impl Into<Value>,
+    ) {
+        debug_assert_eq!(instruction.argument_count(), 2);
+        debug_assert!(instruction.has_identifier_index() && instruction.has_constant_index());
+        self._push_instruction(instruction);
+        let identifier = self.add_identifier(identifier);
+        self.add_index(identifier);
+        let constant = self.add_constant(constant.into());
+        self.add_index(constant);
+    }
+
     fn add_index(&mut self, index: usize) {
         assert!(index < IndexType::MAX as usize);
         let bytes: [u8; 2] = (index as IndexType).to_ne_bytes();
@@ -573,6 +588,68 @@ impl CompileEvaluation for CallExpression<'_> {
     }
 }
 
+impl CompileEvaluation for ast::MemberExpression<'_> {
+    /// ### [13.3.2 Property Accessors](https://tc39.es/ecma262/#sec-property-accessors)
+    fn compile(&self, ctx: &mut CompileContext) {
+        match self {
+            ast::MemberExpression::ComputedMemberExpression(x) => x.compile(ctx),
+            ast::MemberExpression::StaticMemberExpression(x) => x.compile(ctx),
+            ast::MemberExpression::PrivateFieldExpression(x) => x.compile(ctx),
+        }
+    }
+}
+
+impl CompileEvaluation for ast::ComputedMemberExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        // 1. Let baseReference be ? Evaluation of MemberExpression.
+        self.object.compile(ctx);
+
+        // 2. Let baseValue be ? GetValue(baseReference).
+        if is_reference(&self.object) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        ctx.exe.add_instruction(Instruction::Load);
+
+        // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
+        self.expression.compile(ctx);
+        if is_reference(&self.expression) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        ctx.exe.add_instruction(Instruction::Load);
+
+        ctx.exe.add_instruction_with_constant(
+            Instruction::EvaluatePropertyAccessWithExpressionKey,
+            true,
+        );
+    }
+}
+
+impl CompileEvaluation for ast::StaticMemberExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        // 1. Let baseReference be ? Evaluation of MemberExpression.
+        self.object.compile(ctx);
+
+        // 2. Let baseValue be ? GetValue(baseReference).
+        if is_reference(&self.object) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        ctx.exe.add_instruction(Instruction::Load);
+
+        // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
+        ctx.exe.add_instruction_with_identifier_and_constant(
+            Instruction::EvaluatePropertyAccessWithIdentifierKey,
+            self.property.name.clone(),
+            true,
+        );
+    }
+}
+
+impl CompileEvaluation for ast::PrivateFieldExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
 impl CompileEvaluation for ast::Expression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
@@ -589,6 +666,7 @@ impl CompileEvaluation for ast::Expression<'_> {
             ast::Expression::FunctionExpression(x) => x.compile(ctx),
             ast::Expression::ObjectExpression(x) => x.compile(ctx),
             ast::Expression::CallExpression(x) => x.compile(ctx),
+            ast::Expression::MemberExpression(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }

@@ -145,7 +145,13 @@ impl Instruction {
     }
 
     pub fn has_constant_index(self) -> bool {
-        matches!(self, Self::LoadConstant | Self::StoreConstant)
+        matches!(
+            self,
+            Self::LoadConstant
+                | Self::StoreConstant
+                | Self::EvaluatePropertyAccessWithExpressionKey
+                | Self::EvaluatePropertyAccessWithIdentifierKey
+        )
     }
 
     pub fn has_identifier_index(self) -> bool {

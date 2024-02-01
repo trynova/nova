@@ -1,24 +1,29 @@
 use oxc_span::Atom;
 use oxc_syntax::operator::BinaryOperator;
 
-use crate::ecmascript::{
-    abstract_operations::{
-        operations_on_objects::{call, create_data_property_or_throw},
-        testing_and_comparison::is_same_type,
-        type_conversion::{to_boolean, to_number, to_numeric, to_primitive, to_string},
+use crate::{
+    ecmascript::{
+        abstract_operations::{
+            operations_on_objects::{call, create_data_property_or_throw},
+            testing_and_comparison::is_same_type,
+            type_conversion::{
+                to_boolean, to_number, to_numeric, to_primitive, to_property_key, to_string,
+            },
+        },
+        builtins::{
+            ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
+            ArgumentsList, OrdinaryFunctionCreateParams, ThisMode,
+        },
+        execution::{
+            agent::{resolve_binding, ExceptionType},
+            Agent, ECMAScriptCodeEvaluationState, JsResult, ProtoIntrinsics,
+        },
+        types::{
+            get_value, put_value, Base, BigInt, IntoValue, Number, Object, PropertyKey, Reference,
+            ReferencedName, String, Value,
+        },
     },
-    builtins::{
-        ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create, ArgumentsList,
-        OrdinaryFunctionCreateParams, ThisMode,
-    },
-    execution::{
-        agent::{resolve_binding, ExceptionType},
-        Agent, ECMAScriptCodeEvaluationState, JsResult, ProtoIntrinsics,
-    },
-    types::{
-        get_value, put_value, Base, BigInt, IntoValue, Number, Object, PropertyKey, Reference,
-        String, Value,
-    },
+    heap::GetHeapData,
 };
 
 use super::{Executable, Instruction, InstructionIter};
@@ -248,6 +253,52 @@ impl Vm {
                     let func = vm.stack.pop().unwrap();
                     vm.result =
                         Some(call(agent, func, this_value, Some(ArgumentsList(&args))).unwrap());
+                }
+                Instruction::EvaluatePropertyAccessWithExpressionKey => {
+                    let property_name_value = vm.stack.pop().unwrap();
+                    let base_value = vm.stack.pop().unwrap();
+
+                    let Value::Boolean(strict) =
+                        vm.fetch_constant(executable, instr.args[0].unwrap() as usize)
+                    else {
+                        unreachable!()
+                    };
+
+                    let property_key = to_property_key(agent, property_name_value)?;
+
+                    vm.reference = Some(Reference {
+                        base: Base::Value(base_value),
+                        referenced_name: match property_key {
+                            PropertyKey::SmallString(s) => {
+                                ReferencedName::String(Atom::from(s.as_str()))
+                            }
+                            PropertyKey::String(s) => {
+                                let s = agent.heap.get(s);
+                                ReferencedName::String(Atom::from(s.clone().into_string().unwrap()))
+                            }
+                            _ => todo!("Implement symbol and integer property keys"),
+                        },
+                        strict,
+                        this_value: None,
+                    });
+                }
+                Instruction::EvaluatePropertyAccessWithIdentifierKey => {
+                    let property_name_string = vm
+                        .fetch_identifier(executable, instr.args[0].unwrap() as usize)
+                        .clone();
+                    let base_value = vm.stack.pop().unwrap();
+                    let Value::Boolean(strict) =
+                        vm.fetch_constant(executable, instr.args[1].unwrap() as usize)
+                    else {
+                        unreachable!()
+                    };
+
+                    vm.reference = Some(Reference {
+                        base: Base::Value(base_value),
+                        referenced_name: ReferencedName::String(property_name_string),
+                        strict,
+                        this_value: None,
+                    });
                 }
                 Instruction::JumpIfNot => {
                     let result = vm.result.take().unwrap();
