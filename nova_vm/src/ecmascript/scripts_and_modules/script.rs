@@ -750,4 +750,50 @@ mod test {
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Null);
     }
+
+    #[test]
+    fn if_statement() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(&allocator, "if (true) 3".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Number::from(3).into_value());
+
+        let script = parse_script(&allocator, "if (false) 3".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Undefined);
+    }
+
+    #[test]
+    fn if_else_statement() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(
+            &allocator,
+            "var foo = function() { if (true) { return 3; } else { return 5; } }; foo()".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Number::from(3).into_value());
+
+        let script = parse_script(
+            &allocator,
+            "var bar = function() { if (false) { return 3; } else { return 5; } }; bar()".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Number::from(5).into_value());
+    }
 }

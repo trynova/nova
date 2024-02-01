@@ -6,7 +6,7 @@ use super::IndexType;
 ///
 /// - This is inspired by and/or copied from Kiesel engine:
 ///   Copyright (c) 2023-2024 Linus Groh
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Instruction {
     Debug,
     /// Store ApplyStringOrNumericBinaryOperator() as the result value.
@@ -64,9 +64,9 @@ pub enum Instruction {
     IsStrictlyEqual,
     /// Jump to another instruction by setting the instruction pointer.
     Jump,
-    /// Jump to one of two other instructions depending on whether the last
-    /// value on the stack is truthy or not.
-    JumpConditional,
+    /// Jump to another instruction by setting the instruction pointer
+    /// if the current result is falsey.
+    JumpIfNot,
     /// Compare the last two values on the stack using the '<' operator rules.
     LessThan,
     /// Compare the last two values on the stack using the '<=' operator rules.
@@ -125,7 +125,7 @@ pub enum Instruction {
 impl Instruction {
     pub fn argument_count(self) -> u8 {
         match self {
-            Self::EvaluatePropertyAccessWithIdentifierKey | Self::JumpConditional => 2,
+            Self::EvaluatePropertyAccessWithIdentifierKey => 2,
             Self::ArraySetLength
             | Self::ArraySetValue
             | Self::CreateCatchBinding
@@ -135,6 +135,7 @@ impl Instruction {
             | Self::InstantiateArrowFunctionExpression
             | Self::InstantiateOrdinaryFunctionExpression
             | Self::Jump
+            | Self::JumpIfNot
             | Self::LoadConstant
             | Self::PushExceptionJumpTarget
             | Self::StoreConstant
@@ -162,6 +163,14 @@ impl Instruction {
             Self::InstantiateArrowFunctionExpression | Self::InstantiateOrdinaryFunctionExpression
         )
     }
+
+    pub fn has_jump_slot(self) -> bool {
+        matches!(self, Self::Jump | Self::JumpIfNot)
+    }
+
+    pub fn as_u8(self) -> u8 {
+        unsafe { std::mem::transmute::<Self, u8>(self) }
+    }
 }
 
 #[derive(Debug)]
@@ -173,7 +182,7 @@ pub(crate) struct Instr {
 #[derive(Debug)]
 pub(crate) struct InstructionIter<'a> {
     instructions: &'a [u8],
-    index: usize,
+    pub(crate) index: usize,
 }
 
 impl<'a> InstructionIter<'a> {
@@ -186,12 +195,13 @@ impl<'a> InstructionIter<'a> {
 }
 
 impl Iterator for InstructionIter<'_> {
-    type Item = Instr;
+    type Item = (usize, Instr);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.instructions.len() {
             return None;
         }
+        let index = self.index;
 
         let kind: Instruction = unsafe { std::mem::transmute(self.instructions[self.index]) };
         self.index += 1;
@@ -214,6 +224,6 @@ impl Iterator for InstructionIter<'_> {
             }
         }
 
-        Some(Instr { kind, args })
+        Some((index, Instr { kind, args }))
     }
 }

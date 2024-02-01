@@ -1,4 +1,4 @@
-use super::Instruction;
+use super::{instructions::Instr, Instruction};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_property_key,
@@ -40,7 +40,44 @@ pub(crate) struct Executable {
 }
 
 impl Executable {
+    pub(super) fn get_instruction(&self, ip: &mut usize) -> Option<Instr> {
+        if *ip >= self.instructions.len() {
+            return None;
+        }
+
+        let kind: Instruction =
+            unsafe { std::mem::transmute::<u8, Instruction>(self.instructions[*ip]) };
+        *ip += 1;
+
+        let mut args: [Option<IndexType>; 2] = [None, None];
+
+        for item in args.iter_mut().take(kind.argument_count() as usize) {
+            let length = self.instructions[*ip..].len();
+            if length >= 2 {
+                let bytes = IndexType::from_ne_bytes(unsafe {
+                    *std::mem::transmute::<*const u8, *const [u8; 2]>(
+                        self.instructions[*ip..].as_ptr(),
+                    )
+                });
+                *ip += 2;
+                *item = Some(bytes);
+            } else {
+                *ip += 1;
+                *item = None;
+            }
+        }
+
+        Some(Instr { kind, args })
+    }
+
+    pub(super) fn peek_last_instruction(&self) -> Option<u8> {
+        self.instructions.last().copied()
+    }
+
     pub(crate) fn compile_script(agent: &mut Agent, script: ScriptIdentifier) -> Executable {
+        eprintln!();
+        eprintln!("=== Compiling Script ===");
+        eprintln!();
         // SAFETY: Script uniquely owns the Program and the body buffer does
         // not move under any circumstances during heap operations.
         let body: &[Statement] = unsafe {
@@ -58,6 +95,9 @@ impl Executable {
     }
 
     pub(crate) fn compile_function_body(agent: &mut Agent, body: &FunctionBody<'_>) -> Executable {
+        eprintln!();
+        eprintln!("=== Compiling Function ===");
+        eprintln!();
         // SAFETY: Script referred by the Function uniquely owns the Program
         // and the body buffer does not move under any circumstances during
         // heap operations.
@@ -84,9 +124,7 @@ impl Executable {
             stmt.compile(&mut ctx);
         }
 
-        if ctx.exe.instructions.last()
-            != Some(&unsafe { std::mem::transmute::<Instruction, u8>(Instruction::Return) })
-        {
+        if ctx.exe.instructions.last() != Some(&Instruction::Return.as_u8()) {
             // If code did not end with a return statement, add it manually
             ctx.exe.add_instruction(Instruction::Return);
             return ctx.exe;
@@ -108,6 +146,13 @@ impl Executable {
                 && !instruction.has_identifier_index()
         );
         self._push_instruction(instruction);
+    }
+
+    fn add_instruction_with_jump_slot(&mut self, instruction: Instruction) -> JumpIndex {
+        debug_assert_eq!(instruction.argument_count(), 1);
+        debug_assert!(instruction.has_jump_slot());
+        self._push_instruction(instruction);
+        self.add_jump_index()
     }
 
     fn add_constant(&mut self, constant: Value) -> usize {
@@ -184,7 +229,7 @@ impl Executable {
         assert!(index < IndexType::MAX as usize);
         let bytes: [u8; 2] = (index as IndexType).to_ne_bytes();
         self.instructions[jump.index] = bytes[0];
-        self.instructions[jump.index + 1] = bytes[0];
+        self.instructions[jump.index + 1] = bytes[1];
     }
 
     fn set_jump_target_here(&mut self, jump: JumpIndex) {
@@ -569,10 +614,27 @@ impl CompileEvaluation for ast::ReturnStatement<'_> {
 
 impl CompileEvaluation for ast::IfStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        // if (test) consequent
         self.test.compile(ctx);
-        let jump = ctx.exe.add_jump_index();
+        // jump over consequent if test fails
+        let jump = ctx
+            .exe
+            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
         self.consequent.compile(ctx);
         ctx.exe.set_jump_target_here(jump);
+        let mut jump_over_else: Option<JumpIndex> = None;
+        if let Some(alternate) = &self.alternate {
+            // Optimisation: If the an else branch exists, the consequent
+            // branch needs to end in a jump over it. But if the consequent
+            // branch ends in a return statement that jump becomes unnecessary.
+            if ctx.exe.peek_last_instruction() != Some(Instruction::Return.as_u8()) {
+                jump_over_else = Some(ctx.exe.add_instruction_with_jump_slot(Instruction::Jump));
+            }
+            alternate.compile(ctx);
+        }
+        if let Some(jump_over_else) = jump_over_else {
+            ctx.exe.set_jump_target_here(jump_over_else);
+        }
     }
 }
 
@@ -662,6 +724,20 @@ impl CompileEvaluation for ast::Declaration<'_> {
     }
 }
 
+impl CompileEvaluation for ast::BlockStatement<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        // TODO: Move into lexical scope etc.
+        for ele in &self.body {
+            ele.compile(ctx);
+        }
+        if ctx.exe.peek_last_instruction() != Some(Instruction::Return.as_u8()) {
+            // Block did not end in a return so we overwrite the result with undefined.
+            ctx.exe
+                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        }
+    }
+}
+
 impl CompileEvaluation for ast::Statement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
@@ -669,6 +745,8 @@ impl CompileEvaluation for ast::Statement<'_> {
             ast::Statement::ReturnStatement(x) => x.compile(ctx),
             ast::Statement::IfStatement(x) => x.compile(ctx),
             ast::Statement::Declaration(x) => x.compile(ctx),
+            ast::Statement::BlockStatement(x) => x.compile(ctx),
+            ast::Statement::EmptyStatement(_) => {}
             other => todo!("{other:?}"),
         }
     }
