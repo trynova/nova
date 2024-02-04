@@ -45,6 +45,11 @@ pub enum Instruction {
     EvaluatePropertyAccessWithIdentifierKey,
     /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
     /// value.
+    ///
+    /// #### Note
+    /// We only call `GetValue` on reference values. This can be statically
+    /// analysed from the AST. Non-reference values are already in the result
+    /// value so a `GetValue` call would be a no-op.
     GetValue,
     /// Compare the last two values on the stack using the '>' operator rules.
     GreaterThan,
@@ -115,8 +120,8 @@ pub enum Instruction {
     ToNumber,
     /// Store ToNumeric() as the result value.
     ToNumeric,
-    /// Apply the typeof operation to the evaluated expression and set it as
-    /// the result value.
+    /// Apply the typeof operation to the evaluated value expression and set it
+    /// as the result value.
     Typeof,
     /// Performs steps 3 and 4 from the [UnaryExpression - Runtime Semantics](https://tc39.es/ecma262/#sec-unary-minus-operator-runtime-semantics-evaluation).
     UnaryMinus,

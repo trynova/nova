@@ -437,8 +437,8 @@ mod test {
         abstract_operations::operations_on_objects::create_data_property_or_throw,
         builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
         execution::{
-            agent::Options, create_realm, set_realm_global_object, Agent, DefaultHostHooks,
-            ExecutionContext,
+            agent::Options, create_realm, initialize_default_realm,
+            set_realm_global_object, Agent, DefaultHostHooks, ExecutionContext,
         },
         scripts_and_modules::script::{parse_script, script_evaluation},
         types::{InternalMethods, IntoValue, Number, Object, PropertyKey, Value},
@@ -511,7 +511,7 @@ mod test {
 
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
-        set_realm_global_object(&mut agent, realm, None, None);
+        initialize_default_realm(&mut agent, realm);
 
         let script = parse_script(&allocator, "typeof undefined".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
@@ -795,5 +795,57 @@ mod test {
         .unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Number::from(5).into_value());
+    }
+
+    #[test]
+    fn static_property_access() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script =
+            parse_script(&allocator, "var foo = { a: 3 }; foo.a".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Number::from(3).into_value());
+    }
+
+    #[test]
+    fn deep_static_property_access() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(
+            &allocator,
+            "var fn = function() { return 3; }; var foo = { a: { b: fn } }; foo.a.b()".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Number::from(3).into_value());
+    }
+
+    #[test]
+    fn computed_property_access() {
+        let allocator: Allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(
+            &allocator,
+            "var foo = { a: 3 }; var prop = 'a'; foo[prop]".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Number::from(3).into_value());
     }
 }

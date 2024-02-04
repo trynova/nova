@@ -6,7 +6,7 @@ use super::{
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
-        types::{Object, PropertyDescriptor, PropertyKey, Value},
+        types::{Number, Object, PropertyDescriptor, PropertyKey, Value},
     },
     heap::indexes::ObjectIndex,
 };
@@ -228,7 +228,7 @@ pub(crate) fn set_default_global_bindings(
     // TODO: Actually do other properties aside from globalThis.
     {
         // a. Let name be the String value of the property name.
-        let name = PropertyKey::try_from(Value::from_str(&mut agent.heap, "globalThis")).unwrap();
+        let name = PropertyKey::from_str(&mut agent.heap, "globalThis");
 
         // b. Let desc be the fully populated data Property Descriptor for the property, containing the specified attributes for the property. For properties listed in 19.2, 19.3, or 19.4 the value of the [[Value]] attribute is the corresponding intrinsic object from realmRec.
         let global_env = agent.heap.get_realm(realm_id).global_env;
@@ -238,6 +238,38 @@ pub(crate) fn set_default_global_bindings(
         };
 
         // c. Perform ? DefinePropertyOrThrow(global, name, desc).
+        define_property_or_throw(agent, global, name, desc)?;
+
+        let name = PropertyKey::from_str(&mut agent.heap, "Infinity");
+        let value = Number::from_f64(agent, f64::INFINITY);
+        let desc = PropertyDescriptor {
+            value: Some(value.into_value()),
+            writable: Some(false),
+            enumerable: Some(false),
+            configurable: Some(false),
+            ..Default::default()
+        };
+        define_property_or_throw(agent, global, name, desc)?;
+
+        let name = PropertyKey::from_str(&mut agent.heap, "NaN");
+        let value = Number::from_f64(agent, f64::NAN);
+        let desc = PropertyDescriptor {
+            value: Some(value.into_value()),
+            writable: Some(false),
+            enumerable: Some(false),
+            configurable: Some(false),
+            ..Default::default()
+        };
+        define_property_or_throw(agent, global, name, desc)?;
+
+        let name = PropertyKey::from_str(&mut agent.heap, "undefined");
+        let desc = PropertyDescriptor {
+            value: Some(Value::Undefined),
+            writable: Some(false),
+            enumerable: Some(false),
+            configurable: Some(false),
+            ..Default::default()
+        };
         define_property_or_throw(agent, global, name, desc)?;
     }
 
@@ -299,4 +331,17 @@ pub fn initialize_host_defined_realm(
     };
 
     // 12. Return UNUSED.
+}
+
+pub fn initialize_default_realm(agent: &mut Agent, realm_id: RealmIdentifier) {
+    let create_global_object: Option<fn(&mut Realm) -> Object> = None;
+    let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
+    let initialize_global_object: Option<fn(&mut Agent, Object)> = None;
+    initialize_host_defined_realm(
+        agent,
+        realm_id,
+        create_global_object,
+        create_global_this_value,
+        initialize_global_object,
+    );
 }

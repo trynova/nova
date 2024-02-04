@@ -179,15 +179,22 @@ impl Vm {
                 }
                 Instruction::GetValue => {
                     // 1. If V is not a Reference Record, return V.
-                    let Some(reference) = &vm.reference else {
-                        debug_assert!(vm.result.is_some());
-                        continue;
-                    };
+                    let reference = vm.reference.take().unwrap();
 
-                    vm.result = Some(get_value(agent, reference)?);
+                    vm.result = Some(get_value(agent, &reference)?);
                 }
                 Instruction::Typeof => {
-                    let val = vm.result.unwrap();
+                    // 2. If val is a Reference Record, then
+                    let val = if let Some(reference) = vm.reference.take() {
+                        match reference.base {
+                            Base::Value(value) => value,
+                            Base::Environment(_) => get_value(agent, &reference)?,
+                            // a. If IsUnresolvableReference(val) is true, return "undefined".
+                            Base::Unresolvable => Value::Undefined,
+                        }
+                    } else {
+                        vm.result.unwrap()
+                    };
                     vm.result = Some(typeof_operator(agent, val).into())
                 }
                 Instruction::ObjectCreate => {
