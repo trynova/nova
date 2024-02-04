@@ -437,8 +437,8 @@ mod test {
         abstract_operations::operations_on_objects::create_data_property_or_throw,
         builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
         execution::{
-            agent::Options, create_realm, initialize_default_realm,
-            set_realm_global_object, Agent, DefaultHostHooks, ExecutionContext,
+            agent::Options, create_realm, initialize_default_realm, set_realm_global_object, Agent,
+            DefaultHostHooks, ExecutionContext,
         },
         scripts_and_modules::script::{parse_script, script_evaluation},
         types::{InternalMethods, IntoValue, Number, Object, PropertyKey, Value},
