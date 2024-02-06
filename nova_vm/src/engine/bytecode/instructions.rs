@@ -130,13 +130,12 @@ pub enum Instruction {
 impl Instruction {
     pub fn argument_count(self) -> u8 {
         match self {
-            Self::EvaluatePropertyAccessWithIdentifierKey => 2,
             Self::ArraySetLength
             | Self::ArraySetValue
             | Self::CreateCatchBinding
             | Self::EvaluateCall
             | Self::EvaluateNew
-            | Self::EvaluatePropertyAccessWithExpressionKey
+            | Self::EvaluatePropertyAccessWithIdentifierKey
             | Self::InstantiateArrowFunctionExpression
             | Self::InstantiateOrdinaryFunctionExpression
             | Self::Jump
@@ -150,13 +149,7 @@ impl Instruction {
     }
 
     pub fn has_constant_index(self) -> bool {
-        matches!(
-            self,
-            Self::LoadConstant
-                | Self::StoreConstant
-                | Self::EvaluatePropertyAccessWithExpressionKey
-                | Self::EvaluatePropertyAccessWithIdentifierKey
-        )
+        matches!(self, Self::LoadConstant | Self::StoreConstant)
     }
 
     pub fn has_identifier_index(self) -> bool {
