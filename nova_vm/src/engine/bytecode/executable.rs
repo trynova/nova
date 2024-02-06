@@ -155,6 +155,8 @@ impl Executable {
         self.add_jump_index()
     }
 
+    fn add_jump_to(&mut self, instruction: Instruction, index: JumpIndex) {}
+
     fn add_constant(&mut self, constant: Value) -> usize {
         let index = self.constants.len();
         self.constants.push(constant);
@@ -402,18 +404,20 @@ impl CompileEvaluation for ast::BinaryExpression<'_> {
                 if is_reference(&self.left) {
                     ctx.exe.add_instruction(Instruction::GetValue);
                 }
+                ctx.exe.add_instruction(Instruction::Load);
 
                 // 3. Let rref be ? Evaluation of ShiftExpression.
                 self.right.compile(ctx);
 
                 // 4. Let rval be ? GetValue(rref).
-                if is_reference(&self.left) {
+                if is_reference(&self.right) {
                     ctx.exe.add_instruction(Instruction::GetValue);
                 }
 
                 // 5. Let r be ? IsLessThan(lval, rval, true).
                 // 6. If r is undefined, return false. Otherwise, return r.
                 ctx.exe.add_instruction(Instruction::LessThan);
+                return;
             }
             _ => {
                 // TODO(@carter): Figure out if this fallthrough is correct?
@@ -466,8 +470,8 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
             ctx.exe.add_instruction(Instruction::GetValue);
         }
 
-        ctx.exe.add_instruction(Instruction::PutValue);
         ctx.exe.add_instruction(Instruction::PopReference);
+        ctx.exe.add_instruction(Instruction::PutValue);
     }
 }
 
@@ -652,8 +656,25 @@ impl CompileEvaluation for ast::Expression<'_> {
             ast::Expression::ObjectExpression(x) => x.compile(ctx),
             ast::Expression::CallExpression(x) => x.compile(ctx),
             ast::Expression::MemberExpression(x) => x.compile(ctx),
+            ast::Expression::UpdateExpression(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
+    }
+}
+
+impl CompileEvaluation for ast::UpdateExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        match &self.argument {
+            ast::SimpleAssignmentTarget::AssignmentTargetIdentifier(x) => x.compile(ctx),
+            ast::SimpleAssignmentTarget::MemberAssignmentTarget(_) => todo!(),
+            ast::SimpleAssignmentTarget::TSAsExpression(_)
+            | ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
+            | ast::SimpleAssignmentTarget::TSNonNullExpression(_)
+            | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
+        }
+        ctx.exe.add_instruction(Instruction::GetValueKeepReference);
+        ctx.exe.add_instruction(Instruction::Increment);
+        ctx.exe.add_instruction(Instruction::PutValue);
     }
 }
 
@@ -774,9 +795,8 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                         }
                     }
                     // 5. Perform ? PutValue(lhs, value).
-                    ctx.exe.add_instruction(Instruction::Load);
-                    ctx.exe.add_instruction(Instruction::PutValue);
                     ctx.exe.add_instruction(Instruction::PopReference);
+                    ctx.exe.add_instruction(Instruction::PutValue);
 
                     // 6. Return EMPTY.
                     // Pop out undefined from stack to return it.
@@ -812,6 +832,37 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
     }
 }
 
+impl CompileEvaluation for ast::ForStatement<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        if let Some(init) = &self.init {
+            if init.is_lexical_declaration() {
+                todo!();
+            }
+            match init {
+                ast::ForStatementInit::VariableDeclaration(init) => init.compile(ctx),
+                ast::ForStatementInit::Expression(init) => init.compile(ctx),
+                ast::ForStatementInit::UsingDeclaration(_) => todo!(),
+            }
+        }
+        let loop_jump = ctx.exe.instructions.len();
+        if let Some(test) = &self.test {
+            test.compile(ctx);
+        }
+        // jump over consequent if test fails
+        let end_jump = ctx
+            .exe
+            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+        self.body.compile(ctx);
+        let _continue_jump = ctx.exe.instructions.len();
+        if let Some(update) = &self.update {
+            update.compile(ctx);
+        }
+        let loop_jump_index = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+        ctx.exe.set_jump_target(loop_jump_index, loop_jump);
+        ctx.exe.set_jump_target_here(end_jump);
+    }
+}
+
 impl CompileEvaluation for ast::Statement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
@@ -821,6 +872,7 @@ impl CompileEvaluation for ast::Statement<'_> {
             ast::Statement::Declaration(x) => x.compile(ctx),
             ast::Statement::BlockStatement(x) => x.compile(ctx),
             ast::Statement::EmptyStatement(_) => {}
+            ast::Statement::ForStatement(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }

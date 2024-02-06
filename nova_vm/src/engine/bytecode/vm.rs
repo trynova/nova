@@ -5,7 +5,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{call, create_data_property_or_throw},
-            testing_and_comparison::is_same_type,
+            testing_and_comparison::{is_less_than, is_same_type},
             type_conversion::{
                 to_boolean, to_number, to_numeric, to_primitive, to_property_key, to_string,
             },
@@ -133,7 +133,7 @@ impl Vm {
                     // 3. If oldValue is a Number, then
                     if let Ok(old_value) = Number::try_from(old_value) {
                         // a. Return Number::unaryMinus(oldValue).
-                        vm.result = Some(Number::unary_minus(old_value, agent).into());
+                        vm.result = Some(Number::unary_minus(agent, old_value).into());
                     }
                     // 4. Else,
                     else {
@@ -169,19 +169,24 @@ impl Vm {
                     vm.reference_stack.push(vm.reference.take().unwrap());
                 }
                 Instruction::PopReference => {
-                    vm.reference_stack.pop();
+                    vm.reference = Some(vm.reference_stack.pop().unwrap());
                 }
                 Instruction::PutValue => {
-                    let value = vm.stack.pop().unwrap();
-                    let reference = vm.reference_stack.last_mut().unwrap();
-                    put_value(agent, reference, value)?;
-                    reference.base = Base::Value(value);
+                    let value = vm.result.take().unwrap();
+                    let reference = vm.reference.take().unwrap();
+                    put_value(agent, &reference, value)?;
                 }
                 Instruction::GetValue => {
                     // 1. If V is not a Reference Record, return V.
                     let reference = vm.reference.take().unwrap();
 
                     vm.result = Some(get_value(agent, &reference)?);
+                }
+                Instruction::GetValueKeepReference => {
+                    // 1. If V is not a Reference Record, return V.
+                    let reference = vm.reference.as_ref().unwrap();
+
+                    vm.result = Some(get_value(agent, reference)?);
                 }
                 Instruction::Typeof => {
                     // 2. If val is a Reference Record, then
@@ -299,12 +304,39 @@ impl Vm {
                         this_value: None,
                     });
                 }
+                Instruction::Jump => {
+                    let ip = instr.args[0].unwrap() as usize;
+                    vm.ip = ip;
+                }
                 Instruction::JumpIfNot => {
                     let result = vm.result.take().unwrap();
                     let ip = instr.args[0].unwrap() as usize;
                     if !to_boolean(agent, result) {
                         vm.ip = ip;
                     }
+                }
+                Instruction::Increment => {
+                    let lhs = vm.result.take().unwrap();
+                    let old_value = to_numeric(agent, lhs)?;
+                    let new_value = if let Ok(old_value) = Number::try_from(old_value) {
+                        Number::add(agent, old_value, 1.into())
+                    } else {
+                        todo!();
+                        // let old_value = BigInt::try_from(old_value).unwrap();
+                        // BigInt::add(agent, old_value, 1.into());
+                    };
+                    vm.result = Some(new_value.into_value());
+                }
+                Instruction::LessThan => {
+                    let lval = vm.stack.pop().unwrap();
+                    let rval = vm.result.take().unwrap();
+                    let result =
+                        if let Some(result) = is_less_than::<true>(agent, lval, rval).unwrap() {
+                            result
+                        } else {
+                            false
+                        };
+                    vm.result = Some(result.into());
                 }
                 other => todo!("{other:?}"),
             }
@@ -396,7 +428,7 @@ fn apply_string_or_numeric_binary_operator(
         // opText	Type(lnum)	operation
         // **	Number	Number::exponentiate
         BinaryOperator::Exponential if lnum.is_number() => {
-            Number::exponentiate(lnum.try_into().unwrap(), agent, rnum.try_into().unwrap()).into()
+            Number::exponentiate(agent, lnum.try_into().unwrap(), rnum.try_into().unwrap()).into()
         }
         // *	Number	Number::multiply
         // *	BigInt	BigInt::multiply

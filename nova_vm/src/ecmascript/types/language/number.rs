@@ -5,7 +5,10 @@ use super::{
     IntoValue, Value,
 };
 use crate::{
-    ecmascript::execution::{Agent, JsResult},
+    ecmascript::{
+        abstract_operations::type_conversion::to_int32,
+        execution::{Agent, JsResult},
+    },
     heap::{indexes::NumberIndex, CreateHeapData, GetHeapData},
     SmallInteger,
 };
@@ -241,8 +244,8 @@ impl Number {
     /// NaN and non-zero checks, depending on which spec algorithm is being
     /// used.
     #[inline(always)]
-    fn is(self, agent: &mut Agent, y: Self) -> bool {
-        match (self, y) {
+    fn is(agent: &mut Agent, x: Self, y: Self) -> bool {
+        match (x, y) {
             // Optimisation: First compare by-reference; only read from heap if needed.
             (Number::Number(x), Number::Number(y)) => {
                 x == y || agent.heap.get(x) == agent.heap.get(y)
@@ -306,17 +309,17 @@ impl Number {
         }
     }
 
-    pub fn greater_than(self, agent: &mut Agent, y: Self) -> Option<bool> {
-        y.less_than(agent, self).map(|x| !x)
+    pub fn greater_than(agent: &mut Agent, x: Self, y: Self) -> Option<bool> {
+        Number::less_than(agent, y, x).map(|x| !x)
     }
 
     /// ### [6.1.6.1.1 Number::unaryMinus ( x )](https://tc39.es/ecma262/#sec-numeric-types-number-unaryMinus)
-    pub fn unary_minus(self, agent: &mut Agent) -> Self {
+    pub fn unary_minus(agent: &mut Agent, x: Self) -> Self {
         // 1. If x is NaN, return NaN.
         // NOTE: Computers do this automatically.
 
         // 2. Return the result of negating x; that is, compute a Number with the same magnitude but opposite sign.
-        match self {
+        match x {
             Number::Number(n) => {
                 let value = *agent.heap.get(n);
                 agent.heap.create(-value)
@@ -327,20 +330,16 @@ impl Number {
     }
 
     /// ### [6.1.6.1.2 Number::bitwiseNOT ( x )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseNOT)
-    pub fn bitwise_not(self, agent: &mut Agent) -> JsResult<Self> {
-        let x = self.into_value();
-
+    pub fn bitwise_not(agent: &mut Agent, x: Self) -> JsResult<Self> {
         // 1. Let oldValue be ! ToInt32(x).
-        let old_value = x.to_int32(agent)?;
+        let old_value = to_int32(agent, x.into_value())?;
 
         // 2. Return the result of applying bitwise complement to oldValue. The mathematical value of the result is exactly representable as a 32-bit two's complement bit string.
         Ok(Number::from(!old_value))
     }
 
     /// ### [6.1.6.1.3 Number::exponentiate ( base, exponent )](https://tc39.es/ecma262/#sec-numeric-types-number-exponentiate)
-    pub fn exponentiate(self, agent: &mut Agent, exponent: Self) -> Self {
-        let base = self;
-
+    pub fn exponentiate(agent: &mut Agent, base: Self, exponent: Self) -> Self {
         // 1. If exponent is NaN, return NaN.
         if exponent.is_nan(agent) {
             return Number::nan();
@@ -359,10 +358,7 @@ impl Number {
         // 4. If base is +∞𝔽, then
         if base.is_pos_infinity(agent) {
             // a. If exponent > +0𝔽, return +∞𝔽. Otherwise, return +0𝔽.
-            return if exponent
-                .greater_than(agent, Number::from(0))
-                .unwrap_or(false)
-            {
+            return if Number::greater_than(agent, exponent, Number::from(0)).unwrap_or(false) {
                 Number::pos_inf()
             } else {
                 Number::pos_zero()
@@ -372,7 +368,7 @@ impl Number {
         // 5. If base is -∞𝔽, then
         if base.is_neg_infinity(agent) {
             // a. If exponent > +0𝔽, then
-            return if exponent.greater_than(agent, 0.into()).unwrap_or(false) {
+            return if Number::greater_than(agent, exponent, 0.into()).unwrap_or(false) {
                 // i. If exponent is an odd integral Number, return -∞𝔽. Otherwise, return +∞𝔽.
                 if exponent.is_odd_integer(agent) {
                     Number::neg_inf()
@@ -394,10 +390,7 @@ impl Number {
         // 6. If base is +0𝔽, then
         if base.is_pos_zero(agent) {
             // a. If exponent > +0𝔽, return +0𝔽. Otherwise, return +∞𝔽.
-            return if exponent
-                .greater_than(agent, Number::pos_zero())
-                .unwrap_or(false)
-            {
+            return if Number::greater_than(agent, exponent, Number::pos_zero()).unwrap_or(false) {
                 Number::pos_zero()
             } else {
                 Number::pos_inf()
@@ -407,10 +400,7 @@ impl Number {
         // 7. If base is -0𝔽, then
         if base.is_neg_zero(agent) {
             // a. If exponent > +0𝔽, then
-            return if exponent
-                .greater_than(agent, Number::pos_zero())
-                .unwrap_or(false)
-            {
+            return if Number::greater_than(agent, exponent, Number::pos_zero()).unwrap_or(false) {
                 // i. If exponent is an odd integral Number, return -0𝔽. Otherwise, return +0𝔽.
                 if exponent.is_odd_integer(agent) {
                     Number::neg_zero()
@@ -437,11 +427,11 @@ impl Number {
             let base = base.abs(agent);
 
             // a. If abs(ℝ(base)) > 1, return +∞𝔽.
-            return if base.greater_than(agent, Number::from(1)).unwrap_or(false) {
+            return if Number::greater_than(agent, base, Number::from(1)).unwrap_or(false) {
                 Number::pos_inf()
             }
             // b. If abs(ℝ(base)) = 1, return NaN.
-            else if base.is(agent, Number::from(1)) {
+            else if Number::is(agent, base, Number::from(1)) {
                 Number::nan()
             }
             // c. If abs(ℝ(base)) < 1, return +0𝔽.
@@ -472,7 +462,7 @@ impl Number {
         debug_assert!(exponent.is_finite(agent) && exponent.is_nonzero(agent));
 
         // 12. If base < -0𝔽 and exponent is not an integral Number, return NaN.
-        if base.less_than(agent, Number::neg_zero()).unwrap_or(false)
+        if Number::less_than(agent, base, Number::neg_zero()).unwrap_or(false)
             && !exponent.is_odd_integer(agent)
         {
             return Number::nan();
@@ -536,16 +526,14 @@ impl Number {
     /// subtrahend.
     pub(crate) fn subtract(agent: &mut Agent, x: Number, y: Number) -> Number {
         // 1. Return Number::add(x, Number::unaryMinus(y)).
-        let negated_y = Number::unary_minus(y, agent);
+        let negated_y = Number::unary_minus(agent, y);
         Number::add(agent, x, negated_y)
     }
 
     // ...
 
     /// ### [6.1.6.1.12 Number::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-lessThan)
-    pub fn less_than(self, agent: &mut Agent, y: Self) -> Option<bool> {
-        let x = self;
-
+    pub fn less_than(agent: &mut Agent, x: Self, y: Self) -> Option<bool> {
         // 1. If x is NaN, return undefined.
         if x.is_nan(agent) {
             return None;
@@ -557,7 +545,7 @@ impl Number {
         }
 
         // 3. If x is y, return false.
-        if x.is(agent, y) {
+        if Number::is(agent, x, y) {
             return Some(false);
         }
 
@@ -591,10 +579,8 @@ impl Number {
             return Some(true);
         }
 
-        // 10. Assert: x and y are finite and non-zero.
-        assert!(
-            x.is_finite(agent) && x.is_nonzero(agent) && y.is_finite(agent) && y.is_nonzero(agent)
-        );
+        // 10. Assert: x and y are finite.
+        assert!(x.is_finite(agent) && y.is_finite(agent));
 
         // 11. If ℝ(x) < ℝ(y), return true. Otherwise, return false.
         Some(match (x, y) {
@@ -611,9 +597,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.13 Number::equal ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-equal)
-    pub fn equal(self, agent: &mut Agent, y: Self) -> bool {
-        let x = self;
-
+    pub fn equal(agent: &mut Agent, x: Self, y: Self) -> bool {
         // 1. If x is NaN, return false.
         if x.is_nan(agent) {
             return false;
@@ -625,7 +609,7 @@ impl Number {
         }
 
         // 3. If x is y, return true.
-        if x.is(agent, y) {
+        if Number::is(agent, x, y) {
             return true;
         }
 
@@ -644,9 +628,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.14 Number::sameValue ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValue)
-    pub fn same_value(self, agent: &mut Agent, y: Self) -> bool {
-        let x = self;
-
+    pub fn same_value(agent: &mut Agent, x: Self, y: Self) -> bool {
         // 1. If x is NaN and y is NaN, return true.
         if x.is_nan(agent) && y.is_nan(agent) {
             return true;
@@ -663,7 +645,7 @@ impl Number {
         }
 
         // 4. If x is y, return true.
-        if x.is(agent, y) {
+        if Number::is(agent, x, y) {
             return true;
         }
 
@@ -672,9 +654,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.15 Number::sameValueZero ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValueZero)
-    pub fn same_value_zero(self, agent: &mut Agent, y: Self) -> bool {
-        let x = self;
-
+    pub fn same_value_zero(agent: &mut Agent, x: Self, y: Self) -> bool {
         // 1. If x is NaN and y is NaN, return true.
         if x.is_nan(agent) && y.is_nan(agent) {
             return true;
@@ -691,7 +671,7 @@ impl Number {
         }
 
         // 4. If x is y, return true.
-        if x.is(agent, y) {
+        if Number::is(agent, x, y) {
             return true;
         }
 
@@ -700,9 +680,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.16 NumberBitwiseOp ( op, x, y )](https://tc39.es/ecma262/#sec-numberbitwiseop)
-    pub fn bitwise_op(self, agent: &mut Agent, op: BitwiseOp, y: Self) -> JsResult<Self> {
-        let x = self;
-
+    fn bitwise_op(agent: &mut Agent, op: BitwiseOp, x: Self, y: Self) -> JsResult<Self> {
         // 1. Let lnum be ! ToInt32(x).
         let lnum = x.into_value().to_int32(agent)?;
 
@@ -739,27 +717,21 @@ impl Number {
     }
 
     /// ### [6.1.6.1.17 Number::bitwiseAND ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseAND)
-    pub fn bitwise_and(self, agent: &mut Agent, y: Self) -> JsResult<Self> {
-        let x = self;
-
+    pub fn bitwise_and(agent: &mut Agent, x: Self, y: Self) -> JsResult<Self> {
         // 1. Return NumberBitwiseOp(&, x, y).
-        x.bitwise_op(agent, BitwiseOp::And, y)
+        Number::bitwise_op(agent, BitwiseOp::And, x, y)
     }
 
     /// ### [6.1.6.1.18 Number::bitwiseXOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseXOR)
-    pub fn bitwise_xor(self, agent: &mut Agent, y: Self) -> JsResult<Self> {
-        let x = self;
-
+    pub fn bitwise_xor(agent: &mut Agent, x: Self, y: Self) -> JsResult<Self> {
         // 1. Return NumberBitwiseOp(^, x, y).
-        x.bitwise_op(agent, BitwiseOp::Xor, y)
+        Number::bitwise_op(agent, BitwiseOp::Xor, x, y)
     }
 
     /// ### [6.1.6.1.19 Number::bitwiseOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseOR)
-    pub fn bitwise_or(self, agent: &mut Agent, y: Self) -> JsResult<Self> {
-        let x = self;
-
+    pub fn bitwise_or(agent: &mut Agent, x: Self, y: Self) -> JsResult<Self> {
         // 1. Return NumberBitwiseOp(|, x, y).
-        x.bitwise_op(agent, BitwiseOp::Or, y)
+        Number::bitwise_op(agent, BitwiseOp::Or, x, y)
     }
 
     // ...

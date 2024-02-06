@@ -848,4 +848,31 @@ mod test {
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Number::from(3).into_value());
     }
+    #[test]
+    fn for_loop() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+        let script = parse_script(
+            &allocator,
+            "var i = 0; for (; i < 3; i++) {}".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Undefined);
+        let key = PropertyKey::from_str(&mut agent.heap, "i");
+        let i: Value = agent
+            .get_realm(realm)
+            .global_object
+            .get_own_property(&mut agent, key)
+            .unwrap()
+            .unwrap()
+            .value
+            .unwrap();
+        assert_eq!(i, Value::from(3));
+    }
 }

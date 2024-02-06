@@ -51,12 +51,16 @@ pub enum Instruction {
     /// analysed from the AST. Non-reference values are already in the result
     /// value so a `GetValue` call would be a no-op.
     GetValue,
+    /// Same as GetValue without taking the reference slot. Used for reference
+    /// property updates.
+    GetValueKeepReference,
     /// Compare the last two values on the stack using the '>' operator rules.
     GreaterThan,
     /// Compare the last two values on the stack using the '>=' operator rules.
     GreaterThanEquals,
     /// Store HasProperty() as the result value.
     HasProperty,
+    Increment,
     /// Store InstanceofOperator() as the result value.
     InstanceofOperator,
     /// Store InstantiateArrowFunctionExpression() as the result value.
