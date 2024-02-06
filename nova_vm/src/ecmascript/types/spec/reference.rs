@@ -153,7 +153,7 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
 /// The abstract operation PutValue takes arguments V (a Reference Record or an
 /// ECMAScript language value) and W (an ECMAScript language value) and returns
 /// either a normal completion containing UNUSED or an abrupt completion.
-pub(crate) fn put_value(agent: &mut Agent, v: &mut Reference, w: Value) -> JsResult<()> {
+pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<()> {
     // 1. If V is not a Reference Record, throw a ReferenceError exception.
     // 2. If IsUnresolvableReference(V) is true, then
     if is_unresolvable_reference(v) {
@@ -188,7 +188,7 @@ pub(crate) fn put_value(agent: &mut Agent, v: &mut Reference, w: Value) -> JsRes
             todo!();
         }
         // c. Let succeeded be ? baseObj.[[Set]](V.[[ReferencedName]], W, GetThisValue(V)).
-        let this_value = Value::Undefined;
+        let this_value = get_this_value(v);
         let referenced_name = match &v.referenced_name {
             ReferencedName::String(atom) => PropertyKey::from_str(&mut agent.heap, atom.as_str()),
             ReferencedName::Symbol(_) => todo!(),
@@ -208,9 +208,8 @@ pub(crate) fn put_value(agent: &mut Agent, v: &mut Reference, w: Value) -> JsRes
         // a. Let base be V.[[Base]].
         let base = &v.base;
         // b. Assert: base is an Environment Record.
-        let base = match base {
-            Base::Environment(env) => env,
-            Base::Value(_) | Base::Unresolvable => unreachable!(),
+        let Base::Environment(base) = base else {
+            unreachable!()
         };
         // c. Return ? base.SetMutableBinding(V.[[ReferencedName]], W, V.[[Strict]]) (see 9.1).
         let referenced_name = match &v.referenced_name {

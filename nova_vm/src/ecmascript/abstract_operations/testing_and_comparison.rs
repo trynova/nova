@@ -116,7 +116,7 @@ pub(crate) fn same_value<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(
     // 2. If x is a Number, then
     if let (Ok(x), Ok(y)) = (Number::try_from(x.into()), Number::try_from(y.into())) {
         // a. Return Number::sameValue(x, y).
-        return x.same_value(agent, y);
+        return Number::same_value(agent, x, y);
     }
 
     // 3. Return SameValueNonNumber(x, y).
@@ -149,7 +149,7 @@ pub(crate) fn same_value_zero(
     // type-safety.
     if let (Ok(x), Ok(y)) = (x.to_number(agent), y.to_number(agent)) {
         // a. Return Number::sameValueZero(x, y).
-        return x.same_value_zero(agent, y);
+        return Number::same_value_zero(agent, x, y);
     }
 
     // 3. Return SameValueNonNumber(x, y).
@@ -277,7 +277,7 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
                 // 1. Return Number::lessThan(nx, ny).
                 let nx = nx.to_number(agent)?;
                 let ny = ny.to_number(agent)?;
-                return Ok(nx.less_than(agent, ny));
+                return Ok(Number::less_than(agent, nx, ny));
             }
             // ii. Else,
             else {
@@ -444,7 +444,7 @@ pub(crate) fn is_strictly_equal(
     // type-safety.
     if let (Ok(x), Ok(y)) = (x.to_number(agent), y.to_number(agent)) {
         // a. Return Number::equal(x, y).
-        return x.equal(agent, y);
+        return Number::equal(agent, x, y);
     }
 
     // 3. Return SameValueNonNumber(x, y).
