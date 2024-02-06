@@ -155,7 +155,18 @@ impl Executable {
         self.add_jump_index()
     }
 
-    fn add_jump_to(&mut self, instruction: Instruction, index: JumpIndex) {}
+    fn add_jump_instruction_to_index(&mut self, instruction: Instruction, jump_index: JumpIndex) {
+        debug_assert_eq!(instruction.argument_count(), 1);
+        debug_assert!(instruction.has_jump_slot());
+        self._push_instruction(instruction);
+        self.add_index(jump_index.index);
+    }
+
+    fn get_jump_index_to_here(&self) -> JumpIndex {
+        JumpIndex {
+            index: self.instructions.len(),
+        }
+    }
 
     fn add_constant(&mut self, constant: Value) -> usize {
         let index = self.constants.len();
@@ -844,7 +855,7 @@ impl CompileEvaluation for ast::ForStatement<'_> {
                 ast::ForStatementInit::UsingDeclaration(_) => todo!(),
             }
         }
-        let loop_jump = ctx.exe.instructions.len();
+        let loop_jump = ctx.exe.get_jump_index_to_here();
         if let Some(test) = &self.test {
             test.compile(ctx);
         }
@@ -853,12 +864,12 @@ impl CompileEvaluation for ast::ForStatement<'_> {
             .exe
             .add_instruction_with_jump_slot(Instruction::JumpIfNot);
         self.body.compile(ctx);
-        let _continue_jump = ctx.exe.instructions.len();
+        let _continue_jump = ctx.exe.get_jump_index_to_here();
         if let Some(update) = &self.update {
             update.compile(ctx);
         }
-        let loop_jump_index = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
-        ctx.exe.set_jump_target(loop_jump_index, loop_jump);
+        ctx.exe
+            .add_jump_instruction_to_index(Instruction::Jump, loop_jump);
         ctx.exe.set_jump_target_here(end_jump);
     }
 }
