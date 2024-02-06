@@ -202,6 +202,21 @@ impl Executable {
         self.add_index(identifier);
     }
 
+    fn add_instruction_with_identifier_and_constant(
+        &mut self,
+        instruction: Instruction,
+        identifier: Atom,
+        constant: impl Into<Value>,
+    ) {
+        debug_assert_eq!(instruction.argument_count(), 2);
+        debug_assert!(instruction.has_identifier_index() && instruction.has_constant_index());
+        self._push_instruction(instruction);
+        let identifier = self.add_identifier(identifier);
+        self.add_index(identifier);
+        let constant = self.add_constant(constant.into());
+        self.add_index(constant);
+    }
+
     fn add_index(&mut self, index: usize) {
         assert!(index < IndexType::MAX as usize);
         let bytes: [u8; 2] = (index as IndexType).to_ne_bytes();
@@ -304,15 +319,8 @@ impl CompileEvaluation for ast::StringLiteral {
 
 impl CompileEvaluation for ast::IdentifierReference {
     fn compile(&self, ctx: &mut CompileContext) {
-        if self.name == "undefined" {
-            // TODO(@aapoalas): This is correct for strict mode but not correct
-            // in general and definitely not the way to do this.
-            ctx.exe
-                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-        } else {
-            ctx.exe
-                .add_instruction_with_identifier(Instruction::ResolveBinding, self.name.clone());
-        }
+        ctx.exe
+            .add_instruction_with_identifier(Instruction::ResolveBinding, self.name.clone());
     }
 }
 
@@ -355,13 +363,7 @@ impl CompileEvaluation for ast::UnaryExpression<'_> {
             UnaryOperator::Typeof => {
                 // 1. Let val be ? Evaluation of UnaryExpression.
                 self.argument.compile(ctx);
-                // 2. If val is a Reference Record, then
-                if is_reference(&self.argument) {
-                    // a. If IsUnresolvableReference(val) is true, return "undefined".
-                    // if is_unresolvable_reference(&self.argument) {  }
-                }
                 // 3. Set val to ? GetValue(val).
-                ctx.exe.add_instruction(Instruction::GetValue);
                 ctx.exe.add_instruction(Instruction::Typeof);
             }
             // 13.5.2 The void operator
@@ -464,7 +466,6 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
             ctx.exe.add_instruction(Instruction::GetValue);
         }
 
-        ctx.exe.add_instruction(Instruction::Debug);
         ctx.exe.add_instruction(Instruction::PutValue);
         ctx.exe.add_instruction(Instruction::PopReference);
     }
@@ -536,8 +537,10 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         ast::PropertyKey::PrivateIdentifier(_) => todo!(),
                         ast::PropertyKey::Expression(_) => todo!(),
                     }
-
                     prop.value.compile(ctx);
+                    if is_reference(&prop.value) {
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
 
                     ctx.exe.add_instruction(Instruction::ObjectSetProperty);
                 }
@@ -554,7 +557,9 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
 impl CompileEvaluation for CallExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         self.callee.compile(ctx);
-        ctx.exe.add_instruction(Instruction::GetValue);
+        if is_reference(&self.callee) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
         ctx.exe.add_instruction(Instruction::Load);
         for ele in &self.arguments {
             match ele {
@@ -570,6 +575,63 @@ impl CompileEvaluation for CallExpression<'_> {
 
         ctx.exe
             .add_instruction_with_immediate(Instruction::EvaluateCall, self.arguments.len());
+    }
+}
+
+impl CompileEvaluation for ast::MemberExpression<'_> {
+    /// ### [13.3.2 Property Accessors](https://tc39.es/ecma262/#sec-property-accessors)
+    fn compile(&self, ctx: &mut CompileContext) {
+        match self {
+            ast::MemberExpression::ComputedMemberExpression(x) => x.compile(ctx),
+            ast::MemberExpression::StaticMemberExpression(x) => x.compile(ctx),
+            ast::MemberExpression::PrivateFieldExpression(x) => x.compile(ctx),
+        }
+    }
+}
+
+impl CompileEvaluation for ast::ComputedMemberExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        // 1. Let baseReference be ? Evaluation of MemberExpression.
+        self.object.compile(ctx);
+
+        // 2. Let baseValue be ? GetValue(baseReference).
+        if is_reference(&self.object) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        ctx.exe.add_instruction(Instruction::Load);
+
+        // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
+        self.expression.compile(ctx);
+        if is_reference(&self.expression) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+
+        ctx.exe
+            .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+    }
+}
+
+impl CompileEvaluation for ast::StaticMemberExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        // 1. Let baseReference be ? Evaluation of MemberExpression.
+        self.object.compile(ctx);
+
+        // 2. Let baseValue be ? GetValue(baseReference).
+        if is_reference(&self.object) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+
+        // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
+        ctx.exe.add_instruction_with_identifier(
+            Instruction::EvaluatePropertyAccessWithIdentifierKey,
+            self.property.name.clone(),
+        );
+    }
+}
+
+impl CompileEvaluation for ast::PrivateFieldExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
     }
 }
 
@@ -589,14 +651,22 @@ impl CompileEvaluation for ast::Expression<'_> {
             ast::Expression::FunctionExpression(x) => x.compile(ctx),
             ast::Expression::ObjectExpression(x) => x.compile(ctx),
             ast::Expression::CallExpression(x) => x.compile(ctx),
+            ast::Expression::MemberExpression(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }
 }
 
 impl CompileEvaluation for ast::ExpressionStatement<'_> {
+    /// ### [14.5.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-expression-statement-runtime-semantics-evaluation)
+    /// `ExpressionStatement : Expression ;`
     fn compile(&self, ctx: &mut CompileContext) {
+        // 1. Let exprRef be ? Evaluation of Expression.
         self.expression.compile(ctx);
+        if is_reference(&self.expression) {
+            // 2. Return ? GetValue(exprRef).
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
     }
 }
 
@@ -687,7 +757,9 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                                     // a. Let rhs be ? Evaluation of Initializer.
                                     init.compile(ctx);
                                     // b. Let value be ? GetValue(rhs).
-                                    ctx.exe.add_instruction(Instruction::GetValue);
+                                    if is_reference(init) {
+                                        ctx.exe.add_instruction(Instruction::GetValue);
+                                    }
                                 }
                             }
                             _ => unreachable!(),
@@ -697,7 +769,9 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                         // a. Let rhs be ? Evaluation of Initializer.
                         init.compile(ctx);
                         // b. Let value be ? GetValue(rhs).
-                        ctx.exe.add_instruction(Instruction::GetValue);
+                        if is_reference(init) {
+                            ctx.exe.add_instruction(Instruction::GetValue);
+                        }
                     }
                     // 5. Perform ? PutValue(lhs, value).
                     ctx.exe.add_instruction(Instruction::Load);

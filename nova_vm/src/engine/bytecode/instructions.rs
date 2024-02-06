@@ -45,6 +45,11 @@ pub enum Instruction {
     EvaluatePropertyAccessWithIdentifierKey,
     /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
     /// value.
+    ///
+    /// #### Note
+    /// We only call `GetValue` on reference values. This can be statically
+    /// analysed from the AST. Non-reference values are already in the result
+    /// value so a `GetValue` call would be a no-op.
     GetValue,
     /// Compare the last two values on the stack using the '>' operator rules.
     GreaterThan,
@@ -125,13 +130,12 @@ pub enum Instruction {
 impl Instruction {
     pub fn argument_count(self) -> u8 {
         match self {
-            Self::EvaluatePropertyAccessWithIdentifierKey => 2,
             Self::ArraySetLength
             | Self::ArraySetValue
             | Self::CreateCatchBinding
             | Self::EvaluateCall
             | Self::EvaluateNew
-            | Self::EvaluatePropertyAccessWithExpressionKey
+            | Self::EvaluatePropertyAccessWithIdentifierKey
             | Self::InstantiateArrowFunctionExpression
             | Self::InstantiateOrdinaryFunctionExpression
             | Self::Jump
