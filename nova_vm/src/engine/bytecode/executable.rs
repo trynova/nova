@@ -606,10 +606,8 @@ impl CompileEvaluation for ast::ComputedMemberExpression<'_> {
             ctx.exe.add_instruction(Instruction::GetValue);
         }
 
-        ctx.exe.add_instruction_with_constant(
-            Instruction::EvaluatePropertyAccessWithExpressionKey,
-            true,
-        );
+        ctx.exe
+            .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
     }
 }
 
@@ -624,10 +622,9 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
         }
 
         // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
-        ctx.exe.add_instruction_with_identifier_and_constant(
+        ctx.exe.add_instruction_with_identifier(
             Instruction::EvaluatePropertyAccessWithIdentifierKey,
             self.property.name.clone(),
-            true,
         );
     }
 }

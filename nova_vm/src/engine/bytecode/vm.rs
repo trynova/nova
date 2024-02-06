@@ -265,11 +265,7 @@ impl Vm {
                     let property_name_value = vm.result.take().unwrap();
                     let base_value = vm.stack.pop().unwrap();
 
-                    let Value::Boolean(strict) =
-                        vm.fetch_constant(executable, instr.args[0].unwrap() as usize)
-                    else {
-                        unreachable!()
-                    };
+                    let strict = true;
 
                     let property_key = to_property_key(agent, property_name_value)?;
 
@@ -294,11 +290,7 @@ impl Vm {
                         .fetch_identifier(executable, instr.args[0].unwrap() as usize)
                         .clone();
                     let base_value = vm.result.take().unwrap();
-                    let Value::Boolean(strict) =
-                        vm.fetch_constant(executable, instr.args[1].unwrap() as usize)
-                    else {
-                        unreachable!()
-                    };
+                    let strict = true;
 
                     vm.reference = Some(Reference {
                         base: Base::Value(base_value),
