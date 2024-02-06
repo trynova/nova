@@ -262,7 +262,7 @@ impl Vm {
                         Some(call(agent, func, this_value, Some(ArgumentsList(&args))).unwrap());
                 }
                 Instruction::EvaluatePropertyAccessWithExpressionKey => {
-                    let property_name_value = vm.stack.pop().unwrap();
+                    let property_name_value = vm.result.take().unwrap();
                     let base_value = vm.stack.pop().unwrap();
 
                     let Value::Boolean(strict) =
@@ -293,7 +293,7 @@ impl Vm {
                     let property_name_string = vm
                         .fetch_identifier(executable, instr.args[0].unwrap() as usize)
                         .clone();
-                    let base_value = vm.stack.pop().unwrap();
+                    let base_value = vm.result.take().unwrap();
                     let Value::Boolean(strict) =
                         vm.fetch_constant(executable, instr.args[1].unwrap() as usize)
                     else {

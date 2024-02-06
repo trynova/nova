@@ -605,7 +605,6 @@ impl CompileEvaluation for ast::ComputedMemberExpression<'_> {
         if is_reference(&self.expression) {
             ctx.exe.add_instruction(Instruction::GetValue);
         }
-        ctx.exe.add_instruction(Instruction::Load);
 
         ctx.exe.add_instruction_with_constant(
             Instruction::EvaluatePropertyAccessWithExpressionKey,
@@ -623,7 +622,6 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
         if is_reference(&self.object) {
             ctx.exe.add_instruction(Instruction::GetValue);
         }
-        ctx.exe.add_instruction(Instruction::Load);
 
         // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
         ctx.exe.add_instruction_with_identifier_and_constant(
