@@ -79,7 +79,14 @@ impl Executable {
     }
 
     pub(super) fn peek_last_instruction(&self) -> Option<u8> {
-        self.instructions.last().copied()
+        for ele in self.instructions.iter().rev() {
+            if *ele == Instruction::ExitDeclarativeEnvironment.as_u8() {
+                // Not a "real" instruction
+                continue;
+            }
+            return Some(*ele);
+        }
+        return None;
     }
 
     pub(crate) fn compile_script(agent: &mut Agent, script: ScriptIdentifier) -> Executable {
@@ -950,13 +957,13 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
         for ele in &self.body {
             ele.compile(ctx);
         }
-        ctx.exe
-            .add_instruction(Instruction::ExitDeclarativeEnvironment);
         if ctx.exe.peek_last_instruction() != Some(Instruction::Return.as_u8()) {
             // Block did not end in a return so we overwrite the result with undefined.
             ctx.exe
                 .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
+        ctx.exe
+            .add_instruction(Instruction::ExitDeclarativeEnvironment);
     }
 }
 
