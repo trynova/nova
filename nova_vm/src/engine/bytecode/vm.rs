@@ -19,8 +19,8 @@ use crate::{
             Agent, ECMAScriptCodeEvaluationState, JsResult, ProtoIntrinsics,
         },
         types::{
-            get_value, put_value, Base, BigInt, IntoValue, Number, Object, PropertyKey, Reference,
-            ReferencedName, String, Value,
+            get_value, is_unresolvable_reference, put_value, Base, BigInt, IntoValue, Number,
+            Object, PropertyKey, Reference, ReferencedName, String, Value,
         },
     },
     heap::GetHeapData,
@@ -337,6 +337,23 @@ impl Vm {
                             false
                         };
                     vm.result = Some(result.into());
+                }
+                Instruction::InitializeReferencedBinding => {
+                    let v = vm.reference.take().unwrap();
+                    let w = vm.result.take().unwrap();
+                    // 1. Assert: IsUnresolvableReference(V) is false.
+                    debug_assert!(!is_unresolvable_reference(&v));
+                    // 2. Let base be V.[[Base]].
+                    let base = v.base;
+                    // 3. Assert: base is an Environment Record.
+                    let Base::Environment(base) = base else {
+                        unreachable!()
+                    };
+                    let ReferencedName::String(referenced_name) = &v.referenced_name else {
+                        unreachable!()
+                    };
+                    // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
+                    base.initialize_binding(agent, referenced_name, w).unwrap();
                 }
                 other => todo!("{other:?}"),
             }

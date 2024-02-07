@@ -17,6 +17,8 @@ pub type IndexType = u16;
 pub(crate) struct CompileContext<'agent> {
     agent: &'agent mut Agent,
     exe: Executable,
+    /// NamedEvaluation name parameter
+    name_identifier: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -116,6 +118,7 @@ impl Executable {
                 references: Vec::new(),
                 function_expressions: Vec::new(),
             },
+            name_identifier: None,
         };
 
         let iter = body.iter();
@@ -169,23 +172,32 @@ impl Executable {
     }
 
     fn add_constant(&mut self, constant: Value) -> usize {
-        let index = self.constants.len();
-        self.constants.push(constant);
-        index
+        let duplicate = self
+            .constants
+            .iter()
+            .enumerate()
+            .find(|item| item.1.eq(&constant))
+            .map(|(idx, _)| idx);
+
+        duplicate.unwrap_or_else(|| {
+            let index = self.constants.len();
+            self.constants.push(constant);
+            index
+        })
     }
 
-    fn add_identifier(&mut self, identifier: Atom) -> usize {
+    fn add_identifier(&mut self, identifier: &Atom) -> usize {
         let duplicate = self
             .identifiers
             .iter()
             .enumerate()
-            .find(|item| item.1 == &identifier)
+            .find(|item| item.1 == identifier)
             .map(|(idx, _)| idx);
 
         duplicate.unwrap_or_else(|| {
-            let result = self.identifiers.len();
-            self.identifiers.push(identifier);
-            result
+            let index = self.identifiers.len();
+            self.identifiers.push(identifier.clone());
+            index
         })
     }
 
@@ -207,7 +219,7 @@ impl Executable {
         self.add_index(constant);
     }
 
-    fn add_instruction_with_identifier(&mut self, instruction: Instruction, identifier: Atom) {
+    fn add_instruction_with_identifier(&mut self, instruction: Instruction, identifier: &Atom) {
         debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_identifier_index());
         self._push_instruction(instruction);
@@ -218,7 +230,7 @@ impl Executable {
     fn add_instruction_with_identifier_and_constant(
         &mut self,
         instruction: Instruction,
-        identifier: Atom,
+        identifier: &Atom,
         constant: impl Into<Value>,
     ) {
         debug_assert_eq!(instruction.argument_count(), 2);
@@ -272,10 +284,6 @@ pub(crate) struct JumpIndex {
 
 pub(crate) trait CompileEvaluation {
     fn compile(&self, ctx: &mut CompileContext);
-}
-
-pub(crate) trait CompileNamedEvaluation {
-    fn compile_named(&self, ctx: &mut CompileContext, identifier: &ast::BindingIdentifier);
 }
 
 fn is_reference(expression: &ast::Expression) -> bool {
@@ -333,14 +341,14 @@ impl CompileEvaluation for ast::StringLiteral {
 impl CompileEvaluation for ast::IdentifierReference {
     fn compile(&self, ctx: &mut CompileContext) {
         ctx.exe
-            .add_instruction_with_identifier(Instruction::ResolveBinding, self.name.clone());
+            .add_instruction_with_identifier(Instruction::ResolveBinding, &self.name);
     }
 }
 
 impl CompileEvaluation for ast::BindingIdentifier {
     fn compile(&self, ctx: &mut CompileContext) {
         ctx.exe
-            .add_instruction_with_identifier(Instruction::ResolveBinding, self.name.clone());
+            .add_instruction_with_identifier(Instruction::ResolveBinding, &self.name);
     }
 }
 
@@ -498,32 +506,14 @@ impl CompileEvaluation for ast::ArrowExpression<'_> {
     }
 }
 
-impl CompileNamedEvaluation for ast::ArrowExpression<'_> {
-    fn compile_named(&self, _ctx: &mut CompileContext, _identifier: &ast::BindingIdentifier) {
-        todo!()
-    }
-}
-
 impl CompileEvaluation for ast::Function<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         ctx.exe.add_function_expression(FunctionExpression {
             expression: unsafe {
                 std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(self)
             },
-            identifier: None,
-            home_object: None,
-        });
-    }
-}
-
-impl CompileNamedEvaluation for ast::Function<'_> {
-    fn compile_named(&self, ctx: &mut CompileContext, identifier: &ast::BindingIdentifier) {
-        let identifier = Some(ctx.exe.add_identifier(identifier.name.clone()));
-        ctx.exe.add_function_expression(FunctionExpression {
-            expression: unsafe {
-                std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(self)
-            },
-            identifier,
+            // CompileContext holds a name identifier for us if this is NamedEvaluation.
+            identifier: ctx.name_identifier.take(),
             home_object: None,
         });
     }
@@ -639,7 +629,7 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
         // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
         ctx.exe.add_instruction_with_identifier(
             Instruction::EvaluatePropertyAccessWithIdentifierKey,
-            self.property.name.clone(),
+            &self.property.name,
         );
     }
 }
@@ -759,62 +749,129 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     // VariableDeclaration : BindingIdentifier Initializer
                     let init = decl.init.as_ref().unwrap();
 
-                    // Put undefined to stack
-                    ctx.exe
-                        .add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
-
                     // 1. Let bindingId be StringValue of BindingIdentifier.
                     // 2. Let lhs be ? ResolveBinding(bindingId).
                     ctx.exe.add_instruction_with_identifier(
                         Instruction::ResolveBinding,
-                        identifier.name.clone(),
+                        &identifier.name,
                     );
-
                     ctx.exe.add_instruction(Instruction::PushReference);
 
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
-                    if init.is_function() {
-                        match &init {
-                            ast::Expression::ArrowExpression(expr) => {
-                                // Always anonymous
-                                // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                                expr.compile_named(ctx, identifier);
-                            }
-                            ast::Expression::FunctionExpression(expr) => {
-                                if expr.id.is_none() {
-                                    // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                                    expr.compile_named(ctx, identifier);
-                                } else {
-                                    // 4. Else,
-                                    // a. Let rhs be ? Evaluation of Initializer.
-                                    init.compile(ctx);
-                                    // b. Let value be ? GetValue(rhs).
-                                    if is_reference(init) {
-                                        ctx.exe.add_instruction(Instruction::GetValue);
-                                    }
-                                }
-                            }
-                            _ => unreachable!(),
-                        };
-                    } else {
-                        // 4. Else,
-                        // a. Let rhs be ? Evaluation of Initializer.
-                        init.compile(ctx);
-                        // b. Let value be ? GetValue(rhs).
-                        if is_reference(init) {
-                            ctx.exe.add_instruction(Instruction::GetValue);
+                    match &init {
+                        ast::Expression::ArrowExpression(expr) => {
+                            // Always anonymous
+                            // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
+                            let name_identifier = ctx.exe.add_identifier(&identifier.name);
+                            ctx.name_identifier = Some(name_identifier);
+                            expr.compile(ctx);
                         }
-                    }
+                        ast::Expression::FunctionExpression(expr) => {
+                            if expr.id.is_none() {
+                                // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
+                                let name_identifier = ctx.exe.add_identifier(&identifier.name);
+                                ctx.name_identifier = Some(name_identifier);
+                            }
+                            // 4. Else,
+                            // a. Let rhs be ? Evaluation of Initializer.
+                            expr.compile(ctx);
+                        }
+                        _ => {
+                            // 4. Else,
+                            // a. Let rhs be ? Evaluation of Initializer.
+                            init.compile(ctx);
+                            // b. Let value be ? GetValue(rhs).
+                            if is_reference(init) {
+                                ctx.exe.add_instruction(Instruction::GetValue);
+                            }
+                        }
+                    };
                     // 5. Perform ? PutValue(lhs, value).
                     ctx.exe.add_instruction(Instruction::PopReference);
                     ctx.exe.add_instruction(Instruction::PutValue);
 
                     // 6. Return EMPTY.
-                    // Pop out undefined from stack to return it.
-                    ctx.exe.add_instruction(Instruction::Store);
+                    // Store Undefined as the result value.
+                    ctx.exe.add_instruction_with_constant(
+                        Instruction::StoreConstant,
+                        Value::Undefined,
+                    );
                 }
             }
-            other => todo!("{other:?}"),
+            ast::VariableDeclarationKind::Let | ast::VariableDeclarationKind::Const => {
+                for decl in &self.declarations {
+                    let ast::BindingPatternKind::BindingIdentifier(identifier) = &decl.id.kind
+                    else {
+                        //  LexicalBinding : BindingPattern Initializer
+                        todo!("{:?}", decl.id.kind);
+                    };
+
+                    // 1. Let lhs be ! ResolveBinding(StringValue of BindingIdentifier).
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::ResolveBinding,
+                        &identifier.name,
+                    );
+
+                    let Some(init) = &decl.init else {
+                        // LexicalBinding : BindingIdentifier
+                        // 2. Perform ! InitializeReferencedBinding(lhs, undefined).
+                        ctx.exe.add_instruction_with_constant(
+                            Instruction::StoreConstant,
+                            Value::Undefined,
+                        );
+                        ctx.exe
+                            .add_instruction(Instruction::InitializeReferencedBinding);
+                        // 3. Return empty.
+                        ctx.exe.add_instruction_with_constant(
+                            Instruction::StoreConstant,
+                            Value::Undefined,
+                        );
+                        return;
+                    };
+
+                    //  LexicalBinding : BindingIdentifier Initializer
+                    ctx.exe.add_instruction(Instruction::PushReference);
+                    // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
+                    match &init {
+                        ast::Expression::ArrowExpression(expr) => {
+                            // Always anonymous
+                            // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
+                            let name_identifier = ctx.exe.add_identifier(&identifier.name);
+                            ctx.name_identifier = Some(name_identifier);
+                            expr.compile(ctx);
+                        }
+                        ast::Expression::FunctionExpression(expr) => {
+                            if expr.id.is_none() {
+                                // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
+                                let name_identifier = ctx.exe.add_identifier(&identifier.name);
+                                ctx.name_identifier = Some(name_identifier);
+                            }
+                            // 4. Else,
+                            // a. Let rhs be ? Evaluation of Initializer.
+                            expr.compile(ctx);
+                        }
+                        _ => {
+                            // 4. Else,
+                            // a. Let rhs be ? Evaluation of Initializer.
+                            init.compile(ctx);
+                            // b. Let value be ? GetValue(rhs).
+                            if is_reference(init) {
+                                ctx.exe.add_instruction(Instruction::GetValue);
+                            }
+                        }
+                    };
+
+                    // 5. Perform ! InitializeReferencedBinding(lhs, value).
+                    ctx.exe.add_instruction(Instruction::PopReference);
+                    ctx.exe
+                        .add_instruction(Instruction::InitializeReferencedBinding);
+                    // 6. Return empty.
+                    ctx.exe.add_instruction_with_constant(
+                        Instruction::StoreConstant,
+                        Value::Undefined,
+                    );
+                }
+            }
         }
     }
 }
@@ -831,6 +888,11 @@ impl CompileEvaluation for ast::Declaration<'_> {
 
 impl CompileEvaluation for ast::BlockStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        if self.body.is_empty() {
+            // Block : {}
+            // 1. Return EMPTY.
+            return;
+        }
         // TODO: Move into lexical scope etc.
         for ele in &self.body {
             ele.compile(ctx);

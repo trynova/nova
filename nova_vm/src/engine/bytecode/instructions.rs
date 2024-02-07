@@ -129,6 +129,9 @@ pub enum Instruction {
     Typeof,
     /// Performs steps 3 and 4 from the [UnaryExpression - Runtime Semantics](https://tc39.es/ecma262/#sec-unary-minus-operator-runtime-semantics-evaluation).
     UnaryMinus,
+    /// Perform InitializeReferencedBinding with parameters reference (V) and
+    /// result (W).
+    InitializeReferencedBinding,
 }
 
 impl Instruction {

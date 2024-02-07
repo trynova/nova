@@ -8,7 +8,7 @@ use crate::{
         syntax_directed_operations::{
             miscellaneous::instantiate_function_object,
             scope_analysis::{
-                lexically_scoped_declarations, script_lexically_declared_names,
+                script_lexically_declared_names, script_lexically_scoped_declarations,
                 script_var_declared_names, script_var_scoped_declarations,
                 LexicallyScopedDeclaration, VarScopedDeclaration,
             },
@@ -265,7 +265,7 @@ pub(crate) fn global_declaration_instantiation(
         // valid for the duration of global_declaration_instantiation call.
         let script =
             unsafe { std::mem::transmute::<&Program<'_>, &'static Program<'static>>(script) };
-        lexically_scoped_declarations(script)
+        script_lexically_scoped_declarations(script)
     };
 
     // 3. For each element name of lexNames, do
@@ -441,9 +441,10 @@ mod test {
             DefaultHostHooks, ExecutionContext,
         },
         scripts_and_modules::script::{parse_script, script_evaluation},
-        types::{InternalMethods, IntoValue, Number, Object, PropertyKey, Value},
+        types::{InternalMethods, IntoValue, Number, Object, PropertyKey, String, Value},
     };
     use oxc_allocator::Allocator;
+    use oxc_span::Atom;
 
     #[test]
     fn empty_script() {
@@ -874,5 +875,44 @@ mod test {
             .value
             .unwrap();
         assert_eq!(i, Value::from(3));
+    }
+
+    #[test]
+    fn lexical_declarations() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        initialize_default_realm(&mut agent, realm);
+
+        let script = parse_script(
+            &allocator,
+            "let i = 0; const a = 'foo'; i = 3;".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Undefined);
+        let global_env = agent.get_realm(realm).global_env.unwrap();
+
+        assert!(global_env
+            .has_binding(&mut agent, &Atom::new_inline("a"))
+            .unwrap());
+        assert!(global_env
+            .has_binding(&mut agent, &Atom::new_inline("i"))
+            .unwrap());
+        assert_eq!(
+            global_env
+                .get_binding_value(&mut agent, &Atom::new_inline("a"), true)
+                .unwrap(),
+            String::from_small_string("foo").into_value()
+        );
+        assert_eq!(
+            global_env
+                .get_binding_value(&mut agent, &Atom::new_inline("i"), true)
+                .unwrap(),
+            Value::from(3)
+        );
     }
 }
