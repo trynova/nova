@@ -16,7 +16,8 @@ use crate::{
         },
         execution::{
             agent::{resolve_binding, ExceptionType},
-            Agent, ECMAScriptCodeEvaluationState, JsResult, ProtoIntrinsics,
+            new_declarative_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
+            JsResult, ProtoIntrinsics,
         },
         types::{
             get_value, is_unresolvable_reference, put_value, Base, BigInt, IntoValue, Number,
@@ -354,6 +355,57 @@ impl Vm {
                     };
                     // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
                     base.initialize_binding(agent, referenced_name, w).unwrap();
+                }
+                Instruction::EnterDeclarativeEnvironment => {
+                    let outer_env = agent
+                        .running_execution_context()
+                        .ecmascript_code
+                        .as_ref()
+                        .unwrap()
+                        .lexical_environment;
+                    let new_env = new_declarative_environment(agent, Some(outer_env));
+                    agent
+                        .running_execution_context_mut()
+                        .ecmascript_code
+                        .as_mut()
+                        .unwrap()
+                        .lexical_environment = EnvironmentIndex::Declarative(new_env);
+                }
+                Instruction::ExitDeclarativeEnvironment => {
+                    let old_env = agent
+                        .running_execution_context()
+                        .ecmascript_code
+                        .as_ref()
+                        .unwrap()
+                        .lexical_environment
+                        .get_outer_env(agent)
+                        .unwrap();
+                    agent
+                        .running_execution_context_mut()
+                        .ecmascript_code
+                        .as_mut()
+                        .unwrap()
+                        .lexical_environment = old_env;
+                }
+                Instruction::CreateMutableBinding => {
+                    let lex_env = agent
+                        .running_execution_context()
+                        .ecmascript_code
+                        .as_ref()
+                        .unwrap()
+                        .lexical_environment;
+                    let name = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                    lex_env.create_mutable_binding(agent, name, false).unwrap();
+                }
+                Instruction::CreateImmutableBinding => {
+                    let lex_env = agent
+                        .running_execution_context()
+                        .ecmascript_code
+                        .as_ref()
+                        .unwrap()
+                        .lexical_environment;
+                    let name = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                    lex_env.create_immutable_binding(agent, name, true).unwrap();
                 }
                 other => todo!("{other:?}"),
             }

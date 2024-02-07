@@ -4,11 +4,17 @@ use crate::{
         abstract_operations::type_conversion::to_property_key,
         execution::Agent,
         scripts_and_modules::script::ScriptIdentifier,
+        syntax_directed_operations::scope_analysis::{
+            LexicallyScopedDeclaration, LexicallyScopedDeclarations,
+        },
         types::{BigIntHeapData, Reference, String, Value},
     },
     heap::CreateHeapData,
 };
-use oxc_ast::ast::{self, CallExpression, FunctionBody, Statement};
+use oxc_ast::{
+    ast::{self, CallExpression, FunctionBody, Statement},
+    syntax_directed_operations::BoundNames,
+};
 use oxc_span::Atom;
 use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 
@@ -893,10 +899,59 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
             // 1. Return EMPTY.
             return;
         }
-        // TODO: Move into lexical scope etc.
+        ctx.exe
+            .add_instruction(Instruction::EnterDeclarativeEnvironment);
+        // SAFETY: Stupid lifetime transmute.
+        let body = unsafe {
+            std::mem::transmute::<
+                &oxc_allocator::Vec<'_, Statement<'_>>,
+                &'static oxc_allocator::Vec<'static, Statement<'static>>,
+            >(&self.body)
+        };
+        body.lexically_scoped_declarations(&mut |decl| {
+            match decl {
+                LexicallyScopedDeclaration::Variable(decl) => {
+                    if decl.kind.is_const() {
+                        decl.id.bound_names(&mut |name| {
+                            ctx.exe.add_instruction_with_identifier(
+                                Instruction::CreateImmutableBinding,
+                                &name.name,
+                            );
+                        });
+                    } else {
+                        decl.id.bound_names(&mut |name| {
+                            ctx.exe.add_instruction_with_identifier(
+                                Instruction::CreateMutableBinding,
+                                &name.name,
+                            );
+                        });
+                    }
+                }
+                LexicallyScopedDeclaration::Function(decl) => {
+                    // TODO: InstantiateFunctionObject and InitializeBinding
+                    decl.bound_names(&mut |name| {
+                        ctx.exe.add_instruction_with_identifier(
+                            Instruction::CreateMutableBinding,
+                            &name.name,
+                        );
+                    });
+                }
+                LexicallyScopedDeclaration::Class(decl) => {
+                    decl.bound_names(&mut |name| {
+                        ctx.exe.add_instruction_with_identifier(
+                            Instruction::CreateMutableBinding,
+                            &name.name,
+                        );
+                    });
+                }
+                LexicallyScopedDeclaration::DefaultExport => unreachable!(),
+            }
+        });
         for ele in &self.body {
             ele.compile(ctx);
         }
+        ctx.exe
+            .add_instruction(Instruction::ExitDeclarativeEnvironment);
         if ctx.exe.peek_last_instruction() != Some(Instruction::Return.as_u8()) {
             // Block did not end in a return so we overwrite the result with undefined.
             ctx.exe

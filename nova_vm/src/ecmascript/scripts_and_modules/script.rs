@@ -894,8 +894,8 @@ mod test {
         .unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Undefined);
-        let global_env = agent.get_realm(realm).global_env.unwrap();
 
+        let global_env = agent.get_realm(realm).global_env.unwrap();
         assert!(global_env
             .has_binding(&mut agent, &Atom::new_inline("a"))
             .unwrap());
@@ -914,5 +914,28 @@ mod test {
                 .unwrap(),
             Value::from(3)
         );
+    }
+
+    #[test]
+    fn lexical_declarations_in_block() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        initialize_default_realm(&mut agent, realm);
+
+        let script = parse_script(
+            &allocator,
+            "{ let i = 0; const a = 'foo'; i = 3; }".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Undefined);
+
+        let global_env = agent.get_realm(realm).global_env.unwrap();
+        assert!(!global_env.has_lexical_declaration(&agent, &Atom::new_inline("a")));
+        assert!(!global_env.has_lexical_declaration(&agent, &Atom::new_inline("i")));
     }
 }
