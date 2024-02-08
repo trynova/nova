@@ -129,6 +129,28 @@ pub enum Instruction {
     Typeof,
     /// Performs steps 3 and 4 from the [UnaryExpression - Runtime Semantics](https://tc39.es/ecma262/#sec-unary-minus-operator-runtime-semantics-evaluation).
     UnaryMinus,
+    /// Perform CreateImmutableBinding in the running execution context's
+    /// LexicalEnvironment with an identifier parameter and `true`
+    CreateImmutableBinding,
+    /// Perform CreateMutableBinding in the running execution context's
+    /// LexicalEnvironment with an identifier parameter and `false`
+    CreateMutableBinding,
+    /// Perform InitializeReferencedBinding with parameters reference (V) and
+    /// result (W).
+    InitializeReferencedBinding,
+    /// Perform NewDeclarativeEnvironment with the running execution context's
+    /// LexicalEnvironment as the only parameter and set it as the running
+    /// execution context's LexicalEnvironment.
+    ///
+    /// #### Note
+    /// It is technically against the spec to immediately set the new
+    /// environment as the running execution context's LexicalEnvironment. The
+    /// spec requires that creation of bindings in the environment is done
+    /// first. This is immaterial because creating the bindings cannot fail.
+    EnterDeclarativeEnvironment,
+    /// Reset the running execution context's LexicalEnvironment to its current
+    /// value's \[\[OuterEnv]].
+    ExitDeclarativeEnvironment,
 }
 
 impl Instruction {
@@ -147,7 +169,9 @@ impl Instruction {
             | Self::LoadConstant
             | Self::PushExceptionJumpTarget
             | Self::StoreConstant
-            | Self::ResolveBinding => 1,
+            | Self::ResolveBinding
+            | Self::CreateImmutableBinding
+            | Self::CreateMutableBinding => 1,
             _ => 0,
         }
     }
@@ -162,6 +186,8 @@ impl Instruction {
             Self::CreateCatchBinding
                 | Self::EvaluatePropertyAccessWithIdentifierKey
                 | Self::ResolveBinding
+                | Self::CreateImmutableBinding
+                | Self::CreateMutableBinding
         )
     }
 

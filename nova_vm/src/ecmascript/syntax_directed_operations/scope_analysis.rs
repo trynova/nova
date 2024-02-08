@@ -189,6 +189,7 @@ impl<'a> LexicallyDeclaredNames<'a> for LabeledStatement<'_> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum LexicallyScopedDeclaration<'a> {
     Variable(&'a VariableDeclarator<'a>),
     Function(&'a Function<'a>),
@@ -232,7 +233,7 @@ pub(crate) fn case_block_lexically_scoped_declarations() {
 
 pub(crate) fn function_body_lexically_scoped_declarations<'body>(
     code: &'body FunctionBody<'body>,
-) -> Vec<&'body Declaration<'body>> {
+) -> Vec<LexicallyScopedDeclaration<'body>> {
     let mut lexically_scoped_declarations = vec![];
     // FunctionStatementList : [empty]
     // 1. Return a new empty List.
@@ -257,14 +258,29 @@ pub(crate) fn class_static_block_lexically_scoped_declarations() {
     // 1. Return the TopLevelLexicallyScopedDeclarations of StatementList.
 }
 
-pub(crate) fn lexically_scoped_declarations<'a>(
-    body: &'a Program<'a>,
-) -> Vec<LexicallyScopedDeclaration<'a>> {
-    // Note: This algorithm doesn't functionally make a difference between
-    // Script, Module, Function or Class static block.
+pub(crate) fn script_lexically_scoped_declarations<'body>(
+    script: &'body Program<'body>,
+) -> Vec<LexicallyScopedDeclaration<'body>> {
     let mut lexically_scoped_declarations = vec![];
     // 1. Return TopLevelLexicallyScopedDeclarations of StatementList.
-    body.body.lexically_scoped_declarations(&mut |decl| {
+    script
+        .body
+        .top_level_lexically_scoped_declarations(&mut |decl| {
+            lexically_scoped_declarations.push(decl);
+        });
+
+    lexically_scoped_declarations
+}
+
+pub(crate) fn module_lexically_scoped_declarations<'body>(
+    module: &'body Program<'body>,
+) -> Vec<LexicallyScopedDeclaration<'body>> {
+    let mut lexically_scoped_declarations = vec![];
+
+    //  ModuleItemList : ModuleItemList ModuleItem
+    // 1. Let declarations1 be LexicallyScopedDeclarations of ModuleItemList.
+    module.body.lexically_scoped_declarations(&mut |decl| {
+        // 3. Return the list-concatenation of declarations[...]
         lexically_scoped_declarations.push(decl);
     });
 
@@ -337,6 +353,10 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                             // VariableStatement
                             // 2. Return a new empty List.
                         }
+                        // 1. Return a List whose sole element is DeclarationPart of Declaration.
+                        for decl in &decl.declarations {
+                            f(LexicallyScopedDeclaration::Variable(decl));
+                        }
                     },
                     Declaration::FunctionDeclaration(decl) => {
                         f(LexicallyScopedDeclaration::Function(decl));
@@ -350,7 +370,6 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                     Declaration::TSEnumDeclaration(_) |
                     Declaration::TSModuleDeclaration(_) |
                     Declaration::TSImportEqualsDeclaration(_) => unreachable!(),
-                    // 1. Return a List whose sole element is DeclarationPart of Declaration.
                 }
             },
             Statement::ModuleDeclaration(st) => {
@@ -1038,11 +1057,17 @@ impl<'a> TopLevelLexicallyDeclaredNames<'a> for Statement<'_> {
 /// The syntax-directed operation TopLevelLexicallyScopedDeclarations takes no
 /// arguments and returns a List of Parse Nodes.
 trait TopLevelLexicallyScopedDeclarations<'a> {
-    fn top_level_lexically_scoped_declarations<F: FnMut(&'a Declaration<'a>)>(&'a self, f: &mut F);
+    fn top_level_lexically_scoped_declarations<F: FnMut(LexicallyScopedDeclaration<'a>)>(
+        &'a self,
+        f: &mut F,
+    );
 }
 
 impl<'a> TopLevelLexicallyScopedDeclarations<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
-    fn top_level_lexically_scoped_declarations<F: FnMut(&'a Declaration<'a>)>(&'a self, f: &mut F) {
+    fn top_level_lexically_scoped_declarations<F: FnMut(LexicallyScopedDeclaration<'a>)>(
+        &'a self,
+        f: &mut F,
+    ) {
         // StatementList : StatementList StatementListItem
         // 1. Let declarations1 be TopLevelLexicallyScopedDeclarations of StatementList.
         // 2. Let declarations2 be TopLevelLexicallyScopedDeclarations of StatementListItem.
@@ -1054,16 +1079,36 @@ impl<'a> TopLevelLexicallyScopedDeclarations<'a> for oxc_allocator::Vec<'a, Stat
 }
 
 impl<'a> TopLevelLexicallyScopedDeclarations<'a> for Statement<'a> {
-    fn top_level_lexically_scoped_declarations<F: FnMut(&'a Declaration<'a>)>(&'a self, f: &mut F) {
+    fn top_level_lexically_scoped_declarations<F: FnMut(LexicallyScopedDeclaration<'a>)>(
+        &'a self,
+        f: &mut F,
+    ) {
         // StatementListItem : Declaration
-        if let Statement::Declaration(decl) = self {
+        let Statement::Declaration(decl) = self else {
+            return;
+        };
+        match decl {
             // 1. If Declaration is Declaration : HoistableDeclaration , then
-            if matches!(decl, Declaration::FunctionDeclaration(_)) {
+            Declaration::FunctionDeclaration(_) => {
                 // a. Return a new empty List.
-                return;
             }
             // 2. Return « Declaration ».
-            f(decl);
+            Declaration::VariableDeclaration(decl) => {
+                if decl.kind == VariableDeclarationKind::Var {
+                    // This is a VariableStatement, not Declaration at all.
+                    return;
+                }
+                for decl in &decl.declarations {
+                    f(LexicallyScopedDeclaration::Variable(decl));
+                }
+            }
+            Declaration::ClassDeclaration(decl) => f(LexicallyScopedDeclaration::Class(decl)),
+            Declaration::UsingDeclaration(_) => todo!(),
+            Declaration::TSTypeAliasDeclaration(_)
+            | Declaration::TSInterfaceDeclaration(_)
+            | Declaration::TSEnumDeclaration(_)
+            | Declaration::TSModuleDeclaration(_)
+            | Declaration::TSImportEqualsDeclaration(_) => unreachable!(),
         }
         // StatementListItem : Statement
         // 1. Return a new empty List.
