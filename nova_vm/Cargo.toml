@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gc = { version = "0.5.0", features = ["derive"] }
 wtf8 = "0.1"
 oxc_parser = "0.6.0"
 oxc_span = "0.6.0"
