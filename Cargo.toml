@@ -1,8 +1,13 @@
 [workspace]
 resolver = "2"
-members = [
-    "nova_cli",
-    "nova_vm",
-    "common",
-    "wasm"
-]
+members = ["nova_cli", "nova_vm", "common", "wasm"]
+
+[workspace.dependencies]
+num-bigint = "0.4.4"
+oxc_parser = "0.6.0"
+oxc_span = "0.6.0"
+oxc_syntax = "0.6.0"
+oxc_ast = "0.6.0"
+oxc_allocator = "0.6.0"
+oxc_diagnostics = "0.6.0"
+wtf8 = "0.1"
