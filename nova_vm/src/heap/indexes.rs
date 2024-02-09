@@ -113,7 +113,7 @@ impl<T: ?Sized> BaseIndex<T> {
         Self(unsafe { NonZeroU32::new_unchecked(value) }, PhantomData)
     }
 
-    pub fn last<U: Sized>(vec: &Vec<Option<U>>) -> Self {
+    pub fn last<U: Sized>(vec: &[Option<U>]) -> Self {
         assert!(!vec.is_empty());
         Self::from_usize(vec.len())
     }

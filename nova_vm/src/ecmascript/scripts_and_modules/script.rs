@@ -46,7 +46,7 @@ impl ScriptIdentifier {
         Self(value, PhantomData)
     }
 
-    pub(crate) fn last(scripts: &Vec<Option<Script>>) -> Self {
+    pub(crate) fn last(scripts: &[Option<Script>]) -> Self {
         let index = scripts.len() - 1;
         Self::from_index(index)
     }
