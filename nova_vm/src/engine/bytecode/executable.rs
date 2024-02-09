@@ -86,7 +86,7 @@ impl Executable {
             }
             return Some(*ele);
         }
-        return None;
+        None
     }
 
     pub(crate) fn compile_script(agent: &mut Agent, script: ScriptIdentifier) -> Executable {
