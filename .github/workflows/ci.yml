@@ -20,10 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust toolchain
-        run: |
-          rustup update stable
-          rustup default stable
-          rustup component add clippy rustfmt
+        run: rustup update stable
       - name: Check formatting
         run: cargo fmt --check
       - name: Clippy
