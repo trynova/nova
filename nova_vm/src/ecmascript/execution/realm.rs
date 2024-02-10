@@ -32,7 +32,7 @@ impl RealmIdentifier {
         Self(value, PhantomData)
     }
 
-    pub(crate) fn last(realms: &Vec<Option<Realm>>) -> Self {
+    pub(crate) fn last(realms: &[Option<Realm>]) -> Self {
         let index = realms.len() - 1;
         Self::from_index(index)
     }
