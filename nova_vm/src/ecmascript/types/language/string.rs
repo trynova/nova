@@ -102,6 +102,24 @@ impl String {
         }
     }
 
+    /// If x and y have the same length and the same code units in the same
+    /// positions, return true; otherwise, return false.
+    pub fn have_same_length_and_code_units(agent: &mut Agent, x: String, y: String) -> bool {
+        match (x, y) {
+            (String::String(x), String::String(y)) => {
+                let x = agent.heap.get(x);
+                let y = agent.heap.get(y);
+                x == y
+            }
+            (String::String(x), String::SmallString(y))
+            | (String::SmallString(y), String::String(x)) => {
+                let x = agent.heap.get(x);
+                x.as_str() == Some(y.as_str())
+            }
+            (String::SmallString(x), String::SmallString(y)) => x == y,
+        }
+    }
+
     /// ### [6.1.4.1 StringIndexOf ( string, searchValue, fromIndex )](https://tc39.es/ecma262/#sec-stringindexof)
     pub fn index_of(self, agent: &mut Agent, search_value: Self, from_index: i64) -> i64 {
         // TODO: Figure out what we should do for invalid cases.
