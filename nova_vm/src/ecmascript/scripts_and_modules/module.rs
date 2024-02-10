@@ -18,7 +18,7 @@ impl ModuleIdentifier {
         Self(value, PhantomData)
     }
 
-    pub(crate) fn last(modules: &Vec<Option<Module>>) -> Self {
+    pub(crate) fn last(modules: &[Option<Module>]) -> Self {
         let index = modules.len() - 1;
         Self::from_index(index)
     }

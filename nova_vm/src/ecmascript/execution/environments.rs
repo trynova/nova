@@ -86,7 +86,7 @@ macro_rules! create_environment_index {
                 self.0.get()
             }
 
-            pub(crate) fn last(vec: &Vec<Option<$name>>) -> Self {
+            pub(crate) fn last(vec: &[Option<$name>]) -> Self {
                 Self::from_u32(vec.len() as u32)
             }
         }
