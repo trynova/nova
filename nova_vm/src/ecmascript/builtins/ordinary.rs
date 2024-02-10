@@ -1,8 +1,9 @@
 use crate::ecmascript::{
     abstract_operations::{
-        operations_on_objects::{create_data_property, get, get_function_realm},
+        operations_on_objects::{call_function, create_data_property, get, get_function_realm},
         testing_and_comparison::same_value,
     },
+    builtins::ArgumentsList,
     execution::{Agent, JsResult, ProtoIntrinsics},
     types::{
         Function, InternalMethods, Object, OrdinaryObject, OrdinaryObjectInternalSlots,
@@ -551,12 +552,12 @@ pub(crate) fn ordinary_get(
 
     // 5. Let getter be desc.[[Get]].
     // 6. If getter is undefined, return undefined.
-    let Some(_getter) = descriptor.get else {
+    let Some(getter) = descriptor.get else {
         return Ok(Value::Undefined);
     };
 
     // 7. Return ? Call(getter, Receiver).
-    todo!()
+    call_function(agent, getter, receiver, None)
 }
 
 /// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
@@ -661,13 +662,15 @@ pub(crate) fn ordinary_set_with_own_descriptor(
 
     // 4. Let setter be ownDesc.[[Set]].
     // 5. If setter is undefined, return false.
-    let Some(_setter) = own_descriptor.set else {
+    let Some(setter) = own_descriptor.set else {
         return Ok(false);
     };
 
     // 6. Perform ? Call(setter, Receiver, « V »).
-    todo!();
+    call_function(agent, setter, receiver, Some(ArgumentsList(&[value])))?;
+
     // 7. Return true.
+    Ok(true)
 }
 
 /// ### [10.1.10.1 OrdinaryDelete ( O, P )](https://tc39.es/ecma262/#sec-ordinarydelete)
