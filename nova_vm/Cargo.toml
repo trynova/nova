@@ -3,15 +3,12 @@ name = "nova_vm"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-wtf8 = "0.1"
-oxc_parser = "0.6.0"
-oxc_span = "0.6.0"
-oxc_syntax = "0.6.0"
-oxc_ast = "0.6.0"
-oxc_allocator = "0.6.0"
-oxc_diagnostics = "0.6.0"
-num-bigint = "0.4.4"
-small_vec = "0.1.2"
+num-bigint = { workspace = true }
+oxc_parser = { workspace = true }
+oxc_span = { workspace = true }
+oxc_syntax = { workspace = true }
+oxc_ast = { workspace = true }
+oxc_allocator = { workspace = true }
+oxc_diagnostics = { workspace = true }
+wtf8 = { workspace = true }
