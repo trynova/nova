@@ -178,7 +178,7 @@ pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(agent: &mut Agent, x:
     // 4. If x is a String, then
     if let (Ok(x), Ok(y)) = (String::try_from(x), String::try_from(y)) {
         // a. If x and y have the same length and the same code units in the same positions, return true; otherwise, return false.
-        return String::have_same_length_and_code_units(agent, x, y);
+        return String::eq(agent, x, y);
     }
 
     // 5. If x is a Boolean, then
