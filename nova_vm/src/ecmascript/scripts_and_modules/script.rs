@@ -507,6 +507,51 @@ mod test {
     }
 
     #[test]
+    fn unary_plus() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(&allocator, "+(54)".into(), realm, None).unwrap();
+
+        let result = script_evaluation(&mut agent, script).unwrap();
+
+        assert_eq!(result, (54).into());
+    }
+
+    #[test]
+    fn logical_not() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(&allocator, "!true".into(), realm, None).unwrap();
+
+        let result = script_evaluation(&mut agent, script).unwrap();
+
+        assert_eq!(result, (false).into());
+    }
+
+    #[test]
+    fn bitwise_not() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(&allocator, "~0b1111".into(), realm, None).unwrap();
+
+        let result = script_evaluation(&mut agent, script).unwrap();
+
+        assert_eq!(result, (-16).into());
+    }
+
+    #[test]
     fn unary_typeof() {
         let allocator = Allocator::default();
 

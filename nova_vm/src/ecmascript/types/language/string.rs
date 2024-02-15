@@ -111,12 +111,10 @@ impl String {
                 let y = agent.heap.get(y);
                 x == y
             }
-            (String::String(x), String::SmallString(y))
-            | (String::SmallString(y), String::String(x)) => {
-                let x = agent.heap.get(x);
-                x.as_str() == Some(y.as_str())
-            }
             (String::SmallString(x), String::SmallString(y)) => x == y,
+            // The string heap guarantees that small strings must never equal
+            // heap strings.
+            _ => false,
         }
     }
 

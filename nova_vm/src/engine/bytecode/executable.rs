@@ -389,9 +389,52 @@ impl CompileEvaluation for ast::UnaryExpression<'_> {
                 //    b. Return BigInt::unaryMinus(oldValue).
                 ctx.exe.add_instruction(Instruction::UnaryMinus);
             }
-            UnaryOperator::UnaryPlus => todo!(),
-            UnaryOperator::LogicalNot => todo!(),
-            UnaryOperator::BitwiseNot => todo!(),
+            // 13.5.4 Unary + Operator
+            // https://tc39.es/ecma262/#sec-unary-plus-operator
+            // UnaryExpression : + UnaryExpression
+            UnaryOperator::UnaryPlus => {
+                // 1. Let expr be ? Evaluation of UnaryExpression.
+                self.argument.compile(ctx);
+
+                // 2. Return ? ToNumber(? GetValue(expr)).
+                if is_reference(&self.argument) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ctx.exe.add_instruction(Instruction::ToNumber);
+            }
+            // 13.5.6 Unary ! Operator
+            // https://tc39.es/ecma262/#sec-logical-not-operator-runtime-semantics-evaluation
+            // UnaryExpression : ! UnaryExpression
+            UnaryOperator::LogicalNot => {
+                // 1. Let expr be ? Evaluation of UnaryExpression.
+                self.argument.compile(ctx);
+
+                // 2. Let oldValue be ToBoolean(? GetValue(expr)).
+                // 3. If oldValue is true, return false.
+                // 4. Return true.
+                if is_reference(&self.argument) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ctx.exe.add_instruction(Instruction::LogicalNot);
+            }
+            // 13.5.7 Unary ~ Operator
+            // https://tc39.es/ecma262/#sec-bitwise-not-operator-runtime-semantics-evaluation
+            // UnaryExpression : ~ UnaryExpression
+            UnaryOperator::BitwiseNot => {
+                // 1. Let expr be ? Evaluation of UnaryExpression.
+                self.argument.compile(ctx);
+
+                // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
+                // 3. If oldValue is a Number, then
+                //    a. Return Number::bitwiseNOT(oldValue).
+                // 4. Else,
+                //    a. Assert: oldValue is a BigInt.
+                //    b. Return BigInt::bitwiseNOT(oldValue).
+                if is_reference(&self.argument) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ctx.exe.add_instruction(Instruction::BitwiseNot);
+            }
             // 13.5.3 The typeof Operator
             // UnaryExpression : typeof UnaryExpression
             UnaryOperator::Typeof => {
