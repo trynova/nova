@@ -100,6 +100,25 @@ impl Vm {
         while let Some(instr) = executable.get_instruction(&mut vm.ip) {
             eprintln!("Executing instruction {:?}", instr.kind);
             match instr.kind {
+                Instruction::BitwiseNot => {
+                    // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
+                    let old_value = to_numeric(agent, vm.result.take().unwrap())?;
+
+                    // 3. If oldValue is a Number, then
+                    if let Ok(old_value) = Number::try_from(old_value) {
+                        // a. Return Number::bitwiseNOT(oldValue).
+                        vm.result = Some(Number::bitwise_not(agent, old_value)?.into_value());
+                    } else {
+                        // 4. Else,
+                        // a. Assert: oldValue is a BigInt.
+                        let Ok(old_value) = BigInt::try_from(old_value) else {
+                            unreachable!();
+                        };
+
+                        // b. Return BigInt::bitwiseNOT(oldValue).
+                        vm.result = Some(BigInt::bitwise_not(agent, old_value).into_value());
+                    }
+                }
                 Instruction::Debug => {
                     eprintln!("Debug: {:#?}", vm);
                 }
@@ -338,6 +357,14 @@ impl Vm {
                             false
                         };
                     vm.result = Some(result.into());
+                }
+                Instruction::LogicalNot => {
+                    // 2. Let oldValue be ToBoolean(? GetValue(expr)).
+                    let old_value = to_boolean(agent, vm.result.take().unwrap());
+
+                    // 3. If oldValue is true, return false.
+                    // 4. Return true.
+                    vm.result = Some((!old_value).into());
                 }
                 Instruction::InitializeReferencedBinding => {
                     let v = vm.reference.take().unwrap();

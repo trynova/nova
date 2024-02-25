@@ -102,6 +102,22 @@ impl String {
         }
     }
 
+    /// If x and y have the same length and the same code units in the same
+    /// positions, return true; otherwise, return false.
+    pub fn eq(agent: &mut Agent, x: String, y: String) -> bool {
+        match (x, y) {
+            (String::String(x), String::String(y)) => {
+                let x = agent.heap.get(x);
+                let y = agent.heap.get(y);
+                x == y
+            }
+            (String::SmallString(x), String::SmallString(y)) => x == y,
+            // The string heap guarantees that small strings must never equal
+            // heap strings.
+            _ => false,
+        }
+    }
+
     /// ### [6.1.4.1 StringIndexOf ( string, searchValue, fromIndex )](https://tc39.es/ecma262/#sec-stringindexof)
     pub fn index_of(self, agent: &mut Agent, search_value: Self, from_index: i64) -> i64 {
         // TODO: Figure out what we should do for invalid cases.

@@ -2,7 +2,7 @@
 
 use crate::ecmascript::{
     execution::{agent::JsError, Agent, JsResult},
-    types::{bigint::BigInt, InternalMethods, Number, Object, Value},
+    types::{bigint::BigInt, InternalMethods, Number, Object, String, Value},
 };
 
 use super::type_conversion::{string_to_big_int, to_number, to_primitive, PreferredType};
@@ -157,7 +157,7 @@ pub(crate) fn same_value_zero(
 }
 
 /// ### [7.2.12 SameValueNonNumber ( x, y )](https://tc39.es/ecma262/#sec-samevaluenonnumber)
-pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(_agent: &mut Agent, x: T, y: T) -> bool {
+pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(agent: &mut Agent, x: T, y: T) -> bool {
     let x: Value = x.into();
     let y: Value = y.into();
 
@@ -170,15 +170,15 @@ pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(_agent: &mut Agent, x
     }
 
     // 3. If x is a BigInt, then
-    if x.is_bigint() {
+    if let (Ok(x), Ok(y)) = (BigInt::try_from(x), BigInt::try_from(y)) {
         // a. Return BigInt::equal(x, y).
-        todo!();
+        return BigInt::equal(agent, x, y);
     }
 
     // 4. If x is a String, then
-    if x.is_string() {
+    if let (Ok(x), Ok(y)) = (String::try_from(x), String::try_from(y)) {
         // a. If x and y have the same length and the same code units in the same positions, return true; otherwise, return false.
-        todo!();
+        return String::eq(agent, x, y);
     }
 
     // 5. If x is a Boolean, then

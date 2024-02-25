@@ -17,8 +17,7 @@ pub enum Instruction {
     ArraySetValue,
     /// Set the length property of an array to the given index.
     ArraySetLength,
-    /// Apply bitwise NOT to the last value on the stack and store it as the
-    /// result value.
+    /// Performs steps 2-4 from the [UnaryExpression ~ Runtime Semantics](https://tc39.es/ecma262/#sec-bitwise-not-operator-runtime-semantics-evaluation).
     BitwiseNot,
     /// Create a catch binding for the given name and populate it with the
     /// stored exception.
@@ -87,8 +86,7 @@ pub enum Instruction {
     /// Determine the this value for an upcoming evaluate_call instruction and
     /// add it to the stack.
     LoadThisValue,
-    /// Apply logical NOT to the last value on the stack and store it as the
-    /// result value.
+    /// Performs steps 2-4 from the [UnaryExpression ! Runtime Semantics](https://tc39.es/ecma262/#sec-logical-not-operator-runtime-semantics-evaluation).
     LogicalNot,
     /// Store OrdinaryObjectCreate(%Object.prototype%) on the stack.
     ObjectCreate,
