@@ -267,6 +267,7 @@ impl InternalMethods for Array {
             // f. Let index be ! ToUint32(P).
             let index = index as u32;
             // g. If index ≥ length and lengthDesc.[[Writable]] is false, return false.
+            #[allow(clippy::overly_complex_bool_expr)]
             if index >= length && false {
                 // TODO: Handle Array { writable: false }
                 return Ok(false);
