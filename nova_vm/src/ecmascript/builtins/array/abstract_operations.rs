@@ -4,9 +4,9 @@ use crate::{
             testing_and_comparison::same_value_zero,
             type_conversion::{to_number, to_uint32},
         },
-        builtins::ordinary::{ordinary_define_own_property, ordinary_get_own_property},
+        builtins::ordinary::ordinary_define_own_property,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{InternalMethods, Number, Object, PropertyDescriptor, PropertyKey, Value},
+        types::{InternalMethods, Object, PropertyDescriptor, PropertyKey, Value},
     },
     heap::{indexes::ArrayIndex, GetHeapData},
 };

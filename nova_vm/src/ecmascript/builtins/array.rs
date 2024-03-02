@@ -13,16 +13,14 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            testing_and_comparison::same_value_non_number, type_conversion::to_uint32,
-        },
+        abstract_operations::testing_and_comparison::same_value_non_number,
         execution::{Agent, JsResult},
         types::{
             InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
             OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{element_array::ElementDescriptor, indexes::ArrayIndex, GetHeapData},
+    heap::{indexes::ArrayIndex, GetHeapData},
     SmallString,
 };
 

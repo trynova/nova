@@ -42,7 +42,7 @@ impl From<usize> for ElementArrayKey {
             ElementArrayKey::E16
         } else if value <= usize::pow(2, 24) {
             ElementArrayKey::E24
-        } else if value <= usize::pow(2, 32) - 1 {
+        } else if value < usize::pow(2, 32) {
             ElementArrayKey::E32
         } else {
             panic!("Elements array length over 2 ** 32 - 1");

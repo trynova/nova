@@ -20,8 +20,8 @@ use crate::{
             JsResult, ProtoIntrinsics,
         },
         types::{
-            get_value, is_unresolvable_reference, put_value, Base, BigInt, InternalMethods,
-            IntoValue, Number, Object, PropertyKey, Reference, ReferencedName, String, Value,
+            get_value, is_unresolvable_reference, put_value, Base, BigInt, IntoValue, Number,
+            Object, PropertyKey, Reference, ReferencedName, String, Value,
         },
     },
     heap::GetHeapData,
