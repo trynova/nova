@@ -13,6 +13,7 @@ mod number;
 pub mod ordinary;
 
 pub(crate) use arguments::*;
+pub(crate) use array::abstract_operations::*;
 pub(crate) use array::ArrayHeapData;
 pub use array::{Array, ArrayConstructor};
 pub use array_buffer::ArrayBuffer;

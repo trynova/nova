@@ -615,6 +615,29 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
     }
 }
 
+impl CompileEvaluation for ast::ArrayExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        let elements_min_count = self.elements.len();
+        ctx.exe
+            .add_instruction_with_immediate(Instruction::ArrayCreate, elements_min_count);
+        for ele in &self.elements {
+            match ele {
+                ast::ArrayExpressionElement::SpreadElement(_) => todo!(),
+                ast::ArrayExpressionElement::Expression(expr) => {
+                    expr.compile(ctx);
+                    if is_reference(expr) {
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+
+                    ctx.exe.add_instruction(Instruction::ArrayPush);
+                }
+                ast::ArrayExpressionElement::Elision(_) => todo!(),
+            }
+        }
+        ctx.exe.add_instruction(Instruction::Store);
+    }
+}
+
 impl CompileEvaluation for CallExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         self.callee.compile(ctx);
@@ -714,6 +737,7 @@ impl CompileEvaluation for ast::Expression<'_> {
             ast::Expression::CallExpression(x) => x.compile(ctx),
             ast::Expression::MemberExpression(x) => x.compile(ctx),
             ast::Expression::UpdateExpression(x) => x.compile(ctx),
+            ast::Expression::ArrayExpression(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }

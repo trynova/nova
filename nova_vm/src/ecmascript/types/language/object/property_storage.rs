@@ -11,7 +11,7 @@ use crate::{
 
 use super::{Object, ObjectHeapData, PropertyKey};
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct PropertyStorage(Object);
 
 impl PropertyStorage {
