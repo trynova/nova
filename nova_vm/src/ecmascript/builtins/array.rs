@@ -249,7 +249,7 @@ impl InternalMethods for Array {
             array_set_length(agent, self, property_descriptor)
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
-            if !(0 <= index && index <= (i64::pow(2, 32) - 2)) {
+            if !(0..u32::MAX as i64).contains(&index) {
                 return ordinary_define_own_property(
                     agent,
                     self.into_object(),
