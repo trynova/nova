@@ -5,6 +5,7 @@ mod number;
 mod object;
 mod string;
 mod value;
+mod language_value;
 
 pub use bigint::{BigInt, BigIntHeapData};
 pub(crate) use function::{
