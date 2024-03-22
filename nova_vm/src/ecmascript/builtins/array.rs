@@ -8,7 +8,8 @@ mod data;
 use std::ops::Deref;
 
 use super::{
-    array_set_length, create_builtin_function, ordinary::ordinary_define_own_property,
+    array_set_length, create_builtin_function,
+    ordinary::{ordinary_define_own_property, ordinary_set},
     ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs,
 };
 use crate::{
@@ -36,7 +37,7 @@ impl IntoObject for ArrayIndex {
     }
 }
 
-pub use data::ArrayHeapData;
+pub use data::{ArrayHeapData, SealableElementsVector};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Array(ArrayIndex);
@@ -216,7 +217,7 @@ impl InternalMethods for Array {
     ) -> JsResult<Option<PropertyDescriptor>> {
         if let PropertyKey::Integer(index) = property_key {
             let elements = agent.heap.get(*self).elements;
-            let elements = agent.heap.elements.get(elements);
+            let elements = agent.heap.elements.get(elements.into());
             if let Some(value) = elements.get(index.into_i64() as usize) {
                 return Ok(value.map(|value| PropertyDescriptor {
                     value: Some(value),
@@ -227,13 +228,14 @@ impl InternalMethods for Array {
         }
         let length_key = PropertyKey::from_str(&mut agent.heap, "length");
         let array_data = agent.heap.get(*self);
-        if let Some(object_index) = array_data.object_index {
-            Object::Object(object_index).get_own_property(agent, property_key)
-        } else if property_key == length_key {
+        if property_key == length_key {
             Ok(Some(PropertyDescriptor {
                 value: Some(array_data.elements.len().into()),
+                writable: Some(array_data.elements.len_writable),
                 ..Default::default()
             }))
+        } else if let Some(object_index) = array_data.object_index {
+            Object::Object(object_index).get_own_property(agent, property_key)
         } else {
             Ok(None)
         }
@@ -274,7 +276,7 @@ impl InternalMethods for Array {
             }
             // h. Let succeeded be ! OrdinaryDefineOwnProperty(A, P, Desc).
             elements.len = index + 1;
-            let elements_data = agent.heap.elements.get_mut(elements);
+            let elements_data = agent.heap.elements.get_mut(elements.into());
             *elements_data.get_mut(index as usize).unwrap() = property_descriptor.value;
             // i. If succeeded is false, return false.
             if false {
@@ -319,27 +321,83 @@ impl InternalMethods for Array {
         Ok(false)
     }
 
-    fn get(
-        self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _receiver: Value,
-    ) -> JsResult<Value> {
-        todo!()
+    fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
+        if property_key == PropertyKey::SmallString(SmallString::try_from("length").unwrap()) {
+            Ok(self.len(agent).into())
+        } else if let PropertyKey::Integer(index) = property_key {
+            let index = index.into_i64();
+            if index < 0 {
+                let Some(object_index) = agent.heap.get(self.0).object_index else {
+                    return Ok(Value::Undefined);
+                };
+                return OrdinaryObject::new(object_index).get(agent, property_key, receiver);
+            }
+            if index >= i64::pow(2, 32) {
+                return Ok(Value::Undefined);
+            }
+            let elements = agent.heap.get(self.0).elements;
+            if index >= elements.len() as i64 {
+                return Ok(Value::Undefined);
+            }
+            let elements = agent.heap.elements.get(elements.into());
+            // Index has been checked to be between 0 <= idx < len; unwrapping should never fail.
+            let element = *elements.get(index as usize).unwrap();
+            let Some(element) = element else {
+                todo!("getters");
+            };
+            Ok(element)
+        } else {
+            let Some(object_index) = agent.heap.get(self.0).object_index else {
+                return Ok(Value::Undefined);
+            };
+            OrdinaryObject::new(object_index).get(agent, property_key, receiver)
+        }
     }
 
     fn set(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _value: Value,
-        _receiver: Value,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        value: Value,
+        receiver: Value,
     ) -> JsResult<bool> {
-        todo!()
+        ordinary_set(agent, self.into_object(), property_key, value, receiver)
     }
 
-    fn delete(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
-        todo!()
+    fn delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+        if property_key == PropertyKey::SmallString(SmallString::try_from("length").unwrap()) {
+            Ok(true)
+        } else if let PropertyKey::Integer(index) = property_key {
+            let index = index.into_i64();
+            if index < 0 {
+                return agent
+                    .heap
+                    .get(self.0)
+                    .object_index
+                    .map_or(Ok(true), |object_index| {
+                        OrdinaryObject::new(object_index).delete(agent, property_key)
+                    });
+            } else if index >= i64::pow(2, 32) {
+                return Ok(true);
+            }
+            let elements = agent.heap.get(self.0).elements;
+            if index >= elements.len() as i64 {
+                return Ok(true);
+            }
+            let elements = agent.heap.elements.get_mut(elements.into());
+            // TODO: Handle unwritable properties
+            // Index has been checked to be between 0 <= idx < len; unwrapping should never fail.
+            *elements.get_mut(index as usize).unwrap() = None;
+            Ok(true)
+        } else {
+            agent
+                .heap
+                .get(self.0)
+                .object_index
+                .map_or(Ok(true), |object_index| {
+                    OrdinaryObject::new(object_index).delete(agent, property_key)
+                })
+        }
     }
 
     fn own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
@@ -347,7 +405,7 @@ impl InternalMethods for Array {
         // TODO: Handle object_index
         let mut keys = Vec::with_capacity(array_data.elements.len() as usize);
 
-        let elements_data = agent.heap.elements.get(array_data.elements);
+        let elements_data = agent.heap.elements.get(array_data.elements.into());
 
         for (index, value) in elements_data.iter().enumerate() {
             if value.is_some() {

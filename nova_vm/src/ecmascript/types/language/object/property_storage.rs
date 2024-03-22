@@ -52,7 +52,10 @@ impl PropertyStorage {
                 let array = agent.heap.get(array);
 
                 if key.is_array_index() {
-                    return agent.heap.elements.has(array.elements, key.into_value());
+                    return agent
+                        .heap
+                        .elements
+                        .has(array.elements.into(), key.into_value());
                 }
 
                 if let Some(object) = array.object_index {

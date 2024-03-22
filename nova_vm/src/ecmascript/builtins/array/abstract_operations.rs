@@ -6,12 +6,12 @@ use crate::{
         },
         builtins::ordinary::ordinary_define_own_property,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{InternalMethods, Object, PropertyDescriptor, PropertyKey, Value},
+        types::{InternalMethods, Object, PropertyDescriptor, PropertyKey},
     },
     heap::{indexes::ArrayIndex, GetHeapData},
 };
 
-use super::{Array, ArrayHeapData};
+use super::{data::SealableElementsVector, Array, ArrayHeapData};
 
 /// ### [10.4.2.2 ArrayCreate ( length \[ , proto \] )](https://tc39.es/ecma262/#sec-arraycreate)
 ///
@@ -48,7 +48,7 @@ pub fn array_create(
     let data = ArrayHeapData {
         // 4. Set A.[[Prototype]] to proto.
         object_index,
-        elements,
+        elements: SealableElementsVector::from_elements_vector(elements),
     };
     agent.heap.arrays.push(Some(data));
 
@@ -68,7 +68,10 @@ pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -
     }
     let desc_value = desc.value.unwrap();
     // 2. Let newLenDesc be a copy of Desc.
-    let mut new_len_desc = desc.clone();
+    // 13. If newLenDesc does not have a [[Writable]] field or newLenDesc.[[Writable]] is true, then
+    // a. Let newLenDesc.[[Writable]] be true
+    let new_len_writable = desc.writable.unwrap_or(true);
+    // NOTE: Setting the [[Writable]] attribute to false is deferred in case any elements cannot be deleted.
     // 3. Let newLen be ? ToUint32(Desc.[[Value]]).
     let new_len = to_uint32(agent, desc_value)?;
     // 4. Let numberLen be ? ToNumber(Desc.[[Value]]).
@@ -78,62 +81,32 @@ pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -
         return Err(agent.throw_exception(ExceptionType::RangeError, "invalid array length"));
     }
     // 6. Set newLenDesc.[[Value]] to newLen.
-    new_len_desc.value = Some(new_len.into());
     // 7. Let oldLenDesc be OrdinaryGetOwnProperty(A, "length").
-    let array_heap_data = agent.heap.get(a.0);
-    let old_len_desc = if array_heap_data.object_index.is_none() {
-        PropertyDescriptor {
-            value: Some(array_heap_data.elements.len().into()),
-            writable: Some(true),
-            configurable: Some(false),
-            enumerable: Some(false),
-            ..Default::default()
-        }
-    } else {
-        todo!("Handle Array length {{ writable: false }}");
-    };
-    // 8. Assert: IsDataDescriptor(oldLenDesc) is true.
-    debug_assert!(old_len_desc.is_data_descriptor());
-    // 9. Assert: oldLenDesc.[[Configurable]] is false.
-    debug_assert_eq!(old_len_desc.configurable, Some(false));
+    let array_heap_data = agent.heap.get_mut(a.0);
     // 10. Let oldLen be oldLenDesc.[[Value]].
-    let old_len = old_len_desc.value.unwrap();
-    let old_len = if let Value::Integer(old_len) = old_len {
-        old_len.into_i64() as u32
-    } else {
-        unreachable!();
-    };
+    let (old_len, old_len_writable) = (
+        array_heap_data.elements.len(),
+        array_heap_data.elements.len_writable,
+    );
     // 12. If oldLenDesc.[[Writable]] is false, return false.
-    if old_len_desc.writable == Some(false) {
+    if !old_len_writable {
+        return Ok(false);
+    }
+    // Optimization: check OrdinaryDefineOwnProperty conditions for failing early on.
+    if desc.configurable == Some(true) || desc.enumerable == Some(true) {
+        // 16. If succeeded is false, return false.
         return Ok(false);
     }
     // 11. If newLen ≥ oldLen, then
     if new_len >= old_len {
         // a. Return ! OrdinaryDefineOwnProperty(A, "length", newLenDesc).
         // TODO: Handle growing elements
-        agent.heap.get_mut(a.0).elements.len = new_len;
+        array_heap_data.elements.len = new_len;
+        array_heap_data.elements.len_writable = new_len_writable;
         return Ok(true);
     }
-    // 13. If newLenDesc does not have a [[Writable]] field or newLenDesc.[[Writable]] is true, then
-    let new_writable = if new_len_desc.writable != Some(false) {
-        // a. Let newWritable be true.
-        true
-    } else {
-        // 14. Else,
-        // a. NOTE: Setting the [[Writable]] attribute to false is deferred in case any elements cannot be deleted.
-        // c. Set newLenDesc.[[Writable]] to true.
-        new_len_desc.writable = Some(true);
-        // b. Let newWritable be false.
-        false
-    };
     // 15. Let succeeded be ! OrdinaryDefineOwnProperty(A, "length", newLenDesc).
-    // TODO: Handle length writability
-    agent.heap.get_mut(a.0).elements.len = new_len;
-    let succeeded = true;
-    // 16. If succeeded is false, return false.
-    if !succeeded {
-        return Ok(false);
-    }
+    array_heap_data.elements.len = new_len;
     // 17. For each own property key P of A such that P is an array index and ! ToUint32(P) ≥ newLen, in descending numeric index order, do
     debug_assert!(old_len > new_len);
     for i in old_len..new_len {
@@ -141,24 +114,22 @@ pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -
         let delete_succeeded = a.delete(agent, PropertyKey::Integer(i.into())).unwrap();
         // b. If deleteSucceeded is false, then
         if !delete_succeeded {
+            let array_heap_data = agent.heap.get_mut(a.0);
             // i. Set newLenDesc.[[Value]] to ! ToUint32(P) + 1𝔽.
-            new_len_desc.value = Some((i + 1).into());
+            array_heap_data.elements.len = i + 1;
             // ii. If newWritable is false, set newLenDesc.[[Writable]] to false.
-            if !new_writable {
-                new_len_desc.writable = Some(false);
-            }
+            array_heap_data.elements.len_writable &= new_len_writable;
             // iii. Perform ! OrdinaryDefineOwnProperty(A, "length", newLenDesc).
-            agent.heap.get_mut(a.0).elements.len =
-                new_len_desc.value.unwrap().to_int32(agent).unwrap() as u32;
             // iv. Return false.
             return Ok(false);
         }
     }
     // 18. If newWritable is false, then
-    if !new_writable {
+    if !new_len_writable {
         // a. Set succeeded to ! OrdinaryDefineOwnProperty(A, "length", PropertyDescriptor { [[Writable]]: false }).
-        todo!("Handle Array length {{ writable: false }}");
         // b. Assert: succeeded is true.
+        let array_heap_data = agent.heap.get_mut(a.0);
+        array_heap_data.elements.len_writable &= new_len_writable;
     }
     // 19. Return true.
     Ok(true)
