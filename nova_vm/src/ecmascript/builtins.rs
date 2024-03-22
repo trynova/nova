@@ -13,8 +13,9 @@ mod number;
 pub mod ordinary;
 
 pub(crate) use arguments::*;
-pub(crate) use array::ArrayHeapData;
+pub(crate) use array::abstract_operations::*;
 pub use array::{Array, ArrayConstructor};
+pub(crate) use array::{ArrayHeapData, SealableElementsVector};
 pub use array_buffer::ArrayBuffer;
 pub(crate) use array_buffer::ArrayBufferHeapData;
 pub use builtin_function::{

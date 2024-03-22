@@ -13,7 +13,7 @@ use super::{
     ArrayHeapData, Heap, NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
 };
 use crate::ecmascript::{
-    builtins::ArrayBufferHeapData,
+    builtins::{ArrayBufferHeapData, SealableElementsVector},
     execution::{
         DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironment,
         FunctionEnvironmentIndex, GlobalEnvironment, GlobalEnvironmentIndex, Intrinsics,
@@ -929,6 +929,21 @@ impl HeapMarkAndSweep<()> for ElementsVector {
             ElementArrayKey::E32 => compactions.e_2_32.get_shift_for_index(self_index),
         };
         self.elements_index = ElementIndex::from_u32(self_index - shift);
+    }
+}
+
+impl HeapMarkAndSweep<()> for SealableElementsVector {
+    fn mark_values(&self, queues: &mut WorkQueues, data: impl BorrowMut<()>) {
+        let item = *self;
+        let elements: ElementsVector = item.into();
+        elements.mark_values(queues, data)
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, data: impl Borrow<()>) {
+        let item = *self;
+        let mut elements: ElementsVector = item.into();
+        elements.sweep_values(compactions, data);
+        self.elements_index = elements.elements_index;
     }
 }
 

@@ -11,8 +11,8 @@ use crate::{
             },
         },
         builtins::{
-            ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
-            ArgumentsList, OrdinaryFunctionCreateParams, ThisMode,
+            array_create, ordinary::ordinary_object_create_with_intrinsics,
+            ordinary_function_create, ArgumentsList, Array, OrdinaryFunctionCreateParams, ThisMode,
         },
         execution::{
             agent::{resolve_binding, ExceptionType},
@@ -100,6 +100,21 @@ impl Vm {
         while let Some(instr) = executable.get_instruction(&mut vm.ip) {
             eprintln!("Executing instruction {:?}", instr.kind);
             match instr.kind {
+                Instruction::ArrayCreate => {
+                    vm.stack.push(
+                        array_create(agent, 0, instr.args[0].unwrap() as usize, None)?.into_value(),
+                    );
+                }
+                Instruction::ArrayPush => {
+                    let value = vm.result.take().unwrap();
+                    let array = *vm.stack.last().unwrap();
+                    let Ok(array) = Array::try_from(array) else {
+                        unreachable!();
+                    };
+                    let len = array.len(agent);
+                    let key = PropertyKey::Integer(len.into());
+                    create_data_property_or_throw(agent, array.into(), key, value)?
+                }
                 Instruction::BitwiseNot => {
                     // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
                     let old_value = to_numeric(agent, vm.result.take().unwrap())?;

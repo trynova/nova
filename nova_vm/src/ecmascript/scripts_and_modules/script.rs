@@ -684,6 +684,76 @@ mod test {
     }
 
     #[test]
+    fn empty_array() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        agent.execution_context_stack.push(ExecutionContext {
+            ecmascript_code: None,
+            function: None,
+            realm,
+            script_or_module: None,
+        });
+
+        let script = parse_script(&allocator, "var foo = [];".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert!(result.is_undefined());
+        let foo = agent
+            .get_realm(realm)
+            .global_env
+            .unwrap()
+            .get_binding_value(&mut agent, &Atom::new_inline("foo"), true)
+            .unwrap();
+        assert!(foo.is_object());
+        let result = Object::try_from(foo).unwrap();
+        assert!(result.own_property_keys(&mut agent).unwrap().is_empty());
+    }
+
+    #[test]
+    fn non_empty_array() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(&allocator, "var foo = [ 'a', 3 ];".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert!(result.is_undefined());
+        let foo = agent
+            .get_realm(realm)
+            .global_env
+            .unwrap()
+            .get_binding_value(&mut agent, &Atom::new_inline("foo"), true)
+            .unwrap();
+        assert!(foo.is_object());
+        let result = Object::try_from(foo).unwrap();
+        let key = PropertyKey::Integer(0.into());
+        assert!(result.has_property(&mut agent, key).unwrap());
+        assert_eq!(
+            result
+                .get_own_property(&mut agent, key)
+                .unwrap()
+                .unwrap()
+                .value,
+            Some(Value::from_str(&mut agent.heap, "a"))
+        );
+        let key = PropertyKey::Integer(1.into());
+        assert!(result.has_property(&mut agent, key).unwrap());
+        assert_eq!(
+            result
+                .get_own_property(&mut agent, key)
+                .unwrap()
+                .unwrap()
+                .value,
+            Some(Value::from(3))
+        );
+    }
+
+    #[test]
     fn empty_function() {
         let allocator = Allocator::default();
 

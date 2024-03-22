@@ -12,7 +12,12 @@ pub enum Instruction {
     /// Store ApplyStringOrNumericBinaryOperator() as the result value.
     ApplyStringOrNumericBinaryOperator(BinaryOperator),
     /// Store ArrayCreate(0) as the result value.
+    ///
+    /// This instruction has one immediate argument that is the minimum
+    /// number of elements to expect.
     ArrayCreate,
+    /// Push a value into an array
+    ArrayPush,
     /// Set an array's value at the given index.
     ArraySetValue,
     /// Set the length property of an array to the given index.
@@ -154,7 +159,8 @@ pub enum Instruction {
 impl Instruction {
     pub fn argument_count(self) -> u8 {
         match self {
-            Self::ArraySetLength
+            Self::ArrayCreate
+            | Self::ArraySetLength
             | Self::ArraySetValue
             | Self::CreateCatchBinding
             | Self::EvaluateCall

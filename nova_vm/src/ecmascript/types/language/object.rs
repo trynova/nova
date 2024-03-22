@@ -67,6 +67,28 @@ impl From<ObjectIndex> for OrdinaryObject {
     }
 }
 
+impl TryFrom<Value> for OrdinaryObject {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::Object(data) => Ok(OrdinaryObject(data)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Object> for OrdinaryObject {
+    type Error = ();
+
+    fn try_from(value: Object) -> Result<Self, Self::Error> {
+        match value {
+            Object::Object(data) => Ok(OrdinaryObject(data)),
+            _ => Err(()),
+        }
+    }
+}
+
 impl Deref for OrdinaryObject {
     type Target = ObjectIndex;
 
