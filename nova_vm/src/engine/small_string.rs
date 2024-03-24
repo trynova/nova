@@ -10,6 +10,10 @@ impl std::fmt::Debug for SmallString {
 }
 
 impl SmallString {
+    pub const EMPTY: SmallString = Self {
+        bytes: [0, 0, 0, 0, 0, 0, 0],
+    };
+
     pub fn len(&self) -> usize {
         // Find the last non-null character and add one to its index to get length.
         self.bytes
@@ -41,12 +45,6 @@ impl SmallString {
         matches!(self.bytes, [0, 0, 0, 0, 0, 0, 0])
     }
 
-    pub const fn new_empty() -> Self {
-        Self {
-            bytes: [0, 0, 0, 0, 0, 0, 0],
-        }
-    }
-
     pub const fn from_str_unchecked(string: &str) -> Self {
         let string_bytes = string.as_bytes();
 
@@ -55,7 +53,7 @@ impl SmallString {
         // terminator so we must fail to convert on those.
         debug_assert!(
             string_bytes.len() < 8
-                && (string_bytes.len() == 0 || string_bytes[string_bytes.len() - 1] != 0)
+                && (string_bytes.is_empty() || string_bytes[string_bytes.len() - 1] != 0)
         );
 
         match string_bytes.len() {

@@ -1,4 +1,4 @@
-use super::indexes::{BuiltinFunctionIndex, ObjectIndex, SymbolIndex};
+use super::indexes::{ObjectIndex, SymbolIndex};
 use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
@@ -13,7 +13,7 @@ use crate::{
 use std::{fmt::Debug, vec};
 
 #[derive(Debug)]
-pub struct ObjectEntry {
+pub(crate) struct ObjectEntry {
     pub key: PropertyKey,
     pub value: ObjectEntryPropertyDescriptor,
 }
@@ -31,12 +31,7 @@ impl ObjectEntry {
         // behaviour: Behaviour,
     ) -> Self {
         let key = PropertyKey::from_str(heap, name);
-        let name = match key {
-            PropertyKey::SmallString(data) => Value::SmallString(data),
-            PropertyKey::Integer(_) => unreachable!("No prototype functions should have SMI names"),
-            PropertyKey::String(idx) => Value::String(idx),
-            PropertyKey::Symbol(idx) => Value::Symbol(idx),
-        };
+        let name = key.into_value();
         let func_index = heap.create_function(name, length, uses_arguments);
         let value = ObjectEntryPropertyDescriptor::rwxh(Value::BuiltinFunction(func_index));
         ObjectEntry { key, value }

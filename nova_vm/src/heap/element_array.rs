@@ -1,10 +1,10 @@
 use super::{
-    indexes::{BuiltinFunctionIndex, ElementIndex},
+    indexes::ElementIndex,
     object::{ObjectEntry, ObjectEntryPropertyDescriptor},
 };
 use crate::ecmascript::types::{Function, PropertyKey, Value};
 use core::panic;
-use std::{collections::HashMap, num::NonZeroU16};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ElementArrayKey {
@@ -262,7 +262,7 @@ pub enum ElementDescriptor {
 }
 
 impl ElementDescriptor {
-    pub fn from_property_descriptor(
+    pub(crate) fn from_property_descriptor(
         desc: ObjectEntryPropertyDescriptor,
     ) -> (Option<ElementDescriptor>, Option<Value>) {
         match desc {
@@ -812,7 +812,7 @@ impl ElementArrays {
         }
     }
 
-    pub fn create_object_entries(
+    pub(crate) fn create_object_entries(
         &mut self,
         mut entries: Vec<ObjectEntry>,
     ) -> (ElementsVector, ElementsVector) {

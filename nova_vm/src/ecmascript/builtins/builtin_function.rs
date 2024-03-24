@@ -180,10 +180,10 @@ impl InternalMethods for BuiltinFunction {
         } else {
             // If we're setting %ArrayBuffer.prototype% then we can still avoid creating the ObjectHeapData.
             let current = agent.current_realm().intrinsics().function_prototype();
-            if same_value_non_number(agent, prototype, Some(current.into())) {
+            if same_value_non_number(agent, prototype, Some(current)) {
                 return Ok(true);
             }
-            if ordinary_set_prototype_of_check_loop(agent, current.into(), prototype) {
+            if ordinary_set_prototype_of_check_loop(agent, current, prototype) {
                 // OrdinarySetPrototypeOf 7.b.i: Setting prototype would cause a loop to occur.
                 return Ok(false);
             }

@@ -97,7 +97,7 @@ pub(crate) const BOOLEAN_DISCRIMINANT: u8 = value_discriminant(Value::Boolean(tr
 pub(crate) const STRING_DISCRIMINANT: u8 =
     value_discriminant(Value::String(StringIndex::from_u32_index(0)));
 pub(crate) const SMALL_STRING_DISCRIMINANT: u8 =
-    value_discriminant(Value::SmallString(SmallString::new_empty()));
+    value_discriminant(Value::SmallString(SmallString::EMPTY));
 pub(crate) const SYMBOL_DISCRIMINANT: u8 =
     value_discriminant(Value::Symbol(SymbolIndex::from_u32_index(0)));
 pub(crate) const NUMBER_DISCRIMINANT: u8 =

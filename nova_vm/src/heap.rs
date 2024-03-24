@@ -423,7 +423,7 @@ impl Heap {
         NumberIndex::last(&self.numbers)
     }
 
-    pub fn create_function(
+    pub(crate) fn create_function(
         &mut self,
         name: Value,
         length: u8,
@@ -463,7 +463,7 @@ impl Heap {
         index
     }
 
-    pub fn create_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
+    pub(crate) fn create_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -475,7 +475,7 @@ impl Heap {
         ObjectIndex::last(&self.objects)
     }
 
-    pub fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
+    pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -487,7 +487,7 @@ impl Heap {
         ObjectIndex::last(&self.objects)
     }
 
-    pub fn create_object_with_prototype(
+    pub(crate) fn create_object_with_prototype(
         &mut self,
         prototype: Object,
         entries: Vec<ObjectEntry>,
@@ -503,7 +503,7 @@ impl Heap {
         ObjectIndex::last(&self.objects)
     }
 
-    pub fn insert_builtin_object(
+    pub(crate) fn insert_builtin_object(
         &mut self,
         index: BuiltinObjectIndexes,
         extensible: bool,

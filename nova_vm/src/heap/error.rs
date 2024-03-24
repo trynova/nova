@@ -3,6 +3,7 @@ use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
         execution::{Agent, JsResult, RealmIdentifier},
+        static_strings::{EMPTY_STRING, ERROR_CLASS_NAME, NAME_KEY},
         types::{BuiltinFunctionHeapData, Object, PropertyKey, Value},
     },
     heap::{
@@ -47,12 +48,12 @@ pub fn initialize_error_heap(heap: &mut Heap) {
             ))),
         ),
         ObjectEntry::new(
-            PropertyKey::from_str(heap, "name"),
-            ObjectEntryPropertyDescriptor::rwx(Value::try_from("").unwrap()),
+            NAME_KEY.into(),
+            ObjectEntryPropertyDescriptor::rwx(EMPTY_STRING.into()),
         ),
         ObjectEntry::new(
-            PropertyKey::from_str(heap, "name"),
-            ObjectEntryPropertyDescriptor::rwx(Value::from_str(heap, "Error")),
+            NAME_KEY.into(),
+            ObjectEntryPropertyDescriptor::rwx(ERROR_CLASS_NAME.into()),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
     ];

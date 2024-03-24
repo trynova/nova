@@ -38,12 +38,6 @@ impl From<StringIndex> for String {
     }
 }
 
-impl From<SmallString> for String {
-    fn from(value: SmallString) -> Self {
-        String::SmallString(value)
-    }
-}
-
 impl TryFrom<&str> for String {
     type Error = ();
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -71,13 +65,34 @@ impl From<String> for Value {
     }
 }
 
+impl From<SmallString> for Value {
+    fn from(value: SmallString) -> Self {
+        Value::SmallString(value)
+    }
+}
+
+impl From<SmallString> for String {
+    fn from(value: SmallString) -> Self {
+        Self::SmallString(value)
+    }
+}
+
+impl IntoValue for SmallString {
+    fn into_value(self) -> Value {
+        self.into()
+    }
+}
+
 impl String {
     pub fn from_str(agent: &mut Agent, message: &str) -> String {
         agent.heap.create(message)
     }
 
-    pub fn from_small_string(message: &'static str) -> String {
-        assert!(message.len() < 8 && !message.ends_with('\0'));
+    pub const fn from_small_string(message: &'static str) -> String {
+        assert!(
+            message.len() < 8
+                && (message.is_empty() || message.as_bytes()[message.as_bytes().len() - 1] != 0)
+        );
         String::SmallString(SmallString::from_str_unchecked(message))
     }
 
