@@ -3,11 +3,11 @@ use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{BuiltinFunctionHeapData, Object, PropertyKey, Value},
+        types::{BuiltinFunctionHeapData, Function, Object, PropertyKey, Value},
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        Heap, PropertyDescriptor,
+        Heap, ObjectEntryPropertyDescriptor,
     },
 };
 
@@ -22,8 +22,12 @@ pub fn initialize_array_buffer_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new(
             PropertyKey::Symbol(WellKnownSymbolIndexes::Species.into()),
-            PropertyDescriptor::ReadOnly {
-                get: heap.create_function(species_function_name, 0, false),
+            ObjectEntryPropertyDescriptor::ReadOnly {
+                get: Function::BuiltinFunction(heap.create_function(
+                    species_function_name,
+                    0,
+                    false,
+                )),
                 enumerable: false,
                 configurable: true,
             },
@@ -44,28 +48,27 @@ pub fn initialize_array_buffer_heap(heap: &mut Heap) {
             length: 1,
             initial_name: None,
             behaviour: Behaviour::Constructor(constructor_binding),
-            name: None,
             realm: RealmIdentifier::from_index(0),
         });
     let entries = vec![
         ObjectEntry::new(
             PropertyKey::from_str(heap, "byteLength"),
-            PropertyDescriptor::ReadOnly {
-                get: heap.create_function(byte_length_key, 0, false),
+            ObjectEntryPropertyDescriptor::ReadOnly {
+                get: Function::BuiltinFunction(heap.create_function(byte_length_key, 0, false)),
                 enumerable: false,
                 configurable: true,
             },
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
+            ObjectEntryPropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
                 BuiltinObjectIndexes::ArrayBufferConstructor,
             ))),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "slice", 2, false),
         ObjectEntry::new(
             PropertyKey::Symbol(WellKnownSymbolIndexes::ToStringTag.into()),
-            PropertyDescriptor::roxh(Value::from_str(heap, "ArrayBuffer")),
+            ObjectEntryPropertyDescriptor::roxh(Value::from_str(heap, "ArrayBuffer")),
         ),
     ];
     heap.insert_builtin_object(

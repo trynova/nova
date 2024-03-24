@@ -3,11 +3,11 @@ use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{BuiltinFunctionHeapData, Object, PropertyKey, Value},
+        types::{BuiltinFunctionHeapData, Function, Object, PropertyKey, Value},
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        Heap, PropertyDescriptor,
+        Heap, ObjectEntryPropertyDescriptor,
     },
 };
 
@@ -39,8 +39,12 @@ pub fn initialize_array_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new(
             PropertyKey::Symbol(WellKnownSymbolIndexes::Species.into()),
-            PropertyDescriptor::ReadOnly {
-                get: heap.create_function(species_function_name, 0, false),
+            ObjectEntryPropertyDescriptor::ReadOnly {
+                get: Function::BuiltinFunction(heap.create_function(
+                    species_function_name,
+                    0,
+                    false,
+                )),
                 enumerable: false,
                 configurable: true,
             },
@@ -61,7 +65,6 @@ pub fn initialize_array_heap(heap: &mut Heap) {
             length: 1,
             initial_name: None,
             behaviour: Behaviour::Constructor(constructor_binding),
-            name: None,
             realm: RealmIdentifier::from_index(0),
         });
     let entries = vec![
@@ -69,7 +72,7 @@ pub fn initialize_array_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "concat", 1, true),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
+            ObjectEntryPropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
                 BuiltinObjectIndexes::ArrayConstructor,
             ))),
         ),
@@ -119,38 +122,71 @@ pub fn initialize_array_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new(
             PropertyKey::Symbol(WellKnownSymbolIndexes::Unscopables.into()),
-            PropertyDescriptor::roxh(Value::Object(heap.create_object(vec![
-                ObjectEntry::new(at_key, PropertyDescriptor::rwx(Value::Boolean(true))),
+            ObjectEntryPropertyDescriptor::roxh(Value::Object(heap.create_object(vec![
+                ObjectEntry::new(
+                    at_key,
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
+                ),
                 ObjectEntry::new(
                     copy_within_key,
-                    PropertyDescriptor::rwx(Value::Boolean(true)),
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
                 ),
-                ObjectEntry::new(entries_key, PropertyDescriptor::rwx(Value::Boolean(true))),
-                ObjectEntry::new(fill_key, PropertyDescriptor::rwx(Value::Boolean(true))),
-                ObjectEntry::new(find_key, PropertyDescriptor::rwx(Value::Boolean(true))),
+                ObjectEntry::new(
+                    entries_key,
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
+                ),
+                ObjectEntry::new(
+                    fill_key,
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
+                ),
+                ObjectEntry::new(
+                    find_key,
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
+                ),
                 ObjectEntry::new(
                     find_index_key,
-                    PropertyDescriptor::rwx(Value::Boolean(true)),
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
                 ),
-                ObjectEntry::new(find_last_key, PropertyDescriptor::rwx(Value::Boolean(true))),
+                ObjectEntry::new(
+                    find_last_key,
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
+                ),
                 ObjectEntry::new(
                     find_last_index_key,
-                    PropertyDescriptor::rwx(Value::Boolean(true)),
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
                 ),
-                ObjectEntry::new(flat_key, PropertyDescriptor::rwx(Value::Boolean(true))),
-                ObjectEntry::new(flat_map_key, PropertyDescriptor::rwx(Value::Boolean(true))),
-                ObjectEntry::new(includes_key, PropertyDescriptor::rwx(Value::Boolean(true))),
-                ObjectEntry::new(keys_key, PropertyDescriptor::rwx(Value::Boolean(true))),
+                ObjectEntry::new(
+                    flat_key,
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
+                ),
+                ObjectEntry::new(
+                    flat_map_key,
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
+                ),
+                ObjectEntry::new(
+                    includes_key,
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
+                ),
+                ObjectEntry::new(
+                    keys_key,
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
+                ),
                 ObjectEntry::new(
                     to_reversed_key,
-                    PropertyDescriptor::rwx(Value::Boolean(true)),
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
                 ),
-                ObjectEntry::new(to_sorted_key, PropertyDescriptor::rwx(Value::Boolean(true))),
+                ObjectEntry::new(
+                    to_sorted_key,
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
+                ),
                 ObjectEntry::new(
                     to_spliced_key,
-                    PropertyDescriptor::rwx(Value::Boolean(true)),
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
                 ),
-                ObjectEntry::new(values_key, PropertyDescriptor::rwx(Value::Boolean(true))),
+                ObjectEntry::new(
+                    values_key,
+                    ObjectEntryPropertyDescriptor::rwx(Value::Boolean(true)),
+                ),
             ]))),
         ),
     ];

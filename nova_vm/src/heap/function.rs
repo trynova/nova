@@ -9,7 +9,7 @@ use crate::{
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        Heap, PropertyDescriptor,
+        Heap, ObjectEntryPropertyDescriptor,
     },
 };
 
@@ -33,7 +33,6 @@ pub fn initialize_function_heap(heap: &mut Heap) {
             length: 1,
             initial_name: None,
             behaviour: Behaviour::Constructor(function_constructor_binding),
-            name: None,
             realm: RealmIdentifier::from_index(0),
         });
     let entries = vec![
@@ -42,7 +41,7 @@ pub fn initialize_function_heap(heap: &mut Heap) {
         ObjectEntry::new_prototype_function_entry(heap, "call", 1, true),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
+            ObjectEntryPropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
                 BuiltinObjectIndexes::FunctionConstructor,
             ))),
         ),

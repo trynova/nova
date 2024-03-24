@@ -3,11 +3,11 @@ use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{Object, PropertyKey, String, Value},
+        types::{Function, Object, PropertyKey, String, Value},
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes, WellKnownSymbolIndexes},
-        BuiltinFunctionHeapData, Heap, PropertyDescriptor,
+        BuiltinFunctionHeapData, Heap, ObjectEntryPropertyDescriptor,
     },
 };
 
@@ -73,31 +73,39 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
     let entries = vec![
         ObjectEntry::new(
             PropertyKey::from_str(heap, "asyncIterator"),
-            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::AsyncIterator.into())),
+            ObjectEntryPropertyDescriptor::roh(Value::Symbol(
+                WellKnownSymbolIndexes::AsyncIterator.into(),
+            )),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "for", 1, false),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "hasInstance"),
-            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::HasInstance.into())),
+            ObjectEntryPropertyDescriptor::roh(Value::Symbol(
+                WellKnownSymbolIndexes::HasInstance.into(),
+            )),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "isConcatSpreadable"),
-            PropertyDescriptor::roh(Value::Symbol(
+            ObjectEntryPropertyDescriptor::roh(Value::Symbol(
                 WellKnownSymbolIndexes::IsConcatSpreadable.into(),
             )),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "iterator"),
-            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Iterator.into())),
+            ObjectEntryPropertyDescriptor::roh(Value::Symbol(
+                WellKnownSymbolIndexes::Iterator.into(),
+            )),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "keyFor", 1, false),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "Match"),
-            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Match.into())),
+            ObjectEntryPropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Match.into())),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "MatchAll"),
-            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::MatchAll.into())),
+            ObjectEntryPropertyDescriptor::roh(Value::Symbol(
+                WellKnownSymbolIndexes::MatchAll.into(),
+            )),
         ),
         ObjectEntry::new_constructor_prototype_entry(
             heap,
@@ -105,31 +113,43 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "Replace"),
-            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Replace.into())),
+            ObjectEntryPropertyDescriptor::roh(Value::Symbol(
+                WellKnownSymbolIndexes::Replace.into(),
+            )),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "Search"),
-            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Search.into())),
+            ObjectEntryPropertyDescriptor::roh(Value::Symbol(
+                WellKnownSymbolIndexes::Search.into(),
+            )),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "Species"),
-            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Species.into())),
+            ObjectEntryPropertyDescriptor::roh(Value::Symbol(
+                WellKnownSymbolIndexes::Species.into(),
+            )),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "Split"),
-            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Split.into())),
+            ObjectEntryPropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Split.into())),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "ToPrimitive"),
-            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::ToPrimitive.into())),
+            ObjectEntryPropertyDescriptor::roh(Value::Symbol(
+                WellKnownSymbolIndexes::ToPrimitive.into(),
+            )),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "ToStringTag"),
-            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::ToStringTag.into())),
+            ObjectEntryPropertyDescriptor::roh(Value::Symbol(
+                WellKnownSymbolIndexes::ToStringTag.into(),
+            )),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "Unscopables"),
-            PropertyDescriptor::roh(Value::Symbol(WellKnownSymbolIndexes::Unscopables.into())),
+            ObjectEntryPropertyDescriptor::roh(Value::Symbol(
+                WellKnownSymbolIndexes::Unscopables.into(),
+            )),
         ),
     ];
     heap.insert_builtin_object(
@@ -147,21 +167,20 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
             length: 1,
             initial_name: None,
             behaviour: Behaviour::Constructor(constructor_binding),
-            name: None,
             realm: RealmIdentifier::from_index(0),
         });
     let entries = vec![
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
+            ObjectEntryPropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
                 BuiltinObjectIndexes::SymbolConstructor,
             ))),
         ),
         ObjectEntry::new(
             PropertyKey::from_str(heap, "description"),
             // TODO: create description getter function
-            PropertyDescriptor::ReadOnly {
-                get: BuiltinFunctionIndex::from_index(0),
+            ObjectEntryPropertyDescriptor::ReadOnly {
+                get: Function::BuiltinFunction(BuiltinFunctionIndex::from_index(0)),
                 enumerable: false,
                 configurable: true,
             },
@@ -177,7 +196,7 @@ pub fn initialize_symbol_heap(heap: &mut Heap) {
         ),
         ObjectEntry::new(
             PropertyKey::Symbol(WellKnownSymbolIndexes::ToStringTag.into()),
-            PropertyDescriptor::roxh(Value::from_str(heap, "Symbol")),
+            ObjectEntryPropertyDescriptor::roxh(Value::from_str(heap, "Symbol")),
         ),
     ];
     heap.insert_builtin_object(

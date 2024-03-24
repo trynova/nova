@@ -27,7 +27,6 @@ pub fn initialize_string_heap(heap: &mut Heap) {
             length: 1,
             initial_name: None,
             behaviour: Behaviour::Constructor(constructor_binding),
-            name: None,
             realm: RealmIdentifier::from_index(0),
         });
     heap.insert_builtin_object(
