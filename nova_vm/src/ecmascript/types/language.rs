@@ -14,7 +14,7 @@ pub use function::{Function, IntoFunction};
 pub use into_value::IntoValue;
 pub use number::{Number, NumberHeapData};
 pub use object::{
-    InternalMethods, IntoObject, Object, ObjectHeapData, OrdinaryObject,
+    property_builder, InternalMethods, IntoObject, Object, ObjectHeapData, OrdinaryObject,
     OrdinaryObjectInternalSlots, PropertyKey,
 };
 pub use string::{String, StringHeapData};

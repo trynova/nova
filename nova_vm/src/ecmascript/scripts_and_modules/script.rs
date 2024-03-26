@@ -435,7 +435,7 @@ pub(crate) fn global_declaration_instantiation(
 mod test {
     use crate::ecmascript::{
         abstract_operations::operations_on_objects::create_data_property_or_throw,
-        builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinFunctionBuilder},
         execution::{
             agent::Options, create_realm, initialize_default_realm, set_realm_global_object, Agent,
             DefaultHostHooks, ExecutionContext,
@@ -834,24 +834,27 @@ mod test {
         });
 
         let key = PropertyKey::from_str(&mut agent.heap, "test");
-        let func = create_builtin_function(
-            &mut agent,
-            Behaviour::Regular(|_: &mut Agent, _: Value, arguments_list: ArgumentsList| {
-                let arg_0 = arguments_list.get(0);
-                if Value::Boolean(true) == arg_0 {
-                    Ok(Value::from(3))
-                } else {
-                    Ok(Value::Null)
-                }
-            }),
-            BuiltinFunctionArgs {
-                length: 1,
-                name: "test",
-                realm: Some(realm),
-                prototype: None,
-                prefix: None,
-            },
-        );
+
+        struct TestBuiltinFunction;
+
+        impl Builtin for TestBuiltinFunction {
+            const NAME: &'static str = "test";
+
+            const LENGTH: u8 = 1;
+
+            const BEHAVIOUR: Behaviour =
+                Behaviour::Regular(|_: &mut Agent, _: Value, arguments_list: ArgumentsList| {
+                    let arg_0 = arguments_list.get(0);
+                    if Value::Boolean(true) == arg_0 {
+                        Ok(Value::from(3))
+                    } else {
+                        Ok(Value::Null)
+                    }
+                });
+        }
+
+        let func = BuiltinFunctionBuilder::new::<TestBuiltinFunction>(&mut agent).build();
+
         create_data_property_or_throw(&mut agent, global, key, func.into_value()).unwrap();
 
         let script = parse_script(&allocator, "test(true)".into(), realm, None).unwrap();

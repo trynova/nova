@@ -2,6 +2,7 @@ mod data;
 mod internal_methods;
 mod internal_slots;
 mod into_object;
+pub mod property_builder;
 mod property_key;
 mod property_storage;
 use std::ops::Deref;

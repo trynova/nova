@@ -262,6 +262,51 @@ pub enum ElementDescriptor {
 }
 
 impl ElementDescriptor {
+    pub(crate) const fn new_with_wec(w: bool, e: bool, c: bool) -> Option<Self> {
+        match (w, e, c) {
+            (true, true, true) => None,
+            (true, true, false) => Some(Self::WritableEnumerableUnconfigurableData),
+            (true, false, true) => Some(Self::WritableUnenumerableConfigurableData),
+            (true, false, false) => Some(Self::WritableUnenumerableUnconfigurableData),
+            (false, true, true) => Some(Self::ReadOnlyEnumerableConfigurableData),
+            (false, true, false) => Some(Self::ReadOnlyEnumerableUnconfigurableData),
+            (false, false, true) => Some(Self::ReadOnlyUnenumerableConfigurableData),
+            (false, false, false) => Some(Self::ReadOnlyUnenumerableUnconfigurableData),
+        }
+    }
+
+    pub(crate) const fn new_with_get_ec(get: Function, e: bool, c: bool) -> Self {
+        match (e, c) {
+            (true, true) => Self::ReadOnlyEnumerableConfigurableAccessor { get },
+            (true, false) => Self::ReadOnlyEnumerableUnconfigurableAccessor { get },
+            (false, true) => Self::ReadOnlyUnenumerableConfigurableAccessor { get },
+            (false, false) => Self::ReadOnlyUnenumerableUnconfigurableAccessor { get },
+        }
+    }
+
+    pub(crate) const fn new_with_set_ec(set: Function, e: bool, c: bool) -> Self {
+        match (e, c) {
+            (true, true) => Self::WriteOnlyEnumerableConfigurableAccessor { set },
+            (true, false) => Self::WriteOnlyEnumerableUnconfigurableAccessor { set },
+            (false, true) => Self::WriteOnlyUnenumerableConfigurableAccessor { set },
+            (false, false) => Self::WriteOnlyUnenumerableUnconfigurableAccessor { set },
+        }
+    }
+
+    pub(crate) const fn new_with_get_set_ec(
+        get: Function,
+        set: Function,
+        e: bool,
+        c: bool,
+    ) -> Self {
+        match (e, c) {
+            (true, true) => Self::ReadWriteEnumerableConfigurableAccessor { get, set },
+            (true, false) => Self::ReadWriteEnumerableUnconfigurableAccessor { get, set },
+            (false, true) => Self::ReadWriteUnenumerableConfigurableAccessor { get, set },
+            (false, false) => Self::ReadWriteUnenumerableUnconfigurableAccessor { get, set },
+        }
+    }
+
     pub(crate) fn from_property_descriptor(
         desc: ObjectEntryPropertyDescriptor,
     ) -> (Option<ElementDescriptor>, Option<Value>) {
@@ -810,6 +855,52 @@ impl ElementArrays {
             cap,
             len: 0,
         }
+    }
+
+    pub(crate) fn create_with_stuff(
+        &mut self,
+        mut entries: Vec<(PropertyKey, Option<ElementDescriptor>, Option<Value>)>,
+    ) -> (ElementsVector, ElementsVector) {
+        let length = entries.len();
+        let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);
+        let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
+        let mut descriptors: Option<HashMap<u32, ElementDescriptor>> = None;
+        entries.drain(..).enumerate().for_each(|(index, entry)| {
+            let (key, maybe_descriptor, maybe_value) = entry;
+            let key = match key {
+                PropertyKey::Integer(data) => Value::Integer(data),
+                PropertyKey::SmallString(data) => Value::SmallString(data),
+                PropertyKey::String(data) => Value::String(data),
+                PropertyKey::Symbol(data) => Value::Symbol(data),
+            };
+            keys.push(Some(key));
+            values.push(maybe_value);
+            if let Some(descriptor) = maybe_descriptor {
+                if descriptors.is_none() {
+                    descriptors = Some(Default::default());
+                }
+                descriptors
+                    .as_mut()
+                    .unwrap()
+                    .insert(index as u32, descriptor);
+            }
+        });
+        let cap = ElementArrayKey::from(length);
+        let len = length as u32;
+        let key_elements_index = self.push_with_key(cap, keys, None);
+        let value_elements_index = self.push_with_key(cap, values, descriptors);
+        (
+            ElementsVector {
+                elements_index: key_elements_index,
+                cap,
+                len,
+            },
+            ElementsVector {
+                elements_index: value_elements_index,
+                cap,
+                len,
+            },
+        )
     }
 
     pub(crate) fn create_object_entries(

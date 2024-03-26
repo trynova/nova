@@ -103,8 +103,13 @@ impl Deref for Array {
 }
 
 pub struct ArrayConstructor;
-
 impl Builtin for ArrayConstructor {
+    const NAME: &'static str = "Array";
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(Self::behaviour);
+}
+
+impl ArrayConstructor {
     fn create(agent: &mut Agent) -> JsResult<Object> {
         let realm = agent.current_realm_id();
         let object = create_builtin_function(
@@ -115,9 +120,7 @@ impl Builtin for ArrayConstructor {
 
         Ok(object.into_object())
     }
-}
 
-impl ArrayConstructor {
     fn behaviour(
         _agent: &mut Agent,
         _this_value: Value,
