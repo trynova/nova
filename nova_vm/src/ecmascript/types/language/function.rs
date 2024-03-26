@@ -266,5 +266,3 @@ impl InternalMethods for Function {
         todo!()
     }
 }
-
-pub struct BuiltinFunctionBuilder {}
