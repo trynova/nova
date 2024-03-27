@@ -3,11 +3,12 @@ use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
         execution::{Agent, JsResult, RealmIdentifier},
+        static_strings::{EMPTY_STRING, ERROR_CLASS_NAME, NAME_KEY},
         types::{BuiltinFunctionHeapData, Object, PropertyKey, Value},
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        Heap, PropertyDescriptor,
+        Heap, ObjectEntryPropertyDescriptor,
     },
 };
 
@@ -37,23 +38,22 @@ pub fn initialize_error_heap(heap: &mut Heap) {
             length: 1,
             initial_name: None,
             behaviour: Behaviour::Constructor(constructor_binding),
-            name: None,
             realm: RealmIdentifier::from_index(0),
         });
     let entries = vec![
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
+            ObjectEntryPropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
                 BuiltinObjectIndexes::ErrorConstructor,
             ))),
         ),
         ObjectEntry::new(
-            PropertyKey::from_str(heap, "name"),
-            PropertyDescriptor::rwx(Value::try_from("").unwrap()),
+            NAME_KEY.into(),
+            ObjectEntryPropertyDescriptor::rwx(EMPTY_STRING.into()),
         ),
         ObjectEntry::new(
-            PropertyKey::from_str(heap, "name"),
-            PropertyDescriptor::rwx(Value::from_str(heap, "Error")),
+            NAME_KEY.into(),
+            ObjectEntryPropertyDescriptor::rwx(ERROR_CLASS_NAME.into()),
         ),
         ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
     ];

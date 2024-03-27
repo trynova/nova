@@ -531,8 +531,11 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
     };
     if let Some(function_prototype) = params.function_prototype {
         if function_prototype != agent.current_realm().intrinsics().function_prototype() {
-            function.object_index =
-                Some(agent.heap.create_object_with_prototype(function_prototype));
+            function.object_index = Some(
+                agent
+                    .heap
+                    .create_object_with_prototype(function_prototype, vec![]),
+            );
         }
     }
 

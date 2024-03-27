@@ -18,6 +18,7 @@ mod string;
 mod symbol;
 
 pub(crate) use self::heap_constants::{BuiltinObjectIndexes, WellKnownSymbolIndexes};
+pub(crate) use self::object::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
     array::initialize_array_heap,
     array_buffer::initialize_array_buffer_heap,
@@ -40,7 +41,7 @@ use self::{
     },
     math::initialize_math_object,
     number::initialize_number_heap,
-    object::{initialize_object_heap, ObjectEntry, PropertyDescriptor},
+    object::initialize_object_heap,
     regexp::{initialize_regexp_heap, RegExpHeapData},
     string::initialize_string_heap,
     symbol::{initialize_symbol_heap, SymbolHeapData},
@@ -422,7 +423,7 @@ impl Heap {
         NumberIndex::last(&self.numbers)
     }
 
-    pub fn create_function(
+    pub(crate) fn create_function(
         &mut self,
         name: Value,
         length: u8,
@@ -432,11 +433,11 @@ impl Heap {
         let entries = vec![
             ObjectEntry::new(
                 PropertyKey::from_str(self, "length"),
-                PropertyDescriptor::roxh(Value::from(length)),
+                ObjectEntryPropertyDescriptor::roxh(Value::from(length)),
             ),
             ObjectEntry::new(
                 PropertyKey::from_str(self, "name"),
-                PropertyDescriptor::roxh(name),
+                ObjectEntryPropertyDescriptor::roxh(name),
             ),
         ];
         let (keys, values): (ElementsVector, ElementsVector) =
@@ -455,7 +456,6 @@ impl Heap {
             length,
             initial_name: None,
             behaviour: Behaviour::Regular(fn_todo),
-            name: None,
             realm: RealmIdentifier::from_index(0),
         };
         let index = BuiltinFunctionIndex::from_index(self.builtin_functions.len());
@@ -463,7 +463,7 @@ impl Heap {
         index
     }
 
-    pub fn create_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
+    pub(crate) fn create_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -475,7 +475,7 @@ impl Heap {
         ObjectIndex::last(&self.objects)
     }
 
-    pub fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
+    pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -487,8 +487,12 @@ impl Heap {
         ObjectIndex::last(&self.objects)
     }
 
-    pub fn create_object_with_prototype(&mut self, prototype: Object) -> ObjectIndex {
-        let (keys, values) = self.elements.create_object_entries(vec![]);
+    pub(crate) fn create_object_with_prototype(
+        &mut self,
+        prototype: Object,
+        entries: Vec<ObjectEntry>,
+    ) -> ObjectIndex {
+        let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
             keys,
@@ -499,7 +503,7 @@ impl Heap {
         ObjectIndex::last(&self.objects)
     }
 
-    pub fn insert_builtin_object(
+    pub(crate) fn insert_builtin_object(
         &mut self,
         index: BuiltinObjectIndexes,
         extensible: bool,

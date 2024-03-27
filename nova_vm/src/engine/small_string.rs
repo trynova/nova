@@ -10,6 +10,10 @@ impl std::fmt::Debug for SmallString {
 }
 
 impl SmallString {
+    pub const EMPTY: SmallString = Self {
+        bytes: [0, 0, 0, 0, 0, 0, 0],
+    };
+
     pub fn len(&self) -> usize {
         // Find the last non-null character and add one to its index to get length.
         self.bytes
@@ -41,28 +45,84 @@ impl SmallString {
         matches!(self.bytes, [0, 0, 0, 0, 0, 0, 0])
     }
 
-    pub const fn new_empty() -> Self {
-        Self {
-            bytes: [0, 0, 0, 0, 0, 0, 0],
-        }
-    }
-
-    pub fn from_str_unchecked(string: &str) -> Self {
+    pub const fn from_str_unchecked(string: &str) -> Self {
         let string_bytes = string.as_bytes();
 
         // We have only 7 bytes to work with, and we cannot tell apart
         // UTF-8 strings that end with a null byte from our null
         // terminator so we must fail to convert on those.
-        debug_assert!(string_bytes.len() < 8 && string_bytes.last() != Some(&0));
+        debug_assert!(
+            string_bytes.len() < 8
+                && (string_bytes.is_empty() || string_bytes[string_bytes.len() - 1] != 0)
+        );
 
-        let mut bytes = [0, 0, 0, 0, 0, 0, 0];
-        bytes
-            .as_mut_slice()
-            .split_at_mut(string_bytes.len())
-            .0
-            .copy_from_slice(string_bytes);
-
-        Self { bytes }
+        match string_bytes.len() {
+            0 => Self {
+                bytes: [0, 0, 0, 0, 0, 0, 0],
+            },
+            1 => Self {
+                bytes: [string_bytes[0], 0, 0, 0, 0, 0, 0],
+            },
+            2 => Self {
+                bytes: [string_bytes[0], string_bytes[1], 0, 0, 0, 0, 0],
+            },
+            3 => Self {
+                bytes: [
+                    string_bytes[0],
+                    string_bytes[1],
+                    string_bytes[2],
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
+            },
+            4 => Self {
+                bytes: [
+                    string_bytes[0],
+                    string_bytes[1],
+                    string_bytes[2],
+                    string_bytes[3],
+                    0,
+                    0,
+                    0,
+                ],
+            },
+            5 => Self {
+                bytes: [
+                    string_bytes[0],
+                    string_bytes[1],
+                    string_bytes[2],
+                    string_bytes[3],
+                    string_bytes[4],
+                    0,
+                    0,
+                ],
+            },
+            6 => Self {
+                bytes: [
+                    string_bytes[0],
+                    string_bytes[1],
+                    string_bytes[2],
+                    string_bytes[3],
+                    string_bytes[4],
+                    string_bytes[5],
+                    0,
+                ],
+            },
+            7 => Self {
+                bytes: [
+                    string_bytes[0],
+                    string_bytes[1],
+                    string_bytes[2],
+                    string_bytes[3],
+                    string_bytes[4],
+                    string_bytes[5],
+                    string_bytes[6],
+                ],
+            },
+            _ => unreachable!(),
+        }
     }
 }
 

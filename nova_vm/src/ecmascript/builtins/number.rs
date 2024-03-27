@@ -1,230 +1,49 @@
-use super::{
-    builtin_function::{define_builtin_function, define_builtin_property},
-    create_builtin_function, todo_builtin, ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs,
-};
+use super::{ArgumentsList, Behaviour, Builtin, BuiltinFunctionBuilder};
 use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::is_integral_number,
         execution::{Agent, JsResult},
-        types::{IntoObject, Number, Object, PropertyDescriptor, Value},
+        types::{IntoObject, IntoValue, Number, Object, Value},
     },
     heap::CreateHeapData,
     SmallInteger,
 };
 
+/// ### [21.1.1.1 Number ( value )](https://tc39.es/ecma262/#sec-number-constructor-number-value)
 pub struct NumberConstructor;
 
 impl Builtin for NumberConstructor {
-    fn create(agent: &mut Agent) -> JsResult<Object> {
-        let realm_id = agent.current_realm_id();
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
+    const LENGTH: u8 = 1;
+    const NAME: &'static str = "Number";
+}
 
-        let function_prototype = agent.current_realm().intrinsics().function_prototype();
-        let number_prototype = agent.current_realm().intrinsics().number_prototype();
-        let object: Object = create_builtin_function(
-            agent,
-            Behaviour::Constructor(Self::behaviour),
-            BuiltinFunctionArgs {
-                length: 1,
-                name: "Number",
-                realm: Some(realm_id),
-                prototype: Some(function_prototype),
-                ..Default::default()
-            },
-        )
-        .into_object();
-
-        // 21.1.2.1 Number.EPSILON
-        // https://tc39.es/ecma262/#sec-number.epsilon
-        define_builtin_property(
-            object,
-            "EPSILON",
-            PropertyDescriptor {
-                value: Some(agent.heap.create(f64::EPSILON).into()),
-                writable: Some(false),
-                enumerable: Some(false),
-                configurable: Some(false),
-                ..Default::default()
-            },
-        )?;
-
-        // 21.1.2.2 Number.isFinite ( number )
-        define_builtin_function(
-            agent,
-            object,
-            "isFinite",
-            NumberConstructor::is_finite,
-            1,
-            realm_id,
-        )?;
-
-        // 21.1.2.3 Number.isInteger ( number )
-        define_builtin_function(
-            agent,
-            object,
-            "isInteger",
-            NumberConstructor::is_integer,
-            1,
-            realm_id,
-        )?;
-
-        // 21.1.2.4 Number.isNaN ( number )
-        define_builtin_function(
-            agent,
-            object,
-            "isNaN",
-            NumberConstructor::is_nan,
-            1,
-            realm_id,
-        )?;
-
-        // 21.1.2.5 Number.isSafeInteger ( number )
-        define_builtin_function(
-            agent,
-            object,
-            "isSafeInteger",
-            NumberConstructor::is_safe_integer,
-            1,
-            realm_id,
-        )?;
-
-        // 21.1.2.6 Number.MAX_SAFE_INTEGER
-        // https://tc39.es/ecma262/#sec-number.max_safe_integer
-        define_builtin_property(
-            object,
-            "MAX_SAFE_INTEGER",
-            PropertyDescriptor {
-                value: Some(Number::from(SmallInteger::MAX_NUMBER).into()),
-                writable: Some(false),
-                enumerable: Some(false),
-                configurable: Some(false),
-                ..Default::default()
-            },
-        )?;
-
-        // 21.1.2.7 Number.MAX_VALUE
-        // https://tc39.es/ecma262/#sec-number.max_value
-        define_builtin_property(
-            object,
-            "MAX_VALUE",
-            PropertyDescriptor {
-                value: Some(agent.heap.create(f64::MAX).into()),
-                writable: Some(false),
-                enumerable: Some(false),
-                configurable: Some(false),
-                ..Default::default()
-            },
-        )?;
-
-        // 21.1.2.8 Number.MIN_SAFE_INTEGER
-        // https://tc39.es/ecma262/#sec-number.min_safe_integer
-        define_builtin_property(
-            object,
-            "MIN_SAFE_INTEGER",
-            PropertyDescriptor {
-                value: Some(Number::from(SmallInteger::MIN_NUMBER).into()),
-                writable: Some(false),
-                enumerable: Some(false),
-                configurable: Some(false),
-                ..Default::default()
-            },
-        )?;
-
-        // 21.1.2.8 Number.MIN_VALUE
-        // https://tc39.es/ecma262/#sec-number.min_value
-        define_builtin_property(
-            object,
-            "MIN_VALUE",
-            PropertyDescriptor {
-                value: Some(agent.heap.create(f64::MIN).into()),
-                writable: Some(false),
-                enumerable: Some(false),
-                configurable: Some(false),
-                ..Default::default()
-            },
-        )?;
-
-        // 21.1.2.10 Number.NaN
-        // https://tc39.es/ecma262/#sec-number.nan
-        define_builtin_property(
-            object,
-            "NaN",
-            PropertyDescriptor {
-                value: Some(Number::nan().into()),
-                writable: Some(false),
-                enumerable: Some(false),
-                configurable: Some(false),
-                ..Default::default()
-            },
-        )?;
-
-        // 21.1.2.11 Number.NEGATIVE_INFINITY
-        // https://tc39.es/ecma262/#sec-number.negative_infinity
-        define_builtin_property(
-            object,
-            "NEGATIVE_INFINITY",
-            PropertyDescriptor {
-                value: Some(Number::neg_inf().into()),
-                writable: Some(false),
-                enumerable: Some(false),
-                configurable: Some(false),
-                ..Default::default()
-            },
-        )?;
-
-        // 21.1.2.12 Number.parseFloat ( string )
-        define_builtin_function(agent, object, "parseFloat", todo_builtin, 1, realm_id)?;
-
-        // 21.1.2.13 Number.parseInt ( string, radix )
-        define_builtin_function(agent, object, "parseInt", todo_builtin, 2, realm_id)?;
-
-        // 21.1.2.14 Number.POSITIVE_INFINITY
-        // https://tc39.es/ecma262/#sec-number.positive_infinity
-        define_builtin_property(
-            object,
-            "POSITIVE_INFINITY",
-            PropertyDescriptor {
-                value: Some(Number::pos_inf().into()),
-                writable: Some(false),
-                enumerable: Some(false),
-                configurable: Some(false),
-                ..Default::default()
-            },
-        )?;
-
-        // 21.1.2.15 Number.prototype
-        // https://tc39.es/ecma262/#sec-number.prototype
-        define_builtin_property(
-            object,
-            "prototype",
-            PropertyDescriptor {
-                value: Some(number_prototype.into_value()),
-                writable: Some(false),
-                enumerable: Some(false),
-                configurable: Some(false),
-                ..Default::default()
-            },
-        )?;
-
-        // 21.1.3.1 Number.prototype.constructor
-        // https://tc39.es/ecma262/#sec-number.prototype.constructor
-        define_builtin_property(
-            number_prototype,
-            "constructor",
-            PropertyDescriptor {
-                value: Some(object.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            },
-        )?;
-
-        Ok(object)
-    }
+struct NumberIsFinite;
+impl Builtin for NumberIsFinite {
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_finite);
+    const LENGTH: u8 = 1;
+    const NAME: &'static str = "isFinite";
+}
+struct NumberIsInteger;
+impl Builtin for NumberIsInteger {
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_integer);
+    const LENGTH: u8 = 1;
+    const NAME: &'static str = "isInteger";
+}
+struct NumberIsNaN;
+impl Builtin for NumberIsNaN {
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_nan);
+    const LENGTH: u8 = 1;
+    const NAME: &'static str = "isNaN";
+}
+struct NumberIsSafeInteger;
+impl Builtin for NumberIsSafeInteger {
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_safe_integer);
+    const LENGTH: u8 = 1;
+    const NAME: &'static str = "isSafeInteger";
 }
 
 impl NumberConstructor {
-    /// ### [21.1.1.1 Number ( value )](https://tc39.es/ecma262/#sec-number-constructor-number-value)
     fn behaviour(
         agent: &mut Agent,
         _this_value: Value,
@@ -283,7 +102,7 @@ impl NumberConstructor {
         Ok(number.is_finite(agent).into())
     }
 
-    /// ### [21.1.2.3 Number.isInteger ( number )](21.1.2.3 Number.isInteger ( number ))
+    /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
     fn is_integer(
         agent: &mut Agent,
         _this_value: Value,
@@ -309,7 +128,7 @@ impl NumberConstructor {
         Ok(number.is_nan(agent).into())
     }
 
-    // ### [21.1.2.5 Number.isSafeInteger ( number )](21.1.2.5 Number.isSafeInteger ( number ))
+    /// ### [21.1.2.5 Number.isSafeInteger ( number )](https://tc39.es/ecma262/#sec-number.issafeinteger)
     fn is_safe_integer(
         _agent: &mut Agent,
         _this_value: Value,
@@ -322,5 +141,185 @@ impl NumberConstructor {
         // 2. Return false.
         // NOTE: Integers must be stored in `Value::Integer`.
         Ok(matches!(maybe_number, Value::Integer(_)).into())
+    }
+
+    fn create(agent: &mut Agent) -> JsResult<Object> {
+        let number_prototype = agent.current_realm().intrinsics().number_prototype();
+        let parse_float = agent
+            .current_realm()
+            .intrinsics()
+            .parse_float()
+            .into_value();
+        let parse_int = agent.current_realm().intrinsics().parse_int().into_value();
+
+        let object = BuiltinFunctionBuilder::new::<NumberConstructor>(agent)
+            .with_property(|builder| {
+                // 21.1.2.1 Number.EPSILON
+                // https://tc39.es/ecma262/#sec-number.epsilon
+                let value = Value::from_f64(builder.agent, f64::EPSILON);
+                builder
+                    .with_key_from_str("EPSILON")
+                    .with_value_readonly(value)
+                    .with_enumerable(false)
+                    .with_configurable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                // 21.1.2.2 Number.isFinite ( number )
+                builder
+                    .with_key_from_str("isFinite")
+                    .with_value_creator(|agent| {
+                        BuiltinFunctionBuilder::new::<NumberIsFinite>(agent)
+                            .build()
+                            .into()
+                    })
+                    .with_enumerable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                // 21.1.2.3 Number.isInteger ( number )
+                builder
+                    .with_key_from_str("isInteger")
+                    .with_value_creator(|agent| {
+                        BuiltinFunctionBuilder::new::<NumberIsInteger>(agent)
+                            .build()
+                            .into()
+                    })
+                    .with_enumerable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                // 21.1.2.4 Number.isNaN ( number )
+                builder
+                    .with_key_from_str("isNaN")
+                    .with_value_creator(|agent| {
+                        BuiltinFunctionBuilder::new::<NumberIsNaN>(agent)
+                            .build()
+                            .into()
+                    })
+                    .with_enumerable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                // 21.1.2.5 Number.isSafeInteger ( number )
+                builder
+                    .with_key_from_str("isSafeInteger")
+                    .with_value_creator(|agent| {
+                        BuiltinFunctionBuilder::new::<NumberIsSafeInteger>(agent)
+                            .build()
+                            .into()
+                    })
+                    .with_enumerable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                // 21.1.2.6 Number.MAX_SAFE_INTEGER
+                // https://tc39.es/ecma262/#sec-number.max_safe_integer
+                builder
+                    .with_key_from_str("MAX_SAFE_INTEGER")
+                    .with_value_readonly(Number::from(SmallInteger::MAX_NUMBER).into())
+                    .with_configurable(false)
+                    .with_enumerable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                // 21.1.2.7 Number.MAX_VALUE
+                // https://tc39.es/ecma262/#sec-number.max_value
+                builder
+                    .with_key_from_str("MAX_VALUE")
+                    .with_value_creator_readonly(|agent| agent.heap.create(f64::MAX).into())
+                    .with_configurable(false)
+                    .with_enumerable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                // 21.1.2.8 Number.MIN_SAFE_INTEGER
+                // https://tc39.es/ecma262/#sec-number.min_safe_integer
+                builder
+                    .with_key_from_str("MIN_SAFE_INTEGER")
+                    .with_value_readonly(Number::from(SmallInteger::MIN_NUMBER).into())
+                    .with_configurable(false)
+                    .with_enumerable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                // 21.1.2.8 Number.MIN_VALUE
+                // https://tc39.es/ecma262/#sec-number.min_value
+                builder
+                    .with_key_from_str("MIN_VALUE")
+                    .with_value_creator_readonly(|agent| agent.heap.create(f64::MIN).into())
+                    .with_configurable(false)
+                    .with_enumerable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                // 21.1.2.10 Number.NaN
+                // https://tc39.es/ecma262/#sec-number.nan
+                builder
+                    .with_key_from_str("NaN")
+                    .with_value_readonly(Number::nan().into())
+                    .with_configurable(false)
+                    .with_enumerable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                // 21.1.2.11 Number.NEGATIVE_INFINITY
+                // https://tc39.es/ecma262/#sec-number.negative_infinity
+                builder
+                    .with_key_from_str("NEGATIVE_INFINITY")
+                    .with_value_readonly(Number::neg_inf().into())
+                    .with_configurable(false)
+                    .with_enumerable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                // 21.1.2.12 Number.parseFloat ( string )
+                builder
+                    .with_key_from_str("parseFloat")
+                    .with_value(parse_float)
+                    .with_enumerable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                // 21.1.2.13 Number.parseInt ( string, radix )
+                builder
+                    .with_key_from_str("parseInt")
+                    .with_value(parse_int)
+                    .with_enumerable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                // 21.1.2.14 Number.POSITIVE_INFINITY
+                // https://tc39.es/ecma262/#sec-number.positive_infinity
+                builder
+                    .with_key_from_str("POSITIVE_INFINITY")
+                    .with_value_readonly(Number::pos_inf().into())
+                    .with_configurable(false)
+                    .with_enumerable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                // 21.1.2.15 Number.prototype
+                // https://tc39.es/ecma262/#sec-number.prototype
+                builder
+                    .with_key_from_str("prototype")
+                    .with_value_readonly(number_prototype.into_value())
+                    .with_configurable(false)
+                    .with_enumerable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                // 21.1.3.1 Number.prototype.constructor
+                // https://tc39.es/ecma262/#sec-number.prototype.constructor
+                builder
+                    .with_key_from_str("constructor")
+                    .with_this_reference()
+                    .with_enumerable(false)
+                    .with_configurable(true)
+                    .build()
+            })
+            .build();
+
+        Ok(object.into_object())
     }
 }

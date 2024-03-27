@@ -1,9 +1,9 @@
-use super::indexes::{BuiltinFunctionIndex, ObjectIndex, SymbolIndex};
+use super::indexes::{ObjectIndex, SymbolIndex};
 use crate::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{Object, PropertyKey, Value},
+        types::{Function, Object, PropertyDescriptor, PropertyKey, Value},
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
@@ -13,13 +13,13 @@ use crate::{
 use std::{fmt::Debug, vec};
 
 #[derive(Debug)]
-pub struct ObjectEntry {
+pub(crate) struct ObjectEntry {
     pub key: PropertyKey,
-    pub value: PropertyDescriptor,
+    pub value: ObjectEntryPropertyDescriptor,
 }
 
 impl ObjectEntry {
-    pub fn new(key: PropertyKey, value: PropertyDescriptor) -> Self {
+    pub fn new(key: PropertyKey, value: ObjectEntryPropertyDescriptor) -> Self {
         ObjectEntry { key, value }
     }
 
@@ -31,14 +31,9 @@ impl ObjectEntry {
         // behaviour: Behaviour,
     ) -> Self {
         let key = PropertyKey::from_str(heap, name);
-        let name = match key {
-            PropertyKey::SmallString(data) => Value::SmallString(data),
-            PropertyKey::Integer(_) => unreachable!("No prototype functions should have SMI names"),
-            PropertyKey::String(idx) => Value::String(idx),
-            PropertyKey::Symbol(idx) => Value::Symbol(idx),
-        };
+        let name = key.into_value();
         let func_index = heap.create_function(name, length, uses_arguments);
-        let value = PropertyDescriptor::rwxh(Value::BuiltinFunction(func_index));
+        let value = ObjectEntryPropertyDescriptor::rwxh(Value::BuiltinFunction(func_index));
         ObjectEntry { key, value }
     }
 
@@ -53,14 +48,14 @@ impl ObjectEntry {
         let name = Value::from_str(heap, name);
         let key = PropertyKey::Symbol(symbol_index);
         let func_index = heap.create_function(name, length, uses_arguments);
-        let value = PropertyDescriptor::roxh(Value::BuiltinFunction(func_index));
+        let value = ObjectEntryPropertyDescriptor::roxh(Value::BuiltinFunction(func_index));
         ObjectEntry { key, value }
     }
 
     pub fn new_constructor_prototype_entry(heap: &mut Heap, idx: ObjectIndex) -> Self {
         ObjectEntry {
             key: PropertyKey::from_str(heap, "prototype"),
-            value: PropertyDescriptor::Data {
+            value: ObjectEntryPropertyDescriptor::Data {
                 value: Value::Object(idx),
                 writable: false,
                 enumerable: false,
@@ -72,13 +67,54 @@ impl ObjectEntry {
     pub fn new_frozen_entry(heap: &mut Heap, key: &str, value: Value) -> Self {
         ObjectEntry {
             key: PropertyKey::from_str(heap, key),
-            value: PropertyDescriptor::roh(value),
+            value: ObjectEntryPropertyDescriptor::roh(value),
+        }
+    }
+}
+
+impl From<PropertyDescriptor> for ObjectEntryPropertyDescriptor {
+    fn from(value: PropertyDescriptor) -> Self {
+        let configurable = value.configurable.unwrap_or(true);
+        let enumerable = value.enumerable.unwrap_or(true);
+        if value.get.is_some() && value.set.is_some() {
+            ObjectEntryPropertyDescriptor::ReadWrite {
+                get: value.get.unwrap(),
+                set: value.set.unwrap(),
+                enumerable,
+                configurable,
+            }
+        } else if value.get.is_some() {
+            ObjectEntryPropertyDescriptor::ReadOnly {
+                get: value.get.unwrap(),
+                enumerable,
+                configurable,
+            }
+        } else if value.set.is_some() {
+            ObjectEntryPropertyDescriptor::WriteOnly {
+                set: value.set.unwrap(),
+                enumerable,
+                configurable,
+            }
+        } else if value.value.is_some() {
+            ObjectEntryPropertyDescriptor::Data {
+                value: value.value.unwrap(),
+                writable: value.writable.unwrap_or(true),
+                enumerable,
+                configurable,
+            }
+        } else if value.writable == Some(false) {
+            ObjectEntryPropertyDescriptor::Blocked {
+                enumerable,
+                configurable,
+            }
+        } else {
+            todo!()
         }
     }
 }
 
 #[derive(Debug)]
-pub enum PropertyDescriptor {
+pub(crate) enum ObjectEntryPropertyDescriptor {
     Data {
         value: Value,
         writable: bool,
@@ -90,24 +126,24 @@ pub enum PropertyDescriptor {
         configurable: bool,
     },
     ReadOnly {
-        get: BuiltinFunctionIndex,
+        get: Function,
         enumerable: bool,
         configurable: bool,
     },
     WriteOnly {
-        set: BuiltinFunctionIndex,
+        set: Function,
         enumerable: bool,
         configurable: bool,
     },
     ReadWrite {
-        get: BuiltinFunctionIndex,
-        set: BuiltinFunctionIndex,
+        get: Function,
+        set: Function,
         enumerable: bool,
         configurable: bool,
     },
 }
 
-impl PropertyDescriptor {
+impl ObjectEntryPropertyDescriptor {
     #[inline(always)]
     pub const fn prototype_slot(idx: ObjectIndex) -> Self {
         Self::Data {
@@ -247,13 +283,12 @@ pub fn initialize_object_heap(heap: &mut Heap) {
             length: 1,
             initial_name: None,
             behaviour: Behaviour::Constructor(object_constructor_binding),
-            name: None,
             realm: RealmIdentifier::from_index(0),
         });
     let entries = vec![
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
+            ObjectEntryPropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
                 BuiltinObjectIndexes::ObjectConstructor,
             ))),
         ),

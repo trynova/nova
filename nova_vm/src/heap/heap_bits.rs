@@ -993,13 +993,11 @@ impl HeapMarkAndSweep<()> for BoundFunctionHeapData {
 
 impl HeapMarkAndSweep<()> for BuiltinFunctionHeapData {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
-        self.name.mark_values(queues, ());
         self.initial_name.mark_values(queues, ());
         self.object_index.mark_values(queues, ());
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
-        self.name.sweep_values(compactions, ());
         self.initial_name.sweep_values(compactions, ());
         self.object_index.sweep_values(compactions, ());
     }

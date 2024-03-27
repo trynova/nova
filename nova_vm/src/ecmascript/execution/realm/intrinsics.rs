@@ -1,5 +1,8 @@
 use crate::{
-    ecmascript::types::{Function, Object, OrdinaryObject},
+    ecmascript::{
+        builtins::BuiltinFunction,
+        types::{Function, Object, OrdinaryObject},
+    },
     heap::{
         indexes::{BuiltinFunctionIndex, ObjectIndex},
         BuiltinObjectIndexes,
@@ -58,6 +61,8 @@ pub(crate) struct Intrinsics {
     pub(crate) object_prototype: ObjectIndex,
     /// %Object.prototype.toString%
     pub(crate) object_prototype_to_string: BuiltinFunctionIndex,
+    pub(crate) parse_float: BuiltinFunctionIndex,
+    pub(crate) parse_int: BuiltinFunctionIndex,
     /// %RangeError%
     pub(crate) range_error: BuiltinFunctionIndex,
     /// %RangeError.prototype%
@@ -144,6 +149,8 @@ impl Default for Intrinsics {
         let object_prototype = BuiltinObjectIndexes::ObjectPrototype.into();
         // TODO: Placeholder.
         let object_prototype_to_string = BuiltinFunctionIndex::from_u32_index(0);
+        let parse_float = BuiltinFunctionIndex::from_u32_index(0);
+        let parse_int = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
         let range_error = BuiltinFunctionIndex::from_u32_index(0);
         // TODO: Placeholder.
@@ -196,6 +203,8 @@ impl Default for Intrinsics {
             object,
             object_prototype,
             object_prototype_to_string,
+            parse_float,
+            parse_int,
             range_error,
             range_error_prototype,
             reference_error,
@@ -354,6 +363,16 @@ impl Intrinsics {
     /// %Object.prototype.toString%
     pub const fn object_prototype_to_string(&self) -> Object {
         todo!()
+    }
+
+    /// %parseFloat%
+    pub const fn parse_float(&self) -> BuiltinFunction {
+        BuiltinFunction::from_index(self.parse_float)
+    }
+
+    /// %parseInt%
+    pub const fn parse_int(&self) -> BuiltinFunction {
+        BuiltinFunction::from_index(self.parse_int)
     }
 
     /// %RangeError%

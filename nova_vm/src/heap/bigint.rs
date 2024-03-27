@@ -7,7 +7,7 @@ use crate::{
     },
     heap::{
         heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        BuiltinFunctionHeapData, Heap, ObjectEntry, PropertyDescriptor,
+        BuiltinFunctionHeapData, Heap, ObjectEntry, ObjectEntryPropertyDescriptor,
     },
 };
 
@@ -35,13 +35,12 @@ pub fn initialize_bigint_heap(heap: &mut Heap) {
             length: 1,
             initial_name: None,
             behaviour: Behaviour::Constructor(constructor_binding),
-            name: None,
             realm: RealmIdentifier::from_index(0),
         });
     let entries = vec![
         ObjectEntry::new(
             PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
+            ObjectEntryPropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
                 BuiltinObjectIndexes::BigintConstructor,
             ))),
         ),

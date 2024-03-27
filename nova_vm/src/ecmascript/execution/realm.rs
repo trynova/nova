@@ -185,7 +185,7 @@ pub fn set_realm_global_object(
         Object::Object(
             agent
                 .heap
-                .create_object_with_prototype(intrinsics.object_prototype()),
+                .create_object_with_prototype(intrinsics.object_prototype(), vec![]),
         )
     });
 

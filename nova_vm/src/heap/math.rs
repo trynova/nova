@@ -1,6 +1,6 @@
 use super::{
     heap_constants::WellKnownSymbolIndexes,
-    object::{ObjectEntry, PropertyDescriptor},
+    object::{ObjectEntry, ObjectEntryPropertyDescriptor},
     CreateHeapData, Heap,
 };
 use crate::ecmascript::{
@@ -63,7 +63,7 @@ pub(super) fn initialize_math_object(heap: &mut Heap) {
         ObjectEntry::new_frozen_entry(heap, "SQRT2", sqrt2.into()),
         ObjectEntry::new(
             PropertyKey::Symbol(WellKnownSymbolIndexes::ToStringTag.into()),
-            PropertyDescriptor::roxh(Value::from_str(heap, "Math")),
+            ObjectEntryPropertyDescriptor::roxh(Value::from_str(heap, "Math")),
         ),
         abs,
         acos,

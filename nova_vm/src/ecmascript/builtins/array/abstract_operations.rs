@@ -34,7 +34,7 @@ pub fn array_create(
         if proto == agent.current_realm().intrinsics().array_prototype() {
             None
         } else {
-            Some(agent.heap.create_object_with_prototype(proto))
+            Some(agent.heap.create_object_with_prototype(proto, vec![]))
         }
     } else {
         None
