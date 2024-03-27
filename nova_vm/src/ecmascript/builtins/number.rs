@@ -173,6 +173,7 @@ impl NumberConstructor {
                             .build()
                             .into()
                     })
+                    .with_enumerable(false)
                     .build()
             })
             .with_property(|builder| {
@@ -184,6 +185,7 @@ impl NumberConstructor {
                             .build()
                             .into()
                     })
+                    .with_enumerable(false)
                     .build()
             })
             .with_property(|builder| {
@@ -195,6 +197,7 @@ impl NumberConstructor {
                             .build()
                             .into()
                     })
+                    .with_enumerable(false)
                     .build()
             })
             .with_property(|builder| {
@@ -206,6 +209,7 @@ impl NumberConstructor {
                             .build()
                             .into()
                     })
+                    .with_enumerable(false)
                     .build()
             })
             .with_property(|builder| {
@@ -273,6 +277,7 @@ impl NumberConstructor {
                 builder
                     .with_key_from_str("parseFloat")
                     .with_value(parse_float)
+                    .with_enumerable(false)
                     .build()
             })
             .with_property(|builder| {
@@ -280,6 +285,7 @@ impl NumberConstructor {
                 builder
                     .with_key_from_str("parseInt")
                     .with_value(parse_int)
+                    .with_enumerable(false)
                     .build()
             })
             .with_property(|builder| {
