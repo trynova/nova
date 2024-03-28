@@ -13,7 +13,7 @@ use super::{
     ArrayHeapData, Heap, NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
 };
 use crate::ecmascript::{
-    builtins::{ArrayBufferHeapData, SealableElementsVector},
+    builtins::{ArrayBufferHeapData, BuiltinFunction, SealableElementsVector},
     execution::{
         DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironment,
         FunctionEnvironmentIndex, GlobalEnvironment, GlobalEnvironmentIndex, Intrinsics,
@@ -27,7 +27,7 @@ use crate::ecmascript::{
     },
     types::{
         BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-        Function, Number, Object, String, Value,
+        Function, Number, Object, OrdinaryObject, String, Value,
     },
 };
 
@@ -853,6 +853,16 @@ impl HeapMarkAndSweep<()> for Function {
     }
 }
 
+impl HeapMarkAndSweep<()> for BuiltinFunction {
+    fn mark_values(&self, queues: &mut WorkQueues, data: impl BorrowMut<()>) {
+        self.0.mark_values(queues, data)
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, data: impl Borrow<()>) {
+        self.0.sweep_values(compactions, data)
+    }
+}
+
 impl HeapMarkAndSweep<()> for Number {
     fn mark_values(&self, queues: &mut WorkQueues, data: impl BorrowMut<()>) {
         if let Self::Number(idx) = self {
@@ -885,6 +895,16 @@ impl HeapMarkAndSweep<()> for Object {
             Self::Array(idx) => idx.sweep_values(compactions, ()),
             _ => todo!(),
         }
+    }
+}
+
+impl HeapMarkAndSweep<()> for OrdinaryObject {
+    fn mark_values(&self, queues: &mut WorkQueues, data: impl BorrowMut<()>) {
+        self.0.mark_values(queues, data)
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, data: impl Borrow<()>) {
+        self.0.sweep_values(compactions, data)
     }
 }
 
@@ -1134,88 +1154,276 @@ impl HeapMarkAndSweep<()> for Realm {
 
 impl HeapMarkAndSweep<()> for Intrinsics {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
-        self.array().mark_values(queues, ());
+        self.aggregate_error_prototype().mark_values(queues, ());
+        self.aggregate_error().mark_values(queues, ());
+        self.array_prototype_sort().mark_values(queues, ());
+        self.array_prototype_to_string().mark_values(queues, ());
+        self.array_prototype_values().mark_values(queues, ());
         self.array_prototype().mark_values(queues, ());
-        self.array_buffer().mark_values(queues, ());
+        self.array().mark_values(queues, ());
         self.array_buffer_prototype().mark_values(queues, ());
-        self.big_int().mark_values(queues, ());
+        self.array_buffer().mark_values(queues, ());
+        self.array_iterator_prototype().mark_values(queues, ());
+        self.async_from_sync_iterator_prototype()
+            .mark_values(queues, ());
+        self.async_function_prototype().mark_values(queues, ());
+        self.async_function().mark_values(queues, ());
+        self.async_generator_function_prototype_prototype()
+            .mark_values(queues, ());
+        self.async_generator_function_prototype()
+            .mark_values(queues, ());
+        self.async_generator_function().mark_values(queues, ());
+        self.async_generator_prototype().mark_values(queues, ());
+        self.async_iterator_prototype().mark_values(queues, ());
+        self.atomics().mark_values(queues, ());
         self.big_int_prototype().mark_values(queues, ());
-        self.boolean().mark_values(queues, ());
+        self.big_int().mark_values(queues, ());
+        self.big_int64_array().mark_values(queues, ());
+        self.big_uint64_array().mark_values(queues, ());
         self.boolean_prototype().mark_values(queues, ());
-        self.error().mark_values(queues, ());
+        self.boolean().mark_values(queues, ());
+        self.data_view_prototype().mark_values(queues, ());
+        self.data_view().mark_values(queues, ());
+        self.date_prototype_to_utcstring().mark_values(queues, ());
+        self.date_prototype().mark_values(queues, ());
+        self.date().mark_values(queues, ());
+        self.decode_uri().mark_values(queues, ());
+        self.decode_uricomponent().mark_values(queues, ());
+        self.encode_uri().mark_values(queues, ());
+        self.encode_uri_component().mark_values(queues, ());
         self.error_prototype().mark_values(queues, ());
+        self.error().mark_values(queues, ());
+        self.escape().mark_values(queues, ());
         self.eval().mark_values(queues, ());
-        self.eval_error().mark_values(queues, ());
         self.eval_error_prototype().mark_values(queues, ());
-        self.function().mark_values(queues, ());
+        self.eval_error().mark_values(queues, ());
+        self.finalization_registry_prototype()
+            .mark_values(queues, ());
+        self.finalization_registry().mark_values(queues, ());
+        self.float32_array().mark_values(queues, ());
+        self.float64_array().mark_values(queues, ());
+        self.for_in_iterator_prototype().mark_values(queues, ());
         self.function_prototype().mark_values(queues, ());
+        self.function().mark_values(queues, ());
+        self.generator_function_prototype_prototype_next()
+            .mark_values(queues, ());
+        self.generator_function_prototype_prototype()
+            .mark_values(queues, ());
+        self.generator_function_prototype().mark_values(queues, ());
+        self.generator_function().mark_values(queues, ());
+        self.generator_prototype().mark_values(queues, ());
+        self.int16_array().mark_values(queues, ());
+        self.int32_array().mark_values(queues, ());
+        self.int8_array().mark_values(queues, ());
         self.is_finite().mark_values(queues, ());
         self.is_nan().mark_values(queues, ());
+        self.iterator_prototype().mark_values(queues, ());
+        self.json().mark_values(queues, ());
+        self.map_prototype_entries().mark_values(queues, ());
+        self.map_prototype().mark_values(queues, ());
+        self.map().mark_values(queues, ());
+        self.map_iterator_prototype().mark_values(queues, ());
         self.math().mark_values(queues, ());
-        self.number().mark_values(queues, ());
+        self.native_error_prototype().mark_values(queues, ());
         self.number_prototype().mark_values(queues, ());
-        self.object().mark_values(queues, ());
-        self.object_prototype().mark_values(queues, ());
+        self.number().mark_values(queues, ());
         self.object_prototype_to_string().mark_values(queues, ());
-        self.range_error().mark_values(queues, ());
+        self.object_prototype().mark_values(queues, ());
+        self.object().mark_values(queues, ());
+        self.parse_float().mark_values(queues, ());
+        self.parse_int().mark_values(queues, ());
+        self.promise_prototype().mark_values(queues, ());
+        self.promise().mark_values(queues, ());
+        self.proxy().mark_values(queues, ());
         self.range_error_prototype().mark_values(queues, ());
-        self.reference_error().mark_values(queues, ());
+        self.range_error().mark_values(queues, ());
         self.reference_error_prototype().mark_values(queues, ());
+        self.reference_error().mark_values(queues, ());
         self.reflect().mark_values(queues, ());
-        self.string().mark_values(queues, ());
+        self.reg_exp_prototype_exec().mark_values(queues, ());
+        self.reg_exp_prototype().mark_values(queues, ());
+        self.reg_exp().mark_values(queues, ());
+        self.reg_exp_string_iterator_prototype()
+            .mark_values(queues, ());
+        self.set_prototype_values().mark_values(queues, ());
+        self.set_prototype().mark_values(queues, ());
+        self.set().mark_values(queues, ());
+        self.set_iterator_prototype().mark_values(queues, ());
+        self.shared_array_buffer_prototype().mark_values(queues, ());
+        self.shared_array_buffer().mark_values(queues, ());
+        self.string_prototype_trim_end().mark_values(queues, ());
+        self.string_prototype_trim_start().mark_values(queues, ());
         self.string_prototype().mark_values(queues, ());
-        self.symbol().mark_values(queues, ());
+        self.string().mark_values(queues, ());
+        self.string_iterator_prototype().mark_values(queues, ());
         self.symbol_prototype().mark_values(queues, ());
-        self.syntax_error().mark_values(queues, ());
+        self.symbol().mark_values(queues, ());
         self.syntax_error_prototype().mark_values(queues, ());
+        self.syntax_error().mark_values(queues, ());
         self.throw_type_error().mark_values(queues, ());
-        self.type_error().mark_values(queues, ());
+        self.typed_array_prototype_values().mark_values(queues, ());
+        self.typed_array_prototype().mark_values(queues, ());
+        self.typed_array().mark_values(queues, ());
         self.type_error_prototype().mark_values(queues, ());
-        self.uri_error().mark_values(queues, ());
+        self.type_error().mark_values(queues, ());
+        self.uint16_array().mark_values(queues, ());
+        self.uint32_array().mark_values(queues, ());
+        self.uint8_array().mark_values(queues, ());
+        self.uint8_clamped_array().mark_values(queues, ());
+        self.unescape().mark_values(queues, ());
         self.uri_error_prototype().mark_values(queues, ());
+        self.uri_error().mark_values(queues, ());
+        self.weak_map_prototype().mark_values(queues, ());
+        self.weak_map().mark_values(queues, ());
+        self.weak_ref_prototype().mark_values(queues, ());
+        self.weak_ref().mark_values(queues, ());
+        self.weak_set_prototype().mark_values(queues, ());
+        self.weak_set().mark_values(queues, ());
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
-        self.array.sweep_values(compactions, ());
-        self.array_prototype.sweep_values(compactions, ());
-        self.array_buffer.sweep_values(compactions, ());
-        self.array_buffer_prototype.sweep_values(compactions, ());
-        self.big_int.sweep_values(compactions, ());
-        self.big_int_prototype.sweep_values(compactions, ());
-        self.boolean.sweep_values(compactions, ());
-        self.boolean_prototype.sweep_values(compactions, ());
-        self.error.sweep_values(compactions, ());
-        self.error_prototype.sweep_values(compactions, ());
-        self.eval.sweep_values(compactions, ());
-        self.eval_error.sweep_values(compactions, ());
-        self.eval_error_prototype.sweep_values(compactions, ());
-        self.function.sweep_values(compactions, ());
-        self.function_prototype.sweep_values(compactions, ());
-        self.is_finite.sweep_values(compactions, ());
-        self.is_nan.sweep_values(compactions, ());
-        self.math.sweep_values(compactions, ());
-        self.number.sweep_values(compactions, ());
-        self.number_prototype.sweep_values(compactions, ());
-        self.object.sweep_values(compactions, ());
-        self.object_prototype.sweep_values(compactions, ());
-        self.object_prototype_to_string
+        self.aggregate_error_prototype()
             .sweep_values(compactions, ());
-        self.range_error.sweep_values(compactions, ());
-        self.range_error_prototype.sweep_values(compactions, ());
-        self.reference_error.sweep_values(compactions, ());
-        self.reference_error_prototype.sweep_values(compactions, ());
-        self.reflect.sweep_values(compactions, ());
-        self.string.sweep_values(compactions, ());
-        self.string_prototype.sweep_values(compactions, ());
-        self.symbol.sweep_values(compactions, ());
-        self.symbol_prototype.sweep_values(compactions, ());
-        self.syntax_error.sweep_values(compactions, ());
-        self.syntax_error_prototype.sweep_values(compactions, ());
-        self.throw_type_error.sweep_values(compactions, ());
-        self.type_error.sweep_values(compactions, ());
-        self.type_error_prototype.sweep_values(compactions, ());
-        self.uri_error.sweep_values(compactions, ());
-        self.uri_error_prototype.sweep_values(compactions, ());
+        self.aggregate_error().sweep_values(compactions, ());
+        self.array_prototype_sort().sweep_values(compactions, ());
+        self.array_prototype_to_string()
+            .sweep_values(compactions, ());
+        self.array_prototype_values().sweep_values(compactions, ());
+        self.array_prototype().sweep_values(compactions, ());
+        self.array().sweep_values(compactions, ());
+        self.array_buffer_prototype().sweep_values(compactions, ());
+        self.array_buffer().sweep_values(compactions, ());
+        self.array_iterator_prototype()
+            .sweep_values(compactions, ());
+        self.async_from_sync_iterator_prototype()
+            .sweep_values(compactions, ());
+        self.async_function_prototype()
+            .sweep_values(compactions, ());
+        self.async_function().sweep_values(compactions, ());
+        self.async_generator_function_prototype_prototype()
+            .sweep_values(compactions, ());
+        self.async_generator_function_prototype()
+            .sweep_values(compactions, ());
+        self.async_generator_function()
+            .sweep_values(compactions, ());
+        self.async_generator_prototype()
+            .sweep_values(compactions, ());
+        self.async_iterator_prototype()
+            .sweep_values(compactions, ());
+        self.atomics().sweep_values(compactions, ());
+        self.big_int_prototype().sweep_values(compactions, ());
+        self.big_int().sweep_values(compactions, ());
+        self.big_int64_array().sweep_values(compactions, ());
+        self.big_uint64_array().sweep_values(compactions, ());
+        self.boolean_prototype().sweep_values(compactions, ());
+        self.boolean().sweep_values(compactions, ());
+        self.data_view_prototype().sweep_values(compactions, ());
+        self.data_view().sweep_values(compactions, ());
+        self.date_prototype_to_utcstring()
+            .sweep_values(compactions, ());
+        self.date_prototype().sweep_values(compactions, ());
+        self.date().sweep_values(compactions, ());
+        self.decode_uri().sweep_values(compactions, ());
+        self.decode_uricomponent().sweep_values(compactions, ());
+        self.encode_uri().sweep_values(compactions, ());
+        self.encode_uri_component().sweep_values(compactions, ());
+        self.error_prototype().sweep_values(compactions, ());
+        self.error().sweep_values(compactions, ());
+        self.escape().sweep_values(compactions, ());
+        self.eval().sweep_values(compactions, ());
+        self.eval_error_prototype().sweep_values(compactions, ());
+        self.eval_error().sweep_values(compactions, ());
+        self.finalization_registry_prototype()
+            .sweep_values(compactions, ());
+        self.finalization_registry().sweep_values(compactions, ());
+        self.float32_array().sweep_values(compactions, ());
+        self.float64_array().sweep_values(compactions, ());
+        self.for_in_iterator_prototype()
+            .sweep_values(compactions, ());
+        self.function_prototype().sweep_values(compactions, ());
+        self.function().sweep_values(compactions, ());
+        self.generator_function_prototype_prototype_next()
+            .sweep_values(compactions, ());
+        self.generator_function_prototype_prototype()
+            .sweep_values(compactions, ());
+        self.generator_function_prototype()
+            .sweep_values(compactions, ());
+        self.generator_function().sweep_values(compactions, ());
+        self.generator_prototype().sweep_values(compactions, ());
+        self.int16_array().sweep_values(compactions, ());
+        self.int32_array().sweep_values(compactions, ());
+        self.int8_array().sweep_values(compactions, ());
+        self.is_finite().sweep_values(compactions, ());
+        self.is_nan().sweep_values(compactions, ());
+        self.iterator_prototype().sweep_values(compactions, ());
+        self.json().sweep_values(compactions, ());
+        self.map_prototype_entries().sweep_values(compactions, ());
+        self.map_prototype().sweep_values(compactions, ());
+        self.map().sweep_values(compactions, ());
+        self.map_iterator_prototype().sweep_values(compactions, ());
+        self.math().sweep_values(compactions, ());
+        self.native_error_prototype().sweep_values(compactions, ());
+        self.number_prototype().sweep_values(compactions, ());
+        self.number().sweep_values(compactions, ());
+        self.object_prototype_to_string()
+            .sweep_values(compactions, ());
+        self.object_prototype().sweep_values(compactions, ());
+        self.object().sweep_values(compactions, ());
+        self.parse_float().sweep_values(compactions, ());
+        self.parse_int().sweep_values(compactions, ());
+        self.promise_prototype().sweep_values(compactions, ());
+        self.promise().sweep_values(compactions, ());
+        self.proxy().sweep_values(compactions, ());
+        self.range_error_prototype().sweep_values(compactions, ());
+        self.range_error().sweep_values(compactions, ());
+        self.reference_error_prototype()
+            .sweep_values(compactions, ());
+        self.reference_error().sweep_values(compactions, ());
+        self.reflect().sweep_values(compactions, ());
+        self.reg_exp_prototype_exec().sweep_values(compactions, ());
+        self.reg_exp_prototype().sweep_values(compactions, ());
+        self.reg_exp().sweep_values(compactions, ());
+        self.reg_exp_string_iterator_prototype()
+            .sweep_values(compactions, ());
+        self.set_prototype_values().sweep_values(compactions, ());
+        self.set_prototype().sweep_values(compactions, ());
+        self.set().sweep_values(compactions, ());
+        self.set_iterator_prototype().sweep_values(compactions, ());
+        self.shared_array_buffer_prototype()
+            .sweep_values(compactions, ());
+        self.shared_array_buffer().sweep_values(compactions, ());
+        self.string_prototype_trim_end()
+            .sweep_values(compactions, ());
+        self.string_prototype_trim_start()
+            .sweep_values(compactions, ());
+        self.string_prototype().sweep_values(compactions, ());
+        self.string().sweep_values(compactions, ());
+        self.string_iterator_prototype()
+            .sweep_values(compactions, ());
+        self.symbol_prototype().sweep_values(compactions, ());
+        self.symbol().sweep_values(compactions, ());
+        self.syntax_error_prototype().sweep_values(compactions, ());
+        self.syntax_error().sweep_values(compactions, ());
+        self.throw_type_error().sweep_values(compactions, ());
+        self.typed_array_prototype_values()
+            .sweep_values(compactions, ());
+        self.typed_array_prototype().sweep_values(compactions, ());
+        self.typed_array().sweep_values(compactions, ());
+        self.type_error_prototype().sweep_values(compactions, ());
+        self.type_error().sweep_values(compactions, ());
+        self.uint16_array().sweep_values(compactions, ());
+        self.uint32_array().sweep_values(compactions, ());
+        self.uint8_array().sweep_values(compactions, ());
+        self.uint8_clamped_array().sweep_values(compactions, ());
+        self.unescape().sweep_values(compactions, ());
+        self.uri_error_prototype().sweep_values(compactions, ());
+        self.uri_error().sweep_values(compactions, ());
+        self.weak_map_prototype().sweep_values(compactions, ());
+        self.weak_map().sweep_values(compactions, ());
+        self.weak_ref_prototype().sweep_values(compactions, ());
+        self.weak_ref().sweep_values(compactions, ());
+        self.weak_set_prototype().sweep_values(compactions, ());
+        self.weak_set().sweep_values(compactions, ());
     }
 }
 

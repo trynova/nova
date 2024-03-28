@@ -28,7 +28,7 @@ use crate::{
             create_data_property_or_throw, define_property_or_throw,
         },
         execution::{agent::Agent, ProtoIntrinsics},
-        types::{Number, Object, PropertyDescriptor, PropertyKey, Value},
+        types::{IntoFunction, Number, Object, PropertyDescriptor, PropertyKey, Value},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -183,9 +183,9 @@ pub(crate) fn create_unmapped_arguments_object(
         key,
         PropertyDescriptor {
             // [[Get]]: %ThrowTypeError%,
-            get: Some(throw_type_error),
+            get: Some(throw_type_error.into_function()),
             // [[Set]]: %ThrowTypeError%,
-            set: Some(throw_type_error),
+            set: Some(throw_type_error.into_function()),
             // [[Enumerable]]: false,
             enumerable: Some(false),
             // [[Configurable]]: false }).

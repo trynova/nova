@@ -2,7 +2,6 @@ use std::ops::Deref;
 
 use crate::{
     ecmascript::{
-        abstract_operations::testing_and_comparison::same_value_non_number,
         execution::{agent::ExceptionType, Agent, ExecutionContext, JsResult, RealmIdentifier},
         types::{
             property_builder, BuiltinFunctionHeapData, Function, InternalMethods, IntoFunction,
@@ -94,7 +93,7 @@ impl BuiltinFunctionArgs {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BuiltinFunction(BuiltinFunctionIndex);
+pub struct BuiltinFunction(pub(crate) BuiltinFunctionIndex);
 
 impl BuiltinFunction {
     pub(crate) const fn from_index(index: BuiltinFunctionIndex) -> Self {
@@ -166,7 +165,13 @@ impl OrdinaryObjectInternalSlots for BuiltinFunction {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
             OrdinaryObject::from(object_index).prototype(agent)
         } else {
-            Some(agent.current_realm().intrinsics().function_prototype())
+            Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .function_prototype()
+                    .into_object(),
+            )
         }
     }
 
@@ -191,10 +196,10 @@ impl InternalMethods for BuiltinFunction {
         } else {
             // If we're setting %ArrayBuffer.prototype% then we can still avoid creating the ObjectHeapData.
             let current = agent.current_realm().intrinsics().function_prototype();
-            if same_value_non_number(agent, prototype, Some(current)) {
+            if prototype == Some(current.into_object()) {
                 return Ok(true);
             }
-            if ordinary_set_prototype_of_check_loop(agent, current, prototype) {
+            if ordinary_set_prototype_of_check_loop(agent, current.into_object(), prototype) {
                 // OrdinarySetPrototypeOf 7.b.i: Setting prototype would cause a loop to occur.
                 return Ok(false);
             }
@@ -263,9 +268,10 @@ impl InternalMethods for BuiltinFunction {
                     configurable: true,
                 },
             };
-            let object_index = agent
-                .heap
-                .create_object_with_prototype(prototype, vec![length_entry, name_entry]);
+            let object_index = agent.heap.create_object_with_prototype(
+                prototype.into_object(),
+                vec![length_entry, name_entry],
+            );
             agent.heap.get_mut(self.0).object_index = Some(object_index);
             Ok(true)
         } else if property_key == PropertyKey::from_str(&mut agent.heap, "name") {
@@ -283,9 +289,10 @@ impl InternalMethods for BuiltinFunction {
                 key: property_key,
                 value: ObjectEntryPropertyDescriptor::from(property_descriptor),
             };
-            let object_index = agent
-                .heap
-                .create_object_with_prototype(prototype, vec![length_entry, name_entry]);
+            let object_index = agent.heap.create_object_with_prototype(
+                prototype.into_object(),
+                vec![length_entry, name_entry],
+            );
             agent.heap.get_mut(self.0).object_index = Some(object_index);
             Ok(true)
         } else {
@@ -313,7 +320,7 @@ impl InternalMethods for BuiltinFunction {
                 value: ObjectEntryPropertyDescriptor::from(property_descriptor),
             };
             let object_index = agent.heap.create_object_with_prototype(
-                prototype,
+                prototype.into_object(),
                 vec![length_entry, name_entry, other_entry],
             );
             agent.heap.get_mut(self.0).object_index = Some(object_index);
@@ -399,7 +406,7 @@ impl InternalMethods for BuiltinFunction {
             };
             let object_index = agent
                 .heap
-                .create_object_with_prototype(prototype, vec![entry]);
+                .create_object_with_prototype(prototype.into_object(), vec![entry]);
             agent.heap.get_mut(self.0).object_index = Some(object_index);
             Ok(true)
         } else {
@@ -580,7 +587,7 @@ pub fn create_builtin_function(
     let object_index = if let Some(prototype) = args.prototype {
         // If a prototype is set, then check that it is not the %Function.prototype%
         let realm_function_prototype = agent.get_realm(realm).intrinsics().function_prototype();
-        if prototype == realm_function_prototype {
+        if prototype == realm_function_prototype.into_object() {
             // If the prototype matched the realm function prototype, then ignore it
             // as the BuiltinFunctionHeapData indirectly implies this prototype.
             None
@@ -755,7 +762,12 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
         prototype: Object,
     ) -> BuiltinFunctionBuilder<'agent, CreatorPrototype, L, N, B, Pr> {
         let object_index = if prototype
-            != self.agent.current_realm().intrinsics().function_prototype()
+            != self
+                .agent
+                .current_realm()
+                .intrinsics()
+                .function_prototype()
+                .into_object()
             && self.object_index.is_none()
         {
             self.agent.heap.objects.push(None);
@@ -992,11 +1004,13 @@ impl<'agent>
 
         let (keys, values) = agent.heap.elements.create_with_stuff(properties);
 
-        let prototype = agent
-            .current_realm()
-            .intrinsics()
-            .function_prototype()
-            .into();
+        let prototype = Some(
+            agent
+                .current_realm()
+                .intrinsics()
+                .function_prototype()
+                .into_object(),
+        );
         let slot = agent
             .heap
             .objects

@@ -14,7 +14,6 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        abstract_operations::testing_and_comparison::same_value_non_number,
         execution::{Agent, JsResult},
         types::{
             InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
@@ -152,7 +151,13 @@ impl OrdinaryObjectInternalSlots for Array {
         if let Some(object_index) = agent.heap.get(*self).object_index {
             OrdinaryObject::from(object_index).prototype(agent)
         } else {
-            Some(agent.current_realm().intrinsics().array_prototype())
+            Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .array_prototype()
+                    .into_object(),
+            )
         }
     }
 
@@ -171,7 +176,13 @@ impl InternalMethods for Array {
         if let Some(object_index) = agent.heap.get(*self).object_index {
             OrdinaryObject::from(object_index).get_prototype_of(agent)
         } else {
-            Ok(Some(agent.current_realm().intrinsics().array_prototype()))
+            Ok(Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .array_prototype()
+                    .into_object(),
+            ))
         }
     }
 
@@ -182,7 +193,7 @@ impl InternalMethods for Array {
             // 1. Let current be O.[[Prototype]].
             let current = agent.current_realm().intrinsics().array_prototype();
             let object_index = if let Some(v) = prototype {
-                if same_value_non_number(agent, v, current) {
+                if v == current.into_object() {
                     return Ok(true);
                 } else {
                     // TODO: Proper handling
