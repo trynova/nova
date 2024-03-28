@@ -753,7 +753,7 @@ pub(crate) fn ordinary_own_property_keys(
 /// of internal slots) and returns an Object. It is used to specify the runtime
 /// creation of new ordinary objects. additionalInternalSlotsList contains the
 /// names of additional internal slots that must be defined as part of the
-/// object, beyond [[Prototype]] and [[Extensible]]. If
+/// object, beyond \[\[Prototype]] and \[\[Extensible]]. If
 /// additionalInternalSlotsList is not provided, a new empty List is used.
 ///
 /// > NOTE: Although OrdinaryObjectCreate does little more than call
@@ -800,6 +800,39 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
     }
 }
 
+/// ### [10.1.13 OrdinaryCreateFromConstructor ( constructor, intrinsicDefaultProto \[ , internalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinarycreatefromconstructor)
+///
+/// The abstract operation OrdinaryCreateFromConstructor takes arguments
+/// constructor (a constructor) and intrinsicDefaultProto (a String) and
+/// optional argument internalSlotsList (a List of names of internal slots) and
+/// returns either a normal completion containing an Object or a throw
+/// completion. It creates an ordinary object whose \[\[Prototype]] value is
+/// retrieved from a constructor's "prototype" property, if it exists.
+/// Otherwise the intrinsic named by intrinsicDefaultProto is used for
+/// \[\[Prototype]]. internalSlotsList contains the names of additional
+/// internal slots that must be defined as part of the object. If
+/// internalSlotsList is not provided, a new empty List is used.
+pub(crate) fn ordinary_create_from_constructor(
+    agent: &mut Agent,
+    constructor: Function,
+    intrinsic_default_proto: ProtoIntrinsics,
+    _internal_slots_list: (),
+) -> JsResult<Object> {
+    // 1. Assert: intrinsicDefaultProto is this specification's name of an
+    // intrinsic object. The corresponding object must be an intrinsic that is
+    // intended to be used as the [[Prototype]] value of an object.
+
+    // 2. Let proto be ? GetPrototypeFromConstructor(constructor, intrinsicDefaultProto).
+    let _proto = get_prototype_from_constructor(agent, constructor, intrinsic_default_proto)?;
+    // 3. If internalSlotsList is present, let slotsList be internalSlotsList.
+    // 4. Else, let slotsList be a new empty List.
+    // 5. Return OrdinaryObjectCreate(proto, slotsList).
+    Ok(ordinary_object_create_with_intrinsics(
+        agent,
+        Some(intrinsic_default_proto),
+    ))
+}
+
 /// ### [10.1.14 GetPrototypeFromConstructor ( constructor, intrinsicDefaultProto )](https://tc39.es/ecma262/#sec-getprototypefromconstructor)
 ///
 /// The abstract operation GetPrototypeFromConstructor takes arguments
@@ -827,7 +860,8 @@ pub(crate) fn get_prototype_from_constructor(
             // a. Let realm be ? GetFunctionRealm(constructor).
             let realm = get_function_realm(agent, constructor)?;
             // b. Set proto to realm's intrinsic object named intrinsicDefaultProto.
-            Ok(realm
+            Ok(agent
+                .get_realm(realm)
                 .intrinsics()
                 .get_intrinsic_default_proto(intrinsic_default_proto))
         }

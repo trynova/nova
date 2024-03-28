@@ -853,7 +853,7 @@ mod test {
                 });
         }
 
-        let func = BuiltinFunctionBuilder::new::<TestBuiltinFunction>(&mut agent).build();
+        let func = BuiltinFunctionBuilder::new::<TestBuiltinFunction>(&mut agent, realm).build();
 
         create_data_property_or_throw(&mut agent, global, key, func.into_value()).unwrap();
 
