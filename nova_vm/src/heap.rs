@@ -17,37 +17,27 @@ mod regexp;
 mod string;
 mod symbol;
 
-pub(crate) use self::heap_constants::{BuiltinObjectIndexes, WellKnownSymbolIndexes};
+pub(crate) use self::heap_constants::{
+    intrinsic_function_count, intrinsic_object_count, IntrinsicConstructorIndexes,
+    IntrinsicFunctionIndexes, IntrinsicObjectIndexes, WellKnownSymbolIndexes,
+};
 pub(crate) use self::object::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
-    array::initialize_array_heap,
-    array_buffer::initialize_array_buffer_heap,
-    bigint::initialize_bigint_heap,
-    boolean::initialize_boolean_heap,
-    date::{initialize_date_heap, DateHeapData},
+    date::DateHeapData,
     element_array::{
         ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16, ElementArray2Pow24,
         ElementArray2Pow32, ElementArray2Pow4, ElementArray2Pow6, ElementArray2Pow8, ElementArrays,
-        ElementsVector,
     },
-    error::{initialize_error_heap, ErrorHeapData},
-    function::initialize_function_heap,
-    heap_constants::{
-        FIRST_CONSTRUCTOR_INDEX, LAST_BUILTIN_OBJECT_INDEX, LAST_WELL_KNOWN_SYMBOL_INDEX,
-    },
+    error::ErrorHeapData,
     indexes::{
         BaseIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex,
         NumberIndex, ObjectIndex, StringIndex,
     },
-    math::initialize_math_object,
-    number::initialize_number_heap,
-    object::initialize_object_heap,
-    regexp::{initialize_regexp_heap, RegExpHeapData},
-    string::initialize_string_heap,
-    symbol::{initialize_symbol_heap, SymbolHeapData},
+    regexp::RegExpHeapData,
+    symbol::SymbolHeapData,
 };
 use crate::ecmascript::{
-    builtins::{ArgumentsList, ArrayBufferHeapData, ArrayHeapData, Behaviour, BuiltinFunction},
+    builtins::{ArgumentsList, ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
     execution::{Agent, Environments, JsResult, Realm, RealmIdentifier},
     scripts_and_modules::{
         module::{Module, ModuleIdentifier},
@@ -56,7 +46,7 @@ use crate::ecmascript::{
     types::{
         BigInt, BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData,
         ECMAScriptFunctionHeapData, Function, Number, NumberHeapData, Object, ObjectHeapData,
-        PropertyKey, String, StringHeapData, Value,
+        String, StringHeapData, Value,
     },
 };
 use wtf8::{Wtf8, Wtf8Buf};
@@ -256,7 +246,7 @@ impl CreateHeapData<BigIntHeapData, BigInt> for Heap {
 
 impl Heap {
     pub fn new() -> Heap {
-        let mut heap = Heap {
+        Heap {
             modules: vec![],
             realms: Vec::with_capacity(1),
             scripts: Vec::with_capacity(1),
@@ -285,33 +275,7 @@ impl Heap {
             regexps: Vec::with_capacity(1024),
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
-        };
-        for _ in 0..LAST_WELL_KNOWN_SYMBOL_INDEX + 1 {
-            // Initialize well known symbol slots
-            heap.symbols.push(None);
         }
-        for i in 0..LAST_BUILTIN_OBJECT_INDEX + 1 {
-            // Initialize all static slots in heap objects.
-            heap.objects.push(None);
-            if i >= FIRST_CONSTRUCTOR_INDEX {
-                heap.builtin_functions.push(None);
-            }
-        }
-        initialize_array_heap(&mut heap);
-        initialize_array_buffer_heap(&mut heap);
-        initialize_bigint_heap(&mut heap);
-        initialize_boolean_heap(&mut heap);
-        initialize_date_heap(&mut heap);
-        initialize_error_heap(&mut heap);
-        initialize_function_heap(&mut heap);
-        initialize_math_object(&mut heap);
-        initialize_number_heap(&mut heap);
-        initialize_object_heap(&mut heap);
-        initialize_regexp_heap(&mut heap);
-        initialize_string_heap(&mut heap);
-        initialize_symbol_heap(&mut heap);
-
-        heap
     }
 
     pub(crate) fn add_module(&mut self, module: Module) -> ModuleIdentifier {
@@ -423,58 +387,6 @@ impl Heap {
         NumberIndex::last(&self.numbers)
     }
 
-    pub(crate) fn create_function(
-        &mut self,
-        name: Value,
-        length: u8,
-        _uses_arguments: bool,
-        // behaviour: Behaviour,
-    ) -> BuiltinFunctionIndex {
-        let entries = vec![
-            ObjectEntry::new(
-                PropertyKey::from_str(self, "length"),
-                ObjectEntryPropertyDescriptor::roxh(Value::from(length)),
-            ),
-            ObjectEntry::new(
-                PropertyKey::from_str(self, "name"),
-                ObjectEntryPropertyDescriptor::roxh(name),
-            ),
-        ];
-        let (keys, values): (ElementsVector, ElementsVector) =
-            self.elements.create_object_entries(entries);
-        let func_object_data = ObjectHeapData {
-            extensible: true,
-            keys,
-            values,
-            prototype: Some(Object::Object(
-                BuiltinObjectIndexes::FunctionPrototype.into(),
-            )),
-        };
-        self.objects.push(Some(func_object_data));
-        let func_data = BuiltinFunctionHeapData {
-            object_index: Some(ObjectIndex::last(&self.objects)),
-            length,
-            initial_name: None,
-            behaviour: Behaviour::Regular(fn_todo),
-            realm: RealmIdentifier::from_index(0),
-        };
-        let index = BuiltinFunctionIndex::from_index(self.builtin_functions.len());
-        self.builtin_functions.push(Some(func_data));
-        index
-    }
-
-    pub(crate) fn create_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
-        let (keys, values) = self.elements.create_object_entries(entries);
-        let object_data = ObjectHeapData {
-            extensible: true,
-            keys,
-            values,
-            prototype: Some(Object::Object(BuiltinObjectIndexes::ObjectPrototype.into())),
-        };
-        self.objects.push(Some(object_data));
-        ObjectIndex::last(&self.objects)
-    }
-
     pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
@@ -502,24 +414,6 @@ impl Heap {
         self.objects.push(Some(object_data));
         ObjectIndex::last(&self.objects)
     }
-
-    pub(crate) fn insert_builtin_object(
-        &mut self,
-        index: BuiltinObjectIndexes,
-        extensible: bool,
-        prototype: Option<Object>,
-        entries: Vec<ObjectEntry>,
-    ) -> ObjectIndex {
-        let (keys, values) = self.elements.create_object_entries(entries);
-        let object_data = ObjectHeapData {
-            extensible,
-            keys,
-            values,
-            prototype,
-        };
-        self.objects[index as usize] = Some(object_data);
-        ObjectIndex::last(&self.objects)
-    }
 }
 
 impl Default for Heap {
@@ -535,6 +429,5 @@ fn fn_todo(_heap: &mut Agent, _this: Value, _args: ArgumentsList) -> JsResult<Va
 #[test]
 fn init_heap() {
     let heap = Heap::new();
-    assert!(heap.objects.len() >= LAST_BUILTIN_OBJECT_INDEX as usize);
     println!("{:#?}", heap);
 }
