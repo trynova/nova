@@ -4,15 +4,15 @@
 //! are placed into the heap vectors. The order is based on the ECMAScript
 //! definition found in https://tc39.es/ecma262/
 
-// +==================================================================+
-// | First the list of built-in prototypes and non-prototypal objects |
-// +==================================================================+
-
 use super::indexes::{BuiltinFunctionIndex, ObjectIndex, SymbolIndex};
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy)]
-pub enum BuiltinObjectIndexes {
+pub(crate) enum IntrinsicObjectIndexes {
+    // +==================================================================+
+    // | First the list of built-in prototypes and non-prototypal objects |
+    // +==================================================================+
+
     // Fundamental objects
     ObjectPrototype,
     FunctionPrototype,
@@ -22,7 +22,7 @@ pub enum BuiltinObjectIndexes {
 
     // Numbers and dates
     NumberPrototype,
-    BigintPrototype,
+    BigIntPrototype,
     MathObject,
     DatePrototype,
 
@@ -32,6 +32,7 @@ pub enum BuiltinObjectIndexes {
 
     // Indexed collections
     ArrayPrototype,
+    TypedArrayPrototype,
     Int8ArrayPrototype,
     Uint8ArrayPrototype,
     Uint8ClampedArrayPrototype,
@@ -55,7 +56,7 @@ pub enum BuiltinObjectIndexes {
     SharedArrayBufferPrototype,
     DataViewPrototype,
     AtomicsObject,
-    JsonObject,
+    JSONObject,
 
     // Managing memory
     WeakRefPrototype,
@@ -63,9 +64,17 @@ pub enum BuiltinObjectIndexes {
 
     // Control abstraction objects
     IteratorPrototype,
+    ArrayIteratorPrototype,
+    ForInIteratorPrototype,
     AsyncIteratorPrototype,
+    AsyncFromSyncIteratorPrototype,
+    AsyncGeneratorFunctionPrototypePrototype,
+    MapIteratorPrototype,
+    SetIteratorPrototype,
     PromisePrototype,
+    StringIteratorPrototype,
     GeneratorFunctionPrototype,
+    GeneratorFunctionPrototypePrototype,
     AsyncGeneratorFunctionPrototype,
     GeneratorPrototype,
     AsyncGeneratorPrototype,
@@ -75,90 +84,180 @@ pub enum BuiltinObjectIndexes {
     ReflectObject,
     ModulePrototype,
 
+    // Errors subtypes
+    AggregateErrorPrototype,
+    EvalErrorPrototype,
+    NativeErrorPrototype,
+    RangeErrorPrototype,
+    ReferenceErrorPrototype,
+    SyntaxErrorPrototype,
+    TypeErrorPrototype,
+
+    // Others
+    URIErrorPrototype,
+    RegExpStringIteratorPrototype,
+}
+const LAST_INTRINSIC_OBJECT_INDEX: IntrinsicObjectIndexes =
+    IntrinsicObjectIndexes::RegExpStringIteratorPrototype;
+
+#[repr(u32)]
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum IntrinsicConstructorIndexes {
     // +===============================================+
     // | Then the list of constructor function objects |
     // +===============================================+
 
     // Fundamental objects
-    ObjectConstructor,
-    FunctionConstructor,
-    BooleanConstructor,
-    SymbolConstructor,
-    ErrorConstructor,
+    Object,
+    Function,
+    Boolean,
+    Symbol,
+    Error,
 
     // Numbers and dates
-    NumberConstructor,
-    BigintConstructor,
-    DateConstructor,
+    Number,
+    BigInt,
+    Date,
 
     // Text processing
-    StringConstructor,
-    RegExpConstructor,
+    String,
+    RegExp,
 
     // Indexed collections
-    ArrayConstructor,
-    Int8ArrayConstructor,
-    Uint8ArrayConstructor,
-    Uint8ClampedArrayConstructor,
-    Int16ArrayConstructor,
-    Uint16ArrayConstructor,
-    Int32ArrayConstructor,
-    Uint32ArrayConstructor,
-    BigInt64ArrayConstructor,
-    BigUint64ArrayConstructor,
-    Float32ArrayConstructor,
-    Float64ArrayConstructor,
+    Array,
+    TypedArray,
+    Int8Array,
+    Uint8Array,
+    Uint8ClampedArray,
+    Int16Array,
+    Uint16Array,
+    Int32Array,
+    Uint32Array,
+    BigInt64Array,
+    BigUint64Array,
+    Float32Array,
+    Float64Array,
 
     // Keyed collections
-    MapConstructor,
-    SetConstructor,
-    WeakMapConstructor,
-    WeakSetConstructor,
+    Map,
+    Set,
+    WeakMap,
+    WeakSet,
 
     // Structured data
-    ArrayBufferConstructor,
-    SharedArrayBufferConstructor,
-    DataViewConstructor,
+    ArrayBuffer,
+    SharedArrayBuffer,
+    DataView,
 
     // Managing memory
-    WeakRefConstructor,
-    FinalizationRegistryConstructor,
+    WeakRef,
+    FinalizationRegistry,
 
     // Control abstraction objects
-    PromiseConstructor,
-    GeneratorFunctionConstructor,
-    AsyncGeneratorFunctionConstructor,
-    AsyncFunctionConstructor,
+    Promise,
+    GeneratorFunction,
+    AsyncGeneratorFunction,
+    AsyncFunction,
 
     // Reflection
-    ProxyConstructor,
-}
+    Proxy,
 
-impl From<BuiltinObjectIndexes> for ObjectIndex {
-    fn from(value: BuiltinObjectIndexes) -> ObjectIndex {
-        ObjectIndex::from_u32_index(value as u32)
+    // Errors subtypes
+    AggregateError,
+    EvalError,
+    RangeError,
+    ReferenceError,
+    SyntaxError,
+    TypeError,
+
+    // Others
+    URIError,
+}
+const LAST_INTRINSIC_CONSTRUCTOR_INDEX: IntrinsicConstructorIndexes =
+    IntrinsicConstructorIndexes::URIError;
+
+#[repr(u32)]
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum IntrinsicFunctionIndexes {
+    // +===================================================================================+
+    // | Plain functions: These do not have a corresponding object index reserved for them |
+    // +===================================================================================+
+    ArrayPrototypeSort,
+    ArrayPrototypeToString,
+    ArrayPrototypeValues,
+    DatePrototypeToUTCString,
+    DecodeURI,
+    DecodeURIComponent,
+    EncodeURI,
+    EncodeURIComponent,
+    Escape,
+    Eval,
+    GeneratorFunctionPrototypePrototypeNext,
+    IsFinite,
+    IsNaN,
+    MapPrototypeEntries,
+    ObjectPrototypeToString,
+    ParseFloat,
+    ParseInt,
+    RegExpPrototypeExec,
+    SetPrototypeValues,
+    StringPrototypeTrimEnd,
+    StringPrototypeTrimStart,
+    ThrowTypeError,
+    TypedArrayPrototypeValues,
+    Unescape,
+}
+const LAST_INTRINSIC_FUNCTION_INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::Unescape;
+
+impl IntrinsicObjectIndexes {
+    const OBJECT_INDEX_OFFSET: u32 = 0;
+
+    pub(crate) const fn get_object_index(self, base: ObjectIndex) -> ObjectIndex {
+        ObjectIndex::from_u32_index(self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET)
     }
 }
 
-impl From<BuiltinObjectIndexes> for BuiltinFunctionIndex {
-    fn from(value: BuiltinObjectIndexes) -> BuiltinFunctionIndex {
-        // We do not allow more than 16 777 216 functions to exist.
-        assert!(value as u32 <= u32::pow(2, 24));
-        BuiltinFunctionIndex::from_u32_index(value as u32)
+impl IntrinsicConstructorIndexes {
+    const OBJECT_INDEX_OFFSET: u32 =
+        IntrinsicObjectIndexes::OBJECT_INDEX_OFFSET + LAST_INTRINSIC_OBJECT_INDEX as u32 + 1;
+    const BUILTIN_FUNCTION_INDEX_OFFSET: u32 = 0;
+
+    pub(crate) const fn get_object_index(self, base: ObjectIndex) -> ObjectIndex {
+        ObjectIndex::from_u32_index(self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET)
+    }
+
+    pub(crate) const fn get_builtin_function_index(
+        self,
+        base: BuiltinFunctionIndex,
+    ) -> BuiltinFunctionIndex {
+        BuiltinFunctionIndex::from_u32_index(
+            self as u32 + base.into_u32_index() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
+        )
     }
 }
 
-impl Default for BuiltinObjectIndexes {
-    fn default() -> Self {
-        Self::ObjectPrototype
+impl IntrinsicFunctionIndexes {
+    const BUILTIN_FUNCTION_INDEX_OFFSET: u32 =
+        IntrinsicConstructorIndexes::BUILTIN_FUNCTION_INDEX_OFFSET
+            + LAST_INTRINSIC_CONSTRUCTOR_INDEX as u32
+            + 1;
+
+    pub(crate) const fn get_builtin_function_index(
+        self,
+        base: BuiltinFunctionIndex,
+    ) -> BuiltinFunctionIndex {
+        BuiltinFunctionIndex::from_u32_index(
+            self as u32 + base.into_u32_index() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
+        )
     }
 }
 
-pub const LAST_BUILTIN_OBJECT_INDEX: u32 = BuiltinObjectIndexes::ProxyConstructor as u32;
-pub const FIRST_CONSTRUCTOR_INDEX: u32 = BuiltinObjectIndexes::ObjectConstructor as u32;
+pub(crate) const fn intrinsic_object_count() -> usize {
+    LAST_INTRINSIC_OBJECT_INDEX as usize + 1 + LAST_INTRINSIC_CONSTRUCTOR_INDEX as usize + 1
+}
 
-pub const fn get_constructor_index(object_index: BuiltinObjectIndexes) -> BuiltinFunctionIndex {
-    BuiltinFunctionIndex::from_u32_index(object_index as u32 - FIRST_CONSTRUCTOR_INDEX)
+pub(crate) const fn intrinsic_function_count() -> usize {
+    LAST_INTRINSIC_CONSTRUCTOR_INDEX as usize + 1 + LAST_INTRINSIC_FUNCTION_INDEX as usize + 1
 }
 
 #[derive(Debug, Clone, Copy)]

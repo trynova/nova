@@ -14,7 +14,6 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        abstract_operations::testing_and_comparison::same_value_non_number,
         execution::{Agent, JsResult},
         types::{
             InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
@@ -103,8 +102,13 @@ impl Deref for Array {
 }
 
 pub struct ArrayConstructor;
-
 impl Builtin for ArrayConstructor {
+    const NAME: &'static str = "Array";
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(Self::behaviour);
+}
+
+impl ArrayConstructor {
     fn create(agent: &mut Agent) -> JsResult<Object> {
         let realm = agent.current_realm_id();
         let object = create_builtin_function(
@@ -115,9 +119,7 @@ impl Builtin for ArrayConstructor {
 
         Ok(object.into_object())
     }
-}
 
-impl ArrayConstructor {
     fn behaviour(
         _agent: &mut Agent,
         _this_value: Value,
@@ -149,7 +151,13 @@ impl OrdinaryObjectInternalSlots for Array {
         if let Some(object_index) = agent.heap.get(*self).object_index {
             OrdinaryObject::from(object_index).prototype(agent)
         } else {
-            Some(agent.current_realm().intrinsics().array_prototype())
+            Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .array_prototype()
+                    .into_object(),
+            )
         }
     }
 
@@ -168,7 +176,13 @@ impl InternalMethods for Array {
         if let Some(object_index) = agent.heap.get(*self).object_index {
             OrdinaryObject::from(object_index).get_prototype_of(agent)
         } else {
-            Ok(Some(agent.current_realm().intrinsics().array_prototype()))
+            Ok(Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .array_prototype()
+                    .into_object(),
+            ))
         }
     }
 
@@ -179,11 +193,11 @@ impl InternalMethods for Array {
             // 1. Let current be O.[[Prototype]].
             let current = agent.current_realm().intrinsics().array_prototype();
             let object_index = if let Some(v) = prototype {
-                if same_value_non_number(agent, v, current) {
+                if v == current.into_object() {
                     return Ok(true);
                 } else {
                     // TODO: Proper handling
-                    Some(agent.heap.create_object_with_prototype(v))
+                    Some(agent.heap.create_object_with_prototype(v, vec![]))
                 }
             } else {
                 Some(agent.heap.create_null_object(Default::default()))

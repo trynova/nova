@@ -625,7 +625,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
 #[test]
 fn test_heap_gc() {
     let mut heap: Heap = Default::default();
-    assert!(!heap.objects.is_empty());
+    assert!(heap.objects.is_empty());
     let obj = Value::Object(heap.create_null_object(vec![]));
     println!("Object: {:#?}", obj);
     heap.globals.push(obj);

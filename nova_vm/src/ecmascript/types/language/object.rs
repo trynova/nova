@@ -2,6 +2,7 @@ mod data;
 mod internal_methods;
 mod internal_slots;
 mod into_object;
+pub mod property_builder;
 mod property_key;
 mod property_storage;
 use std::ops::Deref;
@@ -11,7 +12,7 @@ use super::{
         ARRAY_BUFFER_DISCRIMINANT, ARRAY_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
         BUILTIN_FUNCTION_DISCRIMINANT, ECMASCRIPT_FUNCTION_DISCRIMINANT, OBJECT_DISCRIMINANT,
     },
-    Function, Value,
+    Function, IntoValue, Value,
 };
 use crate::{
     ecmascript::{
@@ -53,7 +54,19 @@ pub enum Object {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct OrdinaryObject(ObjectIndex);
+pub struct OrdinaryObject(pub(crate) ObjectIndex);
+
+impl IntoObject for OrdinaryObject {
+    fn into_object(self) -> Object {
+        self.into()
+    }
+}
+
+impl IntoValue for OrdinaryObject {
+    fn into_value(self) -> Value {
+        self.into()
+    }
+}
 
 impl From<OrdinaryObject> for Object {
     fn from(value: OrdinaryObject) -> Self {
@@ -64,6 +77,12 @@ impl From<OrdinaryObject> for Object {
 impl From<ObjectIndex> for OrdinaryObject {
     fn from(value: ObjectIndex) -> Self {
         OrdinaryObject(value)
+    }
+}
+
+impl From<OrdinaryObject> for Value {
+    fn from(value: OrdinaryObject) -> Self {
+        Self::Object(value.0)
     }
 }
 

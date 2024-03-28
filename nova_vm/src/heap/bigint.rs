@@ -1,62 +1,59 @@
-use super::indexes::ObjectIndex;
 use crate::{
     ecmascript::{
-        builtins::{ArgumentsList, Behaviour},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{Object, PropertyKey, Value},
+        builtins::ArgumentsList,
+        execution::{Agent, JsResult},
+        types::{Object, Value},
     },
-    heap::{
-        heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        BuiltinFunctionHeapData, Heap, ObjectEntry, PropertyDescriptor,
-    },
+    heap::Heap,
 };
 
-pub fn initialize_bigint_heap(heap: &mut Heap) {
-    let entries = vec![
-        ObjectEntry::new_prototype_function_entry(heap, "asIntN", 2, false),
-        ObjectEntry::new_prototype_function_entry(heap, "asUintN", 2, false),
-        ObjectEntry::new_constructor_prototype_entry(
-            heap,
-            BuiltinObjectIndexes::BigintPrototype.into(),
-        ),
-    ];
-    heap.insert_builtin_object(
-        BuiltinObjectIndexes::BigintConstructor,
-        true,
-        Some(Object::BuiltinFunction(
-            BuiltinObjectIndexes::FunctionPrototype.into(),
-        )),
-        entries,
-    );
-    heap.builtin_functions
-        [get_constructor_index(BuiltinObjectIndexes::BigintConstructor).into_index()] =
-        Some(BuiltinFunctionHeapData {
-            object_index: Some(ObjectIndex::last(&heap.objects)),
-            length: 1,
-            initial_name: None,
-            behaviour: Behaviour::Constructor(constructor_binding),
-            name: None,
-            realm: RealmIdentifier::from_index(0),
-        });
-    let entries = vec![
-        ObjectEntry::new(
-            PropertyKey::from_str(heap, "constructor"),
-            PropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
-                BuiltinObjectIndexes::BigintConstructor,
-            ))),
-        ),
-        ObjectEntry::new_prototype_function_entry(heap, "toLocaleString", 0, false),
-        ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
-        ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false),
-        // @@ToStringTag
-        // ObjectEntry { key: PropertyKey::Symbol(), PropertyDescriptor }
-    ];
-    heap.insert_builtin_object(
-        BuiltinObjectIndexes::BigintPrototype,
-        true,
-        Some(Object::Object(BuiltinObjectIndexes::ObjectPrototype.into())),
-        entries,
-    );
+pub fn initialize_bigint_heap(_heap: &mut Heap) {
+    // let entries = vec![
+    //     ObjectEntry::new_prototype_function_entry(heap, "asIntN", 2, false),
+    //     ObjectEntry::new_prototype_function_entry(heap, "asUintN", 2, false),
+    //     ObjectEntry::new_constructor_prototype_entry(
+    //         heap,
+    //         IntrinsicObjectIndexes::BigIntPrototype.into(),
+    //     ),
+    // ];
+    // heap.insert_builtin_object(
+    //     IntrinsicObjectIndexes::BigIntConstructor,
+    //     true,
+    //     Some(Object::BuiltinFunction(
+    //         IntrinsicObjectIndexes::FunctionPrototype.into(),
+    //     )),
+    //     entries,
+    // );
+    // heap.builtin_functions
+    //     [get_constructor_index(IntrinsicObjectIndexes::BigIntConstructor).into_index()] =
+    //     Some(BuiltinFunctionHeapData {
+    //         object_index: Some(ObjectIndex::last(&heap.objects)),
+    //         length: 1,
+    //         initial_name: None,
+    //         behaviour: Behaviour::Constructor(constructor_binding),
+    //         realm: RealmIdentifier::from_index(0),
+    //     });
+    // let entries = vec![
+    //     ObjectEntry::new(
+    //         PropertyKey::from_str(heap, "constructor"),
+    //         ObjectEntryPropertyDescriptor::rwx(Value::BuiltinFunction(get_constructor_index(
+    //             IntrinsicObjectIndexes::BigIntConstructor,
+    //         ))),
+    //     ),
+    //     ObjectEntry::new_prototype_function_entry(heap, "toLocaleString", 0, false),
+    //     ObjectEntry::new_prototype_function_entry(heap, "toString", 0, false),
+    //     ObjectEntry::new_prototype_function_entry(heap, "valueOf", 0, false),
+    //     // @@ToStringTag
+    //     // ObjectEntry { key: PropertyKey::Symbol(), PropertyDescriptor }
+    // ];
+    // heap.insert_builtin_object(
+    //     IntrinsicObjectIndexes::BigIntPrototype,
+    //     true,
+    //     Some(Object::Object(
+    //         IntrinsicObjectIndexes::ObjectPrototype.into(),
+    //     )),
+    //     entries,
+    // );
 }
 
 fn constructor_binding(

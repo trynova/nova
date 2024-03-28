@@ -54,7 +54,9 @@ fn create_array_buffer_base_object(agent: &mut Agent, array_buffer: ArrayBuffer)
     // We'll have to cross this bridge at a later point, likely be designating
     // a "default realm" and making non-default realms always initialize ObjectHeapData.
     let prototype = agent.current_realm().intrinsics().array_buffer_prototype();
-    let object_index = agent.heap.create_object_with_prototype(prototype.into());
+    let object_index = agent
+        .heap
+        .create_object_with_prototype(prototype.into(), vec![]);
     agent.heap.get_mut(*array_buffer).object_index = Some(object_index);
     OrdinaryObject::from(object_index)
 }
@@ -102,7 +104,7 @@ impl OrdinaryObjectInternalSlots for ArrayBuffer {
                     prototype,
                     Some(self.into())
                 ));
-                agent.heap.create_object_with_prototype(prototype)
+                agent.heap.create_object_with_prototype(prototype, vec![])
             } else {
                 agent.heap.create_null_object(vec![])
             };
