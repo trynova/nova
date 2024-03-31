@@ -31,7 +31,6 @@ pub struct BuiltinFunctionHeapData {
     /// 20.2.3.5 (`Function.prototype.toString()`).
     pub(crate) initial_name: Option<String>,
     pub(crate) behaviour: Behaviour,
-    pub(crate) name: Option<String>,
 }
 
 #[derive(Debug)]

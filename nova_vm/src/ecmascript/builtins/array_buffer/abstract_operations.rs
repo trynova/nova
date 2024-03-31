@@ -4,7 +4,7 @@ use crate::{
         abstract_operations::operations_on_objects::get,
         builtins::array_buffer::data::InternalBuffer,
         execution::{agent::JsError, Agent, JsResult},
-        types::{DataBlock, Function, Number, Object, PropertyKey, Value},
+        types::{DataBlock, Function, IntoFunction, Number, Object, PropertyKey, Value},
     },
     heap::{indexes::ArrayBufferIndex, GetHeapData},
     Heap,
@@ -159,8 +159,12 @@ pub(crate) fn clone_array_buffer(
     }
     let array_buffer_constructor = agent.current_realm().intrinsics().array_buffer();
     // 2. Let targetBuffer be ? AllocateArrayBuffer(%ArrayBuffer%, srcLength).
-    let target_buffer =
-        allocate_array_buffer(agent, array_buffer_constructor, src_length as u64, None)?;
+    let target_buffer = allocate_array_buffer(
+        agent,
+        array_buffer_constructor.into_function(),
+        src_length as u64,
+        None,
+    )?;
     let Heap { array_buffers, .. } = &mut agent.heap;
     let (target_buffer_data, array_buffers) = array_buffers.split_last_mut().unwrap();
     let target_buffer_data = target_buffer_data.as_mut().unwrap();

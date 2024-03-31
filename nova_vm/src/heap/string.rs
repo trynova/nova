@@ -1,42 +1,40 @@
 use crate::{
     ecmascript::{
-        builtins::{ArgumentsList, Behaviour},
-        execution::{Agent, JsResult, RealmIdentifier},
+        builtins::ArgumentsList,
+        execution::{Agent, JsResult},
         types::{Object, Value},
     },
-    heap::{
-        heap_constants::{get_constructor_index, BuiltinObjectIndexes},
-        BuiltinFunctionHeapData, Heap,
-    },
+    heap::Heap,
 };
 
-pub fn initialize_string_heap(heap: &mut Heap) {
-    heap.insert_builtin_object(
-        BuiltinObjectIndexes::StringConstructor,
-        true,
-        Some(Object::BuiltinFunction(
-            BuiltinObjectIndexes::FunctionPrototype.into(),
-        )),
-        // TODO: Methods and properties
-        Vec::with_capacity(0),
-    );
-    heap.builtin_functions
-        [get_constructor_index(BuiltinObjectIndexes::StringConstructor).into_index()] =
-        Some(BuiltinFunctionHeapData {
-            object_index: Some(BuiltinObjectIndexes::StringConstructor.into()),
-            length: 1,
-            initial_name: None,
-            behaviour: Behaviour::Constructor(constructor_binding),
-            name: None,
-            realm: RealmIdentifier::from_index(0),
-        });
-    heap.insert_builtin_object(
-        BuiltinObjectIndexes::StringPrototype,
-        true,
-        Some(Object::Object(BuiltinObjectIndexes::ObjectPrototype.into())),
-        // TODO: Methods and properties
-        Vec::with_capacity(0),
-    );
+pub fn initialize_string_heap(_heap: &mut Heap) {
+    // heap.insert_builtin_object(
+    //     IntrinsicObjectIndexes::StringConstructor,
+    //     true,
+    //     Some(Object::BuiltinFunction(
+    //         IntrinsicObjectIndexes::FunctionPrototype.into(),
+    //     )),
+    //     // TODO: Methods and properties
+    //     Vec::with_capacity(0),
+    // );
+    // heap.builtin_functions
+    //     [get_constructor_index(IntrinsicObjectIndexes::StringConstructor).into_index()] =
+    //     Some(BuiltinFunctionHeapData {
+    //         object_index: Some(IntrinsicObjectIndexes::StringConstructor.into()),
+    //         length: 1,
+    //         initial_name: None,
+    //         behaviour: Behaviour::Constructor(constructor_binding),
+    //         realm: RealmIdentifier::from_index(0),
+    //     });
+    // heap.insert_builtin_object(
+    //     IntrinsicObjectIndexes::StringPrototype,
+    //     true,
+    //     Some(Object::Object(
+    //         IntrinsicObjectIndexes::ObjectPrototype.into(),
+    //     )),
+    //     // TODO: Methods and properties
+    //     Vec::with_capacity(0),
+    // );
 }
 
 fn constructor_binding(

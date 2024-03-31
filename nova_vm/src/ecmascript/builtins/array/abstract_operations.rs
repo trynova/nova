@@ -6,7 +6,7 @@ use crate::{
         },
         builtins::ordinary::ordinary_define_own_property,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{InternalMethods, Object, PropertyDescriptor, PropertyKey},
+        types::{InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey},
     },
     heap::{indexes::ArrayIndex, GetHeapData},
 };
@@ -31,10 +31,16 @@ pub fn array_create(
     }
     // 2. If proto is not present, set proto to %Array.prototype%.
     let object_index = if let Some(proto) = proto {
-        if proto == agent.current_realm().intrinsics().array_prototype() {
+        if proto
+            == agent
+                .current_realm()
+                .intrinsics()
+                .array_prototype()
+                .into_object()
+        {
             None
         } else {
-            Some(agent.heap.create_object_with_prototype(proto))
+            Some(agent.heap.create_object_with_prototype(proto, vec![]))
         }
     } else {
         None

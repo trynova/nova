@@ -6,7 +6,7 @@ use crate::ecmascript::{
     builtins::ArgumentsList,
     execution::{Agent, JsResult, ProtoIntrinsics},
     types::{
-        Function, InternalMethods, Object, OrdinaryObject, OrdinaryObjectInternalSlots,
+        Function, InternalMethods, IntoObject, Object, OrdinaryObject, OrdinaryObjectInternalSlots,
         PropertyDescriptor, PropertyKey, String, Value,
     },
 };
@@ -779,7 +779,17 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
         ProtoIntrinsics::EvalError => todo!(),
         ProtoIntrinsics::Function => todo!(),
         ProtoIntrinsics::Number => todo!(),
-        ProtoIntrinsics::Object => agent.heap.create_object(vec![]).into(),
+        ProtoIntrinsics::Object => agent
+            .heap
+            .create_object_with_prototype(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .object_prototype()
+                    .into_object(),
+                vec![],
+            )
+            .into(),
         ProtoIntrinsics::RangeError => todo!(),
         ProtoIntrinsics::ReferenceError => todo!(),
         ProtoIntrinsics::String => todo!(),

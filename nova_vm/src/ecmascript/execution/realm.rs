@@ -115,7 +115,7 @@ pub fn create_realm(agent: &mut Agent) -> RealmIdentifier {
     // 1. Let realmRec be a new Realm Record.
     let realm_rec = Realm {
         // 2. Perform CreateIntrinsics(realmRec).
-        intrinsics: create_intrinsics(),
+        intrinsics: create_intrinsics(agent),
 
         // 3. Set realmRec.[[AgentSignifier]] to AgentSignifier().
         agent_signifier: PhantomData,
@@ -142,7 +142,7 @@ pub fn create_realm(agent: &mut Agent) -> RealmIdentifier {
 ///
 /// The abstract operation CreateIntrinsics takes argument realmRec (a Realm
 /// Record) and returns UNUSED.
-pub(crate) fn create_intrinsics() -> Intrinsics {
+pub(crate) fn create_intrinsics(agent: &mut Agent) -> Intrinsics {
     // TODO: Follow the specification.
     // 1. Set realmRec.[[Intrinsics]] to a new Record.
     // 2. Set fields of realmRec.[[Intrinsics]] with the values listed in
@@ -167,7 +167,7 @@ pub(crate) fn create_intrinsics() -> Intrinsics {
     // NOTE: We divert from the specification to allow us to call
     //       CreateIntrinsics when we create the Realm.
 
-    Intrinsics::default()
+    Intrinsics::new(agent)
 }
 
 /// ### [9.3.3 SetRealmGlobalObject ( realmRec, globalObj, thisValue )](https://tc39.es/ecma262/#sec-setrealmglobalobject)
@@ -185,7 +185,7 @@ pub fn set_realm_global_object(
         Object::Object(
             agent
                 .heap
-                .create_object_with_prototype(intrinsics.object_prototype()),
+                .create_object_with_prototype(intrinsics.object_prototype().into(), vec![]),
         )
     });
 

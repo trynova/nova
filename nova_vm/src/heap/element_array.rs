@@ -1,10 +1,10 @@
 use super::{
-    indexes::{BuiltinFunctionIndex, ElementIndex},
-    object::{ObjectEntry, PropertyDescriptor},
+    indexes::ElementIndex,
+    object::{ObjectEntry, ObjectEntryPropertyDescriptor},
 };
-use crate::ecmascript::types::{PropertyKey, Value};
+use crate::ecmascript::types::{Function, PropertyKey, Value};
 use core::panic;
-use std::{collections::HashMap, num::NonZeroU16};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ElementArrayKey {
@@ -214,59 +214,104 @@ pub enum ElementDescriptor {
     /// ```js
     /// { get, enumerable: true, configurable: true }
     /// ```
-    ReadOnlyEnumerableConfigurableAccessor(u8, NonZeroU16),
+    ReadOnlyEnumerableConfigurableAccessor { get: Function },
     /// ```js
     /// { get, enumerable: true, configurable: false }
     /// ```
-    ReadOnlyEnumerableUnconfigurableAccessor(u8, NonZeroU16),
+    ReadOnlyEnumerableUnconfigurableAccessor { get: Function },
     /// ```js
     /// { get, enumerable: false, configurable: true }
     /// ```
-    ReadOnlyUnenumerableConfigurableAccessor(u8, NonZeroU16),
+    ReadOnlyUnenumerableConfigurableAccessor { get: Function },
     /// ```js
     /// { get, enumerable: false, configurable: false }
     /// ```
-    ReadOnlyUnenumerableUnconfigurableAccessor(u8, NonZeroU16),
+    ReadOnlyUnenumerableUnconfigurableAccessor { get: Function },
     /// ```js
     /// { set, enumerable: true, configurable: true }
     /// ```
-    WriteOnlyEnumerableConfigurableAccessor(u8, NonZeroU16),
+    WriteOnlyEnumerableConfigurableAccessor { set: Function },
     /// ```js
     /// { set, enumerable: true, configurable: false }
     /// ```
-    WriteOnlyEnumerableUnconfigurableAccessor(u8, NonZeroU16),
+    WriteOnlyEnumerableUnconfigurableAccessor { set: Function },
     /// ```js
     /// { set, enumerable: false, configurable: true }
     /// ```
-    WriteOnlyUnenumerableConfigurableAccessor(u8, NonZeroU16),
+    WriteOnlyUnenumerableConfigurableAccessor { set: Function },
     /// ```js
     /// { set, enumerable: false, configurable: false }
     /// ```
-    WriteOnlyUnenumerableUnconfigurableAccessor(u8, NonZeroU16),
+    WriteOnlyUnenumerableUnconfigurableAccessor { set: Function },
     /// ```js
     /// { get, set, enumerable: true, configurable: true }
     /// ```
-    ReadWriteEnumerableConfigurableAccessor(u8, u8, NonZeroU16, NonZeroU16),
+    ReadWriteEnumerableConfigurableAccessor { get: Function, set: Function },
     /// ```js
     /// { get, set, enumerable: true, configurable: false }
     /// ```
-    ReadWriteEnumerableUnconfigurableAccessor(u8, u8, NonZeroU16, NonZeroU16),
+    ReadWriteEnumerableUnconfigurableAccessor { get: Function, set: Function },
     /// ```js
     /// { get, set, enumerable: false, configurable: true }
     /// ```
-    ReadWriteUnenumerableConfigurableAccessor(u8, u8, NonZeroU16, NonZeroU16),
+    ReadWriteUnenumerableConfigurableAccessor { get: Function, set: Function },
     /// ```js
     /// { get, set, enumerable: false, configurable: false }
     /// ```
-    ReadWriteUnenumerableUnconfigurableAccessor(u8, u8, NonZeroU16, NonZeroU16),
+    ReadWriteUnenumerableUnconfigurableAccessor { get: Function, set: Function },
 }
 
 impl ElementDescriptor {
-    pub fn from_property_descriptor(
-        desc: PropertyDescriptor,
+    pub(crate) const fn new_with_wec(w: bool, e: bool, c: bool) -> Option<Self> {
+        match (w, e, c) {
+            (true, true, true) => None,
+            (true, true, false) => Some(Self::WritableEnumerableUnconfigurableData),
+            (true, false, true) => Some(Self::WritableUnenumerableConfigurableData),
+            (true, false, false) => Some(Self::WritableUnenumerableUnconfigurableData),
+            (false, true, true) => Some(Self::ReadOnlyEnumerableConfigurableData),
+            (false, true, false) => Some(Self::ReadOnlyEnumerableUnconfigurableData),
+            (false, false, true) => Some(Self::ReadOnlyUnenumerableConfigurableData),
+            (false, false, false) => Some(Self::ReadOnlyUnenumerableUnconfigurableData),
+        }
+    }
+
+    pub(crate) const fn new_with_get_ec(get: Function, e: bool, c: bool) -> Self {
+        match (e, c) {
+            (true, true) => Self::ReadOnlyEnumerableConfigurableAccessor { get },
+            (true, false) => Self::ReadOnlyEnumerableUnconfigurableAccessor { get },
+            (false, true) => Self::ReadOnlyUnenumerableConfigurableAccessor { get },
+            (false, false) => Self::ReadOnlyUnenumerableUnconfigurableAccessor { get },
+        }
+    }
+
+    pub(crate) const fn new_with_set_ec(set: Function, e: bool, c: bool) -> Self {
+        match (e, c) {
+            (true, true) => Self::WriteOnlyEnumerableConfigurableAccessor { set },
+            (true, false) => Self::WriteOnlyEnumerableUnconfigurableAccessor { set },
+            (false, true) => Self::WriteOnlyUnenumerableConfigurableAccessor { set },
+            (false, false) => Self::WriteOnlyUnenumerableUnconfigurableAccessor { set },
+        }
+    }
+
+    pub(crate) const fn new_with_get_set_ec(
+        get: Function,
+        set: Function,
+        e: bool,
+        c: bool,
+    ) -> Self {
+        match (e, c) {
+            (true, true) => Self::ReadWriteEnumerableConfigurableAccessor { get, set },
+            (true, false) => Self::ReadWriteEnumerableUnconfigurableAccessor { get, set },
+            (false, true) => Self::ReadWriteUnenumerableConfigurableAccessor { get, set },
+            (false, false) => Self::ReadWriteUnenumerableUnconfigurableAccessor { get, set },
+        }
+    }
+
+    pub(crate) fn from_property_descriptor(
+        desc: ObjectEntryPropertyDescriptor,
     ) -> (Option<ElementDescriptor>, Option<Value>) {
         match desc {
-            PropertyDescriptor::Data {
+            ObjectEntryPropertyDescriptor::Data {
                 value,
                 writable,
                 enumerable,
@@ -302,201 +347,107 @@ impl ElementDescriptor {
                     Some(value),
                 ),
             },
-            PropertyDescriptor::Blocked { .. } => unreachable!(),
-            PropertyDescriptor::ReadOnly {
+            ObjectEntryPropertyDescriptor::Blocked { .. } => unreachable!(),
+            ObjectEntryPropertyDescriptor::ReadOnly {
                 get,
                 enumerable,
                 configurable,
-            } => {
-                let get = get.into_u32();
-                let top = (get >> 16) as u8;
-                let bottom = NonZeroU16::new(get as u16).unwrap();
-                match (enumerable, configurable) {
-                    (true, true) => (
-                        Some(ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor(
-                            top, bottom,
-                        )),
-                        None,
-                    ),
-                    (true, false) => (
-                        Some(ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor(
-                            top, bottom,
-                        )),
-                        None,
-                    ),
-                    (false, true) => (
-                        Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor(
-                            top, bottom,
-                        )),
-                        None,
-                    ),
-                    (false, false) => (
-                        Some(
-                            ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor(
-                                top, bottom,
-                            ),
-                        ),
-                        None,
-                    ),
-                }
-            }
-            PropertyDescriptor::WriteOnly {
+            } => match (enumerable, configurable) {
+                (true, true) => (
+                    Some(ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }),
+                    None,
+                ),
+                (true, false) => (
+                    Some(ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }),
+                    None,
+                ),
+                (false, true) => (
+                    Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get }),
+                    None,
+                ),
+                (false, false) => (
+                    Some(ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { get }),
+                    None,
+                ),
+            },
+            ObjectEntryPropertyDescriptor::WriteOnly {
                 set,
                 enumerable,
                 configurable,
-            } => {
-                let set = set.into_u32();
-                let top = (set >> 16) as u8;
-                let bottom = NonZeroU16::new(set as u16).unwrap();
-                match (enumerable, configurable) {
-                    (true, true) => (
-                        Some(ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor(
-                            top, bottom,
-                        )),
-                        None,
-                    ),
-                    (true, false) => (
-                        Some(
-                            ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor(
-                                top, bottom,
-                            ),
-                        ),
-                        None,
-                    ),
-                    (false, true) => (
-                        Some(
-                            ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor(
-                                top, bottom,
-                            ),
-                        ),
-                        None,
-                    ),
-                    (false, false) => (
-                        Some(
-                            ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor(
-                                top, bottom,
-                            ),
-                        ),
-                        None,
-                    ),
-                }
-            }
-            PropertyDescriptor::ReadWrite {
+            } => match (enumerable, configurable) {
+                (true, true) => (
+                    Some(ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set }),
+                    None,
+                ),
+                (true, false) => (
+                    Some(ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set }),
+                    None,
+                ),
+                (false, true) => (
+                    Some(ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { set }),
+                    None,
+                ),
+                (false, false) => (
+                    Some(ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor { set }),
+                    None,
+                ),
+            },
+            ObjectEntryPropertyDescriptor::ReadWrite {
                 get,
                 set,
                 enumerable,
                 configurable,
-            } => {
-                let get = get.into_u32();
-                let get_top = (get >> 16) as u8;
-                let get_bottom = NonZeroU16::new(get as u16).unwrap();
-                let set = set.into_u32();
-                let set_top = (set >> 16) as u8;
-                let set_bottom = NonZeroU16::new(set as u16).unwrap();
-                match (enumerable, configurable) {
-                    (true, true) => (
-                        Some(ElementDescriptor::ReadWriteEnumerableConfigurableAccessor(
-                            get_top, set_top, get_bottom, set_bottom,
-                        )),
-                        None,
+            } => match (enumerable, configurable) {
+                (true, true) => (
+                    Some(ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { get, set }),
+                    None,
+                ),
+                (true, false) => (
+                    Some(ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { get, set }),
+                    None,
+                ),
+                (false, true) => (
+                    Some(ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { get, set }),
+                    None,
+                ),
+                (false, false) => (
+                    Some(
+                        ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { get, set },
                     ),
-                    (true, false) => (
-                        Some(
-                            ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor(
-                                get_top, set_top, get_bottom, set_bottom,
-                            ),
-                        ),
-                        None,
-                    ),
-                    (false, true) => (
-                        Some(
-                            ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor(
-                                get_top, set_top, get_bottom, set_bottom,
-                            ),
-                        ),
-                        None,
-                    ),
-                    (false, false) => (
-                        Some(
-                            ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor(
-                                get_top, set_top, get_bottom, set_bottom,
-                            ),
-                        ),
-                        None,
-                    ),
-                }
-            }
+                    None,
+                ),
+            },
         }
     }
 
-    pub fn getter_index(&self) -> Option<BuiltinFunctionIndex> {
+    pub fn getter_index(&self) -> Option<Function> {
         match self {
-            ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor(get_top, get_bottom)
-            | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor(get_top, get_bottom)
-            | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor(get_top, get_bottom)
-            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor(get_top, get_bottom)
-            | ElementDescriptor::ReadWriteEnumerableConfigurableAccessor(
-                get_top,
-                _,
-                get_bottom,
-                _,
-            )
-            | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor(
-                get_top,
-                _,
-                get_bottom,
-                _,
-            )
-            | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor(
-                get_top,
-                _,
-                get_bottom,
-                _,
-            )
-            | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor(
-                get_top,
-                _,
-                get_bottom,
-                _,
-            ) => Some(BuiltinFunctionIndex::from_u32(
-                (*get_top as u32) << (16 + get_bottom.get() as u32),
-            )),
+            ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }
+            | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }
+            | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get }
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { get }
+            | ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { get, .. }
+            | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { get, .. }
+            | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { get, .. }
+            | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { get, .. } => {
+                Some(*get)
+            }
             _ => None,
         }
     }
 
-    pub fn setter_index(&self) -> Option<BuiltinFunctionIndex> {
+    pub fn setter_index(&self) -> Option<Function> {
         match self {
-            ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor(set_top, set_bottom)
-            | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor(set_top, set_bottom)
-            | ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor(set_top, set_bottom)
-            | ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor(set_top, set_bottom)
-            | ElementDescriptor::ReadWriteEnumerableConfigurableAccessor(
-                _,
-                set_top,
-                _,
-                set_bottom,
-            )
-            | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor(
-                _,
-                set_top,
-                _,
-                set_bottom,
-            )
-            | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor(
-                _,
-                set_top,
-                _,
-                set_bottom,
-            )
-            | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor(
-                _,
-                set_top,
-                _,
-                set_bottom,
-            ) => Some(BuiltinFunctionIndex::from_u32(
-                (*set_top as u32) << (16 + set_bottom.get() as u32),
-            )),
+            ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set }
+            | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set }
+            | ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { set }
+            | ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor { set }
+            | ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { set, .. }
+            | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { set, .. }
+            | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { set, .. }
+            | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { set, .. } => {
+                Some(*set)
+            }
             _ => None,
         }
     }
@@ -906,7 +857,53 @@ impl ElementArrays {
         }
     }
 
-    pub fn create_object_entries(
+    pub(crate) fn create_with_stuff(
+        &mut self,
+        mut entries: Vec<(PropertyKey, Option<ElementDescriptor>, Option<Value>)>,
+    ) -> (ElementsVector, ElementsVector) {
+        let length = entries.len();
+        let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);
+        let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
+        let mut descriptors: Option<HashMap<u32, ElementDescriptor>> = None;
+        entries.drain(..).enumerate().for_each(|(index, entry)| {
+            let (key, maybe_descriptor, maybe_value) = entry;
+            let key = match key {
+                PropertyKey::Integer(data) => Value::Integer(data),
+                PropertyKey::SmallString(data) => Value::SmallString(data),
+                PropertyKey::String(data) => Value::String(data),
+                PropertyKey::Symbol(data) => Value::Symbol(data),
+            };
+            keys.push(Some(key));
+            values.push(maybe_value);
+            if let Some(descriptor) = maybe_descriptor {
+                if descriptors.is_none() {
+                    descriptors = Some(Default::default());
+                }
+                descriptors
+                    .as_mut()
+                    .unwrap()
+                    .insert(index as u32, descriptor);
+            }
+        });
+        let cap = ElementArrayKey::from(length);
+        let len = length as u32;
+        let key_elements_index = self.push_with_key(cap, keys, None);
+        let value_elements_index = self.push_with_key(cap, values, descriptors);
+        (
+            ElementsVector {
+                elements_index: key_elements_index,
+                cap,
+                len,
+            },
+            ElementsVector {
+                elements_index: value_elements_index,
+                cap,
+                len,
+            },
+        )
+    }
+
+    pub(crate) fn create_object_entries(
         &mut self,
         mut entries: Vec<ObjectEntry>,
     ) -> (ElementsVector, ElementsVector) {

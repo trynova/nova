@@ -6,12 +6,14 @@ use super::{
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
         ECMASCRIPT_FUNCTION_DISCRIMINANT,
     },
-    InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots, Value,
+    InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, OrdinaryObjectInternalSlots,
+    PropertyKey, Value,
 };
 use crate::{
     ecmascript::{
         builtins::{ArgumentsList, BuiltinFunction, ECMAScriptFunction},
         execution::{Agent, JsResult},
+        types::PropertyDescriptor,
     },
     heap::{
         indexes::{BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex},
@@ -128,7 +130,7 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
             Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
         } {
-            Object::from(object_index).extensible(agent)
+            OrdinaryObject::from(object_index).extensible(agent)
         } else {
             true
         }
@@ -140,7 +142,7 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
             Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
         } {
-            Object::from(object_index).set_extensible(agent, value)
+            OrdinaryObject::from(object_index).set_extensible(agent, value)
         } else if !value {
             // Create function base object and set inextensible
             todo!()
@@ -153,9 +155,15 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
             Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
         } {
-            Object::from(object_index).prototype(agent)
+            OrdinaryObject::from(object_index).prototype(agent)
         } else {
-            Some(agent.current_realm().intrinsics().function_prototype())
+            Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .function_prototype()
+                    .into(),
+            )
         }
     }
 
@@ -165,8 +173,16 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
             Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
         } {
-            Object::from(object_index).set_prototype(agent, prototype)
-        } else if prototype != Some(agent.current_realm().intrinsics().function_prototype()) {
+            OrdinaryObject::from(object_index).set_prototype(agent, prototype)
+        } else if prototype
+            != Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .function_prototype()
+                    .into(),
+            )
+        {
             // Create function base object with custom prototype
             todo!()
         }
@@ -174,89 +190,67 @@ impl OrdinaryObjectInternalSlots for Function {
 }
 
 impl InternalMethods for Function {
-    fn get_prototype_of(
-        self,
-        _agent: &mut Agent,
-    ) -> crate::ecmascript::execution::JsResult<Option<Object>> {
+    fn get_prototype_of(self, _agent: &mut Agent) -> JsResult<Option<Object>> {
         todo!()
     }
 
-    fn set_prototype_of(
-        self,
-        _agent: &mut Agent,
-        _prototype: Option<Object>,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
+    fn set_prototype_of(self, _agent: &mut Agent, _prototype: Option<Object>) -> JsResult<bool> {
         todo!()
     }
 
-    fn is_extensible(self, _agent: &mut Agent) -> crate::ecmascript::execution::JsResult<bool> {
+    fn is_extensible(self, _agent: &mut Agent) -> JsResult<bool> {
         todo!()
     }
 
-    fn prevent_extensions(
-        self,
-        _agent: &mut Agent,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
+    fn prevent_extensions(self, _agent: &mut Agent) -> JsResult<bool> {
         todo!()
     }
 
     fn get_own_property(
         self,
         _agent: &mut Agent,
-        _property_key: super::PropertyKey,
-    ) -> crate::ecmascript::execution::JsResult<Option<crate::ecmascript::types::PropertyDescriptor>>
-    {
+        _property_key: PropertyKey,
+    ) -> JsResult<Option<PropertyDescriptor>> {
         todo!()
     }
 
     fn define_own_property(
         self,
         _agent: &mut Agent,
-        _property_key: super::PropertyKey,
-        _property_descriptor: crate::ecmascript::types::PropertyDescriptor,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
+        _property_key: PropertyKey,
+        _property_descriptor: PropertyDescriptor,
+    ) -> JsResult<bool> {
         todo!()
     }
 
-    fn has_property(
-        self,
-        _agent: &mut Agent,
-        _property_key: super::PropertyKey,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
+    fn has_property(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
         todo!()
     }
 
     fn get(
         self,
         _agent: &mut Agent,
-        _property_key: super::PropertyKey,
+        _property_key: PropertyKey,
         _receiver: Value,
-    ) -> crate::ecmascript::execution::JsResult<Value> {
+    ) -> JsResult<Value> {
         todo!()
     }
 
     fn set(
         self,
         _agent: &mut Agent,
-        _property_key: super::PropertyKey,
+        _property_key: PropertyKey,
         _value: Value,
         _receiver: Value,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
+    ) -> JsResult<bool> {
         todo!()
     }
 
-    fn delete(
-        self,
-        _agent: &mut Agent,
-        _property_key: super::PropertyKey,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
+    fn delete(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
         todo!()
     }
 
-    fn own_property_keys(
-        self,
-        _agent: &mut Agent,
-    ) -> crate::ecmascript::execution::JsResult<Vec<super::PropertyKey>> {
+    fn own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         todo!()
     }
 
@@ -273,7 +267,7 @@ impl InternalMethods for Function {
             }
             Function::ECMAScriptFunction(idx) => {
                 ECMAScriptFunction::from(idx).call(agent, this_argument, arguments_list)
-            } //Function::ECMAScriptFunction(idx) => agent.heap.get(idx).ecmascript_function.call(agent, self, this_argument, ArgumentsList(arguments_list)),
+            }
         }
     }
 
