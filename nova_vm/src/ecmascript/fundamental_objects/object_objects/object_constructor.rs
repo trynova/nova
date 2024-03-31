@@ -445,7 +445,6 @@ impl ObjectConstructor {
         let this = intrinsics.object();
         let this_object_index = intrinsics.object_base_object();
         let object_prototype = intrinsics.object_prototype();
-        let _to_string_index = intrinsics.object_prototype_to_string();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ObjectConstructor>(
             agent,
