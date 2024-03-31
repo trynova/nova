@@ -365,12 +365,9 @@ impl Vm {
                 Instruction::LessThan => {
                     let lval = vm.stack.pop().unwrap();
                     let rval = vm.result.take().unwrap();
-                    let result =
-                        if let Some(result) = is_less_than::<true>(agent, lval, rval).unwrap() {
-                            result
-                        } else {
-                            false
-                        };
+                    let result = is_less_than::<true>(agent, lval, rval)
+                        .unwrap()
+                        .unwrap_or_default();
                     vm.result = Some(result.into());
                 }
                 Instruction::LogicalNot => {

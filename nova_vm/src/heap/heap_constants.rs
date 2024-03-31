@@ -4,6 +4,8 @@
 //! are placed into the heap vectors. The order is based on the ECMAScript
 //! definition found in https://tc39.es/ecma262/
 
+use crate::ecmascript::types::{PropertyKey, Value};
+
 use super::indexes::{BuiltinFunctionIndex, ObjectIndex, SymbolIndex};
 
 #[repr(u32)]
@@ -281,6 +283,18 @@ pub(crate) enum WellKnownSymbolIndexes {
 impl From<WellKnownSymbolIndexes> for SymbolIndex {
     fn from(value: WellKnownSymbolIndexes) -> Self {
         SymbolIndex::from_u32_index(value as u32)
+    }
+}
+
+impl From<WellKnownSymbolIndexes> for Value {
+    fn from(value: WellKnownSymbolIndexes) -> Self {
+        Value::Symbol(value.into())
+    }
+}
+
+impl From<WellKnownSymbolIndexes> for PropertyKey {
+    fn from(value: WellKnownSymbolIndexes) -> Self {
+        PropertyKey::Symbol(value.into())
     }
 }
 

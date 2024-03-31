@@ -1,12 +1,10 @@
 use crate::{
     ecmascript::{
         execution::Agent,
-        types::{Function, Value},
+        types::{Function, Object, PropertyKey, Value},
     },
     heap::element_array::ElementDescriptor,
 };
-
-use super::{Object, PropertyKey};
 
 #[derive(Default, Clone, Copy)]
 pub struct NoKey;

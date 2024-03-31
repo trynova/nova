@@ -1,0 +1,257 @@
+use crate::{
+    ecmascript::{
+        execution::{Agent, RealmIdentifier},
+        types::{IntoObject, ObjectHeapData, OrdinaryObject, PropertyKey, Value},
+    },
+    heap::{element_array::ElementDescriptor, indexes::ObjectIndex},
+};
+
+use super::property_builder::{self, PropertyBuilder};
+
+#[derive(Default, Clone, Copy)]
+pub struct NoPrototype;
+
+#[derive(Clone, Copy)]
+pub struct CreatorPrototype<T: IntoObject>(T);
+
+#[derive(Default, Clone, Copy)]
+pub struct NoProperties;
+
+#[derive(Clone)]
+pub struct CreatorProperties(Vec<(PropertyKey, Option<ElementDescriptor>, Option<Value>)>);
+
+pub struct OrdinaryObjectBuilder<'agent, P, Pr> {
+    pub(crate) agent: &'agent mut Agent,
+    this: OrdinaryObject,
+    realm: RealmIdentifier,
+    prototype: P,
+    extensible: bool,
+    properties: Pr,
+}
+
+impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
+    pub fn new(agent: &'agent mut Agent, realm: RealmIdentifier) -> Self {
+        agent.heap.objects.push(None);
+        let this = ObjectIndex::last(&agent.heap.builtin_functions).into();
+        Self {
+            agent,
+            this,
+            realm,
+            prototype: NoPrototype,
+            extensible: true,
+            properties: NoProperties,
+        }
+    }
+
+    pub(crate) fn new_intrinsic_object(
+        agent: &'agent mut Agent,
+        realm: RealmIdentifier,
+        this: OrdinaryObject,
+    ) -> Self {
+        Self {
+            agent,
+            this,
+            realm,
+            prototype: NoPrototype,
+            extensible: true,
+            properties: NoProperties,
+        }
+    }
+}
+
+impl<'agent, P, Pr> OrdinaryObjectBuilder<'agent, P, Pr> {
+    pub fn with_extensible(self, extensible: bool) -> Self {
+        Self {
+            agent: self.agent,
+            this: self.this,
+            realm: self.realm,
+            prototype: self.prototype,
+            extensible,
+            properties: self.properties,
+        }
+    }
+}
+
+impl<'agent, Pr> OrdinaryObjectBuilder<'agent, NoPrototype, Pr> {
+    pub fn with_prototype<T: IntoObject>(
+        self,
+        prototype: T,
+    ) -> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, Pr> {
+        OrdinaryObjectBuilder {
+            agent: self.agent,
+            this: self.this,
+            realm: self.realm,
+            prototype: CreatorPrototype(prototype),
+            extensible: self.extensible,
+            properties: self.properties,
+        }
+    }
+}
+
+impl<'agent, P> OrdinaryObjectBuilder<'agent, P, NoProperties> {
+    pub fn with_property_capacity(
+        self,
+        cap: usize,
+    ) -> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
+        OrdinaryObjectBuilder {
+            agent: self.agent,
+            this: self.this,
+            realm: self.realm,
+            prototype: self.prototype,
+            extensible: self.extensible,
+            properties: CreatorProperties(Vec::with_capacity(cap)),
+        }
+    }
+
+    pub fn with_data_property(
+        self,
+        key: PropertyKey,
+        value: Value,
+    ) -> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
+        OrdinaryObjectBuilder {
+            agent: self.agent,
+            this: self.this,
+            realm: self.realm,
+            prototype: self.prototype,
+            extensible: self.extensible,
+            properties: CreatorProperties(vec![(key, None, Some(value))]),
+        }
+    }
+
+    pub fn with_property(
+        self,
+        creator: impl FnOnce(
+            PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
+        ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
+    ) -> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
+        let property = {
+            let builder = PropertyBuilder::new(self.agent, self.this.into_object());
+            creator(builder)
+        };
+        OrdinaryObjectBuilder {
+            agent: self.agent,
+            this: self.this,
+            realm: self.realm,
+            prototype: self.prototype,
+            extensible: self.extensible,
+            properties: CreatorProperties(vec![property]),
+        }
+    }
+}
+
+impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
+    pub fn with_data_property(mut self, key: PropertyKey, value: Value) -> Self {
+        self.properties.0.push((key, None, Some(value)));
+        OrdinaryObjectBuilder {
+            agent: self.agent,
+            this: self.this,
+            realm: self.realm,
+            prototype: self.prototype,
+            extensible: self.extensible,
+            properties: self.properties,
+        }
+    }
+
+    pub fn with_property(
+        mut self,
+        creator: impl FnOnce(
+            PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
+        ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
+    ) -> Self {
+        let builder = PropertyBuilder::new(self.agent, self.this.into_object());
+        let property = creator(builder);
+        self.properties.0.push(property);
+        OrdinaryObjectBuilder {
+            agent: self.agent,
+            this: self.this,
+            realm: self.realm,
+            prototype: self.prototype,
+            extensible: self.extensible,
+            properties: self.properties,
+        }
+    }
+}
+
+impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
+    pub fn build(self) -> OrdinaryObject {
+        let (keys, values) = self.agent.heap.elements.create_with_stuff(vec![]);
+        let slot = self
+            .agent
+            .heap
+            .objects
+            .get_mut(self.this.into_index())
+            .unwrap();
+        *slot = Some(ObjectHeapData {
+            extensible: self.extensible,
+            prototype: None,
+            keys,
+            values,
+        });
+        self.this
+    }
+}
+
+impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, NoProperties> {
+    pub fn build(self) -> OrdinaryObject {
+        let (keys, values) = self.agent.heap.elements.create_with_stuff(vec![]);
+        let slot = self
+            .agent
+            .heap
+            .objects
+            .get_mut(self.this.into_index())
+            .unwrap();
+        *slot = Some(ObjectHeapData {
+            extensible: self.extensible,
+            prototype: Some(self.prototype.0.into_object()),
+            keys,
+            values,
+        });
+        self.this
+    }
+}
+
+impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, CreatorProperties> {
+    pub fn build(self) -> OrdinaryObject {
+        let (keys, values) = self
+            .agent
+            .heap
+            .elements
+            .create_with_stuff(self.properties.0);
+        let slot = self
+            .agent
+            .heap
+            .objects
+            .get_mut(self.this.into_index())
+            .unwrap();
+        *slot = Some(ObjectHeapData {
+            extensible: self.extensible,
+            prototype: None,
+            keys,
+            values,
+        });
+        self.this
+    }
+}
+
+impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, CreatorProperties> {
+    pub fn build(self) -> OrdinaryObject {
+        let (keys, values) = self
+            .agent
+            .heap
+            .elements
+            .create_with_stuff(self.properties.0);
+        let slot = self
+            .agent
+            .heap
+            .objects
+            .get_mut(self.this.into_index())
+            .unwrap();
+        *slot = Some(ObjectHeapData {
+            extensible: self.extensible,
+            prototype: Some(self.prototype.0.into_object()),
+            keys,
+            values,
+        });
+        self.this
+    }
+}

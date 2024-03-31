@@ -2,7 +2,9 @@ use crate::{
     ecmascript::{
         builtins::{BuiltinFunction, NumberConstructor},
         execution::Agent,
-        fundamental_objects::object_objects::object_constructor::ObjectConstructor,
+        fundamental_objects::object_objects::{
+            object_constructor::ObjectConstructor, object_prototype::ObjectPrototype,
+        },
         types::{Object, OrdinaryObject},
     },
     heap::{
@@ -65,6 +67,7 @@ impl Intrinsics {
     }
 
     pub(crate) fn create_intrinsics(agent: &mut Agent, realm: RealmIdentifier) {
+        ObjectPrototype::create_intrinsic(agent, realm);
         ObjectConstructor::create_intrinsic(agent, realm);
         NumberConstructor::create_intrinsic(agent, realm);
     }

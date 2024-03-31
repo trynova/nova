@@ -4,9 +4,10 @@ use crate::ecmascript::{
         testing_and_comparison::same_value,
         type_conversion::{to_object, to_property_key},
     },
+    builders::builtin_function_builder::BuiltinFunctionBuilder,
     builtins::{
         ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
-        ArgumentsList, Behaviour, Builtin, BuiltinFunctionBuilder,
+        ArgumentsList, Behaviour, Builtin,
     },
     execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
     types::{InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, Value},
@@ -444,7 +445,6 @@ impl ObjectConstructor {
         let this = intrinsics.object();
         let this_object_index = intrinsics.object_base_object();
         let object_prototype = intrinsics.object_prototype();
-        let _to_string_index = intrinsics.object_prototype_to_string();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ObjectConstructor>(
             agent,
@@ -452,6 +452,7 @@ impl ObjectConstructor {
             this,
             Some(this_object_index),
         )
+        .with_property_capacity(25)
         .with_property(|builder| {
             builder
                 .with_key_from_str("assign")
