@@ -157,7 +157,13 @@ impl OrdinaryObjectInternalSlots for Function {
         } {
             OrdinaryObject::from(object_index).prototype(agent)
         } else {
-            Some(agent.current_realm().intrinsics().function_prototype())
+            Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .function_prototype()
+                    .into(),
+            )
         }
     }
 
@@ -168,7 +174,15 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
         } {
             OrdinaryObject::from(object_index).set_prototype(agent, prototype)
-        } else if prototype != Some(agent.current_realm().intrinsics().function_prototype()) {
+        } else if prototype
+            != Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .function_prototype()
+                    .into(),
+            )
+        {
             // Create function base object with custom prototype
             todo!()
         }
