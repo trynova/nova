@@ -435,7 +435,8 @@ pub(crate) fn global_declaration_instantiation(
 mod test {
     use crate::ecmascript::{
         abstract_operations::operations_on_objects::create_data_property_or_throw,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinFunctionBuilder},
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{
             agent::Options, create_realm, initialize_default_realm, set_realm_global_object, Agent,
             DefaultHostHooks, ExecutionContext,

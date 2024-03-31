@@ -1,7 +1,8 @@
-use super::{ArgumentsList, Behaviour, Builtin, BuiltinFunctionBuilder};
+use super::{ArgumentsList, Behaviour, Builtin};
 use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::is_integral_number,
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
         execution::{Agent, JsResult, RealmIdentifier},
         types::{IntoValue, Number, Object, Value},
     },

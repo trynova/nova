@@ -4,9 +4,10 @@ use crate::ecmascript::{
         testing_and_comparison::same_value,
         type_conversion::{to_object, to_property_key},
     },
+    builders::builtin_function_builder::BuiltinFunctionBuilder,
     builtins::{
         ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
-        ArgumentsList, Behaviour, Builtin, BuiltinFunctionBuilder,
+        ArgumentsList, Behaviour, Builtin,
     },
     execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
     types::{InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, Value},
