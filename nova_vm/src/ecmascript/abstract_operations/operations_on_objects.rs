@@ -278,6 +278,30 @@ pub(crate) fn call_function(
     f.call(agent, v, arguments_list)
 }
 
+/// ### [7.3.20 Invoke ( V, P \[ , argumentsList \] )]()
+///
+/// The abstract operation Invoke takes arguments V (an ECMAScript language
+/// value) and P (a property key) and optional argument argumentsList (a List
+/// of ECMAScript language values) and returns either a normal completion
+/// containing an ECMAScript language value or a throw completion. It is used
+/// to call a method property of an ECMAScript language value. V serves as both
+/// the lookup point for the property and the this value of the call.
+/// argumentsList is the list of arguments values passed to the method. If
+/// argumentsList is not present, a new empty List is used as its value.
+pub(crate) fn invoke(
+    agent: &mut Agent,
+    v: Value,
+    p: PropertyKey,
+    arguments_list: Option<ArgumentsList>,
+) -> JsResult<Value> {
+    // 1. If argumentsList is not present, set argumentsList to a new empty List.
+    let arguments_list = arguments_list.unwrap_or_default();
+    // 2. Let func be ? GetV(V, P).
+    let func = get_v(agent, v, p)?;
+    // 3. Return ? Call(func, V, argumentsList).
+    call(agent, func, v, Some(arguments_list))
+}
+
 /// ### [7.3.25 GetFunctionRealm ( obj )](https://tc39.es/ecma262/#sec-getfunctionrealm)
 ///
 /// The abstract operation GetFunctionRealm takes argument obj (a function
