@@ -139,6 +139,39 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, NoProperties> {
     }
 }
 
+impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
+    pub fn with_data_property(mut self, key: PropertyKey, value: Value) -> Self {
+        self.properties.0.push((key, None, Some(value)));
+        OrdinaryObjectBuilder {
+            agent: self.agent,
+            this: self.this,
+            realm: self.realm,
+            prototype: self.prototype,
+            extensible: self.extensible,
+            properties: self.properties,
+        }
+    }
+
+    pub fn with_property(
+        mut self,
+        creator: impl FnOnce(
+            PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
+        ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
+    ) -> Self {
+        let builder = PropertyBuilder::new(self.agent, self.this.into_object());
+        let property = creator(builder);
+        self.properties.0.push(property);
+        OrdinaryObjectBuilder {
+            agent: self.agent,
+            this: self.this,
+            realm: self.realm,
+            prototype: self.prototype,
+            extensible: self.extensible,
+            properties: self.properties,
+        }
+    }
+}
+
 impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
     pub fn build(self) -> OrdinaryObject {
         let (keys, values) = self.agent.heap.elements.create_with_stuff(vec![]);
