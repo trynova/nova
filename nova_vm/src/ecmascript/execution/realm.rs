@@ -135,7 +135,9 @@ pub fn create_realm(agent: &mut Agent) -> RealmIdentifier {
     };
 
     // 7. Return realmRec.
-    agent.heap.add_realm(realm_rec)
+    let realm = agent.heap.add_realm(realm_rec);
+    Intrinsics::create_intrinsics(agent, realm);
+    realm
 }
 
 /// ### [9.3.2 CreateIntrinsics ( realmRec )](https://tc39.es/ecma262/#sec-createintrinsics)

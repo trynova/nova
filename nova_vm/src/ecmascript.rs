@@ -1,6 +1,7 @@
 pub(crate) mod abstract_operations;
 pub mod builtins;
 pub mod execution;
+pub(crate) mod fundamental_objects;
 pub mod scripts_and_modules;
 pub(crate) mod static_strings;
 pub(crate) mod syntax_directed_operations;

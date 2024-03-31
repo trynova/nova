@@ -702,6 +702,7 @@ pub struct BuiltinFunctionBuilder<'agent, P, L, N, B, Pr> {
     pub(crate) agent: &'agent mut Agent,
     this: BuiltinFunction,
     object_index: Option<ObjectIndex>,
+    realm: RealmIdentifier,
     prototype: P,
     length: L,
     name: N,
@@ -714,6 +715,7 @@ impl<'agent>
 {
     pub fn new<T: Builtin>(
         agent: &'agent mut Agent,
+        realm: RealmIdentifier,
     ) -> BuiltinFunctionBuilder<
         'agent,
         NoPrototype,
@@ -729,6 +731,34 @@ impl<'agent>
             agent,
             this,
             object_index: None,
+            realm,
+            prototype: Default::default(),
+            length: CreatorLength(T::LENGTH),
+            name: CreatorName(name),
+            behaviour: CreatorBehaviour(T::BEHAVIOUR),
+            properties: Default::default(),
+        }
+    }
+
+    pub(crate) fn new_intrinsic_constructor<T: Builtin>(
+        agent: &'agent mut Agent,
+        realm: RealmIdentifier,
+        this: BuiltinFunction,
+        base_object: Option<ObjectIndex>,
+    ) -> BuiltinFunctionBuilder<
+        'agent,
+        NoPrototype,
+        CreatorLength,
+        CreatorName,
+        CreatorBehaviour,
+        NoProperties,
+    > {
+        let name = String::from_str(agent, T::NAME);
+        BuiltinFunctionBuilder {
+            agent,
+            this,
+            object_index: base_object,
+            realm,
             prototype: Default::default(),
             length: CreatorLength(T::LENGTH),
             name: CreatorName(name),
@@ -747,6 +777,7 @@ impl<'agent, P, L, N, Pr> BuiltinFunctionBuilder<'agent, P, L, N, NoBehaviour, P
             agent: self.agent,
             this: self.this,
             object_index: self.object_index,
+            realm: self.realm,
             prototype: self.prototype,
             length: self.length,
             name: self.name,
@@ -764,7 +795,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
         let object_index = if prototype
             != self
                 .agent
-                .current_realm()
+                .get_realm(self.realm)
                 .intrinsics()
                 .function_prototype()
                 .into_object()
@@ -779,6 +810,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
             agent: self.agent,
             this: self.this,
             object_index,
+            realm: self.realm,
             prototype: CreatorPrototype(prototype),
             length: self.length,
             name: self.name,
@@ -797,6 +829,7 @@ impl<'agent, P, N, B, Pr> BuiltinFunctionBuilder<'agent, P, NoLength, N, B, Pr> 
             agent: self.agent,
             this: self.this,
             object_index: self.object_index,
+            realm: self.realm,
             prototype: self.prototype,
             length: CreatorLength(length),
             name: self.name,
@@ -816,6 +849,7 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
             agent: self.agent,
             this: self.this,
             object_index: self.object_index,
+            realm: self.realm,
             prototype: self.prototype,
             length: self.length,
             name: CreatorName(name),
@@ -834,6 +868,7 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
             agent: self.agent,
             this: self.this,
             object_index: self.object_index,
+            realm: self.realm,
             prototype: self.prototype,
             length: self.length,
             name: CreatorName(name),
@@ -850,6 +885,7 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
             agent: self.agent,
             this: self.this,
             object_index: self.object_index,
+            realm: self.realm,
             prototype: self.prototype,
             length: self.length,
             name: CreatorName(name),
@@ -873,6 +909,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
             agent: self.agent,
             this: self.this,
             object_index,
+            realm: self.realm,
             prototype: self.prototype,
             length: self.length,
             name: self.name,
@@ -899,6 +936,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
             agent: self.agent,
             this: self.this,
             object_index,
+            realm: self.realm,
             prototype: self.prototype,
             length: self.length,
             name: self.name,
@@ -919,6 +957,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
             agent: self.agent,
             this: self.this,
             object_index: self.object_index,
+            realm: self.realm,
             prototype: self.prototype,
             length: self.length,
             name: self.name,
@@ -940,6 +979,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
             agent: self.agent,
             this: self.this,
             object_index: self.object_index,
+            realm: self.realm,
             prototype: self.prototype,
             length: self.length,
             name: self.name,
@@ -963,7 +1003,7 @@ impl<'agent>
         let data = BuiltinFunctionHeapData {
             object_index: None,
             length: self.length.0,
-            realm: self.agent.current_realm_id(),
+            realm: self.realm,
             initial_name: Some(self.name.0),
             behaviour: self.behaviour.0,
         };
@@ -995,6 +1035,7 @@ impl<'agent>
             agent,
             length,
             name,
+            realm,
             behaviour,
             properties,
             object_index,
@@ -1006,7 +1047,7 @@ impl<'agent>
 
         let prototype = Some(
             agent
-                .current_realm()
+                .get_realm(realm)
                 .intrinsics()
                 .function_prototype()
                 .into_object(),
@@ -1027,7 +1068,7 @@ impl<'agent>
         let data = BuiltinFunctionHeapData {
             object_index,
             length: length.0,
-            realm: agent.current_realm_id(),
+            realm,
             initial_name: Some(name.0),
             behaviour: behaviour.0,
         };
@@ -1059,6 +1100,7 @@ impl<'agent>
             length,
             name,
             behaviour,
+            realm,
             properties,
             object_index,
             prototype,
@@ -1084,7 +1126,7 @@ impl<'agent>
         let data = BuiltinFunctionHeapData {
             object_index,
             length: length.0,
-            realm: agent.current_realm_id(),
+            realm,
             initial_name: Some(name.0),
             behaviour: behaviour.0,
         };
