@@ -158,6 +158,7 @@ impl NumberConstructor {
             this,
             Some(this_object_index),
         )
+        .with_property_capacity(16)
         .with_property(|builder| {
             // 21.1.2.1 Number.EPSILON
             // https://tc39.es/ecma262/#sec-number.epsilon

@@ -453,6 +453,7 @@ impl ObjectConstructor {
             this,
             Some(this_object_index),
         )
+        .with_property_capacity(25)
         .with_property(|builder| {
             builder
                 .with_key_from_str("assign")

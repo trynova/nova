@@ -242,6 +242,27 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
 }
 
 impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties> {
+    pub fn with_property_capacity(
+        self,
+        cap: usize,
+    ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
+        let object_index = Some(self.object_index.unwrap_or_else(|| {
+            self.agent.heap.objects.push(None);
+            ObjectIndex::last(&self.agent.heap.objects)
+        }));
+        BuiltinFunctionBuilder {
+            agent: self.agent,
+            this: self.this,
+            object_index,
+            realm: self.realm,
+            prototype: self.prototype,
+            length: self.length,
+            name: self.name,
+            behaviour: self.behaviour,
+            properties: CreatorProperties(Vec::with_capacity(cap)),
+        }
+    }
+
     pub fn with_data_property(
         self,
         key: PropertyKey,
