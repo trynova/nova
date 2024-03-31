@@ -1065,6 +1065,16 @@ impl CompileEvaluation for ast::ForStatement<'_> {
     }
 }
 
+impl CompileEvaluation for ast::ThrowStatement<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        self.argument.compile(ctx);
+        if is_reference(&self.argument) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        ctx.exe.add_instruction(Instruction::Throw)
+    }
+}
+
 impl CompileEvaluation for ast::Statement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
@@ -1075,6 +1085,7 @@ impl CompileEvaluation for ast::Statement<'_> {
             ast::Statement::BlockStatement(x) => x.compile(ctx),
             ast::Statement::EmptyStatement(_) => {}
             ast::Statement::ForStatement(x) => x.compile(ctx),
+            ast::Statement::ThrowStatement(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }

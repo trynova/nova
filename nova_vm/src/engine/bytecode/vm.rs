@@ -15,7 +15,7 @@ use crate::{
             ordinary_function_create, ArgumentsList, Array, OrdinaryFunctionCreateParams, ThisMode,
         },
         execution::{
-            agent::{resolve_binding, ExceptionType},
+            agent::{resolve_binding, ExceptionType, JsError},
             new_declarative_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
             JsResult, ProtoIntrinsics,
         },
@@ -445,6 +445,11 @@ impl Vm {
                         .lexical_environment;
                     let name = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
                     lex_env.create_immutable_binding(agent, name, true).unwrap();
+                }
+                Instruction::Throw => {
+                    let _result = vm.result.take().unwrap();
+                    // TODO: Actually throw result instead of just "something"
+                    return Err(JsError {  });
                 }
                 other => todo!("{other:?}"),
             }

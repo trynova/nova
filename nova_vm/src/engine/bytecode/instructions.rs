@@ -121,7 +121,7 @@ pub enum Instruction {
     Store,
     /// Store a constant as the result value.
     StoreConstant,
-    /// Throw the last value from the stack as an exception.
+    /// Throw the result value as an exception.
     Throw,
     /// Store ToNumber() as the result value.
     ToNumber,
