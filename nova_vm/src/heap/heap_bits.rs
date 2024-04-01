@@ -884,6 +884,7 @@ impl HeapMarkAndSweep<()> for Object {
             Object::Object(idx) => idx.mark_values(queues, ()),
             Object::Array(idx) => idx.mark_values(queues, ()),
             Object::ArrayBuffer(idx) => idx.mark_values(queues, ()),
+            Object::Error(idx) => idx.mark_values(queues, ()),
             Object::BoundFunction(_) => todo!(),
             Object::BuiltinFunction(_) => todo!(),
             Object::ECMAScriptFunction(_) => todo!(),
@@ -894,6 +895,7 @@ impl HeapMarkAndSweep<()> for Object {
         match self {
             Self::Object(idx) => idx.sweep_values(compactions, ()),
             Self::Array(idx) => idx.sweep_values(compactions, ()),
+            Self::Error(idx) => idx.sweep_values(compactions, ()),
             _ => todo!(),
         }
     }
@@ -1058,10 +1060,14 @@ impl HeapMarkAndSweep<()> for DateHeapData {
 impl HeapMarkAndSweep<()> for ErrorHeapData {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
         self.object_index.mark_values(queues, ());
+        self.message.mark_values(queues, ());
+        self.cause.mark_values(queues, ());
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
         self.object_index.sweep_values(compactions, ());
+        self.message.sweep_values(compactions, ());
+        self.cause.sweep_values(compactions, ());
     }
 }
 

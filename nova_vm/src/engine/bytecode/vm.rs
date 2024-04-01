@@ -305,6 +305,7 @@ impl Vm {
                 }
                 Instruction::EvaluateNew => {
                     let arg_count = instr.args[0].unwrap() as usize;
+                    let args = vm.stack.split_off(vm.stack.len() - arg_count);
                     let constructor = vm.stack.pop().unwrap();
                     if !is_constructor(agent, constructor) {
                         return Err(
@@ -313,7 +314,6 @@ impl Vm {
                     }
                     // SAFETY: Only Functions can be constructors
                     let constructor = unsafe { Function::try_from(constructor).unwrap_unchecked() };
-                    let args = vm.stack.split_off(vm.stack.len() - arg_count);
                     vm.result = Some(
                         construct(agent, constructor, Some(ArgumentsList(&args)), None)
                             .map(|result| result.into_value())?,

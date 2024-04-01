@@ -11,6 +11,7 @@ use super::{
 };
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::to_string,
         builtins::error::ErrorHeapData,
         scripts_and_modules::ScriptOrModule,
         types::{Function, Reference, String, Symbol, Value},
@@ -35,6 +36,10 @@ pub struct JsError(Value);
 impl JsError {
     pub(crate) fn new(value: Value) -> Self {
         Self(value)
+    }
+
+    pub fn to_string(self, agent: &mut Agent) -> String {
+        to_string(agent, self.0).unwrap()
     }
 }
 
@@ -98,7 +103,7 @@ impl Agent {
         let message = String::from_str(self, message);
         self.heap
             .errors
-            .push(Some(ErrorHeapData::new(kind, message)));
+            .push(Some(ErrorHeapData::new(kind, Some(message), None)));
         let index = ErrorIndex::last(&self.heap.errors);
         JsError(Value::Error(index))
     }
@@ -168,6 +173,7 @@ pub(crate) fn resolve_binding(
 
 #[derive(Debug, Clone, Copy)]
 pub enum ExceptionType {
+    Error,
     EvalError,
     RangeError,
     ReferenceError,

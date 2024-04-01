@@ -454,21 +454,46 @@ pub(crate) fn string_to_big_int(_agent: &mut Agent, _argument: Value) -> Option<
 }
 
 /// ### [7.1.17 ToString ( argument )](https://tc39.es/ecma262/#sec-tostring)
-pub(crate) fn to_string(_agent: &mut Agent, _argument: Value) -> JsResult<String> {
-    // TODO: 1. If argument is a String, return argument.
-    // 2. If argument is a Symbol, throw a TypeError exception.
-    // 3. If argument is undefined, return "undefined".
-    // 4. If argument is null, return "null".
-    // 5. If argument is true, return "true".
-    // 6. If argument is false, return "false".
-    // 7. If argument is a Number, return Number::toString(argument, 10).
-    // 8. If argument is a BigInt, return BigInt::toString(argument, 10).
-    // 9. Assert: argument is an Object.
-    // 10. Let primValue be ? ToPrimitive(argument, string).
-    // 11. Assert: primValue is not an Object.
-    // 12. Return ? ToString(primValue).
-
-    todo!()
+pub(crate) fn to_string(agent: &mut Agent, argument: Value) -> JsResult<String> {
+    // 1. If argument is a String, return argument.
+    match argument {
+        // 3. If argument is undefined, return "undefined".
+        Value::Undefined => Ok(String::from_str(agent, "undefined")),
+        // 4. If argument is null, return "null".
+        Value::Null => Ok(String::from_str(agent, "null")),
+        Value::Boolean(value) => {
+            if value {
+                // 5. If argument is true, return "true".
+                Ok(String::from_str(agent, "true"))
+            } else {
+                // 6. If argument is false, return "false".
+                Ok(String::from_str(agent, "false"))
+            }
+        }
+        Value::String(idx) => Ok(String::String(idx)),
+        Value::SmallString(data) => Ok(String::SmallString(data)),
+        // 2. If argument is a Symbol, throw a TypeError exception.
+        Value::Symbol(_) => {
+            Err(agent.throw_exception(ExceptionType::TypeError, "Cannot turn Symbol into string"))
+        }
+        // 7. If argument is a Number, return Number::toString(argument, 10).
+        Value::Number(_) => todo!(),
+        Value::Integer(_) => todo!(),
+        Value::Float(_) => todo!(),
+        // 8. If argument is a BigInt, return BigInt::toString(argument, 10).
+        Value::BigInt(_) => todo!(),
+        Value::SmallBigInt(_) => todo!(),
+        _ => {
+            // 9. Assert: argument is an Object.
+            assert!(Object::try_from(argument).is_ok());
+            // 10. Let primValue be ? ToPrimitive(argument, string).
+            let prim_value = to_primitive(agent, argument, Some(PreferredType::String))?;
+            // 11. Assert: primValue is not an Object.
+            assert!(Object::try_from(prim_value).is_err());
+            // 12. Return ? ToString(primValue).
+            to_string(agent, prim_value)
+        }
+    }
 }
 
 /// ### [7.1.18 ToObject ( argument )](https://tc39.es/ecma262/#sec-toobject)

@@ -23,6 +23,11 @@ fn object_prototype_tests() {
     initialize_default_realm(&mut agent);
     let realm = agent.current_realm_id();
     let script = parse_script(&allocator, contents.into_boxed_str(), realm, None).unwrap();
-    let _ = script_evaluation(&mut agent, script)
-        .unwrap_or_else(|_| panic!("Test '{}' failed", d.display()));
+    let _ = script_evaluation(&mut agent, script).unwrap_or_else(|err| {
+        panic!(
+            "Test '{}' failed with error: {:?}",
+            d.display(),
+            err.to_string(&mut agent).as_str(&mut agent)
+        )
+    });
 }

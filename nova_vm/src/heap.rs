@@ -21,6 +21,7 @@ pub(crate) use self::heap_constants::{
     intrinsic_function_count, intrinsic_object_count, IntrinsicConstructorIndexes,
     IntrinsicFunctionIndexes, IntrinsicObjectIndexes, WellKnownSymbolIndexes,
 };
+use self::indexes::ErrorIndex;
 pub(crate) use self::object::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
     date::DateHeapData,
@@ -35,7 +36,7 @@ use self::{
     regexp::RegExpHeapData,
     symbol::SymbolHeapData,
 };
-use crate::ecmascript::builtins::error::ErrorHeapData;
+use crate::ecmascript::builtins::error::{Error, ErrorHeapData};
 use crate::ecmascript::{
     builtins::{ArgumentsList, ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
     execution::{Agent, Environments, JsResult, Realm, RealmIdentifier},
@@ -176,6 +177,7 @@ macro_rules! impl_heap_data {
 
 impl_heap_data!(arrays, ArrayHeapData, ArrayHeapData);
 impl_heap_data!(array_buffers, ArrayBufferHeapData, ArrayBufferHeapData);
+impl_heap_data!(errors, ErrorHeapData, ErrorHeapData);
 impl_heap_data!(
     bound_functions,
     BoundFunctionHeapData,
@@ -206,6 +208,13 @@ impl CreateHeapData<&str, String> for Heap {
             let id = unsafe { self.alloc_string(data) };
             Value::String(id).try_into().unwrap()
         }
+    }
+}
+
+impl CreateHeapData<ErrorHeapData, Error> for Heap {
+    fn create(&mut self, data: ErrorHeapData) -> Error {
+        self.errors.push(Some(data));
+        Error::from(ErrorIndex::last(&self.errors))
     }
 }
 
