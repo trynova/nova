@@ -282,7 +282,6 @@ pub(crate) fn set_default_global_bindings(
 /// ### [9.6 InitializeHostDefinedRealm ( )](https://tc39.es/ecma262/#sec-initializehostdefinedrealm)
 pub fn initialize_host_defined_realm(
     agent: &mut Agent,
-    realm_id: RealmIdentifier,
     create_global_object: Option<impl FnOnce(&mut Realm) -> Object>,
     create_global_this_value: Option<impl FnOnce(&mut Realm) -> Object>,
     initialize_global_object: Option<impl FnOnce(&mut Agent, Object)>,
@@ -322,10 +321,10 @@ pub fn initialize_host_defined_realm(
         .map(|create_global_object| create_global_object(agent.current_realm_mut()));
 
     // 9. Perform SetRealmGlobalObject(realm, global, thisValue).
-    set_realm_global_object(agent, realm_id, global, this_value);
+    set_realm_global_object(agent, realm, global, this_value);
 
     // 10. Let globalObj be ? SetDefaultGlobalBindings(realm).
-    let global_object = set_default_global_bindings(agent, realm_id).unwrap();
+    let global_object = set_default_global_bindings(agent, realm).unwrap();
 
     // 11. Create any host-defined global object properties on globalObj.
     if let Some(initialize_global_object) = initialize_global_object {
@@ -335,13 +334,12 @@ pub fn initialize_host_defined_realm(
     // 12. Return UNUSED.
 }
 
-pub fn initialize_default_realm(agent: &mut Agent, realm_id: RealmIdentifier) {
+pub fn initialize_default_realm(agent: &mut Agent) {
     let create_global_object: Option<fn(&mut Realm) -> Object> = None;
     let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
     let initialize_global_object: Option<fn(&mut Agent, Object)> = None;
     initialize_host_defined_realm(
         agent,
-        realm_id,
         create_global_object,
         create_global_this_value,
         initialize_global_object,

@@ -557,8 +557,8 @@ mod test {
         let allocator = Allocator::default();
 
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
-        initialize_default_realm(&mut agent, realm);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
 
         let script = parse_script(&allocator, "typeof undefined".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
@@ -1001,8 +1001,8 @@ mod test {
         let allocator = Allocator::default();
 
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
-        initialize_default_realm(&mut agent, realm);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
 
         let script = parse_script(
             &allocator,
@@ -1040,8 +1040,8 @@ mod test {
         let allocator = Allocator::default();
 
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
-        initialize_default_realm(&mut agent, realm);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
 
         let script = parse_script(
             &allocator,
