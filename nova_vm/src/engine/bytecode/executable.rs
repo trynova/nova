@@ -652,6 +652,9 @@ impl CompileEvaluation for CallExpression<'_> {
                 }
                 ast::Argument::Expression(expr) => {
                     expr.compile(ctx);
+                    if is_reference(expr) {
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
                     ctx.exe.add_instruction(Instruction::Load);
                 }
             }
