@@ -1,1 +1,2 @@
-throw null
+Object.create(null);
+Object.getPrototypeOf({});
