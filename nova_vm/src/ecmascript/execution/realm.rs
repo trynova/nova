@@ -6,7 +6,6 @@ use super::{
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
         types::{IntoValue, Number, Object, PropertyDescriptor, PropertyKey, Value},
     },
     heap::indexes::ObjectIndex,

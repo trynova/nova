@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use nova_vm::ecmascript::{
-    execution::{agent::Options, create_realm, initialize_default_realm, Agent, DefaultHostHooks},
+    execution::{agent::Options, initialize_default_realm, Agent, DefaultHostHooks},
     scripts_and_modules::script::{parse_script, script_evaluation},
 };
 use oxc_allocator::Allocator;
