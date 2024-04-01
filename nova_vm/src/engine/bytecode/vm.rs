@@ -5,7 +5,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{call, create_data_property_or_throw},
-            testing_and_comparison::{is_less_than, is_same_type},
+            testing_and_comparison::{is_less_than, is_same_type, is_strictly_equal},
             type_conversion::{
                 to_boolean, to_number, to_numeric, to_primitive, to_property_key, to_string,
             },
@@ -368,6 +368,12 @@ impl Vm {
                     let result = is_less_than::<true>(agent, lval, rval)
                         .unwrap()
                         .unwrap_or_default();
+                    vm.result = Some(result.into());
+                }
+                Instruction::IsStrictlyEqual => {
+                    let lval = vm.stack.pop().unwrap();
+                    let rval = vm.result.take().unwrap();
+                    let result = is_strictly_equal(agent, lval, rval);
                     vm.result = Some(result.into());
                 }
                 Instruction::LogicalNot => {

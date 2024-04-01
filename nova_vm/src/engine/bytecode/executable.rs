@@ -494,6 +494,37 @@ impl CompileEvaluation for ast::BinaryExpression<'_> {
                 ctx.exe.add_instruction(Instruction::LessThan);
                 return;
             }
+            BinaryOperator::StrictEquality => {
+                self.left.compile(ctx);
+                if is_reference(&self.left) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ctx.exe.add_instruction(Instruction::Load);
+
+                self.right.compile(ctx);
+                if is_reference(&self.right) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+
+                ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
+                return;
+            }
+            BinaryOperator::StrictInequality => {
+                self.left.compile(ctx);
+                if is_reference(&self.left) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ctx.exe.add_instruction(Instruction::Load);
+
+                self.right.compile(ctx);
+                if is_reference(&self.right) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+
+                ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
+                ctx.exe.add_instruction(Instruction::LogicalNot);
+                return;
+            }
             _ => {
                 // TODO(@carter): Figure out if this fallthrough is correct?
             }
