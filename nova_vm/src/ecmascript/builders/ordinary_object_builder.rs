@@ -30,6 +30,7 @@ pub struct OrdinaryObjectBuilder<'agent, P, Pr> {
 }
 
 impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
+    #[must_use]
     pub fn new(agent: &'agent mut Agent, realm: RealmIdentifier) -> Self {
         agent.heap.objects.push(None);
         let this = ObjectIndex::last(&agent.heap.builtin_functions).into();
@@ -43,6 +44,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
         }
     }
 
+    #[must_use]
     pub(crate) fn new_intrinsic_object(
         agent: &'agent mut Agent,
         realm: RealmIdentifier,
@@ -60,6 +62,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
 }
 
 impl<'agent, P, Pr> OrdinaryObjectBuilder<'agent, P, Pr> {
+    #[must_use]
     pub fn with_extensible(self, extensible: bool) -> Self {
         Self {
             agent: self.agent,
@@ -73,6 +76,7 @@ impl<'agent, P, Pr> OrdinaryObjectBuilder<'agent, P, Pr> {
 }
 
 impl<'agent, Pr> OrdinaryObjectBuilder<'agent, NoPrototype, Pr> {
+    #[must_use]
     pub fn with_prototype<T: IntoObject>(
         self,
         prototype: T,
@@ -89,6 +93,7 @@ impl<'agent, Pr> OrdinaryObjectBuilder<'agent, NoPrototype, Pr> {
 }
 
 impl<'agent, P> OrdinaryObjectBuilder<'agent, P, NoProperties> {
+    #[must_use]
     pub fn with_property_capacity(
         self,
         cap: usize,
@@ -103,6 +108,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, NoProperties> {
         }
     }
 
+    #[must_use]
     pub fn with_data_property(
         self,
         key: PropertyKey,
@@ -118,6 +124,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, NoProperties> {
         }
     }
 
+    #[must_use]
     pub fn with_property(
         self,
         creator: impl FnOnce(
@@ -140,6 +147,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, NoProperties> {
 }
 
 impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
+    #[must_use]
     pub fn with_data_property(mut self, key: PropertyKey, value: Value) -> Self {
         self.properties.0.push((key, None, Some(value)));
         OrdinaryObjectBuilder {
@@ -152,6 +160,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
         }
     }
 
+    #[must_use]
     pub fn with_property(
         mut self,
         creator: impl FnOnce(
