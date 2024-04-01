@@ -713,6 +713,7 @@ impl ObjectConstructor {
                 })
                 .with_enumerable(false)
                 .build()
-        });
+        })
+        .build();
     }
 }
