@@ -217,7 +217,7 @@ pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(agent: &mut Agent, x:
 
     // 6. NOTE: All other ECMAScript language values are compared by identity.
     // 7. If x is y, return true; otherwise, return false.
-    todo!()
+    x == y
 }
 
 /// ### [7.2.13 IsLessThan ( x, y, LeftFirst )](https://tc39.es/ecma262/#sec-islessthan)

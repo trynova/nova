@@ -25,9 +25,9 @@ fn object_prototype_tests() {
     let script = parse_script(&allocator, contents.into_boxed_str(), realm, None).unwrap();
     let _ = script_evaluation(&mut agent, script).unwrap_or_else(|err| {
         panic!(
-            "Test '{}' failed with error: {:?}",
+            "Test '{}' failed: {:?}",
             d.display(),
-            err.to_string(&mut agent).as_str(&mut agent)
+            err.to_string(&mut agent).as_str(&mut agent).unwrap()
         )
     });
 }

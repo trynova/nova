@@ -414,6 +414,7 @@ impl Heap {
         entries: Vec<ObjectEntry>,
     ) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
+        eprintln!("prototype: {:?}", prototype);
         let object_data = ObjectHeapData {
             extensible: true,
             keys,
