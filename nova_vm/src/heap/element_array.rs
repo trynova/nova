@@ -100,11 +100,7 @@ impl ElementsVector {
             let len = self.len() as usize;
             match self.cap {
                 ElementArrayKey::E4 => {
-                    let descriptors = elements
-                        .e2pow4
-                        .descriptors
-                        .get(&elements_index)
-                        .map(|descs| descs.clone());
+                    let descriptors = elements.e2pow4.descriptors.get(&elements_index).cloned();
                     let elements = elements
                         .e2pow4
                         .values
@@ -116,11 +112,7 @@ impl ElementsVector {
                     (elements, descriptors)
                 }
                 ElementArrayKey::E6 => {
-                    let descriptors = elements
-                        .e2pow6
-                        .descriptors
-                        .get(&elements_index)
-                        .map(|descs| descs.clone());
+                    let descriptors = elements.e2pow6.descriptors.get(&elements_index).cloned();
                     let elements = elements
                         .e2pow6
                         .values
@@ -132,11 +124,7 @@ impl ElementsVector {
                     (elements, descriptors)
                 }
                 ElementArrayKey::E8 => {
-                    let descriptors = elements
-                        .e2pow8
-                        .descriptors
-                        .get(&elements_index)
-                        .map(|descs| descs.clone());
+                    let descriptors = elements.e2pow8.descriptors.get(&elements_index).cloned();
                     let elements = elements
                         .e2pow8
                         .values
@@ -148,11 +136,7 @@ impl ElementsVector {
                     (elements, descriptors)
                 }
                 ElementArrayKey::E10 => {
-                    let descriptors = elements
-                        .e2pow10
-                        .descriptors
-                        .get(&elements_index)
-                        .map(|descs| descs.clone());
+                    let descriptors = elements.e2pow10.descriptors.get(&elements_index).cloned();
                     let elements = elements
                         .e2pow10
                         .values
@@ -164,11 +148,7 @@ impl ElementsVector {
                     (elements, descriptors)
                 }
                 ElementArrayKey::E12 => {
-                    let descriptors = elements
-                        .e2pow12
-                        .descriptors
-                        .get(&elements_index)
-                        .map(|descs| descs.clone());
+                    let descriptors = elements.e2pow12.descriptors.get(&elements_index).cloned();
                     let elements = elements
                         .e2pow12
                         .values
@@ -180,11 +160,7 @@ impl ElementsVector {
                     (elements, descriptors)
                 }
                 ElementArrayKey::E16 => {
-                    let descriptors = elements
-                        .e2pow16
-                        .descriptors
-                        .get(&elements_index)
-                        .map(|descs| descs.clone());
+                    let descriptors = elements.e2pow16.descriptors.get(&elements_index).cloned();
                     let elements = elements
                         .e2pow16
                         .values
@@ -196,11 +172,7 @@ impl ElementsVector {
                     (elements, descriptors)
                 }
                 ElementArrayKey::E24 => {
-                    let descriptors = elements
-                        .e2pow24
-                        .descriptors
-                        .get(&elements_index)
-                        .map(|descs| descs.clone());
+                    let descriptors = elements.e2pow24.descriptors.get(&elements_index).cloned();
                     let elements = elements
                         .e2pow24
                         .values
