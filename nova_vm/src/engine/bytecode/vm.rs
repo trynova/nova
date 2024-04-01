@@ -4,8 +4,10 @@ use oxc_syntax::operator::BinaryOperator;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call, create_data_property_or_throw},
-            testing_and_comparison::{is_less_than, is_same_type, is_strictly_equal},
+            operations_on_objects::{call, construct, create_data_property_or_throw},
+            testing_and_comparison::{
+                is_constructor, is_less_than, is_same_type, is_strictly_equal,
+            },
             type_conversion::{
                 to_boolean, to_number, to_numeric, to_primitive, to_property_key, to_string,
             },
@@ -20,8 +22,8 @@ use crate::{
             JsResult, ProtoIntrinsics,
         },
         types::{
-            get_value, is_unresolvable_reference, put_value, Base, BigInt, IntoValue, Number,
-            Object, PropertyKey, Reference, ReferencedName, String, Value,
+            get_value, is_unresolvable_reference, put_value, Base, BigInt, Function, IntoValue,
+            Number, Object, PropertyKey, Reference, ReferencedName, String, Value,
         },
     },
     heap::GetHeapData,
@@ -300,6 +302,22 @@ impl Vm {
                     let func = vm.stack.pop().unwrap();
                     vm.result =
                         Some(call(agent, func, this_value, Some(ArgumentsList(&args))).unwrap());
+                }
+                Instruction::EvaluateNew => {
+                    let arg_count = instr.args[0].unwrap() as usize;
+                    let constructor = vm.stack.pop().unwrap();
+                    if !is_constructor(agent, constructor) {
+                        return Err(
+                            agent.throw_exception(ExceptionType::TypeError, "Not a constructor")
+                        );
+                    }
+                    // SAFETY: Only Functions can be constructors
+                    let constructor = unsafe { Function::try_from(constructor).unwrap_unchecked() };
+                    let args = vm.stack.split_off(vm.stack.len() - arg_count);
+                    vm.result = Some(
+                        construct(agent, constructor, Some(ArgumentsList(&args)), None)
+                            .map(|result| result.into_value())?,
+                    );
                 }
                 Instruction::EvaluatePropertyAccessWithExpressionKey => {
                     let property_name_value = vm.result.take().unwrap();

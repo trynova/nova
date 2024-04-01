@@ -227,7 +227,7 @@ pub(crate) fn has_own_property(agent: &mut Agent, o: Object, p: PropertyKey) -> 
     Ok(desc.is_some())
 }
 
-/// ### [7.3.14 Call ( F, V \[ , argumentsList \] )](https://tc39.es/ecma262/#sec-call)
+/// ### [7.3.13 Call ( F, V \[ , argumentsList \] )](https://tc39.es/ecma262/#sec-call)
 ///
 /// The abstract operation Call takes arguments F (an ECMAScript language
 /// value) and V (an ECMAScript language value) and optional argument
@@ -273,6 +273,19 @@ pub(crate) fn call_function(
 ) -> JsResult<Value> {
     let arguments_list = arguments_list.unwrap_or_default();
     f.call(agent, v, arguments_list)
+}
+
+pub(crate) fn construct(
+    agent: &mut Agent,
+    f: Function,
+    arguments_list: Option<ArgumentsList>,
+    new_target: Option<Function>,
+) -> JsResult<Object> {
+    // 1. If newTarget is not present, set newTarget to F.
+    let new_target = new_target.unwrap_or(f);
+    // 2. If argumentsList is not present, set argumentsList to a new empty List.
+    let arguments_list = arguments_list.unwrap_or_default();
+    f.construct(agent, arguments_list, new_target)
 }
 
 /// ### [7.3.20 Invoke ( V, P \[ , argumentsList \] )]()

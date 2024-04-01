@@ -12,7 +12,7 @@ use crate::{
     heap::CreateHeapData,
 };
 use oxc_ast::{
-    ast::{self, CallExpression, FunctionBody, Statement},
+    ast::{self, CallExpression, FunctionBody, NewExpression, Statement},
     syntax_directed_operations::BoundNames,
 };
 use oxc_span::Atom;
@@ -696,6 +696,33 @@ impl CompileEvaluation for CallExpression<'_> {
     }
 }
 
+impl CompileEvaluation for NewExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        self.callee.compile(ctx);
+        if is_reference(&self.callee) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        ctx.exe.add_instruction(Instruction::Load);
+        for ele in &self.arguments {
+            match ele {
+                ast::Argument::SpreadElement(_) => {
+                    panic!("Cannot support SpreadElements currently")
+                }
+                ast::Argument::Expression(expr) => {
+                    expr.compile(ctx);
+                    if is_reference(expr) {
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    ctx.exe.add_instruction(Instruction::Load);
+                }
+            }
+        }
+
+        ctx.exe
+            .add_instruction_with_immediate(Instruction::EvaluateNew, self.arguments.len());
+    }
+}
+
 impl CompileEvaluation for ast::MemberExpression<'_> {
     /// ### [13.3.2 Property Accessors](https://tc39.es/ecma262/#sec-property-accessors)
     fn compile(&self, ctx: &mut CompileContext) {
@@ -772,6 +799,7 @@ impl CompileEvaluation for ast::Expression<'_> {
             ast::Expression::MemberExpression(x) => x.compile(ctx),
             ast::Expression::UpdateExpression(x) => x.compile(ctx),
             ast::Expression::ArrayExpression(x) => x.compile(ctx),
+            ast::Expression::NewExpression(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }

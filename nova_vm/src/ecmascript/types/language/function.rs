@@ -276,10 +276,18 @@ impl InternalMethods for Function {
 
     fn construct(
         self,
-        _agent: &mut Agent,
-        _arguments_list: ArgumentsList,
-        _new_target: Function,
+        agent: &mut Agent,
+        arguments_list: ArgumentsList,
+        new_target: Function,
     ) -> JsResult<Object> {
-        todo!()
+        match self {
+            Function::BoundFunction(_) => todo!(),
+            Function::BuiltinFunction(idx) => {
+                BuiltinFunction::from(idx).construct(agent, arguments_list, new_target)
+            }
+            Function::ECMAScriptFunction(idx) => {
+                ECMAScriptFunction::from(idx).construct(agent, arguments_list, new_target)
+            }
+        }
     }
 }
