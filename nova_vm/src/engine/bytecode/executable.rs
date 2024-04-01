@@ -788,6 +788,9 @@ impl CompileEvaluation for ast::IfStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         // if (test) consequent
         self.test.compile(ctx);
+        if is_reference(&self.test) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
         // jump over consequent if test fails
         let jump = ctx
             .exe
@@ -1049,6 +1052,9 @@ impl CompileEvaluation for ast::ForStatement<'_> {
         let loop_jump = ctx.exe.get_jump_index_to_here();
         if let Some(test) = &self.test {
             test.compile(ctx);
+            if is_reference(test) {
+                ctx.exe.add_instruction(Instruction::GetValue);
+            }
         }
         // jump over consequent if test fails
         let end_jump = ctx
