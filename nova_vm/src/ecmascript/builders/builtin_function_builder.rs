@@ -388,7 +388,6 @@ impl<'agent>
             behaviour: self.behaviour.0,
         };
 
-        eprintln!("Creating: {}", self.this.0.into_index());
         let slot = self
             .agent
             .heap
@@ -454,7 +453,6 @@ impl<'agent>
             behaviour: behaviour.0,
         };
 
-        eprintln!("Creating: {}", self.this.0.into_index());
         let slot = agent
             .heap
             .builtin_functions
@@ -513,7 +511,6 @@ impl<'agent>
             behaviour: behaviour.0,
         };
 
-        eprintln!("Creating: {}", self.this.0.into_index());
         let slot = agent
             .heap
             .builtin_functions
