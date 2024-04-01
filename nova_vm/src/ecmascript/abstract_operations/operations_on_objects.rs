@@ -4,10 +4,7 @@ use super::{testing_and_comparison::is_callable, type_conversion::to_object};
 use crate::{
     ecmascript::{
         builtins::{ArgumentsList, BuiltinFunction, ECMAScriptFunction},
-        execution::{
-            agent::{ExceptionType, JsError},
-            Agent, JsResult, RealmIdentifier,
-        },
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
             Function, InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey, Value,
         },
@@ -193,7 +190,7 @@ pub(crate) fn get_method(
     }
     // 3. If IsCallable(func) is false, throw a TypeError exception.
     if !is_callable(func) {
-        return Err(JsError {});
+        return Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable object"));
     }
     // 4. Return func.
     match func {
@@ -251,7 +248,7 @@ pub(crate) fn call(
     let arguments_list = arguments_list.unwrap_or_default();
     // 2. If IsCallable(F) is false, throw a TypeError exception.
     if !is_callable(f) {
-        Err(JsError {})
+        Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable object"))
     } else {
         // 3. Return ? F.[[Call]](V, argumentsList).
         match f {

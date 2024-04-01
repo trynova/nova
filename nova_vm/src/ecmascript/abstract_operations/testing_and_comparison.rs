@@ -1,7 +1,7 @@
 //! ## [7.2 Testing and Comparison Operations](https://tc39.es/ecma262/#sec-testing-and-comparison-operations)
 
 use crate::ecmascript::{
-    execution::{agent::JsError, Agent, JsResult},
+    execution::{agent::ExceptionType, Agent, JsResult},
     types::{bigint::BigInt, InternalMethods, Number, Object, String, Value},
 };
 
@@ -14,9 +14,12 @@ use super::type_conversion::{string_to_big_int, to_number, to_primitive, Preferr
 /// containing an ECMAScript language value or a throw completion. It throws an
 /// error if argument is a value that cannot be converted to an Object using
 /// ToObject. It is defined by [Table 14](https://tc39.es/ecma262/#table-requireobjectcoercible-results):
-pub(crate) fn require_object_coercible(_agent: &mut Agent, argument: Value) -> JsResult<Value> {
+pub(crate) fn require_object_coercible(agent: &mut Agent, argument: Value) -> JsResult<Value> {
     if argument.is_undefined() || argument.is_null() {
-        Err(JsError {})
+        Err(agent.throw_exception(
+            ExceptionType::TypeError,
+            "Argument cannot be converted into an object",
+        ))
     } else {
         Ok(argument)
     }

@@ -28,7 +28,6 @@ use self::{
         ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16, ElementArray2Pow24,
         ElementArray2Pow32, ElementArray2Pow4, ElementArray2Pow6, ElementArray2Pow8, ElementArrays,
     },
-    error::ErrorHeapData,
     indexes::{
         BaseIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex,
         NumberIndex, ObjectIndex, StringIndex,
@@ -36,6 +35,7 @@ use self::{
     regexp::RegExpHeapData,
     symbol::SymbolHeapData,
 };
+use crate::ecmascript::builtins::error::ErrorHeapData;
 use crate::ecmascript::{
     builtins::{ArgumentsList, ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
     execution::{Agent, Environments, JsResult, Realm, RealmIdentifier},

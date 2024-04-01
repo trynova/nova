@@ -3,7 +3,6 @@ use std::borrow::{Borrow, BorrowMut};
 use super::{
     date::DateHeapData,
     element_array::{ElementArrayKey, ElementsVector},
-    error::ErrorHeapData,
     indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
         DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, NumberIndex, ObjectIndex,
@@ -13,7 +12,9 @@ use super::{
     ArrayHeapData, Heap, NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
 };
 use crate::ecmascript::{
-    builtins::{ArrayBufferHeapData, BuiltinFunction, SealableElementsVector},
+    builtins::{
+        error::ErrorHeapData, ArrayBufferHeapData, BuiltinFunction, SealableElementsVector,
+    },
     execution::{
         DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironment,
         FunctionEnvironmentIndex, GlobalEnvironment, GlobalEnvironmentIndex, Intrinsics,

@@ -13,7 +13,7 @@
 use crate::{
     ecmascript::{
         builtins::ArgumentsList,
-        execution::{agent::ExceptionType, agent::JsError, Agent, JsResult},
+        execution::{agent::ExceptionType, Agent, JsResult},
         types::{BigInt, Number, Object, PropertyKey, String, Value},
     },
     heap::{GetHeapData, WellKnownSymbolIndexes},
@@ -86,7 +86,8 @@ pub(crate) fn to_primitive(
                 Ok(result)
             } else {
                 // vi. Throw a TypeError exception.
-                Err(JsError {})
+                Err(agent
+                    .throw_exception(ExceptionType::TypeError, "Invalid toPrimitive return value"))
             }
         } else {
             // c. If preferredType is not present, let preferredType be NUMBER.
@@ -142,7 +143,7 @@ pub(crate) fn ordinary_to_primitive(
         }
     }
     // 4. Throw a TypeError exception.
-    Err(JsError {})
+    Err(agent.throw_exception(ExceptionType::TypeError, "Could not convert to primitive"))
 }
 
 /// ### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
@@ -476,9 +477,12 @@ pub(crate) fn to_string(_agent: &mut Agent, _argument: Value) -> JsResult<String
 /// language value) and returns either a normal completion containing an Object
 /// or a throw completion. It converts argument to a value of type Object
 /// according to [Table 13](https://tc39.es/ecma262/#table-toobject-conversions):
-pub(crate) fn to_object(_agent: &mut Agent, argument: Value) -> JsResult<Object> {
+pub(crate) fn to_object(agent: &mut Agent, argument: Value) -> JsResult<Object> {
     match argument {
-        Value::Undefined | Value::Null => Err(JsError {}),
+        Value::Undefined | Value::Null => Err(agent.throw_exception(
+            ExceptionType::TypeError,
+            "Argument cannot be converted into an object",
+        )),
         // Return a new Boolean object whose [[BooleanData]] internal slot is set to argument.
         Value::Boolean(_) => todo!("BooleanObject"),
         // Return a new String object whose [[StringData]] internal slot is set to argument.

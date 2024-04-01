@@ -9,6 +9,7 @@ mod array;
 mod array_buffer;
 mod builtin_function;
 mod ecmascript_function;
+pub mod error;
 mod number;
 pub mod ordinary;
 

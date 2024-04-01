@@ -3,7 +3,7 @@ use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get,
         builtins::array_buffer::data::InternalBuffer,
-        execution::{agent::JsError, Agent, JsResult},
+        execution::{agent::ExceptionType, Agent, JsResult},
         types::{DataBlock, Function, IntoFunction, Number, Object, PropertyKey, Value},
     },
     heap::{indexes::ArrayBufferIndex, GetHeapData},
@@ -42,7 +42,10 @@ pub(crate) fn allocate_array_buffer(
     if allocating_resizable_buffer {
         // a. If byteLength > maxByteLength, throw a RangeError exception.
         if byte_length > max_byte_length.unwrap() {
-            return Err(JsError {});
+            return Err(agent.throw_exception(
+                ExceptionType::RangeError,
+                "Byte length is over maximumm byte length",
+            ));
         }
         // b. Append [[ArrayBufferMaxByteLength]] to slots.
     }
@@ -234,7 +237,7 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
     if (0..=(2i64.pow(53) - 1)).contains(&integer) {
         Ok(Some(integer))
     } else {
-        Err(JsError {})
+        Err(agent.throw_exception(ExceptionType::RangeError, "Not a SafeInteger"))
     }
 }
 

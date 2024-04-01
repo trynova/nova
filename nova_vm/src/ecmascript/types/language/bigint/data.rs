@@ -1,4 +1,4 @@
-use crate::ecmascript::execution::agent::JsError;
+use crate::ecmascript::{execution::agent::JsError, types::Value};
 use num_bigint::BigInt;
 // use num_traits::cast::ToPrimitive;
 
@@ -12,6 +12,6 @@ impl TryInto<f64> for BigIntHeapData {
 
     fn try_into(self) -> Result<f64, Self::Error> {
         // self.data.to_f64()
-        Err(JsError {})
+        Err(JsError::new(Value::Undefined))
     }
 }

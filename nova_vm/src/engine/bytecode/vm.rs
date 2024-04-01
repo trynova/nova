@@ -447,9 +447,9 @@ impl Vm {
                     lex_env.create_immutable_binding(agent, name, true).unwrap();
                 }
                 Instruction::Throw => {
-                    let _result = vm.result.take().unwrap();
+                    let result = vm.result.take().unwrap();
                     // TODO: Actually throw result instead of just "something"
-                    return Err(JsError {  });
+                    return Err(JsError::new(result));
                 }
                 other => todo!("{other:?}"),
             }

@@ -1,4 +1,3 @@
-use super::indexes::ObjectIndex;
 use crate::{
     ecmascript::{
         builtins::ArgumentsList,
@@ -7,12 +6,6 @@ use crate::{
     },
     heap::Heap,
 };
-
-#[derive(Debug, Clone, Copy)]
-pub struct ErrorHeapData {
-    pub(super) object_index: ObjectIndex,
-    // TODO: stack? name?
-}
 
 pub fn initialize_error_heap(_heap: &mut Heap) {
     // let entries = vec![ObjectEntry::new_constructor_prototype_entry(

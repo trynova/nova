@@ -11,9 +11,11 @@ use super::{
 };
 use crate::{
     ecmascript::{
+        builtins::error::ErrorHeapData,
         scripts_and_modules::ScriptOrModule,
-        types::{Function, Reference, Symbol, Value},
+        types::{Function, Reference, String, Symbol, Value},
     },
+    heap::indexes::ErrorIndex,
     Heap,
 };
 use std::collections::HashMap;
@@ -28,7 +30,13 @@ pub struct Options {
 pub type JsResult<T> = std::result::Result<T, JsError>;
 
 #[derive(Debug, Default, Clone, Copy)]
-pub struct JsError {}
+pub struct JsError(Value);
+
+impl JsError {
+    pub(crate) fn new(value: Value) -> Self {
+        Self(value)
+    }
+}
 
 // #[derive(Debug)]
 // pub struct PreAllocated;
@@ -86,7 +94,13 @@ impl Agent {
 
     /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
     pub fn throw_exception(&mut self, kind: ExceptionType, message: &'static str) -> JsError {
-        todo!("Uncaught {kind:?}: {message}")
+        eprintln!("Throwing Error(kind: {:?}, message: {}", kind, message);
+        let message = String::from_str(self, message);
+        self.heap
+            .errors
+            .push(Some(ErrorHeapData::new(kind, message)));
+        let index = ErrorIndex::last(&self.heap.errors);
+        JsError(Value::Error(index))
     }
 
     pub(crate) fn running_execution_context(&self) -> &ExecutionContext {
@@ -152,7 +166,7 @@ pub(crate) fn resolve_binding(
     get_identifier_reference(agent, Some(env), name, strict)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum ExceptionType {
     EvalError,
     RangeError,

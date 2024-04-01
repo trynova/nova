@@ -1,8 +1,6 @@
-use super::{
-    date::DateHeapData, error::ErrorHeapData, regexp::RegExpHeapData, symbol::SymbolHeapData,
-};
+use super::{date::DateHeapData, regexp::RegExpHeapData, symbol::SymbolHeapData};
 use crate::ecmascript::{
-    builtins::{ArrayBufferHeapData, ArrayHeapData},
+    builtins::{error::ErrorHeapData, ArrayBufferHeapData, ArrayHeapData},
     types::{
         BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
         NumberHeapData, ObjectHeapData, StringHeapData, Value,
