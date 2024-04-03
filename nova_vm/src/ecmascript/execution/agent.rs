@@ -99,7 +99,6 @@ impl Agent {
 
     /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
     pub fn throw_exception(&mut self, kind: ExceptionType, message: &'static str) -> JsError {
-        eprintln!("Throwing Error(kind: {:?}, message: {}", kind, message);
         let message = String::from_str(self, message);
         self.heap
             .errors

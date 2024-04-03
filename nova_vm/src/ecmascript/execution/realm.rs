@@ -105,6 +105,10 @@ impl Realm {
     pub(crate) fn intrinsics(&self) -> &Intrinsics {
         &self.intrinsics
     }
+
+    pub(crate) fn intrinsics_mut(&mut self) -> &mut Intrinsics {
+        &mut self.intrinsics
+    }
 }
 
 /// ### [9.3.1 CreateRealm ( )](https://tc39.es/ecma262/#sec-createrealm)

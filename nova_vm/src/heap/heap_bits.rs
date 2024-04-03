@@ -236,6 +236,15 @@ impl WorkQueues {
         }
     }
 
+    pub fn push_environment_index(&mut self, value: EnvironmentIndex) {
+        match value {
+            EnvironmentIndex::Declarative(idx) => self.declarative_environments.push(idx),
+            EnvironmentIndex::Function(idx) => self.function_environments.push(idx),
+            EnvironmentIndex::Global(idx) => self.global_environments.push(idx),
+            EnvironmentIndex::Object(idx) => self.object_environments.push(idx),
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.modules.is_empty()
             && self.scripts.is_empty()
@@ -525,6 +534,33 @@ where
         if let Some(content) = self {
             content.sweep_values(compactions, data);
         }
+    }
+}
+
+impl<T> HeapMarkAndSweep<()> for &[T]
+where
+    T: HeapMarkAndSweep<()>,
+{
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.iter().for_each(|entry| entry.mark_values(queues, ()));
+    }
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists, _data: impl Borrow<()>) {
+        panic!();
+    }
+}
+
+impl<T> HeapMarkAndSweep<()> for &mut [T]
+where
+    T: HeapMarkAndSweep<()>,
+{
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.iter().for_each(|entry| entry.mark_values(queues, ()))
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.iter_mut()
+            .for_each(|entry| entry.sweep_values(compactions, ()))
     }
 }
 
@@ -1153,7 +1189,7 @@ impl HeapMarkAndSweep<()> for Realm {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
-        self.intrinsics().sweep_values(compactions, ());
+        self.intrinsics_mut().sweep_values(compactions, ());
         self.global_env.sweep_values(compactions, ());
         self.global_object.sweep_values(compactions, ());
     }
