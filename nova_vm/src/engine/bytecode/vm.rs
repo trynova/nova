@@ -472,7 +472,6 @@ impl Vm {
                 }
                 Instruction::Throw => {
                     let result = vm.result.take().unwrap();
-                    // TODO: Actually throw result instead of just "something"
                     return Err(JsError::new(result));
                 }
                 other => todo!("{other:?}"),
