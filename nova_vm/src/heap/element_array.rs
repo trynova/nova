@@ -83,7 +83,7 @@ impl ElementsVector {
         self.len == self.cap()
     }
 
-    fn expand_elements(&mut self, elements: &mut ElementArrays) {
+    fn grow_inner(&mut self, elements: &mut ElementArrays) {
         let next_key = match self.cap {
             ElementArrayKey::E4 => ElementArrayKey::E6,
             ElementArrayKey::E6 => ElementArrayKey::E8,
@@ -198,7 +198,7 @@ impl ElementsVector {
         descriptor: Option<ElementDescriptor>,
     ) {
         if self.is_full() {
-            self.expand_elements(elements);
+            self.grow_inner(elements);
         }
         let next_over_end = match self.cap {
             ElementArrayKey::E4 => elements
