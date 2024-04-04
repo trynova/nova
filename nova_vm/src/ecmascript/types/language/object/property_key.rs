@@ -120,6 +120,8 @@ impl From<PropertyKey> for Value {
 
 impl TryFrom<Value> for PropertyKey {
     type Error = ();
+
+    #[inline(always)]
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
             Value::Integer(x) => Ok(PropertyKey::Integer(x)),

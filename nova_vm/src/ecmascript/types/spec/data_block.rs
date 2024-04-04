@@ -5,7 +5,7 @@ use std::{
     ptr::{read_unaligned, write_bytes, write_unaligned, NonNull},
 };
 
-use crate::ecmascript::execution::{agent::JsError, Agent, JsResult};
+use crate::ecmascript::execution::{agent::ExceptionType, Agent, JsResult};
 
 /// # Data Block
 ///
@@ -233,11 +233,11 @@ impl DataBlock {
     /// The abstract operation CreateByteDataBlock takes argument size (a
     /// non-negative integer) and returns either a normal completion containing
     /// a Data Block or a throw completion.
-    pub fn create_byte_data_block(_agent: &Agent, size: u64) -> JsResult<Self> {
+    pub fn create_byte_data_block(agent: &mut Agent, size: u64) -> JsResult<Self> {
         // 1. If size > 2**53 - 1, throw a RangeError exception.
         if size > u64::pow(2, 53) - 1 {
             // TODO: throw a RangeError exception
-            Err(JsError {})
+            Err(agent.throw_exception(ExceptionType::RangeError, "Not a safe integer"))
         } else if let Ok(size) = usize::try_from(size) {
             // 2. Let db be a new Data Block value consisting of size bytes.
             // 3. Set all of the bytes of db to 0.
@@ -246,7 +246,7 @@ impl DataBlock {
         } else {
             // 2. cont: If it is impossible to create such a Data Block, throw a RangeError exception.
             // TODO: throw a RangeError exception
-            Err(JsError {})
+            Err(agent.throw_exception(ExceptionType::RangeError, "Invalid Data Block length"))
         }
     }
 
@@ -255,7 +255,7 @@ impl DataBlock {
     /// The abstract operation CreateSharedByteDataBlock takes argument size (a
     /// non-negative integer) and returns either a normal completion containing
     /// a Shared Data Block or a throw completion.
-    pub fn create_shared_byte_data_block(size: u64) -> JsResult<Self> {
+    pub fn create_shared_byte_data_block(agent: &mut Agent, size: u64) -> JsResult<Self> {
         // 1. Let db be a new Shared Data Block value consisting of size bytes. If it is impossible to create such a Shared Data Block, throw a RangeError exception.
         if let Ok(size) = usize::try_from(size) {
             // 2. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
@@ -265,7 +265,7 @@ impl DataBlock {
             // a. Append WriteSharedMemory { [[Order]]: INIT, [[NoTear]]: true, [[Block]]: db, [[ByteIndex]]: i, [[ElementSize]]: 1, [[Payload]]: zero } to eventsRecord.[[EventList]].
             Ok(Self::new(size))
         } else {
-            Err(JsError {})
+            Err(agent.throw_exception(ExceptionType::TypeError, "Invalid Shared Data Block length"))
         }
         // 6. Return db.
     }

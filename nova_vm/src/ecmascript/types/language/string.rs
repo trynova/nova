@@ -2,7 +2,7 @@ mod data;
 
 use super::{IntoValue, Value};
 use crate::{
-    ecmascript::execution::Agent,
+    ecmascript::{execution::Agent, static_strings::EMPTY_STRING},
     heap::{indexes::StringIndex, CreateHeapData, GetHeapData},
     SmallString,
 };
@@ -84,6 +84,10 @@ impl IntoValue for SmallString {
 }
 
 impl String {
+    pub fn is_empty_string(self) -> bool {
+        self == EMPTY_STRING
+    }
+
     pub fn from_str(agent: &mut Agent, message: &str) -> String {
         agent.heap.create(message)
     }

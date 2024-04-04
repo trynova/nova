@@ -3,7 +3,6 @@ use std::borrow::{Borrow, BorrowMut};
 use super::{
     date::DateHeapData,
     element_array::{ElementArrayKey, ElementsVector},
-    error::ErrorHeapData,
     indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
         DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, NumberIndex, ObjectIndex,
@@ -13,7 +12,9 @@ use super::{
     ArrayHeapData, Heap, NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
 };
 use crate::ecmascript::{
-    builtins::{ArrayBufferHeapData, BuiltinFunction, SealableElementsVector},
+    builtins::{
+        error::ErrorHeapData, ArrayBufferHeapData, BuiltinFunction, SealableElementsVector,
+    },
     execution::{
         DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironment,
         FunctionEnvironmentIndex, GlobalEnvironment, GlobalEnvironmentIndex, Intrinsics,
@@ -232,6 +233,15 @@ impl WorkQueues {
             ElementArrayKey::E16 => self.e_2_16.push((vec.elements_index, vec.len)),
             ElementArrayKey::E24 => self.e_2_24.push((vec.elements_index, vec.len)),
             ElementArrayKey::E32 => self.e_2_32.push((vec.elements_index, vec.len)),
+        }
+    }
+
+    pub fn push_environment_index(&mut self, value: EnvironmentIndex) {
+        match value {
+            EnvironmentIndex::Declarative(idx) => self.declarative_environments.push(idx),
+            EnvironmentIndex::Function(idx) => self.function_environments.push(idx),
+            EnvironmentIndex::Global(idx) => self.global_environments.push(idx),
+            EnvironmentIndex::Object(idx) => self.object_environments.push(idx),
         }
     }
 
@@ -524,6 +534,33 @@ where
         if let Some(content) = self {
             content.sweep_values(compactions, data);
         }
+    }
+}
+
+impl<T> HeapMarkAndSweep<()> for &[T]
+where
+    T: HeapMarkAndSweep<()>,
+{
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.iter().for_each(|entry| entry.mark_values(queues, ()));
+    }
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists, _data: impl Borrow<()>) {
+        panic!();
+    }
+}
+
+impl<T> HeapMarkAndSweep<()> for &mut [T]
+where
+    T: HeapMarkAndSweep<()>,
+{
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.iter().for_each(|entry| entry.mark_values(queues, ()))
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.iter_mut()
+            .for_each(|entry| entry.sweep_values(compactions, ()))
     }
 }
 
@@ -883,6 +920,7 @@ impl HeapMarkAndSweep<()> for Object {
             Object::Object(idx) => idx.mark_values(queues, ()),
             Object::Array(idx) => idx.mark_values(queues, ()),
             Object::ArrayBuffer(idx) => idx.mark_values(queues, ()),
+            Object::Error(idx) => idx.mark_values(queues, ()),
             Object::BoundFunction(_) => todo!(),
             Object::BuiltinFunction(_) => todo!(),
             Object::ECMAScriptFunction(_) => todo!(),
@@ -893,6 +931,7 @@ impl HeapMarkAndSweep<()> for Object {
         match self {
             Self::Object(idx) => idx.sweep_values(compactions, ()),
             Self::Array(idx) => idx.sweep_values(compactions, ()),
+            Self::Error(idx) => idx.sweep_values(compactions, ()),
             _ => todo!(),
         }
     }
@@ -1057,10 +1096,14 @@ impl HeapMarkAndSweep<()> for DateHeapData {
 impl HeapMarkAndSweep<()> for ErrorHeapData {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
         self.object_index.mark_values(queues, ());
+        self.message.mark_values(queues, ());
+        self.cause.mark_values(queues, ());
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
         self.object_index.sweep_values(compactions, ());
+        self.message.sweep_values(compactions, ());
+        self.cause.sweep_values(compactions, ());
     }
 }
 
@@ -1146,7 +1189,7 @@ impl HeapMarkAndSweep<()> for Realm {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
-        self.intrinsics().sweep_values(compactions, ());
+        self.intrinsics_mut().sweep_values(compactions, ());
         self.global_env.sweep_values(compactions, ());
         self.global_object.sweep_values(compactions, ());
     }

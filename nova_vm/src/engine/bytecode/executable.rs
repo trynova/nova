@@ -1,18 +1,17 @@
 use super::{instructions::Instr, Instruction};
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_property_key,
         execution::Agent,
         scripts_and_modules::script::ScriptIdentifier,
         syntax_directed_operations::scope_analysis::{
             LexicallyScopedDeclaration, LexicallyScopedDeclarations,
         },
-        types::{BigIntHeapData, Reference, String, Value},
+        types::{BigIntHeapData, Reference, Value},
     },
     heap::CreateHeapData,
 };
 use oxc_ast::{
-    ast::{self, CallExpression, FunctionBody, Statement},
+    ast::{self, CallExpression, FunctionBody, NewExpression, Statement},
     syntax_directed_operations::BoundNames,
 };
 use oxc_span::Atom;
@@ -494,6 +493,37 @@ impl CompileEvaluation for ast::BinaryExpression<'_> {
                 ctx.exe.add_instruction(Instruction::LessThan);
                 return;
             }
+            BinaryOperator::StrictEquality => {
+                self.left.compile(ctx);
+                if is_reference(&self.left) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ctx.exe.add_instruction(Instruction::Load);
+
+                self.right.compile(ctx);
+                if is_reference(&self.right) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+
+                ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
+                return;
+            }
+            BinaryOperator::StrictInequality => {
+                self.left.compile(ctx);
+                if is_reference(&self.left) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ctx.exe.add_instruction(Instruction::Load);
+
+                self.right.compile(ctx);
+                if is_reference(&self.right) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+
+                ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
+                ctx.exe.add_instruction(Instruction::LogicalNot);
+                return;
+            }
             _ => {
                 // TODO(@carter): Figure out if this fallthrough is correct?
             }
@@ -587,9 +617,10 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         ast::PropertyKey::Identifier(id) => {
                             // TODO: If property key is __proto__ and it is not a shorthand ({ __proto__ })
                             // then we should dispatch a SetPrototype instruction.
-                            let property_key = String::from_str(ctx.agent, id.name.as_str());
-                            let property_key =
-                                to_property_key(ctx.agent, property_key.into()).unwrap();
+                            let property_key = crate::ecmascript::types::PropertyKey::from_str(
+                                &mut ctx.agent.heap,
+                                &id.name,
+                            );
                             ctx.exe.add_instruction_with_constant(
                                 Instruction::LoadConstant,
                                 property_key,
@@ -652,6 +683,9 @@ impl CompileEvaluation for CallExpression<'_> {
                 }
                 ast::Argument::Expression(expr) => {
                     expr.compile(ctx);
+                    if is_reference(expr) {
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
                     ctx.exe.add_instruction(Instruction::Load);
                 }
             }
@@ -659,6 +693,33 @@ impl CompileEvaluation for CallExpression<'_> {
 
         ctx.exe
             .add_instruction_with_immediate(Instruction::EvaluateCall, self.arguments.len());
+    }
+}
+
+impl CompileEvaluation for NewExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        self.callee.compile(ctx);
+        if is_reference(&self.callee) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        ctx.exe.add_instruction(Instruction::Load);
+        for ele in &self.arguments {
+            match ele {
+                ast::Argument::SpreadElement(_) => {
+                    panic!("Cannot support SpreadElements currently")
+                }
+                ast::Argument::Expression(expr) => {
+                    expr.compile(ctx);
+                    if is_reference(expr) {
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    ctx.exe.add_instruction(Instruction::Load);
+                }
+            }
+        }
+
+        ctx.exe
+            .add_instruction_with_immediate(Instruction::EvaluateNew, self.arguments.len());
     }
 }
 
@@ -738,6 +799,7 @@ impl CompileEvaluation for ast::Expression<'_> {
             ast::Expression::MemberExpression(x) => x.compile(ctx),
             ast::Expression::UpdateExpression(x) => x.compile(ctx),
             ast::Expression::ArrayExpression(x) => x.compile(ctx),
+            ast::Expression::NewExpression(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }
@@ -788,6 +850,9 @@ impl CompileEvaluation for ast::IfStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         // if (test) consequent
         self.test.compile(ctx);
+        if is_reference(&self.test) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
         // jump over consequent if test fails
         let jump = ctx
             .exe
@@ -1049,6 +1114,9 @@ impl CompileEvaluation for ast::ForStatement<'_> {
         let loop_jump = ctx.exe.get_jump_index_to_here();
         if let Some(test) = &self.test {
             test.compile(ctx);
+            if is_reference(test) {
+                ctx.exe.add_instruction(Instruction::GetValue);
+            }
         }
         // jump over consequent if test fails
         let end_jump = ctx
@@ -1065,6 +1133,16 @@ impl CompileEvaluation for ast::ForStatement<'_> {
     }
 }
 
+impl CompileEvaluation for ast::ThrowStatement<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        self.argument.compile(ctx);
+        if is_reference(&self.argument) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        ctx.exe.add_instruction(Instruction::Throw)
+    }
+}
+
 impl CompileEvaluation for ast::Statement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
@@ -1075,6 +1153,7 @@ impl CompileEvaluation for ast::Statement<'_> {
             ast::Statement::BlockStatement(x) => x.compile(ctx),
             ast::Statement::EmptyStatement(_) => {}
             ast::Statement::ForStatement(x) => x.compile(ctx),
+            ast::Statement::ThrowStatement(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }

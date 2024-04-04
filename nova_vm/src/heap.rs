@@ -21,6 +21,7 @@ pub(crate) use self::heap_constants::{
     intrinsic_function_count, intrinsic_object_count, IntrinsicConstructorIndexes,
     IntrinsicFunctionIndexes, IntrinsicObjectIndexes, WellKnownSymbolIndexes,
 };
+use self::indexes::ErrorIndex;
 pub(crate) use self::object::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
     date::DateHeapData,
@@ -28,7 +29,6 @@ use self::{
         ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16, ElementArray2Pow24,
         ElementArray2Pow32, ElementArray2Pow4, ElementArray2Pow6, ElementArray2Pow8, ElementArrays,
     },
-    error::ErrorHeapData,
     indexes::{
         BaseIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex,
         NumberIndex, ObjectIndex, StringIndex,
@@ -36,6 +36,7 @@ use self::{
     regexp::RegExpHeapData,
     symbol::SymbolHeapData,
 };
+use crate::ecmascript::builtins::error::{Error, ErrorHeapData};
 use crate::ecmascript::{
     builtins::{ArgumentsList, ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
     execution::{Agent, Environments, JsResult, Realm, RealmIdentifier},
@@ -110,29 +111,25 @@ macro_rules! impl_heap_data {
             fn get(&'a self, id: BaseIndex<$in>) -> &'a $out {
                 self.$table
                     .get(id.into_index())
-                    .expect(&format!(
-                        "Invalid HeapIndex for Heap::get ({:#?}): Index is out of bounds",
-                        id
-                    ))
+                    .unwrap_or_else(|| {
+                        panic!("Invalid HeapIndex for Heap::get ({id:?}): Index is out of bounds");
+                    })
                     .as_ref()
-                    .expect(&format!(
-                        "Invalid HeapIndex for Heap::get ({:#?}): No item at index",
-                        id
-                    ))
+                    .unwrap_or_else(|| {
+                        panic!("Invalid HeapIndex for Heap::get ({id:?}): No item at index");
+                    })
             }
 
             fn get_mut(&'a mut self, id: BaseIndex<$in>) -> &'a mut $out {
                 self.$table
                     .get_mut(id.into_index())
-                    .expect(&format!(
-                        "Invalid HeapIndex Heap::get_mut ({:#?}): Index is out of bounds",
-                        id
-                    ))
+                    .unwrap_or_else(|| {
+                        panic!("Invalid HeapIndex Heap::get_mut ({id:?}): Index is out of bounds");
+                    })
                     .as_mut()
-                    .expect(&format!(
-                        "Invalid HeapIndex Heap::get_mut ({:#?}): No item at index",
-                        id
-                    ))
+                    .unwrap_or_else(|| {
+                        panic!("Invalid HeapIndex Heap::get_mut ({id:?}): No item at index");
+                    })
             }
         }
     };
@@ -143,15 +140,13 @@ macro_rules! impl_heap_data {
                     .$table
                     .get(id.into_index())
                     .as_ref()
-                    .expect(&format!(
-                        "Invalid HeapIndex Heap::get ({:#?}): Index is out of bounds",
-                        id
-                    ))
+                    .unwrap_or_else(|| {
+                        panic!("Invalid HeapIndex Heap::get ({id:?}): Index is out of bounds")
+                    })
                     .as_ref()
-                    .expect(&format!(
-                        "Invalid HeapIndex Heap::get ({:#?}): No item at index",
-                        id
-                    ))
+                    .unwrap_or_else(|| {
+                        panic!("Invalid HeapIndex Heap::get ({id:?}): No item at index")
+                    })
                     .$accessor
             }
 
@@ -159,15 +154,13 @@ macro_rules! impl_heap_data {
                 &mut self
                     .$table
                     .get_mut(id.into_index())
-                    .expect(&format!(
-                        "Invalid HeapIndex Heap::get_mut ({:#?}): Index is out of bounds",
-                        id
-                    ))
+                    .unwrap_or_else(|| {
+                        panic!("Invalid HeapIndex Heap::get_mut ({id:?}): Index is out of bounds",)
+                    })
                     .as_mut()
-                    .expect(&format!(
-                        "Invalid HeapIndex Heap::get_mut ({:#?}): No item at index",
-                        id
-                    ))
+                    .unwrap_or_else(|| {
+                        panic!("Invalid HeapIndex Heap::get_mut ({id:?}): No item at index",)
+                    })
                     .$accessor
             }
         }
@@ -176,6 +169,7 @@ macro_rules! impl_heap_data {
 
 impl_heap_data!(arrays, ArrayHeapData, ArrayHeapData);
 impl_heap_data!(array_buffers, ArrayBufferHeapData, ArrayBufferHeapData);
+impl_heap_data!(errors, ErrorHeapData, ErrorHeapData);
 impl_heap_data!(
     bound_functions,
     BoundFunctionHeapData,
@@ -206,6 +200,13 @@ impl CreateHeapData<&str, String> for Heap {
             let id = unsafe { self.alloc_string(data) };
             Value::String(id).try_into().unwrap()
         }
+    }
+}
+
+impl CreateHeapData<ErrorHeapData, Error> for Heap {
+    fn create(&mut self, data: ErrorHeapData) -> Error {
+        self.errors.push(Some(data));
+        Error::from(ErrorIndex::last(&self.errors))
     }
 }
 

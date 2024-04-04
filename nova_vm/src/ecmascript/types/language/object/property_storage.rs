@@ -78,15 +78,14 @@ impl PropertyStorage {
         match self.0 {
             Object::Object(object) => {
                 let ObjectHeapData { keys, values, .. } = *agent.heap.get(object);
+                let key = key.into_value();
                 let result = agent
                     .heap
                     .elements
                     .get(keys)
                     .iter()
                     .enumerate()
-                    .find(|(_, element_key)| {
-                        PropertyKey::try_from(element_key.unwrap()).unwrap() == key
-                    })
+                    .find(|(_, element_key)| element_key.unwrap() == key)
                     .map(|res| res.0);
                 let values = agent.heap.elements.get(values);
                 result.map(|index| PropertyDescriptor {
@@ -109,19 +108,18 @@ impl PropertyStorage {
         match self.0 {
             Object::Object(object) => {
                 let ObjectHeapData { keys, values, .. } = *agent.heap.get(object);
+                let property_key = property_key.into_value();
                 let result = agent
                     .heap
                     .elements
                     .get(keys)
                     .iter()
                     .enumerate()
-                    .find(|(_, element_key)| {
-                        PropertyKey::try_from(element_key.unwrap()).unwrap() == property_key
-                    })
+                    .find(|(_, element_key)| element_key.unwrap() == property_key)
                     .map(|res| res.0);
                 if let Some(index) = result {
                     let key_entry = agent.heap.elements.get_mut(keys).get_mut(index).unwrap();
-                    *key_entry = Some(property_key.into());
+                    *key_entry = Some(property_key);
                     let value_entry = agent.heap.elements.get_mut(values).get_mut(index).unwrap();
                     *value_entry = descriptor.value;
                 } else {
@@ -135,7 +133,7 @@ impl PropertyStorage {
                         .expect("Invalid ObjectIndex");
                     object_heap_data
                         .keys
-                        .push(elements, Some(property_key.into()), None);
+                        .push(elements, Some(property_key), None);
                     object_heap_data
                         .values
                         .push(elements, descriptor.value, None);

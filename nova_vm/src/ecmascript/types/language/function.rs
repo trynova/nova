@@ -227,13 +227,16 @@ impl InternalMethods for Function {
         todo!()
     }
 
-    fn get(
-        self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _receiver: Value,
-    ) -> JsResult<Value> {
-        todo!()
+    fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
+        match self {
+            Function::BoundFunction(_) => todo!(),
+            Function::BuiltinFunction(x) => {
+                BuiltinFunction::from(x).get(agent, property_key, receiver)
+            }
+            Function::ECMAScriptFunction(x) => {
+                ECMAScriptFunction::from(x).get(agent, property_key, receiver)
+            }
+        }
     }
 
     fn set(
@@ -273,10 +276,18 @@ impl InternalMethods for Function {
 
     fn construct(
         self,
-        _agent: &mut Agent,
-        _arguments_list: ArgumentsList,
-        _new_target: Function,
+        agent: &mut Agent,
+        arguments_list: ArgumentsList,
+        new_target: Function,
     ) -> JsResult<Object> {
-        todo!()
+        match self {
+            Function::BoundFunction(_) => todo!(),
+            Function::BuiltinFunction(idx) => {
+                BuiltinFunction::from(idx).construct(agent, arguments_list, new_target)
+            }
+            Function::ECMAScriptFunction(idx) => {
+                ECMAScriptFunction::from(idx).construct(agent, arguments_list, new_target)
+            }
+        }
     }
 }

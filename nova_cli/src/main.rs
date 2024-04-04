@@ -1,6 +1,6 @@
 use clap::{Parser as ClapParser, Subcommand};
 use nova_vm::ecmascript::{
-    execution::{agent::Options, create_realm, set_realm_global_object, Agent, DefaultHostHooks},
+    execution::{agent::Options, initialize_default_realm, Agent, DefaultHostHooks},
     scripts_and_modules::script::{parse_script, script_evaluation},
 };
 use oxc_parser::Parser;
@@ -48,8 +48,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let allocator = Default::default();
 
             let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-            let realm = create_realm(&mut agent);
-            set_realm_global_object(&mut agent, realm, None, None);
+            initialize_default_realm(&mut agent);
+            let realm = agent.current_realm_id();
 
             let script = parse_script(&allocator, file.into(), realm, None).unwrap();
             let result = script_evaluation(&mut agent, script).unwrap();

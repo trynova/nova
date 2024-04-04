@@ -83,6 +83,114 @@ impl ElementsVector {
         self.len == self.cap()
     }
 
+    fn grow_inner(&mut self, elements: &mut ElementArrays) {
+        let next_key = match self.cap {
+            ElementArrayKey::E4 => ElementArrayKey::E6,
+            ElementArrayKey::E6 => ElementArrayKey::E8,
+            ElementArrayKey::E8 => ElementArrayKey::E10,
+            ElementArrayKey::E10 => ElementArrayKey::E12,
+            ElementArrayKey::E12 => ElementArrayKey::E16,
+            ElementArrayKey::E16 => ElementArrayKey::E24,
+            ElementArrayKey::E24 => ElementArrayKey::E32,
+            ElementArrayKey::E32 => panic!("Attempted to grow a full array"),
+        };
+        let (values, descriptors) = {
+            let elements_index = self.elements_index;
+            let usize_index = elements_index.into_index();
+            let len = self.len() as usize;
+            match self.cap {
+                ElementArrayKey::E4 => {
+                    let descriptors = elements.e2pow4.descriptors.get(&elements_index).cloned();
+                    let elements = elements
+                        .e2pow4
+                        .values
+                        .get(usize_index)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()[0..len]
+                        .to_vec();
+                    (elements, descriptors)
+                }
+                ElementArrayKey::E6 => {
+                    let descriptors = elements.e2pow6.descriptors.get(&elements_index).cloned();
+                    let elements = elements
+                        .e2pow6
+                        .values
+                        .get(usize_index)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()[0..len]
+                        .to_vec();
+                    (elements, descriptors)
+                }
+                ElementArrayKey::E8 => {
+                    let descriptors = elements.e2pow8.descriptors.get(&elements_index).cloned();
+                    let elements = elements
+                        .e2pow8
+                        .values
+                        .get(usize_index)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()[0..len]
+                        .to_vec();
+                    (elements, descriptors)
+                }
+                ElementArrayKey::E10 => {
+                    let descriptors = elements.e2pow10.descriptors.get(&elements_index).cloned();
+                    let elements = elements
+                        .e2pow10
+                        .values
+                        .get(usize_index)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()[0..len]
+                        .to_vec();
+                    (elements, descriptors)
+                }
+                ElementArrayKey::E12 => {
+                    let descriptors = elements.e2pow12.descriptors.get(&elements_index).cloned();
+                    let elements = elements
+                        .e2pow12
+                        .values
+                        .get(usize_index)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()[0..len]
+                        .to_vec();
+                    (elements, descriptors)
+                }
+                ElementArrayKey::E16 => {
+                    let descriptors = elements.e2pow16.descriptors.get(&elements_index).cloned();
+                    let elements = elements
+                        .e2pow16
+                        .values
+                        .get(usize_index)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()[0..len]
+                        .to_vec();
+                    (elements, descriptors)
+                }
+                ElementArrayKey::E24 => {
+                    let descriptors = elements.e2pow24.descriptors.get(&elements_index).cloned();
+                    let elements = elements
+                        .e2pow24
+                        .values
+                        .get(usize_index)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()[0..len]
+                        .to_vec();
+                    (elements, descriptors)
+                }
+                ElementArrayKey::E32 => unreachable!(),
+            }
+        };
+        let next_index = elements.push_with_key(next_key, &values, descriptors);
+        self.cap = next_key;
+        self.elements_index = next_index;
+    }
+
     pub fn push(
         &mut self,
         elements: &mut ElementArrays,
@@ -90,7 +198,7 @@ impl ElementsVector {
         descriptor: Option<ElementDescriptor>,
     ) {
         if self.is_full() {
-            todo!("Grow ElementsVector");
+            self.grow_inner(elements);
         }
         let next_over_end = match self.cap {
             ElementArrayKey::E4 => elements
@@ -605,7 +713,7 @@ impl ElementArrays {
     fn push_with_key(
         &mut self,
         key: ElementArrayKey,
-        vector: Vec<Option<Value>>,
+        vector: &[Option<Value>],
         descriptors: Option<HashMap<u32, ElementDescriptor>>,
     ) -> ElementIndex {
         debug_assert_eq!(
@@ -851,7 +959,7 @@ impl ElementArrays {
     pub fn allocate_elements_with_capacity(&mut self, capacity: usize) -> ElementsVector {
         let cap = ElementArrayKey::from(capacity);
         ElementsVector {
-            elements_index: self.push_with_key(cap, vec![], None),
+            elements_index: self.push_with_key(cap, &[], None),
             cap,
             len: 0,
         }
@@ -887,8 +995,8 @@ impl ElementArrays {
         });
         let cap = ElementArrayKey::from(length);
         let len = length as u32;
-        let key_elements_index = self.push_with_key(cap, keys, None);
-        let value_elements_index = self.push_with_key(cap, values, descriptors);
+        let key_elements_index = self.push_with_key(cap, &keys, None);
+        let value_elements_index = self.push_with_key(cap, &values, descriptors);
         (
             ElementsVector {
                 elements_index: key_elements_index,
@@ -935,8 +1043,8 @@ impl ElementArrays {
         });
         let cap = ElementArrayKey::from(length);
         let len = length as u32;
-        let key_elements_index = self.push_with_key(cap, keys, None);
-        let value_elements_index = self.push_with_key(cap, values, descriptors);
+        let key_elements_index = self.push_with_key(cap, &keys, None);
+        let value_elements_index = self.push_with_key(cap, &values, descriptors);
         (
             ElementsVector {
                 elements_index: key_elements_index,

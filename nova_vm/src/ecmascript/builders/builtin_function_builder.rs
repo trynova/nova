@@ -59,6 +59,7 @@ pub struct BuiltinFunctionBuilder<'agent, P, L, N, B, Pr> {
 impl<'agent>
     BuiltinFunctionBuilder<'agent, NoPrototype, NoLength, NoName, NoBehaviour, NoProperties>
 {
+    #[must_use]
     pub fn new<T: Builtin>(
         agent: &'agent mut Agent,
         realm: RealmIdentifier,
@@ -86,6 +87,7 @@ impl<'agent>
         }
     }
 
+    #[must_use]
     pub(crate) fn new_intrinsic_constructor<T: Builtin>(
         agent: &'agent mut Agent,
         realm: RealmIdentifier,
@@ -115,6 +117,7 @@ impl<'agent>
 }
 
 impl<'agent, P, L, N, Pr> BuiltinFunctionBuilder<'agent, P, L, N, NoBehaviour, Pr> {
+    #[must_use]
     pub fn with_behaviour(
         self,
         behaviour: Behaviour,
@@ -134,6 +137,7 @@ impl<'agent, P, L, N, Pr> BuiltinFunctionBuilder<'agent, P, L, N, NoBehaviour, P
 }
 
 impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, Pr> {
+    #[must_use]
     pub fn with_prototype(
         self,
         prototype: Object,
@@ -167,6 +171,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
 }
 
 impl<'agent, P, N, B, Pr> BuiltinFunctionBuilder<'agent, P, NoLength, N, B, Pr> {
+    #[must_use]
     pub fn with_length(
         self,
         length: u8,
@@ -186,6 +191,7 @@ impl<'agent, P, N, B, Pr> BuiltinFunctionBuilder<'agent, P, NoLength, N, B, Pr> 
 }
 
 impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
+    #[must_use]
     pub fn with_name_from_str(
         self,
         str: &str,
@@ -204,6 +210,7 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
         }
     }
 
+    #[must_use]
     pub fn with_prefixed_name_from_str(
         self,
         prefix: &str,
@@ -223,6 +230,7 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
         }
     }
 
+    #[must_use]
     pub fn with_name_from_string(
         self,
         name: String,
@@ -242,6 +250,7 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
 }
 
 impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties> {
+    #[must_use]
     pub fn with_property_capacity(
         self,
         cap: usize,
@@ -263,6 +272,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
         }
     }
 
+    #[must_use]
     pub fn with_data_property(
         self,
         key: PropertyKey,
@@ -285,6 +295,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
         }
     }
 
+    #[must_use]
     pub fn with_property(
         self,
         creator: impl FnOnce(
@@ -314,6 +325,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
 }
 
 impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
+    #[must_use]
     pub fn with_data_property(
         mut self,
         key: PropertyKey,
@@ -333,6 +345,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         }
     }
 
+    #[must_use]
     pub fn with_property(
         mut self,
         creator: impl FnOnce(

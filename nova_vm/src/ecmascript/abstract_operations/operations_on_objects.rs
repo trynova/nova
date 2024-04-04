@@ -4,10 +4,7 @@ use super::{testing_and_comparison::is_callable, type_conversion::to_object};
 use crate::{
     ecmascript::{
         builtins::{ArgumentsList, BuiltinFunction, ECMAScriptFunction},
-        execution::{
-            agent::{ExceptionType, JsError},
-            Agent, JsResult, RealmIdentifier,
-        },
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
             Function, InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey, Value,
         },
@@ -193,7 +190,7 @@ pub(crate) fn get_method(
     }
     // 3. If IsCallable(func) is false, throw a TypeError exception.
     if !is_callable(func) {
-        return Err(JsError {});
+        return Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable object"));
     }
     // 4. Return func.
     match func {
@@ -230,7 +227,7 @@ pub(crate) fn has_own_property(agent: &mut Agent, o: Object, p: PropertyKey) -> 
     Ok(desc.is_some())
 }
 
-/// ### [7.3.14 Call ( F, V \[ , argumentsList \] )](https://tc39.es/ecma262/#sec-call)
+/// ### [7.3.13 Call ( F, V \[ , argumentsList \] )](https://tc39.es/ecma262/#sec-call)
 ///
 /// The abstract operation Call takes arguments F (an ECMAScript language
 /// value) and V (an ECMAScript language value) and optional argument
@@ -251,7 +248,7 @@ pub(crate) fn call(
     let arguments_list = arguments_list.unwrap_or_default();
     // 2. If IsCallable(F) is false, throw a TypeError exception.
     if !is_callable(f) {
-        Err(JsError {})
+        Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable object"))
     } else {
         // 3. Return ? F.[[Call]](V, argumentsList).
         match f {
@@ -276,6 +273,19 @@ pub(crate) fn call_function(
 ) -> JsResult<Value> {
     let arguments_list = arguments_list.unwrap_or_default();
     f.call(agent, v, arguments_list)
+}
+
+pub(crate) fn construct(
+    agent: &mut Agent,
+    f: Function,
+    arguments_list: Option<ArgumentsList>,
+    new_target: Option<Function>,
+) -> JsResult<Object> {
+    // 1. If newTarget is not present, set newTarget to F.
+    let new_target = new_target.unwrap_or(f);
+    // 2. If argumentsList is not present, set argumentsList to a new empty List.
+    let arguments_list = arguments_list.unwrap_or_default();
+    f.construct(agent, arguments_list, new_target)
 }
 
 /// ### [7.3.20 Invoke ( V, P \[ , argumentsList \] )]()

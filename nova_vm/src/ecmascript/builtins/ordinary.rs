@@ -1,15 +1,20 @@
-use crate::ecmascript::{
-    abstract_operations::{
-        operations_on_objects::{call_function, create_data_property, get, get_function_realm},
-        testing_and_comparison::same_value,
+use crate::{
+    ecmascript::{
+        abstract_operations::{
+            operations_on_objects::{call_function, create_data_property, get, get_function_realm},
+            testing_and_comparison::same_value,
+        },
+        builtins::ArgumentsList,
+        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
+        types::{
+            Function, InternalMethods, IntoObject, Object, OrdinaryObject,
+            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, String, Value,
+        },
     },
-    builtins::ArgumentsList,
-    execution::{Agent, JsResult, ProtoIntrinsics},
-    types::{
-        Function, InternalMethods, IntoObject, Object, OrdinaryObject, OrdinaryObjectInternalSlots,
-        PropertyDescriptor, PropertyKey, String, Value,
-    },
+    heap::{indexes::ErrorIndex, CreateHeapData},
 };
+
+use super::error::ErrorHeapData;
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 impl InternalMethods for OrdinaryObject {
@@ -775,7 +780,12 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
         ProtoIntrinsics::ArrayBuffer => todo!(),
         ProtoIntrinsics::BigInt => todo!(),
         ProtoIntrinsics::Boolean => todo!(),
-        ProtoIntrinsics::Error => todo!(),
+        ProtoIntrinsics::Error => {
+            agent
+                .heap
+                .create(ErrorHeapData::new(ExceptionType::TypeError, None, None));
+            Object::from(ErrorIndex::last(&agent.heap.errors))
+        }
         ProtoIntrinsics::EvalError => todo!(),
         ProtoIntrinsics::Function => todo!(),
         ProtoIntrinsics::Number => todo!(),

@@ -1,8 +1,12 @@
 //! ## [7.2 Testing and Comparison Operations](https://tc39.es/ecma262/#sec-testing-and-comparison-operations)
 
-use crate::ecmascript::{
-    execution::{agent::JsError, Agent, JsResult},
-    types::{bigint::BigInt, InternalMethods, Number, Object, String, Value},
+use crate::{
+    ecmascript::{
+        builtins::Behaviour,
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{bigint::BigInt, InternalMethods, IntoValue, Number, Object, String, Value},
+    },
+    heap::GetHeapData,
 };
 
 use super::type_conversion::{string_to_big_int, to_number, to_primitive, PreferredType};
@@ -14,9 +18,12 @@ use super::type_conversion::{string_to_big_int, to_number, to_primitive, Preferr
 /// containing an ECMAScript language value or a throw completion. It throws an
 /// error if argument is a value that cannot be converted to an Object using
 /// ToObject. It is defined by [Table 14](https://tc39.es/ecma262/#table-requireobjectcoercible-results):
-pub(crate) fn require_object_coercible(_agent: &mut Agent, argument: Value) -> JsResult<Value> {
+pub(crate) fn require_object_coercible(agent: &mut Agent, argument: Value) -> JsResult<Value> {
     if argument.is_undefined() || argument.is_null() {
-        Err(JsError {})
+        Err(agent.throw_exception(
+            ExceptionType::TypeError,
+            "Argument cannot be converted into an object",
+        ))
     } else {
         Ok(argument)
     }
@@ -52,6 +59,27 @@ pub(crate) fn is_callable(argument: Value) -> bool {
         argument,
         Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_)
     )
+}
+
+pub(crate) fn is_constructor(agent: &mut Agent, constructor: Value) -> bool {
+    // If argument is not an Object, return false.
+    // 2. If argument has a [[Construct]] internal method, return true.
+    match constructor {
+        Value::BoundFunction(idx) => {
+            let function = agent.heap.get(idx).function;
+            is_constructor(agent, function.into_value())
+        }
+        Value::BuiltinFunction(idx) => {
+            let behaviour = agent.heap.get(idx).behaviour;
+            matches!(behaviour, Behaviour::Constructor(_))
+        }
+        Value::ECMAScriptFunction(idx) => {
+            agent.heap.get(idx).ecmascript_function.is_class_constructor
+        }
+        // TODO: Proxy
+        _ => false,
+    }
+    // 3. Return false.
 }
 
 /// ### [7.2.5 IsExtensible ( O )](https://tc39.es/ecma262/#sec-isextensible-o)
@@ -189,7 +217,7 @@ pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(agent: &mut Agent, x:
 
     // 6. NOTE: All other ECMAScript language values are compared by identity.
     // 7. If x is y, return true; otherwise, return false.
-    todo!()
+    x == y
 }
 
 /// ### [7.2.13 IsLessThan ( x, y, LeftFirst )](https://tc39.es/ecma262/#sec-islessthan)

@@ -3,10 +3,7 @@ use oxc_span::Atom;
 use super::{DeclarativeEnvironment, DeclarativeEnvironmentIndex, FunctionEnvironmentIndex};
 use crate::ecmascript::{
     builtins::{ECMAScriptFunction, ThisMode},
-    execution::{
-        agent::{ExceptionType, JsError},
-        Agent, JsResult,
-    },
+    execution::{agent::ExceptionType, Agent, JsResult},
     types::{Function, InternalMethods, IntoFunction, Object, Value},
 };
 
@@ -253,7 +250,10 @@ impl FunctionEnvironmentIndex {
         // 2. If envRec.[[ThisBindingStatus]] is INITIALIZED, throw a
         // ReferenceError exception.
         if env_rec.this_binding_status == ThisBindingStatus::Initialized {
-            return Err(JsError {});
+            return Err(agent.throw_exception(
+                ExceptionType::ReferenceError,
+                "[[ThisBindingStatus]] is INITIALIZED",
+            ));
         }
 
         // 3. Set envRec.[[ThisValue]] to V.
