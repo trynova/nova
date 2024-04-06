@@ -1,8 +1,5 @@
 use crate::ecmascript::{
-    builders::{
-        builtin_function_builder::BuiltinFunctionBuilder,
-        ordinary_object_builder::OrdinaryObjectBuilder,
-    },
+    builders::ordinary_object_builder::OrdinaryObjectBuilder,
     builtins::{ArgumentsList, Builtin},
     execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
     types::{IntoValue, String, Value},
@@ -58,28 +55,8 @@ impl BooleanPrototype {
                     .with_value(boolean_constructor.into_value())
                     .build()
             })
-            .with_property(|builder| {
-                builder
-                    .with_enumerable(false)
-                    .with_key_from_str(BooleanPrototypeToString::NAME)
-                    .with_value_creator(|agent| {
-                        BuiltinFunctionBuilder::new::<BooleanPrototypeToString>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_enumerable(false)
-                    .with_key_from_str(BooleanPrototypeValueOf::NAME)
-                    .with_value_creator(|agent| {
-                        BuiltinFunctionBuilder::new::<BooleanPrototypeValueOf>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .build()
-            })
+            .with_builtin_function_property::<BooleanPrototypeToString>()
+            .with_builtin_function_property::<BooleanPrototypeValueOf>()
             .build();
     }
 }

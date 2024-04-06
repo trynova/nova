@@ -7,7 +7,8 @@ use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::RealmIdentifier;
-use crate::ecmascript::types::IntoValue;
+use crate::ecmascript::types::IntoObject;
+
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::SymbolHeapData;
 use crate::ecmascript::types::Value;
@@ -101,17 +102,7 @@ impl SymbolConstructor {
                 .with_configurable(false)
                 .build()
         })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(SymbolFor::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<SymbolFor>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
+        .with_builtin_function_property::<SymbolFor>()
         .with_property(|builder| {
             builder
                 .with_key_from_str("hasInstance")
@@ -136,17 +127,7 @@ impl SymbolConstructor {
                 .with_configurable(false)
                 .build()
         })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(SymbolKeyFor::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<SymbolKeyFor>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
+        .with_builtin_function_property::<SymbolKeyFor>()
         .with_property(|builder| {
             builder
                 .with_key_from_str("match")
@@ -163,14 +144,7 @@ impl SymbolConstructor {
                 .with_configurable(false)
                 .build()
         })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str("prototype")
-                .with_value_readonly(symbol_prototype.into_value())
-                .with_enumerable(false)
-                .with_configurable(false)
-                .build()
-        })
+        .with_prototype_property(symbol_prototype.into_object())
         .with_property(|builder| {
             builder
                 .with_key_from_str("replace")

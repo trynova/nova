@@ -95,28 +95,8 @@ impl SymbolPrototype {
                     .with_enumerable(false)
                     .build()
             })
-            .with_property(|builder| {
-                builder
-                    .with_enumerable(false)
-                    .with_key_from_str(SymbolPrototypeToString::NAME)
-                    .with_value_creator(|agent| {
-                        BuiltinFunctionBuilder::new::<SymbolPrototypeToString>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_enumerable(false)
-                    .with_key_from_str(SymbolPrototypeValueOf::NAME)
-                    .with_value_creator(|agent| {
-                        BuiltinFunctionBuilder::new::<SymbolPrototypeValueOf>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .build()
-            })
+            .with_builtin_function_property::<SymbolPrototypeToString>()
+            .with_builtin_function_property::<SymbolPrototypeValueOf>()
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToPrimitive.into())

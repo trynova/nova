@@ -1,12 +1,16 @@
 use crate::{
     ecmascript::{
+        builtins::Builtin,
         execution::{Agent, RealmIdentifier},
-        types::{IntoObject, ObjectHeapData, OrdinaryObject, PropertyKey, Value},
+        types::{IntoObject, IntoValue, ObjectHeapData, OrdinaryObject, PropertyKey, Value},
     },
     heap::{element_array::ElementDescriptor, indexes::ObjectIndex},
 };
 
-use super::property_builder::{self, PropertyBuilder};
+use super::{
+    builtin_function_builder::BuiltinFunctionBuilder,
+    property_builder::{self, PropertyBuilder},
+};
 
 #[derive(Default, Clone, Copy)]
 pub struct NoPrototype;
@@ -169,6 +173,33 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
     ) -> Self {
         let builder = PropertyBuilder::new(self.agent, self.this.into_object());
         let property = creator(builder);
+        self.properties.0.push(property);
+        OrdinaryObjectBuilder {
+            agent: self.agent,
+            this: self.this,
+            realm: self.realm,
+            prototype: self.prototype,
+            extensible: self.extensible,
+            properties: self.properties,
+        }
+    }
+
+    #[must_use]
+    pub fn with_builtin_function_property<T: Builtin>(mut self) -> Self {
+        let (value, key) = {
+            let mut builder = BuiltinFunctionBuilder::new::<T>(self.agent, self.realm);
+            let name = PropertyKey::from(builder.get_name());
+            (builder.build().into_value(), name)
+        };
+        let builder = PropertyBuilder::new(self.agent, self.this.into_object())
+            .with_key(key)
+            .with_configurable(T::CONFIGURABLE)
+            .with_enumerable(T::ENUMERABLE);
+        let property = if T::WRITABLE {
+            builder.with_value(value).build()
+        } else {
+            builder.with_value_readonly(value).build()
+        };
         self.properties.0.push(property);
         OrdinaryObjectBuilder {
             agent: self.agent,

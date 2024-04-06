@@ -9,7 +9,7 @@ use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
 use crate::ecmascript::execution::RealmIdentifier;
 use crate::ecmascript::types::Function;
-use crate::ecmascript::types::IntoValue;
+use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::Value;
 
@@ -53,14 +53,7 @@ impl BooleanConstructor {
             Some(this_object_index),
         )
         .with_property_capacity(1)
-        .with_property(|builder| {
-            builder
-                .with_key_from_str("prototype")
-                .with_value_readonly(boolean_prototype.into_value())
-                .with_enumerable(false)
-                .with_configurable(false)
-                .build()
-        })
+        .with_prototype_property(boolean_prototype.into_object())
         .build();
     }
 }

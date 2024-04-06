@@ -1,9 +1,6 @@
 use crate::ecmascript::{
     abstract_operations::{operations_on_objects::get, type_conversion::to_string},
-    builders::{
-        builtin_function_builder::BuiltinFunctionBuilder,
-        ordinary_object_builder::OrdinaryObjectBuilder,
-    },
+    builders::ordinary_object_builder::OrdinaryObjectBuilder,
     builtins::{ArgumentsList, Builtin},
     execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
     types::{IntoValue, Object, PropertyKey, String, Value},
@@ -96,17 +93,7 @@ impl ErrorPrototype {
                     .with_value(String::from_small_string("Error").into_value())
                     .build()
             })
-            .with_property(|builder| {
-                builder
-                    .with_enumerable(false)
-                    .with_key_from_str("toString")
-                    .with_value_creator(|agent| {
-                        BuiltinFunctionBuilder::new::<ErrorPrototypeToString>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .build()
-            })
+            .with_builtin_function_property::<ErrorPrototypeToString>()
             .build();
     }
 }
