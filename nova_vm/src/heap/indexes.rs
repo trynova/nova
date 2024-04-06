@@ -1,9 +1,9 @@
-use super::{date::DateHeapData, regexp::RegExpHeapData, symbol::SymbolHeapData};
+use super::{date::DateHeapData, regexp::RegExpHeapData};
 use crate::ecmascript::{
     builtins::{error::ErrorHeapData, ArrayBufferHeapData, ArrayHeapData},
     types::{
         BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-        NumberHeapData, ObjectHeapData, StringHeapData, Value,
+        NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData, Value,
     },
 };
 use crate::Heap;
