@@ -7,7 +7,7 @@ use crate::heap::indexes::SymbolIndex;
 use super::{IntoValue, Value};
 
 #[derive(Debug, Clone, Copy)]
-pub struct Symbol(SymbolIndex);
+pub struct Symbol(pub(crate) SymbolIndex);
 
 impl IntoValue for Symbol {
     fn into_value(self) -> Value {

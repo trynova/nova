@@ -1,0 +1,66 @@
+use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
+use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
+use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
+use crate::ecmascript::builtins::ArgumentsList;
+use crate::ecmascript::builtins::Behaviour;
+use crate::ecmascript::builtins::Builtin;
+use crate::ecmascript::execution::Agent;
+use crate::ecmascript::execution::JsResult;
+use crate::ecmascript::execution::ProtoIntrinsics;
+use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::types::Function;
+use crate::ecmascript::types::IntoValue;
+use crate::ecmascript::types::Object;
+use crate::ecmascript::types::Value;
+
+pub(crate) struct BooleanConstructor;
+
+impl Builtin for BooleanConstructor {
+    const NAME: &'static str = "Boolean";
+
+    const LENGTH: u8 = 1;
+
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
+}
+
+impl BooleanConstructor {
+    fn behaviour(
+        agent: &mut Agent,
+        _this_value: Value,
+        arguments: ArgumentsList,
+        new_target: Option<Object>,
+    ) -> JsResult<Value> {
+        let value = arguments.get(0);
+        let b = to_boolean(agent, value);
+        let Some(new_target) = new_target else {
+            return Ok(b.into());
+        };
+        let new_target = Function::try_from(new_target).unwrap();
+        let _ = ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::Boolean, ())?;
+        todo!();
+    }
+
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+        let intrinsics = agent.get_realm(realm).intrinsics();
+        let this = intrinsics.boolean();
+        let this_object_index = intrinsics.boolean_base_object();
+        let boolean_prototype = intrinsics.boolean_prototype();
+
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<BooleanConstructor>(
+            agent,
+            realm,
+            this,
+            Some(this_object_index),
+        )
+        .with_property_capacity(1)
+        .with_property(|builder| {
+            builder
+                .with_key_from_str("prototype")
+                .with_value_readonly(boolean_prototype.into_value())
+                .with_enumerable(false)
+                .with_configurable(false)
+                .build()
+        })
+        .build();
+    }
+}
