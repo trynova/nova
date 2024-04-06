@@ -17,7 +17,6 @@ pub(crate) enum IntrinsicObjectIndexes {
 
     // Fundamental objects
     ObjectPrototype,
-    FunctionPrototype,
     BooleanPrototype,
     SymbolPrototype,
     ErrorPrototype,
@@ -112,6 +111,7 @@ pub(crate) enum IntrinsicConstructorIndexes {
     // Fundamental objects
     Object,
     Function,
+    FunctionPrototype,
     Boolean,
     Symbol,
     Error,

@@ -4,18 +4,22 @@ use crate::{
             operations_on_objects::{call_function, ordinary_has_instance},
             testing_and_comparison::is_callable,
         },
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
-        builtins::{ArgumentsList, Builtin},
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{Function, IntoValue, Value},
+        types::{Function, IntoFunction, IntoValue, Value},
     },
     heap::{GetHeapData, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct FunctionPrototype;
+impl Builtin for FunctionPrototype {
+    const NAME: &'static str = "";
+
+    const LENGTH: u8 = 0;
+
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(Self::behaviour);
+}
 
 struct FunctionPrototypeApply;
 impl Builtin for FunctionPrototypeApply {
@@ -68,6 +72,10 @@ impl Builtin for FunctionPrototypeHasInstance {
 }
 
 impl FunctionPrototype {
+    fn behaviour(_: &mut Agent, _: Value, _: ArgumentsList) -> JsResult<Value> {
+        Ok(Value::Undefined)
+    }
+
     fn apply(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
         if !is_callable(this_value) {
             return Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable value"));
@@ -181,29 +189,86 @@ impl FunctionPrototype {
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+        ThrowTypeError::create_intrinsic(agent, realm);
+
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let throw_type_error = intrinsics.throw_type_error().into_function();
         let this = intrinsics.function_prototype();
+        let this_object_index = intrinsics.function_prototype_base_object();
         let function_constructor = intrinsics.function();
 
-        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(6)
-            .with_builtin_function_property::<FunctionPrototypeApply>()
-            .with_builtin_function_property::<FunctionPrototypeBind>()
-            .with_builtin_function_property::<FunctionPrototypeCall>()
-            .with_constructor_property(function_constructor)
-            .with_builtin_function_property::<FunctionPrototypeToString>()
-            .with_property(|builder| {
-                builder
-                    .with_key(WellKnownSymbolIndexes::HasInstance.into())
-                    .with_value_creator_readonly(|agent| {
-                        BuiltinFunctionBuilder::new::<FunctionPrototypeHasInstance>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .with_configurable(false)
-                    .build()
-            })
-            .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<FunctionPrototype>(
+            agent,
+            realm,
+            this,
+            Some(this_object_index),
+        )
+        .with_property_capacity(8)
+        // 10.2.4 AddRestrictedFunctionProperties ( F, realm )
+        .with_property(|builder| {
+            builder
+                .with_key_from_str("caller")
+                .with_configurable(true)
+                .with_enumerable(false)
+                .with_getter_and_setter_functions(throw_type_error, throw_type_error)
+                .build()
+        })
+        .with_property(|builder| {
+            builder
+                .with_key_from_str("arguments")
+                .with_configurable(true)
+                .with_enumerable(false)
+                .with_getter_and_setter_functions(throw_type_error, throw_type_error)
+                .build()
+        })
+        .with_builtin_function_property::<FunctionPrototypeApply>()
+        .with_builtin_function_property::<FunctionPrototypeBind>()
+        .with_builtin_function_property::<FunctionPrototypeCall>()
+        .with_property(|builder| {
+            builder
+                .with_key_from_str("constructor")
+                .with_enumerable(false)
+                .with_value(function_constructor.into())
+                .build()
+        })
+        .with_builtin_function_property::<FunctionPrototypeToString>()
+        .with_property(|builder| {
+            builder
+                .with_key(WellKnownSymbolIndexes::HasInstance.into())
+                .with_value_creator_readonly(|agent| {
+                    BuiltinFunctionBuilder::new::<FunctionPrototypeHasInstance>(agent, realm)
+                        .build()
+                        .into_value()
+                })
+                .with_enumerable(false)
+                .with_configurable(false)
+                .build()
+        })
+        .build();
+    }
+}
+
+struct ThrowTypeError;
+impl Builtin for ThrowTypeError {
+    const NAME: &'static str = "";
+
+    const LENGTH: u8 = 0;
+
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(Self::behaviour);
+}
+
+impl ThrowTypeError {
+    fn behaviour(agent: &mut Agent, _: Value, _: ArgumentsList) -> JsResult<Value> {
+        Err(agent.throw_exception(ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"))
+    }
+
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+        let intrinsics = agent.get_realm(realm).intrinsics();
+        let this = intrinsics.throw_type_error();
+
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<ThrowTypeError>(
+            agent, realm, this, None,
+        )
+        .build();
     }
 }

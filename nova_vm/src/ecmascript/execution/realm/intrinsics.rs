@@ -480,11 +480,14 @@ impl Intrinsics {
             .into()
     }
 
-    /// That's stupid so we do not have that.
-    pub(crate) fn function_prototype(&self) -> OrdinaryObject {
-        IntrinsicObjectIndexes::FunctionPrototype
-            .get_object_index(self.object_index_base)
+    pub(crate) fn function_prototype(&self) -> BuiltinFunction {
+        IntrinsicConstructorIndexes::FunctionPrototype
+            .get_builtin_function_index(self.builtin_function_index_base)
             .into()
+    }
+
+    pub(crate) fn function_prototype_base_object(&self) -> ObjectIndex {
+        IntrinsicConstructorIndexes::FunctionPrototype.get_object_index(self.object_index_base)
     }
 
     /// %Function%
