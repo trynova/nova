@@ -333,8 +333,7 @@ pub(crate) fn ordinary_has_instance(agent: &mut Agent, c: Value, o: Value) -> Js
         // a. Let BC be C.[[BoundTargetFunction]].
         // b. Return ? InstanceofOperator(O, BC).
         let _bc = agent.heap.get(idx).function;
-        todo!();
-        //return instace_of_operator(o, bc);
+        // return instance_of_operator(o, bc);
     }
     // 3. If O is not an Object, return false.
     let Ok(mut o) = Object::try_from(o) else {
