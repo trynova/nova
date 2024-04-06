@@ -267,16 +267,6 @@ impl NumberConstructor {
         // 21.1.2.15 Number.prototype
         // https://tc39.es/ecma262/#sec-number.prototype
         .with_prototype_property(number_prototype.into_object())
-        .with_property(|builder| {
-            // 21.1.3.1 Number.prototype.constructor
-            // https://tc39.es/ecma262/#sec-number.prototype.constructor
-            builder
-                .with_key_from_str("constructor")
-                .with_this_reference()
-                .with_enumerable(false)
-                .with_configurable(true)
-                .build()
-        })
         .build();
     }
 }

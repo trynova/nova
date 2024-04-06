@@ -314,7 +314,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
             ObjectIndex::last(&self.agent.heap.objects)
         }));
         let property = {
-            let builder = PropertyBuilder::new(self.agent, self.this.into_object());
+            let builder = PropertyBuilder::new(self.agent);
             creator(builder)
         };
         BuiltinFunctionBuilder {
@@ -359,7 +359,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
             PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
         ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
     ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
-        let builder = PropertyBuilder::new(self.agent, self.this.into_object());
+        let builder = PropertyBuilder::new(self.agent);
         let property = creator(builder);
         self.properties.0.push(property);
         BuiltinFunctionBuilder {
@@ -377,7 +377,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
 
     #[must_use]
     pub fn with_prototype_property(mut self, prototype: Object) -> Self {
-        let property = PropertyBuilder::new(self.agent, self.this.into_object())
+        let property = PropertyBuilder::new(self.agent)
             .with_configurable(false)
             .with_enumerable(false)
             .with_value_readonly(prototype.into_value())
@@ -404,7 +404,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
             let name = PropertyKey::from(builder.get_name());
             (builder.build().into_value(), name)
         };
-        let builder = PropertyBuilder::new(self.agent, self.this.into_object())
+        let builder = PropertyBuilder::new(self.agent)
             .with_key(key)
             .with_configurable(T::CONFIGURABLE)
             .with_enumerable(T::ENUMERABLE);

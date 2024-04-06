@@ -1,6 +1,6 @@
 use crate::{
     ecmascript::{
-        builtins::Builtin,
+        builtins::{Builtin, BuiltinFunction},
         execution::{Agent, RealmIdentifier},
         types::{IntoObject, IntoValue, ObjectHeapData, OrdinaryObject, PropertyKey, Value},
     },
@@ -136,7 +136,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, NoProperties> {
         ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
     ) -> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
         let property = {
-            let builder = PropertyBuilder::new(self.agent, self.this.into_object());
+            let builder = PropertyBuilder::new(self.agent);
             creator(builder)
         };
         OrdinaryObjectBuilder {
@@ -171,8 +171,26 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
             PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
         ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
     ) -> Self {
-        let builder = PropertyBuilder::new(self.agent, self.this.into_object());
+        let builder = PropertyBuilder::new(self.agent);
         let property = creator(builder);
+        self.properties.0.push(property);
+        OrdinaryObjectBuilder {
+            agent: self.agent,
+            this: self.this,
+            realm: self.realm,
+            prototype: self.prototype,
+            extensible: self.extensible,
+            properties: self.properties,
+        }
+    }
+
+    #[must_use]
+    pub fn with_constructor_property(mut self, constructor: BuiltinFunction) -> Self {
+        let property = PropertyBuilder::new(self.agent)
+            .with_enumerable(false)
+            .with_key_from_str("constructor")
+            .with_value(constructor.into_value())
+            .build();
         self.properties.0.push(property);
         OrdinaryObjectBuilder {
             agent: self.agent,
@@ -191,7 +209,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
             let name = PropertyKey::from(builder.get_name());
             (builder.build().into_value(), name)
         };
-        let builder = PropertyBuilder::new(self.agent, self.this.into_object())
+        let builder = PropertyBuilder::new(self.agent)
             .with_key(key)
             .with_configurable(T::CONFIGURABLE)
             .with_enumerable(T::ENUMERABLE);

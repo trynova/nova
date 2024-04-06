@@ -8,7 +8,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{InternalMethods, IntoValue, Object, PropertyKey, String, Value},
+        types::{InternalMethods, Object, PropertyKey, String, Value},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -205,13 +205,7 @@ impl ObjectPrototype {
             // has a [[Prototype]] internal slot whose value is null.
             // .with_prototype(None)
             .with_property_capacity(7)
-            .with_property(|builder| {
-                builder
-                    .with_enumerable(false)
-                    .with_key_from_str("constructor")
-                    .with_value(object_constructor.into_value())
-                    .build()
-            })
+            .with_constructor_property(object_constructor)
             .with_builtin_function_property::<ObjectPrototypeHasOwnProperty>()
             .with_builtin_function_property::<ObjectPrototypeIsPrototypeOf>()
             .with_builtin_function_property::<ObjectPrototypePropertyIsEnumerable>()

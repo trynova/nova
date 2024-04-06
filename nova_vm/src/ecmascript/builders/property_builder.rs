@@ -1,7 +1,7 @@
 use crate::{
     ecmascript::{
         execution::Agent,
-        types::{Function, Object, PropertyKey, Value},
+        types::{Function, PropertyKey, Value},
     },
     heap::element_array::ElementDescriptor,
 };
@@ -41,7 +41,6 @@ pub struct CreatorReadOnlyValue(Value);
 
 pub struct PropertyBuilder<'agent, K, D> {
     pub(crate) agent: &'agent mut Agent,
-    parent: Object,
     key: K,
     definition: D,
     enumerable: bool,
@@ -49,10 +48,9 @@ pub struct PropertyBuilder<'agent, K, D> {
 }
 
 impl<'agent> PropertyBuilder<'agent, NoKey, NoDefinition> {
-    pub fn new(agent: &'agent mut Agent, parent: Object) -> Self {
+    pub fn new(agent: &'agent mut Agent) -> Self {
         PropertyBuilder {
             agent,
-            parent,
             key: NoKey,
             definition: NoDefinition,
             enumerable: true,
@@ -65,7 +63,6 @@ impl<'agent, D> PropertyBuilder<'agent, NoKey, D> {
     pub fn with_key(self, key: PropertyKey) -> PropertyBuilder<'agent, CreatorKey, D> {
         PropertyBuilder {
             agent: self.agent,
-            parent: self.parent,
             key: CreatorKey(key),
             definition: self.definition,
             enumerable: self.enumerable,
@@ -77,7 +74,6 @@ impl<'agent, D> PropertyBuilder<'agent, NoKey, D> {
         let key = PropertyKey::from_str(&mut self.agent.heap, key);
         PropertyBuilder {
             agent: self.agent,
-            parent: self.parent,
             key: CreatorKey(key),
             definition: self.definition,
             enumerable: self.enumerable,
@@ -87,32 +83,9 @@ impl<'agent, D> PropertyBuilder<'agent, NoKey, D> {
 }
 
 impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
-    pub fn with_this_reference(self) -> PropertyBuilder<'agent, K, CreatorValue> {
-        PropertyBuilder {
-            agent: self.agent,
-            parent: self.parent,
-            key: self.key,
-            definition: CreatorValue(self.parent.into_value()),
-            enumerable: self.enumerable,
-            configurable: self.configurable,
-        }
-    }
-
-    pub fn with_this_reference_readonly(self) -> PropertyBuilder<'agent, K, CreatorReadOnlyValue> {
-        PropertyBuilder {
-            agent: self.agent,
-            parent: self.parent,
-            key: self.key,
-            definition: CreatorReadOnlyValue(self.parent.into_value()),
-            enumerable: self.enumerable,
-            configurable: self.configurable,
-        }
-    }
-
     pub fn with_value(self, value: Value) -> PropertyBuilder<'agent, K, CreatorValue> {
         PropertyBuilder {
             agent: self.agent,
-            parent: self.parent,
             key: self.key,
             definition: CreatorValue(value),
             enumerable: self.enumerable,
@@ -126,7 +99,6 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
     ) -> PropertyBuilder<'agent, K, CreatorReadOnlyValue> {
         PropertyBuilder {
             agent: self.agent,
-            parent: self.parent,
             key: self.key,
             definition: CreatorReadOnlyValue(value),
             enumerable: self.enumerable,
@@ -141,7 +113,6 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         let value = creator(self.agent);
         PropertyBuilder {
             agent: self.agent,
-            parent: self.parent,
             key: self.key,
             definition: CreatorValue(value),
             enumerable: self.enumerable,
@@ -156,7 +127,6 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         let value = creator(self.agent);
         PropertyBuilder {
             agent: self.agent,
-            parent: self.parent,
             key: self.key,
             definition: CreatorReadOnlyValue(value),
             enumerable: self.enumerable,
@@ -172,7 +142,6 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
     ) -> PropertyBuilder<'agent, K, CreatorGetAccessor> {
         PropertyBuilder {
             agent: self.agent,
-            parent: self.parent,
             key: self.key,
             definition: CreatorGetAccessor(getter),
             enumerable: self.enumerable,
@@ -187,7 +156,6 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         let getter = creator(self.agent);
         PropertyBuilder {
             agent: self.agent,
-            parent: self.parent,
             key: self.key,
             definition: CreatorGetAccessor(getter),
             enumerable: self.enumerable,
@@ -201,7 +169,6 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
     ) -> PropertyBuilder<'agent, K, CreatorSetAccess> {
         PropertyBuilder {
             agent: self.agent,
-            parent: self.parent,
             key: self.key,
             definition: CreatorSetAccess(setter),
             enumerable: self.enumerable,
@@ -216,7 +183,6 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         let setter = creator(self.agent);
         PropertyBuilder {
             agent: self.agent,
-            parent: self.parent,
             key: self.key,
             definition: CreatorSetAccess(setter),
             enumerable: self.enumerable,
@@ -231,7 +197,6 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
     ) -> PropertyBuilder<'agent, K, CreatorGetSetAccessor> {
         PropertyBuilder {
             agent: self.agent,
-            parent: self.parent,
             key: self.key,
             definition: CreatorGetSetAccessor {
                 get: getter,
@@ -249,7 +214,6 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         let (getter, setter) = creator(self.agent);
         PropertyBuilder {
             agent: self.agent,
-            parent: self.parent,
             key: self.key,
             definition: CreatorGetSetAccessor {
                 get: getter,
@@ -265,7 +229,6 @@ impl<'agent, K, D> PropertyBuilder<'agent, K, D> {
     pub fn with_enumerable(self, enumerable: bool) -> PropertyBuilder<'agent, K, D> {
         PropertyBuilder {
             agent: self.agent,
-            parent: self.parent,
             key: self.key,
             definition: self.definition,
             enumerable,
@@ -278,7 +241,6 @@ impl<'agent, K, D> PropertyBuilder<'agent, K, D> {
     pub fn with_configurable(self, configurable: bool) -> PropertyBuilder<'agent, K, D> {
         PropertyBuilder {
             agent: self.agent,
-            parent: self.parent,
             key: self.key,
             definition: self.definition,
             enumerable: self.enumerable,

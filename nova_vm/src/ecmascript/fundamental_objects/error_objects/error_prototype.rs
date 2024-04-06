@@ -3,7 +3,7 @@ use crate::ecmascript::{
     builders::ordinary_object_builder::OrdinaryObjectBuilder,
     builtins::{ArgumentsList, Builtin},
     execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-    types::{IntoValue, Object, PropertyKey, String, Value},
+    types::{Object, PropertyKey, String, Value},
 };
 
 pub(crate) struct ErrorPrototype;
@@ -72,13 +72,7 @@ impl ErrorPrototype {
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(4)
-            .with_property(|builder| {
-                builder
-                    .with_enumerable(false)
-                    .with_key_from_str("constructor")
-                    .with_value(error_constructor.into_value())
-                    .build()
-            })
+            .with_constructor_property(error_constructor)
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)

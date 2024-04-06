@@ -2,7 +2,7 @@ use crate::ecmascript::{
     builders::ordinary_object_builder::OrdinaryObjectBuilder,
     builtins::{ArgumentsList, Builtin},
     execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-    types::{IntoValue, String, Value},
+    types::{String, Value},
 };
 
 pub(crate) struct BooleanPrototype;
@@ -48,13 +48,7 @@ impl BooleanPrototype {
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(3)
-            .with_property(|builder| {
-                builder
-                    .with_enumerable(false)
-                    .with_key_from_str("constructor")
-                    .with_value(boolean_constructor.into_value())
-                    .build()
-            })
+            .with_constructor_property(boolean_constructor)
             .with_builtin_function_property::<BooleanPrototypeToString>()
             .with_builtin_function_property::<BooleanPrototypeValueOf>()
             .build();
