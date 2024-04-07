@@ -572,9 +572,9 @@ mod test {
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "string"));
 
-        // let script = parse_script(&allocator, "typeof Symbol()".into(), realm, None).unwrap();
-        // let result = script_evaluation(&mut agent, script).unwrap();
-        // assert_eq!(result, Value::from_static_str(&mut agent, "symbol"));
+        let script = parse_script(&allocator, "typeof Symbol()".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_static_str(&mut agent, "symbol"));
 
         let script = parse_script(&allocator, "typeof true".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
@@ -588,13 +588,13 @@ mod test {
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "bigint"));
 
-        // let script = parse_script(&allocator, "typeof {}".into(), realm, None).unwrap();
-        // let result = script_evaluation(&mut agent, script).unwrap();
-        // assert_eq!(result, Value::from_static_str(&mut agent, "object"));
+        let script = parse_script(&allocator, "typeof {}".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_static_str(&mut agent, "object"));
 
-        // let script = parse_script(&allocator, "typeof () => {}".into(), realm, None).unwrap();
-        // let result = script_evaluation(&mut agent, script).unwrap();
-        // assert_eq!(result, Value::from_static_str(&mut agent, "function"));
+        let script = parse_script(&allocator, "typeof (function() {})".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_static_str(&mut agent, "function"));
     }
 
     #[test]
