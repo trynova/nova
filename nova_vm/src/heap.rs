@@ -1,21 +1,11 @@
-mod array;
-mod array_buffer;
-mod bigint;
-mod boolean;
 mod date;
 pub mod element_array;
-mod error;
-mod function;
 mod heap_bits;
 mod heap_constants;
 mod heap_gc;
 pub mod indexes;
-mod math;
-mod number;
 mod object;
 mod regexp;
-mod string;
-mod symbol;
 
 pub(crate) use self::heap_constants::{
     intrinsic_function_count, intrinsic_object_count, IntrinsicConstructorIndexes,
