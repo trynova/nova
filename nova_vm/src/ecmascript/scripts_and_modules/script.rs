@@ -592,7 +592,8 @@ mod test {
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "object"));
 
-        let script = parse_script(&allocator, "typeof (function() {})".into(), realm, None).unwrap();
+        let script =
+            parse_script(&allocator, "typeof (function() {})".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "function"));
     }
