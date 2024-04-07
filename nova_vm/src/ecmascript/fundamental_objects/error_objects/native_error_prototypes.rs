@@ -35,7 +35,7 @@ impl NativeErrorPrototypes {
                 builder
                     .with_enumerable(false)
                     .with_key_from_str("name")
-                    .with_value(String::from_small_string("EvalError").into_value())
+                    .with_value_creator(|agent| String::from_str(agent, "EvalError").into_value())
                     .build()
             })
             .build();
@@ -53,7 +53,7 @@ impl NativeErrorPrototypes {
                 builder
                     .with_enumerable(false)
                     .with_key_from_str("name")
-                    .with_value(String::from_small_string("RangeError").into_value())
+                    .with_value_creator(|agent| String::from_str(agent, "RangeError").into_value())
                     .build()
             })
             .build();
@@ -71,7 +71,9 @@ impl NativeErrorPrototypes {
                 builder
                     .with_enumerable(false)
                     .with_key_from_str("name")
-                    .with_value(String::from_small_string("ReferenceError").into_value())
+                    .with_value_creator(|agent| {
+                        String::from_str(agent, "ReferenceError").into_value()
+                    })
                     .build()
             })
             .build();
@@ -89,7 +91,7 @@ impl NativeErrorPrototypes {
                 builder
                     .with_enumerable(false)
                     .with_key_from_str("name")
-                    .with_value(String::from_small_string("SyntaxError").into_value())
+                    .with_value_creator(|agent| String::from_str(agent, "SyntaxError").into_value())
                     .build()
             })
             .build();
@@ -107,7 +109,7 @@ impl NativeErrorPrototypes {
                 builder
                     .with_enumerable(false)
                     .with_key_from_str("name")
-                    .with_value(String::from_small_string("TypeError").into_value())
+                    .with_value_creator(|agent| String::from_str(agent, "TypeError").into_value())
                     .build()
             })
             .build();
@@ -125,7 +127,7 @@ impl NativeErrorPrototypes {
                 builder
                     .with_enumerable(false)
                     .with_key_from_str("name")
-                    .with_value(String::from_small_string("URIError").into_value())
+                    .with_value_creator(|agent| String::from_str(agent, "URIError").into_value())
                     .build()
             })
             .build();
