@@ -26,7 +26,7 @@ fn gen_builtin_strings() -> io::Result<Vec<u8>> {
 
     let array_size = format!("{}", i);
     let mut output = String::with_capacity(2048);
-    output.push_str("pub const BUILTIN_STRINGS_LIST: [&'static str; ");
+    output.push_str("pub const BUILTIN_STRINGS_LIST: [&str; ");
     output.push_str(&array_size);
     output.push_str("] = [\n");
     for string in &strings {
