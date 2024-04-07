@@ -59,7 +59,7 @@ impl PropertyStorage {
                     agent
                         .heap
                         .elements
-                        .has(object.get(&agent.heap).keys, key.into_value())
+                        .has(object.get(agent).keys, key.into_value())
                 } else {
                     false
                 }

@@ -27,7 +27,7 @@ fn object_prototype_tests() {
         panic!(
             "Test '{}' failed: {:?}",
             d.display(),
-            err.to_string(&mut agent).as_str(&mut agent).unwrap()
+            err.to_string(&mut agent).as_str(&agent)
         )
     });
 }

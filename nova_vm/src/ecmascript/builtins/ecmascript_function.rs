@@ -658,8 +658,8 @@ pub(crate) fn set_function_name(
             symbol_data
                 .descriptor
                 .map_or(String::EMPTY_STRING, |descriptor| {
-                    let descriptor = descriptor.as_str(agent).unwrap();
-                    String::from_str(agent, &format!("[{}]", descriptor))
+                    let descriptor = descriptor.as_str(agent);
+                    String::from_string(agent, format!("[{}]", descriptor))
                 })
         }
         // TODO: Private Name

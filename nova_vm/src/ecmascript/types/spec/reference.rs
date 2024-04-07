@@ -105,9 +105,7 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             // creation of the object.
             if let Ok(object) = Object::try_from(value) {
                 let referenced_name = match &reference.referenced_name {
-                    ReferencedName::String(atom) => {
-                        PropertyKey::from_str(&mut agent.heap, atom.as_str())
-                    }
+                    ReferencedName::String(atom) => PropertyKey::from_str(agent, atom.as_str()),
                     ReferencedName::Symbol(_) => todo!(),
                     ReferencedName::PrivateName => {
                         // b. If IsPrivateReference(V) is true, then
@@ -167,7 +165,7 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
         let global_obj = get_global_object(agent);
         // c. Perform ? Set(globalObj, V.[[ReferencedName]], W, false).
         let referenced_name = match &v.referenced_name {
-            ReferencedName::String(atom) => PropertyKey::from_str(&mut agent.heap, atom.as_str()),
+            ReferencedName::String(atom) => PropertyKey::from_str(agent, atom.as_str()),
             ReferencedName::Symbol(_) => todo!(),
             ReferencedName::PrivateName => todo!(),
         };
@@ -190,7 +188,7 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
         // c. Let succeeded be ? baseObj.[[Set]](V.[[ReferencedName]], W, GetThisValue(V)).
         let this_value = get_this_value(v);
         let referenced_name = match &v.referenced_name {
-            ReferencedName::String(atom) => PropertyKey::from_str(&mut agent.heap, atom.as_str()),
+            ReferencedName::String(atom) => PropertyKey::from_str(agent, atom.as_str()),
             ReferencedName::Symbol(_) => todo!(),
             ReferencedName::PrivateName => todo!(),
         };

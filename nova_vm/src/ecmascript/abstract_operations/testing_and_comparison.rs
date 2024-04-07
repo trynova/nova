@@ -470,7 +470,7 @@ pub(crate) fn is_strictly_equal(
     // 2. If x is a Number, then
     // NOTE: We need to convert both to a number because we use number
     // type-safety.
-    if let (Ok(x), Ok(y)) = (x.to_number(agent), y.to_number(agent)) {
+    if let (Ok(x), Ok(y)) = (Number::try_from(x), Number::try_from(y)) {
         // a. Return Number::equal(x, y).
         return Number::equal(agent, x, y);
     }

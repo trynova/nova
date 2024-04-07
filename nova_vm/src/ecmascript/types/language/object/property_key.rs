@@ -11,9 +11,9 @@ use crate::{
     },
     heap::{
         indexes::{StringIndex, SymbolIndex},
-        CreateHeapData, GetHeapData,
+        GetHeapData,
     },
-    Heap, SmallInteger, SmallString,
+    SmallInteger, SmallString,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -28,8 +28,16 @@ pub enum PropertyKey {
 
 impl PropertyKey {
     // FIXME: This API is not necessarily in the right place.
-    pub fn from_str(heap: &mut Heap, str: &str) -> Self {
-        heap.create(str).into()
+    pub fn from_str(agent: &mut Agent, str: &str) -> Self {
+        String::from_str(agent, str).into()
+    }
+
+    pub fn from_static_str(agent: &mut Agent, str: &'static str) -> Self {
+        String::from_static_str(agent, str).into()
+    }
+
+    pub fn from_string(agent: &mut Agent, string: std::string::String) -> Self {
+        String::from_string(agent, string).into()
     }
 
     pub fn into_value(self) -> Value {
@@ -56,11 +64,7 @@ impl PropertyKey {
                 s1.as_str() == s2.as_str()
             }
             (PropertyKey::String(s), PropertyKey::Integer(n)) => {
-                let s = agent.heap.get(s);
-
-                let Some(s) = s.as_str() else {
-                    return false;
-                };
+                let s = agent.heap.get(s).as_str();
 
                 Self::is_str_eq_num(s, n.into_i64())
             }

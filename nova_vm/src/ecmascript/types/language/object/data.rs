@@ -1,5 +1,8 @@
 use super::Object;
-use crate::{ecmascript::types::Value, heap::element_array::ElementsVector, Heap};
+use crate::{
+    ecmascript::{execution::Agent, types::Value},
+    heap::element_array::ElementsVector,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ObjectHeapData {
@@ -36,8 +39,8 @@ impl ObjectHeapData {
         }
     }
 
-    pub fn has(&self, heap: &Heap, key: Value) -> bool {
+    pub fn has(&self, agent: &Agent, key: Value) -> bool {
         debug_assert!(key.is_string() || key.is_number() || key.is_symbol());
-        heap.elements.has(self.keys, key)
+        agent.heap.elements.has(self.keys, key)
     }
 }

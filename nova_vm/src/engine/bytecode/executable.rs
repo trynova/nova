@@ -344,7 +344,7 @@ impl CompileEvaluation for ast::NullLiteral {
 
 impl CompileEvaluation for ast::StringLiteral {
     fn compile(&self, ctx: &mut CompileContext) {
-        let constant = Value::from_str(&mut ctx.agent.heap, self.value.as_str());
+        let constant = Value::from_str(ctx.agent, self.value.as_str());
         ctx.exe
             .add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
@@ -618,8 +618,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                             // TODO: If property key is __proto__ and it is not a shorthand ({ __proto__ })
                             // then we should dispatch a SetPrototype instruction.
                             let property_key = crate::ecmascript::types::PropertyKey::from_str(
-                                &mut ctx.agent.heap,
-                                &id.name,
+                                ctx.agent, &id.name,
                             );
                             ctx.exe.add_instruction_with_constant(
                                 Instruction::LoadConstant,
