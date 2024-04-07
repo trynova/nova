@@ -11,6 +11,7 @@ oxc_syntax = { workspace = true }
 oxc_ast = { workspace = true }
 oxc_allocator = { workspace = true }
 oxc_diagnostics = { workspace = true }
+ryu-js = "1.0.1"
 small_string = { path = "../small_string" }
 wtf8 = { workspace = true }
 

@@ -10,7 +10,8 @@ mod array_buffer;
 mod builtin_function;
 mod ecmascript_function;
 pub mod error;
-mod number;
+pub(crate) mod fundamental_objects;
+pub(crate) mod numbers_and_dates;
 pub mod ordinary;
 
 pub(crate) use arguments::*;
@@ -24,4 +25,3 @@ pub use builtin_function::{
     BuiltinFunctionArgs, ConstructorFn, RegularFn as JsFunction, RegularFn,
 };
 pub(crate) use ecmascript_function::*;
-pub use number::NumberConstructor;

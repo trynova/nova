@@ -1,14 +1,19 @@
-use super::{ArgumentsList, Behaviour, Builtin};
-use crate::{
-    ecmascript::{
-        abstract_operations::testing_and_comparison::is_integral_number,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoObject, IntoValue, Number, Object, String, Value, BUILTIN_STRING_MEMORY},
-    },
-    heap::CreateHeapData,
-    SmallInteger,
-};
+use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
+use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
+use crate::ecmascript::builtins::ArgumentsList;
+use crate::ecmascript::builtins::Behaviour;
+use crate::ecmascript::builtins::Builtin;
+use crate::ecmascript::execution::Agent;
+use crate::ecmascript::execution::JsResult;
+use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::types::IntoObject;
+use crate::ecmascript::types::IntoValue;
+use crate::ecmascript::types::Number;
+use crate::ecmascript::types::Object;
+use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::ecmascript::types::{String, Value};
+use crate::heap::CreateHeapData;
+use crate::SmallInteger;
 
 /// ### [21.1.1.1 Number ( value )](https://tc39.es/ecma262/#sec-number-constructor-number-value)
 pub struct NumberConstructor;

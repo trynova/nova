@@ -103,21 +103,56 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             // and the ordinary object [[Get]] internal method. An
             // implementation might choose to avoid the actual
             // creation of the object.
+            let referenced_name = match &reference.referenced_name {
+                ReferencedName::String(atom) => PropertyKey::from_str(agent, atom.as_str()),
+                ReferencedName::Symbol(_) => todo!(),
+                ReferencedName::PrivateName => {
+                    // b. If IsPrivateReference(V) is true, then
+                    // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
+                    todo!()
+                }
+            };
             if let Ok(object) = Object::try_from(value) {
-                let referenced_name = match &reference.referenced_name {
-                    ReferencedName::String(atom) => PropertyKey::from_str(agent, atom.as_str()),
-                    ReferencedName::Symbol(_) => todo!(),
-                    ReferencedName::PrivateName => {
-                        // b. If IsPrivateReference(V) is true, then
-                        // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
-                        todo!()
-                    }
-                };
                 // c. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
                 Ok(object.get(agent, referenced_name, get_this_value(reference))?)
             } else {
                 // Primitive value. annoying stuff.
-                todo!()
+                match value {
+                    Value::Undefined => Err(agent.throw_exception(
+                        ExceptionType::TypeError,
+                        "Cannot read properties of undefined",
+                    )),
+                    Value::Null => Err(agent.throw_exception(
+                        ExceptionType::TypeError,
+                        "Cannot read properties of null",
+                    )),
+                    Value::Boolean(_) => agent
+                        .current_realm()
+                        .intrinsics()
+                        .boolean_prototype()
+                        .get(agent, referenced_name, value),
+                    Value::String(_) | Value::SmallString(_) => agent
+                        .current_realm()
+                        .intrinsics()
+                        .string_prototype()
+                        .get(agent, referenced_name, value),
+                    Value::Symbol(_) => agent.current_realm().intrinsics().symbol_prototype().get(
+                        agent,
+                        referenced_name,
+                        value,
+                    ),
+                    Value::Number(_) | Value::Integer(_) | Value::Float(_) => agent
+                        .current_realm()
+                        .intrinsics()
+                        .number_prototype()
+                        .get(agent, referenced_name, value),
+                    Value::BigInt(_) | Value::SmallBigInt(_) => agent
+                        .current_realm()
+                        .intrinsics()
+                        .big_int_prototype()
+                        .get(agent, referenced_name, value),
+                    _ => unreachable!(),
+                }
             }
         }
         Base::Environment(env) => {
