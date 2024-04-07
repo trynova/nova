@@ -6,7 +6,11 @@ use crate::{
             boolean_objects::{
                 boolean_constructor::BooleanConstructor, boolean_prototype::BooleanPrototype,
             },
-            error_objects::{error_constructor::ErrorConstructor, error_prototype::ErrorPrototype},
+            error_objects::{
+                error_constructor::ErrorConstructor, error_prototype::ErrorPrototype,
+                native_error_constructors::NativeErrorConstructors,
+                native_error_prototypes::NativeErrorPrototypes,
+            },
             function_objects::{
                 function_constructor::FunctionConstructor, function_prototype::FunctionPrototype,
             },
@@ -34,7 +38,7 @@ pub(crate) struct Intrinsics {
     builtin_function_index_base: BuiltinFunctionIndex,
 }
 
-/// Enumeration of intrinsics intended to be used as the [[Prototype]] value of
+/// Enumeration of intrinsics intended to be used as the \[\[Prototype\]\] value of
 /// an object. Used in GetPrototypeFromConstructor.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ProtoIntrinsics {
@@ -89,6 +93,8 @@ impl Intrinsics {
         SymbolConstructor::create_intrinsic(agent, realm);
         ErrorConstructor::create_intrinsic(agent, realm);
         ErrorPrototype::create_intrinsic(agent, realm);
+        NativeErrorPrototypes::create_intrinsic(agent, realm);
+        NativeErrorConstructors::create_intrinsic(agent, realm);
         NumberConstructor::create_intrinsic(agent, realm);
     }
 

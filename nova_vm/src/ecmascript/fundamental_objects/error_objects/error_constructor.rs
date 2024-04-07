@@ -86,7 +86,7 @@ impl ErrorConstructor {
     }
 }
 
-fn get_error_cause(agent: &mut Agent, options: Value) -> JsResult<Option<Value>> {
+pub(super) fn get_error_cause(agent: &mut Agent, options: Value) -> JsResult<Option<Value>> {
     let Ok(options) = Object::try_from(options) else {
         return Ok(None);
     };
