@@ -3,9 +3,18 @@ use crate::{
         builtins::{BuiltinFunction, NumberConstructor},
         execution::Agent,
         fundamental_objects::{
+            boolean_objects::{
+                boolean_constructor::BooleanConstructor, boolean_prototype::BooleanPrototype,
+            },
             error_objects::{error_constructor::ErrorConstructor, error_prototype::ErrorPrototype},
+            function_objects::{
+                function_constructor::FunctionConstructor, function_prototype::FunctionPrototype,
+            },
             object_objects::{
                 object_constructor::ObjectConstructor, object_prototype::ObjectPrototype,
+            },
+            symbol_objects::{
+                symbol_constructor::SymbolConstructor, symbol_prototype::SymbolPrototype,
             },
         },
         types::{Object, OrdinaryObject},
@@ -72,6 +81,12 @@ impl Intrinsics {
     pub(crate) fn create_intrinsics(agent: &mut Agent, realm: RealmIdentifier) {
         ObjectPrototype::create_intrinsic(agent, realm);
         ObjectConstructor::create_intrinsic(agent, realm);
+        FunctionPrototype::create_intrinsic(agent, realm);
+        FunctionConstructor::create_intrinsic(agent, realm);
+        BooleanPrototype::create_intrinsic(agent, realm);
+        BooleanConstructor::create_intrinsic(agent, realm);
+        SymbolPrototype::create_intrinsic(agent, realm);
+        SymbolConstructor::create_intrinsic(agent, realm);
         ErrorConstructor::create_intrinsic(agent, realm);
         ErrorPrototype::create_intrinsic(agent, realm);
         NumberConstructor::create_intrinsic(agent, realm);
