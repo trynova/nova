@@ -166,7 +166,7 @@ impl FunctionPrototype {
                     |initial_name| match initial_name {
                         crate::ecmascript::types::String::String(idx) => format!(
                             "function {}() {{ [ native code ] }}",
-                            agent.heap.get(idx).as_str().unwrap()
+                            agent.heap.get(idx).as_str()
                         ),
                         crate::ecmascript::types::String::SmallString(string) => {
                             format!("function {}() {{ [ native code ] }}", string.as_str())

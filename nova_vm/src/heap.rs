@@ -52,7 +52,6 @@ use crate::ecmascript::{
         String, StringHeapData, SymbolHeapData, Value,
     },
 };
-use wtf8::{Wtf8, Wtf8Buf};
 
 #[derive(Debug)]
 pub struct Heap {
@@ -189,7 +188,7 @@ impl_heap_data!(
 );
 impl_heap_data!(numbers, NumberHeapData, f64, data);
 impl_heap_data!(objects, ObjectHeapData, ObjectHeapData);
-impl_heap_data!(strings, StringHeapData, Wtf8Buf, data);
+impl_heap_data!(strings, StringHeapData, StringHeapData);
 impl_heap_data!(symbols, SymbolHeapData, SymbolHeapData);
 impl_heap_data!(bigints, BigIntHeapData, BigIntHeapData);
 
@@ -282,7 +281,7 @@ impl Heap {
 
         heap.strings.extend_from_slice(
             &BUILTIN_STRINGS_LIST
-                .map(|builtin_string| Some(StringHeapData::from_str(builtin_string))),
+                .map(|builtin_string| Some(StringHeapData::from_static_str(builtin_string))),
         );
 
         heap
@@ -365,11 +364,10 @@ impl Heap {
     /// guaranteed to never equal true.
     pub unsafe fn alloc_string(&mut self, message: &str) -> StringIndex {
         debug_assert!(message.len() > 7 || message.ends_with('\0'));
-        let wtf8 = Wtf8::from_str(message);
         let found = self
             .strings
             .iter()
-            .position(|opt| opt.as_ref().map_or(false, |data| data.data == wtf8));
+            .position(|opt| opt.as_ref().map_or(false, |data| data.as_str() == message));
         if let Some(idx) = found {
             return StringIndex::from_index(idx);
         }

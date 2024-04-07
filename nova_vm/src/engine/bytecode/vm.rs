@@ -336,7 +336,7 @@ impl Vm {
                             }
                             PropertyKey::String(s) => {
                                 let s = agent.heap.get(s);
-                                ReferencedName::String(Atom::from(s.clone().into_string().unwrap()))
+                                ReferencedName::String(Atom::from(s.as_str().to_string()))
                             }
                             _ => todo!("Implement symbol and integer property keys"),
                         },
