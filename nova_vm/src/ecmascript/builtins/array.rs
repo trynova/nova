@@ -17,7 +17,8 @@ use crate::{
         execution::{Agent, JsResult},
         types::{
             InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
-            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
+            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::{indexes::ArrayIndex, GetHeapData},
@@ -103,7 +104,7 @@ impl Deref for Array {
 
 pub struct ArrayConstructor;
 impl Builtin for ArrayConstructor {
-    const NAME: &'static str = "Array";
+    const NAME: String = BUILTIN_STRING_MEMORY.Array;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(Self::behaviour);
 }

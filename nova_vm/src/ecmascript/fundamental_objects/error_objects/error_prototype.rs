@@ -3,7 +3,7 @@ use crate::ecmascript::{
     builders::ordinary_object_builder::OrdinaryObjectBuilder,
     builtins::{ArgumentsList, Builtin},
     execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-    types::{Object, PropertyKey, String, Value},
+    types::{Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
 };
 
 pub(crate) struct ErrorPrototype;
@@ -11,7 +11,7 @@ pub(crate) struct ErrorPrototype;
 struct ErrorPrototypeToString;
 
 impl Builtin for ErrorPrototypeToString {
-    const NAME: &'static str = "toString";
+    const NAME: String = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -28,14 +28,10 @@ impl ErrorPrototype {
             return Err(agent.throw_exception(ExceptionType::TypeError, "'this' is not an object"));
         };
         // 3. Let name be ? Get(O, "name").
-        let name = get(
-            agent,
-            o,
-            PropertyKey::from(String::from_small_string("name")),
-        )?;
+        let name = get(agent, o, PropertyKey::from(BUILTIN_STRING_MEMORY.name))?;
         // 4. If name is undefined, set name to "Error"; otherwise set name to ? ToString(name).
         let name = if name.is_undefined() {
-            String::from_small_string("Error")
+            BUILTIN_STRING_MEMORY.Error
         } else {
             to_string(agent, name)?
         };
@@ -44,7 +40,7 @@ impl ErrorPrototype {
         let msg = get(agent, o, key)?;
         // 6. If msg is undefined, set msg to the empty String; otherwise set msg to ? ToString(msg).
         let msg = if msg.is_undefined() {
-            String::from_small_string("")
+            String::EMPTY_STRING
         } else {
             to_string(agent, msg)?
         };
@@ -77,14 +73,14 @@ impl ErrorPrototype {
                 builder
                     .with_enumerable(false)
                     .with_key_from_str("message")
-                    .with_value(String::from_small_string("").into_value())
+                    .with_value(String::EMPTY_STRING.into_value())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
                     .with_key_from_str("name")
-                    .with_value(String::from_small_string("Error").into_value())
+                    .with_value(BUILTIN_STRING_MEMORY.Error.into())
                     .build()
             })
             .with_builtin_function_property::<ErrorPrototypeToString>()

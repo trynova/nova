@@ -839,7 +839,7 @@ mod test {
         struct TestBuiltinFunction;
 
         impl Builtin for TestBuiltinFunction {
-            const NAME: &'static str = "test";
+            const NAME: String = String::from_small_string("test");
 
             const LENGTH: u8 = 1;
 

@@ -11,4 +11,8 @@ oxc_syntax = { workspace = true }
 oxc_ast = { workspace = true }
 oxc_allocator = { workspace = true }
 oxc_diagnostics = { workspace = true }
+small_string = { path = "../small_string" }
 wtf8 = { workspace = true }
+
+[build-dependencies]
+small_string = { path = "../small_string" }

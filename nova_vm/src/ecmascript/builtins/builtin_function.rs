@@ -64,7 +64,7 @@ pub enum Behaviour {
 }
 
 pub trait Builtin {
-    const NAME: &'static str;
+    const NAME: String;
     const LENGTH: u8;
     const BEHAVIOUR: Behaviour;
 

@@ -656,7 +656,7 @@ pub(crate) fn set_function_name(
             let symbol_data = agent.heap.get(idx);
             symbol_data
                 .descriptor
-                .map_or(String::from_small_string(""), |descriptor| {
+                .map_or(String::EMPTY_STRING, |descriptor| {
                     let descriptor = descriptor.as_str(agent).unwrap();
                     String::from_str(agent, &format!("[{}]", descriptor))
                 })

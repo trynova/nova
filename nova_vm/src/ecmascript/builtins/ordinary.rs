@@ -8,7 +8,8 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{
             Function, InternalMethods, IntoObject, Object, OrdinaryObject,
-            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, String, Value,
+            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::{indexes::ErrorIndex, CreateHeapData},
@@ -894,7 +895,7 @@ pub(crate) fn get_prototype_from_constructor(
     // intrinsic object. The corresponding object must be an intrinsic that is
     // intended to be used as the [[Prototype]] value of an object.
     // 2. Let proto be ? Get(constructor, "prototype").
-    let prototype_key = String::from_str(agent, "prototype").into();
+    let prototype_key = BUILTIN_STRING_MEMORY.prototype.into();
     let proto = get(agent, constructor.into(), prototype_key)?;
     // 3. If proto is not an Object, then
     match Object::try_from(proto) {

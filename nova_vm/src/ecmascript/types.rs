@@ -7,7 +7,8 @@ pub use language::{
 };
 pub(crate) use language::{
     BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-    NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
+    NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData, BUILTIN_STRINGS_LIST,
+    BUILTIN_STRING_MEMORY,
 };
 pub(crate) use spec::*;
 pub use spec::{PropertyDescriptor, ReferencedName};

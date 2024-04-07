@@ -11,12 +11,13 @@ use crate::ecmascript::execution::RealmIdentifier;
 use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::Object;
-use crate::ecmascript::types::Value;
+use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::ecmascript::types::{String, Value};
 
 pub(crate) struct BooleanConstructor;
 
 impl Builtin for BooleanConstructor {
-    const NAME: &'static str = "Boolean";
+    const NAME: String = BUILTIN_STRING_MEMORY.Boolean;
 
     const LENGTH: u8 = 1;
 

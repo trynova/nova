@@ -9,7 +9,7 @@ use crate::{
         abstract_operations::operations_on_objects::get_method,
         builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{Function, Object, PropertyKey, String, Value},
+        types::{Function, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -45,7 +45,7 @@ pub(crate) fn get_iterator_from_method(
     };
 
     // 3. Let nextMethod be ? Get(iterator, "next").
-    let next_method = get(agent, iterator, String::from_small_string("next").into())?;
+    let next_method = get(agent, iterator, BUILTIN_STRING_MEMORY.next.into())?;
 
     // 4. Let iteratorRecord be the Iterator Record { [[Iterator]]: iterator, [[NextMethod]]: nextMethod, [[Done]]: false }.
     // 5. Return iteratorRecord.
@@ -159,7 +159,7 @@ pub(crate) fn iterator_next(
 /// throw completion.
 pub(crate) fn iterator_complete(agent: &mut Agent, iter_result: Object) -> JsResult<bool> {
     // 1. Return ToBoolean(? Get(iterResult, "done")).
-    let done = get(agent, iter_result, String::from_small_string("done").into())?;
+    let done = get(agent, iter_result, BUILTIN_STRING_MEMORY.done.into())?;
     Ok(to_boolean(agent, done))
 }
 
@@ -170,11 +170,7 @@ pub(crate) fn iterator_complete(agent: &mut Agent, iter_result: Object) -> JsRes
 /// language value or a throw completion.
 pub(crate) fn iterator_value(agent: &mut Agent, iter_result: Object) -> JsResult<Value> {
     // 1. Return ? Get(iterResult, "value").
-    get(
-        agent,
-        iter_result,
-        String::from_small_string("value").into(),
-    )
+    get(agent, iter_result, BUILTIN_STRING_MEMORY.value.into())
 }
 
 /// ### [7.4.7 IteratorStep ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstep)

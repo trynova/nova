@@ -10,15 +10,17 @@ use crate::ecmascript::execution::RealmIdentifier;
 use crate::ecmascript::types::IntoObject;
 
 use crate::ecmascript::types::Object;
+use crate::ecmascript::types::String;
 use crate::ecmascript::types::SymbolHeapData;
 use crate::ecmascript::types::Value;
+use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::heap::indexes::SymbolIndex;
 use crate::heap::WellKnownSymbolIndexes;
 
 pub(crate) struct SymbolConstructor;
 
 impl Builtin for SymbolConstructor {
-    const NAME: &'static str = "Symbol";
+    const NAME: String = BUILTIN_STRING_MEMORY.Symbol;
 
     const LENGTH: u8 = 1;
 
@@ -28,7 +30,7 @@ impl Builtin for SymbolConstructor {
 struct SymbolFor;
 
 impl Builtin for SymbolFor {
-    const NAME: &'static str = "for";
+    const NAME: String = BUILTIN_STRING_MEMORY.r#for;
 
     const LENGTH: u8 = 1;
 
@@ -38,7 +40,7 @@ impl Builtin for SymbolFor {
 struct SymbolKeyFor;
 
 impl Builtin for SymbolKeyFor {
-    const NAME: &'static str = "keyFor";
+    const NAME: String = BUILTIN_STRING_MEMORY.keyFor;
 
     const LENGTH: u8 = 1;
 

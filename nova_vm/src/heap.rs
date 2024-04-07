@@ -35,7 +35,10 @@ use self::{
     },
     regexp::RegExpHeapData,
 };
-use crate::ecmascript::builtins::error::{Error, ErrorHeapData};
+use crate::ecmascript::{
+    builtins::error::{Error, ErrorHeapData},
+    types::BUILTIN_STRINGS_LIST,
+};
 use crate::ecmascript::{
     builtins::{ArgumentsList, ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
     execution::{Agent, Environments, JsResult, Realm, RealmIdentifier},
@@ -246,7 +249,7 @@ impl CreateHeapData<BigIntHeapData, BigInt> for Heap {
 
 impl Heap {
     pub fn new() -> Heap {
-        Heap {
+        let mut heap = Heap {
             modules: vec![],
             realms: Vec::with_capacity(1),
             scripts: Vec::with_capacity(1),
@@ -275,7 +278,14 @@ impl Heap {
             regexps: Vec::with_capacity(1024),
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
-        }
+        };
+
+        heap.strings.extend_from_slice(
+            &BUILTIN_STRINGS_LIST
+                .map(|builtin_string| Some(StringHeapData::from_str(builtin_string))),
+        );
+
+        heap
     }
 
     pub(crate) fn add_module(&mut self, module: Module) -> ModuleIdentifier {

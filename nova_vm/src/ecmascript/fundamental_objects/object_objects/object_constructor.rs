@@ -10,13 +10,16 @@ use crate::ecmascript::{
         ArgumentsList, Behaviour, Builtin,
     },
     execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
-    types::{InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, Value},
+    types::{
+        InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, String, Value,
+        BUILTIN_STRING_MEMORY,
+    },
 };
 
 pub(crate) struct ObjectConstructor;
 
 impl Builtin for ObjectConstructor {
-    const NAME: &'static str = "Object";
+    const NAME: String = BUILTIN_STRING_MEMORY.Object;
 
     const LENGTH: u8 = 1;
 
@@ -26,7 +29,7 @@ impl Builtin for ObjectConstructor {
 struct ObjectAssign;
 
 impl Builtin for ObjectAssign {
-    const NAME: &'static str = "Object";
+    const NAME: String = BUILTIN_STRING_MEMORY.assign;
 
     const LENGTH: u8 = 2;
 
@@ -36,7 +39,7 @@ impl Builtin for ObjectAssign {
 struct ObjectCreate;
 
 impl Builtin for ObjectCreate {
-    const NAME: &'static str = "create";
+    const NAME: String = BUILTIN_STRING_MEMORY.create;
 
     const LENGTH: u8 = 2;
 
@@ -45,7 +48,7 @@ impl Builtin for ObjectCreate {
 struct ObjectDefineProperties;
 
 impl Builtin for ObjectDefineProperties {
-    const NAME: &'static str = "defineProperties";
+    const NAME: String = BUILTIN_STRING_MEMORY.defineProperties;
 
     const LENGTH: u8 = 2;
 
@@ -54,7 +57,7 @@ impl Builtin for ObjectDefineProperties {
 struct ObjectDefineProperty;
 
 impl Builtin for ObjectDefineProperty {
-    const NAME: &'static str = "defineProperty";
+    const NAME: String = BUILTIN_STRING_MEMORY.defineProperty;
 
     const LENGTH: u8 = 2;
 
@@ -63,7 +66,7 @@ impl Builtin for ObjectDefineProperty {
 struct ObjectEntries;
 
 impl Builtin for ObjectEntries {
-    const NAME: &'static str = "entries";
+    const NAME: String = BUILTIN_STRING_MEMORY.entries;
 
     const LENGTH: u8 = 1;
 
@@ -72,7 +75,7 @@ impl Builtin for ObjectEntries {
 struct ObjectFreeze;
 
 impl Builtin for ObjectFreeze {
-    const NAME: &'static str = "freeze";
+    const NAME: String = BUILTIN_STRING_MEMORY.freeze;
 
     const LENGTH: u8 = 1;
 
@@ -81,7 +84,7 @@ impl Builtin for ObjectFreeze {
 struct ObjectFromEntries;
 
 impl Builtin for ObjectFromEntries {
-    const NAME: &'static str = "fromEntries";
+    const NAME: String = BUILTIN_STRING_MEMORY.fromEntries;
 
     const LENGTH: u8 = 1;
 
@@ -90,7 +93,7 @@ impl Builtin for ObjectFromEntries {
 struct ObjectGetOwnPropertyDescriptor;
 
 impl Builtin for ObjectGetOwnPropertyDescriptor {
-    const NAME: &'static str = "getOwnPropertyDescriptor";
+    const NAME: String = BUILTIN_STRING_MEMORY.getOwnPropertyDescriptor;
 
     const LENGTH: u8 = 2;
 
@@ -99,7 +102,7 @@ impl Builtin for ObjectGetOwnPropertyDescriptor {
 struct ObjectGetOwnPropertyDescriptors;
 
 impl Builtin for ObjectGetOwnPropertyDescriptors {
-    const NAME: &'static str = "getOwnPropertyDescriptors";
+    const NAME: String = BUILTIN_STRING_MEMORY.getOwnPropertyDescriptors;
 
     const LENGTH: u8 = 1;
 
@@ -109,7 +112,7 @@ impl Builtin for ObjectGetOwnPropertyDescriptors {
 struct ObjectGetOwnPropertyNames;
 
 impl Builtin for ObjectGetOwnPropertyNames {
-    const NAME: &'static str = "getOwnPropertyNames";
+    const NAME: String = BUILTIN_STRING_MEMORY.getOwnPropertyNames;
 
     const LENGTH: u8 = 1;
 
@@ -118,7 +121,7 @@ impl Builtin for ObjectGetOwnPropertyNames {
 struct ObjectGetOwnPropertySymbols;
 
 impl Builtin for ObjectGetOwnPropertySymbols {
-    const NAME: &'static str = "getOwnPropertySymbols";
+    const NAME: String = BUILTIN_STRING_MEMORY.getOwnPropertySymbols;
 
     const LENGTH: u8 = 1;
 
@@ -127,7 +130,7 @@ impl Builtin for ObjectGetOwnPropertySymbols {
 struct ObjectGetPrototypeOf;
 
 impl Builtin for ObjectGetPrototypeOf {
-    const NAME: &'static str = "getPrototypeOf";
+    const NAME: String = BUILTIN_STRING_MEMORY.getPrototypeOf;
 
     const LENGTH: u8 = 1;
 
@@ -136,7 +139,7 @@ impl Builtin for ObjectGetPrototypeOf {
 struct ObjectGroupBy;
 
 impl Builtin for ObjectGroupBy {
-    const NAME: &'static str = "groupBy";
+    const NAME: String = BUILTIN_STRING_MEMORY.groupBy;
 
     const LENGTH: u8 = 2;
 
@@ -145,7 +148,7 @@ impl Builtin for ObjectGroupBy {
 struct ObjectHasOwn;
 
 impl Builtin for ObjectHasOwn {
-    const NAME: &'static str = "hasOwn";
+    const NAME: String = BUILTIN_STRING_MEMORY.hasOwn;
 
     const LENGTH: u8 = 2;
 
@@ -154,7 +157,7 @@ impl Builtin for ObjectHasOwn {
 struct ObjectIs;
 
 impl Builtin for ObjectIs {
-    const NAME: &'static str = "is";
+    const NAME: String = BUILTIN_STRING_MEMORY.is;
 
     const LENGTH: u8 = 2;
 
@@ -163,7 +166,7 @@ impl Builtin for ObjectIs {
 struct ObjectIsExtensible;
 
 impl Builtin for ObjectIsExtensible {
-    const NAME: &'static str = "isExtensible";
+    const NAME: String = BUILTIN_STRING_MEMORY.isExtensible;
 
     const LENGTH: u8 = 1;
 
@@ -172,7 +175,7 @@ impl Builtin for ObjectIsExtensible {
 struct ObjectIsFrozen;
 
 impl Builtin for ObjectIsFrozen {
-    const NAME: &'static str = "isFrozen";
+    const NAME: String = BUILTIN_STRING_MEMORY.isFrozen;
 
     const LENGTH: u8 = 1;
 
@@ -181,7 +184,7 @@ impl Builtin for ObjectIsFrozen {
 struct ObjectIsSealed;
 
 impl Builtin for ObjectIsSealed {
-    const NAME: &'static str = "isSealed";
+    const NAME: String = BUILTIN_STRING_MEMORY.isSealed;
 
     const LENGTH: u8 = 1;
 
@@ -190,7 +193,7 @@ impl Builtin for ObjectIsSealed {
 struct ObjectKeys;
 
 impl Builtin for ObjectKeys {
-    const NAME: &'static str = "keys";
+    const NAME: String = BUILTIN_STRING_MEMORY.keys;
 
     const LENGTH: u8 = 1;
 
@@ -199,7 +202,7 @@ impl Builtin for ObjectKeys {
 struct ObjectPreventExtensions;
 
 impl Builtin for ObjectPreventExtensions {
-    const NAME: &'static str = "preventExtensions";
+    const NAME: String = BUILTIN_STRING_MEMORY.preventExtensions;
 
     const LENGTH: u8 = 1;
 
@@ -209,7 +212,7 @@ impl Builtin for ObjectPreventExtensions {
 struct ObjectSeal;
 
 impl Builtin for ObjectSeal {
-    const NAME: &'static str = "seal";
+    const NAME: String = BUILTIN_STRING_MEMORY.seal;
 
     const LENGTH: u8 = 1;
 
@@ -218,7 +221,7 @@ impl Builtin for ObjectSeal {
 struct ObjectSetPrototypeOf;
 
 impl Builtin for ObjectSetPrototypeOf {
-    const NAME: &'static str = "setPrototypeOf";
+    const NAME: String = BUILTIN_STRING_MEMORY.setPrototypeOf;
 
     const LENGTH: u8 = 2;
 
@@ -227,7 +230,7 @@ impl Builtin for ObjectSetPrototypeOf {
 struct ObjectValues;
 
 impl Builtin for ObjectValues {
-    const NAME: &'static str = "values";
+    const NAME: String = BUILTIN_STRING_MEMORY.values;
 
     const LENGTH: u8 = 1;
 
