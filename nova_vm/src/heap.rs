@@ -188,6 +188,17 @@ impl CreateHeapData<&str, String> for Heap {
             value
         } else {
             // SAFETY: String couldn't be represented as a SmallString.
+            unsafe { self.alloc_str(data) }
+        }
+    }
+}
+
+impl CreateHeapData<std::string::String, String> for Heap {
+    fn create(&mut self, data: std::string::String) -> String {
+        if let Ok(value) = String::try_from(data.as_str()) {
+            value
+        } else {
+            // SAFETY: String couldn't be represented as a SmallString.
             unsafe { self.alloc_string(data) }
         }
     }
@@ -351,7 +362,7 @@ impl Heap {
     /// SmallString. All SmallStrings must be kept on the stack to ensure that
     /// comparison between heap allocated strings and SmallStrings can be
     /// guaranteed to never equal true.
-    pub unsafe fn alloc_string(&mut self, message: &str) -> String {
+    pub(crate) unsafe fn alloc_str(&mut self, message: &str) -> String {
         let found = self.find_equal_string(message);
         if let Some(idx) = found {
             return idx;
@@ -373,7 +384,29 @@ impl Heap {
     /// SmallString. All SmallStrings must be kept on the stack to ensure that
     /// comparison between heap allocated strings and SmallStrings can be
     /// guaranteed to never equal true.
-    pub(crate) unsafe fn alloc_static_string(&mut self, message: &'static str) -> String {
+    unsafe fn alloc_string(&mut self, message: std::string::String) -> String {
+        let found = self.find_equal_string(message.as_str());
+        if let Some(idx) = found {
+            return idx;
+        }
+        let data = StringHeapData::from_string(message);
+        self.strings.push(Some(data));
+        StringIndex::last(&self.strings).into()
+    }
+
+    /// Allocate a static string onto the Agent heap
+    ///
+    /// This method will currently iterate through all heap strings to look for
+    /// a possible matching string and if found will return its StringIndex
+    /// instead of allocating a copy.
+    ///
+    /// # Safety
+    ///
+    /// The string being allocated must not be representable as a
+    /// SmallString. All SmallStrings must be kept on the stack to ensure that
+    /// comparison between heap allocated strings and SmallStrings can be
+    /// guaranteed to never equal true.
+    pub(crate) unsafe fn alloc_static_str(&mut self, message: &'static str) -> String {
         let found = self.find_equal_string(message);
         if let Some(idx) = found {
             return idx;

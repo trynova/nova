@@ -567,7 +567,7 @@ pub fn create_builtin_function(
     let initial_name = if let Some(prefix) = args.prefix {
         // 12. Else,
         // a. Perform SetFunctionName(func, name, prefix).
-        String::from_str(agent, &format!("{} {}", args.name, prefix))
+        String::from_string(agent, format!("{} {}", args.name, prefix))
     } else {
         // 11. If prefix is not present, then
         // a. Perform SetFunctionName(func, name).

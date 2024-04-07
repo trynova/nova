@@ -13,7 +13,7 @@ use crate::{
             DateIndex, ECMAScriptFunctionIndex, ErrorIndex, NumberIndex, ObjectIndex, RegExpIndex,
             StringIndex, SymbolIndex,
         },
-        CreateHeapData, GetHeapData,
+        GetHeapData,
     },
     SmallInteger, SmallString,
 };
@@ -131,17 +131,16 @@ pub(crate) const REGEXP_DISCRIMINANT: u8 =
     value_discriminant(Value::RegExp(RegExpIndex::from_u32_index(0)));
 
 impl Value {
-    pub fn from_str(agent: &mut Agent, message: &str) -> Value {
-        agent.heap.create(message).into()
+    pub fn from_str(agent: &mut Agent, str: &str) -> Value {
+        String::from_str(agent, str).into_value()
     }
 
-    pub fn from_static_str(agent: &mut Agent, message: &'static str) -> Value {
-        if let Ok(value) = String::try_from(message) {
-            value.into_value()
-        } else {
-            // SAFETY: String couldn't be represented as a SmallString.
-            unsafe { agent.heap.alloc_static_string(message) }.into_value()
-        }
+    pub fn from_string(agent: &mut Agent, string: std::string::String) -> Value {
+        String::from_string(agent, string).into_value()
+    }
+
+    pub fn from_static_str(agent: &mut Agent, str: &'static str) -> Value {
+        String::from_static_str(agent, str).into_value()
     }
 
     pub fn from_f64(agent: &mut Agent, value: f64) -> Value {

@@ -36,6 +36,10 @@ impl PropertyKey {
         String::from_static_str(agent, str).into()
     }
 
+    pub fn from_string(agent: &mut Agent, string: std::string::String) -> Self {
+        String::from_string(agent, string).into()
+    }
+
     pub fn into_value(self) -> Value {
         self.into()
     }

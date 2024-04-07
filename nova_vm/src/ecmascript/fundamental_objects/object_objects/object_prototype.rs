@@ -174,10 +174,10 @@ impl ObjectPrototype {
                 let tag = get(agent, o, WellKnownSymbolIndexes::ToStringTag.into())?;
                 if let Ok(tag) = String::try_from(tag) {
                     let str = format!("[object {}]", tag.as_str(agent));
-                    return Ok(Value::from_str(agent, str.as_str()));
+                    Ok(Value::from_string(agent, str))
                 } else {
                     let str = format!("[object {}]", builtin_tag.as_str(agent));
-                    return Ok(Value::from_str(agent, str.as_str()));
+                    Ok(Value::from_string(agent, str))
                 }
             }
         }

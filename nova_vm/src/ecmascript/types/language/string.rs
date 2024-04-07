@@ -91,16 +91,20 @@ impl String {
         self == Self::EMPTY_STRING
     }
 
-    pub fn from_str(agent: &mut Agent, message: &str) -> String {
-        agent.heap.create(message)
+    pub fn from_str(agent: &mut Agent, str: &str) -> String {
+        agent.heap.create(str)
     }
 
-    pub fn from_static_str(agent: &mut Agent, message: &'static str) -> Self {
-        if let Ok(value) = String::try_from(message) {
+    pub fn from_string(agent: &mut Agent, string: std::string::String) -> String {
+        agent.heap.create(string)
+    }
+
+    pub fn from_static_str(agent: &mut Agent, str: &'static str) -> Self {
+        if let Ok(value) = String::try_from(str) {
             value
         } else {
             // SAFETY: String couldn't be represented as a SmallString.
-            unsafe { agent.heap.alloc_static_string(message) }
+            unsafe { agent.heap.alloc_static_str(str) }
         }
     }
 

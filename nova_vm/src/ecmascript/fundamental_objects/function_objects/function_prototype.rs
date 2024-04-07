@@ -173,7 +173,7 @@ impl FunctionPrototype {
                         }
                     },
                 );
-                Ok(Value::from_str(agent, &initial_name))
+                Ok(Value::from_string(agent, initial_name))
             }
         }
 
