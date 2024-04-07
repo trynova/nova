@@ -4,7 +4,7 @@ use crate::{
         abstract_operations::operations_on_objects::get,
         builtins::array_buffer::data::InternalBuffer,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{DataBlock, Function, IntoFunction, Number, Object, PropertyKey, Value},
+        types::{DataBlock, Function, IntoFunction, Number, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{indexes::ArrayBufferIndex, GetHeapData},
     Heap,
@@ -215,7 +215,7 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
         return Ok(None);
     };
     // 2. Let maxByteLength be ? Get(options, "maxByteLength").
-    let property = PropertyKey::from_str(&mut agent.heap, "maxByteLength");
+    let property = PropertyKey::from(BUILTIN_STRING_MEMORY.maxByteLength);
     let max_byte_length = get(agent, options, property)?;
     // 3. If maxByteLength is undefined, return EMPTY.
     if max_byte_length.is_undefined() {

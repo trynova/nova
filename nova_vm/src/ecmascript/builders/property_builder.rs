@@ -69,17 +69,6 @@ impl<'agent, D> PropertyBuilder<'agent, NoKey, D> {
             configurable: self.configurable,
         }
     }
-
-    pub fn with_key_from_str(self, key: &str) -> PropertyBuilder<'agent, CreatorKey, D> {
-        let key = PropertyKey::from_str(&mut self.agent.heap, key);
-        PropertyBuilder {
-            agent: self.agent,
-            key: CreatorKey(key),
-            definition: self.definition,
-            enumerable: self.enumerable,
-            configurable: self.configurable,
-        }
-    }
 }
 
 impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {

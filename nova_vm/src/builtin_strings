@@ -110,6 +110,8 @@ number
 Number
 object
 Object
+parseFloat
+parseInt
 POSITIVE_INFINITY
 preventExtensions
 Promise

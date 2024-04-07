@@ -6,7 +6,7 @@ use crate::{
         },
         builtins::ordinary::ordinary_define_own_property,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey},
+        types::{InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey, BUILTIN_STRING_MEMORY},
     },
     heap::{indexes::ArrayIndex, GetHeapData},
 };
@@ -67,7 +67,7 @@ pub fn array_create(
 /// The abstract operation ArraySetLength takes arguments A (an Array) and Desc (a Property Descriptor) and returns either a normal completion containing a Boolean or a throw completion.
 pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -> JsResult<bool> {
     // 1. If Desc does not have a [[Value]] field, then
-    let length_key = PropertyKey::from_str(&mut agent.heap, "length");
+    let length_key = PropertyKey::from(BUILTIN_STRING_MEMORY.length);
     if desc.value.is_none() {
         // a. Return ! OrdinaryDefineOwnProperty(A, "length", Desc).
         return Ok(ordinary_define_own_property(agent, a.into(), length_key, desc).unwrap());

@@ -28,7 +28,7 @@ use crate::{
             create_data_property_or_throw, define_property_or_throw,
         },
         execution::{agent::Agent, ProtoIntrinsics},
-        types::{IntoFunction, Number, Object, PropertyDescriptor, PropertyKey, Value},
+        types::{IntoFunction, Number, Object, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -124,7 +124,7 @@ pub(crate) fn create_unmapped_arguments_object(
     let obj = ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object));
     // 3. Set obj.[[ParameterMap]] to undefined.
     // 4. Perform ! DefinePropertyOrThrow(obj, "length", PropertyDescriptor {
-    let key = PropertyKey::from_str(&mut agent.heap, "length");
+    let key = PropertyKey::from(BUILTIN_STRING_MEMORY.length);
     define_property_or_throw(
         agent,
         obj,
@@ -176,7 +176,7 @@ pub(crate) fn create_unmapped_arguments_object(
     .unwrap();
     let throw_type_error = agent.current_realm().intrinsics().throw_type_error();
     // 8. Perform ! DefinePropertyOrThrow(obj, "callee", PropertyDescriptor {
-    let key = PropertyKey::from_str(&mut agent.heap, "callee");
+    let key = PropertyKey::from(BUILTIN_STRING_MEMORY.callee);
     define_property_or_throw(
         agent,
         obj,

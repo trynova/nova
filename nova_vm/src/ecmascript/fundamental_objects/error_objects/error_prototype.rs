@@ -36,7 +36,7 @@ impl ErrorPrototype {
             to_string(agent, name)?
         };
         // 5. Let msg be ? Get(O, "message").
-        let key = PropertyKey::from_str(&mut agent.heap, "message");
+        let key = PropertyKey::from(BUILTIN_STRING_MEMORY.message);
         let msg = get(agent, o, key)?;
         // 6. If msg is undefined, set msg to the empty String; otherwise set msg to ? ToString(msg).
         let msg = if msg.is_undefined() {
@@ -72,14 +72,14 @@ impl ErrorPrototype {
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("message")
+                    .with_key(BUILTIN_STRING_MEMORY.message.into())
                     .with_value(String::EMPTY_STRING.into_value())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("name")
+                    .with_key(BUILTIN_STRING_MEMORY.name.into())
                     .with_value(BUILTIN_STRING_MEMORY.Error.into())
                     .build()
             })

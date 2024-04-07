@@ -27,14 +27,14 @@ impl NativeErrorPrototypes {
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("message")
+                    .with_key(BUILTIN_STRING_MEMORY.message.into())
                     .with_value(String::EMPTY_STRING.into_value())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("name")
+                    .with_key(BUILTIN_STRING_MEMORY.name.into())
                     .with_value(BUILTIN_STRING_MEMORY.EvalError.into_value())
                     .build()
             })
@@ -45,14 +45,14 @@ impl NativeErrorPrototypes {
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("message")
+                    .with_key(BUILTIN_STRING_MEMORY.message.into())
                     .with_value(String::EMPTY_STRING.into_value())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("name")
+                    .with_key(BUILTIN_STRING_MEMORY.name.into())
                     .with_value(BUILTIN_STRING_MEMORY.RangeError.into_value())
                     .build()
             })
@@ -63,14 +63,14 @@ impl NativeErrorPrototypes {
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("message")
+                    .with_key(BUILTIN_STRING_MEMORY.message.into())
                     .with_value(String::EMPTY_STRING.into_value())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("name")
+                    .with_key(BUILTIN_STRING_MEMORY.name.into())
                     .with_value(BUILTIN_STRING_MEMORY.ReferenceError.into_value())
                     .build()
             })
@@ -81,14 +81,14 @@ impl NativeErrorPrototypes {
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("message")
+                    .with_key(BUILTIN_STRING_MEMORY.message.into())
                     .with_value(String::EMPTY_STRING.into_value())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("name")
+                    .with_key(BUILTIN_STRING_MEMORY.name.into())
                     .with_value(BUILTIN_STRING_MEMORY.SyntaxError.into_value())
                     .build()
             })
@@ -99,14 +99,14 @@ impl NativeErrorPrototypes {
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("message")
+                    .with_key(BUILTIN_STRING_MEMORY.message.into())
                     .with_value(String::EMPTY_STRING.into_value())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("name")
+                    .with_key(BUILTIN_STRING_MEMORY.name.into())
                     .with_value(BUILTIN_STRING_MEMORY.TypeError.into_value())
                     .build()
             })
@@ -117,14 +117,14 @@ impl NativeErrorPrototypes {
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("message")
+                    .with_key(BUILTIN_STRING_MEMORY.message.into())
                     .with_value(String::EMPTY_STRING.into_value())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("name")
+                    .with_key(BUILTIN_STRING_MEMORY.name.into())
                     .with_value(BUILTIN_STRING_MEMORY.URIError.into_value())
                     .build()
             })

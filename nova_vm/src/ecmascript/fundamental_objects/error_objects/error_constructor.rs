@@ -92,7 +92,7 @@ pub(super) fn get_error_cause(agent: &mut Agent, options: Value) -> JsResult<Opt
     let Ok(options) = Object::try_from(options) else {
         return Ok(None);
     };
-    let key = PropertyKey::from_str(&mut agent.heap, "cause");
+    let key = PropertyKey::from(BUILTIN_STRING_MEMORY.cause);
     if has_property(agent, options, key)? {
         Ok(Some(get(agent, options, key)?))
     } else {

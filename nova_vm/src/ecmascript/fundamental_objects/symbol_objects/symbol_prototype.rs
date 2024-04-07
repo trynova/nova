@@ -80,7 +80,7 @@ impl SymbolPrototype {
             .with_constructor_property(symbol_constructor)
             .with_property(|builder| {
                 builder
-                    .with_key_from_str("description")
+                    .with_key(BUILTIN_STRING_MEMORY.description.into())
                     .with_getter(|agent| {
                         BuiltinFunctionBuilder::new::<SymbolPrototypeGetDescription>(agent, realm)
                             .build()

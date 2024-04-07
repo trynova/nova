@@ -3,7 +3,7 @@ use std::cell::Ref;
 use crate::{
     ecmascript::{
         execution::{Agent, Realm},
-        types::{PropertyDescriptor, String, Value},
+        types::{PropertyDescriptor, Value, BUILTIN_STRING_MEMORY},
     },
     heap::GetHeapData,
     Heap,
@@ -44,7 +44,7 @@ impl PropertyStorage {
             Value::Array(array) => {
                 if key.equals(
                     agent,
-                    PropertyKey::from(String::try_from("length").unwrap()),
+                    PropertyKey::from(BUILTIN_STRING_MEMORY.length),
                 ) {
                     return true;
                 }

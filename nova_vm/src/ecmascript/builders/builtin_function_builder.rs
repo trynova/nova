@@ -4,7 +4,7 @@ use crate::{
         execution::{Agent, RealmIdentifier},
         types::{
             BuiltinFunctionHeapData, IntoObject, IntoValue, Object, ObjectHeapData, PropertyKey,
-            String, Value,
+            String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -342,7 +342,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
             .with_configurable(false)
             .with_enumerable(false)
             .with_value_readonly(prototype.into_value())
-            .with_key_from_str("prototype")
+            .with_key(BUILTIN_STRING_MEMORY.prototype.into())
             .build();
         self.properties.0.push(property);
         BuiltinFunctionBuilder {

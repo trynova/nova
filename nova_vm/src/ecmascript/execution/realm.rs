@@ -6,7 +6,7 @@ use super::{
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
-        types::{IntoValue, Number, Object, PropertyDescriptor, PropertyKey, Value},
+        types::{IntoValue, Number, Object, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY},
     },
     heap::indexes::ObjectIndex,
 };
@@ -234,7 +234,7 @@ pub(crate) fn set_default_global_bindings(
     // TODO: Actually do other properties aside from globalThis.
     {
         // a. Let name be the String value of the property name.
-        let name = PropertyKey::from_str(&mut agent.heap, "globalThis");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.globalThis);
 
         // b. Let desc be the fully populated data Property Descriptor for the property, containing the specified attributes for the property. For properties listed in 19.2, 19.3, or 19.4 the value of the [[Value]] attribute is the corresponding intrinsic object from realmRec.
         let global_env = agent.heap.get_realm(realm_id).global_env;
@@ -246,7 +246,7 @@ pub(crate) fn set_default_global_bindings(
         // c. Perform ? DefinePropertyOrThrow(global, name, desc).
         define_property_or_throw(agent, global, name, desc)?;
 
-        let name = PropertyKey::from_str(&mut agent.heap, "Infinity");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Infinity);
         let value = Number::from_f64(agent, f64::INFINITY);
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -257,7 +257,7 @@ pub(crate) fn set_default_global_bindings(
         };
         define_property_or_throw(agent, global, name, desc)?;
 
-        let name = PropertyKey::from_str(&mut agent.heap, "NaN");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.NaN);
         let value = Number::from_f64(agent, f64::NAN);
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -268,7 +268,7 @@ pub(crate) fn set_default_global_bindings(
         };
         define_property_or_throw(agent, global, name, desc)?;
 
-        let name = PropertyKey::from_str(&mut agent.heap, "undefined");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.undefined);
         let desc = PropertyDescriptor {
             value: Some(Value::Undefined),
             writable: Some(false),
@@ -279,7 +279,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.1 AggregateError ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "AggregateError");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.AggregateError);
         let value = agent.get_realm(realm_id).intrinsics().aggregate_error();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -291,7 +291,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.2 Array ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Array");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Array);
         let value = agent.get_realm(realm_id).intrinsics().array();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -303,7 +303,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.3 ArrayBuffer ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "ArrayBuffer");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.ArrayBuffer);
         let value = agent.get_realm(realm_id).intrinsics().array_buffer();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -315,7 +315,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.4 BigInt ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "BigInt");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.BigInt);
         let value = agent.get_realm(realm_id).intrinsics().big_int();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -327,7 +327,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.5 BigInt64Array ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "BigInt64Array");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.BigInt64Array);
         let value = agent.get_realm(realm_id).intrinsics().big_int64_array();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -339,7 +339,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.6 BigUint64Array ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "BigUint64Array");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.BigUint64Array);
         let value = agent.get_realm(realm_id).intrinsics().big_uint64_array();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -351,7 +351,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.7 Boolean ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Boolean");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Boolean);
         let value = agent.get_realm(realm_id).intrinsics().boolean();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -363,7 +363,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.8 DataView ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "DataView");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.DataView);
         let value = agent.get_realm(realm_id).intrinsics().data_view();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -375,7 +375,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.9 Date ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Date");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Date);
         let value = agent.get_realm(realm_id).intrinsics().date();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -387,7 +387,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.10 Error ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Error");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Error);
         let value = agent.get_realm(realm_id).intrinsics().error();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -399,7 +399,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.11 EvalError ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "EvalError");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.EvalError);
         let value = agent.get_realm(realm_id).intrinsics().eval_error();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -411,7 +411,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.12 FinalizationRegistry ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "FinalizationRegistry");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.FinalizationRegistry);
         let value = agent
             .get_realm(realm_id)
             .intrinsics()
@@ -426,7 +426,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.13 Float32Array ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Float32Array");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Float32Array);
         let value = agent.get_realm(realm_id).intrinsics().float32_array();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -438,7 +438,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.14 Float64Array ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Float64Array");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Float64Array);
         let value = agent.get_realm(realm_id).intrinsics().float64_array();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -450,7 +450,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.15 Function ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Function");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Function);
         let value = agent.get_realm(realm_id).intrinsics().function();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -462,7 +462,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.16 Int8Array ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Int8Array");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Int8Array);
         let value = agent.get_realm(realm_id).intrinsics().int8_array();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -474,7 +474,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.17 Int16Array ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Int16Array");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Int16Array);
         let value = agent.get_realm(realm_id).intrinsics().int16_array();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -486,7 +486,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.18 Int32Array ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Int32Array");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Int32Array);
         let value = agent.get_realm(realm_id).intrinsics().int32_array();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -498,7 +498,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.19 Map ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Map");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Map);
         let value = agent.get_realm(realm_id).intrinsics().map();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -510,7 +510,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.20 Number ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Number");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Number);
         let value = agent.get_realm(realm_id).intrinsics().number();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -522,7 +522,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.21 Object ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Object");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Object);
         let value = agent.get_realm(realm_id).intrinsics().object();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -534,7 +534,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.22 Promise ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Promise");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Promise);
         let value = agent.get_realm(realm_id).intrinsics().promise();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -546,7 +546,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.23 Proxy ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Proxy");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Proxy);
         let value = agent.get_realm(realm_id).intrinsics().proxy();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -558,7 +558,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.24 RangeError ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "RangeError");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.RangeError);
         let value = agent.get_realm(realm_id).intrinsics().range_error();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -570,7 +570,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.25 ReferenceError ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "ReferenceError");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.ReferenceError);
         let value = agent.get_realm(realm_id).intrinsics().reference_error();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -582,7 +582,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.26 RegExp ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "RegExp");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.RegExp);
         let value = agent.get_realm(realm_id).intrinsics().reg_exp();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -594,7 +594,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.27 Set ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Set");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Set);
         let value = agent.get_realm(realm_id).intrinsics().set();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -606,7 +606,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.28 SharedArrayBuffer ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "SharedArrayBuffer");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.SharedArrayBuffer);
         let value = agent.get_realm(realm_id).intrinsics().shared_array_buffer();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -618,7 +618,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.29 String ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "String");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.String);
         let value = agent.get_realm(realm_id).intrinsics().string();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -630,7 +630,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.30 Symbol ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Symbol");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Symbol);
         let value = agent.get_realm(realm_id).intrinsics().symbol();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -642,7 +642,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.31 SyntaxError ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "SyntaxError");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.SyntaxError);
         let value = agent.get_realm(realm_id).intrinsics().syntax_error();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -654,7 +654,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.32 TypeError ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "TypeError");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.TypeError);
         let value = agent.get_realm(realm_id).intrinsics().type_error();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -666,7 +666,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.33 Uint8Array ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Uint8Array");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Uint8Array);
         let value = agent.get_realm(realm_id).intrinsics().uint8_array();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -678,7 +678,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.34 Uint8ClampedArray ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Uint8ClampedArray");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Uint8ClampedArray);
         let value = agent.get_realm(realm_id).intrinsics().uint8_clamped_array();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -690,7 +690,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.35 Uint16Array ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Uint16Array");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Uint16Array);
         let value = agent.get_realm(realm_id).intrinsics().uint16_array();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -702,7 +702,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.36 Uint32Array ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "Uint32Array");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Uint32Array);
         let value = agent.get_realm(realm_id).intrinsics().uint32_array();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -714,7 +714,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.37 URIError ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "URIError");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.URIError);
         let value = agent.get_realm(realm_id).intrinsics().uri_error();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -726,7 +726,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.38 WeakMap ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "WeakMap");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.WeakMap);
         let value = agent.get_realm(realm_id).intrinsics().weak_map();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -738,7 +738,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.39 WeakRef ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "WeakRef");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.WeakRef);
         let value = agent.get_realm(realm_id).intrinsics().weak_ref();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
@@ -750,7 +750,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.40 WeakSet ( . . . )
-        let name = PropertyKey::from_str(&mut agent.heap, "WeakSet");
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.WeakSet);
         let value = agent.get_realm(realm_id).intrinsics().weak_set();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),

@@ -207,7 +207,7 @@ impl FunctionPrototype {
         // 10.2.4 AddRestrictedFunctionProperties ( F, realm )
         .with_property(|builder| {
             builder
-                .with_key_from_str("caller")
+                .with_key(BUILTIN_STRING_MEMORY.caller.into())
                 .with_configurable(true)
                 .with_enumerable(false)
                 .with_getter_and_setter_functions(throw_type_error, throw_type_error)
@@ -215,7 +215,7 @@ impl FunctionPrototype {
         })
         .with_property(|builder| {
             builder
-                .with_key_from_str("arguments")
+                .with_key(BUILTIN_STRING_MEMORY.arguments.into())
                 .with_configurable(true)
                 .with_enumerable(false)
                 .with_getter_and_setter_functions(throw_type_error, throw_type_error)
@@ -226,7 +226,7 @@ impl FunctionPrototype {
         .with_builtin_function_property::<FunctionPrototypeCall>()
         .with_property(|builder| {
             builder
-                .with_key_from_str("constructor")
+                .with_key(BUILTIN_STRING_MEMORY.constructor.into())
                 .with_enumerable(false)
                 .with_value(function_constructor.into())
                 .build()
