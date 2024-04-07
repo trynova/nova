@@ -655,13 +655,6 @@ impl Intrinsics {
             .into()
     }
 
-    /// %NativeError.prototype%
-    pub(crate) fn native_error_prototype(&self) -> OrdinaryObject {
-        IntrinsicObjectIndexes::NativeErrorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
-    }
-
     /// %Number.prototype%
     pub(crate) fn number_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::NumberPrototype

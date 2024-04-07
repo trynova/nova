@@ -1267,7 +1267,6 @@ impl HeapMarkAndSweep<()> for Intrinsics {
         self.map().mark_values(queues, ());
         self.map_iterator_prototype().mark_values(queues, ());
         self.math().mark_values(queues, ());
-        self.native_error_prototype().mark_values(queues, ());
         self.number_prototype().mark_values(queues, ());
         self.number().mark_values(queues, ());
         self.object_prototype_to_string().mark_values(queues, ());
@@ -1405,7 +1404,6 @@ impl HeapMarkAndSweep<()> for Intrinsics {
         self.map().sweep_values(compactions, ());
         self.map_iterator_prototype().sweep_values(compactions, ());
         self.math().sweep_values(compactions, ());
-        self.native_error_prototype().sweep_values(compactions, ());
         self.number_prototype().sweep_values(compactions, ());
         self.number().sweep_values(compactions, ());
         self.object_prototype_to_string()

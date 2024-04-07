@@ -88,7 +88,6 @@ pub(crate) enum IntrinsicObjectIndexes {
     // Errors subtypes
     AggregateErrorPrototype,
     EvalErrorPrototype,
-    NativeErrorPrototype,
     RangeErrorPrototype,
     ReferenceErrorPrototype,
     SyntaxErrorPrototype,
