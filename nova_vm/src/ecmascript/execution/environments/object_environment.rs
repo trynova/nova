@@ -87,7 +87,7 @@ impl ObjectEnvironmentIndex {
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         let is_with_environment = env_rec.is_with_environment;
-        let name = PropertyKey::from_str(&mut agent.heap, n.as_str());
+        let name = PropertyKey::from_str(agent, n.as_str());
         // 2. Let foundBinding be ? HasProperty(bindingObject, N).
         let found_binding = has_property(agent, binding_object, name)?;
         // 3. If foundBinding is false, return false.
@@ -135,7 +135,7 @@ impl ObjectEnvironmentIndex {
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         // 2. Perform ? DefinePropertyOrThrow(bindingObject, N, PropertyDescriptor { [[Value]]: undefined, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: D }).
-        let n = PropertyKey::from_str(&mut agent.heap, n.as_str());
+        let n = PropertyKey::from_str(agent, n.as_str());
         define_property_or_throw(
             agent,
             binding_object,
@@ -203,7 +203,7 @@ impl ObjectEnvironmentIndex {
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         // 2. Let stillExists be ? HasProperty(bindingObject, N).
-        let n = PropertyKey::from_str(&mut agent.heap, n.as_str());
+        let n = PropertyKey::from_str(agent, n.as_str());
         let still_exists = has_property(agent, binding_object, n)?;
         // 3. If stillExists is false and S is true, throw a ReferenceError exception.
         if !still_exists && s {
@@ -227,7 +227,7 @@ impl ObjectEnvironmentIndex {
         let env_rec = self.heap_data(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
-        let name = PropertyKey::from_str(&mut agent.heap, n.as_str());
+        let name = PropertyKey::from_str(agent, n.as_str());
         // 2. Let value be ? HasProperty(bindingObject, N).
         let value = has_property(agent, binding_object, name)?;
         // 3. If value is false, then
@@ -255,7 +255,7 @@ impl ObjectEnvironmentIndex {
         let env_rec = self.heap_data(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_boject = env_rec.binding_object;
-        let name = PropertyKey::from_str(&mut agent.heap, name.as_str());
+        let name = PropertyKey::from_str(agent, name.as_str());
         // 2. Return ? bindingObject.[[Delete]](N).
         binding_boject.delete(agent, name)
     }

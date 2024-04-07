@@ -1,12 +1,13 @@
 use super::{date::DateHeapData, regexp::RegExpHeapData};
 use crate::ecmascript::{
     builtins::{error::ErrorHeapData, ArrayBufferHeapData, ArrayHeapData},
+    execution::Agent,
     types::{
         BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
         NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData, Value,
     },
 };
-use crate::Heap;
+
 use core::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::{marker::PhantomData, mem::size_of, num::NonZeroU32};
@@ -133,8 +134,10 @@ pub type SymbolIndex = BaseIndex<SymbolHeapData>;
 pub type ElementIndex = BaseIndex<[Option<Value>]>;
 
 impl ObjectIndex {
-    pub fn get(self, heap: &Heap) -> &ObjectHeapData {
-        heap.objects
+    pub fn get(self, agent: &Agent) -> &ObjectHeapData {
+        agent
+            .heap
+            .objects
             .get(self.into_index())
             .unwrap()
             .as_ref()

@@ -173,7 +173,7 @@ impl FunctionPrototype {
                         }
                     },
                 );
-                Ok(Value::from_str(&mut agent.heap, &initial_name))
+                Ok(Value::from_str(agent, &initial_name))
             }
         }
 

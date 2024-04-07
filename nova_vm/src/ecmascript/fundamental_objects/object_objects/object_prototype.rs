@@ -173,11 +173,11 @@ impl ObjectPrototype {
                 let o = to_object(agent, this_value).unwrap();
                 let tag = get(agent, o, WellKnownSymbolIndexes::ToStringTag.into())?;
                 if let Ok(tag) = String::try_from(tag) {
-                    let str = format!("[object {}]", tag.as_str(agent).unwrap());
-                    return Ok(Value::from_str(&mut agent.heap, str.as_str()));
+                    let str = format!("[object {}]", tag.as_str(agent));
+                    return Ok(Value::from_str(agent, str.as_str()));
                 } else {
-                    let str = format!("[object {}]", builtin_tag.as_str(agent).unwrap());
-                    return Ok(Value::from_str(&mut agent.heap, str.as_str()));
+                    let str = format!("[object {}]", builtin_tag.as_str(agent));
+                    return Ok(Value::from_str(agent, str.as_str()));
                 }
             }
         }

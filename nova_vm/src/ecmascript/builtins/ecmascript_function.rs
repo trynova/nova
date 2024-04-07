@@ -658,7 +658,7 @@ pub(crate) fn set_function_name(
             symbol_data
                 .descriptor
                 .map_or(String::EMPTY_STRING, |descriptor| {
-                    let descriptor = descriptor.as_str(agent).unwrap();
+                    let descriptor = descriptor.as_str(agent);
                     String::from_str(agent, &format!("[{}]", descriptor))
                 })
         }

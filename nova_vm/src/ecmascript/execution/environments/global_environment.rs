@@ -288,7 +288,7 @@ impl GlobalEnvironmentIndex {
         // 4. Let globalObject be ObjRec.[[BindingObject]].
         let global_object = obj_rec.heap_data(agent).binding_object;
         // 5. Let existingProp be ? HasOwnProperty(globalObject, N).
-        let n = PropertyKey::from_str(&mut agent.heap, name.as_str());
+        let n = PropertyKey::from_str(agent, name.as_str());
         let existing_prop = has_own_property(agent, global_object, n)?;
         // 6. If existingProp is true, then
         if existing_prop {
@@ -401,7 +401,7 @@ impl GlobalEnvironmentIndex {
         // 2. Let globalObject be ObjRec.[[BindingObject]].
         let global_object = obj_rec.heap_data(agent).binding_object;
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        let n = PropertyKey::from_str(&mut agent.heap, name);
+        let n = PropertyKey::from_str(agent, name);
         let existing_prop = global_object.get_own_property(agent, n)?;
         let Some(existing_prop) = existing_prop else {
             // 4. If existingProp is undefined, return false.
@@ -427,7 +427,7 @@ impl GlobalEnvironmentIndex {
         // 2. Let globalObject be ObjRec.[[BindingObject]].
         let global_object = obj_rec.heap_data(agent).binding_object;
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
-        let n = PropertyKey::from_str(&mut agent.heap, name);
+        let n = PropertyKey::from_str(agent, name);
         let has_property = has_own_property(agent, global_object, n)?;
         // 4. If hasProperty is true, return true.
         if has_property {
@@ -455,7 +455,7 @@ impl GlobalEnvironmentIndex {
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
         let global_object = obj_rec.heap_data(agent).binding_object;
-        let n = PropertyKey::from_str(&mut agent.heap, name);
+        let n = PropertyKey::from_str(agent, name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let existing_prop = global_object.get_own_property(agent, n)?;
         // 4. If existingProp is undefined, return ? IsExtensible(globalObject).
@@ -496,7 +496,7 @@ impl GlobalEnvironmentIndex {
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
         let global_object = obj_rec.heap_data(agent).binding_object;
-        let n = PropertyKey::from_str(&mut agent.heap, name.as_str());
+        let n = PropertyKey::from_str(agent, name.as_str());
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let has_property = has_own_property(agent, global_object, n)?;
         // 4. Let extensible be ? IsExtensible(globalObject).
@@ -539,7 +539,7 @@ impl GlobalEnvironmentIndex {
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
         let global_object = obj_rec.heap_data(agent).binding_object;
-        let n = PropertyKey::from_str(&mut agent.heap, name.as_str());
+        let n = PropertyKey::from_str(agent, name.as_str());
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let existing_prop = global_object.get_own_property(agent, n)?;
         // 4. If existingProp is undefined or existingProp.[[Configurable]] is true, then

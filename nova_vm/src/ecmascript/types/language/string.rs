@@ -95,6 +95,15 @@ impl String {
         agent.heap.create(message)
     }
 
+    pub fn from_static_str(agent: &mut Agent, message: &'static str) -> Self {
+        if let Ok(value) = String::try_from(message) {
+            value
+        } else {
+            // SAFETY: String couldn't be represented as a SmallString.
+            unsafe { agent.heap.alloc_static_string(message) }
+        }
+    }
+
     pub const fn from_small_string(message: &'static str) -> String {
         assert!(
             message.len() < 8
@@ -115,12 +124,10 @@ impl String {
         }
     }
 
-    pub fn as_str<'a>(&'a self, agent: &mut Agent) -> Option<&'a str> {
+    pub fn as_str<'string, 'agent: 'string>(&'string self, agent: &'agent Agent) -> &'string str {
         match self {
-            // SAFETY: The mutable reference to the Agent ensures no mutable
-            //         access to the realm.
-            String::String(s) => unsafe { std::mem::transmute(agent.heap.get(*s).as_str()) },
-            String::SmallString(s) => Some(s.as_str()),
+            String::String(s) => agent.heap.get(*s).as_str(),
+            String::SmallString(s) => s.as_str(),
         }
     }
 
@@ -143,8 +150,8 @@ impl String {
     /// ### [6.1.4.1 StringIndexOf ( string, searchValue, fromIndex )](https://tc39.es/ecma262/#sec-stringindexof)
     pub fn index_of(self, agent: &mut Agent, search_value: Self, from_index: i64) -> i64 {
         // TODO: Figure out what we should do for invalid cases.
-        let string = self.as_str(agent).unwrap();
-        let search_value = search_value.as_str(agent).unwrap();
+        let string = self.as_str(agent);
+        let search_value = search_value.as_str(agent);
 
         // 1. Let len be the length of string.
         let len = string.len() as i64;

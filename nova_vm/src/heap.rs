@@ -30,8 +30,8 @@ use crate::ecmascript::{
     types::BUILTIN_STRINGS_LIST,
 };
 use crate::ecmascript::{
-    builtins::{ArgumentsList, ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
-    execution::{Agent, Environments, JsResult, Realm, RealmIdentifier},
+    builtins::{ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
+    execution::{Environments, Realm, RealmIdentifier},
     scripts_and_modules::{
         module::{Module, ModuleIdentifier},
         script::{Script, ScriptIdentifier},
@@ -188,8 +188,7 @@ impl CreateHeapData<&str, String> for Heap {
             value
         } else {
             // SAFETY: String couldn't be represented as a SmallString.
-            let id = unsafe { self.alloc_string(data) };
-            Value::String(id).try_into().unwrap()
+            unsafe { self.alloc_string(data) }
         }
     }
 }
@@ -352,24 +351,44 @@ impl Heap {
     /// SmallString. All SmallStrings must be kept on the stack to ensure that
     /// comparison between heap allocated strings and SmallStrings can be
     /// guaranteed to never equal true.
-    pub unsafe fn alloc_string(&mut self, message: &str) -> StringIndex {
-        debug_assert!(message.len() > 7 || message.ends_with('\0'));
-        let found = self
-            .strings
-            .iter()
-            .position(|opt| opt.as_ref().map_or(false, |data| data.as_str() == message));
+    pub unsafe fn alloc_string(&mut self, message: &str) -> String {
+        let found = self.find_equal_string(message);
         if let Some(idx) = found {
-            return StringIndex::from_index(idx);
+            return idx;
         }
         let data = StringHeapData::from_str(message);
-        let found = self.strings.iter().position(|opt| opt.is_none());
+        self.strings.push(Some(data));
+        StringIndex::last(&self.strings).into()
+    }
+
+    /// Allocate a static string onto the Agent heap
+    ///
+    /// This method will currently iterate through all heap strings to look for
+    /// a possible matching string and if found will return its StringIndex
+    /// instead of allocating a copy.
+    ///
+    /// # Safety
+    ///
+    /// The string being allocated must not be representable as a
+    /// SmallString. All SmallStrings must be kept on the stack to ensure that
+    /// comparison between heap allocated strings and SmallStrings can be
+    /// guaranteed to never equal true.
+    pub(crate) unsafe fn alloc_static_string(&mut self, message: &'static str) -> String {
+        let found = self.find_equal_string(message);
         if let Some(idx) = found {
-            self.strings[idx].replace(data);
-            StringIndex::from_index(idx)
-        } else {
-            self.strings.push(Some(data));
-            StringIndex::last(&self.strings)
+            return idx;
         }
+        let data = StringHeapData::from_static_str(message);
+        self.strings.push(Some(data));
+        StringIndex::last(&self.strings).into()
+    }
+
+    fn find_equal_string(&self, message: &str) -> Option<String> {
+        debug_assert!(message.len() > 7 || message.ends_with('\0'));
+        self.strings
+            .iter()
+            .position(|opt| opt.as_ref().map_or(false, |data| data.as_str() == message))
+            .map(|found_index| StringIndex::from_index(found_index).into())
     }
 
     /// Allocate a 64-bit floating point number onto the Agent heap
@@ -418,10 +437,6 @@ impl Default for Heap {
     fn default() -> Self {
         Self::new()
     }
-}
-
-fn fn_todo(_heap: &mut Agent, _this: Value, _args: ArgumentsList) -> JsResult<Value> {
-    todo!()
 }
 
 #[test]

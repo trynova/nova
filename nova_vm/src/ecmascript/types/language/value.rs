@@ -15,10 +15,10 @@ use crate::{
         },
         CreateHeapData, GetHeapData,
     },
-    Heap, SmallInteger, SmallString,
+    SmallInteger, SmallString,
 };
 
-use super::{BigInt, Number};
+use super::{BigInt, Number, String};
 
 /// ### [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -131,8 +131,17 @@ pub(crate) const REGEXP_DISCRIMINANT: u8 =
     value_discriminant(Value::RegExp(RegExpIndex::from_u32_index(0)));
 
 impl Value {
-    pub fn from_str(heap: &mut Heap, message: &str) -> Value {
-        heap.create(message).into()
+    pub fn from_str(agent: &mut Agent, message: &str) -> Value {
+        agent.heap.create(message).into()
+    }
+
+    pub fn from_static_str(agent: &mut Agent, message: &'static str) -> Value {
+        if let Ok(value) = String::try_from(message) {
+            value.into_value()
+        } else {
+            // SAFETY: String couldn't be represented as a SmallString.
+            unsafe { agent.heap.alloc_static_string(message) }.into_value()
+        }
     }
 
     pub fn from_f64(agent: &mut Agent, value: f64) -> Value {

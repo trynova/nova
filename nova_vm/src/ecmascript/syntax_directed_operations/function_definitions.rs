@@ -115,7 +115,7 @@ pub(crate) fn instantiate_ordinary_function_expression(
         };
         let closure = ordinary_function_create(agent, params);
         // 6. Perform SetFunctionName(closure, name).
-        let name = PropertyKey::from_str(&mut agent.heap, name);
+        let name = PropertyKey::from_str(agent, name);
         set_function_name(agent, closure, name, None);
         // 7. Perform MakeConstructor(closure).
         // 8. Return closure.

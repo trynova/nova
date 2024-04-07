@@ -562,39 +562,39 @@ mod test {
 
         let script = parse_script(&allocator, "typeof undefined".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
-        assert_eq!(result, Value::from_str(&mut agent.heap, "undefined"));
+        assert_eq!(result, Value::from_static_str(&mut agent, "undefined"));
 
         let script = parse_script(&allocator, "typeof null".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
-        assert_eq!(result, Value::from_str(&mut agent.heap, "object"));
+        assert_eq!(result, Value::from_static_str(&mut agent, "object"));
 
         let script = parse_script(&allocator, "typeof \"string\"".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
-        assert_eq!(result, Value::from_str(&mut agent.heap, "string"));
+        assert_eq!(result, Value::from_static_str(&mut agent, "string"));
 
         // let script = parse_script(&allocator, "typeof Symbol()".into(), realm, None).unwrap();
         // let result = script_evaluation(&mut agent, script).unwrap();
-        // assert_eq!(result, Value::from_str(&mut agent.heap, "symbol"));
+        // assert_eq!(result, Value::from_static_str(&mut agent, "symbol"));
 
         let script = parse_script(&allocator, "typeof true".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
-        assert_eq!(result, Value::from_str(&mut agent.heap, "boolean"));
+        assert_eq!(result, Value::from_static_str(&mut agent, "boolean"));
 
         let script = parse_script(&allocator, "typeof 3".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
-        assert_eq!(result, Value::from_str(&mut agent.heap, "number"));
+        assert_eq!(result, Value::from_static_str(&mut agent, "number"));
 
         let script = parse_script(&allocator, "typeof 3n".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
-        assert_eq!(result, Value::from_str(&mut agent.heap, "bigint"));
+        assert_eq!(result, Value::from_static_str(&mut agent, "bigint"));
 
         // let script = parse_script(&allocator, "typeof {}".into(), realm, None).unwrap();
         // let result = script_evaluation(&mut agent, script).unwrap();
-        // assert_eq!(result, Value::from_str(&mut agent.heap, "object"));
+        // assert_eq!(result, Value::from_static_str(&mut agent, "object"));
 
         // let script = parse_script(&allocator, "typeof () => {}".into(), realm, None).unwrap();
         // let result = script_evaluation(&mut agent, script).unwrap();
-        // assert_eq!(result, Value::from_str(&mut agent.heap, "function"));
+        // assert_eq!(result, Value::from_static_str(&mut agent, "function"));
     }
 
     #[test]
@@ -636,7 +636,7 @@ mod test {
         let script = parse_script(&allocator, "var foo = {};".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
-        let key = PropertyKey::from_str(&mut agent.heap, "foo");
+        let key = PropertyKey::from_static_str(&mut agent, "foo");
         let foo = agent
             .get_realm(realm)
             .global_object
@@ -661,7 +661,7 @@ mod test {
         let script = parse_script(&allocator, "var foo = { a: 3 };".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
-        let key = PropertyKey::from_str(&mut agent.heap, "foo");
+        let key = PropertyKey::from_static_str(&mut agent, "foo");
         let foo = agent
             .get_realm(realm)
             .global_object
@@ -672,7 +672,7 @@ mod test {
             .unwrap();
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
-        let key = PropertyKey::from_str(&mut agent.heap, "a");
+        let key = PropertyKey::from_static_str(&mut agent, "a");
         assert!(result.has_property(&mut agent, key).unwrap());
         assert_eq!(
             result
@@ -740,7 +740,7 @@ mod test {
                 .unwrap()
                 .unwrap()
                 .value,
-            Some(Value::from_str(&mut agent.heap, "a"))
+            Some(Value::from_static_str(&mut agent, "a"))
         );
         let key = PropertyKey::Integer(1.into());
         assert!(result.has_property(&mut agent, key).unwrap());
@@ -834,7 +834,7 @@ mod test {
             script_or_module: None,
         });
 
-        let key = PropertyKey::from_str(&mut agent.heap, "test");
+        let key = PropertyKey::from_static_str(&mut agent, "test");
 
         struct TestBuiltinFunction;
 
@@ -984,7 +984,7 @@ mod test {
         .unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Undefined);
-        let key = PropertyKey::from_str(&mut agent.heap, "i");
+        let key = PropertyKey::from_static_str(&mut agent, "i");
         let i: Value = agent
             .get_realm(realm)
             .global_object
