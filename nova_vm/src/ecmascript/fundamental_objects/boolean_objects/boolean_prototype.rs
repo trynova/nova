@@ -2,14 +2,14 @@ use crate::ecmascript::{
     builders::ordinary_object_builder::OrdinaryObjectBuilder,
     builtins::{ArgumentsList, Builtin},
     execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-    types::{String, Value},
+    types::{String, Value, BUILTIN_STRING_MEMORY},
 };
 
 pub(crate) struct BooleanPrototype;
 
 struct BooleanPrototypeToString;
 impl Builtin for BooleanPrototypeToString {
-    const NAME: &'static str = "toString";
+    const NAME: String = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -19,7 +19,7 @@ impl Builtin for BooleanPrototypeToString {
 
 struct BooleanPrototypeValueOf;
 impl Builtin for BooleanPrototypeValueOf {
-    const NAME: &'static str = "valueOf";
+    const NAME: String = BUILTIN_STRING_MEMORY.valueOf;
 
     const LENGTH: u8 = 0;
 
@@ -31,9 +31,9 @@ impl BooleanPrototype {
     fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         let b = this_boolean_value(agent, this_value)?;
         if b {
-            Ok(String::from_small_string("true").into_value())
+            Ok(BUILTIN_STRING_MEMORY.r#true.into())
         } else {
-            Ok(String::from_small_string("false").into_value())
+            Ok(BUILTIN_STRING_MEMORY.r#false.into())
         }
     }
 

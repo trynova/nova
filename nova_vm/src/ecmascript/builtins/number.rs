@@ -4,7 +4,7 @@ use crate::{
         abstract_operations::testing_and_comparison::is_integral_number,
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoObject, IntoValue, Number, Object, Value},
+        types::{IntoObject, IntoValue, Number, Object, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::CreateHeapData,
     SmallInteger,
@@ -16,32 +16,32 @@ pub struct NumberConstructor;
 impl Builtin for NumberConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: &'static str = "Number";
+    const NAME: String = BUILTIN_STRING_MEMORY.Number;
 }
 
 struct NumberIsFinite;
 impl Builtin for NumberIsFinite {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_finite);
     const LENGTH: u8 = 1;
-    const NAME: &'static str = "isFinite";
+    const NAME: String = BUILTIN_STRING_MEMORY.isFinite;
 }
 struct NumberIsInteger;
 impl Builtin for NumberIsInteger {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_integer);
     const LENGTH: u8 = 1;
-    const NAME: &'static str = "isInteger";
+    const NAME: String = BUILTIN_STRING_MEMORY.isInteger;
 }
 struct NumberIsNaN;
 impl Builtin for NumberIsNaN {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_nan);
     const LENGTH: u8 = 1;
-    const NAME: &'static str = "isNaN";
+    const NAME: String = BUILTIN_STRING_MEMORY.isNaN;
 }
 struct NumberIsSafeInteger;
 impl Builtin for NumberIsSafeInteger {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_safe_integer);
     const LENGTH: u8 = 1;
-    const NAME: &'static str = "isSafeInteger";
+    const NAME: String = BUILTIN_STRING_MEMORY.isSafeInteger;
 }
 
 impl NumberConstructor {
@@ -164,7 +164,7 @@ impl NumberConstructor {
             // https://tc39.es/ecma262/#sec-number.epsilon
             let value = Value::from_f64(builder.agent, f64::EPSILON);
             builder
-                .with_key_from_str("EPSILON")
+                .with_key(BUILTIN_STRING_MEMORY.EPSILON.into())
                 .with_value_readonly(value)
                 .with_enumerable(false)
                 .with_configurable(false)
@@ -182,7 +182,7 @@ impl NumberConstructor {
             // 21.1.2.6 Number.MAX_SAFE_INTEGER
             // https://tc39.es/ecma262/#sec-number.max_safe_integer
             builder
-                .with_key_from_str("MAX_SAFE_INTEGER")
+                .with_key(BUILTIN_STRING_MEMORY.MAX_SAFE_INTEGER.into())
                 .with_value_readonly(Number::from(SmallInteger::MAX_NUMBER).into())
                 .with_configurable(false)
                 .with_enumerable(false)
@@ -192,7 +192,7 @@ impl NumberConstructor {
             // 21.1.2.7 Number.MAX_VALUE
             // https://tc39.es/ecma262/#sec-number.max_value
             builder
-                .with_key_from_str("MAX_VALUE")
+                .with_key(BUILTIN_STRING_MEMORY.MAX_VALUE.into())
                 .with_value_creator_readonly(|agent| agent.heap.create(f64::MAX).into())
                 .with_configurable(false)
                 .with_enumerable(false)
@@ -202,7 +202,7 @@ impl NumberConstructor {
             // 21.1.2.8 Number.MIN_SAFE_INTEGER
             // https://tc39.es/ecma262/#sec-number.min_safe_integer
             builder
-                .with_key_from_str("MIN_SAFE_INTEGER")
+                .with_key(BUILTIN_STRING_MEMORY.MIN_SAFE_INTEGER.into())
                 .with_value_readonly(Number::from(SmallInteger::MIN_NUMBER).into())
                 .with_configurable(false)
                 .with_enumerable(false)
@@ -212,7 +212,7 @@ impl NumberConstructor {
             // 21.1.2.8 Number.MIN_VALUE
             // https://tc39.es/ecma262/#sec-number.min_value
             builder
-                .with_key_from_str("MIN_VALUE")
+                .with_key(BUILTIN_STRING_MEMORY.MIN_VALUE.into())
                 .with_value_creator_readonly(|agent| agent.heap.create(f64::MIN).into())
                 .with_configurable(false)
                 .with_enumerable(false)
@@ -222,7 +222,7 @@ impl NumberConstructor {
             // 21.1.2.10 Number.NaN
             // https://tc39.es/ecma262/#sec-number.nan
             builder
-                .with_key_from_str("NaN")
+                .with_key(BUILTIN_STRING_MEMORY.NaN.into())
                 .with_value_readonly(Number::nan().into())
                 .with_configurable(false)
                 .with_enumerable(false)
@@ -232,7 +232,7 @@ impl NumberConstructor {
             // 21.1.2.11 Number.NEGATIVE_INFINITY
             // https://tc39.es/ecma262/#sec-number.negative_infinity
             builder
-                .with_key_from_str("NEGATIVE_INFINITY")
+                .with_key(BUILTIN_STRING_MEMORY.NEGATIVE_INFINITY.into())
                 .with_value_readonly(Number::neg_inf().into())
                 .with_configurable(false)
                 .with_enumerable(false)
@@ -241,7 +241,7 @@ impl NumberConstructor {
         .with_property(|builder| {
             // 21.1.2.12 Number.parseFloat ( string )
             builder
-                .with_key_from_str("parseFloat")
+                .with_key(BUILTIN_STRING_MEMORY.parseFloat.into())
                 .with_value(parse_float)
                 .with_enumerable(false)
                 .build()
@@ -249,7 +249,7 @@ impl NumberConstructor {
         .with_property(|builder| {
             // 21.1.2.13 Number.parseInt ( string, radix )
             builder
-                .with_key_from_str("parseInt")
+                .with_key(BUILTIN_STRING_MEMORY.parseInt.into())
                 .with_value(parse_int)
                 .with_enumerable(false)
                 .build()
@@ -258,7 +258,7 @@ impl NumberConstructor {
             // 21.1.2.14 Number.POSITIVE_INFINITY
             // https://tc39.es/ecma262/#sec-number.positive_infinity
             builder
-                .with_key_from_str("POSITIVE_INFINITY")
+                .with_key(BUILTIN_STRING_MEMORY.POSITIVE_INFINITY.into())
                 .with_value_readonly(Number::pos_inf().into())
                 .with_configurable(false)
                 .with_enumerable(false)

@@ -8,12 +8,14 @@ use crate::ecmascript::execution::RealmIdentifier;
 use crate::ecmascript::types::IntoObject;
 
 use crate::ecmascript::types::Object;
+use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
+use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 
 pub(crate) struct FunctionConstructor;
 
 impl Builtin for FunctionConstructor {
-    const NAME: &'static str = "Function";
+    const NAME: String = BUILTIN_STRING_MEMORY.Function;
 
     const LENGTH: u8 = 1;
 

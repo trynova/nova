@@ -18,6 +18,6 @@ pub use object::{
     InternalMethods, IntoObject, Object, ObjectHeapData, OrdinaryObject,
     OrdinaryObjectInternalSlots, PropertyKey,
 };
-pub use string::{String, StringHeapData};
+pub use string::{String, StringHeapData, BUILTIN_STRINGS_LIST, BUILTIN_STRING_MEMORY};
 pub use symbol::{Symbol, SymbolHeapData};
 pub use value::Value;

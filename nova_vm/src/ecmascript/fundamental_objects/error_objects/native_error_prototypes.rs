@@ -1,7 +1,7 @@
 use crate::ecmascript::{
     builders::ordinary_object_builder::OrdinaryObjectBuilder,
     execution::{Agent, RealmIdentifier},
-    types::String,
+    types::{String, BUILTIN_STRING_MEMORY},
 };
 
 pub(crate) struct NativeErrorPrototypes;
@@ -27,15 +27,15 @@ impl NativeErrorPrototypes {
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("message")
-                    .with_value(String::from_small_string("").into_value())
+                    .with_key(BUILTIN_STRING_MEMORY.message.into())
+                    .with_value(String::EMPTY_STRING.into_value())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("name")
-                    .with_value_creator(|agent| String::from_str(agent, "EvalError").into_value())
+                    .with_key(BUILTIN_STRING_MEMORY.name.into())
+                    .with_value(BUILTIN_STRING_MEMORY.EvalError.into_value())
                     .build()
             })
             .build();
@@ -45,15 +45,15 @@ impl NativeErrorPrototypes {
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("message")
-                    .with_value(String::from_small_string("").into_value())
+                    .with_key(BUILTIN_STRING_MEMORY.message.into())
+                    .with_value(String::EMPTY_STRING.into_value())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("name")
-                    .with_value_creator(|agent| String::from_str(agent, "RangeError").into_value())
+                    .with_key(BUILTIN_STRING_MEMORY.name.into())
+                    .with_value(BUILTIN_STRING_MEMORY.RangeError.into_value())
                     .build()
             })
             .build();
@@ -63,17 +63,15 @@ impl NativeErrorPrototypes {
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("message")
-                    .with_value(String::from_small_string("").into_value())
+                    .with_key(BUILTIN_STRING_MEMORY.message.into())
+                    .with_value(String::EMPTY_STRING.into_value())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("name")
-                    .with_value_creator(|agent| {
-                        String::from_str(agent, "ReferenceError").into_value()
-                    })
+                    .with_key(BUILTIN_STRING_MEMORY.name.into())
+                    .with_value(BUILTIN_STRING_MEMORY.ReferenceError.into_value())
                     .build()
             })
             .build();
@@ -83,15 +81,15 @@ impl NativeErrorPrototypes {
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("message")
-                    .with_value(String::from_small_string("").into_value())
+                    .with_key(BUILTIN_STRING_MEMORY.message.into())
+                    .with_value(String::EMPTY_STRING.into_value())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("name")
-                    .with_value_creator(|agent| String::from_str(agent, "SyntaxError").into_value())
+                    .with_key(BUILTIN_STRING_MEMORY.name.into())
+                    .with_value(BUILTIN_STRING_MEMORY.SyntaxError.into_value())
                     .build()
             })
             .build();
@@ -101,15 +99,15 @@ impl NativeErrorPrototypes {
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("message")
-                    .with_value(String::from_small_string("").into_value())
+                    .with_key(BUILTIN_STRING_MEMORY.message.into())
+                    .with_value(String::EMPTY_STRING.into_value())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("name")
-                    .with_value_creator(|agent| String::from_str(agent, "TypeError").into_value())
+                    .with_key(BUILTIN_STRING_MEMORY.name.into())
+                    .with_value(BUILTIN_STRING_MEMORY.TypeError.into_value())
                     .build()
             })
             .build();
@@ -119,15 +117,15 @@ impl NativeErrorPrototypes {
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("message")
-                    .with_value(String::from_small_string("").into_value())
+                    .with_key(BUILTIN_STRING_MEMORY.message.into())
+                    .with_value(String::EMPTY_STRING.into_value())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
-                    .with_key_from_str("name")
-                    .with_value_creator(|agent| String::from_str(agent, "URIError").into_value())
+                    .with_key(BUILTIN_STRING_MEMORY.name.into())
+                    .with_value(BUILTIN_STRING_MEMORY.URIError.into_value())
                     .build()
             })
             .build();

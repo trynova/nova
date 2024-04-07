@@ -8,7 +8,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{InternalMethods, Object, PropertyKey, String, Value},
+        types::{InternalMethods, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -17,7 +17,7 @@ pub(crate) struct ObjectPrototype;
 
 struct ObjectPrototypeHasOwnProperty;
 impl Builtin for ObjectPrototypeHasOwnProperty {
-    const NAME: &'static str = "hasOwnProperty";
+    const NAME: String = BUILTIN_STRING_MEMORY.hasOwnProperty;
 
     const LENGTH: u8 = 1;
 
@@ -26,7 +26,7 @@ impl Builtin for ObjectPrototypeHasOwnProperty {
 
 struct ObjectPrototypeIsPrototypeOf;
 impl Builtin for ObjectPrototypeIsPrototypeOf {
-    const NAME: &'static str = "isPrototypeOf";
+    const NAME: String = BUILTIN_STRING_MEMORY.isPrototypeOf;
 
     const LENGTH: u8 = 1;
 
@@ -35,7 +35,7 @@ impl Builtin for ObjectPrototypeIsPrototypeOf {
 
 struct ObjectPrototypePropertyIsEnumerable;
 impl Builtin for ObjectPrototypePropertyIsEnumerable {
-    const NAME: &'static str = "propertyIsEnumerable";
+    const NAME: String = BUILTIN_STRING_MEMORY.propertyIsEnumerable;
 
     const LENGTH: u8 = 1;
 
@@ -44,7 +44,7 @@ impl Builtin for ObjectPrototypePropertyIsEnumerable {
 
 struct ObjectPrototypeToLocaleString;
 impl Builtin for ObjectPrototypeToLocaleString {
-    const NAME: &'static str = "toLocaleString";
+    const NAME: String = BUILTIN_STRING_MEMORY.toLocaleString;
 
     const LENGTH: u8 = 0;
 
@@ -53,7 +53,7 @@ impl Builtin for ObjectPrototypeToLocaleString {
 
 struct ObjectPrototypeToString;
 impl Builtin for ObjectPrototypeToString {
-    const NAME: &'static str = "toString";
+    const NAME: String = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -62,7 +62,7 @@ impl Builtin for ObjectPrototypeToString {
 
 struct ObjectPrototypeValueOf;
 impl Builtin for ObjectPrototypeValueOf {
-    const NAME: &'static str = "valueOf";
+    const NAME: String = BUILTIN_STRING_MEMORY.valueOf;
 
     const LENGTH: u8 = 0;
 
@@ -124,7 +124,7 @@ impl ObjectPrototype {
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let o = this_value;
-        let p = PropertyKey::from_str(&mut agent.heap, "toString");
+        let p = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
         invoke(agent, o, p, None)
     }
 
@@ -135,41 +135,41 @@ impl ObjectPrototype {
     ) -> JsResult<Value> {
         match this_value {
             // 1. If the this value is undefined, return "[object Undefined]".
-            Value::Undefined => Ok(Value::from_str(&mut agent.heap, "[object Undefined]")),
+            Value::Undefined => Ok(BUILTIN_STRING_MEMORY._object_Undefined_.into_value()),
             // 2. If the this value is null, return "[object Null]".
-            Value::Null => Ok(Value::from_str(&mut agent.heap, "[object Null]")),
+            Value::Null => Ok(BUILTIN_STRING_MEMORY._object_Null_.into_value()),
             // 9. Else if O has a [[BooleanData]] internal slot, let builtinTag be "Boolean".
             // 17. Return the string-concatenation of "[object ", tag, and "]".
-            Value::Boolean(_) => Ok(Value::from_str(&mut agent.heap, "[object Boolean]")),
+            Value::Boolean(_) => Ok(BUILTIN_STRING_MEMORY._object_Boolean_.into_value()),
             // 6. Else if O has a [[ParameterMap]] internal slot, let builtinTag be "Arguments".
             // 11. Else if O has a [[StringData]] internal slot, let builtinTag be "String".
             Value::String(_) | Value::SmallString(_) => {
-                Ok(Value::from_str(&mut agent.heap, "[object String]"))
+                Ok(BUILTIN_STRING_MEMORY._object_String_.into_value())
             }
             // 10. Else if O has a [[NumberData]] internal slot, let builtinTag be "Number".
             Value::Number(_) | Value::Integer(_) | Value::Float(_) => {
-                Ok(Value::from_str(&mut agent.heap, "[object Error]"))
+                Ok(BUILTIN_STRING_MEMORY._object_Error_.into_value())
             }
             Value::Object(_) => todo!(),
             // 4. Let isArray be ? IsArray(O).
             // 5. If isArray is true, let builtinTag be "Array".
-            Value::Array(_) => Ok(Value::from_str(&mut agent.heap, "[object Array]")),
+            Value::Array(_) => Ok(BUILTIN_STRING_MEMORY._object_Array_.into_value()),
             // 12. Else if O has a [[DateValue]] internal slot, let builtinTag be "Date".
-            Value::Date(_) => Ok(Value::from_str(&mut agent.heap, "[object Date]")),
+            Value::Date(_) => Ok(BUILTIN_STRING_MEMORY._object_Date_.into_value()),
             // 8. Else if O has an [[ErrorData]] internal slot, let builtinTag be "Error".
-            Value::Error(_) => Ok(Value::from_str(&mut agent.heap, "[object Error]")),
+            Value::Error(_) => Ok(BUILTIN_STRING_MEMORY._object_Error_.into_value()),
             // 7. Else if O has a [[Call]] internal method, let builtinTag be "Function".
             Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) => {
-                Ok(Value::from_str(&mut agent.heap, "[object Function]"))
+                Ok(BUILTIN_STRING_MEMORY._object_Function_.into_value())
             }
             // 13. Else if O has a [[RegExpMatcher]] internal slot, let builtinTag be "RegExp".
-            Value::RegExp(_) => Ok(Value::from_str(&mut agent.heap, "[object RegExp]")),
+            Value::RegExp(_) => Ok(BUILTIN_STRING_MEMORY._object_RegExp_.into_value()),
             Value::Symbol(_) | Value::BigInt(_) | Value::SmallBigInt(_) | Value::ArrayBuffer(_) => {
                 // 14. Else, let builtinTag be "Object".
+                let builtin_tag = BUILTIN_STRING_MEMORY.Object;
                 // 3. Let O be ! ToObject(this value).
                 // 15. Let tag be ? Get(O, @@toStringTag).
                 // 16. If tag is not a String, set tag to builtinTag.
-                let builtin_tag = String::from_str(agent, "Object");
                 let o = to_object(agent, this_value).unwrap();
                 let tag = get(agent, o, WellKnownSymbolIndexes::ToStringTag.into())?;
                 if let Ok(tag) = String::try_from(tag) {

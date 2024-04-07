@@ -14,7 +14,7 @@ use crate::{
     ecmascript::{
         builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{BigInt, Number, Object, PropertyKey, String, Value},
+        types::{BigInt, Number, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{GetHeapData, WellKnownSymbolIndexes},
     SmallInteger,
@@ -65,14 +65,14 @@ pub(crate) fn to_primitive(
             let hint = match preferred_type {
                 // i. If preferredType is not present, then
                 // 1. Let hint be "default".
-                None => String::from_small_string("default"),
+                None => BUILTIN_STRING_MEMORY.default,
                 // ii. Else if preferredType is STRING, then
                 // 1. Let hint be "string".
-                Some(PreferredType::String) => String::from_small_string("string"),
+                Some(PreferredType::String) => BUILTIN_STRING_MEMORY.string,
                 // iii. Else,
                 // 1. Assert: preferredType is NUMBER.
                 // 2. Let hint be "number".
-                Some(PreferredType::Number) => String::from_small_string("number"),
+                Some(PreferredType::Number) => BUILTIN_STRING_MEMORY.number,
             };
             // iv. Let result be ? Call(exoticToPrim, input, « hint »).
             let result: Value = call_function(
@@ -114,8 +114,8 @@ pub(crate) fn ordinary_to_primitive(
     o: Object,
     hint: PreferredType,
 ) -> JsResult<Value> {
-    let to_string_key = PropertyKey::from(String::from_str(agent, "toString"));
-    let value_of_key = PropertyKey::from(String::from_small_string("valueOf"));
+    let to_string_key = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
+    let value_of_key = PropertyKey::from(BUILTIN_STRING_MEMORY.valueOf);
     let method_names = match hint {
         PreferredType::String => {
             // 1. If hint is STRING, then
@@ -458,16 +458,16 @@ pub(crate) fn to_string(agent: &mut Agent, argument: Value) -> JsResult<String> 
     // 1. If argument is a String, return argument.
     match argument {
         // 3. If argument is undefined, return "undefined".
-        Value::Undefined => Ok(String::from_str(agent, "undefined")),
+        Value::Undefined => Ok(BUILTIN_STRING_MEMORY.undefined),
         // 4. If argument is null, return "null".
-        Value::Null => Ok(String::from_str(agent, "null")),
+        Value::Null => Ok(BUILTIN_STRING_MEMORY.null),
         Value::Boolean(value) => {
             if value {
                 // 5. If argument is true, return "true".
-                Ok(String::from_str(agent, "true"))
+                Ok(BUILTIN_STRING_MEMORY.r#true)
             } else {
                 // 6. If argument is false, return "false".
-                Ok(String::from_str(agent, "false"))
+                Ok(BUILTIN_STRING_MEMORY.r#false)
             }
         }
         Value::String(idx) => Ok(String::String(idx)),
@@ -573,7 +573,7 @@ pub(crate) fn canonical_numeric_index_string(
     argument: String,
 ) -> Option<Number> {
     // 1. If argument is "-0", return -0𝔽.
-    if argument == String::from_small_string("-0") {
+    if argument == BUILTIN_STRING_MEMORY._0 {
         return Some((-0.0).into());
     }
 

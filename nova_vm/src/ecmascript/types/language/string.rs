@@ -1,8 +1,9 @@
+include!(concat!(env!("OUT_DIR"), "/builtin_strings.rs"));
 mod data;
 
 use super::{IntoValue, Value};
 use crate::{
-    ecmascript::{execution::Agent, static_strings::EMPTY_STRING},
+    ecmascript::execution::Agent,
     heap::{indexes::StringIndex, CreateHeapData, GetHeapData},
     SmallString,
 };
@@ -84,8 +85,10 @@ impl IntoValue for SmallString {
 }
 
 impl String {
+    pub const EMPTY_STRING: String = String::from_small_string("");
+
     pub fn is_empty_string(self) -> bool {
-        self == EMPTY_STRING
+        self == Self::EMPTY_STRING
     }
 
     pub fn from_str(agent: &mut Agent, message: &str) -> String {

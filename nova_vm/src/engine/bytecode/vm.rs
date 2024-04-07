@@ -24,6 +24,7 @@ use crate::{
         types::{
             get_value, is_unresolvable_reference, put_value, Base, BigInt, Function, IntoValue,
             Number, Object, PropertyKey, Reference, ReferencedName, String, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::GetHeapData,
@@ -597,24 +598,24 @@ fn apply_string_or_numeric_binary_operator(
 
 /// ### [13.5.3 The typeof operator](https://tc39.es/ecma262/#sec-typeof-operator)
 #[inline]
-fn typeof_operator(agent: &mut Agent, val: Value) -> String {
+fn typeof_operator(_: &mut Agent, val: Value) -> String {
     match val {
         // 4. If val is undefined, return "undefined".
-        Value::Undefined => String::from_str(agent, "undefined"),
+        Value::Undefined => BUILTIN_STRING_MEMORY.undefined,
         // 8. If val is a Boolean, return "boolean".
-        Value::Boolean(_) => String::from_small_string("boolean"),
+        Value::Boolean(_) => BUILTIN_STRING_MEMORY.boolean,
         // 6. If val is a String, return "string".
         Value::String(_) |
-        Value::SmallString(_) => String::from_small_string("string"),
+        Value::SmallString(_) => BUILTIN_STRING_MEMORY.string,
         // 7. If val is a Symbol, return "symbol".
-        Value::Symbol(_) => String::from_small_string("symbol"),
+        Value::Symbol(_) => BUILTIN_STRING_MEMORY.symbol,
         // 9. If val is a Number, return "number".
         Value::Number(_) |
         Value::Integer(_) |
-        Value::Float(_) => String::from_small_string("number"),
+        Value::Float(_) => BUILTIN_STRING_MEMORY.number,
         // 10. If val is a BigInt, return "bigint".
         Value::BigInt(_) |
-        Value::SmallBigInt(_) => String::from_small_string("bigint"),
+        Value::SmallBigInt(_) => BUILTIN_STRING_MEMORY.bigint,
         // 5. If val is null, return "object".
         Value::Null |
         // 11. Assert: val is an Object.
@@ -625,8 +626,8 @@ fn typeof_operator(agent: &mut Agent, val: Value) -> String {
         Value::Date(_)  |
         Value::Error(_)  |
         // 14. Return "object".
-        Value::RegExp(_) => String::from_small_string("object"),
+        Value::RegExp(_) => BUILTIN_STRING_MEMORY.object,
         // 13. If val has a [[Call]] internal slot, return "function".
-        Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) => String::from_str(agent, "function"),
+        Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) => BUILTIN_STRING_MEMORY.function,
     }
 }

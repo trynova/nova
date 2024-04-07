@@ -17,13 +17,15 @@ use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::PropertyKey;
+use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
+use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::heap::GetHeapData;
 
 pub(crate) struct ErrorConstructor;
 
 impl Builtin for ErrorConstructor {
-    const NAME: &'static str = "Error";
+    const NAME: String = BUILTIN_STRING_MEMORY.Error;
 
     const LENGTH: u8 = 1;
 
@@ -90,7 +92,7 @@ pub(super) fn get_error_cause(agent: &mut Agent, options: Value) -> JsResult<Opt
     let Ok(options) = Object::try_from(options) else {
         return Ok(None);
     };
-    let key = PropertyKey::from_str(&mut agent.heap, "cause");
+    let key = PropertyKey::from(BUILTIN_STRING_MEMORY.cause);
     if has_property(agent, options, key)? {
         Ok(Some(get(agent, options, key)?))
     } else {

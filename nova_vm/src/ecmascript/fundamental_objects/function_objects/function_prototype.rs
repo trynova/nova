@@ -7,14 +7,14 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{Function, IntoFunction, IntoValue, Value},
+        types::{Function, IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{GetHeapData, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct FunctionPrototype;
 impl Builtin for FunctionPrototype {
-    const NAME: &'static str = "";
+    const NAME: String = String::EMPTY_STRING;
 
     const LENGTH: u8 = 0;
 
@@ -23,7 +23,7 @@ impl Builtin for FunctionPrototype {
 
 struct FunctionPrototypeApply;
 impl Builtin for FunctionPrototypeApply {
-    const NAME: &'static str = "apply";
+    const NAME: String = BUILTIN_STRING_MEMORY.apply;
 
     const LENGTH: u8 = 0;
 
@@ -33,7 +33,7 @@ impl Builtin for FunctionPrototypeApply {
 
 struct FunctionPrototypeBind;
 impl Builtin for FunctionPrototypeBind {
-    const NAME: &'static str = "bind";
+    const NAME: String = BUILTIN_STRING_MEMORY.bind;
 
     const LENGTH: u8 = 0;
 
@@ -43,7 +43,7 @@ impl Builtin for FunctionPrototypeBind {
 
 struct FunctionPrototypeCall;
 impl Builtin for FunctionPrototypeCall {
-    const NAME: &'static str = "call";
+    const NAME: String = BUILTIN_STRING_MEMORY.call;
 
     const LENGTH: u8 = 0;
 
@@ -53,7 +53,7 @@ impl Builtin for FunctionPrototypeCall {
 
 struct FunctionPrototypeToString;
 impl Builtin for FunctionPrototypeToString {
-    const NAME: &'static str = "toString";
+    const NAME: String = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -63,7 +63,7 @@ impl Builtin for FunctionPrototypeToString {
 
 struct FunctionPrototypeHasInstance;
 impl Builtin for FunctionPrototypeHasInstance {
-    const NAME: &'static str = "[Symbol.hasInstance]";
+    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_hasInstance_;
 
     const LENGTH: u8 = 0;
 
@@ -207,7 +207,7 @@ impl FunctionPrototype {
         // 10.2.4 AddRestrictedFunctionProperties ( F, realm )
         .with_property(|builder| {
             builder
-                .with_key_from_str("caller")
+                .with_key(BUILTIN_STRING_MEMORY.caller.into())
                 .with_configurable(true)
                 .with_enumerable(false)
                 .with_getter_and_setter_functions(throw_type_error, throw_type_error)
@@ -215,7 +215,7 @@ impl FunctionPrototype {
         })
         .with_property(|builder| {
             builder
-                .with_key_from_str("arguments")
+                .with_key(BUILTIN_STRING_MEMORY.arguments.into())
                 .with_configurable(true)
                 .with_enumerable(false)
                 .with_getter_and_setter_functions(throw_type_error, throw_type_error)
@@ -226,7 +226,7 @@ impl FunctionPrototype {
         .with_builtin_function_property::<FunctionPrototypeCall>()
         .with_property(|builder| {
             builder
-                .with_key_from_str("constructor")
+                .with_key(BUILTIN_STRING_MEMORY.constructor.into())
                 .with_enumerable(false)
                 .with_value(function_constructor.into())
                 .build()
@@ -250,7 +250,7 @@ impl FunctionPrototype {
 
 struct ThrowTypeError;
 impl Builtin for ThrowTypeError {
-    const NAME: &'static str = "";
+    const NAME: String = String::EMPTY_STRING;
 
     const LENGTH: u8 = 0;
 

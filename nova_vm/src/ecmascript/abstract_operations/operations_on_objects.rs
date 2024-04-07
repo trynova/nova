@@ -10,6 +10,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
             Function, InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::GetHeapData,
@@ -340,7 +341,7 @@ pub(crate) fn ordinary_has_instance(agent: &mut Agent, c: Value, o: Value) -> Js
         return Ok(false);
     };
     // 4. Let P be ? Get(C, "prototype").
-    let key = PropertyKey::from_str(&mut agent.heap, "prototype");
+    let key = PropertyKey::from(BUILTIN_STRING_MEMORY.prototype);
     let p = get(agent, c, key)?;
     // 5. If P is not an Object, throw a TypeError exception.
     let Ok(p) = Object::try_from(p) else {

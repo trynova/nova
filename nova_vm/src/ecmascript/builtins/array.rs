@@ -17,11 +17,11 @@ use crate::{
         execution::{Agent, JsResult},
         types::{
             InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
-            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
+            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::{indexes::ArrayIndex, GetHeapData},
-    SmallString,
 };
 
 impl IntoValue for ArrayIndex {
@@ -103,7 +103,7 @@ impl Deref for Array {
 
 pub struct ArrayConstructor;
 impl Builtin for ArrayConstructor {
-    const NAME: &'static str = "Array";
+    const NAME: String = BUILTIN_STRING_MEMORY.Array;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(Self::behaviour);
 }
@@ -240,7 +240,7 @@ impl InternalMethods for Array {
             }
             return Ok(None);
         }
-        let length_key = PropertyKey::from_str(&mut agent.heap, "length");
+        let length_key = PropertyKey::from(BUILTIN_STRING_MEMORY.length);
         let array_data = agent.heap.get(*self);
         if property_key == length_key {
             Ok(Some(PropertyDescriptor {
@@ -261,7 +261,7 @@ impl InternalMethods for Array {
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
-        if property_key == PropertyKey::SmallString(SmallString::try_from("length").unwrap()) {
+        if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             array_set_length(agent, self, property_descriptor)
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
@@ -336,7 +336,7 @@ impl InternalMethods for Array {
     }
 
     fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
-        if property_key == PropertyKey::SmallString(SmallString::try_from("length").unwrap()) {
+        if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(self.len(agent).into())
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
@@ -379,7 +379,7 @@ impl InternalMethods for Array {
     }
 
     fn delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if property_key == PropertyKey::SmallString(SmallString::try_from("length").unwrap()) {
+        if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(true)
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();

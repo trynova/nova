@@ -6,7 +6,7 @@ use crate::{
         types::{
             BuiltinFunctionHeapData, Function, InternalMethods, IntoFunction, IntoObject,
             IntoValue, Object, OrdinaryObject, OrdinaryObjectInternalSlots, PropertyDescriptor,
-            PropertyKey, String, Value,
+            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -64,7 +64,7 @@ pub enum Behaviour {
 }
 
 pub trait Builtin {
-    const NAME: &'static str;
+    const NAME: String;
     const LENGTH: u8;
     const BEHAVIOUR: Behaviour;
 
@@ -231,7 +231,7 @@ impl InternalMethods for BuiltinFunction {
     ) -> JsResult<Option<PropertyDescriptor>> {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
             OrdinaryObject::from(object_index).get_own_property(agent, property_key)
-        } else if property_key == PropertyKey::from_str(&mut agent.heap, "length") {
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(Some(PropertyDescriptor {
                 value: Some(agent.heap.get(self.0).length.into()),
                 writable: Some(false),
@@ -239,7 +239,7 @@ impl InternalMethods for BuiltinFunction {
                 configurable: Some(true),
                 ..Default::default()
             }))
-        } else if property_key == PropertyKey::from_str(&mut agent.heap, "name") {
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
             Ok(Some(PropertyDescriptor {
                 value: Some(agent.heap.get(self.0).initial_name.into()),
                 writable: Some(false),
@@ -260,14 +260,14 @@ impl InternalMethods for BuiltinFunction {
     ) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
             OrdinaryObject::from(object_index).has_property(agent, property_key)
-        } else if property_key == PropertyKey::from_str(&mut agent.heap, "length") {
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             let prototype = agent.current_realm().intrinsics().array_prototype();
             let length_entry = ObjectEntry {
                 key: property_key,
                 value: ObjectEntryPropertyDescriptor::from(property_descriptor),
             };
             let name_entry = ObjectEntry {
-                key: PropertyKey::from_str(&mut agent.heap, "name"),
+                key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
                 value: ObjectEntryPropertyDescriptor::Data {
                     value: agent.heap.get(self.0).initial_name.unwrap().into_value(),
                     writable: false,
@@ -281,10 +281,10 @@ impl InternalMethods for BuiltinFunction {
             );
             agent.heap.get_mut(self.0).object_index = Some(object_index);
             Ok(true)
-        } else if property_key == PropertyKey::from_str(&mut agent.heap, "name") {
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
             let prototype = agent.current_realm().intrinsics().array_prototype();
             let length_entry = ObjectEntry {
-                key: PropertyKey::from_str(&mut agent.heap, "length"),
+                key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
                 value: ObjectEntryPropertyDescriptor::Data {
                     value: agent.heap.get(self.0).length.into(),
                     writable: false,
@@ -305,7 +305,7 @@ impl InternalMethods for BuiltinFunction {
         } else {
             let prototype = agent.current_realm().intrinsics().array_prototype();
             let length_entry = ObjectEntry {
-                key: PropertyKey::from_str(&mut agent.heap, "length"),
+                key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
                 value: ObjectEntryPropertyDescriptor::Data {
                     value: agent.heap.get(self.0).length.into(),
                     writable: false,
@@ -314,7 +314,7 @@ impl InternalMethods for BuiltinFunction {
                 },
             };
             let name_entry = ObjectEntry {
-                key: PropertyKey::from_str(&mut agent.heap, "name"),
+                key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
                 value: ObjectEntryPropertyDescriptor::Data {
                     value: agent.heap.get(self.0).initial_name.unwrap().into_value(),
                     writable: false,
@@ -338,8 +338,8 @@ impl InternalMethods for BuiltinFunction {
     fn has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
             OrdinaryObject::from(object_index).has_property(agent, property_key)
-        } else if property_key == PropertyKey::from_str(&mut agent.heap, "length")
-            || property_key == PropertyKey::from_str(&mut agent.heap, "name")
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
+            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
             Ok(true)
         } else {
@@ -351,9 +351,9 @@ impl InternalMethods for BuiltinFunction {
     fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
             OrdinaryObject::from(object_index).get(agent, property_key, receiver)
-        } else if property_key == PropertyKey::from_str(&mut agent.heap, "length") {
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(agent.heap.get(self.0).length.into())
-        } else if property_key == PropertyKey::from_str(&mut agent.heap, "name") {
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
             Ok(agent.heap.get(self.0).initial_name.into())
         } else {
             let parent = self.get_prototype_of(agent)?;
@@ -372,8 +372,8 @@ impl InternalMethods for BuiltinFunction {
     ) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
             OrdinaryObject::from(object_index).set(agent, property_key, value, receiver)
-        } else if property_key == PropertyKey::from_str(&mut agent.heap, "length")
-            || property_key == PropertyKey::from_str(&mut agent.heap, "name")
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
+            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
             // length and name are not writable
             Ok(false)
@@ -386,13 +386,13 @@ impl InternalMethods for BuiltinFunction {
     fn delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
             OrdinaryObject::from(object_index).delete(agent, property_key)
-        } else if property_key == PropertyKey::from_str(&mut agent.heap, "length")
-            || property_key == PropertyKey::from_str(&mut agent.heap, "name")
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
+            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
             let prototype = agent.current_realm().intrinsics().array_prototype();
-            let entry = if property_key == PropertyKey::from_str(&mut agent.heap, "length") {
+            let entry = if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
                 ObjectEntry {
-                    key: PropertyKey::from_str(&mut agent.heap, "length"),
+                    key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
                     value: ObjectEntryPropertyDescriptor::Data {
                         value: agent.heap.get(self.0).length.into(),
                         writable: false,
@@ -402,7 +402,7 @@ impl InternalMethods for BuiltinFunction {
                 }
             } else {
                 ObjectEntry {
-                    key: PropertyKey::from_str(&mut agent.heap, "name"),
+                    key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
                     value: ObjectEntryPropertyDescriptor::Data {
                         value: agent.heap.get(self.0).initial_name.unwrap().into_value(),
                         writable: false,
@@ -427,8 +427,8 @@ impl InternalMethods for BuiltinFunction {
             OrdinaryObject::from(object_index).own_property_keys(agent)
         } else {
             Ok(vec![
-                PropertyKey::from_str(&mut agent.heap, "length"),
-                PropertyKey::from_str(&mut agent.heap, "name"),
+                PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+                PropertyKey::from(BUILTIN_STRING_MEMORY.name),
             ])
         }
     }
@@ -603,7 +603,7 @@ pub fn create_builtin_function(
             // 6. Set func.[[Prototype]] to prototype.
             // 7. Set func.[[Extensible]] to true.
             let length_entry = ObjectEntry {
-                key: PropertyKey::from_str(&mut agent.heap, "length"),
+                key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
                 value: ObjectEntryPropertyDescriptor::Data {
                     value: args.length.into(),
                     writable: false,
@@ -612,7 +612,7 @@ pub fn create_builtin_function(
                 },
             };
             let name_entry = ObjectEntry {
-                key: PropertyKey::from_str(&mut agent.heap, "name"),
+                key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
                 value: ObjectEntryPropertyDescriptor::Data {
                     value: initial_name.into_value(),
                     writable: false,

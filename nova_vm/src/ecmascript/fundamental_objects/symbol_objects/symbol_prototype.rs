@@ -6,7 +6,7 @@ use crate::{
         },
         builtins::{ArgumentsList, Builtin},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, IntoValue, String, Value},
+        types::{IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -15,7 +15,7 @@ pub(crate) struct SymbolPrototype;
 
 struct SymbolPrototypeGetDescription;
 impl Builtin for SymbolPrototypeGetDescription {
-    const NAME: &'static str = "get description";
+    const NAME: String = BUILTIN_STRING_MEMORY.get_description;
 
     const LENGTH: u8 = 0;
 
@@ -25,7 +25,7 @@ impl Builtin for SymbolPrototypeGetDescription {
 
 struct SymbolPrototypeToString;
 impl Builtin for SymbolPrototypeToString {
-    const NAME: &'static str = "toString";
+    const NAME: String = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -35,7 +35,7 @@ impl Builtin for SymbolPrototypeToString {
 
 struct SymbolPrototypeValueOf;
 impl Builtin for SymbolPrototypeValueOf {
-    const NAME: &'static str = "valueOf";
+    const NAME: String = BUILTIN_STRING_MEMORY.valueOf;
 
     const LENGTH: u8 = 0;
 
@@ -45,7 +45,7 @@ impl Builtin for SymbolPrototypeValueOf {
 
 struct SymbolPrototypeToPrimitive;
 impl Builtin for SymbolPrototypeToPrimitive {
-    const NAME: &'static str = "[Symbol.toPrimitive]";
+    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_toPrimitive_;
 
     const LENGTH: u8 = 1;
 
@@ -80,7 +80,7 @@ impl SymbolPrototype {
             .with_constructor_property(symbol_constructor)
             .with_property(|builder| {
                 builder
-                    .with_key_from_str("description")
+                    .with_key(BUILTIN_STRING_MEMORY.description.into())
                     .with_getter(|agent| {
                         BuiltinFunctionBuilder::new::<SymbolPrototypeGetDescription>(agent, realm)
                             .build()
@@ -105,7 +105,7 @@ impl SymbolPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(String::from_small_string("Symbol").into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Symbol.into_value())
                     .with_enumerable(false)
                     .build()
             })

@@ -7,7 +7,7 @@ use crate::{
             Builtin,
         },
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
-        types::{Function, IntoObject, IntoValue, Object, Value},
+        types::{Function, IntoObject, IntoValue, Object, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::GetHeapData,
 };
@@ -16,7 +16,7 @@ use super::error_constructor::get_error_cause;
 
 struct EvalErrorConstructor;
 impl Builtin for EvalErrorConstructor {
-    const NAME: &'static str = "EvalError";
+    const NAME: String = BUILTIN_STRING_MEMORY.EvalError;
 
     const LENGTH: u8 = 1;
 
@@ -24,7 +24,7 @@ impl Builtin for EvalErrorConstructor {
 }
 struct RangeErrorConstructor;
 impl Builtin for RangeErrorConstructor {
-    const NAME: &'static str = "RangeError";
+    const NAME: String = BUILTIN_STRING_MEMORY.RangeError;
 
     const LENGTH: u8 = 1;
 
@@ -32,7 +32,7 @@ impl Builtin for RangeErrorConstructor {
 }
 struct ReferenceErrorConstructor;
 impl Builtin for ReferenceErrorConstructor {
-    const NAME: &'static str = "ReferenceError";
+    const NAME: String = BUILTIN_STRING_MEMORY.ReferenceError;
 
     const LENGTH: u8 = 1;
 
@@ -41,7 +41,7 @@ impl Builtin for ReferenceErrorConstructor {
 }
 struct SyntaxErrorConstructor;
 impl Builtin for SyntaxErrorConstructor {
-    const NAME: &'static str = "SyntaxError";
+    const NAME: String = BUILTIN_STRING_MEMORY.SyntaxError;
 
     const LENGTH: u8 = 1;
 
@@ -49,7 +49,7 @@ impl Builtin for SyntaxErrorConstructor {
 }
 struct TypeErrorConstructor;
 impl Builtin for TypeErrorConstructor {
-    const NAME: &'static str = "TypeError";
+    const NAME: String = BUILTIN_STRING_MEMORY.TypeError;
 
     const LENGTH: u8 = 1;
 
@@ -57,7 +57,7 @@ impl Builtin for TypeErrorConstructor {
 }
 struct URIErrorConstructor;
 impl Builtin for URIErrorConstructor {
-    const NAME: &'static str = "URIError";
+    const NAME: String = BUILTIN_STRING_MEMORY.URIError;
 
     const LENGTH: u8 = 1;
 

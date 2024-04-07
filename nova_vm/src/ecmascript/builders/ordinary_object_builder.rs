@@ -2,7 +2,10 @@ use crate::{
     ecmascript::{
         builtins::{Builtin, BuiltinFunction},
         execution::{Agent, RealmIdentifier},
-        types::{IntoObject, IntoValue, ObjectHeapData, OrdinaryObject, PropertyKey, Value},
+        types::{
+            IntoObject, IntoValue, ObjectHeapData, OrdinaryObject, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     heap::{element_array::ElementDescriptor, indexes::ObjectIndex},
 };
@@ -188,7 +191,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
     pub fn with_constructor_property(mut self, constructor: BuiltinFunction) -> Self {
         let property = PropertyBuilder::new(self.agent)
             .with_enumerable(false)
-            .with_key_from_str("constructor")
+            .with_key(BUILTIN_STRING_MEMORY.constructor.into())
             .with_value(constructor.into_value())
             .build();
         self.properties.0.push(property);

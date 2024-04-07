@@ -31,6 +31,7 @@ use crate::{
         types::{
             ECMAScriptFunctionHeapData, Function, InternalMethods, IntoFunction, IntoObject,
             IntoValue, Object, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::{indexes::ECMAScriptFunctionIndex, CreateHeapData, GetHeapData},
@@ -603,7 +604,7 @@ pub(crate) fn make_constructor(
         let prototype =
             ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object));
         // b. Perform ! DefinePropertyOrThrow(prototype, "constructor", PropertyDescriptor { [[Value]]: F, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: true }).
-        let key = PropertyKey::from_str(&mut agent.heap, "constructor");
+        let key = PropertyKey::from(BUILTIN_STRING_MEMORY.constructor);
         define_property_or_throw(
             agent,
             prototype,
@@ -620,7 +621,7 @@ pub(crate) fn make_constructor(
         prototype
     });
     // 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: false }).
-    let key = PropertyKey::from_str(&mut agent.heap, "prototype");
+    let key = PropertyKey::from(BUILTIN_STRING_MEMORY.prototype);
     define_property_or_throw(
         agent,
         prototype,
@@ -656,7 +657,7 @@ pub(crate) fn set_function_name(
             let symbol_data = agent.heap.get(idx);
             symbol_data
                 .descriptor
-                .map_or(String::from_small_string(""), |descriptor| {
+                .map_or(String::EMPTY_STRING, |descriptor| {
                     let descriptor = descriptor.as_str(agent).unwrap();
                     String::from_str(agent, &format!("[{}]", descriptor))
                 })

@@ -4,7 +4,7 @@ use crate::{
         execution::{Agent, RealmIdentifier},
         types::{
             BuiltinFunctionHeapData, IntoObject, IntoValue, Object, ObjectHeapData, PropertyKey,
-            String, Value,
+            String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -74,7 +74,7 @@ impl<'agent>
     > {
         agent.heap.builtin_functions.push(None);
         let this = BuiltinFunctionIndex::last(&agent.heap.builtin_functions).into();
-        let name = String::from_str(agent, T::NAME);
+        let name = T::NAME;
         BuiltinFunctionBuilder {
             agent,
             this,
@@ -102,7 +102,7 @@ impl<'agent>
         CreatorBehaviour,
         NoProperties,
     > {
-        let name = String::from_str(agent, T::NAME);
+        let name = T::NAME;
         BuiltinFunctionBuilder {
             agent,
             this,
@@ -193,46 +193,7 @@ impl<'agent, P, N, B, Pr> BuiltinFunctionBuilder<'agent, P, NoLength, N, B, Pr> 
 
 impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
     #[must_use]
-    pub fn with_name_from_str(
-        self,
-        str: &str,
-    ) -> BuiltinFunctionBuilder<'agent, P, L, CreatorName, B, Pr> {
-        let name = String::from_str(self.agent, str);
-        BuiltinFunctionBuilder {
-            agent: self.agent,
-            this: self.this,
-            object_index: self.object_index,
-            realm: self.realm,
-            prototype: self.prototype,
-            length: self.length,
-            name: CreatorName(name),
-            behaviour: self.behaviour,
-            properties: self.properties,
-        }
-    }
-
-    #[must_use]
-    pub fn with_prefixed_name_from_str(
-        self,
-        prefix: &str,
-        name: &str,
-    ) -> BuiltinFunctionBuilder<'agent, P, L, CreatorName, B, Pr> {
-        let name = String::from_str(self.agent, &format!("{} {}", name, prefix));
-        BuiltinFunctionBuilder {
-            agent: self.agent,
-            this: self.this,
-            object_index: self.object_index,
-            realm: self.realm,
-            prototype: self.prototype,
-            length: self.length,
-            name: CreatorName(name),
-            behaviour: self.behaviour,
-            properties: self.properties,
-        }
-    }
-
-    #[must_use]
-    pub fn with_name_from_string(
+    pub fn with_name(
         self,
         name: String,
     ) -> BuiltinFunctionBuilder<'agent, P, L, CreatorName, B, Pr> {
@@ -381,7 +342,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
             .with_configurable(false)
             .with_enumerable(false)
             .with_value_readonly(prototype.into_value())
-            .with_key_from_str("prototype")
+            .with_key(BUILTIN_STRING_MEMORY.prototype.into())
             .build();
         self.properties.0.push(property);
         BuiltinFunctionBuilder {
