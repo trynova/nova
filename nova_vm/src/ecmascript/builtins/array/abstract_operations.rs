@@ -6,7 +6,10 @@ use crate::{
         },
         builtins::ordinary::ordinary_define_own_property,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey, BUILTIN_STRING_MEMORY},
+        types::{
+            InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     heap::{indexes::ArrayIndex, GetHeapData},
 };

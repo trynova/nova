@@ -30,7 +30,8 @@ use crate::{
         },
         types::{
             ECMAScriptFunctionHeapData, Function, InternalMethods, IntoFunction, IntoObject,
-            IntoValue, Object, PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            IntoValue, Object, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::{indexes::ECMAScriptFunctionIndex, CreateHeapData, GetHeapData},

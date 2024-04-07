@@ -28,7 +28,10 @@ use crate::{
             create_data_property_or_throw, define_property_or_throw,
         },
         execution::{agent::Agent, ProtoIntrinsics},
-        types::{IntoFunction, Number, Object, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY},
+        types::{
+            IntoFunction, Number, Object, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     heap::WellKnownSymbolIndexes,
 };

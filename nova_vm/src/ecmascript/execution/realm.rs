@@ -6,7 +6,10 @@ use super::{
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
-        types::{IntoValue, Number, Object, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY},
+        types::{
+            IntoValue, Number, Object, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     heap::indexes::ObjectIndex,
 };

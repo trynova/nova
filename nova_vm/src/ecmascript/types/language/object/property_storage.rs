@@ -42,10 +42,7 @@ impl PropertyStorage {
                 true
             }
             Value::Array(array) => {
-                if key.equals(
-                    agent,
-                    PropertyKey::from(BUILTIN_STRING_MEMORY.length),
-                ) {
+                if key.equals(agent, PropertyKey::from(BUILTIN_STRING_MEMORY.length)) {
                     return true;
                 }
 

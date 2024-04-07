@@ -4,7 +4,10 @@ use crate::{
         abstract_operations::operations_on_objects::get,
         builtins::array_buffer::data::InternalBuffer,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{DataBlock, Function, IntoFunction, Number, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
+        types::{
+            DataBlock, Function, IntoFunction, Number, Object, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     heap::{indexes::ArrayBufferIndex, GetHeapData},
     Heap,

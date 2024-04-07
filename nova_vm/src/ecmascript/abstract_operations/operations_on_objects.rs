@@ -9,7 +9,8 @@ use crate::{
         builtins::{ArgumentsList, BuiltinFunction, ECMAScriptFunction},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
-            Function, InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
+            Function, InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::GetHeapData,

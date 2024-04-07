@@ -2,7 +2,10 @@ use crate::{
     ecmascript::{
         builtins::{Builtin, BuiltinFunction},
         execution::{Agent, RealmIdentifier},
-        types::{IntoObject, IntoValue, ObjectHeapData, OrdinaryObject, PropertyKey, Value, BUILTIN_STRING_MEMORY},
+        types::{
+            IntoObject, IntoValue, ObjectHeapData, OrdinaryObject, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     heap::{element_array::ElementDescriptor, indexes::ObjectIndex},
 };
