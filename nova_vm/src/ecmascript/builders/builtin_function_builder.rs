@@ -3,7 +3,8 @@ use crate::{
         builtins::{Behaviour, Builtin, BuiltinFunction},
         execution::{Agent, RealmIdentifier},
         types::{
-            BuiltinFunctionHeapData, IntoObject, Object, ObjectHeapData, PropertyKey, String, Value,
+            BuiltinFunctionHeapData, IntoObject, IntoValue, Object, ObjectHeapData, PropertyKey,
+            String, Value,
         },
     },
     heap::{
@@ -249,6 +250,12 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
     }
 }
 
+impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, CreatorName, B, Pr> {
+    pub(crate) fn get_name(&self) -> String {
+        self.name.0
+    }
+}
+
 impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties> {
     #[must_use]
     pub fn with_property_capacity(
@@ -307,7 +314,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
             ObjectIndex::last(&self.agent.heap.objects)
         }));
         let property = {
-            let builder = PropertyBuilder::new(self.agent, self.this.into_object());
+            let builder = PropertyBuilder::new(self.agent);
             creator(builder)
         };
         BuiltinFunctionBuilder {
@@ -352,8 +359,60 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
             PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
         ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
     ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
-        let builder = PropertyBuilder::new(self.agent, self.this.into_object());
+        let builder = PropertyBuilder::new(self.agent);
         let property = creator(builder);
+        self.properties.0.push(property);
+        BuiltinFunctionBuilder {
+            agent: self.agent,
+            this: self.this,
+            object_index: self.object_index,
+            realm: self.realm,
+            prototype: self.prototype,
+            length: self.length,
+            name: self.name,
+            behaviour: self.behaviour,
+            properties: self.properties,
+        }
+    }
+
+    #[must_use]
+    pub fn with_prototype_property(mut self, prototype: Object) -> Self {
+        let property = PropertyBuilder::new(self.agent)
+            .with_configurable(false)
+            .with_enumerable(false)
+            .with_value_readonly(prototype.into_value())
+            .with_key_from_str("prototype")
+            .build();
+        self.properties.0.push(property);
+        BuiltinFunctionBuilder {
+            agent: self.agent,
+            this: self.this,
+            object_index: self.object_index,
+            realm: self.realm,
+            prototype: self.prototype,
+            length: self.length,
+            name: self.name,
+            behaviour: self.behaviour,
+            properties: self.properties,
+        }
+    }
+
+    #[must_use]
+    pub fn with_builtin_function_property<T: Builtin>(mut self) -> Self {
+        let (value, key) = {
+            let mut builder = BuiltinFunctionBuilder::new::<T>(self.agent, self.realm);
+            let name = PropertyKey::from(builder.get_name());
+            (builder.build().into_value(), name)
+        };
+        let builder = PropertyBuilder::new(self.agent)
+            .with_key(key)
+            .with_configurable(T::CONFIGURABLE)
+            .with_enumerable(T::ENUMERABLE);
+        let property = if T::WRITABLE {
+            builder.with_value(value).build()
+        } else {
+            builder.with_value_readonly(value).build()
+        };
         self.properties.0.push(property);
         BuiltinFunctionBuilder {
             agent: self.agent,

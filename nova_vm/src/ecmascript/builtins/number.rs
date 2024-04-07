@@ -4,7 +4,7 @@ use crate::{
         abstract_operations::testing_and_comparison::is_integral_number,
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, Object, Value},
+        types::{IntoObject, IntoValue, Number, Object, Value},
     },
     heap::CreateHeapData,
     SmallInteger,
@@ -170,54 +170,14 @@ impl NumberConstructor {
                 .with_configurable(false)
                 .build()
         })
-        .with_property(|builder| {
-            // 21.1.2.2 Number.isFinite ( number )
-            builder
-                .with_key_from_str("isFinite")
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<NumberIsFinite>(agent, realm)
-                        .build()
-                        .into()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            // 21.1.2.3 Number.isInteger ( number )
-            builder
-                .with_key_from_str("isInteger")
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<NumberIsInteger>(agent, realm)
-                        .build()
-                        .into()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            // 21.1.2.4 Number.isNaN ( number )
-            builder
-                .with_key_from_str("isNaN")
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<NumberIsNaN>(agent, realm)
-                        .build()
-                        .into()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            // 21.1.2.5 Number.isSafeInteger ( number )
-            builder
-                .with_key_from_str("isSafeInteger")
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<NumberIsSafeInteger>(agent, realm)
-                        .build()
-                        .into()
-                })
-                .with_enumerable(false)
-                .build()
-        })
+        // 21.1.2.2 Number.isFinite ( number )
+        .with_builtin_function_property::<NumberIsFinite>()
+        // 21.1.2.3 Number.isInteger ( number )
+        .with_builtin_function_property::<NumberIsInteger>()
+        // 21.1.2.4 Number.isNaN ( number )
+        .with_builtin_function_property::<NumberIsNaN>()
+        // 21.1.2.5 Number.isSafeInteger ( number )
+        .with_builtin_function_property::<NumberIsSafeInteger>()
         .with_property(|builder| {
             // 21.1.2.6 Number.MAX_SAFE_INTEGER
             // https://tc39.es/ecma262/#sec-number.max_safe_integer
@@ -304,26 +264,9 @@ impl NumberConstructor {
                 .with_enumerable(false)
                 .build()
         })
-        .with_property(|builder| {
-            // 21.1.2.15 Number.prototype
-            // https://tc39.es/ecma262/#sec-number.prototype
-            builder
-                .with_key_from_str("prototype")
-                .with_value_readonly(number_prototype.into_value())
-                .with_configurable(false)
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            // 21.1.3.1 Number.prototype.constructor
-            // https://tc39.es/ecma262/#sec-number.prototype.constructor
-            builder
-                .with_key_from_str("constructor")
-                .with_this_reference()
-                .with_enumerable(false)
-                .with_configurable(true)
-                .build()
-        })
+        // 21.1.2.15 Number.prototype
+        // https://tc39.es/ecma262/#sec-number.prototype
+        .with_prototype_property(number_prototype.into_object())
         .build();
     }
 }

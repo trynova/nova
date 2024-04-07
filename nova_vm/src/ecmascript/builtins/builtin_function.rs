@@ -67,6 +67,16 @@ pub trait Builtin {
     const NAME: &'static str;
     const LENGTH: u8;
     const BEHAVIOUR: Behaviour;
+
+    /// If the builtin function is created as a property then this controls the
+    /// property's `[[Writable]]` value.
+    const WRITABLE: bool = true;
+    /// If the builtin function is created as a property then this controls the
+    /// property's `[[Enumerable]]` value.
+    const ENUMERABLE: bool = false;
+    /// If the builtin function is created as a property then this controls the
+    /// property's `[[Configurable]]` value.
+    const CONFIGURABLE: bool = true;
 }
 
 #[derive(Debug, Default)]

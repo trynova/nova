@@ -783,10 +783,15 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
         ProtoIntrinsics::Error => {
             agent
                 .heap
-                .create(ErrorHeapData::new(ExceptionType::TypeError, None, None));
+                .create(ErrorHeapData::new(ExceptionType::Error, None, None));
             Object::from(ErrorIndex::last(&agent.heap.errors))
         }
-        ProtoIntrinsics::EvalError => todo!(),
+        ProtoIntrinsics::EvalError => {
+            agent
+                .heap
+                .create(ErrorHeapData::new(ExceptionType::EvalError, None, None));
+            Object::from(ErrorIndex::last(&agent.heap.errors))
+        }
         ProtoIntrinsics::Function => todo!(),
         ProtoIntrinsics::Number => todo!(),
         ProtoIntrinsics::Object => agent
@@ -800,13 +805,40 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
                 vec![],
             )
             .into(),
-        ProtoIntrinsics::RangeError => todo!(),
-        ProtoIntrinsics::ReferenceError => todo!(),
+        ProtoIntrinsics::RangeError => {
+            agent
+                .heap
+                .create(ErrorHeapData::new(ExceptionType::RangeError, None, None));
+            Object::from(ErrorIndex::last(&agent.heap.errors))
+        }
+        ProtoIntrinsics::ReferenceError => {
+            agent.heap.create(ErrorHeapData::new(
+                ExceptionType::ReferenceError,
+                None,
+                None,
+            ));
+            Object::from(ErrorIndex::last(&agent.heap.errors))
+        }
         ProtoIntrinsics::String => todo!(),
         ProtoIntrinsics::Symbol => todo!(),
-        ProtoIntrinsics::SyntaxError => todo!(),
-        ProtoIntrinsics::TypeError => todo!(),
-        ProtoIntrinsics::UriError => todo!(),
+        ProtoIntrinsics::SyntaxError => {
+            agent
+                .heap
+                .create(ErrorHeapData::new(ExceptionType::SyntaxError, None, None));
+            Object::from(ErrorIndex::last(&agent.heap.errors))
+        }
+        ProtoIntrinsics::TypeError => {
+            agent
+                .heap
+                .create(ErrorHeapData::new(ExceptionType::TypeError, None, None));
+            Object::from(ErrorIndex::last(&agent.heap.errors))
+        }
+        ProtoIntrinsics::UriError => {
+            agent
+                .heap
+                .create(ErrorHeapData::new(ExceptionType::UriError, None, None));
+            Object::from(ErrorIndex::last(&agent.heap.errors))
+        }
     }
 }
 

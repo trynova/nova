@@ -453,267 +453,30 @@ impl ObjectConstructor {
             Some(this_object_index),
         )
         .with_property_capacity(25)
-        .with_property(|builder| {
-            builder
-                .with_key_from_str("assign")
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectAssign>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectCreate::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectCreate>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectDefineProperties::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectDefineProperties>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectDefineProperty::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectDefineProperty>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectEntries::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectEntries>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectFreeze::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectFreeze>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectFromEntries::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectFromEntries>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectGetOwnPropertyDescriptor::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectGetOwnPropertyDescriptor>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectGetOwnPropertyDescriptors::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectGetOwnPropertyDescriptors>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectGetOwnPropertyNames::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectGetOwnPropertyNames>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectGetOwnPropertySymbols::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectGetOwnPropertySymbols>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectGetPrototypeOf::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectGetPrototypeOf>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectGroupBy::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectGroupBy>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectHasOwn::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectHasOwn>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectIs::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectIs>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectIsExtensible::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectIsExtensible>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectIsFrozen::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectIsFrozen>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectIsSealed::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectIsSealed>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectKeys::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectKeys>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectPreventExtensions::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectPreventExtensions>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str("prototype")
-                .with_value_readonly(object_prototype.into_value())
-                .with_enumerable(false)
-                .with_configurable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectSeal::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectSeal>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectSetPrototypeOf::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectSetPrototypeOf>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key_from_str(ObjectValues::NAME)
-                .with_value_creator(|agent| {
-                    BuiltinFunctionBuilder::new::<ObjectValues>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .build()
-        })
+        .with_builtin_function_property::<ObjectAssign>()
+        .with_builtin_function_property::<ObjectCreate>()
+        .with_builtin_function_property::<ObjectDefineProperties>()
+        .with_builtin_function_property::<ObjectDefineProperty>()
+        .with_builtin_function_property::<ObjectEntries>()
+        .with_builtin_function_property::<ObjectFreeze>()
+        .with_builtin_function_property::<ObjectFromEntries>()
+        .with_builtin_function_property::<ObjectGetOwnPropertyDescriptor>()
+        .with_builtin_function_property::<ObjectGetOwnPropertyDescriptors>()
+        .with_builtin_function_property::<ObjectGetOwnPropertyNames>()
+        .with_builtin_function_property::<ObjectGetOwnPropertySymbols>()
+        .with_builtin_function_property::<ObjectGetPrototypeOf>()
+        .with_builtin_function_property::<ObjectGroupBy>()
+        .with_builtin_function_property::<ObjectHasOwn>()
+        .with_builtin_function_property::<ObjectIs>()
+        .with_builtin_function_property::<ObjectIsExtensible>()
+        .with_builtin_function_property::<ObjectIsFrozen>()
+        .with_builtin_function_property::<ObjectIsSealed>()
+        .with_builtin_function_property::<ObjectKeys>()
+        .with_builtin_function_property::<ObjectPreventExtensions>()
+        .with_prototype_property(object_prototype.into_object())
+        .with_builtin_function_property::<ObjectSeal>()
+        .with_builtin_function_property::<ObjectSetPrototypeOf>()
+        .with_builtin_function_property::<ObjectValues>()
         .build();
     }
 }

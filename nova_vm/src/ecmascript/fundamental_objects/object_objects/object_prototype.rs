@@ -5,13 +5,10 @@ use crate::{
             testing_and_comparison::same_value,
             type_conversion::{to_object, to_property_key},
         },
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{InternalMethods, IntoValue, Object, PropertyKey, String, Value},
+        types::{InternalMethods, Object, PropertyKey, String, Value},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -208,81 +205,13 @@ impl ObjectPrototype {
             // has a [[Prototype]] internal slot whose value is null.
             // .with_prototype(None)
             .with_property_capacity(7)
-            .with_property(|builder| {
-                builder
-                    .with_enumerable(false)
-                    .with_key_from_str("constructor")
-                    .with_value(object_constructor.into_value())
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key_from_str(ObjectPrototypeHasOwnProperty::NAME)
-                    .with_value_creator(|agent| {
-                        BuiltinFunctionBuilder::new::<ObjectPrototypeHasOwnProperty>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key_from_str(ObjectPrototypeIsPrototypeOf::NAME)
-                    .with_value_creator(|agent| {
-                        BuiltinFunctionBuilder::new::<ObjectPrototypeIsPrototypeOf>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key_from_str(ObjectPrototypePropertyIsEnumerable::NAME)
-                    .with_value_creator(|agent| {
-                        BuiltinFunctionBuilder::new::<ObjectPrototypePropertyIsEnumerable>(
-                            agent, realm,
-                        )
-                        .build()
-                        .into_value()
-                    })
-                    .with_enumerable(false)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key_from_str(ObjectPrototypeToLocaleString::NAME)
-                    .with_value_creator(|agent| {
-                        BuiltinFunctionBuilder::new::<ObjectPrototypeToLocaleString>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key_from_str(ObjectPrototypeToString::NAME)
-                    .with_value_creator(|agent| {
-                        BuiltinFunctionBuilder::new::<ObjectPrototypeToString>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key_from_str(ObjectPrototypeValueOf::NAME)
-                    .with_value_creator(|agent| {
-                        BuiltinFunctionBuilder::new::<ObjectPrototypeValueOf>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .build()
-            })
+            .with_constructor_property(object_constructor)
+            .with_builtin_function_property::<ObjectPrototypeHasOwnProperty>()
+            .with_builtin_function_property::<ObjectPrototypeIsPrototypeOf>()
+            .with_builtin_function_property::<ObjectPrototypePropertyIsEnumerable>()
+            .with_builtin_function_property::<ObjectPrototypeToLocaleString>()
+            .with_builtin_function_property::<ObjectPrototypeToString>()
+            .with_builtin_function_property::<ObjectPrototypeValueOf>()
             .build();
     }
 }

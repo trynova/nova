@@ -34,7 +34,6 @@ use self::{
         NumberIndex, ObjectIndex, StringIndex,
     },
     regexp::RegExpHeapData,
-    symbol::SymbolHeapData,
 };
 use crate::ecmascript::builtins::error::{Error, ErrorHeapData};
 use crate::ecmascript::{
@@ -47,7 +46,7 @@ use crate::ecmascript::{
     types::{
         BigInt, BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData,
         ECMAScriptFunctionHeapData, Function, Number, NumberHeapData, Object, ObjectHeapData,
-        String, StringHeapData, Value,
+        String, StringHeapData, SymbolHeapData, Value,
     },
 };
 use wtf8::{Wtf8, Wtf8Buf};

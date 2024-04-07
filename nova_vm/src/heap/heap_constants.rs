@@ -4,7 +4,7 @@
 //! are placed into the heap vectors. The order is based on the ECMAScript
 //! definition found in https://tc39.es/ecma262/
 
-use crate::ecmascript::types::{PropertyKey, Value};
+use crate::ecmascript::types::{PropertyKey, Symbol, Value};
 
 use super::indexes::{BuiltinFunctionIndex, ObjectIndex, SymbolIndex};
 
@@ -17,7 +17,6 @@ pub(crate) enum IntrinsicObjectIndexes {
 
     // Fundamental objects
     ObjectPrototype,
-    FunctionPrototype,
     BooleanPrototype,
     SymbolPrototype,
     ErrorPrototype,
@@ -89,7 +88,6 @@ pub(crate) enum IntrinsicObjectIndexes {
     // Errors subtypes
     AggregateErrorPrototype,
     EvalErrorPrototype,
-    NativeErrorPrototype,
     RangeErrorPrototype,
     ReferenceErrorPrototype,
     SyntaxErrorPrototype,
@@ -112,6 +110,7 @@ pub(crate) enum IntrinsicConstructorIndexes {
     // Fundamental objects
     Object,
     Function,
+    FunctionPrototype,
     Boolean,
     Symbol,
     Error,
@@ -283,6 +282,12 @@ pub(crate) enum WellKnownSymbolIndexes {
 impl From<WellKnownSymbolIndexes> for SymbolIndex {
     fn from(value: WellKnownSymbolIndexes) -> Self {
         SymbolIndex::from_u32_index(value as u32)
+    }
+}
+
+impl From<WellKnownSymbolIndexes> for Symbol {
+    fn from(value: WellKnownSymbolIndexes) -> Self {
+        Symbol(value.into())
     }
 }
 

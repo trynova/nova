@@ -1,6 +1,9 @@
 //! ## [7.3 Operations on Objects](https://tc39.es/ecma262/#sec-operations-on-objects)
 
-use super::{testing_and_comparison::is_callable, type_conversion::to_object};
+use super::{
+    testing_and_comparison::{is_callable, same_value},
+    type_conversion::to_object,
+};
 use crate::{
     ecmascript::{
         builtins::{ArgumentsList, BuiltinFunction, ECMAScriptFunction},
@@ -310,6 +313,54 @@ pub(crate) fn invoke(
     let func = get_v(agent, v, p)?;
     // 3. Return ? Call(func, V, argumentsList).
     call(agent, func, v, Some(arguments_list))
+}
+
+/// ### [7.3.21 OrdinaryHasInstance ( C, O )](https://tc39.es/ecma262/#sec-ordinaryhasinstance)
+///
+/// The abstract operation OrdinaryHasInstance takes arguments C (an ECMAScript
+/// language value) and O (an ECMAScript language value) and returns either a
+/// normal completion containing a Boolean or a throw completion. It implements
+/// the default algorithm for determining if O inherits from the instance
+/// object inheritance path provided by C.
+pub(crate) fn ordinary_has_instance(agent: &mut Agent, c: Value, o: Value) -> JsResult<bool> {
+    // 1. If IsCallable(C) is false, return false.
+    if !is_callable(c) {
+        return Ok(false);
+    }
+    let c = Object::try_from(c).unwrap();
+    // 2. If C has a [[BoundTargetFunction]] internal slot, then
+    if let Object::BoundFunction(idx) = c {
+        // a. Let BC be C.[[BoundTargetFunction]].
+        // b. Return ? InstanceofOperator(O, BC).
+        let _bc = agent.heap.get(idx).function;
+        // return instance_of_operator(o, bc);
+    }
+    // 3. If O is not an Object, return false.
+    let Ok(mut o) = Object::try_from(o) else {
+        return Ok(false);
+    };
+    // 4. Let P be ? Get(C, "prototype").
+    let key = PropertyKey::from_str(&mut agent.heap, "prototype");
+    let p = get(agent, c, key)?;
+    // 5. If P is not an Object, throw a TypeError exception.
+    let Ok(p) = Object::try_from(p) else {
+        return Err(agent.throw_exception(ExceptionType::TypeError, "Non-object prototype found"));
+    };
+    // 6. Repeat,
+    loop {
+        // a. Set O to ? O.[[GetPrototypeOf]]().
+        let o_prototype = o.get_prototype_of(agent)?;
+        if let Some(o_prototype) = o_prototype {
+            o = o_prototype;
+        } else {
+            // b. If O is null, return false.
+            return Ok(false);
+        }
+        // c. If SameValue(P, O) is true, return true.
+        if same_value(agent, p, o) {
+            return Ok(true);
+        }
+    }
 }
 
 /// ### [7.3.25 GetFunctionRealm ( obj )](https://tc39.es/ecma262/#sec-getfunctionrealm)

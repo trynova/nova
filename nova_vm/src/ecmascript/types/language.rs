@@ -4,6 +4,7 @@ mod into_value;
 mod number;
 mod object;
 mod string;
+mod symbol;
 mod value;
 
 pub use bigint::{BigInt, BigIntHeapData};
@@ -18,4 +19,5 @@ pub use object::{
     OrdinaryObjectInternalSlots, PropertyKey,
 };
 pub use string::{String, StringHeapData};
+pub use symbol::{Symbol, SymbolHeapData};
 pub use value::Value;

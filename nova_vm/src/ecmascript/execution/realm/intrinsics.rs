@@ -3,9 +3,22 @@ use crate::{
         builtins::{BuiltinFunction, NumberConstructor},
         execution::Agent,
         fundamental_objects::{
-            error_objects::{error_constructor::ErrorConstructor, error_prototype::ErrorPrototype},
+            boolean_objects::{
+                boolean_constructor::BooleanConstructor, boolean_prototype::BooleanPrototype,
+            },
+            error_objects::{
+                error_constructor::ErrorConstructor, error_prototype::ErrorPrototype,
+                native_error_constructors::NativeErrorConstructors,
+                native_error_prototypes::NativeErrorPrototypes,
+            },
+            function_objects::{
+                function_constructor::FunctionConstructor, function_prototype::FunctionPrototype,
+            },
             object_objects::{
                 object_constructor::ObjectConstructor, object_prototype::ObjectPrototype,
+            },
+            symbol_objects::{
+                symbol_constructor::SymbolConstructor, symbol_prototype::SymbolPrototype,
             },
         },
         types::{Object, OrdinaryObject},
@@ -25,7 +38,7 @@ pub(crate) struct Intrinsics {
     builtin_function_index_base: BuiltinFunctionIndex,
 }
 
-/// Enumeration of intrinsics intended to be used as the [[Prototype]] value of
+/// Enumeration of intrinsics intended to be used as the \[\[Prototype\]\] value of
 /// an object. Used in GetPrototypeFromConstructor.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ProtoIntrinsics {
@@ -72,8 +85,16 @@ impl Intrinsics {
     pub(crate) fn create_intrinsics(agent: &mut Agent, realm: RealmIdentifier) {
         ObjectPrototype::create_intrinsic(agent, realm);
         ObjectConstructor::create_intrinsic(agent, realm);
+        FunctionPrototype::create_intrinsic(agent, realm);
+        FunctionConstructor::create_intrinsic(agent, realm);
+        BooleanPrototype::create_intrinsic(agent, realm);
+        BooleanConstructor::create_intrinsic(agent, realm);
+        SymbolPrototype::create_intrinsic(agent, realm);
+        SymbolConstructor::create_intrinsic(agent, realm);
         ErrorConstructor::create_intrinsic(agent, realm);
         ErrorPrototype::create_intrinsic(agent, realm);
+        NativeErrorPrototypes::create_intrinsic(agent, realm);
+        NativeErrorConstructors::create_intrinsic(agent, realm);
         NumberConstructor::create_intrinsic(agent, realm);
     }
 
@@ -480,11 +501,14 @@ impl Intrinsics {
             .into()
     }
 
-    /// That's stupid so we do not have that.
-    pub(crate) fn function_prototype(&self) -> OrdinaryObject {
-        IntrinsicObjectIndexes::FunctionPrototype
-            .get_object_index(self.object_index_base)
+    pub(crate) fn function_prototype(&self) -> BuiltinFunction {
+        IntrinsicConstructorIndexes::FunctionPrototype
+            .get_builtin_function_index(self.builtin_function_index_base)
             .into()
+    }
+
+    pub(crate) fn function_prototype_base_object(&self) -> ObjectIndex {
+        IntrinsicConstructorIndexes::FunctionPrototype.get_object_index(self.object_index_base)
     }
 
     /// %Function%
@@ -633,13 +657,6 @@ impl Intrinsics {
     /// %Math%
     pub(crate) fn math(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::MathObject
-            .get_object_index(self.object_index_base)
-            .into()
-    }
-
-    /// %NativeError.prototype%
-    pub(crate) fn native_error_prototype(&self) -> OrdinaryObject {
-        IntrinsicObjectIndexes::NativeErrorPrototype
             .get_object_index(self.object_index_base)
             .into()
     }
