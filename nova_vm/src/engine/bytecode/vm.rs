@@ -301,8 +301,7 @@ impl Vm {
                     };
                     // let this_arg = vm.stack.pop();
                     let func = vm.stack.pop().unwrap();
-                    vm.result =
-                        Some(call(agent, func, this_value, Some(ArgumentsList(&args))).unwrap());
+                    vm.result = Some(call(agent, func, this_value, Some(ArgumentsList(&args)))?);
                 }
                 Instruction::EvaluateNew => {
                     let arg_count = instr.args[0].unwrap() as usize;

@@ -672,7 +672,7 @@ impl CompileEvaluation for CallExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         self.callee.compile(ctx);
         if is_reference(&self.callee) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.exe.add_instruction(Instruction::GetValueKeepReference);
         }
         ctx.exe.add_instruction(Instruction::Load);
         for ele in &self.arguments {

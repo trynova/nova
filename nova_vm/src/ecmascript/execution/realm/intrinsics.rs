@@ -1,6 +1,6 @@
 use crate::{
     ecmascript::{
-        builtins::{BuiltinFunction, NumberConstructor},
+        builtins::BuiltinFunction,
         execution::Agent,
         fundamental_objects::{
             boolean_objects::{
@@ -20,6 +20,9 @@ use crate::{
             symbol_objects::{
                 symbol_constructor::SymbolConstructor, symbol_prototype::SymbolPrototype,
             },
+        },
+        numbers_and_dates::number_objects::{
+            number_constructor::NumberConstructor, number_prototype::NumberPrototype,
         },
         types::{Object, OrdinaryObject},
     },
@@ -95,6 +98,7 @@ impl Intrinsics {
         ErrorPrototype::create_intrinsic(agent, realm);
         NativeErrorPrototypes::create_intrinsic(agent, realm);
         NativeErrorConstructors::create_intrinsic(agent, realm);
+        NumberPrototype::create_intrinsic(agent, realm);
         NumberConstructor::create_intrinsic(agent, realm);
     }
 

@@ -134,7 +134,10 @@ String
 symbol
 Symbol
 SyntaxError
+toExponential
+toFixed
 toLocaleString
+toPrecision
 toPrimitive
 toReversed
 toSorted
