@@ -186,6 +186,18 @@ impl BigInt {
     }
 }
 
+impl From<BigIntIndex> for BigInt {
+    fn from(value: BigIntIndex) -> Self {
+        BigInt::BigInt(value)
+    }
+}
+
+impl From<SmallInteger> for BigInt {
+    fn from(value: SmallInteger) -> Self {
+        BigInt::SmallBigInt(value)
+    }
+}
+
 impl TryFrom<Value> for BigInt {
     type Error = ();
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -205,3 +217,20 @@ impl From<BigInt> for Value {
         }
     }
 }
+
+macro_rules! impl_value_from_n {
+    ($size: ty) => {
+        impl From<$size> for BigInt {
+            fn from(value: $size) -> Self {
+                BigInt::SmallBigInt(SmallInteger::from(value))
+            }
+        }
+    };
+}
+
+impl_value_from_n!(u8);
+impl_value_from_n!(i8);
+impl_value_from_n!(u16);
+impl_value_from_n!(i16);
+impl_value_from_n!(u32);
+impl_value_from_n!(i32);

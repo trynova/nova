@@ -21,8 +21,13 @@ use crate::{
                 symbol_constructor::SymbolConstructor, symbol_prototype::SymbolPrototype,
             },
         },
-        numbers_and_dates::number_objects::{
-            number_constructor::NumberConstructor, number_prototype::NumberPrototype,
+        numbers_and_dates::{
+            bigint_objects::{
+                bigint_constructor::BigIntConstructor, bigint_prototype::BigIntPrototype,
+            },
+            number_objects::{
+                number_constructor::NumberConstructor, number_prototype::NumberPrototype,
+            },
         },
         types::{Object, OrdinaryObject},
     },
@@ -100,6 +105,8 @@ impl Intrinsics {
         NativeErrorConstructors::create_intrinsic(agent, realm);
         NumberPrototype::create_intrinsic(agent, realm);
         NumberConstructor::create_intrinsic(agent, realm);
+        BigIntPrototype::create_intrinsic(agent, realm);
+        BigIntConstructor::create_intrinsic(agent, realm);
     }
 
     pub(crate) fn get_intrinsic_default_proto(

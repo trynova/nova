@@ -49,9 +49,10 @@ pub enum PreferredType {
 /// absence of a hint as if the hint were STRING.
 pub(crate) fn to_primitive(
     agent: &mut Agent,
-    input: Value,
+    input: impl Into<Value> + Copy,
     preferred_type: Option<PreferredType>,
 ) -> JsResult<Value> {
+    let input: Value = input.into();
     // 1. If input is an Object, then
     if let Ok(input) = Object::try_from(input) {
         // a. Let exoticToPrim be ? GetMethod(input, @@toPrimitive).
@@ -186,55 +187,40 @@ pub(crate) fn to_numeric(agent: &mut Agent, value: Value) -> JsResult<Value> {
 }
 
 /// ### [7.1.4 ToNumber ( argument )](https://tc39.es/ecma262/#sec-tonumber)
-pub(crate) fn to_number(agent: &mut Agent, argument: Value) -> JsResult<Number> {
-    // 1. If argument is a Number, return argument.
-    if let Ok(argument) = Number::try_from(argument) {
-        return Ok(argument);
+pub(crate) fn to_number(agent: &mut Agent, argument: impl Into<Value> + Copy) -> JsResult<Number> {
+    let argument: Value = argument.into();
+
+    match argument {
+        // 3. If argument is undefined, return NaN.
+        Value::Undefined => Ok(Number::nan()),
+        // 4. If argument is either null or false, return +0𝔽.
+        Value::Null | Value::Boolean(false) => Ok(Number::from(0)),
+        // 5. If argument is true, return 1𝔽.
+        Value::Boolean(true) => Ok(Number::from(1)),
+        // 6. If argument is a String, return StringToNumber(argument).
+        Value::String(_) | Value::SmallString(_) => todo!("implement StringToNumber"),
+        // 2. If argument is either a Symbol or a BigInt, throw a TypeError exception.
+        Value::Symbol(_) => {
+            Err(agent.throw_exception(ExceptionType::TypeError, "cannot convert symbol to number"))
+        }
+        // 1. If argument is a Number, return argument.
+        Value::Number(idx) => Ok(idx.into()),
+        Value::Integer(idx) => Ok(idx.into()),
+        Value::Float(idx) => Ok(idx.into()),
+        Value::BigInt(_) | Value::SmallBigInt(_) => {
+            Err(agent.throw_exception(ExceptionType::TypeError, "cannot convert bigint to number"))
+        }
+        _ => {
+            // 7. Assert: argument is an Object.
+            let argument = Object::try_from(argument).unwrap();
+            // 8. Let primValue be ? ToPrimitive(argument, number).
+            let prim_value = to_primitive(agent, argument, Some(PreferredType::Number))?;
+            // 9. Assert: primValue is not an Object.
+            debug_assert!(!prim_value.is_object());
+            // 10. Return ? ToNumber(primValue).
+            to_number(agent, prim_value)
+        }
     }
-
-    // 2. If argument is either a Symbol or a BigInt, throw a TypeError exception.
-    if argument.is_symbol() {
-        return Err(
-            agent.throw_exception(ExceptionType::TypeError, "cannot convert symbol to number")
-        );
-    }
-    if argument.is_bigint() {
-        return Err(
-            agent.throw_exception(ExceptionType::TypeError, "cannot convert bigint to number")
-        );
-    }
-
-    // 3. If argument is undefined, return NaN.
-    if argument.is_undefined() {
-        return Ok(Number::nan());
-    }
-
-    // 4. If argument is either null or false, return +0𝔽.
-    if argument.is_null() || argument.is_false() {
-        return Ok(Number::from(0));
-    }
-
-    // 5. If argument is true, return 1𝔽.
-    if argument.is_true() {
-        return Ok(Number::from(1));
-    }
-
-    // 6. If argument is a String, return StringToNumber(argument).
-    if argument.is_string() {
-        todo!("implement StringToNumber");
-    }
-
-    // 7. Assert: argument is an Object.
-    debug_assert!(argument.is_object());
-
-    // 8. Let primValue be ? ToPrimitive(argument, number).
-    let prim_value = to_primitive(agent, argument, Some(PreferredType::Number))?;
-
-    // 9. Assert: primValue is not an Object.
-    debug_assert!(!prim_value.is_object());
-
-    // 10. Return ? ToNumber(primValue).
-    to_number(agent, prim_value)
 }
 
 /// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
@@ -433,16 +419,56 @@ pub(crate) fn to_uint8_clamp(agent: &mut Agent, argument: Value) -> JsResult<u8>
 }
 
 /// ### [7.1.13 ToBigInt ( argument )](https://tc39.es/ecma262/#sec-tobigint)
+#[inline(always)]
 pub(crate) fn to_big_int(agent: &mut Agent, argument: Value) -> JsResult<BigInt> {
     // 1. Let prim be ? ToPrimitive(argument, number).
-    let _prim = to_primitive(agent, argument, Some(PreferredType::Number))?;
+    let prim = to_primitive(agent, argument, Some(PreferredType::Number))?;
 
     // 2. Return the value that prim corresponds to in Table 12.
-    todo!()
+    match prim {
+        Value::Undefined => {
+            Err(agent.throw_exception(ExceptionType::Error, "Invalid primitive 'undefined'"))
+        }
+        Value::Null => Err(agent.throw_exception(ExceptionType::Error, "Invalid primitive 'null'")),
+        Value::Boolean(bool) => {
+            if bool {
+                Ok(BigInt::from(1))
+            } else {
+                Ok(BigInt::from(0))
+            }
+        }
+        Value::String(idx) => {
+            let result = string_to_big_int(agent, idx.into());
+            let Some(result) = result else {
+                return Err(
+                    agent.throw_exception(ExceptionType::TypeError, "Invalid BigInt string")
+                );
+            };
+            Ok(result)
+        }
+        Value::SmallString(data) => {
+            let result = string_to_big_int(agent, data.into());
+            let Some(result) = result else {
+                return Err(
+                    agent.throw_exception(ExceptionType::TypeError, "Invalid BigInt string")
+                );
+            };
+            Ok(result)
+        }
+        Value::Symbol(_) => {
+            Err(agent.throw_exception(ExceptionType::TypeError, "Cannot convert Symbol to BigInt"))
+        }
+        Value::Number(_) | Value::Integer(_) | Value::Float(_) => {
+            Err(agent.throw_exception(ExceptionType::TypeError, "Cannot convert Number to BigInt"))
+        }
+        Value::BigInt(idx) => Ok(idx.into()),
+        Value::SmallBigInt(data) => Ok(data.into()),
+        _ => unreachable!(),
+    }
 }
 
 /// ### [7.1.14 StringToBigInt ( str )](https://tc39.es/ecma262/#sec-stringtobigint)
-pub(crate) fn string_to_big_int(_agent: &mut Agent, _argument: Value) -> Option<Value> {
+pub(crate) fn string_to_big_int(_agent: &mut Agent, _argument: String) -> Option<BigInt> {
     // 1. Let text be StringToCodePoints(str).
     // 2. Let literal be ParseText(text, StringIntegerLiteral).
     // 3. If literal is a List of errors, return undefined.
@@ -578,7 +604,7 @@ pub(crate) fn canonical_numeric_index_string(
     }
 
     // 2. Let n be ! ToNumber(argument).
-    let n = to_number(agent, argument.into()).unwrap();
+    let n = to_number(agent, argument).unwrap();
 
     // 3. If ! ToString(n) is argument, return n.
     if to_string(agent, n.into()).unwrap() == argument {

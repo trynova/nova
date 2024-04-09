@@ -355,7 +355,8 @@ pub(crate) fn is_loosely_equal(
     x: impl Into<Value> + Copy,
     y: impl Into<Value> + Copy,
 ) -> JsResult<bool> {
-    let (x, y) = (x.into(), y.into());
+    let x: Value = x.into();
+    let y: Value = y.into();
 
     // 1. If Type(x) is Type(y), then
     if is_same_type(x, y) {
@@ -375,19 +376,19 @@ pub(crate) fn is_loosely_equal(
     // b. If x is either undefined or null, y is an Object, and y has an [[IsHTMLDDA]] internal slot, return true.
 
     // 5. If x is a Number and y is a String, return ! IsLooselyEqual(x, ! ToNumber(y)).
-    if x.is_number() && y.is_string() {
+    if let (Ok(x), Ok(y)) = (Number::try_from(x), String::try_from(y)) {
         let y = to_number(agent, y).unwrap();
         return Ok(is_loosely_equal(agent, x, y).unwrap());
     }
 
     // 6. If x is a String and y is a Number, return ! IsLooselyEqual(! ToNumber(x), y).
-    if x.is_string() && y.is_number() {
+    if let (Ok(x), Ok(y)) = (String::try_from(x), Number::try_from(y)) {
         let x = to_number(agent, x).unwrap();
         return Ok(is_loosely_equal(agent, x, y).unwrap());
     }
 
     // 7. If x is a BigInt and y is a String, then
-    if x.is_bigint() && y.is_string() {
+    if let (Ok(x), Ok(y)) = (BigInt::try_from(x), String::try_from(y)) {
         // a. Let n be StringToBigInt(y).
         // b. If n is undefined, return false.
         if let Some(n) = string_to_big_int(agent, y) {
@@ -399,18 +400,18 @@ pub(crate) fn is_loosely_equal(
     }
 
     // 8. If x is a String and y is a BigInt, return ! IsLooselyEqual(y, x).
-    if x.is_string() && y.is_bigint() {
+    if let (Ok(x), Ok(y)) = (String::try_from(x), BigInt::try_from(y)) {
         return Ok(is_loosely_equal(agent, y, x).unwrap());
     }
 
     // 9. If x is a Boolean, return ! IsLooselyEqual(! ToNumber(x), y).
-    if x.is_boolean() {
+    if let Ok(x) = bool::try_from(x) {
         let x = to_number(agent, x).unwrap();
         return Ok(is_loosely_equal(agent, x, y).unwrap());
     }
 
     // 10. If y is a Boolean, return ! IsLooselyEqual(x, ! ToNumber(y)).
-    if y.is_boolean() {
+    if let Ok(y) = bool::try_from(y) {
         let y = to_number(agent, y).unwrap();
         return Ok(is_loosely_equal(agent, x, y).unwrap());
     }

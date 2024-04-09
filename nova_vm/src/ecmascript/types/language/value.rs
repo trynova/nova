@@ -341,6 +341,17 @@ impl TryFrom<i64> for Value {
     }
 }
 
+impl TryFrom<Value> for bool {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::Boolean(bool) => Ok(bool),
+            _ => Err(()),
+        }
+    }
+}
+
 macro_rules! impl_value_from_n {
     ($size: ty) => {
         impl From<$size> for Value {

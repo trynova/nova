@@ -15,7 +15,9 @@ apply
 arguments
 Array
 ArrayBuffer
+asIntN
 assign
+asUintN
 asyncIterator
 at
 bigint
