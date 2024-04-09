@@ -25,6 +25,7 @@ use crate::{
             bigint_objects::{
                 bigint_constructor::BigIntConstructor, bigint_prototype::BigIntPrototype,
             },
+            math_object::MathObject,
             number_objects::{
                 number_constructor::NumberConstructor, number_prototype::NumberPrototype,
             },
@@ -107,6 +108,7 @@ impl Intrinsics {
         NumberConstructor::create_intrinsic(agent, realm);
         BigIntPrototype::create_intrinsic(agent, realm);
         BigIntConstructor::create_intrinsic(agent, realm);
+        MathObject::create_intrinsic(agent, realm);
     }
 
     pub(crate) fn get_intrinsic_default_proto(
