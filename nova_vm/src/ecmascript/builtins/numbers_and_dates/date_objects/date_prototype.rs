@@ -6,7 +6,7 @@ use crate::{
         },
         builtins::{date::Date, ArgumentsList, Behaviour, Builtin},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -124,91 +124,91 @@ impl Builtin for DatePrototypeGetUTCSeconds {
 struct DatePrototypeSetDate;
 impl Builtin for DatePrototypeSetDate {
     const NAME: String = BUILTIN_STRING_MEMORY.setDate;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_date);
 }
 struct DatePrototypeSetFullYear;
 impl Builtin for DatePrototypeSetFullYear {
     const NAME: String = BUILTIN_STRING_MEMORY.setFullYear;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 3;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_full_year);
 }
 struct DatePrototypeSetHours;
 impl Builtin for DatePrototypeSetHours {
     const NAME: String = BUILTIN_STRING_MEMORY.setHours;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 4;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_hours);
 }
 struct DatePrototypeSetMilliseconds;
 impl Builtin for DatePrototypeSetMilliseconds {
     const NAME: String = BUILTIN_STRING_MEMORY.setMilliseconds;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_milliseconds);
 }
 struct DatePrototypeSetMinutes;
 impl Builtin for DatePrototypeSetMinutes {
     const NAME: String = BUILTIN_STRING_MEMORY.setMinutes;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 3;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_minutes);
 }
 struct DatePrototypeSetMonth;
 impl Builtin for DatePrototypeSetMonth {
     const NAME: String = BUILTIN_STRING_MEMORY.setMonth;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_month);
 }
 struct DatePrototypeSetSeconds;
 impl Builtin for DatePrototypeSetSeconds {
     const NAME: String = BUILTIN_STRING_MEMORY.setSeconds;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_seconds);
 }
 struct DatePrototypeSetTime;
 impl Builtin for DatePrototypeSetTime {
     const NAME: String = BUILTIN_STRING_MEMORY.setTime;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_time);
 }
 struct DatePrototypeSetUTCDate;
 impl Builtin for DatePrototypeSetUTCDate {
     const NAME: String = BUILTIN_STRING_MEMORY.setUTCDate;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_date);
 }
 struct DatePrototypeSetUTCFullYear;
 impl Builtin for DatePrototypeSetUTCFullYear {
     const NAME: String = BUILTIN_STRING_MEMORY.setUTCFullYear;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 3;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_full_year);
 }
 struct DatePrototypeSetUTCHours;
 impl Builtin for DatePrototypeSetUTCHours {
     const NAME: String = BUILTIN_STRING_MEMORY.setUTCHours;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 4;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_hours);
 }
 struct DatePrototypeSetUTCMilliseconds;
 impl Builtin for DatePrototypeSetUTCMilliseconds {
     const NAME: String = BUILTIN_STRING_MEMORY.setUTCMilliseconds;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_milliseconds);
 }
 struct DatePrototypeSetUTCMinutes;
 impl Builtin for DatePrototypeSetUTCMinutes {
     const NAME: String = BUILTIN_STRING_MEMORY.setUTCMinutes;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 3;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_minutes);
 }
 struct DatePrototypeSetUTCMonth;
 impl Builtin for DatePrototypeSetUTCMonth {
     const NAME: String = BUILTIN_STRING_MEMORY.setUTCMonth;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_month);
 }
 struct DatePrototypeSetUTCSeconds;
 impl Builtin for DatePrototypeSetUTCSeconds {
     const NAME: String = BUILTIN_STRING_MEMORY.setUTCSeconds;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_seconds);
 }
 struct DatePrototypeToDateString;
@@ -226,7 +226,7 @@ impl Builtin for DatePrototypeToISOString {
 struct DatePrototypeToJSON;
 impl Builtin for DatePrototypeToJSON {
     const NAME: String = BUILTIN_STRING_MEMORY.toJSON;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::to_json);
 }
 struct DatePrototypeToLocaleDateString;
