@@ -9,20 +9,20 @@ use std::ops::Deref;
 use super::{
     value::{
         ARRAY_BUFFER_DISCRIMINANT, ARRAY_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
-        BUILTIN_FUNCTION_DISCRIMINANT, ECMASCRIPT_FUNCTION_DISCRIMINANT, ERROR_DISCRIMINANT,
-        OBJECT_DISCRIMINANT,
+        BUILTIN_FUNCTION_DISCRIMINANT, DATE_DISCRIMINANT, ECMASCRIPT_FUNCTION_DISCRIMINANT,
+        ERROR_DISCRIMINANT, OBJECT_DISCRIMINANT,
     },
     Function, IntoValue, Value,
 };
 use crate::{
     ecmascript::{
-        builtins::{error::Error, ArgumentsList, Array, ArrayBuffer},
+        builtins::{date::Date, error::Error, ArgumentsList, Array, ArrayBuffer},
         execution::{Agent, JsResult},
         types::PropertyDescriptor,
     },
     heap::{
         indexes::{
-            ArrayBufferIndex, ArrayIndex, BoundFunctionIndex, BuiltinFunctionIndex,
+            ArrayBufferIndex, ArrayIndex, BoundFunctionIndex, BuiltinFunctionIndex, DateIndex,
             ECMAScriptFunctionIndex, ErrorIndex, ObjectIndex,
         },
         GetHeapData,
@@ -43,9 +43,9 @@ pub use property_storage::PropertyStorage;
 #[repr(u8)]
 pub enum Object {
     Object(ObjectIndex) = OBJECT_DISCRIMINANT,
-    // Date(DateIndex) = DATE_DISCRIMINANT,
     Array(ArrayIndex) = ARRAY_DISCRIMINANT,
     ArrayBuffer(ArrayBufferIndex) = ARRAY_BUFFER_DISCRIMINANT,
+    Date(DateIndex) = DATE_DISCRIMINANT,
     Error(ErrorIndex) = ERROR_DISCRIMINANT,
     BoundFunction(BoundFunctionIndex) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunctionIndex) = BUILTIN_FUNCTION_DISCRIMINANT,
@@ -214,6 +214,7 @@ impl OrdinaryObjectInternalSlots for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).extensible(agent),
             Object::Array(idx) => Array::from(idx).extensible(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).extensible(agent),
+            Object::Date(idx) => Date::from(idx).extensible(agent),
             Object::Error(idx) => Error::from(idx).extensible(agent),
             Object::BoundFunction(idx) => Function::from(idx).extensible(agent),
             Object::BuiltinFunction(idx) => Function::from(idx).extensible(agent),
@@ -226,6 +227,7 @@ impl OrdinaryObjectInternalSlots for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).set_extensible(agent, value),
             Object::Array(idx) => Array::from(idx).set_extensible(agent, value),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).set_extensible(agent, value),
+            Object::Date(idx) => Date::from(idx).set_extensible(agent, value),
             Object::Error(idx) => Error::from(idx).set_extensible(agent, value),
             Object::BoundFunction(idx) => Function::from(idx).set_extensible(agent, value),
             Object::BuiltinFunction(idx) => Function::from(idx).set_extensible(agent, value),
@@ -238,6 +240,7 @@ impl OrdinaryObjectInternalSlots for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).prototype(agent),
             Object::Array(idx) => Array::from(idx).prototype(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).prototype(agent),
+            Object::Date(idx) => Date::from(idx).prototype(agent),
             Object::Error(idx) => Error::from(idx).prototype(agent),
             Object::BoundFunction(idx) => Function::from(idx).prototype(agent),
             Object::BuiltinFunction(idx) => Function::from(idx).prototype(agent),
@@ -250,6 +253,7 @@ impl OrdinaryObjectInternalSlots for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).set_prototype(agent, prototype),
             Object::Array(idx) => Array::from(idx).set_prototype(agent, prototype),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).set_prototype(agent, prototype),
+            Object::Date(idx) => Date::from(idx).set_prototype(agent, prototype),
             Object::Error(idx) => Error::from(idx).set_prototype(agent, prototype),
             Object::BoundFunction(idx) => Function::from(idx).set_prototype(agent, prototype),
             Object::BuiltinFunction(idx) => Function::from(idx).set_prototype(agent, prototype),
@@ -264,6 +268,7 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).get_prototype_of(agent),
             Object::Array(idx) => Array::from(idx).get_prototype_of(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).get_prototype_of(agent),
+            Object::Date(idx) => Date::from(idx).get_prototype_of(agent),
             Object::Error(idx) => Error::from(idx).get_prototype_of(agent),
             Object::BoundFunction(idx) => Function::from(idx).get_prototype_of(agent),
             Object::BuiltinFunction(idx) => Function::from(idx).get_prototype_of(agent),
@@ -276,6 +281,7 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).set_prototype_of(agent, prototype),
             Object::Array(idx) => Array::from(idx).set_prototype_of(agent, prototype),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).set_prototype_of(agent, prototype),
+            Object::Date(idx) => Date::from(idx).set_prototype_of(agent, prototype),
             Object::Error(idx) => Error::from(idx).set_prototype_of(agent, prototype),
             Object::BoundFunction(idx) => Function::from(idx).set_prototype_of(agent, prototype),
             Object::BuiltinFunction(idx) => Function::from(idx).set_prototype_of(agent, prototype),
@@ -290,6 +296,7 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).is_extensible(agent),
             Object::Array(idx) => Array::from(idx).is_extensible(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).is_extensible(agent),
+            Object::Date(idx) => Date::from(idx).is_extensible(agent),
             Object::Error(idx) => Error::from(idx).is_extensible(agent),
             Object::BoundFunction(idx) => Function::from(idx).is_extensible(agent),
             Object::BuiltinFunction(idx) => Function::from(idx).is_extensible(agent),
@@ -302,6 +309,7 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).prevent_extensions(agent),
             Object::Array(idx) => Array::from(idx).prevent_extensions(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).prevent_extensions(agent),
+            Object::Date(idx) => Date::from(idx).prevent_extensions(agent),
             Object::Error(idx) => Error::from(idx).prevent_extensions(agent),
             Object::BoundFunction(idx) => Function::from(idx).prevent_extensions(agent),
             Object::BuiltinFunction(idx) => Function::from(idx).prevent_extensions(agent),
@@ -320,6 +328,7 @@ impl InternalMethods for Object {
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).get_own_property(agent, property_key)
             }
+            Object::Date(idx) => Date::from(idx).get_own_property(agent, property_key),
             Object::Error(idx) => Error::from(idx).get_own_property(agent, property_key),
             Object::BoundFunction(idx) => Function::from(idx).get_own_property(agent, property_key),
             Object::BuiltinFunction(idx) => {
@@ -349,6 +358,9 @@ impl InternalMethods for Object {
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).define_own_property(agent, property_key, property_descriptor)
             }
+            Object::Date(idx) => {
+                Date::from(idx).define_own_property(agent, property_key, property_descriptor)
+            }
             Object::Error(idx) => {
                 Error::from(idx).define_own_property(agent, property_key, property_descriptor)
             }
@@ -369,6 +381,7 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).has_property(agent, property_key),
             Object::Array(idx) => Array::from(idx).has_property(agent, property_key),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).has_property(agent, property_key),
+            Object::Date(idx) => Date::from(idx).has_property(agent, property_key),
             Object::Error(idx) => Error::from(idx).has_property(agent, property_key),
             Object::BoundFunction(idx) => Function::from(idx).has_property(agent, property_key),
             Object::BuiltinFunction(idx) => Function::from(idx).has_property(agent, property_key),
@@ -383,6 +396,7 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).get(agent, property_key, receiver),
             Object::Array(idx) => Array::from(idx).get(agent, property_key, receiver),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).get(agent, property_key, receiver),
+            Object::Date(idx) => Date::from(idx).get(agent, property_key, receiver),
             Object::Error(idx) => Error::from(idx).get(agent, property_key, receiver),
             Object::BoundFunction(idx) => Function::from(idx).get(agent, property_key, receiver),
             Object::BuiltinFunction(idx) => Function::from(idx).get(agent, property_key, receiver),
@@ -407,6 +421,7 @@ impl InternalMethods for Object {
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).set(agent, property_key, value, receiver)
             }
+            Object::Date(idx) => Date::from(idx).set(agent, property_key, value, receiver),
             Object::Error(idx) => Error::from(idx).set(agent, property_key, value, receiver),
             Object::BoundFunction(idx) => {
                 Function::from(idx).set(agent, property_key, value, receiver)
@@ -425,6 +440,7 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).delete(agent, property_key),
             Object::Array(idx) => Array::from(idx).delete(agent, property_key),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).delete(agent, property_key),
+            Object::Date(idx) => Date::from(idx).delete(agent, property_key),
             Object::Error(idx) => Error::from(idx).delete(agent, property_key),
             Object::BoundFunction(idx) => Function::from(idx).delete(agent, property_key),
             Object::BuiltinFunction(idx) => Function::from(idx).delete(agent, property_key),
@@ -437,6 +453,7 @@ impl InternalMethods for Object {
             Object::Object(idx) => OrdinaryObject::from(idx).own_property_keys(agent),
             Object::Array(idx) => Array::from(idx).own_property_keys(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).own_property_keys(agent),
+            Object::Date(idx) => Date::from(idx).own_property_keys(agent),
             Object::Error(idx) => Error::from(idx).own_property_keys(agent),
             Object::BoundFunction(idx) => Function::from(idx).own_property_keys(agent),
             Object::BuiltinFunction(idx) => Function::from(idx).own_property_keys(agent),

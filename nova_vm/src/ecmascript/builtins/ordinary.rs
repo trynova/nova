@@ -793,6 +793,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
                 .create(ErrorHeapData::new(ExceptionType::EvalError, None, None));
             Object::from(ErrorIndex::last(&agent.heap.errors))
         }
+        ProtoIntrinsics::Date => todo!(),
         ProtoIntrinsics::Function => todo!(),
         ProtoIntrinsics::Number => todo!(),
         ProtoIntrinsics::Object => agent

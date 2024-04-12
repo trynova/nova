@@ -920,6 +920,7 @@ impl HeapMarkAndSweep<()> for Object {
             Object::Object(idx) => idx.mark_values(queues, ()),
             Object::Array(idx) => idx.mark_values(queues, ()),
             Object::ArrayBuffer(idx) => idx.mark_values(queues, ()),
+            Object::Date(idx) => idx.mark_values(queues, ()),
             Object::Error(idx) => idx.mark_values(queues, ()),
             Object::BoundFunction(_) => todo!(),
             Object::BuiltinFunction(_) => todo!(),
