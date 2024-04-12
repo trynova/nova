@@ -4,9 +4,9 @@ use crate::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builtins::{date::Date, ArgumentsList, Behaviour, Builtin},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, Object, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -282,187 +282,198 @@ impl Builtin for DatePrototypeToPrimitive {
 }
 
 impl DatePrototype {
-    fn get_date(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_date(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_day(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_day(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_full_year(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_full_year(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_hours(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_hours(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_milliseconds(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_milliseconds(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_minutes(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_minutes(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_month(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_month(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_seconds(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_seconds(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_time(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_time(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
     fn get_timezone_offset(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_utc_date(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_utc_date(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_utc_day(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_utc_day(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
     fn get_utc_full_year(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_utc_hours(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_utc_hours(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
     fn get_utc_milliseconds(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_utc_minutes(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_utc_minutes(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_utc_month(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_utc_month(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_utc_seconds(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_utc_seconds(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_date(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_date(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_full_year(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_full_year(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_hours(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_hours(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_milliseconds(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn set_milliseconds(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_minutes(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_minutes(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_month(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_month(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_seconds(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_seconds(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_time(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_time(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_utc_date(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_utc_date(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
     fn set_utc_full_year(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_utc_hours(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_utc_hours(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
     fn set_utc_milliseconds(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_utc_minutes(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn set_utc_minutes(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_utc_month(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_utc_month(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_utc_seconds(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn set_utc_seconds(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn to_date_string(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_date_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn to_iso_string(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_iso_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
@@ -494,19 +505,23 @@ impl DatePrototype {
         todo!()
     }
 
-    fn to_string(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn to_time_string(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_time_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn to_utc_string(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_utc_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn value_of(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
@@ -582,26 +597,9 @@ impl DatePrototype {
 }
 
 #[inline(always)]
-fn check_date_object(agent: &mut Agent, this_value: Value) -> JsResult<Object> {
+fn check_date_object(agent: &mut Agent, this_value: Value) -> JsResult<Date> {
     match this_value {
-        Value::Date(idx) => Ok(Object::Date(idx)),
+        Value::Date(idx) => Ok(Date(idx)),
         _ => Err(agent.throw_exception(ExceptionType::TypeError, "this is not a Date object.")),
     }
-}
-
-/// ### [21.1.3.7.1 ThisNumberValue ( value )](https://tc39.es/ecma262/#sec-thisnumbervalue)
-///
-/// The abstract operation ThisNumberValue takes argument value (an ECMAScript language value) and returns either a normal completion containing a Number or a throw completion. It performs the following steps when called:
-#[inline(always)]
-fn this_number_value(agent: &mut Agent, value: Value) -> JsResult<Number> {
-    // 1. If value is a Number, return value.
-    if let Ok(value) = Number::try_from(value) {
-        return Ok(value);
-    }
-    // 2. If value is an Object and value has a [[NumberData]] internal slot, then
-    // a. Let n be value.[[NumberData]].
-    // b. Assert: n is a Number.
-    // c. Return n.
-    // 3. Throw a TypeError exception.
-    Err(agent.throw_exception(ExceptionType::TypeError, "Not a Number"))
 }
