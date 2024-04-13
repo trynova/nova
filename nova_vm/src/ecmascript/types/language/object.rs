@@ -16,7 +16,10 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        builtins::{date::Date, error::Error, ArgumentsList, Array, ArrayBuffer},
+        builtins::{
+            date::Date, error::Error, ArgumentsList, Array, ArrayBuffer, BuiltinFunction,
+            ECMAScriptFunction,
+        },
         execution::{Agent, JsResult},
         types::PropertyDescriptor,
     },
@@ -400,9 +403,11 @@ impl InternalMethods for Object {
             Object::Date(idx) => Date::from(idx).get(agent, property_key, receiver),
             Object::Error(idx) => Error::from(idx).get(agent, property_key, receiver),
             Object::BoundFunction(idx) => Function::from(idx).get(agent, property_key, receiver),
-            Object::BuiltinFunction(idx) => Function::from(idx).get(agent, property_key, receiver),
+            Object::BuiltinFunction(idx) => {
+                BuiltinFunction::from(idx).get(agent, property_key, receiver)
+            }
             Object::ECMAScriptFunction(idx) => {
-                Function::from(idx).get(agent, property_key, receiver)
+                ECMAScriptFunction::from(idx).get(agent, property_key, receiver)
             }
         }
     }

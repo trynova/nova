@@ -10,6 +10,11 @@
 [object Undefined]
 [Symbol.hasInstance]
 [Symbol.iterator]
+[Symbol.match]
+[Symbol.matchAll]
+[Symbol.replace]
+[Symbol.search]
+[Symbol.split]
 [Symbol.toPrimitive]
 abs
 acos
@@ -60,12 +65,14 @@ defineProperties
 defineProperty
 description
 done
+dotAll
 E
 endsWith
 entries
 EPSILON
 Error
 EvalError
+exec
 exp
 expm1
 false
@@ -75,6 +82,7 @@ find
 findIndex
 findLast
 findLastIndex
+flags
 flat
 flatMap
 Float32Array
@@ -91,6 +99,16 @@ Function
 get [Symbol.species]
 get byteLength
 get description
+get dotAll
+get flags
+get global
+get hasIndices
+get ignoreCase
+get multiline
+get source
+get stricky
+get unicode
+get unicodeSets
 getDate
 getDay
 getFullYear
@@ -114,12 +132,15 @@ getUTCMilliseconds
 getUTCMinutes
 getUTCMonth
 getUTCSeconds
+global
 globalThis
 groupBy
+hasIndices
 hasInstance
 hasOwn
 hasOwnProperty
 hypot
+ignoreCase
 imul
 includes
 indexOf
@@ -164,6 +185,7 @@ message
 min
 MIN_SAFE_INTEGER
 MIN_VALUE
+multiline
 name
 NaN
 NEGATIVE_INFINITY
@@ -193,6 +215,7 @@ RangeError
 raw
 ReferenceError
 RegExp
+RegExp String Iterator
 repeat
 replace
 replaceAll
@@ -221,12 +244,14 @@ sign
 sin
 sinh
 slice
+source
 species
 split
 sqrt
 SQRT1_2
 SQRT2
 startsWith
+stricky
 string
 String
 String Iterator
@@ -235,6 +260,7 @@ Symbol
 SyntaxError
 tan
 tanh
+test
 toDateString
 toExponential
 toFixed
@@ -268,6 +294,8 @@ Uint32Array
 Uint8Array
 Uint8ClampedArray
 undefined
+unicode
+unicodeSets
 unscopables
 URIError
 utc

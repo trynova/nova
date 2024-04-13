@@ -229,12 +229,7 @@ impl Vm {
                 Instruction::Typeof => {
                     // 2. If val is a Reference Record, then
                     let val = if let Some(reference) = vm.reference.take() {
-                        match reference.base {
-                            Base::Value(value) => value,
-                            Base::Environment(_) => get_value(agent, &reference)?,
-                            // a. If IsUnresolvableReference(val) is true, return "undefined".
-                            Base::Unresolvable => Value::Undefined,
-                        }
+                        get_value(agent, &reference)?
                     } else {
                         vm.result.unwrap()
                     };
@@ -337,7 +332,8 @@ impl Vm {
                                 let s = agent.heap.get(s);
                                 ReferencedName::String(Atom::from(s.as_str().to_string()))
                             }
-                            _ => todo!("Implement symbol and integer property keys"),
+                            PropertyKey::Symbol(s) => ReferencedName::Symbol(s.into()),
+                            _ => todo!("Index properties in ReferencedName"),
                         },
                         strict,
                         this_value: None,

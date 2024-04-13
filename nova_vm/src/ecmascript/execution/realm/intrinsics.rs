@@ -1,10 +1,16 @@
 use crate::{
     ecmascript::{
         builtins::{
-            text_processing::string_objects::{
-                string_constructor::StringConstructor,
-                string_iterator_objects::StringIteratorPrototype,
-                string_prototype::StringPrototype,
+            text_processing::{
+                regexp_objects::{
+                    regexp_constructor::RegExpConstructor, regexp_prototype::RegExpPrototype,
+                    regexp_string_iterator_prototype::RegExpStringIteratorPrototype,
+                },
+                string_objects::{
+                    string_constructor::StringConstructor,
+                    string_iterator_objects::StringIteratorPrototype,
+                    string_prototype::StringPrototype,
+                },
             },
             BuiltinFunction,
         },
@@ -123,6 +129,9 @@ impl Intrinsics {
         StringPrototype::create_intrinsic(agent, realm);
         StringConstructor::create_intrinsic(agent, realm);
         StringIteratorPrototype::create_intrinsic(agent, realm);
+        RegExpPrototype::create_intrinsic(agent, realm);
+        RegExpConstructor::create_intrinsic(agent, realm);
+        RegExpStringIteratorPrototype::create_intrinsic(agent, realm);
     }
 
     pub(crate) fn get_intrinsic_default_proto(

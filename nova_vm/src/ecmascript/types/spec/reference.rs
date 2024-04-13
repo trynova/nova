@@ -105,7 +105,7 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             // creation of the object.
             let referenced_name = match &reference.referenced_name {
                 ReferencedName::String(atom) => PropertyKey::from_str(agent, atom.as_str()),
-                ReferencedName::Symbol(_) => todo!(),
+                ReferencedName::Symbol(symbol) => PropertyKey::from(*symbol),
                 ReferencedName::PrivateName => {
                     // b. If IsPrivateReference(V) is true, then
                     // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
@@ -162,12 +162,7 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             // c. Return ? base.GetBindingValue(V.[[ReferencedName]], V.[[Strict]]) (see 9.1).
             let referenced_name = match &reference.referenced_name {
                 ReferencedName::String(atom) => atom,
-                ReferencedName::Symbol(_) => todo!(),
-                ReferencedName::PrivateName => {
-                    // b. If IsPrivateReference(V) is true, then
-                    // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
-                    todo!()
-                }
+                _ => unreachable!(),
             };
             Ok(env.get_binding_value(agent, referenced_name, reference.strict)?)
         }
