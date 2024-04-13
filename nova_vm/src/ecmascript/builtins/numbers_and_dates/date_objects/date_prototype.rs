@@ -577,7 +577,7 @@ impl DatePrototype {
         let date_constructor = intrinsics.date();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(7)
+            .with_property_capacity(45)
             .with_constructor_property(date_constructor)
             .with_builtin_function_property::<DatePrototypeGetDate>()
             .with_builtin_function_property::<DatePrototypeGetDay>()

@@ -9,6 +9,7 @@
 [object String]
 [object Undefined]
 [Symbol.hasInstance]
+[Symbol.iterator]
 [Symbol.toPrimitive]
 abs
 acos
@@ -42,7 +43,11 @@ caller
 cause
 cbrt
 ceil
+charAt
+charCodeAt
 clz32
+codePointAt
+concat
 constructor
 copyWithin
 cos
@@ -56,6 +61,7 @@ defineProperty
 description
 done
 E
+endsWith
 entries
 EPSILON
 Error
@@ -76,6 +82,8 @@ Float64Array
 floor
 for
 freeze
+fromCharCode
+fromCodePoint
 fromEntries
 fround
 function
@@ -114,6 +122,7 @@ hasOwnProperty
 hypot
 imul
 includes
+indexOf
 Infinity
 Int16Array
 Int32Array
@@ -128,12 +137,15 @@ isNaN
 isPrototypeOf
 isSafeInteger
 isSealed
+isWellFormed
 iterator
 keyFor
 keys
+lastIndexOf
 length
 LN10
 LN2
+localeCompare
 log
 log10
 LOG10E
@@ -156,12 +168,15 @@ name
 NaN
 NEGATIVE_INFINITY
 next
+normalize
 now
 null
 number
 Number
 object
 Object
+padEnd
+padStart
 parse
 parseFloat
 parseInt
@@ -175,9 +190,12 @@ prototype
 Proxy
 random
 RangeError
+raw
 ReferenceError
 RegExp
+repeat
 replace
+replaceAll
 round
 seal
 search
@@ -202,13 +220,16 @@ SharedArrayBuffer
 sign
 sin
 sinh
+slice
 species
 split
 sqrt
 SQRT1_2
 SQRT2
+startsWith
 string
 String
+String Iterator
 symbol
 Symbol
 SyntaxError
@@ -220,8 +241,11 @@ toFixed
 toISOString
 toJSON
 toLocaleDateString
+toLocaleLowerCase
 toLocaleString
 toLocaleTimeString
+toLocaleUpperCase
+toLowerCase
 toPrecision
 toPrimitive
 toReversed
@@ -230,7 +254,12 @@ toSpliced
 toString
 toStringTag
 toTimeString
+toUpperCase
 toUTCString
+toWellFormed
+trim
+trimEnd
+trimStart
 true
 trunc
 TypeError
