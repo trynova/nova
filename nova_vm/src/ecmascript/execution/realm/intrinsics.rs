@@ -25,6 +25,7 @@ use crate::{
             bigint_objects::{
                 bigint_constructor::BigIntConstructor, bigint_prototype::BigIntPrototype,
             },
+            date_objects::{date_constructor::DateConstructor, date_prototype::DatePrototype},
             math_object::MathObject,
             number_objects::{
                 number_constructor::NumberConstructor, number_prototype::NumberPrototype,
@@ -110,6 +111,8 @@ impl Intrinsics {
         BigIntPrototype::create_intrinsic(agent, realm);
         BigIntConstructor::create_intrinsic(agent, realm);
         MathObject::create_intrinsic(agent, realm);
+        DatePrototype::create_intrinsic(agent, realm);
+        DateConstructor::create_intrinsic(agent, realm);
     }
 
     pub(crate) fn get_intrinsic_default_proto(
