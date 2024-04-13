@@ -63,12 +63,6 @@ impl From<SmallInteger> for Number {
     }
 }
 
-impl From<i32> for Number {
-    fn from(value: i32) -> Self {
-        Number::Integer(SmallInteger::from(value))
-    }
-}
-
 impl From<i64> for Number {
     fn from(value: i64) -> Self {
         let n = value
@@ -762,3 +756,20 @@ pub enum BitwiseOp {
     Xor,
     Or,
 }
+
+macro_rules! impl_value_from_n {
+    ($size: ty) => {
+        impl From<$size> for Number {
+            fn from(value: $size) -> Self {
+                Number::Integer(SmallInteger::from(value))
+            }
+        }
+    };
+}
+
+impl_value_from_n!(u8);
+impl_value_from_n!(i8);
+impl_value_from_n!(u16);
+impl_value_from_n!(i16);
+impl_value_from_n!(u32);
+impl_value_from_n!(i32);

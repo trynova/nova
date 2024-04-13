@@ -21,8 +21,15 @@ use crate::{
                 symbol_constructor::SymbolConstructor, symbol_prototype::SymbolPrototype,
             },
         },
-        numbers_and_dates::number_objects::{
-            number_constructor::NumberConstructor, number_prototype::NumberPrototype,
+        numbers_and_dates::{
+            bigint_objects::{
+                bigint_constructor::BigIntConstructor, bigint_prototype::BigIntPrototype,
+            },
+            date_objects::{date_constructor::DateConstructor, date_prototype::DatePrototype},
+            math_object::MathObject,
+            number_objects::{
+                number_constructor::NumberConstructor, number_prototype::NumberPrototype,
+            },
         },
         types::{Object, OrdinaryObject},
     },
@@ -49,6 +56,7 @@ pub(crate) enum ProtoIntrinsics {
     ArrayBuffer,
     BigInt,
     Boolean,
+    Date,
     Error,
     EvalError,
     Function,
@@ -100,6 +108,11 @@ impl Intrinsics {
         NativeErrorConstructors::create_intrinsic(agent, realm);
         NumberPrototype::create_intrinsic(agent, realm);
         NumberConstructor::create_intrinsic(agent, realm);
+        BigIntPrototype::create_intrinsic(agent, realm);
+        BigIntConstructor::create_intrinsic(agent, realm);
+        MathObject::create_intrinsic(agent, realm);
+        DatePrototype::create_intrinsic(agent, realm);
+        DateConstructor::create_intrinsic(agent, realm);
     }
 
     pub(crate) fn get_intrinsic_default_proto(
@@ -112,6 +125,7 @@ impl Intrinsics {
             ProtoIntrinsics::BigInt => self.big_int_prototype().into(),
             ProtoIntrinsics::Boolean => self.boolean_prototype().into(),
             ProtoIntrinsics::Error => self.error_prototype().into(),
+            ProtoIntrinsics::Date => self.date_prototype().into(),
             ProtoIntrinsics::EvalError => self.eval_error_prototype().into(),
             ProtoIntrinsics::Function => self.function_prototype().into(),
             ProtoIntrinsics::Number => self.number_prototype().into(),

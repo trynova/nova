@@ -76,6 +76,28 @@ impl TryFrom<i64> for SmallInteger {
     }
 }
 
+impl TryFrom<f64> for SmallInteger {
+    type Error = ();
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value.fract() == 0.0 && (Self::MIN_BIGINT..=Self::MAX_BIGINT).contains(&(value as i64)) {
+            Ok(Self::from_i64_unchecked(value as i64))
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<f32> for SmallInteger {
+    type Error = ();
+    fn try_from(value: f32) -> Result<Self, Self::Error> {
+        if value.fract() == 0.0 && (Self::MIN_BIGINT..=Self::MAX_BIGINT).contains(&(value as i64)) {
+            Ok(Self::from_i64_unchecked(value as i64))
+        } else {
+            Err(())
+        }
+    }
+}
+
 impl TryFrom<i128> for SmallInteger {
     type Error = ();
     fn try_from(value: i128) -> Result<Self, Self::Error> {

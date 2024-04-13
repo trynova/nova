@@ -8,6 +8,7 @@ pub(crate) mod arguments;
 mod array;
 mod array_buffer;
 mod builtin_function;
+pub mod date;
 mod ecmascript_function;
 pub mod error;
 pub(crate) mod fundamental_objects;
