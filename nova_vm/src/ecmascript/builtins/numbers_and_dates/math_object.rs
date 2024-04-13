@@ -6,7 +6,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Builtin},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{Number, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{GetHeapData, WellKnownSymbolIndexes},
     SmallInteger,

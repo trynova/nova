@@ -2,6 +2,7 @@
 
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::to_numeric,
         builtins::Behaviour,
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{bigint::BigInt, InternalMethods, IntoValue, Number, Object, String, Value},
@@ -293,28 +294,26 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
 
         // c. NOTE: Because px and py are primitive values, evaluation order is not important.
         // d. Let nx be ? ToNumeric(px).
-        let nx = px.to_numeric(agent)?;
+        let nx = to_numeric(agent, px)?;
 
         // e. Let ny be ? ToNumeric(py).
-        let ny = py.to_numeric(agent)?;
+        let ny = to_numeric(agent, py)?;
 
         // f. If Type(nx) is Type(ny), then
         if is_same_type(nx, ny) {
             // i. If nx is a Number, then
-            if nx.is_number() {
+            if let Ok(nx) = Number::try_from(nx) {
                 // 1. Return Number::lessThan(nx, ny).
-                let nx = nx.to_number(agent)?;
-                let ny = ny.to_number(agent)?;
+                let ny = Number::try_from(ny).unwrap();
                 return Ok(Number::less_than(agent, nx, ny));
             }
             // ii. Else,
             else {
                 // 1. Assert: nx is a BigInt.
-                assert!(nx.is_bigint());
+                let nx = BigInt::try_from(nx).unwrap();
+                let ny = BigInt::try_from(ny).unwrap();
 
                 // 2. Return BigInt::lessThan(nx, ny).
-                let nx = nx.to_bigint(agent)?;
-                let ny = ny.to_bigint(agent)?;
                 return Ok(Some(BigInt::less_than(agent, nx, ny)));
             }
         }

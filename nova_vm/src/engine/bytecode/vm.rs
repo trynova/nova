@@ -23,7 +23,7 @@ use crate::{
         },
         types::{
             get_value, is_unresolvable_reference, put_value, Base, BigInt, Function, IntoValue,
-            Number, Object, PropertyKey, Reference, ReferencedName, String, Value,
+            Number, Numeric, Object, PropertyKey, Reference, ReferencedName, String, Value,
             BUILTIN_STRING_MEMORY,
         },
     },
@@ -187,7 +187,9 @@ impl Vm {
                         to_number(agent, vm.result.unwrap()).map(|number| Some(number.into()))?;
                 }
                 Instruction::ToNumeric => {
-                    vm.result = Some(to_numeric(agent, vm.result.unwrap())?);
+                    vm.result = Some(
+                        to_numeric(agent, vm.result.unwrap()).map(|result| result.into_value())?,
+                    );
                 }
                 Instruction::ApplyStringOrNumericBinaryOperator(op_text) => {
                     let lval = vm.stack.pop().unwrap();
@@ -488,10 +490,12 @@ impl Vm {
 #[inline]
 fn apply_string_or_numeric_binary_operator(
     agent: &mut Agent,
-    mut lval: Value,
+    lval: Value,
     op_text: BinaryOperator,
-    mut rval: Value,
+    rval: Value,
 ) -> JsResult<Value> {
+    let lnum: Numeric;
+    let rnum: Numeric;
     // 1. If opText is +, then
     if op_text == BinaryOperator::Addition {
         // a. Let lprim be ? ToPrimitive(lval).
@@ -513,19 +517,18 @@ fn apply_string_or_numeric_binary_operator(
         }
 
         // d. Set lval to lprim.
-        lval = lprim;
-
         // e. Set rval to rprim.
-        rval = rprim;
+        // 2. NOTE: At this point, it must be a numeric operation.
+        // 3. Let lnum be ? ToNumeric(lval).
+        lnum = to_numeric(agent, lprim)?;
+        // 4. Let rnum be ? ToNumeric(rval).
+        rnum = to_numeric(agent, rprim)?;
+    } else {
+        // 3. Let lnum be ? ToNumeric(lval).
+        lnum = to_numeric(agent, lval)?;
+        // 4. Let rnum be ? ToNumeric(rval).
+        rnum = to_numeric(agent, rval)?;
     }
-
-    // 2. NOTE: At this point, it must be a numeric operation.
-
-    // 3. Let lnum be ? ToNumeric(lval).
-    let lnum = to_numeric(agent, lval)?;
-
-    // 4. Let rnum be ? ToNumeric(rval).
-    let rnum = to_numeric(agent, rval)?;
 
     // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
     if !is_same_type(lnum, rnum) {
@@ -559,9 +562,12 @@ fn apply_string_or_numeric_binary_operator(
     Ok(match op_text {
         // opText	Type(lnum)	operation
         // **	Number	Number::exponentiate
-        BinaryOperator::Exponential if lnum.is_number() => {
-            Number::exponentiate(agent, lnum.try_into().unwrap(), rnum.try_into().unwrap()).into()
-        }
+        BinaryOperator::Exponential if lnum.is_number() => Number::exponentiate(
+            agent,
+            Number::try_from(lnum).unwrap(),
+            rnum.try_into().unwrap(),
+        )
+        .into(),
         // *	Number	Number::multiply
         // *	BigInt	BigInt::multiply
         // /	Number	Number::divide

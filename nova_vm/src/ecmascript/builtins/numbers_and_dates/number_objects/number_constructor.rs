@@ -6,10 +6,13 @@ use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::types::IntoNumeric;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Number;
+
 use crate::ecmascript::types::Object;
+
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
 use crate::heap::CreateHeapData;
@@ -75,12 +78,12 @@ impl NumberConstructor {
         // 2. Else,
         else {
             // a. Let n be +0𝔽.
-            Value::from(0)
+            Number::from(0).into_numeric()
         };
 
         // 3. If NewTarget is undefined, return n.
         let Some(_new_target) = new_target else {
-            return Ok(n);
+            return Ok(n.into_value());
         };
 
         todo!();

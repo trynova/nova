@@ -18,7 +18,7 @@ use crate::{
     SmallInteger, SmallString,
 };
 
-use super::{BigInt, Number, String};
+use super::{BigInt, IntoValue, Number, Numeric, String};
 
 /// ### [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -375,7 +375,7 @@ impl Value {
         to_big_int(agent, self)
     }
 
-    pub fn to_numeric(self, agent: &mut Agent) -> JsResult<Value> {
+    pub fn to_numeric(self, agent: &mut Agent) -> JsResult<Numeric> {
         to_numeric(agent, self)
     }
 

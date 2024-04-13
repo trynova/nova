@@ -1,7 +1,7 @@
 include!(concat!(env!("OUT_DIR"), "/builtin_strings.rs"));
 mod data;
 
-use super::{IntoValue, Value};
+use super::{IntoPrimitive, IntoValue, Primitive, Value};
 use crate::{
     ecmascript::execution::Agent,
     heap::{indexes::StringIndex, CreateHeapData, GetHeapData},
@@ -33,9 +33,24 @@ impl IntoValue for String {
     }
 }
 
+impl IntoPrimitive for String {
+    fn into_primitive(self) -> Primitive {
+        match self {
+            String::String(idx) => Primitive::String(idx),
+            String::SmallString(data) => Primitive::SmallString(data),
+        }
+    }
+}
+
 impl From<StringIndex> for String {
     fn from(value: StringIndex) -> Self {
         String::String(value)
+    }
+}
+
+impl From<StringIndex> for Primitive {
+    fn from(value: StringIndex) -> Self {
+        Self::String(value)
     }
 }
 
@@ -52,6 +67,17 @@ impl TryFrom<Value> for String {
         match value {
             Value::String(x) => Ok(String::String(x)),
             Value::SmallString(x) => Ok(String::SmallString(x)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Primitive> for String {
+    type Error = ();
+    fn try_from(value: Primitive) -> Result<Self, Self::Error> {
+        match value {
+            Primitive::String(x) => Ok(String::String(x)),
+            Primitive::SmallString(x) => Ok(String::SmallString(x)),
             _ => Err(()),
         }
     }
@@ -80,6 +106,18 @@ impl From<SmallString> for String {
 
 impl IntoValue for SmallString {
     fn into_value(self) -> Value {
+        self.into()
+    }
+}
+
+impl From<SmallString> for Primitive {
+    fn from(value: SmallString) -> Self {
+        Self::SmallString(value)
+    }
+}
+
+impl IntoPrimitive for SmallString {
+    fn into_primitive(self) -> Primitive {
         self.into()
     }
 }

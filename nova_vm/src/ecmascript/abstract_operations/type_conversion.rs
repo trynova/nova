@@ -14,7 +14,10 @@ use crate::{
     ecmascript::{
         builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{BigInt, Number, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        types::{
+            BigInt, IntoNumeric, Number, Numeric, Object, Primitive, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     heap::{GetHeapData, WellKnownSymbolIndexes},
     SmallInteger,
@@ -51,7 +54,7 @@ pub(crate) fn to_primitive(
     agent: &mut Agent,
     input: impl Into<Value> + Copy,
     preferred_type: Option<PreferredType>,
-) -> JsResult<Value> {
+) -> JsResult<Primitive> {
     let input: Value = input.into();
     // 1. If input is an Object, then
     if let Ok(input) = Object::try_from(input) {
@@ -82,14 +85,11 @@ pub(crate) fn to_primitive(
                 input.into(),
                 Some(ArgumentsList(&[hint.into()])),
             )?;
-            if !result.is_object() {
-                // v. If result is not an Object, return result.
-                Ok(result)
-            } else {
+            // v. If result is not an Object, return result.
+            Primitive::try_from(result).map_err(|_| {
                 // vi. Throw a TypeError exception.
-                Err(agent
-                    .throw_exception(ExceptionType::TypeError, "Invalid toPrimitive return value"))
-            }
+                agent.throw_exception(ExceptionType::TypeError, "Invalid toPrimitive return value")
+            })
         } else {
             // c. If preferredType is not present, let preferredType be NUMBER.
             // d. Return ? OrdinaryToPrimitive(input, preferredType).
@@ -101,7 +101,7 @@ pub(crate) fn to_primitive(
         }
     } else {
         // 2. Return input.
-        Ok(input)
+        Ok(Primitive::try_from(input).unwrap())
     }
 }
 
@@ -114,7 +114,7 @@ pub(crate) fn ordinary_to_primitive(
     agent: &mut Agent,
     o: Object,
     hint: PreferredType,
-) -> JsResult<Value> {
+) -> JsResult<Primitive> {
     let to_string_key = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
     let value_of_key = PropertyKey::from(BUILTIN_STRING_MEMORY.valueOf);
     let method_names = match hint {
@@ -138,7 +138,7 @@ pub(crate) fn ordinary_to_primitive(
             // i. Let result be ? Call(method, O).
             let result: Value = call(agent, method, o.into(), None)?;
             // ii. If result is not an Object, return result.
-            if !result.is_object() {
+            if let Ok(result) = Primitive::try_from(result) {
                 return Ok(result);
             }
         }
@@ -173,17 +173,17 @@ pub(crate) fn to_boolean(agent: &mut Agent, argument: Value) -> bool {
 }
 
 /// ### [7.1.3 ToNumeric ( value )](https://tc39.es/ecma262/#sec-tonumeric)
-pub(crate) fn to_numeric(agent: &mut Agent, value: Value) -> JsResult<Value> {
+pub(crate) fn to_numeric(agent: &mut Agent, value: impl Into<Value> + Copy) -> JsResult<Numeric> {
     // 1. Let primValue be ? ToPrimitive(value, number).
     let prim_value = to_primitive(agent, value, Some(PreferredType::Number))?;
 
     // 2. If primValue is a BigInt, return primValue.
-    if prim_value.is_bigint() {
-        return Ok(prim_value);
+    if let Ok(prim_value) = BigInt::try_from(prim_value) {
+        return Ok(prim_value.into_numeric());
     }
 
     // 3. Return ? ToNumber(primValue).
-    to_number(agent, value).map(|n| n.into_value())
+    to_number(agent, value).map(|n| n.into_numeric())
 }
 
 /// ### [7.1.4 ToNumber ( argument )](https://tc39.es/ecma262/#sec-tonumber)
@@ -216,7 +216,6 @@ pub(crate) fn to_number(agent: &mut Agent, argument: impl Into<Value> + Copy) ->
             // 8. Let primValue be ? ToPrimitive(argument, number).
             let prim_value = to_primitive(agent, argument, Some(PreferredType::Number))?;
             // 9. Assert: primValue is not an Object.
-            debug_assert!(!prim_value.is_object());
             // 10. Return ? ToNumber(primValue).
             to_number(agent, prim_value)
         }
@@ -426,18 +425,20 @@ pub(crate) fn to_big_int(agent: &mut Agent, argument: Value) -> JsResult<BigInt>
 
     // 2. Return the value that prim corresponds to in Table 12.
     match prim {
-        Value::Undefined => {
+        Primitive::Undefined => {
             Err(agent.throw_exception(ExceptionType::Error, "Invalid primitive 'undefined'"))
         }
-        Value::Null => Err(agent.throw_exception(ExceptionType::Error, "Invalid primitive 'null'")),
-        Value::Boolean(bool) => {
+        Primitive::Null => {
+            Err(agent.throw_exception(ExceptionType::Error, "Invalid primitive 'null'"))
+        }
+        Primitive::Boolean(bool) => {
             if bool {
                 Ok(BigInt::from(1))
             } else {
                 Ok(BigInt::from(0))
             }
         }
-        Value::String(idx) => {
+        Primitive::String(idx) => {
             let result = string_to_big_int(agent, idx.into());
             let Some(result) = result else {
                 return Err(
@@ -446,7 +447,7 @@ pub(crate) fn to_big_int(agent: &mut Agent, argument: Value) -> JsResult<BigInt>
             };
             Ok(result)
         }
-        Value::SmallString(data) => {
+        Primitive::SmallString(data) => {
             let result = string_to_big_int(agent, data.into());
             let Some(result) = result else {
                 return Err(
@@ -455,15 +456,14 @@ pub(crate) fn to_big_int(agent: &mut Agent, argument: Value) -> JsResult<BigInt>
             };
             Ok(result)
         }
-        Value::Symbol(_) => {
+        Primitive::Symbol(_) => {
             Err(agent.throw_exception(ExceptionType::TypeError, "Cannot convert Symbol to BigInt"))
         }
-        Value::Number(_) | Value::Integer(_) | Value::Float(_) => {
+        Primitive::Number(_) | Primitive::Integer(_) | Primitive::Float(_) => {
             Err(agent.throw_exception(ExceptionType::TypeError, "Cannot convert Number to BigInt"))
         }
-        Value::BigInt(idx) => Ok(idx.into()),
-        Value::SmallBigInt(data) => Ok(data.into()),
-        _ => unreachable!(),
+        Primitive::BigInt(idx) => Ok(idx.into()),
+        Primitive::SmallBigInt(data) => Ok(data.into()),
     }
 }
 
@@ -480,7 +480,8 @@ pub(crate) fn string_to_big_int(_agent: &mut Agent, _argument: String) -> Option
 }
 
 /// ### [7.1.17 ToString ( argument )](https://tc39.es/ecma262/#sec-tostring)
-pub(crate) fn to_string(agent: &mut Agent, argument: Value) -> JsResult<String> {
+pub(crate) fn to_string(agent: &mut Agent, argument: impl Into<Value> + Copy) -> JsResult<String> {
+    let argument: Value = argument.into();
     // 1. If argument is a String, return argument.
     match argument {
         // 3. If argument is undefined, return "undefined".
@@ -515,7 +516,6 @@ pub(crate) fn to_string(agent: &mut Agent, argument: Value) -> JsResult<String> 
             // 10. Let primValue be ? ToPrimitive(argument, string).
             let prim_value = to_primitive(agent, argument, Some(PreferredType::String))?;
             // 11. Assert: primValue is not an Object.
-            assert!(Object::try_from(prim_value).is_err());
             // 12. Return ? ToString(primValue).
             to_string(agent, prim_value)
         }
@@ -561,12 +561,31 @@ pub(crate) fn to_property_key(agent: &mut Agent, argument: Value) -> JsResult<Pr
     //    a. Return key.
     // NOTE: This handles Symbols and other primitives because we use niche
     // specializations for PropertyKey (e.g. integer indexes for arrays).
-    if let Ok(property_key) = PropertyKey::try_from(key) {
-        return Ok(property_key);
+    match key {
+        Primitive::Integer(x) => Ok(PropertyKey::Integer(x)),
+        Primitive::Float(x) if x == -0.0 => Ok(PropertyKey::Integer(0.into())),
+        Primitive::SmallString(x) => Ok(PropertyKey::SmallString(x)),
+        Primitive::String(x) => Ok(PropertyKey::String(x)),
+        Primitive::Symbol(x) => Ok(PropertyKey::Symbol(x)),
+        Primitive::SmallBigInt(x)
+            if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&x.into_i64()) =>
+        {
+            Ok(PropertyKey::Integer(x))
+        }
+        Primitive::Undefined => Ok(PropertyKey::from(BUILTIN_STRING_MEMORY.undefined)),
+        Primitive::Null => Ok(PropertyKey::from(BUILTIN_STRING_MEMORY.null)),
+        Primitive::Boolean(bool) => {
+            if bool {
+                Ok(PropertyKey::from(BUILTIN_STRING_MEMORY.r#true))
+            } else {
+                Ok(PropertyKey::from(BUILTIN_STRING_MEMORY.r#false))
+            }
+        }
+        _ => {
+            // 3. Return ! ToString(key).
+            Ok(to_string(agent, key).unwrap().into())
+        }
     }
-
-    // 3. Return ! ToString(key).
-    Ok(to_string(agent, key).unwrap().into())
 }
 
 /// ### [7.1.20 ToLength ( argument )](https://tc39.es/ecma262/#sec-tolength)
@@ -607,7 +626,7 @@ pub(crate) fn canonical_numeric_index_string(
     let n = to_number(agent, argument).unwrap();
 
     // 3. If ! ToString(n) is argument, return n.
-    if to_string(agent, n.into()).unwrap() == argument {
+    if to_string(agent, n).unwrap() == argument {
         return Some(n);
     }
 

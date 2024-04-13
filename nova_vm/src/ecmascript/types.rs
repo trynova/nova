@@ -2,8 +2,9 @@ mod language;
 mod spec;
 
 pub use language::{
-    bigint, BigInt, Function, InternalMethods, IntoFunction, IntoObject, IntoValue, Number, Object,
-    OrdinaryObject, OrdinaryObjectInternalSlots, PropertyKey, String, Symbol, Value,
+    bigint, BigInt, Function, InternalMethods, IntoFunction, IntoNumeric, IntoObject,
+    IntoPrimitive, IntoValue, Number, Numeric, Object, OrdinaryObject, OrdinaryObjectInternalSlots,
+    Primitive, PropertyKey, String, Symbol, Value,
 };
 pub(crate) use language::{
     BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
