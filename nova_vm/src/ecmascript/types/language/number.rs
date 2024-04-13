@@ -197,11 +197,6 @@ impl Number {
         Self::from(f32::NEG_INFINITY)
     }
 
-    pub fn into_value(self) -> Value {
-        // SAFETY: Sub-enum.
-        unsafe { std::mem::transmute::<Number, Value>(self) }
-    }
-
     pub fn is_nan(self, agent: &mut Agent) -> bool {
         match self {
             Number::Number(n) => agent.heap.get(n).is_nan(),

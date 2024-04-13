@@ -3,7 +3,7 @@ use crate::ecmascript::{
     builders::ordinary_object_builder::OrdinaryObjectBuilder,
     builtins::{ArgumentsList, Builtin},
     execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-    types::{Number, String, Value, BUILTIN_STRING_MEMORY},
+    types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
 };
 
 pub(crate) struct NumberPrototype;
