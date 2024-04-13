@@ -2,6 +2,7 @@ use std::time::SystemTime;
 
 use crate::ecmascript::abstract_operations::type_conversion::to_number;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
+use crate::ecmascript::builtins::date::Date;
 use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
@@ -17,6 +18,7 @@ use crate::ecmascript::types::Number;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
+use crate::heap::GetHeapData;
 use crate::SmallInteger;
 
 pub struct DateConstructor;
@@ -61,7 +63,7 @@ impl DateConstructor {
         };
         // 2. Let numberOfArgs be the number of elements in values.
         let number_of_args = arguments.len() as u32;
-        let _dv = match number_of_args {
+        let dv = match number_of_args {
             // 3. If numberOfArgs = 0, then
             0 => {
                 // a. Let dv be the time value (UTC) identifying the current time.
@@ -107,6 +109,7 @@ impl DateConstructor {
             (),
         )?;
         // 7. Set O.[[DateValue]] to dv.
+        agent.heap.get_mut(*Date::try_from(o).unwrap()).date = Some(dv);
         // 8. Return O.
         Ok(o.into_value())
     }

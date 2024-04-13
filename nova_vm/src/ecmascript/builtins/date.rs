@@ -1,18 +1,28 @@
 pub(crate) mod data;
 
+use std::ops::Deref;
+
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
-            PropertyKey, Value,
+            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
+            OrdinaryObjectInternalSlots, PropertyKey, Value,
         },
     },
-    heap::indexes::DateIndex,
+    heap::{indexes::DateIndex, GetHeapData},
 };
 
 #[derive(Debug, Clone, Copy)]
 pub struct Date(pub(crate) DateIndex);
+
+impl Deref for Date {
+    type Target = DateIndex;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl From<DateIndex> for Date {
     fn from(value: DateIndex) -> Self {
@@ -128,13 +138,16 @@ impl InternalMethods for Date {
         todo!()
     }
 
-    fn get(
-        self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _receiver: Value,
-    ) -> JsResult<Value> {
-        todo!()
+    fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
+        if let Some(object_index) = agent.heap.get(*self).object_index {
+            OrdinaryObject::from(object_index).get(agent, property_key, receiver)
+        } else {
+            agent
+                .current_realm()
+                .intrinsics()
+                .date_prototype()
+                .get(agent, property_key, receiver)
+        }
     }
 
     fn set(
