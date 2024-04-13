@@ -1,6 +1,6 @@
 use super::{
     indexes::ElementIndex,
-    object::{ObjectEntry, ObjectEntryPropertyDescriptor},
+    object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor},
 };
 use crate::ecmascript::types::{Function, PropertyKey, Value};
 use core::panic;

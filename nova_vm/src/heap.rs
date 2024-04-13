@@ -3,7 +3,7 @@ mod heap_bits;
 mod heap_constants;
 mod heap_gc;
 pub mod indexes;
-mod object;
+mod object_entry;
 mod regexp;
 
 pub(crate) use self::heap_constants::{
@@ -11,7 +11,7 @@ pub(crate) use self::heap_constants::{
     IntrinsicFunctionIndexes, IntrinsicObjectIndexes, WellKnownSymbolIndexes,
 };
 use self::indexes::{DateIndex, ErrorIndex};
-pub(crate) use self::object::{ObjectEntry, ObjectEntryPropertyDescriptor};
+pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
     element_array::{
         ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16, ElementArray2Pow24,
