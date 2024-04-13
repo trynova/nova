@@ -597,6 +597,16 @@ pub(crate) fn make_constructor(
             // 2. Else,
             // a. Set F.[[Construct]] to the definition specified in 10.3.2.
         }
+        Function::BuiltinGeneratorFunction => todo!(),
+        Function::BuiltinConstructorFunction => todo!(),
+        Function::BuiltinPromiseResolveFunction => todo!(),
+        Function::BuiltinPromiseRejectFunction => todo!(),
+        Function::BuiltinPromiseCollectorFunction => todo!(),
+        Function::BuiltinProxyRevokerFunction => todo!(),
+        Function::ECMAScriptAsyncFunction => todo!(),
+        Function::ECMAScriptAsyncGeneratorFunction => todo!(),
+        Function::ECMAScriptConstructorFunction => todo!(),
+        Function::ECMAScriptGeneratorFunction => todo!(),
     }
     // 5. If prototype is not present, then
     let prototype = prototype.unwrap_or_else(|| {
@@ -685,6 +695,16 @@ pub(crate) fn set_function_name(
             function.name = Some(name);
             // 7. Return UNUSED.
         }
+        Function::BuiltinGeneratorFunction => todo!(),
+        Function::BuiltinConstructorFunction => todo!(),
+        Function::BuiltinPromiseResolveFunction => todo!(),
+        Function::BuiltinPromiseRejectFunction => todo!(),
+        Function::BuiltinPromiseCollectorFunction => todo!(),
+        Function::BuiltinProxyRevokerFunction => todo!(),
+        Function::ECMAScriptAsyncFunction => todo!(),
+        Function::ECMAScriptAsyncGeneratorFunction => todo!(),
+        Function::ECMAScriptConstructorFunction => todo!(),
+        Function::ECMAScriptGeneratorFunction => todo!(),
     }
 }
 

@@ -621,8 +621,51 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::Date(_)  |
         Value::Error(_)  |
         // 14. Return "object".
-        Value::RegExp(_) => BUILTIN_STRING_MEMORY.object,
+        Value::RegExp(_) |
+        Value::BigIntObject |
+        Value::BooleanObject |
+        Value::NumberObject |
+        Value::StringObject |
+        Value::SymbolObject |
+        Value::Arguments |
+        Value::DataView |
+        Value::FinalizationRegistry |
+        Value::Map |
+        Value::Promise |
+        Value::Set |
+        Value::SharedArrayBuffer |
+        Value::WeakMap |
+        Value::WeakRef |
+        Value::WeakSet |
+        Value::Int8Array |
+        Value::Uint8Array |
+        Value::Uint8ClampedArray |
+        Value::Int16Array |
+        Value::Uint16Array |
+        Value::Int32Array |
+        Value::Uint32Array |
+        Value::BigInt64Array |
+        Value::BigUint64Array |
+        Value::Float32Array |
+        Value::Float64Array |
+        Value::AsyncFromSyncIterator |
+        Value::AsyncIterator |
+        Value::Iterator |
+        Value::Module |
+        Value::EmbedderObject => BUILTIN_STRING_MEMORY.object,
         // 13. If val has a [[Call]] internal slot, return "function".
-        Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) => BUILTIN_STRING_MEMORY.function,
+        Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) |
+        Value::BuiltinGeneratorFunction |
+        Value::BuiltinConstructorFunction |
+        Value::BuiltinPromiseResolveFunction |
+        Value::BuiltinPromiseRejectFunction |
+        Value::BuiltinPromiseCollectorFunction |
+        Value::BuiltinProxyRevokerFunction |
+        Value::ECMAScriptAsyncFunction |
+        Value::ECMAScriptAsyncGeneratorFunction |
+        Value::ECMAScriptConstructorFunction |
+        Value::ECMAScriptGeneratorFunction => BUILTIN_STRING_MEMORY.function,
+        // TODO: Check [[Call]] slot for Proxy
+        Value::Proxy => todo!(),
     }
 }

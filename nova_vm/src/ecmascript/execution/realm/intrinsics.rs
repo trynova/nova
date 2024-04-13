@@ -57,8 +57,8 @@ use super::RealmIdentifier;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Intrinsics {
-    object_index_base: ObjectIndex,
-    builtin_function_index_base: BuiltinFunctionIndex,
+    pub(crate) object_index_base: ObjectIndex,
+    pub(crate) builtin_function_index_base: BuiltinFunctionIndex,
 }
 
 /// Enumeration of intrinsics intended to be used as the \[\[Prototype\]\] value of
