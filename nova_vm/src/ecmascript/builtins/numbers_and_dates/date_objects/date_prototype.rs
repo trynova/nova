@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use crate::{
     ecmascript::{
         builders::{
@@ -6,9 +8,10 @@ use crate::{
         },
         builtins::{date::Date, ArgumentsList, Behaviour, Builtin},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{GetHeapData, WellKnownSymbolIndexes},
+    SmallInteger,
 };
 
 pub(crate) struct DatePrototype;
@@ -281,6 +284,8 @@ impl Builtin for DatePrototypeToPrimitive {
         crate::ecmascript::builtins::Behaviour::Regular(DatePrototype::to_primitive);
 }
 
+const MAX_SYSTEM_TIME_VALUE: u128 = SmallInteger::MAX_NUMBER as u128;
+
 impl DatePrototype {
     fn get_date(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         let _date_object = check_date_object(agent, this_value)?;
@@ -521,8 +526,45 @@ impl DatePrototype {
     }
 
     fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, this_value)?;
-        todo!()
+        let date_object = check_date_object(agent, this_value)?;
+        let data = &agent.heap.get(date_object.0).date;
+        match data {
+            Some(system_time) => {
+                let time_as_millis = system_time
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .map_or_else(
+                        |_| {
+                            // System time is before UNIX_EPOCH
+                            let value = SystemTime::UNIX_EPOCH
+                                .duration_since(*system_time)
+                                .unwrap()
+                                .as_millis();
+                            if value > MAX_SYSTEM_TIME_VALUE {
+                                // Time difference is over representable limit
+                                None
+                            } else {
+                                Some(-(value as i64))
+                            }
+                        },
+                        |value| {
+                            let value = value.as_millis();
+                            if value > MAX_SYSTEM_TIME_VALUE {
+                                None
+                            } else {
+                                Some(value as i64)
+                            }
+                        },
+                    );
+                match time_as_millis {
+                    Some(time_as_millis) => Ok(Number::from(
+                        SmallInteger::try_from(time_as_millis).unwrap(),
+                    )
+                    .into_value()),
+                    None => Ok(Value::nan()),
+                }
+            }
+            None => Ok(Value::nan()),
+        }
     }
 
     fn to_primitive(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
