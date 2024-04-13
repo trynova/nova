@@ -1,8 +1,10 @@
 mod data;
 
 use super::{
+    into_numeric::IntoNumeric,
+    numeric::Numeric,
     value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT},
-    IntoValue, Value,
+    IntoPrimitive, IntoValue, Primitive, Value,
 };
 use crate::{
     ecmascript::execution::{agent::ExceptionType, Agent, JsResult},
@@ -18,12 +20,36 @@ impl IntoValue for BigIntIndex {
     }
 }
 
+impl IntoPrimitive for BigIntIndex {
+    fn into_primitive(self) -> Primitive {
+        self.into()
+    }
+}
+
+impl IntoNumeric for BigIntIndex {
+    fn into_numeric(self) -> Numeric {
+        self.into()
+    }
+}
+
 impl IntoValue for BigInt {
     fn into_value(self) -> Value {
         match self {
             BigInt::BigInt(idx) => Value::BigInt(idx),
             BigInt::SmallBigInt(data) => Value::SmallBigInt(data),
         }
+    }
+}
+
+impl IntoPrimitive for BigInt {
+    fn into_primitive(self) -> Primitive {
+        self.into()
+    }
+}
+
+impl IntoNumeric for BigInt {
+    fn into_numeric(self) -> Numeric {
+        self.into()
     }
 }
 
@@ -192,6 +218,26 @@ impl From<BigIntIndex> for BigInt {
     }
 }
 
+impl From<BigIntIndex> for Primitive {
+    fn from(value: BigIntIndex) -> Self {
+        Primitive::BigInt(value)
+    }
+}
+
+impl From<BigIntIndex> for Numeric {
+    fn from(value: BigIntIndex) -> Self {
+        Numeric::BigInt(value)
+    }
+}
+
+impl From<BigIntIndex> for Value {
+    fn from(value: BigIntIndex) -> Self {
+        Value::BigInt(value)
+    }
+}
+
+// Note: SmallInteger can be a number or BigInt.
+// Hence there are no further impls here.
 impl From<SmallInteger> for BigInt {
     fn from(value: SmallInteger) -> Self {
         BigInt::SmallBigInt(value)
@@ -209,11 +255,51 @@ impl TryFrom<Value> for BigInt {
     }
 }
 
+impl TryFrom<Primitive> for BigInt {
+    type Error = ();
+    fn try_from(value: Primitive) -> Result<Self, Self::Error> {
+        match value {
+            Primitive::BigInt(x) => Ok(BigInt::BigInt(x)),
+            Primitive::SmallBigInt(x) => Ok(BigInt::SmallBigInt(x)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Numeric> for BigInt {
+    type Error = ();
+    fn try_from(value: Numeric) -> Result<Self, Self::Error> {
+        match value {
+            Numeric::BigInt(x) => Ok(BigInt::BigInt(x)),
+            Numeric::SmallBigInt(x) => Ok(BigInt::SmallBigInt(x)),
+            _ => Err(()),
+        }
+    }
+}
+
 impl From<BigInt> for Value {
     fn from(value: BigInt) -> Value {
         match value {
             BigInt::BigInt(x) => Value::BigInt(x),
             BigInt::SmallBigInt(x) => Value::SmallBigInt(x),
+        }
+    }
+}
+
+impl From<BigInt> for Primitive {
+    fn from(value: BigInt) -> Primitive {
+        match value {
+            BigInt::BigInt(x) => Primitive::BigInt(x),
+            BigInt::SmallBigInt(x) => Primitive::SmallBigInt(x),
+        }
+    }
+}
+
+impl From<BigInt> for Numeric {
+    fn from(value: BigInt) -> Numeric {
+        match value {
+            BigInt::BigInt(x) => Numeric::BigInt(x),
+            BigInt::SmallBigInt(x) => Numeric::SmallBigInt(x),
         }
     }
 }

@@ -2,7 +2,7 @@ mod data;
 
 use super::{
     value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
-    IntoValue, String, Value,
+    IntoNumeric, IntoPrimitive, IntoValue, Numeric, Primitive, String, Value,
 };
 use crate::{
     ecmascript::{
@@ -31,12 +31,44 @@ impl IntoValue for NumberIndex {
     }
 }
 
+impl IntoPrimitive for NumberIndex {
+    fn into_primitive(self) -> Primitive {
+        Primitive::Number(self)
+    }
+}
+
 impl IntoValue for Number {
     fn into_value(self) -> Value {
         match self {
             Number::Number(idx) => Value::Number(idx),
             Number::Integer(data) => Value::Integer(data),
             Number::Float(data) => Value::Float(data),
+        }
+    }
+}
+
+impl IntoNumeric for NumberIndex {
+    fn into_numeric(self) -> Numeric {
+        Numeric::Number(self)
+    }
+}
+
+impl IntoPrimitive for Number {
+    fn into_primitive(self) -> Primitive {
+        match self {
+            Number::Number(idx) => Primitive::Number(idx),
+            Number::Integer(data) => Primitive::Integer(data),
+            Number::Float(data) => Primitive::Float(data),
+        }
+    }
+}
+
+impl IntoNumeric for Number {
+    fn into_numeric(self) -> Numeric {
+        match self {
+            Number::Number(idx) => Numeric::Number(idx),
+            Number::Integer(data) => Numeric::Integer(data),
+            Number::Float(data) => Numeric::Float(data),
         }
     }
 }
@@ -100,14 +132,35 @@ impl TryFrom<f64> for Number {
 impl TryFrom<Value> for Number {
     type Error = ();
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        if matches!(
-            value,
-            Value::Number(_) | Value::Integer(_) | Value::Float(_)
-        ) {
-            // SAFETY: Sub-enum.
-            Ok(unsafe { std::mem::transmute::<Value, Number>(value) })
-        } else {
-            Err(())
+        match value {
+            Value::Number(data) => Ok(Number::Number(data)),
+            Value::Integer(data) => Ok(Number::Integer(data)),
+            Value::Float(data) => Ok(Number::Float(data)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Primitive> for Number {
+    type Error = ();
+    fn try_from(value: Primitive) -> Result<Self, Self::Error> {
+        match value {
+            Primitive::Number(data) => Ok(Number::Number(data)),
+            Primitive::Integer(data) => Ok(Number::Integer(data)),
+            Primitive::Float(data) => Ok(Number::Float(data)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Numeric> for Number {
+    type Error = ();
+    fn try_from(value: Numeric) -> Result<Self, Self::Error> {
+        match value {
+            Numeric::Number(data) => Ok(Number::Number(data)),
+            Numeric::Integer(data) => Ok(Number::Integer(data)),
+            Numeric::Float(data) => Ok(Number::Float(data)),
+            _ => Err(()),
         }
     }
 }
