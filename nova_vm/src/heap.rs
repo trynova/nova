@@ -209,7 +209,7 @@ impl CreateHeapData<std::string::String, String> for Heap {
 impl CreateHeapData<DateHeapData, Date> for Heap {
     fn create(&mut self, data: DateHeapData) -> Date {
         self.dates.push(Some(data));
-        Date::from(DateIndex::last(&self.errors))
+        Date::from(DateIndex::last(&self.dates))
     }
 }
 

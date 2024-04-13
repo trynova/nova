@@ -189,6 +189,7 @@ impl TryFrom<Value> for Object {
         match value {
             Value::Object(x) => Ok(Object::from(x)),
             Value::Array(x) => Ok(Object::from(x)),
+            Value::Date(x) => Ok(Object::Date(x)),
             Value::Error(x) => Ok(Object::from(x)),
             Value::BoundFunction(x) => Ok(Object::from(x)),
             Value::BuiltinFunction(x) => Ok(Object::from(x)),
