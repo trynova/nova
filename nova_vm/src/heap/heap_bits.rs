@@ -1,7 +1,6 @@
 use std::borrow::{Borrow, BorrowMut};
 
 use super::{
-    date::DateHeapData,
     element_array::{ElementArrayKey, ElementsVector},
     indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
@@ -13,7 +12,8 @@ use super::{
 };
 use crate::ecmascript::{
     builtins::{
-        error::ErrorHeapData, ArrayBufferHeapData, BuiltinFunction, SealableElementsVector,
+        date::data::DateHeapData, error::ErrorHeapData, ArrayBufferHeapData, BuiltinFunction,
+        SealableElementsVector,
     },
     execution::{
         DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironment,

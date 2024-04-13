@@ -1,4 +1,3 @@
-mod date;
 pub mod element_array;
 mod heap_bits;
 mod heap_constants;
@@ -11,10 +10,9 @@ pub(crate) use self::heap_constants::{
     intrinsic_function_count, intrinsic_object_count, IntrinsicConstructorIndexes,
     IntrinsicFunctionIndexes, IntrinsicObjectIndexes, WellKnownSymbolIndexes,
 };
-use self::indexes::ErrorIndex;
+use self::indexes::{DateIndex, ErrorIndex};
 pub(crate) use self::object::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
-    date::DateHeapData,
     element_array::{
         ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16, ElementArray2Pow24,
         ElementArray2Pow32, ElementArray2Pow4, ElementArray2Pow6, ElementArray2Pow8, ElementArrays,
@@ -26,7 +24,10 @@ use self::{
     regexp::RegExpHeapData,
 };
 use crate::ecmascript::{
-    builtins::error::{Error, ErrorHeapData},
+    builtins::{
+        date::{data::DateHeapData, Date},
+        error::{Error, ErrorHeapData},
+    },
     types::BUILTIN_STRINGS_LIST,
 };
 use crate::ecmascript::{
@@ -160,6 +161,7 @@ macro_rules! impl_heap_data {
 
 impl_heap_data!(arrays, ArrayHeapData, ArrayHeapData);
 impl_heap_data!(array_buffers, ArrayBufferHeapData, ArrayBufferHeapData);
+impl_heap_data!(dates, DateHeapData, DateHeapData);
 impl_heap_data!(errors, ErrorHeapData, ErrorHeapData);
 impl_heap_data!(
     bound_functions,
@@ -201,6 +203,13 @@ impl CreateHeapData<std::string::String, String> for Heap {
             // SAFETY: String couldn't be represented as a SmallString.
             unsafe { self.alloc_string(data) }
         }
+    }
+}
+
+impl CreateHeapData<DateHeapData, Date> for Heap {
+    fn create(&mut self, data: DateHeapData) -> Date {
+        self.dates.push(Some(data));
+        Date::from(DateIndex::last(&self.errors))
     }
 }
 

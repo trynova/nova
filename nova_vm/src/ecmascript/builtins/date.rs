@@ -1,3 +1,5 @@
+pub(crate) mod data;
+
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult},

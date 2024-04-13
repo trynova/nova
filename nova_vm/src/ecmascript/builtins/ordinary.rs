@@ -12,10 +12,10 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{indexes::ErrorIndex, CreateHeapData},
+    heap::CreateHeapData,
 };
 
-use super::error::ErrorHeapData;
+use super::{date::data::DateHeapData, error::ErrorHeapData};
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 impl InternalMethods for OrdinaryObject {
@@ -781,19 +781,15 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
         ProtoIntrinsics::ArrayBuffer => todo!(),
         ProtoIntrinsics::BigInt => todo!(),
         ProtoIntrinsics::Boolean => todo!(),
-        ProtoIntrinsics::Error => {
-            agent
-                .heap
-                .create(ErrorHeapData::new(ExceptionType::Error, None, None));
-            Object::from(ErrorIndex::last(&agent.heap.errors))
-        }
-        ProtoIntrinsics::EvalError => {
-            agent
-                .heap
-                .create(ErrorHeapData::new(ExceptionType::EvalError, None, None));
-            Object::from(ErrorIndex::last(&agent.heap.errors))
-        }
-        ProtoIntrinsics::Date => todo!(),
+        ProtoIntrinsics::Error => agent
+            .heap
+            .create(ErrorHeapData::new(ExceptionType::Error, None, None))
+            .into_object(),
+        ProtoIntrinsics::EvalError => agent
+            .heap
+            .create(ErrorHeapData::new(ExceptionType::EvalError, None, None))
+            .into_object(),
+        ProtoIntrinsics::Date => agent.heap.create(DateHeapData::new_invalid()).into_object(),
         ProtoIntrinsics::Function => todo!(),
         ProtoIntrinsics::Number => todo!(),
         ProtoIntrinsics::Object => agent
@@ -807,40 +803,32 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
                 vec![],
             )
             .into(),
-        ProtoIntrinsics::RangeError => {
-            agent
-                .heap
-                .create(ErrorHeapData::new(ExceptionType::RangeError, None, None));
-            Object::from(ErrorIndex::last(&agent.heap.errors))
-        }
-        ProtoIntrinsics::ReferenceError => {
-            agent.heap.create(ErrorHeapData::new(
+        ProtoIntrinsics::RangeError => agent
+            .heap
+            .create(ErrorHeapData::new(ExceptionType::RangeError, None, None))
+            .into_object(),
+        ProtoIntrinsics::ReferenceError => agent
+            .heap
+            .create(ErrorHeapData::new(
                 ExceptionType::ReferenceError,
                 None,
                 None,
-            ));
-            Object::from(ErrorIndex::last(&agent.heap.errors))
-        }
+            ))
+            .into_object(),
         ProtoIntrinsics::String => todo!(),
         ProtoIntrinsics::Symbol => todo!(),
-        ProtoIntrinsics::SyntaxError => {
-            agent
-                .heap
-                .create(ErrorHeapData::new(ExceptionType::SyntaxError, None, None));
-            Object::from(ErrorIndex::last(&agent.heap.errors))
-        }
-        ProtoIntrinsics::TypeError => {
-            agent
-                .heap
-                .create(ErrorHeapData::new(ExceptionType::TypeError, None, None));
-            Object::from(ErrorIndex::last(&agent.heap.errors))
-        }
-        ProtoIntrinsics::UriError => {
-            agent
-                .heap
-                .create(ErrorHeapData::new(ExceptionType::UriError, None, None));
-            Object::from(ErrorIndex::last(&agent.heap.errors))
-        }
+        ProtoIntrinsics::SyntaxError => agent
+            .heap
+            .create(ErrorHeapData::new(ExceptionType::SyntaxError, None, None))
+            .into_object(),
+        ProtoIntrinsics::TypeError => agent
+            .heap
+            .create(ErrorHeapData::new(ExceptionType::TypeError, None, None))
+            .into_object(),
+        ProtoIntrinsics::UriError => agent
+            .heap
+            .create(ErrorHeapData::new(ExceptionType::UriError, None, None))
+            .into_object(),
     }
 }
 
