@@ -3,7 +3,7 @@ use crate::{
         builtins::{
             text_processing::string_objects::{
                 string_constructor::StringConstructor,
-                string_interator_objects::StringIteratorPrototype,
+                string_iterator_objects::StringIteratorPrototype,
                 string_prototype::StringPrototype,
             },
             BuiltinFunction,
