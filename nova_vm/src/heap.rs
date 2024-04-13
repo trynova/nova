@@ -21,12 +21,12 @@ use self::{
         BaseIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex,
         NumberIndex, ObjectIndex, StringIndex,
     },
-    regexp::RegExpHeapData,
 };
 use crate::ecmascript::{
     builtins::{
         date::{data::DateHeapData, Date},
         error::{Error, ErrorHeapData},
+        regexp::RegExpHeapData,
     },
     types::BUILTIN_STRINGS_LIST,
 };
