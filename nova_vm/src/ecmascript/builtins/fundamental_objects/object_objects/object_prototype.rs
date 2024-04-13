@@ -140,14 +140,17 @@ impl ObjectPrototype {
             Value::Null => Ok(BUILTIN_STRING_MEMORY._object_Null_.into_value()),
             // 9. Else if O has a [[BooleanData]] internal slot, let builtinTag be "Boolean".
             // 17. Return the string-concatenation of "[object ", tag, and "]".
-            Value::Boolean(_) => Ok(BUILTIN_STRING_MEMORY._object_Boolean_.into_value()),
+            Value::Boolean(_) | Value::BooleanObject => {
+                Ok(BUILTIN_STRING_MEMORY._object_Boolean_.into_value())
+            }
             // 6. Else if O has a [[ParameterMap]] internal slot, let builtinTag be "Arguments".
+            Value::Arguments => Ok(BUILTIN_STRING_MEMORY._object_Arguments_.into_value()),
             // 11. Else if O has a [[StringData]] internal slot, let builtinTag be "String".
-            Value::String(_) | Value::SmallString(_) => {
+            Value::String(_) | Value::SmallString(_) | Value::StringObject => {
                 Ok(BUILTIN_STRING_MEMORY._object_String_.into_value())
             }
             // 10. Else if O has a [[NumberData]] internal slot, let builtinTag be "Number".
-            Value::Number(_) | Value::Integer(_) | Value::Float(_) => {
+            Value::Number(_) | Value::Integer(_) | Value::Float(_) | Value::NumberObject => {
                 Ok(BUILTIN_STRING_MEMORY._object_Error_.into_value())
             }
             Value::Object(_) => todo!(),
@@ -162,9 +165,13 @@ impl ObjectPrototype {
             Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) => {
                 Ok(BUILTIN_STRING_MEMORY._object_Function_.into_value())
             }
+            // TODO: Check for [[Call]] slot of Proxy
+            Value::Proxy => todo!(),
+            // TODO: Check for [[Call]] slot of EmbedderObject
+            Value::EmbedderObject => todo!(),
             // 13. Else if O has a [[RegExpMatcher]] internal slot, let builtinTag be "RegExp".
             Value::RegExp(_) => Ok(BUILTIN_STRING_MEMORY._object_RegExp_.into_value()),
-            Value::Symbol(_) | Value::BigInt(_) | Value::SmallBigInt(_) | Value::ArrayBuffer(_) => {
+            _ => {
                 // 14. Else, let builtinTag be "Object".
                 let builtin_tag = BUILTIN_STRING_MEMORY.Object;
                 // 3. Let O be ! ToObject(this value).

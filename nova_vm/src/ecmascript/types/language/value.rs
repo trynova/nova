@@ -53,23 +53,76 @@ pub enum Value {
     /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
     Object(ObjectIndex),
 
-    // Well-known object types
-    // Roughly corresponding to 6.1.7.4 Well-Known Intrinsic Objects
-    // https://tc39.es/ecma262/#sec-well-known-intrinsic-objects
-    Array(ArrayIndex),
-    ArrayBuffer(ArrayBufferIndex),
-    Date(DateIndex),
-    Error(ErrorIndex),
+    // Functions
     BoundFunction(BoundFunctionIndex),
     BuiltinFunction(BuiltinFunctionIndex),
     ECMAScriptFunction(ECMAScriptFunctionIndex),
-    RegExp(RegExpIndex),
+    // TODO: Figure out if all the special function types are wanted or if we'd
+    // prefer to just keep them as internal variants of the three above ones.
+    BuiltinGeneratorFunction,
+    BuiltinConstructorFunction,
+    BuiltinPromiseResolveFunction,
+    BuiltinPromiseRejectFunction,
+    BuiltinPromiseCollectorFunction,
+    BuiltinProxyRevokerFunction,
+    ECMAScriptAsyncFunction,
+    ECMAScriptAsyncGeneratorFunction,
+    ECMAScriptConstructorFunction,
+    ECMAScriptGeneratorFunction,
+
     // TODO: Implement primitive value objects, those useless things.
-    // BigIntObject(u32),
-    // BooleanObject(u32),
-    // NumberObject(u32),
-    // StringObject(u32),
-    // SymbolObject(u32),
+    BigIntObject,
+    BooleanObject,
+    NumberObject,
+    StringObject,
+    SymbolObject,
+
+    // Well-known object types
+    // Roughly corresponding to 6.1.7.4 Well-Known Intrinsic Objects
+    // https://tc39.es/ecma262/#sec-well-known-intrinsic-objects
+    // and 18 ECMAScript Standard Built-in Objects
+    // https://tc39.es/ecma262/#sec-ecmascript-standard-built-in-objects
+    Arguments,
+    Array(ArrayIndex),
+    ArrayBuffer(ArrayBufferIndex),
+    DataView,
+    Date(DateIndex),
+    Error(ErrorIndex),
+    FinalizationRegistry,
+    Map,
+    Promise,
+    Proxy,
+    RegExp(RegExpIndex),
+    Set,
+    SharedArrayBuffer,
+    WeakMap,
+    WeakRef,
+    WeakSet,
+
+    // TypedArrays
+    Int8Array,
+    Uint8Array,
+    Uint8ClampedArray,
+    Int16Array,
+    Uint16Array,
+    Int32Array,
+    Uint32Array,
+    BigInt64Array,
+    BigUint64Array,
+    Float32Array,
+    Float64Array,
+
+    // Iterator objects
+    // TODO: Figure out if these are needed at all.
+    AsyncFromSyncIterator,
+    AsyncIterator,
+    Iterator,
+
+    // ECMAScript Module
+    Module,
+
+    // Embedder objects
+    EmbedderObject = 0x7f,
 }
 
 /// We want to guarantee that all handles to JS values are register sized. This
@@ -129,6 +182,63 @@ pub(crate) const BOUND_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BoundFunction(BoundFunctionIndex::from_u32_index(0)));
 pub(crate) const REGEXP_DISCRIMINANT: u8 =
     value_discriminant(Value::RegExp(RegExpIndex::from_u32_index(0)));
+
+pub(crate) const BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT: u8 =
+    value_discriminant(Value::BuiltinGeneratorFunction);
+pub(crate) const BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT: u8 =
+    value_discriminant(Value::BuiltinConstructorFunction);
+pub(crate) const BUILTIN_PROMISE_RESOLVE_FUNCTION_DISCRIMINANT: u8 =
+    value_discriminant(Value::BuiltinPromiseResolveFunction);
+pub(crate) const BUILTIN_PROMISE_REJECT_FUNCTION_DISCRIMINANT: u8 =
+    value_discriminant(Value::BuiltinPromiseRejectFunction);
+pub(crate) const BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT: u8 =
+    value_discriminant(Value::BuiltinPromiseCollectorFunction);
+pub(crate) const BUILTIN_PROXY_REVOKER_FUNCTION: u8 =
+    value_discriminant(Value::BuiltinProxyRevokerFunction);
+pub(crate) const ECMASCRIPT_ASYNC_FUNCTION_DISCRIMINANT: u8 =
+    value_discriminant(Value::ECMAScriptAsyncFunction);
+pub(crate) const ECMASCRIPT_ASYNC_GENERATOR_FUNCTION_DISCRIMINANT: u8 =
+    value_discriminant(Value::ECMAScriptAsyncGeneratorFunction);
+pub(crate) const ECMASCRIPT_CONSTRUCTOR_FUNCTION_DISCRIMINANT: u8 =
+    value_discriminant(Value::ECMAScriptConstructorFunction);
+pub(crate) const ECMASCRIPT_GENERATOR_FUNCTION_DISCRIMINANT: u8 =
+    value_discriminant(Value::ECMAScriptGeneratorFunction);
+pub(crate) const BIGINT_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::BigIntObject);
+pub(crate) const BOOLEAN_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::BooleanObject);
+pub(crate) const NUMBER_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::NumberObject);
+pub(crate) const STRING_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::StringObject);
+pub(crate) const SYMBOL_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::SymbolObject);
+pub(crate) const ARGUMENTS_DISCRIMINANT: u8 = value_discriminant(Value::Arguments);
+pub(crate) const DATA_VIEW_DISCRIMINANT: u8 = value_discriminant(Value::DataView);
+pub(crate) const FINALIZATION_REGISTRY_DISCRIMINANT: u8 =
+    value_discriminant(Value::FinalizationRegistry);
+pub(crate) const MAP_DISCRIMINANT: u8 = value_discriminant(Value::Map);
+pub(crate) const PROMISE_DISCRIMINANT: u8 = value_discriminant(Value::Promise);
+pub(crate) const PROXY_DISCRIMINANT: u8 = value_discriminant(Value::Proxy);
+pub(crate) const SET_DISCRIMINANT: u8 = value_discriminant(Value::Set);
+pub(crate) const SHARED_ARRAY_BUFFER_DISCRIMINANT: u8 =
+    value_discriminant(Value::SharedArrayBuffer);
+pub(crate) const WEAK_MAP_DISCRIMINANT: u8 = value_discriminant(Value::WeakMap);
+pub(crate) const WEAK_REF_DISCRIMINANT: u8 = value_discriminant(Value::WeakRef);
+pub(crate) const WEAK_SET_DISCRIMINANT: u8 = value_discriminant(Value::WeakSet);
+pub(crate) const INT_8_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Int8Array);
+pub(crate) const UINT_8_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Uint8Array);
+pub(crate) const UINT_8_CLAMPED_ARRAY_DISCRIMINANT: u8 =
+    value_discriminant(Value::Uint8ClampedArray);
+pub(crate) const INT_16_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Int16Array);
+pub(crate) const UINT_16_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Uint16Array);
+pub(crate) const INT_32_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Int32Array);
+pub(crate) const UINT_32_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Uint32Array);
+pub(crate) const BIGINT_64_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::BigInt64Array);
+pub(crate) const BIGUINT_64_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::BigUint64Array);
+pub(crate) const FLOAT_32_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Float32Array);
+pub(crate) const FLOAT_64_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Float64Array);
+pub(crate) const ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT: u8 =
+    value_discriminant(Value::AsyncFromSyncIterator);
+pub(crate) const ASYNC_ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::AsyncIterator);
+pub(crate) const ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::Iterator);
+pub(crate) const MODULE_DISCRIMINANT: u8 = value_discriminant(Value::Module);
+pub(crate) const EMBEDDER_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::EmbedderObject);
 
 impl Value {
     pub fn from_str(agent: &mut Agent, str: &str) -> Value {

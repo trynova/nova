@@ -175,6 +175,16 @@ impl FunctionPrototype {
                 );
                 Ok(Value::from_string(agent, initial_name))
             }
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction => todo!(),
+            Function::BuiltinPromiseResolveFunction => todo!(),
+            Function::BuiltinPromiseRejectFunction => todo!(),
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+            Function::ECMAScriptAsyncFunction => todo!(),
+            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
+            Function::ECMAScriptConstructorFunction => todo!(),
+            Function::ECMAScriptGeneratorFunction => todo!(),
         }
 
         // NOTE: NativeFunction means the following string:

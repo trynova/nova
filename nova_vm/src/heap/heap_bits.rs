@@ -219,6 +219,48 @@ impl WorkQueues {
             Value::Undefined => {}
             Value::Integer(_) => {}
             Value::Float(_) => {}
+            Value::BigIntObject => todo!(),
+            Value::BooleanObject => todo!(),
+            Value::NumberObject => todo!(),
+            Value::StringObject => todo!(),
+            Value::SymbolObject => todo!(),
+            Value::Arguments => todo!(),
+            Value::DataView => todo!(),
+            Value::FinalizationRegistry => todo!(),
+            Value::Map => todo!(),
+            Value::Proxy => todo!(),
+            Value::Promise => todo!(),
+            Value::Set => todo!(),
+            Value::SharedArrayBuffer => todo!(),
+            Value::WeakMap => todo!(),
+            Value::WeakRef => todo!(),
+            Value::WeakSet => todo!(),
+            Value::Int8Array => todo!(),
+            Value::Uint8Array => todo!(),
+            Value::Uint8ClampedArray => todo!(),
+            Value::Int16Array => todo!(),
+            Value::Uint16Array => todo!(),
+            Value::Int32Array => todo!(),
+            Value::Uint32Array => todo!(),
+            Value::BigInt64Array => todo!(),
+            Value::BigUint64Array => todo!(),
+            Value::Float32Array => todo!(),
+            Value::Float64Array => todo!(),
+            Value::BuiltinGeneratorFunction => todo!(),
+            Value::BuiltinConstructorFunction => todo!(),
+            Value::BuiltinPromiseResolveFunction => todo!(),
+            Value::BuiltinPromiseRejectFunction => todo!(),
+            Value::BuiltinPromiseCollectorFunction => todo!(),
+            Value::BuiltinProxyRevokerFunction => todo!(),
+            Value::ECMAScriptAsyncFunction => todo!(),
+            Value::ECMAScriptAsyncGeneratorFunction => todo!(),
+            Value::ECMAScriptConstructorFunction => todo!(),
+            Value::ECMAScriptGeneratorFunction => todo!(),
+            Value::AsyncFromSyncIterator => todo!(),
+            Value::AsyncIterator => todo!(),
+            Value::Iterator => todo!(),
+            Value::Module => todo!(),
+            Value::EmbedderObject => todo!(),
         }
     }
 
@@ -840,6 +882,48 @@ impl HeapMarkAndSweep<()> for Value {
             Value::BuiltinFunction(idx) => idx.mark_values(queues, ()),
             Value::ECMAScriptFunction(idx) => idx.mark_values(queues, ()),
             Value::RegExp(idx) => idx.mark_values(queues, ()),
+            Value::BigIntObject => todo!(),
+            Value::BooleanObject => todo!(),
+            Value::NumberObject => todo!(),
+            Value::StringObject => todo!(),
+            Value::SymbolObject => todo!(),
+            Value::Arguments => todo!(),
+            Value::DataView => todo!(),
+            Value::FinalizationRegistry => todo!(),
+            Value::Map => todo!(),
+            Value::Proxy => todo!(),
+            Value::Promise => todo!(),
+            Value::Set => todo!(),
+            Value::SharedArrayBuffer => todo!(),
+            Value::WeakMap => todo!(),
+            Value::WeakRef => todo!(),
+            Value::WeakSet => todo!(),
+            Value::Int8Array => todo!(),
+            Value::Uint8Array => todo!(),
+            Value::Uint8ClampedArray => todo!(),
+            Value::Int16Array => todo!(),
+            Value::Uint16Array => todo!(),
+            Value::Int32Array => todo!(),
+            Value::Uint32Array => todo!(),
+            Value::BigInt64Array => todo!(),
+            Value::BigUint64Array => todo!(),
+            Value::Float32Array => todo!(),
+            Value::Float64Array => todo!(),
+            Value::BuiltinGeneratorFunction => todo!(),
+            Value::BuiltinConstructorFunction => todo!(),
+            Value::BuiltinPromiseResolveFunction => todo!(),
+            Value::BuiltinPromiseRejectFunction => todo!(),
+            Value::BuiltinPromiseCollectorFunction => todo!(),
+            Value::BuiltinProxyRevokerFunction => todo!(),
+            Value::ECMAScriptAsyncFunction => todo!(),
+            Value::ECMAScriptAsyncGeneratorFunction => todo!(),
+            Value::ECMAScriptConstructorFunction => todo!(),
+            Value::ECMAScriptGeneratorFunction => todo!(),
+            Value::AsyncFromSyncIterator => todo!(),
+            Value::AsyncIterator => todo!(),
+            Value::Iterator => todo!(),
+            Value::Module => todo!(),
+            Value::EmbedderObject => todo!(),
         }
     }
 
@@ -867,6 +951,48 @@ impl HeapMarkAndSweep<()> for Value {
             Value::BuiltinFunction(idx) => idx.sweep_values(compactions, ()),
             Value::ECMAScriptFunction(idx) => idx.sweep_values(compactions, ()),
             Value::RegExp(idx) => idx.sweep_values(compactions, ()),
+            Value::BigIntObject => todo!(),
+            Value::BooleanObject => todo!(),
+            Value::NumberObject => todo!(),
+            Value::StringObject => todo!(),
+            Value::SymbolObject => todo!(),
+            Value::Arguments => todo!(),
+            Value::DataView => todo!(),
+            Value::FinalizationRegistry => todo!(),
+            Value::Map => todo!(),
+            Value::Proxy => todo!(),
+            Value::Promise => todo!(),
+            Value::Set => todo!(),
+            Value::SharedArrayBuffer => todo!(),
+            Value::WeakMap => todo!(),
+            Value::WeakRef => todo!(),
+            Value::WeakSet => todo!(),
+            Value::Int8Array => todo!(),
+            Value::Uint8Array => todo!(),
+            Value::Uint8ClampedArray => todo!(),
+            Value::Int16Array => todo!(),
+            Value::Uint16Array => todo!(),
+            Value::Int32Array => todo!(),
+            Value::Uint32Array => todo!(),
+            Value::BigInt64Array => todo!(),
+            Value::BigUint64Array => todo!(),
+            Value::Float32Array => todo!(),
+            Value::Float64Array => todo!(),
+            Value::BuiltinGeneratorFunction => todo!(),
+            Value::BuiltinConstructorFunction => todo!(),
+            Value::BuiltinPromiseResolveFunction => todo!(),
+            Value::BuiltinPromiseRejectFunction => todo!(),
+            Value::BuiltinPromiseCollectorFunction => todo!(),
+            Value::BuiltinProxyRevokerFunction => todo!(),
+            Value::ECMAScriptAsyncFunction => todo!(),
+            Value::ECMAScriptAsyncGeneratorFunction => todo!(),
+            Value::ECMAScriptConstructorFunction => todo!(),
+            Value::ECMAScriptGeneratorFunction => todo!(),
+            Value::AsyncFromSyncIterator => todo!(),
+            Value::AsyncIterator => todo!(),
+            Value::Iterator => todo!(),
+            Value::Module => todo!(),
+            Value::EmbedderObject => todo!(),
         }
     }
 }
@@ -877,6 +1003,16 @@ impl HeapMarkAndSweep<()> for Function {
             Function::BoundFunction(idx) => idx.mark_values(queues, ()),
             Function::BuiltinFunction(idx) => idx.mark_values(queues, ()),
             Function::ECMAScriptFunction(idx) => idx.mark_values(queues, ()),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction => todo!(),
+            Function::BuiltinPromiseResolveFunction => todo!(),
+            Function::BuiltinPromiseRejectFunction => todo!(),
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+            Function::ECMAScriptAsyncFunction => todo!(),
+            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
+            Function::ECMAScriptConstructorFunction => todo!(),
+            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -885,6 +1021,16 @@ impl HeapMarkAndSweep<()> for Function {
             Function::BoundFunction(idx) => idx.sweep_values(compactions, ()),
             Function::BuiltinFunction(idx) => idx.sweep_values(compactions, ()),
             Function::ECMAScriptFunction(idx) => idx.sweep_values(compactions, ()),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction => todo!(),
+            Function::BuiltinPromiseResolveFunction => todo!(),
+            Function::BuiltinPromiseRejectFunction => todo!(),
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+            Function::ECMAScriptAsyncFunction => todo!(),
+            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
+            Function::ECMAScriptConstructorFunction => todo!(),
+            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 }
@@ -924,6 +1070,49 @@ impl HeapMarkAndSweep<()> for Object {
             Object::BoundFunction(_) => todo!(),
             Object::BuiltinFunction(_) => todo!(),
             Object::ECMAScriptFunction(_) => todo!(),
+            Object::BuiltinGeneratorFunction => todo!(),
+            Object::BuiltinConstructorFunction => todo!(),
+            Object::ECMAScriptAsyncFunction => todo!(),
+            Object::ECMAScriptAsyncGeneratorFunction => todo!(),
+            Object::ECMAScriptConstructorFunction => todo!(),
+            Object::ECMAScriptGeneratorFunction => todo!(),
+            Object::BuiltinPromiseResolveFunction => todo!(),
+            Object::BuiltinPromiseRejectFunction => todo!(),
+            Object::BuiltinPromiseCollectorFunction => todo!(),
+            Object::BuiltinProxyRevokerFunction => todo!(),
+            Object::BigIntObject => todo!(),
+            Object::BooleanObject => todo!(),
+            Object::NumberObject => todo!(),
+            Object::StringObject => todo!(),
+            Object::SymbolObject => todo!(),
+            Object::Arguments => todo!(),
+            Object::DataView => todo!(),
+            Object::FinalizationRegistry => todo!(),
+            Object::Map => todo!(),
+            Object::Promise => todo!(),
+            Object::Proxy => todo!(),
+            Object::RegExp(_) => todo!(),
+            Object::Set => todo!(),
+            Object::SharedArrayBuffer => todo!(),
+            Object::WeakMap => todo!(),
+            Object::WeakRef => todo!(),
+            Object::WeakSet => todo!(),
+            Object::Int8Array => todo!(),
+            Object::Uint8Array => todo!(),
+            Object::Uint8ClampedArray => todo!(),
+            Object::Int16Array => todo!(),
+            Object::Uint16Array => todo!(),
+            Object::Int32Array => todo!(),
+            Object::Uint32Array => todo!(),
+            Object::BigInt64Array => todo!(),
+            Object::BigUint64Array => todo!(),
+            Object::Float32Array => todo!(),
+            Object::Float64Array => todo!(),
+            Object::AsyncFromSyncIterator => todo!(),
+            Object::AsyncIterator => todo!(),
+            Object::Iterator => todo!(),
+            Object::Module => todo!(),
+            Object::EmbedderObject => todo!(),
         }
     }
 
@@ -1324,147 +1513,9 @@ impl HeapMarkAndSweep<()> for Intrinsics {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
-        self.aggregate_error_prototype()
+        self.object_index_base.sweep_values(compactions, ());
+        self.builtin_function_index_base
             .sweep_values(compactions, ());
-        self.aggregate_error().sweep_values(compactions, ());
-        self.array_prototype_sort().sweep_values(compactions, ());
-        self.array_prototype_to_string()
-            .sweep_values(compactions, ());
-        self.array_prototype_values().sweep_values(compactions, ());
-        self.array_prototype().sweep_values(compactions, ());
-        self.array().sweep_values(compactions, ());
-        self.array_buffer_prototype().sweep_values(compactions, ());
-        self.array_buffer().sweep_values(compactions, ());
-        self.array_iterator_prototype()
-            .sweep_values(compactions, ());
-        self.async_from_sync_iterator_prototype()
-            .sweep_values(compactions, ());
-        self.async_function_prototype()
-            .sweep_values(compactions, ());
-        self.async_function().sweep_values(compactions, ());
-        self.async_generator_function_prototype_prototype()
-            .sweep_values(compactions, ());
-        self.async_generator_function_prototype()
-            .sweep_values(compactions, ());
-        self.async_generator_function()
-            .sweep_values(compactions, ());
-        self.async_generator_prototype()
-            .sweep_values(compactions, ());
-        self.async_iterator_prototype()
-            .sweep_values(compactions, ());
-        self.atomics().sweep_values(compactions, ());
-        self.big_int_prototype().sweep_values(compactions, ());
-        self.big_int().sweep_values(compactions, ());
-        self.big_int64_array().sweep_values(compactions, ());
-        self.big_uint64_array().sweep_values(compactions, ());
-        self.boolean_prototype().sweep_values(compactions, ());
-        self.boolean().sweep_values(compactions, ());
-        self.data_view_prototype().sweep_values(compactions, ());
-        self.data_view().sweep_values(compactions, ());
-        self.date_prototype_to_utcstring()
-            .sweep_values(compactions, ());
-        self.date_prototype().sweep_values(compactions, ());
-        self.date().sweep_values(compactions, ());
-        self.decode_uri().sweep_values(compactions, ());
-        self.decode_uricomponent().sweep_values(compactions, ());
-        self.encode_uri().sweep_values(compactions, ());
-        self.encode_uri_component().sweep_values(compactions, ());
-        self.error_prototype().sweep_values(compactions, ());
-        self.error().sweep_values(compactions, ());
-        self.escape().sweep_values(compactions, ());
-        self.eval().sweep_values(compactions, ());
-        self.eval_error_prototype().sweep_values(compactions, ());
-        self.eval_error().sweep_values(compactions, ());
-        self.finalization_registry_prototype()
-            .sweep_values(compactions, ());
-        self.finalization_registry().sweep_values(compactions, ());
-        self.float32_array().sweep_values(compactions, ());
-        self.float64_array().sweep_values(compactions, ());
-        self.for_in_iterator_prototype()
-            .sweep_values(compactions, ());
-        self.function_prototype().sweep_values(compactions, ());
-        self.function().sweep_values(compactions, ());
-        self.generator_function_prototype_prototype_next()
-            .sweep_values(compactions, ());
-        self.generator_function_prototype_prototype()
-            .sweep_values(compactions, ());
-        self.generator_function_prototype()
-            .sweep_values(compactions, ());
-        self.generator_function().sweep_values(compactions, ());
-        self.generator_prototype().sweep_values(compactions, ());
-        self.int16_array().sweep_values(compactions, ());
-        self.int32_array().sweep_values(compactions, ());
-        self.int8_array().sweep_values(compactions, ());
-        self.is_finite().sweep_values(compactions, ());
-        self.is_nan().sweep_values(compactions, ());
-        self.iterator_prototype().sweep_values(compactions, ());
-        self.json().sweep_values(compactions, ());
-        self.map_prototype_entries().sweep_values(compactions, ());
-        self.map_prototype().sweep_values(compactions, ());
-        self.map().sweep_values(compactions, ());
-        self.map_iterator_prototype().sweep_values(compactions, ());
-        self.math().sweep_values(compactions, ());
-        self.number_prototype().sweep_values(compactions, ());
-        self.number().sweep_values(compactions, ());
-        self.object_prototype_to_string()
-            .sweep_values(compactions, ());
-        self.object_prototype().sweep_values(compactions, ());
-        self.object().sweep_values(compactions, ());
-        self.parse_float().sweep_values(compactions, ());
-        self.parse_int().sweep_values(compactions, ());
-        self.promise_prototype().sweep_values(compactions, ());
-        self.promise().sweep_values(compactions, ());
-        self.proxy().sweep_values(compactions, ());
-        self.range_error_prototype().sweep_values(compactions, ());
-        self.range_error().sweep_values(compactions, ());
-        self.reference_error_prototype()
-            .sweep_values(compactions, ());
-        self.reference_error().sweep_values(compactions, ());
-        self.reflect().sweep_values(compactions, ());
-        self.reg_exp_prototype_exec().sweep_values(compactions, ());
-        self.reg_exp_prototype().sweep_values(compactions, ());
-        self.reg_exp().sweep_values(compactions, ());
-        self.reg_exp_string_iterator_prototype()
-            .sweep_values(compactions, ());
-        self.set_prototype_values().sweep_values(compactions, ());
-        self.set_prototype().sweep_values(compactions, ());
-        self.set().sweep_values(compactions, ());
-        self.set_iterator_prototype().sweep_values(compactions, ());
-        self.shared_array_buffer_prototype()
-            .sweep_values(compactions, ());
-        self.shared_array_buffer().sweep_values(compactions, ());
-        self.string_prototype_trim_end()
-            .sweep_values(compactions, ());
-        self.string_prototype_trim_start()
-            .sweep_values(compactions, ());
-        self.string_prototype().sweep_values(compactions, ());
-        self.string().sweep_values(compactions, ());
-        self.string_iterator_prototype()
-            .sweep_values(compactions, ());
-        self.symbol_prototype().sweep_values(compactions, ());
-        self.symbol().sweep_values(compactions, ());
-        self.syntax_error_prototype().sweep_values(compactions, ());
-        self.syntax_error().sweep_values(compactions, ());
-        self.throw_type_error().sweep_values(compactions, ());
-        self.typed_array_prototype_values()
-            .sweep_values(compactions, ());
-        self.typed_array_prototype().sweep_values(compactions, ());
-        self.typed_array().sweep_values(compactions, ());
-        self.type_error_prototype().sweep_values(compactions, ());
-        self.type_error().sweep_values(compactions, ());
-        self.uint16_array().sweep_values(compactions, ());
-        self.uint32_array().sweep_values(compactions, ());
-        self.uint8_array().sweep_values(compactions, ());
-        self.uint8_clamped_array().sweep_values(compactions, ());
-        self.unescape().sweep_values(compactions, ());
-        self.uri_error_prototype().sweep_values(compactions, ());
-        self.uri_error().sweep_values(compactions, ());
-        self.weak_map_prototype().sweep_values(compactions, ());
-        self.weak_map().sweep_values(compactions, ());
-        self.weak_ref_prototype().sweep_values(compactions, ());
-        self.weak_ref().sweep_values(compactions, ());
-        self.weak_set_prototype().sweep_values(compactions, ());
-        self.weak_set().sweep_values(compactions, ());
     }
 }
 
