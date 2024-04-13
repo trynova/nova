@@ -1,7 +1,7 @@
-use super::regexp::RegExpHeapData;
 use crate::ecmascript::{
     builtins::{
-        date::data::DateHeapData, error::ErrorHeapData, ArrayBufferHeapData, ArrayHeapData,
+        date::data::DateHeapData, error::ErrorHeapData, regexp::RegExpHeapData,
+        ArrayBufferHeapData, ArrayHeapData,
     },
     execution::Agent,
     types::{

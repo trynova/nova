@@ -14,6 +14,8 @@ pub mod error;
 pub(crate) mod fundamental_objects;
 pub(crate) mod numbers_and_dates;
 pub mod ordinary;
+pub(crate) mod regexp;
+pub(crate) mod text_processing;
 
 pub(crate) use arguments::*;
 pub(crate) use array::abstract_operations::*;

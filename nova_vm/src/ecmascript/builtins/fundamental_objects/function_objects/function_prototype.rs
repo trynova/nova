@@ -204,6 +204,7 @@ impl FunctionPrototype {
             Some(this_object_index),
         )
         .with_property_capacity(8)
+        .with_null_prototype()
         // 10.2.4 AddRestrictedFunctionProperties ( F, realm )
         .with_property(|builder| {
             builder

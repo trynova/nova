@@ -21,6 +21,12 @@ impl From<Symbol> for Value {
     }
 }
 
+impl From<SymbolIndex> for Symbol {
+    fn from(value: SymbolIndex) -> Self {
+        Symbol(value)
+    }
+}
+
 impl TryFrom<Value> for Symbol {
     type Error = ();
 

@@ -1,6 +1,19 @@
 use crate::{
     ecmascript::{
-        builtins::BuiltinFunction,
+        builtins::{
+            text_processing::{
+                regexp_objects::{
+                    regexp_constructor::RegExpConstructor, regexp_prototype::RegExpPrototype,
+                    regexp_string_iterator_prototype::RegExpStringIteratorPrototype,
+                },
+                string_objects::{
+                    string_constructor::StringConstructor,
+                    string_iterator_objects::StringIteratorPrototype,
+                    string_prototype::StringPrototype,
+                },
+            },
+            BuiltinFunction,
+        },
         execution::Agent,
         fundamental_objects::{
             boolean_objects::{
@@ -113,6 +126,12 @@ impl Intrinsics {
         MathObject::create_intrinsic(agent, realm);
         DatePrototype::create_intrinsic(agent, realm);
         DateConstructor::create_intrinsic(agent, realm);
+        StringPrototype::create_intrinsic(agent, realm);
+        StringConstructor::create_intrinsic(agent, realm);
+        StringIteratorPrototype::create_intrinsic(agent, realm);
+        RegExpPrototype::create_intrinsic(agent, realm);
+        RegExpConstructor::create_intrinsic(agent, realm);
+        RegExpStringIteratorPrototype::create_intrinsic(agent, realm);
     }
 
     pub(crate) fn get_intrinsic_default_proto(

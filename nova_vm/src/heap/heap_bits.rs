@@ -7,13 +7,12 @@ use super::{
         DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, NumberIndex, ObjectIndex,
         RegExpIndex, StringIndex, SymbolIndex,
     },
-    regexp::RegExpHeapData,
     ArrayHeapData, Heap, NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
 };
 use crate::ecmascript::{
     builtins::{
-        date::data::DateHeapData, error::ErrorHeapData, ArrayBufferHeapData, BuiltinFunction,
-        SealableElementsVector,
+        date::data::DateHeapData, error::ErrorHeapData, regexp::RegExpHeapData,
+        ArrayBufferHeapData, BuiltinFunction, SealableElementsVector,
     },
     execution::{
         DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironment,

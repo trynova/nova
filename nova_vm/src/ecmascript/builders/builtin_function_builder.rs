@@ -19,7 +19,7 @@ use super::property_builder::{self, PropertyBuilder};
 pub struct NoPrototype;
 
 #[derive(Clone, Copy)]
-pub struct CreatorPrototype(Object);
+pub struct CreatorPrototype(Option<Object>);
 
 #[derive(Default, Clone, Copy)]
 pub struct NoLength;
@@ -162,7 +162,30 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
             this: self.this,
             object_index,
             realm: self.realm,
-            prototype: CreatorPrototype(prototype),
+            prototype: CreatorPrototype(Some(prototype)),
+            length: self.length,
+            name: self.name,
+            behaviour: self.behaviour,
+            properties: self.properties,
+        }
+    }
+
+    #[must_use]
+    pub fn with_null_prototype(
+        self,
+    ) -> BuiltinFunctionBuilder<'agent, CreatorPrototype, L, N, B, Pr> {
+        let object_index = if self.object_index.is_none() {
+            self.agent.heap.objects.push(None);
+            Some(ObjectIndex::last(&self.agent.heap.objects))
+        } else {
+            self.object_index
+        };
+        BuiltinFunctionBuilder {
+            agent: self.agent,
+            this: self.this,
+            object_index,
+            realm: self.realm,
+            prototype: CreatorPrototype(None),
             length: self.length,
             name: self.name,
             behaviour: self.behaviour,
@@ -518,7 +541,7 @@ impl<'agent>
         assert!(slot.is_none());
         *slot = Some(ObjectHeapData {
             extensible: true,
-            prototype: Some(prototype.0),
+            prototype: prototype.0,
             keys,
             values,
         });

@@ -6,7 +6,7 @@ use crate::{
                 INTEGER_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
                 SYMBOL_DISCRIMINANT,
             },
-            String, Value,
+            String, Symbol, Value,
         },
     },
     heap::{
@@ -99,6 +99,12 @@ impl From<StringIndex> for PropertyKey {
 impl From<SymbolIndex> for PropertyKey {
     fn from(value: SymbolIndex) -> Self {
         PropertyKey::Symbol(value)
+    }
+}
+
+impl From<Symbol> for PropertyKey {
+    fn from(value: Symbol) -> Self {
+        PropertyKey::Symbol(value.0)
     }
 }
 

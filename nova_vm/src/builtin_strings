@@ -9,6 +9,12 @@
 [object String]
 [object Undefined]
 [Symbol.hasInstance]
+[Symbol.iterator]
+[Symbol.match]
+[Symbol.matchAll]
+[Symbol.replace]
+[Symbol.search]
+[Symbol.split]
 [Symbol.toPrimitive]
 abs
 acos
@@ -42,7 +48,11 @@ caller
 cause
 cbrt
 ceil
+charAt
+charCodeAt
 clz32
+codePointAt
+concat
 constructor
 copyWithin
 cos
@@ -55,11 +65,14 @@ defineProperties
 defineProperty
 description
 done
+dotAll
 E
+endsWith
 entries
 EPSILON
 Error
 EvalError
+exec
 exp
 expm1
 false
@@ -69,6 +82,7 @@ find
 findIndex
 findLast
 findLastIndex
+flags
 flat
 flatMap
 Float32Array
@@ -76,6 +90,8 @@ Float64Array
 floor
 for
 freeze
+fromCharCode
+fromCodePoint
 fromEntries
 fround
 function
@@ -83,6 +99,16 @@ Function
 get [Symbol.species]
 get byteLength
 get description
+get dotAll
+get flags
+get global
+get hasIndices
+get ignoreCase
+get multiline
+get source
+get stricky
+get unicode
+get unicodeSets
 getDate
 getDay
 getFullYear
@@ -106,14 +132,18 @@ getUTCMilliseconds
 getUTCMinutes
 getUTCMonth
 getUTCSeconds
+global
 globalThis
 groupBy
+hasIndices
 hasInstance
 hasOwn
 hasOwnProperty
 hypot
+ignoreCase
 imul
 includes
+indexOf
 Infinity
 Int16Array
 Int32Array
@@ -128,12 +158,15 @@ isNaN
 isPrototypeOf
 isSafeInteger
 isSealed
+isWellFormed
 iterator
 keyFor
 keys
+lastIndexOf
 length
 LN10
 LN2
+localeCompare
 log
 log10
 LOG10E
@@ -152,16 +185,20 @@ message
 min
 MIN_SAFE_INTEGER
 MIN_VALUE
+multiline
 name
 NaN
 NEGATIVE_INFINITY
 next
+normalize
 now
 null
 number
 Number
 object
 Object
+padEnd
+padStart
 parse
 parseFloat
 parseInt
@@ -175,9 +212,13 @@ prototype
 Proxy
 random
 RangeError
+raw
 ReferenceError
 RegExp
+RegExp String Iterator
+repeat
 replace
+replaceAll
 round
 seal
 search
@@ -202,26 +243,35 @@ SharedArrayBuffer
 sign
 sin
 sinh
+slice
+source
 species
 split
 sqrt
 SQRT1_2
 SQRT2
+startsWith
+stricky
 string
 String
+String Iterator
 symbol
 Symbol
 SyntaxError
 tan
 tanh
+test
 toDateString
 toExponential
 toFixed
 toISOString
 toJSON
 toLocaleDateString
+toLocaleLowerCase
 toLocaleString
 toLocaleTimeString
+toLocaleUpperCase
+toLowerCase
 toPrecision
 toPrimitive
 toReversed
@@ -230,7 +280,12 @@ toSpliced
 toString
 toStringTag
 toTimeString
+toUpperCase
 toUTCString
+toWellFormed
+trim
+trimEnd
+trimStart
 true
 trunc
 TypeError
@@ -239,6 +294,8 @@ Uint32Array
 Uint8Array
 Uint8ClampedArray
 undefined
+unicode
+unicodeSets
 unscopables
 URIError
 utc
