@@ -114,43 +114,6 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, NoProperties> {
             properties: CreatorProperties(Vec::with_capacity(cap)),
         }
     }
-
-    #[must_use]
-    pub fn with_data_property(
-        self,
-        key: PropertyKey,
-        value: Value,
-    ) -> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
-        OrdinaryObjectBuilder {
-            agent: self.agent,
-            this: self.this,
-            realm: self.realm,
-            prototype: self.prototype,
-            extensible: self.extensible,
-            properties: CreatorProperties(vec![(key, None, Some(value))]),
-        }
-    }
-
-    #[must_use]
-    pub fn with_property(
-        self,
-        creator: impl FnOnce(
-            PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
-        ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
-    ) -> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
-        let property = {
-            let builder = PropertyBuilder::new(self.agent);
-            creator(builder)
-        };
-        OrdinaryObjectBuilder {
-            agent: self.agent,
-            this: self.this,
-            realm: self.realm,
-            prototype: self.prototype,
-            extensible: self.extensible,
-            properties: CreatorProperties(vec![property]),
-        }
-    }
 }
 
 impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
@@ -275,6 +238,7 @@ impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, N
 
 impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, CreatorProperties> {
     pub fn build(self) -> OrdinaryObject {
+        assert_eq!(self.properties.0.len(), self.properties.0.capacity());
         let (keys, values) = self
             .agent
             .heap
@@ -299,6 +263,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, CreatorProperties> {
 
 impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, CreatorProperties> {
     pub fn build(self) -> OrdinaryObject {
+        assert_eq!(self.properties.0.len(), self.properties.0.capacity());
         let (keys, values) = self
             .agent
             .heap

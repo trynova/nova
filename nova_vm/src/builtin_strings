@@ -22,6 +22,7 @@ acos
 acosh
 add
 AggregateError
+and
 apply
 arguments
 Array
@@ -37,6 +38,7 @@ at
 atan
 atan2
 atanh
+Atomics
 bigint
 BigInt
 BigInt64Array
@@ -44,7 +46,9 @@ BigUint64Array
 bind
 boolean
 Boolean
+buffer
 byteLength
+byteOffset
 BYTES_PER_ELEMENT
 call
 callee
@@ -57,6 +61,7 @@ charCodeAt
 clear
 clz32
 codePointAt
+compareExchange
 concat
 constructor
 copyWithin
@@ -69,6 +74,7 @@ default
 defineProperties
 defineProperty
 description
+detached
 done
 dotAll
 E
@@ -78,6 +84,7 @@ EPSILON
 Error
 EvalError
 every
+exchange
 exec
 exp
 expm1
@@ -111,22 +118,33 @@ get buffer
 get byteLength
 get byteOffset
 get description
+get detached
 get dotAll
 get flags
 get global
+get growable
 get hasIndices
 get ignoreCase
 get length
+get maxByteLength
 get multiline
+get resizable
 get size
 get source
-get stricky
+get sticky
 get unicode
 get unicodeSets
+getBigInt64
+getBigUint64
 getDate
 getDay
+getFloat32
+getFloat64
 getFullYear
 getHours
+getInt16
+getInt32
+getInt8
 getMilliseconds
 getMinutes
 getMonth
@@ -138,6 +156,9 @@ getPrototypeOf
 getSeconds
 getTime
 getTimezoneOffset
+getUint16
+getUint32
+getUint8
 getUTCDate
 getUTCDay
 getUTCFullYear
@@ -149,6 +170,8 @@ getUTCSeconds
 global
 globalThis
 groupBy
+grow
+growable
 has
 hasIndices
 hasInstance
@@ -170,10 +193,12 @@ isExtensible
 isFinite
 isFrozen
 isInteger
+isLockFree
 isNaN
 isPrototypeOf
 isSafeInteger
 isSealed
+isView
 isWellFormed
 iterator
 join
@@ -183,6 +208,7 @@ lastIndexOf
 length
 LN10
 LN2
+load
 localeCompare
 log
 log10
@@ -210,12 +236,14 @@ NaN
 NEGATIVE_INFINITY
 next
 normalize
+notify
 now
 null
 number
 Number
 object
 Object
+or
 padEnd
 padStart
 parse
@@ -242,6 +270,8 @@ RegExp String Iterator
 repeat
 replace
 replaceAll
+resizable
+resize
 reverse
 round
 seal
@@ -249,15 +279,25 @@ search
 set
 Set
 Set Iterator
+setBigInt64
+setBigUint64
 setDate
+setFloat32
+setFloat64
 setFullYear
 setHours
+setInt16
+setInt32
+setInt8
 setMilliseconds
 setMinutes
 setMonth
 setPrototypeOf
 setSeconds
 setTime
+setUint16
+setUint32
+setUint8
 setUTCDate
 setUTCFullYear
 setUTCHours
@@ -270,6 +310,7 @@ shift
 sign
 sin
 sinh
+size
 slice
 some
 sort
@@ -281,10 +322,12 @@ sqrt
 SQRT1_2
 SQRT2
 startsWith
-stricky
+sticky
+store
 string
 String
 String Iterator
+sub
 subarray
 symbol
 Symbol
@@ -314,6 +357,8 @@ toTimeString
 toUpperCase
 toUTCString
 toWellFormed
+transfer
+transferToFixedLength
 trim
 trimEnd
 trimStart
@@ -335,7 +380,12 @@ utc
 value
 valueOf
 values
+wait
+waitAsync
 WeakMap
 WeakRef
 WeakSet
 with
+xor
+JSON
+get [Symbol.toStringTag]

@@ -532,7 +532,7 @@ impl MathObject {
         let this = intrinsics.math();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(46)
+            .with_property_capacity(44)
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.E.into())
