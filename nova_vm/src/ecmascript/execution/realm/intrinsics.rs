@@ -54,6 +54,7 @@ use crate::{
                     weak_set_constructor::WeakSetConstructor, weak_set_prototype::WeakSetPrototype,
                 },
             },
+            reflection::{proxy_constructor::ProxyConstructor, reflect_object::ReflectObject},
             structured_data::{
                 array_buffer_objects::{
                     array_buffer_constructor::ArrayBufferConstructor,
@@ -239,6 +240,8 @@ impl Intrinsics {
         AsyncGeneratorPrototype::create_intrinsic(agent, realm);
         AsyncFunctionPrototype::create_intrinsic(agent, realm);
         AsyncFunctionConstructor::create_intrinsic(agent, realm);
+        ReflectObject::create_intrinsic(agent, realm);
+        ProxyConstructor::create_intrinsic(agent, realm);
     }
 
     pub(crate) fn get_intrinsic_default_proto(
