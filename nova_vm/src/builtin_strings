@@ -73,6 +73,7 @@ Date
 default
 defineProperties
 defineProperty
+deref
 description
 detached
 done
@@ -114,6 +115,7 @@ function
 Function
 get
 get [Symbol.species]
+get [Symbol.toStringTag]
 get buffer
 get byteLength
 get byteOffset
@@ -202,6 +204,7 @@ isView
 isWellFormed
 iterator
 join
+JSON
 keyFor
 keys
 lastIndexOf
@@ -387,5 +390,3 @@ WeakRef
 WeakSet
 with
 xor
-JSON
-get [Symbol.toStringTag]
