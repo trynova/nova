@@ -71,6 +71,7 @@ clz32
 codePointAt
 compareExchange
 concat
+construct
 constructor
 copyWithin
 cos
@@ -81,6 +82,7 @@ Date
 default
 defineProperties
 defineProperty
+deleteProperty
 deref
 description
 detached
@@ -258,6 +260,7 @@ Number
 object
 Object
 or
+ownKeys
 padEnd
 padStart
 parse
@@ -280,6 +283,7 @@ raw
 reduce
 reduceRight
 ReferenceError
+Reflect
 RegExp
 RegExp String Iterator
 reject
@@ -291,6 +295,7 @@ resize
 resolve
 return
 reverse
+revocable
 round
 seal
 search

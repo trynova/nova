@@ -18,6 +18,7 @@ pub(crate) mod keyed_collections;
 pub(crate) mod managing_memory;
 pub(crate) mod numbers_and_dates;
 pub mod ordinary;
+pub(crate) mod reflection;
 pub(crate) mod regexp;
 pub(crate) mod structured_data;
 pub(crate) mod text_processing;
