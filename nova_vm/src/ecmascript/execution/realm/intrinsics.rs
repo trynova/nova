@@ -30,6 +30,22 @@ use crate::{
                     weak_set_constructor::WeakSetConstructor, weak_set_prototype::WeakSetPrototype,
                 },
             },
+            structured_data::{
+                array_buffer_objects::{
+                    array_buffer_constructor::ArrayBufferConstructor,
+                    array_buffer_prototype::ArrayBufferPrototype,
+                },
+                atomics_object::AtomicsObject,
+                data_view_objects::{
+                    data_view_constructor::DataViewConstructor,
+                    data_view_prototype::DataViewPrototype,
+                },
+                json_object::JSONObject,
+                shared_array_buffer_objects::{
+                    shared_array_buffer_constructor::SharedArrayBufferConstructor,
+                    shared_array_buffer_prototype::SharedArrayBufferPrototype,
+                },
+            },
             text_processing::{
                 regexp_objects::{
                     regexp_constructor::RegExpConstructor, regexp_prototype::RegExpPrototype,
@@ -178,6 +194,14 @@ impl Intrinsics {
         WeakMapConstructor::create_intrinsic(agent, realm);
         WeakSetPrototype::create_intrinsic(agent, realm);
         WeakSetConstructor::create_intrinsic(agent, realm);
+        ArrayBufferPrototype::create_intrinsic(agent, realm);
+        ArrayBufferConstructor::create_intrinsic(agent, realm);
+        SharedArrayBufferPrototype::create_intrinsic(agent, realm);
+        SharedArrayBufferConstructor::create_intrinsic(agent, realm);
+        DataViewPrototype::create_intrinsic(agent, realm);
+        DataViewConstructor::create_intrinsic(agent, realm);
+        AtomicsObject::create_intrinsic(agent, realm);
+        JSONObject::create_intrinsic(agent, realm);
     }
 
     pub(crate) fn get_intrinsic_default_proto(

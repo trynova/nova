@@ -79,12 +79,6 @@ impl Builtin for ArrayPrototypeFindLastIndex {
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::find_last_index);
 }
-struct ArrayPrototypeNormalize;
-impl Builtin for ArrayPrototypeNormalize {
-    const NAME: String = BUILTIN_STRING_MEMORY.normalize;
-    const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::normalize);
-}
 struct ArrayPrototypeFlat;
 impl Builtin for ArrayPrototypeFlat {
     const NAME: String = BUILTIN_STRING_MEMORY.flat;
@@ -297,10 +291,6 @@ impl ArrayPrototype {
         todo!()
     }
 
-    fn normalize(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
-    }
-
     fn flat(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         todo!()
     }
@@ -442,7 +432,6 @@ impl ArrayPrototype {
             .with_builtin_function_property::<ArrayPrototypeFindIndex>()
             .with_builtin_function_property::<ArrayPrototypeFindLast>()
             .with_builtin_function_property::<ArrayPrototypeFindLastIndex>()
-            .with_builtin_function_property::<ArrayPrototypeNormalize>()
             .with_builtin_function_property::<ArrayPrototypeFlat>()
             .with_builtin_function_property::<ArrayPrototypeFlatMap>()
             .with_builtin_function_property::<ArrayPrototypeForEach>()

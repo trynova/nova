@@ -6,7 +6,7 @@ use crate::{
         },
         builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -133,7 +133,18 @@ impl MapPrototype {
             .with_builtin_function_property::<MapPrototypeHas>()
             .with_builtin_function_property::<MapPrototypeKeys>()
             .with_builtin_function_property::<MapPrototypeSet>()
-            .with_builtin_function_property::<MapPrototypeGetSize>()
+            .with_property(|builder| {
+                builder
+                    .with_key(BUILTIN_STRING_MEMORY.size.into())
+                    .with_getter(|agent| {
+                        BuiltinFunctionBuilder::new::<MapPrototypeGetSize>(agent, realm)
+                            .build()
+                            .into_function()
+                    })
+                    .with_enumerable(MapPrototypeGetSize::ENUMERABLE)
+                    .with_configurable(MapPrototypeGetSize::CONFIGURABLE)
+                    .build()
+            })
             .with_property(|builder| {
                 builder
                     .with_key(MapPrototypeValues::NAME.into())

@@ -6,7 +6,7 @@ use crate::{
         },
         builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -122,7 +122,18 @@ impl SetPrototype {
             .with_builtin_function_property::<SetPrototypeForEach>()
             .with_builtin_function_property::<SetPrototypeHas>()
             .with_builtin_function_property::<SetPrototypeKeys>()
-            .with_builtin_function_property::<SetPrototypeGetSize>()
+            .with_property(|builder| {
+                builder
+                    .with_key(BUILTIN_STRING_MEMORY.size.into())
+                    .with_getter(|agent| {
+                        BuiltinFunctionBuilder::new::<SetPrototypeGetSize>(agent, realm)
+                            .build()
+                            .into_function()
+                    })
+                    .with_enumerable(SetPrototypeGetSize::ENUMERABLE)
+                    .with_configurable(SetPrototypeGetSize::CONFIGURABLE)
+                    .build()
+            })
             .with_property(|builder| {
                 builder
                     .with_key(SetPrototypeValues::NAME.into())
