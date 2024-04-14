@@ -9,6 +9,7 @@
 [object RegExp]
 [object String]
 [object Undefined]
+[Symbol.asyncIterator]
 [Symbol.hasInstance]
 [Symbol.iterator]
 [Symbol.match]
@@ -22,7 +23,10 @@ acos
 acosh
 add
 AggregateError
+all
+allSettled
 and
+any
 apply
 arguments
 Array
@@ -33,6 +37,9 @@ asinh
 asIntN
 assign
 asUintN
+AsyncFunction
+AsyncGenerator
+AsyncGeneratorFunction
 asyncIterator
 at
 atan
@@ -53,6 +60,7 @@ BYTES_PER_ELEMENT
 call
 callee
 caller
+catch
 cause
 cbrt
 ceil
@@ -73,6 +81,7 @@ Date
 default
 defineProperties
 defineProperty
+deref
 description
 detached
 done
@@ -92,6 +101,7 @@ false
 fill
 filter
 FinalizationRegistry
+finally
 find
 findIndex
 findLast
@@ -112,8 +122,11 @@ fromEntries
 fround
 function
 Function
+Generator
+GeneratorFunction
 get
 get [Symbol.species]
+get [Symbol.toStringTag]
 get buffer
 get byteLength
 get byteOffset
@@ -202,6 +215,7 @@ isView
 isWellFormed
 iterator
 join
+JSON
 keyFor
 keys
 lastIndexOf
@@ -259,6 +273,7 @@ propertyIsEnumerable
 prototype
 Proxy
 push
+race
 random
 RangeError
 raw
@@ -267,11 +282,14 @@ reduceRight
 ReferenceError
 RegExp
 RegExp String Iterator
+reject
 repeat
 replace
 replaceAll
 resizable
 resize
+resolve
+return
 reverse
 round
 seal
@@ -335,6 +353,8 @@ SyntaxError
 tan
 tanh
 test
+then
+throw
 toDateString
 toExponential
 toFixed
@@ -386,6 +406,5 @@ WeakMap
 WeakRef
 WeakSet
 with
+withResolvers
 xor
-JSON
-get [Symbol.toStringTag]
