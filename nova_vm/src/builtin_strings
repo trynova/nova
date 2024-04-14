@@ -24,6 +24,7 @@ AggregateError
 apply
 arguments
 Array
+Array Iterator
 ArrayBuffer
 asin
 asinh
@@ -43,6 +44,7 @@ bind
 boolean
 Boolean
 byteLength
+BYTES_PER_ELEMENT
 call
 callee
 caller
@@ -73,11 +75,13 @@ entries
 EPSILON
 Error
 EvalError
+every
 exec
 exp
 expm1
 false
 fill
+filter
 FinalizationRegistry
 find
 findIndex
@@ -90,7 +94,9 @@ Float32Array
 Float64Array
 floor
 for
+forEach
 freeze
+from
 fromCharCode
 fromCodePoint
 fromEntries
@@ -98,13 +104,16 @@ fround
 function
 Function
 get [Symbol.species]
+get buffer
 get byteLength
+get byteOffset
 get description
 get dotAll
 get flags
 get global
 get hasIndices
 get ignoreCase
+get length
 get multiline
 get source
 get stricky
@@ -150,6 +159,7 @@ Int16Array
 Int32Array
 Int8Array
 is
+isArray
 isConcatSpreadable
 isExtensible
 isFinite
@@ -161,6 +171,7 @@ isSafeInteger
 isSealed
 isWellFormed
 iterator
+join
 keyFor
 keys
 lastIndexOf
@@ -174,6 +185,7 @@ LOG10E
 log1p
 log2
 LOG2E
+map
 Map
 match
 matchAll
@@ -204,6 +216,7 @@ parse
 parseFloat
 parseInt
 PI
+pop
 POSITIVE_INFINITY
 pow
 preventExtensions
@@ -211,18 +224,23 @@ Promise
 propertyIsEnumerable
 prototype
 Proxy
+push
 random
 RangeError
 raw
+reduce
+reduceRight
 ReferenceError
 RegExp
 RegExp String Iterator
 repeat
 replace
 replaceAll
+reverse
 round
 seal
 search
+set
 Set
 setDate
 setFullYear
@@ -241,12 +259,16 @@ setUTCMinutes
 setUTCMonth
 setUTCSeconds
 SharedArrayBuffer
+shift
 sign
 sin
 sinh
 slice
+some
+sort
 source
 species
+splice
 split
 sqrt
 SQRT1_2
@@ -256,6 +278,7 @@ stricky
 string
 String
 String Iterator
+subarray
 symbol
 Symbol
 SyntaxError
@@ -289,6 +312,7 @@ trimEnd
 trimStart
 true
 trunc
+TypedArray
 TypeError
 Uint16Array
 Uint32Array
@@ -298,6 +322,7 @@ undefined
 unicode
 unicodeSets
 unscopables
+unshift
 URIError
 utc
 value
@@ -306,3 +331,4 @@ values
 WeakMap
 WeakRef
 WeakSet
+with

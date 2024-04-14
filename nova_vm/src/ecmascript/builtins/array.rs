@@ -8,16 +8,15 @@ mod data;
 use std::ops::Deref;
 
 use super::{
-    array_set_length, create_builtin_function,
+    array_set_length,
     ordinary::{ordinary_define_own_property, ordinary_set},
-    ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs,
 };
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
         types::{
             InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
-            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, String, Value,
+            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
             BUILTIN_STRING_MEMORY,
         },
     },
@@ -98,34 +97,6 @@ impl Deref for Array {
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-pub struct ArrayConstructor;
-impl Builtin for ArrayConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Array;
-    const LENGTH: u8 = 1;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(Self::behaviour);
-}
-
-impl ArrayConstructor {
-    fn create(agent: &mut Agent) -> JsResult<Object> {
-        let realm = agent.current_realm_id();
-        let object = create_builtin_function(
-            agent,
-            Behaviour::Regular(Self::behaviour),
-            BuiltinFunctionArgs::new(1, "Array", realm),
-        );
-
-        Ok(object.into_object())
-    }
-
-    fn behaviour(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
-        todo!();
     }
 }
 

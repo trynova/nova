@@ -81,7 +81,7 @@ impl Builtin for StringPrototypeLastIndexOf {
 }
 struct StringPrototypeLocaleCompare;
 impl Builtin for StringPrototypeLocaleCompare {
-    const NAME: String = BUILTIN_STRING_MEMORY.localeCompare;
+    const NAME: String = BUILTIN_STRING_MEMORY.findIndex;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::locale_compare);
 }
@@ -111,7 +111,7 @@ impl Builtin for StringPrototypePadEnd {
 }
 struct StringPrototypePadStart;
 impl Builtin for StringPrototypePadStart {
-    const NAME: String = BUILTIN_STRING_MEMORY.padStart;
+    const NAME: String = BUILTIN_STRING_MEMORY.flatMap;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::pad_start);
 }

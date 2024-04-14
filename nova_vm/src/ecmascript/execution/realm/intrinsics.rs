@@ -1,6 +1,17 @@
 use crate::{
     ecmascript::{
         builtins::{
+            indexed_collections::{
+                array_objects::{
+                    array_constructor::ArrayConstructor, array_prototype::ArrayPrototype,
+                },
+                typed_array_objects::{
+                    typed_array_constructors::{TypedArrayConstructors, TypedArrayPrototypes},
+                    typed_array_intrinsic_object::{
+                        TypedArrayIntrinsicObject, TypedArrayPrototype,
+                    },
+                },
+            },
             text_processing::{
                 regexp_objects::{
                     regexp_constructor::RegExpConstructor, regexp_prototype::RegExpPrototype,
@@ -132,6 +143,12 @@ impl Intrinsics {
         RegExpPrototype::create_intrinsic(agent, realm);
         RegExpConstructor::create_intrinsic(agent, realm);
         RegExpStringIteratorPrototype::create_intrinsic(agent, realm);
+        ArrayPrototype::create_intrinsic(agent, realm);
+        ArrayConstructor::create_intrinsic(agent, realm);
+        TypedArrayPrototype::create_intrinsic(agent, realm);
+        TypedArrayIntrinsicObject::create_intrinsic(agent, realm);
+        TypedArrayPrototypes::create_intrinsic(agent, realm);
+        TypedArrayConstructors::create_intrinsic(agent, realm);
     }
 
     pub(crate) fn get_intrinsic_default_proto(
@@ -331,6 +348,12 @@ impl Intrinsics {
     }
 
     /// %BigInt64Array%
+    pub(crate) fn big_int64_array_prototype(&self) -> OrdinaryObject {
+        IntrinsicObjectIndexes::BigInt64ArrayPrototype
+            .get_object_index(self.object_index_base)
+            .into()
+    }
+
     pub(crate) fn big_int64_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::BigInt64Array
             .get_builtin_function_index(self.builtin_function_index_base)
@@ -342,6 +365,12 @@ impl Intrinsics {
     }
 
     /// %BigUint64Array%
+    pub(crate) fn big_uint64_array_prototype(&self) -> OrdinaryObject {
+        IntrinsicObjectIndexes::BigUint64ArrayPrototype
+            .get_object_index(self.object_index_base)
+            .into()
+    }
+
     pub(crate) fn big_uint64_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::BigUint64Array
             .get_builtin_function_index(self.builtin_function_index_base)
@@ -510,6 +539,12 @@ impl Intrinsics {
     }
 
     /// %Float32Array%
+    pub(crate) fn float32_array_prototype(&self) -> OrdinaryObject {
+        IntrinsicObjectIndexes::Float32ArrayPrototype
+            .get_object_index(self.object_index_base)
+            .into()
+    }
+
     pub(crate) fn float32_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Float32Array
             .get_builtin_function_index(self.builtin_function_index_base)
@@ -521,6 +556,12 @@ impl Intrinsics {
     }
 
     /// %Float64Array%
+    pub(crate) fn float64_array_prototype(&self) -> OrdinaryObject {
+        IntrinsicObjectIndexes::Float64ArrayPrototype
+            .get_object_index(self.object_index_base)
+            .into()
+    }
+
     pub(crate) fn float64_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Float64Array
             .get_builtin_function_index(self.builtin_function_index_base)
@@ -599,6 +640,12 @@ impl Intrinsics {
     }
 
     /// %Int16Array%
+    pub(crate) fn int16_array_prototype(&self) -> OrdinaryObject {
+        IntrinsicObjectIndexes::Int16ArrayPrototype
+            .get_object_index(self.object_index_base)
+            .into()
+    }
+
     pub(crate) fn int16_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Int16Array
             .get_builtin_function_index(self.builtin_function_index_base)
@@ -610,6 +657,12 @@ impl Intrinsics {
     }
 
     /// %Int32Array%
+    pub(crate) fn int32_array_prototype(&self) -> OrdinaryObject {
+        IntrinsicObjectIndexes::Int32ArrayPrototype
+            .get_object_index(self.object_index_base)
+            .into()
+    }
+
     pub(crate) fn int32_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Int32Array
             .get_builtin_function_index(self.builtin_function_index_base)
@@ -621,6 +674,12 @@ impl Intrinsics {
     }
 
     /// %Int8Array%
+    pub(crate) fn int8_array_prototype(&self) -> OrdinaryObject {
+        IntrinsicObjectIndexes::Int8ArrayPrototype
+            .get_object_index(self.object_index_base)
+            .into()
+    }
+
     pub(crate) fn int8_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Int8Array
             .get_builtin_function_index(self.builtin_function_index_base)
@@ -1035,6 +1094,12 @@ impl Intrinsics {
     }
 
     /// %Uint16Array%
+    pub(crate) fn uint16_array_prototype(&self) -> OrdinaryObject {
+        IntrinsicObjectIndexes::Uint16ArrayPrototype
+            .get_object_index(self.object_index_base)
+            .into()
+    }
+
     pub(crate) fn uint16_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Uint16Array
             .get_builtin_function_index(self.builtin_function_index_base)
@@ -1046,6 +1111,12 @@ impl Intrinsics {
     }
 
     /// %Uint32Array%
+    pub(crate) fn uint32_array_prototype(&self) -> OrdinaryObject {
+        IntrinsicObjectIndexes::Uint32ArrayPrototype
+            .get_object_index(self.object_index_base)
+            .into()
+    }
+
     pub(crate) fn uint32_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Uint32Array
             .get_builtin_function_index(self.builtin_function_index_base)
@@ -1057,6 +1128,12 @@ impl Intrinsics {
     }
 
     /// %Uint8Array%
+    pub(crate) fn uint8_array_prototype(&self) -> OrdinaryObject {
+        IntrinsicObjectIndexes::Uint8ArrayPrototype
+            .get_object_index(self.object_index_base)
+            .into()
+    }
+
     pub(crate) fn uint8_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Uint8Array
             .get_builtin_function_index(self.builtin_function_index_base)
@@ -1068,6 +1145,12 @@ impl Intrinsics {
     }
 
     /// %Uint8ClampedArray%
+    pub(crate) fn uint8_clamped_array_prototype(&self) -> OrdinaryObject {
+        IntrinsicObjectIndexes::Uint8ClampedArrayPrototype
+            .get_object_index(self.object_index_base)
+            .into()
+    }
+
     pub(crate) fn uint8_clamped_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Uint8ClampedArray
             .get_builtin_function_index(self.builtin_function_index_base)

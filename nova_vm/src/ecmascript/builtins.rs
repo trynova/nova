@@ -12,6 +12,7 @@ pub mod date;
 mod ecmascript_function;
 pub mod error;
 pub(crate) mod fundamental_objects;
+pub(crate) mod indexed_collections;
 pub(crate) mod numbers_and_dates;
 pub mod ordinary;
 pub(crate) mod regexp;
@@ -19,7 +20,7 @@ pub(crate) mod text_processing;
 
 pub(crate) use arguments::*;
 pub(crate) use array::abstract_operations::*;
-pub use array::{Array, ArrayConstructor};
+pub use array::Array;
 pub(crate) use array::{ArrayHeapData, SealableElementsVector};
 pub use array_buffer::ArrayBuffer;
 pub(crate) use array_buffer::ArrayBufferHeapData;

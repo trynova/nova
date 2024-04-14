@@ -40,7 +40,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
     #[must_use]
     pub fn new(agent: &'agent mut Agent, realm: RealmIdentifier) -> Self {
         agent.heap.objects.push(None);
-        let this = ObjectIndex::last(&agent.heap.builtin_functions).into();
+        let this = ObjectIndex::last(&agent.heap.objects).into();
         Self {
             agent,
             this,
