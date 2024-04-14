@@ -423,8 +423,8 @@ impl ArrayPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
-        let this = intrinsics.string_prototype();
-        let string_constructor = intrinsics.string();
+        let this = intrinsics.array_prototype();
+        let array_constructor = intrinsics.array();
 
         let mut array_prototype_values: Option<Value> = None;
 
@@ -432,7 +432,7 @@ impl ArrayPrototype {
             .with_property_capacity(41)
             .with_builtin_function_property::<ArrayPrototypeAt>()
             .with_builtin_function_property::<ArrayPrototypeConcat>()
-            .with_constructor_property(string_constructor)
+            .with_constructor_property(array_constructor)
             .with_builtin_function_property::<ArrayPrototypeCopyWithin>()
             .with_builtin_function_property::<ArrayPrototypeEntries>()
             .with_builtin_function_property::<ArrayPrototypeEvery>()

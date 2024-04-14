@@ -44,6 +44,7 @@ bind
 boolean
 Boolean
 byteLength
+BYTES_PER_ELEMENT
 call
 callee
 caller
@@ -103,13 +104,16 @@ fround
 function
 Function
 get [Symbol.species]
+get buffer
 get byteLength
+get byteOffset
 get description
 get dotAll
 get flags
 get global
 get hasIndices
 get ignoreCase
+get length
 get multiline
 get source
 get stricky
@@ -236,6 +240,7 @@ reverse
 round
 seal
 search
+set
 Set
 setDate
 setFullYear
@@ -273,6 +278,7 @@ stricky
 string
 String
 String Iterator
+subarray
 symbol
 Symbol
 SyntaxError
@@ -306,6 +312,7 @@ trimEnd
 trimStart
 true
 trunc
+TypedArray
 TypeError
 Uint16Array
 Uint32Array
