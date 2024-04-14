@@ -8,36 +8,36 @@ use crate::{
     heap::WellKnownSymbolIndexes,
 };
 
-pub(crate) struct RegExpStringIteratorPrototype;
+pub(crate) struct ArrayIteratorPrototype;
 
-struct RegExpStringIteratorPrototypeNext;
-impl Builtin for RegExpStringIteratorPrototypeNext {
+struct ArrayIteratorPrototypeNext;
+impl Builtin for ArrayIteratorPrototypeNext {
     const NAME: String = BUILTIN_STRING_MEMORY.next;
 
     const LENGTH: u8 = 0;
 
     const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(RegExpStringIteratorPrototype::next);
+        crate::ecmascript::builtins::Behaviour::Regular(ArrayIteratorPrototype::next);
 }
 
-impl RegExpStringIteratorPrototype {
+impl ArrayIteratorPrototype {
     fn next(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
         todo!();
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
-        let this = intrinsics.reg_exp_string_iterator_prototype();
+        let this = intrinsics.string_iterator_prototype();
         let iterator_prototype = intrinsics.iterator_prototype();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(2)
             .with_prototype(iterator_prototype)
-            .with_builtin_function_property::<RegExpStringIteratorPrototypeNext>()
+            .with_builtin_function_property::<ArrayIteratorPrototypeNext>()
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.RegExp_String_Iterator.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Array_Iterator.into_value())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

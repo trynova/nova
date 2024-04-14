@@ -1,6 +1,9 @@
 use crate::{
     ecmascript::{
         builtins::{
+            indexed_collections::array_objects::{
+                array_constructor::ArrayConstructor, array_prototype::ArrayPrototype,
+            },
             text_processing::{
                 regexp_objects::{
                     regexp_constructor::RegExpConstructor, regexp_prototype::RegExpPrototype,
@@ -132,6 +135,8 @@ impl Intrinsics {
         RegExpPrototype::create_intrinsic(agent, realm);
         RegExpConstructor::create_intrinsic(agent, realm);
         RegExpStringIteratorPrototype::create_intrinsic(agent, realm);
+        ArrayPrototype::create_intrinsic(agent, realm);
+        ArrayConstructor::create_intrinsic(agent, realm);
     }
 
     pub(crate) fn get_intrinsic_default_proto(

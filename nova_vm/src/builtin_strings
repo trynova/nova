@@ -24,6 +24,7 @@ AggregateError
 apply
 arguments
 Array
+Array Iterator
 ArrayBuffer
 asin
 asinh
@@ -73,11 +74,13 @@ entries
 EPSILON
 Error
 EvalError
+every
 exec
 exp
 expm1
 false
 fill
+filter
 FinalizationRegistry
 find
 findIndex
@@ -90,7 +93,9 @@ Float32Array
 Float64Array
 floor
 for
+forEach
 freeze
+from
 fromCharCode
 fromCodePoint
 fromEntries
@@ -150,6 +155,7 @@ Int16Array
 Int32Array
 Int8Array
 is
+isArray
 isConcatSpreadable
 isExtensible
 isFinite
@@ -161,6 +167,7 @@ isSafeInteger
 isSealed
 isWellFormed
 iterator
+join
 keyFor
 keys
 lastIndexOf
@@ -174,6 +181,7 @@ LOG10E
 log1p
 log2
 LOG2E
+map
 Map
 match
 matchAll
@@ -204,6 +212,7 @@ parse
 parseFloat
 parseInt
 PI
+pop
 POSITIVE_INFINITY
 pow
 preventExtensions
@@ -211,15 +220,19 @@ Promise
 propertyIsEnumerable
 prototype
 Proxy
+push
 random
 RangeError
 raw
+reduce
+reduceRight
 ReferenceError
 RegExp
 RegExp String Iterator
 repeat
 replace
 replaceAll
+reverse
 round
 seal
 search
@@ -241,12 +254,16 @@ setUTCMinutes
 setUTCMonth
 setUTCSeconds
 SharedArrayBuffer
+shift
 sign
 sin
 sinh
 slice
+some
+sort
 source
 species
+splice
 split
 sqrt
 SQRT1_2
@@ -298,6 +315,7 @@ undefined
 unicode
 unicodeSets
 unscopables
+unshift
 URIError
 utc
 value
@@ -306,3 +324,4 @@ values
 WeakMap
 WeakRef
 WeakSet
+with

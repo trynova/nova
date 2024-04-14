@@ -29,7 +29,8 @@ use crate::{
         },
         execution::{agent::Agent, ProtoIntrinsics},
         types::{
-            IntoFunction, IntoValue, Number, Object, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY
+            IntoFunction, IntoValue, Number, Object, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::WellKnownSymbolIndexes,
