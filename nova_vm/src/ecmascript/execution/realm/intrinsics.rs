@@ -3,13 +3,31 @@ use crate::{
         builtins::{
             indexed_collections::{
                 array_objects::{
-                    array_constructor::ArrayConstructor, array_prototype::ArrayPrototype,
+                    array_constructor::ArrayConstructor,
+                    array_iterator_objects::ArrayIteratorPrototype,
+                    array_prototype::ArrayPrototype,
                 },
                 typed_array_objects::{
                     typed_array_constructors::{TypedArrayConstructors, TypedArrayPrototypes},
                     typed_array_intrinsic_object::{
                         TypedArrayIntrinsicObject, TypedArrayPrototype,
                     },
+                },
+            },
+            keyed_collections::{
+                map_objects::{
+                    map_constructor::MapConstructor, map_iterator_objects::MapIteratorPrototype,
+                    map_prototype::MapPrototype,
+                },
+                set_objects::{
+                    set_constructor::SetConstructor, set_iterator_objects::SetIteratorPrototype,
+                    set_prototype::SetPrototype,
+                },
+                weak_map_objects::{
+                    weak_map_constructor::WeakMapConstructor, weak_map_prototype::WeakMapPrototype,
+                },
+                weak_set_objects::{
+                    weak_set_constructor::WeakSetConstructor, weak_set_prototype::WeakSetPrototype,
                 },
             },
             text_processing::{
@@ -145,10 +163,21 @@ impl Intrinsics {
         RegExpStringIteratorPrototype::create_intrinsic(agent, realm);
         ArrayPrototype::create_intrinsic(agent, realm);
         ArrayConstructor::create_intrinsic(agent, realm);
+        ArrayIteratorPrototype::create_intrinsic(agent, realm);
         TypedArrayPrototype::create_intrinsic(agent, realm);
         TypedArrayIntrinsicObject::create_intrinsic(agent, realm);
         TypedArrayPrototypes::create_intrinsic(agent, realm);
         TypedArrayConstructors::create_intrinsic(agent, realm);
+        MapPrototype::create_intrinsic(agent, realm);
+        MapConstructor::create_intrinsic(agent, realm);
+        MapIteratorPrototype::create_intrinsic(agent, realm);
+        SetPrototype::create_intrinsic(agent, realm);
+        SetConstructor::create_intrinsic(agent, realm);
+        SetIteratorPrototype::create_intrinsic(agent, realm);
+        WeakMapPrototype::create_intrinsic(agent, realm);
+        WeakMapConstructor::create_intrinsic(agent, realm);
+        WeakSetPrototype::create_intrinsic(agent, realm);
+        WeakSetConstructor::create_intrinsic(agent, realm);
     }
 
     pub(crate) fn get_intrinsic_default_proto(

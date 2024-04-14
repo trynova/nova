@@ -20,6 +20,7 @@
 abs
 acos
 acosh
+add
 AggregateError
 apply
 arguments
@@ -53,6 +54,7 @@ cbrt
 ceil
 charAt
 charCodeAt
+clear
 clz32
 codePointAt
 concat
@@ -103,6 +105,7 @@ fromEntries
 fround
 function
 Function
+get
 get [Symbol.species]
 get buffer
 get byteLength
@@ -115,6 +118,7 @@ get hasIndices
 get ignoreCase
 get length
 get multiline
+get size
 get source
 get stricky
 get unicode
@@ -145,6 +149,7 @@ getUTCSeconds
 global
 globalThis
 groupBy
+has
 hasIndices
 hasInstance
 hasOwn
@@ -187,6 +192,7 @@ log2
 LOG2E
 map
 Map
+Map Iterator
 match
 matchAll
 Math
@@ -242,6 +248,7 @@ seal
 search
 set
 Set
+Set Iterator
 setDate
 setFullYear
 setHours

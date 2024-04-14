@@ -13,6 +13,7 @@ mod ecmascript_function;
 pub mod error;
 pub(crate) mod fundamental_objects;
 pub(crate) mod indexed_collections;
+pub(crate) mod keyed_collections;
 pub(crate) mod numbers_and_dates;
 pub mod ordinary;
 pub(crate) mod regexp;

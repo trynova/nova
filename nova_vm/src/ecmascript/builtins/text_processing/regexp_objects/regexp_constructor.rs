@@ -21,9 +21,9 @@ impl Builtin for RegExpConstructor {
     const NAME: String = BUILTIN_STRING_MEMORY.RegExp;
 }
 
-struct RegExpSpecies;
-impl Builtin for RegExpSpecies {
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpConstructor::species);
+struct RegExpGetSpecies;
+impl Builtin for RegExpGetSpecies {
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpConstructor::get_species);
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 }
@@ -37,7 +37,7 @@ impl RegExpConstructor {
         todo!();
     }
 
-    fn species(
+    fn get_species(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -63,11 +63,12 @@ impl RegExpConstructor {
             builder
                 .with_key(WellKnownSymbolIndexes::Species.into())
                 .with_getter(|agent| {
-                    BuiltinFunctionBuilder::new::<RegExpSpecies>(agent, realm)
+                    BuiltinFunctionBuilder::new::<RegExpGetSpecies>(agent, realm)
                         .build()
                         .into_function()
                 })
                 .with_enumerable(false)
+                .with_configurable(true)
                 .build()
         })
         .build();

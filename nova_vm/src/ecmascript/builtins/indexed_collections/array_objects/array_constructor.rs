@@ -44,9 +44,9 @@ impl Builtin for ArrayOf {
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.fromCodePoint;
 }
-struct ArraySpecies;
-impl Builtin for ArraySpecies {
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::species);
+struct ArrayGetSpecies;
+impl Builtin for ArrayGetSpecies {
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::get_species);
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 }
@@ -103,7 +103,7 @@ impl ArrayConstructor {
         todo!();
     }
 
-    fn species(
+    fn get_species(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -132,11 +132,12 @@ impl ArrayConstructor {
             builder
                 .with_key(WellKnownSymbolIndexes::Species.into())
                 .with_getter(|agent| {
-                    BuiltinFunctionBuilder::new::<ArraySpecies>(agent, realm)
+                    BuiltinFunctionBuilder::new::<ArrayGetSpecies>(agent, realm)
                         .build()
                         .into_function()
                 })
                 .with_enumerable(false)
+                .with_configurable(true)
                 .build()
         })
         .build();
