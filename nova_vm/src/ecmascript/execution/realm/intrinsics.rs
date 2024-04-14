@@ -1,6 +1,30 @@
 use crate::{
     ecmascript::{
         builtins::{
+            control_abstraction_objects::{
+                async_function_objects::{
+                    async_function_constructor::AsyncFunctionConstructor,
+                    async_function_prototype::AsyncFunctionPrototype,
+                },
+                async_generator_function_objects::{
+                    async_generator_function_constructor::AsyncGeneratorFunctionConstructor,
+                    async_generator_function_prototype::AsyncGeneratorFunctionPrototype,
+                },
+                async_generator_objects::AsyncGeneratorPrototype,
+                generator_function_objects::{
+                    generator_function_constructor::GeneratorFunctionConstructor,
+                    generator_function_prototype::GeneratorFunctionPrototype,
+                },
+                generator_objects::GeneratorPrototype,
+                iteration::{
+                    async_from_sync_iterator_prototype::AsyncFromSyncIteratorPrototype,
+                    async_iterator_prototype::AsyncIteratorPrototype,
+                    iterator_prototype::IteratorPrototype,
+                },
+                promise_objects::{
+                    promise_constructor::PromiseConstructor, promise_prototype::PromisePrototype,
+                },
+            },
             indexed_collections::{
                 array_objects::{
                     array_constructor::ArrayConstructor,
@@ -202,6 +226,19 @@ impl Intrinsics {
         DataViewConstructor::create_intrinsic(agent, realm);
         AtomicsObject::create_intrinsic(agent, realm);
         JSONObject::create_intrinsic(agent, realm);
+        IteratorPrototype::create_intrinsic(agent, realm);
+        AsyncIteratorPrototype::create_intrinsic(agent, realm);
+        AsyncFromSyncIteratorPrototype::create_intrinsic(agent, realm);
+        PromisePrototype::create_intrinsic(agent, realm);
+        PromiseConstructor::create_intrinsic(agent, realm);
+        GeneratorFunctionPrototype::create_intrinsic(agent, realm);
+        GeneratorFunctionConstructor::create_intrinsic(agent, realm);
+        AsyncGeneratorFunctionPrototype::create_intrinsic(agent, realm);
+        AsyncGeneratorFunctionConstructor::create_intrinsic(agent, realm);
+        GeneratorPrototype::create_intrinsic(agent, realm);
+        AsyncGeneratorPrototype::create_intrinsic(agent, realm);
+        AsyncFunctionPrototype::create_intrinsic(agent, realm);
+        AsyncFunctionConstructor::create_intrinsic(agent, realm);
     }
 
     pub(crate) fn get_intrinsic_default_proto(
