@@ -27,7 +27,7 @@ impl ArrayIteratorPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
-        let this = intrinsics.string_iterator_prototype();
+        let this = intrinsics.array_iterator_prototype();
         let iterator_prototype = intrinsics.iterator_prototype();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)

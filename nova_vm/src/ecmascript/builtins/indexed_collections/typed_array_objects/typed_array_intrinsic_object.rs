@@ -36,9 +36,9 @@ impl Builtin for TypedArrayOf {
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.fromCodePoint;
 }
-struct TypedArraySpecies;
-impl Builtin for TypedArraySpecies {
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayIntrinsicObject::species);
+struct TypedArrayGetSpecies;
+impl Builtin for TypedArrayGetSpecies {
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayIntrinsicObject::get_species);
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 }
@@ -71,7 +71,7 @@ impl TypedArrayIntrinsicObject {
         todo!();
     }
 
-    fn species(
+    fn get_species(
         _agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
@@ -99,11 +99,12 @@ impl TypedArrayIntrinsicObject {
             builder
                 .with_key(WellKnownSymbolIndexes::Species.into())
                 .with_getter(|agent| {
-                    BuiltinFunctionBuilder::new::<TypedArraySpecies>(agent, realm)
+                    BuiltinFunctionBuilder::new::<TypedArrayGetSpecies>(agent, realm)
                         .build()
                         .into_function()
                 })
                 .with_enumerable(false)
+                .with_configurable(true)
                 .build()
         })
         .build();

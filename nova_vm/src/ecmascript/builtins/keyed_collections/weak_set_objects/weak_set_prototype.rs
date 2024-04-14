@@ -1,0 +1,66 @@
+use crate::{
+    ecmascript::{
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin},
+        execution::{Agent, JsResult, RealmIdentifier},
+        types::{String, Value, BUILTIN_STRING_MEMORY},
+    },
+    heap::WellKnownSymbolIndexes,
+};
+
+pub(crate) struct WeakSetPrototype;
+
+struct WeakSetPrototypeAdd;
+impl Builtin for WeakSetPrototypeAdd {
+    const NAME: String = BUILTIN_STRING_MEMORY.add;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakSetPrototype::add);
+}
+struct WeakSetPrototypeDelete;
+impl Builtin for WeakSetPrototypeDelete {
+    const NAME: String = BUILTIN_STRING_MEMORY.every;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakSetPrototype::delete);
+}
+struct WeakSetPrototypeHas;
+impl Builtin for WeakSetPrototypeHas {
+    const NAME: String = BUILTIN_STRING_MEMORY.has;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakSetPrototype::has);
+}
+
+impl WeakSetPrototype {
+    fn add(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        todo!()
+    }
+
+    fn delete(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        todo!()
+    }
+
+    fn has(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        todo!()
+    }
+
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+        let intrinsics = agent.get_realm(realm).intrinsics();
+        let this = intrinsics.weak_set_prototype();
+        let weak_set_constructor = intrinsics.weak_set();
+
+        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
+            .with_property_capacity(5)
+            .with_builtin_function_property::<WeakSetPrototypeAdd>()
+            .with_constructor_property(weak_set_constructor)
+            .with_builtin_function_property::<WeakSetPrototypeDelete>()
+            .with_builtin_function_property::<WeakSetPrototypeHas>()
+            .with_property(|builder| {
+                builder
+                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.WeakMap.into_value())
+                    .with_enumerable(false)
+                    .with_configurable(true)
+                    .build()
+            })
+            .build();
+    }
+}
