@@ -4,11 +4,11 @@ use crate::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{Agent, JsResult, RealmIdentifier},
         types::{IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct MapPrototype;
@@ -30,6 +30,9 @@ impl Builtin for MapPrototypeEntries {
     const NAME: String = BUILTIN_STRING_MEMORY.entries;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::entries);
+}
+impl BuiltinIntrinsic for MapPrototypeEntries {
+    const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::MapPrototypeEntries;
 }
 struct MapPrototypeForEach;
 impl Builtin for MapPrototypeForEach {
@@ -127,7 +130,7 @@ impl MapPrototype {
             .with_builtin_function_property::<MapPrototypeClear>()
             .with_constructor_property(map_constructor)
             .with_builtin_function_property::<MapPrototypeDelete>()
-            .with_builtin_function_property::<MapPrototypeEntries>()
+            .with_builtin_intrinsic_function_property::<MapPrototypeEntries>()
             .with_builtin_function_property::<MapPrototypeForEach>()
             .with_builtin_function_property::<MapPrototypeGet>()
             .with_builtin_function_property::<MapPrototypeHas>()

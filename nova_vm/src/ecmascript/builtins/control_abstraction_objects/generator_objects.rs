@@ -1,11 +1,11 @@
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{Agent, JsResult, RealmIdentifier},
         types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct GeneratorPrototype;
@@ -17,6 +17,10 @@ impl Builtin for GeneratorPrototypeNext {
     const LENGTH: u8 = 1;
 
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GeneratorPrototype::next);
+}
+impl BuiltinIntrinsic for GeneratorPrototypeNext {
+    const INDEX: IntrinsicFunctionIndexes =
+        IntrinsicFunctionIndexes::GeneratorFunctionPrototypePrototypeNext;
 }
 pub(crate) struct GeneratorPrototypeReturn;
 impl Builtin for GeneratorPrototypeReturn {
@@ -56,7 +60,7 @@ impl GeneratorPrototype {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let iterator_prototype = intrinsics.iterator_prototype();
         let generator_function_prototype = intrinsics.generator_function_prototype();
-        let this = intrinsics.generator_function_prototype_prototype();
+        let this = intrinsics.generator_prototype();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(5)
@@ -69,7 +73,7 @@ impl GeneratorPrototype {
                     .with_configurable(true)
                     .build()
             })
-            .with_builtin_function_property::<GeneratorPrototypeNext>()
+            .with_builtin_intrinsic_function_property::<GeneratorPrototypeNext>()
             .with_builtin_function_property::<GeneratorPrototypeReturn>()
             .with_builtin_function_property::<GeneratorPrototypeThrow>()
             .with_property(|builder| {

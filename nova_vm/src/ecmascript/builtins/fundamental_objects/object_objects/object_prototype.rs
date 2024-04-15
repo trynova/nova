@@ -6,11 +6,11 @@ use crate::{
             type_conversion::{to_object, to_property_key},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{Agent, JsResult, RealmIdentifier},
         types::{InternalMethods, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct ObjectPrototype;
@@ -58,6 +58,9 @@ impl Builtin for ObjectPrototypeToString {
     const LENGTH: u8 = 0;
 
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ObjectPrototype::to_string);
+}
+impl BuiltinIntrinsic for ObjectPrototypeToString {
+    const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::ObjectPrototypeToString;
 }
 
 struct ObjectPrototypeValueOf;
@@ -217,7 +220,7 @@ impl ObjectPrototype {
             .with_builtin_function_property::<ObjectPrototypeIsPrototypeOf>()
             .with_builtin_function_property::<ObjectPrototypePropertyIsEnumerable>()
             .with_builtin_function_property::<ObjectPrototypeToLocaleString>()
-            .with_builtin_function_property::<ObjectPrototypeToString>()
+            .with_builtin_intrinsic_function_property::<ObjectPrototypeToString>()
             .with_builtin_function_property::<ObjectPrototypeValueOf>()
             .build();
     }

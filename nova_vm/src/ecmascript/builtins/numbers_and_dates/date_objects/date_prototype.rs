@@ -6,11 +6,11 @@ use crate::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        builtins::{date::Date, ArgumentsList, Behaviour, Builtin},
+        builtins::{date::Date, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::{GetHeapData, WellKnownSymbolIndexes},
+    heap::{GetHeapData, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
     SmallInteger,
 };
 
@@ -267,6 +267,9 @@ impl Builtin for DatePrototypeToUTCString {
     const NAME: String = BUILTIN_STRING_MEMORY.toUTCString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::to_utc_string);
+}
+impl BuiltinIntrinsic for DatePrototypeToUTCString {
+    const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::DatePrototypeToUTCString;
 }
 struct DatePrototypeValueOf;
 impl Builtin for DatePrototypeValueOf {
@@ -620,7 +623,7 @@ impl DatePrototype {
             .with_builtin_function_property::<DatePrototypeToLocaleTimeString>()
             .with_builtin_function_property::<DatePrototypeToString>()
             .with_builtin_function_property::<DatePrototypeToTimeString>()
-            .with_builtin_function_property::<DatePrototypeToUTCString>()
+            .with_builtin_intrinsic_function_property::<DatePrototypeToUTCString>()
             .with_builtin_function_property::<DatePrototypeValueOf>()
             .with_property(|builder| {
                 builder

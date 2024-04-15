@@ -1,14 +1,11 @@
 use crate::{
     ecmascript::{
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{Agent, JsResult, RealmIdentifier},
         types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct ArrayPrototype;
@@ -187,6 +184,9 @@ impl Builtin for ArrayPrototypeSort {
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::sort);
 }
+impl BuiltinIntrinsic for ArrayPrototypeSort {
+    const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::ArrayPrototypeSort;
+}
 struct ArrayPrototypeSplice;
 impl Builtin for ArrayPrototypeSplice {
     const NAME: String = BUILTIN_STRING_MEMORY.splice;
@@ -223,6 +223,9 @@ impl Builtin for ArrayPrototypeToString {
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_string);
 }
+impl BuiltinIntrinsic for ArrayPrototypeToString {
+    const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::ArrayPrototypeToString;
+}
 struct ArrayPrototypeUnshift;
 impl Builtin for ArrayPrototypeUnshift {
     const NAME: String = BUILTIN_STRING_MEMORY.unshift;
@@ -234,6 +237,9 @@ impl Builtin for ArrayPrototypeValues {
     const NAME: String = BUILTIN_STRING_MEMORY.values;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::values);
+}
+impl BuiltinIntrinsic for ArrayPrototypeValues {
+    const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::ArrayPrototypeValues;
 }
 struct ArrayPrototypeWith;
 impl Builtin for ArrayPrototypeWith {
@@ -415,8 +421,7 @@ impl ArrayPrototype {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let this = intrinsics.array_prototype();
         let array_constructor = intrinsics.array();
-
-        let mut array_prototype_values: Option<Value> = None;
+        let array_prototype_values = intrinsics.array_prototype_values();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(41)
@@ -449,34 +454,20 @@ impl ArrayPrototype {
             .with_builtin_function_property::<ArrayPrototypeShift>()
             .with_builtin_function_property::<ArrayPrototypeSlice>()
             .with_builtin_function_property::<ArrayPrototypeSome>()
-            .with_builtin_function_property::<ArrayPrototypeSort>()
+            .with_builtin_intrinsic_function_property::<ArrayPrototypeSort>()
             .with_builtin_function_property::<ArrayPrototypeSplice>()
             .with_builtin_function_property::<ArrayPrototypeToLocaleString>()
             .with_builtin_function_property::<ArrayPrototypeToReversed>()
             .with_builtin_function_property::<ArrayPrototypeToSorted>()
             .with_builtin_function_property::<ArrayPrototypeToSpliced>()
-            .with_builtin_function_property::<ArrayPrototypeToString>()
+            .with_builtin_intrinsic_function_property::<ArrayPrototypeToString>()
             .with_builtin_function_property::<ArrayPrototypeUnshift>()
-            .with_property(|builder| {
-                builder
-                    .with_key(ArrayPrototypeValues::NAME.into())
-                    .with_value_creator(|agent| {
-                        let value =
-                            BuiltinFunctionBuilder::new::<ArrayPrototypeValues>(agent, realm)
-                                .build()
-                                .into_value();
-                        array_prototype_values = Some(value);
-                        value
-                    })
-                    .with_enumerable(ArrayPrototypeValues::ENUMERABLE)
-                    .with_configurable(ArrayPrototypeValues::CONFIGURABLE)
-                    .build()
-            })
+            .with_builtin_intrinsic_function_property::<ArrayPrototypeValues>()
             .with_builtin_function_property::<ArrayPrototypeWith>()
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::Iterator.into())
-                    .with_value(array_prototype_values.unwrap())
+                    .with_value(array_prototype_values.into_value())
                     .with_enumerable(ArrayPrototypeValues::ENUMERABLE)
                     .with_configurable(ArrayPrototypeValues::CONFIGURABLE)
                     .build()

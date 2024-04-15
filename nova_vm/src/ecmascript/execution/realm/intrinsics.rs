@@ -25,6 +25,7 @@ use crate::{
                     promise_constructor::PromiseConstructor, promise_prototype::PromisePrototype,
                 },
             },
+            global_object::GlobalObject,
             indexed_collections::{
                 array_objects::{
                     array_constructor::ArrayConstructor,
@@ -52,6 +53,15 @@ use crate::{
                 },
                 weak_set_objects::{
                     weak_set_constructor::WeakSetConstructor, weak_set_prototype::WeakSetPrototype,
+                },
+            },
+            managing_memory::{
+                finalization_registry_objects::{
+                    finalization_registry_constructor::FinalizationRegistryConstructor,
+                    finalization_registry_prototype::FinalizationRegistryPrototype,
+                },
+                weak_ref_objects::{
+                    weak_ref_constructor::WeakRefConstructor, weak_ref_prototype::WeakRefPrototype,
                 },
             },
             reflection::{proxy_constructor::ProxyConstructor, reflect_object::ReflectObject},
@@ -90,6 +100,8 @@ use crate::{
                 boolean_constructor::BooleanConstructor, boolean_prototype::BooleanPrototype,
             },
             error_objects::{
+                aggregate_error_constructors::AggregateErrorConstructor,
+                aggregate_error_prototypes::AggregateErrorPrototype,
                 error_constructor::ErrorConstructor, error_prototype::ErrorPrototype,
                 native_error_constructors::NativeErrorConstructors,
                 native_error_prototypes::NativeErrorPrototypes,
@@ -177,6 +189,7 @@ impl Intrinsics {
     }
 
     pub(crate) fn create_intrinsics(agent: &mut Agent, realm: RealmIdentifier) {
+        GlobalObject::create_intrinsic(agent, realm);
         ObjectPrototype::create_intrinsic(agent, realm);
         ObjectConstructor::create_intrinsic(agent, realm);
         FunctionPrototype::create_intrinsic(agent, realm);
@@ -189,6 +202,8 @@ impl Intrinsics {
         ErrorPrototype::create_intrinsic(agent, realm);
         NativeErrorPrototypes::create_intrinsic(agent, realm);
         NativeErrorConstructors::create_intrinsic(agent, realm);
+        AggregateErrorPrototype::create_intrinsic(agent, realm);
+        AggregateErrorConstructor::create_intrinsic(agent, realm);
         NumberPrototype::create_intrinsic(agent, realm);
         NumberConstructor::create_intrinsic(agent, realm);
         BigIntPrototype::create_intrinsic(agent, realm);
@@ -227,6 +242,10 @@ impl Intrinsics {
         DataViewConstructor::create_intrinsic(agent, realm);
         AtomicsObject::create_intrinsic(agent, realm);
         JSONObject::create_intrinsic(agent, realm);
+        WeakRefPrototype::create_intrinsic(agent, realm);
+        WeakRefConstructor::create_intrinsic(agent, realm);
+        FinalizationRegistryPrototype::create_intrinsic(agent, realm);
+        FinalizationRegistryConstructor::create_intrinsic(agent, realm);
         IteratorPrototype::create_intrinsic(agent, realm);
         AsyncIteratorPrototype::create_intrinsic(agent, realm);
         AsyncFromSyncIteratorPrototype::create_intrinsic(agent, realm);
@@ -267,6 +286,31 @@ impl Intrinsics {
             ProtoIntrinsics::TypeError => self.type_error_prototype().into(),
             ProtoIntrinsics::UriError => self.uri_error_prototype().into(),
         }
+    }
+
+    pub(crate) fn intrinsic_function_index_to_builtin_function(
+        &self,
+        index: IntrinsicFunctionIndexes,
+    ) -> BuiltinFunction {
+        index
+            .get_builtin_function_index(self.builtin_function_index_base)
+            .into()
+    }
+
+    pub(crate) fn intrinsic_constructor_index_to_builtin_function(
+        &self,
+        index: IntrinsicConstructorIndexes,
+    ) -> BuiltinFunction {
+        index
+            .get_builtin_function_index(self.builtin_function_index_base)
+            .into()
+    }
+
+    pub(crate) fn intrinsic_constructor_index_to_object_index(
+        &self,
+        index: IntrinsicConstructorIndexes,
+    ) -> ObjectIndex {
+        index.get_object_index(self.object_index_base)
     }
 
     /// %AggregateError.prototype%
@@ -377,8 +421,10 @@ impl Intrinsics {
     }
 
     /// %AsyncGeneratorFunction.prototype.prototype%
+    ///
+    /// The %AsyncGeneratorPrototype% object is %AsyncGeneratorFunction.prototype.prototype%.
     pub(crate) fn async_generator_function_prototype_prototype(&self) -> OrdinaryObject {
-        IntrinsicObjectIndexes::AsyncGeneratorFunctionPrototypePrototype
+        IntrinsicObjectIndexes::AsyncGeneratorPrototype
             .get_object_index(self.object_index_base)
             .into()
     }
@@ -665,13 +711,6 @@ impl Intrinsics {
         IntrinsicConstructorIndexes::Float64Array.get_object_index(self.object_index_base)
     }
 
-    /// %ForInIteratorPrototype%
-    pub(crate) fn for_in_iterator_prototype(&self) -> OrdinaryObject {
-        IntrinsicObjectIndexes::ForInIteratorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
-    }
-
     pub(crate) fn function_prototype(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::FunctionPrototype
             .get_builtin_function_index(self.builtin_function_index_base)
@@ -700,9 +739,11 @@ impl Intrinsics {
             .into()
     }
 
-    /// %GeneratorFunction.prototype.prototype%
+    // %GeneratorFunction.prototype.prototype%
+    //
+    // The %GeneratorPrototype% object is %GeneratorFunction.prototype.prototype%.
     pub(crate) fn generator_function_prototype_prototype(&self) -> OrdinaryObject {
-        IntrinsicObjectIndexes::GeneratorFunctionPrototypePrototype
+        IntrinsicObjectIndexes::GeneratorPrototype
             .get_object_index(self.object_index_base)
             .into()
     }

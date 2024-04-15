@@ -56,7 +56,7 @@ impl AsyncGeneratorPrototype {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let async_iterator_prototype = intrinsics.async_iterator_prototype();
         let async_generator_function_prototype = intrinsics.async_generator_function_prototype();
-        let this = intrinsics.async_generator_function_prototype_prototype();
+        let this = intrinsics.async_generator_prototype();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(5)

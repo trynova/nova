@@ -1,6 +1,6 @@
 use crate::{
     ecmascript::{
-        builtins::{Builtin, BuiltinFunction},
+        builtins::{Builtin, BuiltinFunction, BuiltinIntrinsic},
         execution::{Agent, RealmIdentifier},
         types::{
             IntoObject, IntoValue, ObjectHeapData, OrdinaryObject, PropertyKey, Value,
@@ -172,6 +172,34 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
     pub fn with_builtin_function_property<T: Builtin>(mut self) -> Self {
         let (value, key) = {
             let mut builder = BuiltinFunctionBuilder::new::<T>(self.agent, self.realm);
+            let name = PropertyKey::from(builder.get_name());
+            (builder.build().into_value(), name)
+        };
+        let builder = PropertyBuilder::new(self.agent)
+            .with_key(key)
+            .with_configurable(T::CONFIGURABLE)
+            .with_enumerable(T::ENUMERABLE);
+        let property = if T::WRITABLE {
+            builder.with_value(value).build()
+        } else {
+            builder.with_value_readonly(value).build()
+        };
+        self.properties.0.push(property);
+        OrdinaryObjectBuilder {
+            agent: self.agent,
+            this: self.this,
+            realm: self.realm,
+            prototype: self.prototype,
+            extensible: self.extensible,
+            properties: self.properties,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn with_builtin_intrinsic_function_property<T: BuiltinIntrinsic>(mut self) -> Self {
+        let (value, key) = {
+            let mut builder =
+                BuiltinFunctionBuilder::new_intrinsic_function::<T>(self.agent, self.realm);
             let name = PropertyKey::from(builder.get_name());
             (builder.build().into_value(), name)
         };

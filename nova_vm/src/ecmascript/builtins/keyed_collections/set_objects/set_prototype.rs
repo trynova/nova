@@ -4,11 +4,11 @@ use crate::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{Agent, JsResult, RealmIdentifier},
         types::{IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct SetPrototype;
@@ -67,6 +67,9 @@ impl Builtin for SetPrototypeValues {
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::values);
 }
+impl BuiltinIntrinsic for SetPrototypeValues {
+    const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::SetPrototypeValues;
+}
 
 impl SetPrototype {
     fn add(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
@@ -109,8 +112,7 @@ impl SetPrototype {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let this = intrinsics.set_prototype();
         let set_constructor = intrinsics.set();
-
-        let mut set_prototype_values: Option<Value> = None;
+        let set_prototype_values = intrinsics.set_prototype_values();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(12)
@@ -134,24 +136,11 @@ impl SetPrototype {
                     .with_configurable(SetPrototypeGetSize::CONFIGURABLE)
                     .build()
             })
-            .with_property(|builder| {
-                builder
-                    .with_key(SetPrototypeValues::NAME.into())
-                    .with_value_creator(|agent| {
-                        let value = BuiltinFunctionBuilder::new::<SetPrototypeValues>(agent, realm)
-                            .build()
-                            .into_value();
-                        set_prototype_values = Some(value);
-                        value
-                    })
-                    .with_enumerable(SetPrototypeValues::ENUMERABLE)
-                    .with_configurable(SetPrototypeValues::CONFIGURABLE)
-                    .build()
-            })
+            .with_builtin_intrinsic_function_property::<SetPrototypeValues>()
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::Iterator.into())
-                    .with_value(set_prototype_values.unwrap())
+                    .with_value(set_prototype_values.into_value())
                     .with_enumerable(SetPrototypeValues::ENUMERABLE)
                     .with_configurable(SetPrototypeValues::CONFIGURABLE)
                     .build()
