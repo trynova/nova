@@ -4,11 +4,11 @@ use crate::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{Agent, JsResult, RealmIdentifier},
         types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct StringPrototype;
@@ -205,11 +205,17 @@ impl Builtin for StringPrototypeTrimEnd {
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::trim_end);
 }
+impl BuiltinIntrinsic for StringPrototypeTrimEnd {
+    const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::StringPrototypeTrimEnd;
+}
 struct StringPrototypeTrimStart;
 impl Builtin for StringPrototypeTrimStart {
     const NAME: String = BUILTIN_STRING_MEMORY.trimStart;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::trim_start);
+}
+impl BuiltinIntrinsic for StringPrototypeTrimStart {
+    const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::StringPrototypeTrimStart;
 }
 struct StringPrototypeValueOf;
 impl Builtin for StringPrototypeValueOf {
@@ -416,8 +422,8 @@ impl StringPrototype {
             .with_builtin_function_property::<StringPrototypeToUpperCase>()
             .with_builtin_function_property::<StringPrototypeToWellFormed>()
             .with_builtin_function_property::<StringPrototypeTrim>()
-            .with_builtin_function_property::<StringPrototypeTrimEnd>()
-            .with_builtin_function_property::<StringPrototypeTrimStart>()
+            .with_builtin_intrinsic_function_property::<StringPrototypeTrimEnd>()
+            .with_builtin_intrinsic_function_property::<StringPrototypeTrimStart>()
             .with_builtin_function_property::<StringPrototypeValueOf>()
             .with_property(|builder| {
                 builder

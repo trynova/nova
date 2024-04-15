@@ -4,6 +4,7 @@ use crate::ecmascript::builders::ordinary_object_builder::OrdinaryObjectBuilder;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
+use crate::ecmascript::builtins::BuiltinIntrinsic;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::RealmIdentifier;
@@ -15,6 +16,7 @@ use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::heap::IntrinsicFunctionIndexes;
 use crate::heap::WellKnownSymbolIndexes;
 
 pub struct TypedArrayIntrinsicObject;
@@ -318,6 +320,9 @@ impl Builtin for TypedArrayPrototypeValues {
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayPrototype::values);
 }
+impl BuiltinIntrinsic for TypedArrayPrototypeValues {
+    const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::TypedArrayPrototypeValues;
+}
 struct TypedArrayPrototypeWith;
 impl Builtin for TypedArrayPrototypeWith {
     const NAME: String = BUILTIN_STRING_MEMORY.with;
@@ -504,8 +509,7 @@ impl TypedArrayPrototype {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let this = intrinsics.typed_array_prototype();
         let typed_array_constructor = intrinsics.typed_array();
-
-        let mut array_prototype_values: Option<Value> = None;
+        let typed_array_prototype_values = intrinsics.typed_array_prototype_values();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(38)
@@ -591,26 +595,12 @@ impl TypedArrayPrototype {
             .with_builtin_function_property::<TypedArrayPrototypeToReversed>()
             .with_builtin_function_property::<TypedArrayPrototypeToSorted>()
             .with_builtin_function_property::<TypedArrayPrototypeToString>()
-            .with_property(|builder| {
-                builder
-                    .with_key(TypedArrayPrototypeValues::NAME.into())
-                    .with_value_creator(|agent| {
-                        let value =
-                            BuiltinFunctionBuilder::new::<TypedArrayPrototypeValues>(agent, realm)
-                                .build()
-                                .into_value();
-                        array_prototype_values = Some(value);
-                        value
-                    })
-                    .with_enumerable(TypedArrayPrototypeValues::ENUMERABLE)
-                    .with_configurable(TypedArrayPrototypeValues::CONFIGURABLE)
-                    .build()
-            })
+            .with_builtin_intrinsic_function_property::<TypedArrayPrototypeValues>()
             .with_builtin_function_property::<TypedArrayPrototypeWith>()
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::Iterator.into())
-                    .with_value(array_prototype_values.unwrap())
+                    .with_value(typed_array_prototype_values.into_value())
                     .with_enumerable(TypedArrayPrototypeValues::ENUMERABLE)
                     .with_configurable(TypedArrayPrototypeValues::CONFIGURABLE)
                     .build()

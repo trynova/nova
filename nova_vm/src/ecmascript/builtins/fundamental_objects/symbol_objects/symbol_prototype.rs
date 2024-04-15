@@ -6,7 +6,7 @@ use crate::{
         },
         builtins::{ArgumentsList, Builtin},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoFunction, IntoValue, String, SymbolHeapData, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -74,6 +74,51 @@ impl SymbolPrototype {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let this = intrinsics.symbol_prototype();
         let symbol_constructor = intrinsics.symbol();
+
+        agent.heap.symbols.extend_from_slice(
+            &[
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_asyncIterator),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_hasInstance),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_isConcatSpreadable),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_iterator),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_match),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_matchAll),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_replace),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_search),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_species),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_split),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_toPrimitive),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_toStringTag),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_unscopables),
+                },
+            ]
+            .map(Some),
+        );
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(6)

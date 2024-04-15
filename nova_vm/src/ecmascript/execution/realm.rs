@@ -835,3 +835,140 @@ pub fn initialize_default_realm(agent: &mut Agent) {
         initialize_global_object,
     );
 }
+
+#[cfg(test)]
+mod test {
+
+    use crate::heap::{
+        IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
+        LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX,
+        LAST_INTRINSIC_OBJECT_INDEX, LAST_WELL_KNOWN_SYMBOL_INDEX,
+    };
+    fn panic_builtin_function_missing(index: usize) {
+        let index = index as u32;
+        let mut changed_index = index;
+        if changed_index <= LAST_INTRINSIC_CONSTRUCTOR_INDEX as u32 {
+            // Safety: Tested to be within limits.
+            panic!(
+                "Found a missing BuiltinFunction at constructor index {:?}",
+                unsafe { std::mem::transmute::<u32, IntrinsicConstructorIndexes>(changed_index) }
+            );
+        }
+        changed_index -= LAST_INTRINSIC_CONSTRUCTOR_INDEX as u32 + 1;
+        if changed_index <= LAST_INTRINSIC_FUNCTION_INDEX as u32 {
+            // Safety: Tested to be within limits.
+            panic!(
+                "Found a missing BuiltinFunction at function index {:?}",
+                unsafe { std::mem::transmute::<u32, IntrinsicFunctionIndexes>(changed_index) }
+            );
+        }
+        panic!("Found a missing BuiltinFunction at index {:?}", index);
+    }
+
+    fn panic_object_missing(index: usize) {
+        let index = index as u32;
+        let mut changed_index = index;
+        if changed_index <= LAST_INTRINSIC_OBJECT_INDEX as u32 {
+            // Safety: Tested to be within limits.
+            panic!("Found a missing Object at object index {:?}", unsafe {
+                std::mem::transmute::<u32, IntrinsicObjectIndexes>(changed_index)
+            });
+        }
+        changed_index -= LAST_INTRINSIC_OBJECT_INDEX as u32 + 1;
+        if changed_index <= LAST_INTRINSIC_CONSTRUCTOR_INDEX as u32 {
+            // Safety: Tested to be within limits.
+            panic!(
+                "Found a missing BuiltinFunction at constructor index {:?}",
+                unsafe { std::mem::transmute::<u32, IntrinsicConstructorIndexes>(changed_index) }
+            );
+        }
+        panic!("Found a missing object at index {:?}", index);
+    }
+
+    #[test]
+    fn test_default_realm_sanity() {
+        use super::initialize_default_realm;
+        use crate::ecmascript::execution::{agent::Options, Agent, DefaultHostHooks};
+        use crate::heap::indexes::BuiltinFunctionIndex;
+        use crate::heap::indexes::ObjectIndex;
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        assert_eq!(
+            agent.current_realm().intrinsics().object_index_base,
+            ObjectIndex::from_index(0)
+        );
+        assert_eq!(
+            agent
+                .current_realm()
+                .intrinsics()
+                .builtin_function_index_base,
+            BuiltinFunctionIndex::from_index(0)
+        );
+        assert!(agent.heap.array_buffers.is_empty());
+        assert!(agent.heap.arrays.is_empty());
+        assert!(agent.heap.bigints.is_empty());
+        assert!(agent.heap.bound_functions.is_empty());
+        let missing_builtin = agent
+            .heap
+            .builtin_functions
+            .iter()
+            .enumerate()
+            .find(|(_, item)| item.is_none());
+        if let Some((missing_builtin_index, _)) = missing_builtin {
+            panic_builtin_function_missing(missing_builtin_index);
+        }
+        assert!(agent.heap.dates.is_empty());
+        assert!(agent.heap.ecmascript_functions.is_empty());
+        assert_eq!(agent.heap.environments.declarative.len(), 1);
+        assert!(agent.heap.environments.function.is_empty());
+        assert_eq!(agent.heap.environments.global.len(), 1);
+        assert_eq!(agent.heap.environments.object.len(), 1);
+        assert!(agent.heap.errors.is_empty());
+        assert!(agent.heap.globals.is_empty());
+        assert!(agent.heap.modules.is_empty());
+        let missing_number = agent
+            .heap
+            .numbers
+            .iter()
+            .enumerate()
+            .find(|(_, item)| item.is_none());
+        if let Some((missing_number_index, _)) = missing_number {
+            panic!("Found a missing Number at index {}", missing_number_index);
+        }
+        let missing_object = agent
+            .heap
+            .objects
+            .iter()
+            .enumerate()
+            .find(|(_, item)| item.is_none());
+        if let Some((missing_object_index, _)) = missing_object {
+            panic_object_missing(missing_object_index);
+        }
+        assert_eq!(agent.heap.realms.len(), 1);
+        assert!(agent.heap.scripts.is_empty());
+        assert_eq!(
+            agent.heap.symbols.len() - 1,
+            LAST_WELL_KNOWN_SYMBOL_INDEX as usize
+        );
+        let missing_symbol = agent
+            .heap
+            .symbols
+            .iter()
+            .enumerate()
+            .find(|(_, item)| item.is_none());
+        if let Some((missing_symbol_index, _)) = missing_symbol {
+            panic!("Found a missing Symbol at index {}", missing_symbol_index);
+        }
+        let missing_string = agent
+            .heap
+            .strings
+            .iter()
+            .enumerate()
+            .find(|(_, item)| item.is_none());
+        if let Some((missing_string_index, _)) = missing_string {
+            panic!("Found a missing String at index {}", missing_string_index);
+        }
+        assert!(agent.heap.regexps.is_empty());
+    }
+}

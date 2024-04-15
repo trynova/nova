@@ -66,16 +66,19 @@ pub(crate) enum IntrinsicObjectIndexes {
     // Control abstraction objects
     IteratorPrototype,
     ArrayIteratorPrototype,
-    ForInIteratorPrototype,
+    // For-In Iterator objects are never directly accessible to ECMAScript code
+    // ForInIteratorPrototype,
     AsyncIteratorPrototype,
     AsyncFromSyncIteratorPrototype,
-    AsyncGeneratorFunctionPrototypePrototype,
+    // The %AsyncGeneratorPrototype% object is %AsyncGeneratorFunction.prototype.prototype%.
+    // AsyncGeneratorFunctionPrototypePrototype,
     MapIteratorPrototype,
     SetIteratorPrototype,
     PromisePrototype,
     StringIteratorPrototype,
     GeneratorFunctionPrototype,
-    GeneratorFunctionPrototypePrototype,
+    // The %GeneratorPrototype% object is %GeneratorFunction.prototype.prototype%.
+    // GeneratorFunctionPrototypePrototype,
     AsyncGeneratorFunctionPrototype,
     GeneratorPrototype,
     AsyncGeneratorPrototype,
@@ -83,7 +86,6 @@ pub(crate) enum IntrinsicObjectIndexes {
 
     // Reflection
     ReflectObject,
-    ModulePrototype,
 
     // Errors subtypes
     AggregateErrorPrototype,
@@ -97,7 +99,7 @@ pub(crate) enum IntrinsicObjectIndexes {
     URIErrorPrototype,
     RegExpStringIteratorPrototype,
 }
-const LAST_INTRINSIC_OBJECT_INDEX: IntrinsicObjectIndexes =
+pub(crate) const LAST_INTRINSIC_OBJECT_INDEX: IntrinsicObjectIndexes =
     IntrinsicObjectIndexes::RegExpStringIteratorPrototype;
 
 #[repr(u32)]
@@ -174,7 +176,7 @@ pub(crate) enum IntrinsicConstructorIndexes {
     // Others
     URIError,
 }
-const LAST_INTRINSIC_CONSTRUCTOR_INDEX: IntrinsicConstructorIndexes =
+pub(crate) const LAST_INTRINSIC_CONSTRUCTOR_INDEX: IntrinsicConstructorIndexes =
     IntrinsicConstructorIndexes::URIError;
 
 #[repr(u32)]
@@ -208,7 +210,8 @@ pub(crate) enum IntrinsicFunctionIndexes {
     TypedArrayPrototypeValues,
     Unescape,
 }
-const LAST_INTRINSIC_FUNCTION_INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::Unescape;
+pub(crate) const LAST_INTRINSIC_FUNCTION_INDEX: IntrinsicFunctionIndexes =
+    IntrinsicFunctionIndexes::Unescape;
 
 impl IntrinsicObjectIndexes {
     const OBJECT_INDEX_OFFSET: u32 = 0;

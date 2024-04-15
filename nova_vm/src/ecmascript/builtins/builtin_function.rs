@@ -10,8 +10,8 @@ use crate::{
         },
     },
     heap::{
-        indexes::BuiltinFunctionIndex, CreateHeapData, GetHeapData, ObjectEntry,
-        ObjectEntryPropertyDescriptor,
+        indexes::BuiltinFunctionIndex, CreateHeapData, GetHeapData, IntrinsicFunctionIndexes,
+        ObjectEntry, ObjectEntryPropertyDescriptor,
     },
 };
 
@@ -77,6 +77,10 @@ pub trait Builtin {
     /// If the builtin function is created as a property then this controls the
     /// property's `[[Configurable]]` value.
     const CONFIGURABLE: bool = true;
+}
+
+pub(crate) trait BuiltinIntrinsic: Builtin {
+    const INDEX: IntrinsicFunctionIndexes;
 }
 
 #[derive(Debug, Default)]

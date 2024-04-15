@@ -10,6 +10,11 @@ pub(crate) use self::heap_constants::{
     intrinsic_function_count, intrinsic_object_count, IntrinsicConstructorIndexes,
     IntrinsicFunctionIndexes, IntrinsicObjectIndexes, WellKnownSymbolIndexes,
 };
+#[cfg(test)]
+pub(crate) use self::heap_constants::{
+    LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX, LAST_INTRINSIC_OBJECT_INDEX,
+    LAST_WELL_KNOWN_SYMBOL_INDEX,
+};
 use self::indexes::{DateIndex, ErrorIndex};
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{

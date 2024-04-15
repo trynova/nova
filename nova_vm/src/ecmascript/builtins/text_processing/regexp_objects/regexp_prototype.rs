@@ -4,11 +4,11 @@ use crate::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{Agent, JsResult, RealmIdentifier},
         types::{IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct RegExpPrototype;
@@ -18,6 +18,9 @@ impl Builtin for RegExpPrototypeExec {
     const NAME: String = BUILTIN_STRING_MEMORY.exec;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::exec);
+}
+impl BuiltinIntrinsic for RegExpPrototypeExec {
+    const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::RegExpPrototypeExec;
 }
 struct RegExpPrototypeGetDotAll;
 impl Builtin for RegExpPrototypeGetDotAll {
@@ -215,7 +218,7 @@ impl RegExpPrototype {
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(19)
             .with_constructor_property(reg_exp_constructor)
-            .with_builtin_function_property::<RegExpPrototypeExec>()
+            .with_builtin_intrinsic_function_property::<RegExpPrototypeExec>()
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.dotAll.into())

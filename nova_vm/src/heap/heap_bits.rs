@@ -1400,8 +1400,6 @@ impl HeapMarkAndSweep<()> for Intrinsics {
             .mark_values(queues, ());
         self.async_function_prototype().mark_values(queues, ());
         self.async_function().mark_values(queues, ());
-        self.async_generator_function_prototype_prototype()
-            .mark_values(queues, ());
         self.async_generator_function_prototype()
             .mark_values(queues, ());
         self.async_generator_function().mark_values(queues, ());
@@ -1438,12 +1436,9 @@ impl HeapMarkAndSweep<()> for Intrinsics {
         self.float32_array_prototype().mark_values(queues, ());
         self.float64_array().mark_values(queues, ());
         self.float64_array_prototype().mark_values(queues, ());
-        self.for_in_iterator_prototype().mark_values(queues, ());
         self.function_prototype().mark_values(queues, ());
         self.function().mark_values(queues, ());
         self.generator_function_prototype_prototype_next()
-            .mark_values(queues, ());
-        self.generator_function_prototype_prototype()
             .mark_values(queues, ());
         self.generator_function_prototype().mark_values(queues, ());
         self.generator_function().mark_values(queues, ());
