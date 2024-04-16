@@ -3,5 +3,9 @@ name = "small_string"
 version = "0.1.0"
 edition = "2021"
 
+
+[features]
+default = []
+
 [lib]
 path = "lib.rs"
