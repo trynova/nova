@@ -1,5 +1,8 @@
 use crate::error;
 
+#[cfg(feature = "no_std")]
+use alloc::{boxed::Box, vec::Vec};
+
 #[repr(u8)]
 #[derive(Copy, Clone)]
 pub enum ExternalKind {

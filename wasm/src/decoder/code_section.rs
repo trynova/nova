@@ -2,9 +2,16 @@ use super::common::CodeBlock;
 use super::util;
 use crate::error::Result;
 use crate::varint::decode_u32;
+#[cfg(feature = "no_std")]
+use alloc::vec::Vec;
+#[cfg(feature = "no_std")]
+use core2::io;
+#[cfg(not(feature = "no_std"))]
+use std::io;
+
 
 #[allow(clippy::read_zero_byte_vec)]
-pub fn decode_code_section<R: std::io::Read>(reader: &mut R) -> Result<CodeBlock> {
+pub fn decode_code_section<R: io::Read>(reader: &mut R) -> Result<CodeBlock> {
     let body_size = decode_u32(reader)?.value;
 
     let v = util::decode_vec(reader, |x| Ok((decode_u32(x)?, util::decode_kind(x)?)))?;

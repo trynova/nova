@@ -1,3 +1,8 @@
+#[cfg(feature = "no_std")]
+use core2::io;
+#[cfg(not(feature = "no_std"))]
+use std::io;
+
 use crate::error::Error;
 
 const SEGMENT_BITS: u8 = 0x7F;
@@ -9,7 +14,7 @@ pub struct DecodedResult<T> {
     pub bytes_read: u8,
 }
 
-pub fn decode_u32<R: std::io::Read>(reader: &mut R) -> Result<DecodedResult<u32>, Error> {
+pub fn decode_u32<R: io::Read>(reader: &mut R) -> Result<DecodedResult<u32>, Error> {
     let mut length = 0;
     let mut value = 0;
     let mut bytes_read: u8 = 0;
@@ -42,7 +47,7 @@ pub fn decode_u32<R: std::io::Read>(reader: &mut R) -> Result<DecodedResult<u32>
 }
 
 #[allow(dead_code)]
-pub fn decode_u64<R: std::io::Read>(reader: &mut R) -> Result<DecodedResult<u64>, Error> {
+pub fn decode_u64<R: io::Read>(reader: &mut R) -> Result<DecodedResult<u64>, Error> {
     let mut length = 0;
     let mut value = 0;
     let mut bytes_read: u8 = 0;

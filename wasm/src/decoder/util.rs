@@ -2,9 +2,18 @@ use super::common;
 use crate::error::Error;
 use crate::error::Result;
 use crate::varint::decode_u32;
+
+#[cfg(feature = "no_std")]
+use alloc::vec::Vec;
+
+#[cfg(feature = "no_std")]
+use core2::io;
+#[cfg(not(feature = "no_std"))]
+use std::io;
+
 pub fn decode_vec<T, R, F>(reader: &mut R, func: F) -> Result<Vec<T>>
 where
-    R: std::io::Read,
+    R: io::Read,
     F: Fn(&mut R) -> Result<T>,
 {
     // This is fine. It's already range checked by `decode_u32`
@@ -19,7 +28,7 @@ where
     Ok(v)
 }
 
-pub fn decode_kind<R: std::io::Read>(reader: &mut R) -> Result<common::ValueKind> {
+pub fn decode_kind<R: io::Read>(reader: &mut R) -> Result<common::ValueKind> {
     let mut byte: [u8; 1] = [0; 1];
     reader.read_exact(&mut byte)?;
 

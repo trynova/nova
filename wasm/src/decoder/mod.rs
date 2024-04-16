@@ -2,6 +2,12 @@ mod code_section;
 mod common;
 mod type_section;
 mod util;
+#[cfg(feature = "no_std")]
+use alloc::vec::Vec;
+#[cfg(feature = "no_std")]
+use core2::io;
+#[cfg(not(feature = "no_std"))]
+use std::io;
 
 use crate::error::Error;
 use crate::error::Result;
@@ -29,7 +35,7 @@ pub struct Module {
 }
 
 impl Module {
-    pub fn new<R: std::io::Read>(reader: &mut R) -> Result<Self> {
+    pub fn new<R: io::Read>(reader: &mut R) -> Result<Self> {
         let mut module = Self::default();
         let mut last_section_id: i8 = -1;
         for i in 0..12 {
@@ -58,7 +64,7 @@ impl Module {
     }
 }
 
-pub fn decode_any_section<R: std::io::Read>(reader: &mut R) -> Result<Section> {
+pub fn decode_any_section<R: io::Read>(reader: &mut R) -> Result<Section> {
     let mut section_id_byte: [u8; 1] = [0; 1];
     reader.read_exact(&mut section_id_byte)?;
     // if section_id_byte[0] == 0x08 {
