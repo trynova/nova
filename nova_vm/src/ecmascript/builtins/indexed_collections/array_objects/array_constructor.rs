@@ -5,17 +5,20 @@ use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilde
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
+use crate::ecmascript::builtins::BuiltinGetter;
+use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 
 use crate::ecmascript::execution::RealmIdentifier;
 
-use crate::ecmascript::types::IntoFunction;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::Object;
+use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::WellKnownSymbolIndexes;
 
 pub struct ArrayConstructor;
@@ -24,6 +27,9 @@ impl Builtin for ArrayConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
     const NAME: String = BUILTIN_STRING_MEMORY.String;
+}
+impl BuiltinIntrinsicConstructor for ArrayConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Array;
 }
 
 struct ArrayFrom;
@@ -50,6 +56,10 @@ impl Builtin for ArrayGetSpecies {
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 }
+impl BuiltinGetter for ArrayGetSpecies {
+    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
+}
+
 impl ArrayConstructor {
     fn behaviour(
         _agent: &mut Agent,
@@ -114,32 +124,14 @@ impl ArrayConstructor {
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let array_prototype = intrinsics.array_prototype();
-        let this = intrinsics.array();
-        let this_object_index = intrinsics.array_base_object();
 
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<ArrayConstructor>(
-            agent,
-            realm,
-            this,
-            Some(this_object_index),
-        )
-        .with_property_capacity(5)
-        .with_builtin_function_property::<ArrayFrom>()
-        .with_builtin_function_property::<ArrayIsArray>()
-        .with_builtin_function_property::<ArrayOf>()
-        .with_prototype_property(array_prototype.into_object())
-        .with_property(|builder| {
-            builder
-                .with_key(WellKnownSymbolIndexes::Species.into())
-                .with_getter(|agent| {
-                    BuiltinFunctionBuilder::new::<ArrayGetSpecies>(agent, realm)
-                        .build()
-                        .into_function()
-                })
-                .with_enumerable(false)
-                .with_configurable(true)
-                .build()
-        })
-        .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<ArrayConstructor>(agent, realm)
+            .with_property_capacity(5)
+            .with_builtin_function_property::<ArrayFrom>()
+            .with_builtin_function_property::<ArrayIsArray>()
+            .with_builtin_function_property::<ArrayOf>()
+            .with_prototype_property(array_prototype.into_object())
+            .with_builtin_function_getter_property::<ArrayGetSpecies>()
+            .build();
     }
 }

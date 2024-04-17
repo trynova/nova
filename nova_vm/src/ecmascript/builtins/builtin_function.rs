@@ -10,8 +10,8 @@ use crate::{
         },
     },
     heap::{
-        indexes::BuiltinFunctionIndex, CreateHeapData, GetHeapData, IntrinsicFunctionIndexes,
-        ObjectEntry, ObjectEntryPropertyDescriptor,
+        indexes::BuiltinFunctionIndex, CreateHeapData, GetHeapData, IntrinsicConstructorIndexes,
+        IntrinsicFunctionIndexes, ObjectEntry, ObjectEntryPropertyDescriptor,
     },
 };
 
@@ -79,8 +79,15 @@ pub trait Builtin {
     const CONFIGURABLE: bool = true;
 }
 
+pub(crate) trait BuiltinIntrinsicConstructor: Builtin {
+    const INDEX: IntrinsicConstructorIndexes;
+}
+
 pub(crate) trait BuiltinIntrinsic: Builtin {
     const INDEX: IntrinsicFunctionIndexes;
+}
+pub trait BuiltinGetter: Builtin {
+    const KEY: PropertyKey;
 }
 
 #[derive(Debug, Default)]

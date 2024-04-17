@@ -1,8 +1,11 @@
-use crate::ecmascript::{
-    builders::builtin_function_builder::BuiltinFunctionBuilder,
-    builtins::{ArgumentsList, Behaviour, Builtin},
-    execution::{Agent, JsResult, RealmIdentifier},
-    types::{Object, String, Value, BUILTIN_STRING_MEMORY},
+use crate::{
+    ecmascript::{
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
+        execution::{Agent, JsResult, RealmIdentifier},
+        types::{Object, String, Value, BUILTIN_STRING_MEMORY},
+    },
+    heap::IntrinsicConstructorIndexes,
 };
 
 pub(crate) struct ProxyConstructor;
@@ -12,6 +15,9 @@ impl Builtin for ProxyConstructor {
     const LENGTH: u8 = 1;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(ProxyConstructor::behaviour);
+}
+impl BuiltinIntrinsicConstructor for ProxyConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Proxy;
 }
 
 struct ProxyRevocable;
@@ -42,18 +48,9 @@ impl ProxyConstructor {
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
-        let this = intrinsics.proxy();
-        let this_object_index = intrinsics.proxy_base_object();
-
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<ProxyConstructor>(
-            agent,
-            realm,
-            this,
-            Some(this_object_index),
-        )
-        .with_property_capacity(1)
-        .with_builtin_function_property::<ProxyRevocable>()
-        .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<ProxyConstructor>(agent, realm)
+            .with_property_capacity(1)
+            .with_builtin_function_property::<ProxyRevocable>()
+            .build();
     }
 }

@@ -1,8 +1,11 @@
-use crate::ecmascript::{
-    builders::builtin_function_builder::BuiltinFunctionBuilder,
-    builtins::{ArgumentsList, Behaviour, Builtin},
-    execution::{Agent, JsResult, RealmIdentifier},
-    types::{IntoObject, Object, String, Value, BUILTIN_STRING_MEMORY},
+use crate::{
+    ecmascript::{
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
+        execution::{Agent, JsResult, RealmIdentifier},
+        types::{IntoObject, Object, String, Value, BUILTIN_STRING_MEMORY},
+    },
+    heap::IntrinsicConstructorIndexes,
 };
 
 pub(crate) struct AsyncGeneratorFunctionConstructor;
@@ -13,6 +16,9 @@ impl Builtin for AsyncGeneratorFunctionConstructor {
 
     const BEHAVIOUR: Behaviour =
         Behaviour::Constructor(AsyncGeneratorFunctionConstructor::behaviour);
+}
+impl BuiltinIntrinsicConstructor for AsyncGeneratorFunctionConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::AsyncGeneratorFunction;
 }
 
 impl AsyncGeneratorFunctionConstructor {
@@ -29,14 +35,9 @@ impl AsyncGeneratorFunctionConstructor {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let function_constructor = intrinsics.function();
         let async_generator_function_prototype = intrinsics.async_generator_function_prototype();
-        let this = intrinsics.async_generator_function();
-        let this_object_index = intrinsics.async_generator_function_base_object();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<AsyncGeneratorFunctionConstructor>(
-            agent,
-            realm,
-            this,
-            Some(this_object_index),
+            agent, realm,
         )
         .with_prototype(function_constructor.into_object())
         .with_property_capacity(1)

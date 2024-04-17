@@ -7,6 +7,7 @@ use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
+use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
@@ -19,6 +20,7 @@ use crate::ecmascript::types::Object;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
 use crate::heap::GetHeapData;
+use crate::heap::IntrinsicConstructorIndexes;
 use crate::SmallInteger;
 
 pub struct DateConstructor;
@@ -27,6 +29,9 @@ impl Builtin for DateConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
     const NAME: String = BUILTIN_STRING_MEMORY.Number;
+}
+impl BuiltinIntrinsicConstructor for DateConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Date;
 }
 
 struct DateNow;
@@ -187,22 +192,13 @@ impl DateConstructor {
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let date_prototype = intrinsics.date_prototype();
-        let _parse_float = intrinsics.parse_float().into_value();
-        let _parse_int = intrinsics.parse_int().into_value();
-        let this = intrinsics.date();
-        let this_object_index = intrinsics.date_base_object();
 
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<DateConstructor>(
-            agent,
-            realm,
-            this,
-            Some(this_object_index),
-        )
-        .with_property_capacity(4)
-        .with_builtin_function_property::<DateNow>()
-        .with_builtin_function_property::<DateParse>()
-        .with_prototype_property(date_prototype.into_object())
-        .with_builtin_function_property::<DateUTC>()
-        .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<DateConstructor>(agent, realm)
+            .with_property_capacity(4)
+            .with_builtin_function_property::<DateNow>()
+            .with_builtin_function_property::<DateParse>()
+            .with_prototype_property(date_prototype.into_object())
+            .with_builtin_function_property::<DateUTC>()
+            .build();
     }
 }

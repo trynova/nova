@@ -1,19 +1,22 @@
-use crate::ecmascript::{
-    abstract_operations::{
-        operations_on_objects::has_own_property,
-        testing_and_comparison::same_value,
-        type_conversion::{to_object, to_property_key},
+use crate::{
+    ecmascript::{
+        abstract_operations::{
+            operations_on_objects::has_own_property,
+            testing_and_comparison::same_value,
+            type_conversion::{to_object, to_property_key},
+        },
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{
+            ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
+        types::{
+            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, String, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
-    builders::builtin_function_builder::BuiltinFunctionBuilder,
-    builtins::{
-        ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
-        ArgumentsList, Behaviour, Builtin,
-    },
-    execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
-    types::{
-        InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, String, Value,
-        BUILTIN_STRING_MEMORY,
-    },
+    heap::IntrinsicConstructorIndexes,
 };
 
 pub(crate) struct ObjectConstructor;
@@ -24,6 +27,9 @@ impl Builtin for ObjectConstructor {
     const LENGTH: u8 = 1;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
+}
+impl BuiltinIntrinsicConstructor for ObjectConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Object;
 }
 
 struct ObjectAssign;
@@ -445,41 +451,34 @@ impl ObjectConstructor {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
-        let this = intrinsics.object();
-        let this_object_index = intrinsics.object_base_object();
         let object_prototype = intrinsics.object_prototype();
 
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<ObjectConstructor>(
-            agent,
-            realm,
-            this,
-            Some(this_object_index),
-        )
-        .with_property_capacity(25)
-        .with_builtin_function_property::<ObjectAssign>()
-        .with_builtin_function_property::<ObjectCreate>()
-        .with_builtin_function_property::<ObjectDefineProperties>()
-        .with_builtin_function_property::<ObjectDefineProperty>()
-        .with_builtin_function_property::<ObjectEntries>()
-        .with_builtin_function_property::<ObjectFreeze>()
-        .with_builtin_function_property::<ObjectFromEntries>()
-        .with_builtin_function_property::<ObjectGetOwnPropertyDescriptor>()
-        .with_builtin_function_property::<ObjectGetOwnPropertyDescriptors>()
-        .with_builtin_function_property::<ObjectGetOwnPropertyNames>()
-        .with_builtin_function_property::<ObjectGetOwnPropertySymbols>()
-        .with_builtin_function_property::<ObjectGetPrototypeOf>()
-        .with_builtin_function_property::<ObjectGroupBy>()
-        .with_builtin_function_property::<ObjectHasOwn>()
-        .with_builtin_function_property::<ObjectIs>()
-        .with_builtin_function_property::<ObjectIsExtensible>()
-        .with_builtin_function_property::<ObjectIsFrozen>()
-        .with_builtin_function_property::<ObjectIsSealed>()
-        .with_builtin_function_property::<ObjectKeys>()
-        .with_builtin_function_property::<ObjectPreventExtensions>()
-        .with_prototype_property(object_prototype.into_object())
-        .with_builtin_function_property::<ObjectSeal>()
-        .with_builtin_function_property::<ObjectSetPrototypeOf>()
-        .with_builtin_function_property::<ObjectValues>()
-        .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<ObjectConstructor>(agent, realm)
+            .with_property_capacity(24)
+            .with_builtin_function_property::<ObjectAssign>()
+            .with_builtin_function_property::<ObjectCreate>()
+            .with_builtin_function_property::<ObjectDefineProperties>()
+            .with_builtin_function_property::<ObjectDefineProperty>()
+            .with_builtin_function_property::<ObjectEntries>()
+            .with_builtin_function_property::<ObjectFreeze>()
+            .with_builtin_function_property::<ObjectFromEntries>()
+            .with_builtin_function_property::<ObjectGetOwnPropertyDescriptor>()
+            .with_builtin_function_property::<ObjectGetOwnPropertyDescriptors>()
+            .with_builtin_function_property::<ObjectGetOwnPropertyNames>()
+            .with_builtin_function_property::<ObjectGetOwnPropertySymbols>()
+            .with_builtin_function_property::<ObjectGetPrototypeOf>()
+            .with_builtin_function_property::<ObjectGroupBy>()
+            .with_builtin_function_property::<ObjectHasOwn>()
+            .with_builtin_function_property::<ObjectIs>()
+            .with_builtin_function_property::<ObjectIsExtensible>()
+            .with_builtin_function_property::<ObjectIsFrozen>()
+            .with_builtin_function_property::<ObjectIsSealed>()
+            .with_builtin_function_property::<ObjectKeys>()
+            .with_builtin_function_property::<ObjectPreventExtensions>()
+            .with_prototype_property(object_prototype.into_object())
+            .with_builtin_function_property::<ObjectSeal>()
+            .with_builtin_function_property::<ObjectSetPrototypeOf>()
+            .with_builtin_function_property::<ObjectValues>()
+            .build();
     }
 }

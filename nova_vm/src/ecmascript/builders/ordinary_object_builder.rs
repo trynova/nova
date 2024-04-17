@@ -1,10 +1,10 @@
 use crate::{
     ecmascript::{
-        builtins::{Builtin, BuiltinFunction, BuiltinIntrinsic},
+        builtins::{Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic},
         execution::{Agent, RealmIdentifier},
         types::{
-            IntoObject, IntoValue, ObjectHeapData, OrdinaryObject, PropertyKey, Value,
-            BUILTIN_STRING_MEMORY,
+            IntoFunction, IntoObject, IntoValue, ObjectHeapData, OrdinaryObject, PropertyKey,
+            Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{element_array::ElementDescriptor, indexes::ObjectIndex},
@@ -222,6 +222,28 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
             properties: self.properties,
         }
     }
+
+    #[must_use]
+    pub(crate) fn with_builtin_function_getter_property<T: BuiltinGetter>(mut self) -> Self {
+        let getter_function = BuiltinFunctionBuilder::new::<T>(self.agent, self.realm)
+            .build()
+            .into_function();
+        let property = PropertyBuilder::new(self.agent)
+            .with_key(T::KEY)
+            .with_getter_function(getter_function)
+            .with_configurable(T::CONFIGURABLE)
+            .with_enumerable(T::ENUMERABLE)
+            .build();
+        self.properties.0.push(property);
+        OrdinaryObjectBuilder {
+            agent: self.agent,
+            this: self.this,
+            realm: self.realm,
+            prototype: self.prototype,
+            extensible: self.extensible,
+            properties: self.properties,
+        }
+    }
 }
 
 impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
@@ -267,6 +289,17 @@ impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, N
 impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, CreatorProperties> {
     pub fn build(self) -> OrdinaryObject {
         assert_eq!(self.properties.0.len(), self.properties.0.capacity());
+        {
+            let slice = self.properties.0.as_slice();
+            let duplicate = (1..slice.len()).find(|first_index| {
+                slice[*first_index..]
+                    .iter()
+                    .any(|(key, _, _)| *key == slice[first_index - 1].0)
+            });
+            if let Some(index) = duplicate {
+                panic!("Duplicate key found: {:?}", slice[index].0);
+            }
+        }
         let (keys, values) = self
             .agent
             .heap
@@ -292,6 +325,17 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, CreatorProperties> {
 impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, CreatorProperties> {
     pub fn build(self) -> OrdinaryObject {
         assert_eq!(self.properties.0.len(), self.properties.0.capacity());
+        {
+            let slice = self.properties.0.as_slice();
+            let duplicate = (1..slice.len()).find(|first_index| {
+                slice[*first_index..]
+                    .iter()
+                    .any(|(key, _, _)| *key == slice[first_index - 1].0)
+            });
+            if let Some(index) = duplicate {
+                panic!("Duplicate key found: {:?}", slice[index].0);
+            }
+        }
         let (keys, values) = self
             .agent
             .heap

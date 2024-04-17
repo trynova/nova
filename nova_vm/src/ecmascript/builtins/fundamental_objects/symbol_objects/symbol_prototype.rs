@@ -4,9 +4,9 @@ use crate::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        builtins::{ArgumentsList, Builtin},
+        builtins::{ArgumentsList, Builtin, BuiltinGetter},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, IntoValue, String, SymbolHeapData, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, PropertyKey, String, SymbolHeapData, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -21,6 +21,9 @@ impl Builtin for SymbolPrototypeGetDescription {
 
     const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
         crate::ecmascript::builtins::Behaviour::Regular(SymbolPrototype::get_description);
+}
+impl BuiltinGetter for SymbolPrototypeGetDescription {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.description.to_property_key();
 }
 
 struct SymbolPrototypeToString;
@@ -123,17 +126,7 @@ impl SymbolPrototype {
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(6)
             .with_constructor_property(symbol_constructor)
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.description.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<SymbolPrototypeGetDescription>(agent, realm)
-                            .build()
-                            .into_function()
-                    })
-                    .with_enumerable(false)
-                    .build()
-            })
+            .with_builtin_function_getter_property::<SymbolPrototypeGetDescription>()
             .with_builtin_function_property::<SymbolPrototypeToString>()
             .with_builtin_function_property::<SymbolPrototypeValueOf>()
             .with_property(|builder| {

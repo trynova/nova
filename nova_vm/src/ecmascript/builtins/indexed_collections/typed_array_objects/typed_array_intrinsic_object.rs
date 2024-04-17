@@ -4,11 +4,13 @@ use crate::ecmascript::builders::ordinary_object_builder::OrdinaryObjectBuilder;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
+use crate::ecmascript::builtins::BuiltinGetter;
 use crate::ecmascript::builtins::BuiltinIntrinsic;
+use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::RealmIdentifier;
-use crate::ecmascript::types::IntoFunction;
+
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Object;
@@ -16,6 +18,7 @@ use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::IntrinsicFunctionIndexes;
 use crate::heap::WellKnownSymbolIndexes;
 
@@ -25,6 +28,9 @@ impl Builtin for TypedArrayIntrinsicObject {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.TypedArray;
+}
+impl BuiltinIntrinsicConstructor for TypedArrayIntrinsicObject {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::TypedArray;
 }
 
 struct TypedArrayFrom;
@@ -44,6 +50,9 @@ impl Builtin for TypedArrayGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayIntrinsicObject::get_species);
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+}
+impl BuiltinGetter for TypedArrayGetSpecies {
+    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
 }
 impl TypedArrayIntrinsicObject {
     fn behaviour(
@@ -85,31 +94,15 @@ impl TypedArrayIntrinsicObject {
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let typed_array_prototype = intrinsics.typed_array_prototype();
-        let this = intrinsics.typed_array();
-        let this_object_index = intrinsics.typed_array_base_object();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<TypedArrayIntrinsicObject>(
-            agent,
-            realm,
-            this,
-            Some(this_object_index),
+            agent, realm,
         )
         .with_property_capacity(4)
         .with_builtin_function_property::<TypedArrayFrom>()
         .with_builtin_function_property::<TypedArrayOf>()
         .with_prototype_property(typed_array_prototype.into_object())
-        .with_property(|builder| {
-            builder
-                .with_key(WellKnownSymbolIndexes::Species.into())
-                .with_getter(|agent| {
-                    BuiltinFunctionBuilder::new::<TypedArrayGetSpecies>(agent, realm)
-                        .build()
-                        .into_function()
-                })
-                .with_enumerable(false)
-                .with_configurable(true)
-                .build()
-        })
+        .with_builtin_function_getter_property::<TypedArrayGetSpecies>()
         .build();
     }
 }
@@ -128,17 +121,26 @@ impl Builtin for TypedArrayPrototypeGetBuffer {
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayPrototype::get_buffer);
 }
+impl BuiltinGetter for TypedArrayPrototypeGetBuffer {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.buffer.to_property_key();
+}
 struct TypedArrayPrototypeGetByteLength;
 impl Builtin for TypedArrayPrototypeGetByteLength {
     const NAME: String = BUILTIN_STRING_MEMORY.get_byteLength;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayPrototype::get_byte_length);
 }
+impl BuiltinGetter for TypedArrayPrototypeGetByteLength {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.byteLength.to_property_key();
+}
 struct TypedArrayPrototypeGetByteOffset;
 impl Builtin for TypedArrayPrototypeGetByteOffset {
     const NAME: String = BUILTIN_STRING_MEMORY.get_byteOffset;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayPrototype::get_byte_offset);
+}
+impl BuiltinGetter for TypedArrayPrototypeGetByteOffset {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.byteOffset.to_property_key();
 }
 struct TypedArrayPrototypeCopyWithin;
 impl Builtin for TypedArrayPrototypeCopyWithin {
@@ -235,6 +237,9 @@ impl Builtin for TypedArrayPrototypeGetLength {
     const NAME: String = BUILTIN_STRING_MEMORY.get_length;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayPrototype::get_length);
+}
+impl BuiltinGetter for TypedArrayPrototypeGetLength {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.length.to_property_key();
 }
 struct TypedArrayPrototypeMap;
 impl Builtin for TypedArrayPrototypeMap {
@@ -334,6 +339,9 @@ impl Builtin for TypedArrayPrototypeGetToStringTag {
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_toStringTag_;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayPrototype::get_to_string_tag);
+}
+impl BuiltinGetter for TypedArrayPrototypeGetToStringTag {
+    const KEY: PropertyKey = WellKnownSymbolIndexes::ToStringTag.to_property_key();
 }
 
 impl TypedArrayPrototype {
@@ -514,46 +522,9 @@ impl TypedArrayPrototype {
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(38)
             .with_builtin_function_property::<TypedArrayPrototypeAt>()
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.buffer.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<TypedArrayPrototypeGetBuffer>(agent, realm)
-                            .build()
-                            .into_function()
-                    })
-                    .with_enumerable(TypedArrayPrototypeGetBuffer::ENUMERABLE)
-                    .with_configurable(TypedArrayPrototypeGetBuffer::CONFIGURABLE)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.byteLength.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<TypedArrayPrototypeGetByteLength>(
-                            agent, realm,
-                        )
-                        .build()
-                        .into_function()
-                    })
-                    .with_enumerable(TypedArrayPrototypeGetByteLength::ENUMERABLE)
-                    .with_configurable(TypedArrayPrototypeGetByteLength::CONFIGURABLE)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.byteOffset.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<TypedArrayPrototypeGetByteOffset>(
-                            agent, realm,
-                        )
-                        .build()
-                        .into_function()
-                    })
-                    .with_enumerable(TypedArrayPrototypeGetByteOffset::ENUMERABLE)
-                    .with_configurable(TypedArrayPrototypeGetByteOffset::CONFIGURABLE)
-                    .build()
-            })
+            .with_builtin_function_getter_property::<TypedArrayPrototypeGetBuffer>()
+            .with_builtin_function_getter_property::<TypedArrayPrototypeGetByteLength>()
+            .with_builtin_function_getter_property::<TypedArrayPrototypeGetByteOffset>()
             .with_constructor_property(typed_array_constructor)
             .with_builtin_function_property::<TypedArrayPrototypeCopyWithin>()
             .with_builtin_function_property::<TypedArrayPrototypeEntries>()
@@ -570,18 +541,7 @@ impl TypedArrayPrototype {
             .with_builtin_function_property::<TypedArrayPrototypeJoin>()
             .with_builtin_function_property::<TypedArrayPrototypeKeys>()
             .with_builtin_function_property::<TypedArrayPrototypeLastIndexOf>()
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.length.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<TypedArrayPrototypeGetLength>(agent, realm)
-                            .build()
-                            .into_function()
-                    })
-                    .with_enumerable(TypedArrayPrototypeGetLength::ENUMERABLE)
-                    .with_configurable(TypedArrayPrototypeGetLength::CONFIGURABLE)
-                    .build()
-            })
+            .with_builtin_function_getter_property::<TypedArrayPrototypeGetLength>()
             .with_builtin_function_property::<TypedArrayPrototypeMap>()
             .with_builtin_function_property::<TypedArrayPrototypeReduce>()
             .with_builtin_function_property::<TypedArrayPrototypeReduceRight>()
@@ -605,20 +565,7 @@ impl TypedArrayPrototype {
                     .with_configurable(TypedArrayPrototypeValues::CONFIGURABLE)
                     .build()
             })
-            .with_property(|builder| {
-                builder
-                    .with_key(PropertyKey::from(WellKnownSymbolIndexes::ToStringTag))
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<TypedArrayPrototypeGetToStringTag>(
-                            agent, realm,
-                        )
-                        .build()
-                        .into_function()
-                    })
-                    .with_enumerable(TypedArrayPrototypeGetToStringTag::ENUMERABLE)
-                    .with_configurable(TypedArrayPrototypeGetToStringTag::CONFIGURABLE)
-                    .build()
-            })
+            .with_builtin_function_getter_property::<TypedArrayPrototypeGetToStringTag>()
             .build();
     }
 }

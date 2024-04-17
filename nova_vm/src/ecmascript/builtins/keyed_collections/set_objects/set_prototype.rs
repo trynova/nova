@@ -1,12 +1,9 @@
 use crate::{
     ecmascript::{
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -60,6 +57,9 @@ impl Builtin for SetPrototypeGetSize {
     const NAME: String = BUILTIN_STRING_MEMORY.get_size;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::get_size);
+}
+impl BuiltinGetter for SetPrototypeGetSize {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.size.to_property_key();
 }
 struct SetPrototypeValues;
 impl Builtin for SetPrototypeValues {
@@ -124,18 +124,7 @@ impl SetPrototype {
             .with_builtin_function_property::<SetPrototypeForEach>()
             .with_builtin_function_property::<SetPrototypeHas>()
             .with_builtin_function_property::<SetPrototypeKeys>()
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.size.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<SetPrototypeGetSize>(agent, realm)
-                            .build()
-                            .into_function()
-                    })
-                    .with_enumerable(SetPrototypeGetSize::ENUMERABLE)
-                    .with_configurable(SetPrototypeGetSize::CONFIGURABLE)
-                    .build()
-            })
+            .with_builtin_function_getter_property::<SetPrototypeGetSize>()
             .with_builtin_intrinsic_function_property::<SetPrototypeValues>()
             .with_property(|builder| {
                 builder

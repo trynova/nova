@@ -1,10 +1,13 @@
 use crate::{
     ecmascript::{
-        builtins::{Behaviour, Builtin, BuiltinFunction, BuiltinIntrinsic},
+        builtins::{
+            Behaviour, Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic,
+            BuiltinIntrinsicConstructor,
+        },
         execution::{Agent, RealmIdentifier},
         types::{
-            BuiltinFunctionHeapData, IntoObject, IntoValue, Object, ObjectHeapData, PropertyKey,
-            String, Value, BUILTIN_STRING_MEMORY,
+            BuiltinFunctionHeapData, IntoFunction, IntoObject, IntoValue, Object, ObjectHeapData,
+            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -89,11 +92,9 @@ impl<'agent>
     }
 
     #[must_use]
-    pub(crate) fn new_intrinsic_constructor<T: Builtin>(
+    pub(crate) fn new_intrinsic_constructor<T: BuiltinIntrinsicConstructor>(
         agent: &'agent mut Agent,
         realm: RealmIdentifier,
-        this: BuiltinFunction,
-        base_object: Option<ObjectIndex>,
     ) -> BuiltinFunctionBuilder<
         'agent,
         NoPrototype,
@@ -102,11 +103,14 @@ impl<'agent>
         CreatorBehaviour,
         NoProperties,
     > {
+        let intrinsics = agent.get_realm(realm).intrinsics();
+        let this = intrinsics.intrinsic_constructor_index_to_builtin_function(T::INDEX);
+        let object_index = Some(intrinsics.intrinsic_constructor_index_to_object_index(T::INDEX));
         let name = T::NAME;
         BuiltinFunctionBuilder {
             agent,
             this,
-            object_index: base_object,
+            object_index,
             realm,
             prototype: Default::default(),
             length: CreatorLength(T::LENGTH),
@@ -440,6 +444,31 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
             properties: self.properties,
         }
     }
+
+    #[must_use]
+    pub fn with_builtin_function_getter_property<T: BuiltinGetter>(mut self) -> Self {
+        let getter_function = BuiltinFunctionBuilder::new::<T>(self.agent, self.realm)
+            .build()
+            .into_function();
+        let property = PropertyBuilder::new(self.agent)
+            .with_key(T::KEY)
+            .with_configurable(T::CONFIGURABLE)
+            .with_enumerable(T::ENUMERABLE)
+            .with_getter_function(getter_function)
+            .build();
+        self.properties.0.push(property);
+        BuiltinFunctionBuilder {
+            agent: self.agent,
+            this: self.this,
+            object_index: self.object_index,
+            realm: self.realm,
+            prototype: self.prototype,
+            length: self.length,
+            name: self.name,
+            behaviour: self.behaviour,
+            properties: self.properties,
+        }
+    }
 }
 
 impl<'agent>
@@ -495,6 +524,18 @@ impl<'agent>
             ..
         } = self;
         let properties = properties.0;
+        assert_eq!(properties.len(), properties.capacity());
+        {
+            let slice = properties.as_slice();
+            let duplicate = (1..slice.len()).find(|first_index| {
+                slice[*first_index..]
+                    .iter()
+                    .any(|(key, _, _)| *key == slice[first_index - 1].0)
+            });
+            if let Some(index) = duplicate {
+                panic!("Duplicate key found: {:?}", slice[index].0);
+            }
+        }
 
         let (keys, values) = agent.heap.elements.create_with_stuff(properties);
 
@@ -560,6 +601,18 @@ impl<'agent>
             ..
         } = self;
         let properties = properties.0;
+        assert_eq!(properties.len(), properties.capacity());
+        {
+            let slice = properties.as_slice();
+            let duplicate = (1..slice.len()).find(|first_index| {
+                slice[*first_index..]
+                    .iter()
+                    .any(|(key, _, _)| *key == slice[first_index - 1].0)
+            });
+            if let Some(index) = duplicate {
+                panic!("Duplicate key found: {:?}", slice[index].0);
+            }
+        }
 
         let (keys, values) = agent.heap.elements.create_with_stuff(properties);
 

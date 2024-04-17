@@ -7,6 +7,7 @@ use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
+use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
 use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
@@ -21,6 +22,7 @@ use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::heap::GetHeapData;
+use crate::heap::IntrinsicConstructorIndexes;
 
 pub(crate) struct ErrorConstructor;
 
@@ -30,6 +32,9 @@ impl Builtin for ErrorConstructor {
     const LENGTH: u8 = 1;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
+}
+impl BuiltinIntrinsicConstructor for ErrorConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Error;
 }
 
 impl ErrorConstructor {
@@ -72,19 +77,12 @@ impl ErrorConstructor {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
-        let this = intrinsics.error();
-        let this_object_index = intrinsics.error_base_object();
         let error_prototype = intrinsics.error_prototype();
 
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<ErrorConstructor>(
-            agent,
-            realm,
-            this,
-            Some(this_object_index),
-        )
-        .with_property_capacity(1)
-        .with_prototype_property(error_prototype.into_object())
-        .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<ErrorConstructor>(agent, realm)
+            .with_property_capacity(1)
+            .with_prototype_property(error_prototype.into_object())
+            .build();
     }
 }
 

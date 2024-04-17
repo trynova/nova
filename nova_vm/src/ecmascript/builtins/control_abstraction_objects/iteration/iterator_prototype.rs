@@ -1,12 +1,9 @@
 use crate::{
     ecmascript::{
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, String, Value, BUILTIN_STRING_MEMORY},
+        types::{PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -18,6 +15,9 @@ impl Builtin for IteratorPrototypeIterator {
     const NAME: String = BUILTIN_STRING_MEMORY._Symbol_iterator_;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::iterator);
+}
+impl BuiltinGetter for IteratorPrototypeIterator {
+    const KEY: PropertyKey = WellKnownSymbolIndexes::Iterator.to_property_key();
 }
 
 impl IteratorPrototype {
@@ -31,18 +31,7 @@ impl IteratorPrototype {
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(1)
-            .with_property(|builder| {
-                builder
-                    .with_key(WellKnownSymbolIndexes::Iterator.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<IteratorPrototypeIterator>(agent, realm)
-                            .build()
-                            .into_function()
-                    })
-                    .with_enumerable(false)
-                    .with_configurable(true)
-                    .build()
-            })
+            .with_builtin_function_getter_property::<IteratorPrototypeIterator>()
             .build();
     }
 }
