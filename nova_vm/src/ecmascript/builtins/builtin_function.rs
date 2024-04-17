@@ -82,6 +82,9 @@ pub trait Builtin {
 pub(crate) trait BuiltinIntrinsic: Builtin {
     const INDEX: IntrinsicFunctionIndexes;
 }
+pub trait BuiltinGetter: Builtin {
+    const KEY: PropertyKey;
+}
 
 #[derive(Debug, Default)]
 pub struct BuiltinFunctionArgs {

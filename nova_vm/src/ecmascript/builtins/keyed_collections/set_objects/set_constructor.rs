@@ -1,9 +1,9 @@
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, IntoObject, Object, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoObject, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -21,6 +21,9 @@ impl Builtin for SetGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetConstructor::get_species);
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+}
+impl BuiltinGetter for SetGetSpecies {
+    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
 }
 
 impl SetConstructor {
@@ -55,18 +58,7 @@ impl SetConstructor {
         )
         .with_property_capacity(2)
         .with_prototype_property(set_prototype.into_object())
-        .with_property(|builder| {
-            builder
-                .with_key(WellKnownSymbolIndexes::Species.into())
-                .with_getter(|agent| {
-                    BuiltinFunctionBuilder::new::<SetGetSpecies>(agent, realm)
-                        .build()
-                        .into_function()
-                })
-                .with_enumerable(false)
-                .with_configurable(true)
-                .build()
-        })
+        .with_builtin_function_getter_property::<SetGetSpecies>()
         .build();
     }
 }

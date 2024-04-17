@@ -1,10 +1,10 @@
 use crate::{
     ecmascript::{
-        builtins::{Builtin, BuiltinFunction, BuiltinIntrinsic},
+        builtins::{Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic},
         execution::{Agent, RealmIdentifier},
         types::{
-            IntoObject, IntoValue, ObjectHeapData, OrdinaryObject, PropertyKey, Value,
-            BUILTIN_STRING_MEMORY,
+            IntoFunction, IntoObject, IntoValue, ObjectHeapData, OrdinaryObject, PropertyKey,
+            Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{element_array::ElementDescriptor, indexes::ObjectIndex},
@@ -212,6 +212,28 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
         } else {
             builder.with_value_readonly(value).build()
         };
+        self.properties.0.push(property);
+        OrdinaryObjectBuilder {
+            agent: self.agent,
+            this: self.this,
+            realm: self.realm,
+            prototype: self.prototype,
+            extensible: self.extensible,
+            properties: self.properties,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn with_builtin_function_getter_property<T: BuiltinGetter>(mut self) -> Self {
+        let getter_function = BuiltinFunctionBuilder::new::<T>(self.agent, self.realm)
+            .build()
+            .into_function();
+        let property = PropertyBuilder::new(self.agent)
+            .with_key(T::KEY)
+            .with_getter_function(getter_function)
+            .with_configurable(T::CONFIGURABLE)
+            .with_enumerable(T::ENUMERABLE)
+            .build();
         self.properties.0.push(property);
         OrdinaryObjectBuilder {
             agent: self.agent,

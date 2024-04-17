@@ -5,14 +5,15 @@ use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilde
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
+use crate::ecmascript::builtins::BuiltinGetter;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 
 use crate::ecmascript::execution::RealmIdentifier;
 
-use crate::ecmascript::types::IntoFunction;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::Object;
+use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
@@ -50,6 +51,10 @@ impl Builtin for ArrayGetSpecies {
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 }
+impl BuiltinGetter for ArrayGetSpecies {
+    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
+}
+
 impl ArrayConstructor {
     fn behaviour(
         _agent: &mut Agent,
@@ -128,18 +133,7 @@ impl ArrayConstructor {
         .with_builtin_function_property::<ArrayIsArray>()
         .with_builtin_function_property::<ArrayOf>()
         .with_prototype_property(array_prototype.into_object())
-        .with_property(|builder| {
-            builder
-                .with_key(WellKnownSymbolIndexes::Species.into())
-                .with_getter(|agent| {
-                    BuiltinFunctionBuilder::new::<ArrayGetSpecies>(agent, realm)
-                        .build()
-                        .into_function()
-                })
-                .with_enumerable(false)
-                .with_configurable(true)
-                .build()
-        })
+        .with_builtin_function_getter_property::<ArrayGetSpecies>()
         .build();
     }
 }

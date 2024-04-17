@@ -2,12 +2,14 @@ use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilde
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
+use crate::ecmascript::builtins::BuiltinGetter;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::RealmIdentifier;
-use crate::ecmascript::types::IntoFunction;
+
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::Object;
+use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
@@ -27,6 +29,10 @@ impl Builtin for RegExpGetSpecies {
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 }
+impl BuiltinGetter for RegExpGetSpecies {
+    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
+}
+
 impl RegExpConstructor {
     fn behaviour(
         _agent: &mut Agent,
@@ -59,18 +65,7 @@ impl RegExpConstructor {
         )
         .with_property_capacity(2)
         .with_prototype_property(regexp_prototype.into_object())
-        .with_property(|builder| {
-            builder
-                .with_key(WellKnownSymbolIndexes::Species.into())
-                .with_getter(|agent| {
-                    BuiltinFunctionBuilder::new::<RegExpGetSpecies>(agent, realm)
-                        .build()
-                        .into_function()
-                })
-                .with_enumerable(false)
-                .with_configurable(true)
-                .build()
-        })
+        .with_builtin_function_getter_property::<RegExpGetSpecies>()
         .build();
     }
 }

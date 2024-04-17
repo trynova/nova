@@ -1,10 +1,10 @@
 use crate::{
     ecmascript::{
-        builtins::{Behaviour, Builtin, BuiltinFunction, BuiltinIntrinsic},
+        builtins::{Behaviour, Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic},
         execution::{Agent, RealmIdentifier},
         types::{
-            BuiltinFunctionHeapData, IntoObject, IntoValue, Object, ObjectHeapData, PropertyKey,
-            String, Value, BUILTIN_STRING_MEMORY,
+            BuiltinFunctionHeapData, IntoFunction, IntoObject, IntoValue, Object, ObjectHeapData,
+            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -427,6 +427,31 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         } else {
             builder.with_value_readonly(value).build()
         };
+        self.properties.0.push(property);
+        BuiltinFunctionBuilder {
+            agent: self.agent,
+            this: self.this,
+            object_index: self.object_index,
+            realm: self.realm,
+            prototype: self.prototype,
+            length: self.length,
+            name: self.name,
+            behaviour: self.behaviour,
+            properties: self.properties,
+        }
+    }
+
+    #[must_use]
+    pub fn with_builtin_function_getter_property<T: BuiltinGetter>(mut self) -> Self {
+        let getter_function = BuiltinFunctionBuilder::new::<T>(self.agent, self.realm)
+            .build()
+            .into_function();
+        let property = PropertyBuilder::new(self.agent)
+            .with_key(T::KEY)
+            .with_configurable(T::CONFIGURABLE)
+            .with_enumerable(T::ENUMERABLE)
+            .with_getter_function(getter_function)
+            .build();
         self.properties.0.push(property);
         BuiltinFunctionBuilder {
             agent: self.agent,

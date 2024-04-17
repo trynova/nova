@@ -4,9 +4,9 @@ use crate::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -69,6 +69,9 @@ impl Builtin for MapPrototypeGetSize {
     const NAME: String = BUILTIN_STRING_MEMORY.get_size;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::get_size);
+}
+impl BuiltinGetter for MapPrototypeGetSize {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.size.to_property_key();
 }
 struct MapPrototypeValues;
 impl Builtin for MapPrototypeValues {
@@ -136,18 +139,7 @@ impl MapPrototype {
             .with_builtin_function_property::<MapPrototypeHas>()
             .with_builtin_function_property::<MapPrototypeKeys>()
             .with_builtin_function_property::<MapPrototypeSet>()
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.size.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<MapPrototypeGetSize>(agent, realm)
-                            .build()
-                            .into_function()
-                    })
-                    .with_enumerable(MapPrototypeGetSize::ENUMERABLE)
-                    .with_configurable(MapPrototypeGetSize::CONFIGURABLE)
-                    .build()
-            })
+            .with_builtin_function_getter_property::<MapPrototypeGetSize>()
             .with_property(|builder| {
                 builder
                     .with_key(MapPrototypeValues::NAME.into())

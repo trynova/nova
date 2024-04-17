@@ -1,9 +1,9 @@
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, IntoObject, Object, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoObject, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -24,6 +24,9 @@ impl Builtin for SharedArrayBufferGetSpecies {
     const LENGTH: u8 = 0;
 
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SharedArrayBufferConstructor::species);
+}
+impl BuiltinGetter for SharedArrayBufferGetSpecies {
+    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
 }
 
 impl SharedArrayBufferConstructor {
@@ -58,18 +61,7 @@ impl SharedArrayBufferConstructor {
         )
         .with_property_capacity(2)
         .with_prototype_property(shared_array_buffer_prototype.into_object())
-        .with_property(|builder| {
-            builder
-                .with_key(WellKnownSymbolIndexes::Species.into())
-                .with_getter(|agent| {
-                    BuiltinFunctionBuilder::new::<SharedArrayBufferGetSpecies>(agent, realm)
-                        .build()
-                        .into_function()
-                })
-                .with_enumerable(false)
-                .with_configurable(true)
-                .build()
-        })
+        .with_builtin_function_getter_property::<SharedArrayBufferGetSpecies>()
         .build();
     }
 }

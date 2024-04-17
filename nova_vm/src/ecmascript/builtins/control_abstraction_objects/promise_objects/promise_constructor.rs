@@ -1,9 +1,9 @@
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, IntoObject, Object, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoObject, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -63,6 +63,9 @@ impl Builtin for PromiseGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromiseConstructor::get_species);
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+}
+impl BuiltinGetter for PromiseGetSpecies {
+    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
 }
 
 impl PromiseConstructor {
@@ -143,18 +146,7 @@ impl PromiseConstructor {
         .with_builtin_function_property::<PromiseReject>()
         .with_builtin_function_property::<PromiseResolve>()
         .with_builtin_function_property::<PromiseWithResolvers>()
-        .with_property(|builder| {
-            builder
-                .with_key(WellKnownSymbolIndexes::Species.into())
-                .with_getter(|agent| {
-                    BuiltinFunctionBuilder::new::<PromiseGetSpecies>(agent, realm)
-                        .build()
-                        .into_function()
-                })
-                .with_enumerable(false)
-                .with_configurable(true)
-                .build()
-        })
+        .with_builtin_function_getter_property::<PromiseGetSpecies>()
         .build();
     }
 }

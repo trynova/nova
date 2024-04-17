@@ -1,7 +1,7 @@
 include!(concat!(env!("OUT_DIR"), "/builtin_strings.rs"));
 mod data;
 
-use super::{IntoPrimitive, IntoValue, Primitive, Value};
+use super::{IntoPrimitive, IntoValue, Primitive, PropertyKey, Value};
 use crate::{
     ecmascript::execution::Agent,
     heap::{indexes::StringIndex, CreateHeapData, GetHeapData},
@@ -135,6 +135,13 @@ impl String {
 
     pub fn from_string(agent: &mut Agent, string: std::string::String) -> String {
         agent.heap.create(string)
+    }
+
+    pub const fn to_property_key(self) -> PropertyKey {
+        match self {
+            String::String(data) => PropertyKey::String(data),
+            String::SmallString(data) => PropertyKey::SmallString(data),
+        }
     }
 
     pub fn from_static_str(agent: &mut Agent, str: &'static str) -> Self {

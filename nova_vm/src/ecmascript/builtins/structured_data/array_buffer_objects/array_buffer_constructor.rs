@@ -1,9 +1,9 @@
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, IntoObject, Object, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoObject, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -33,6 +33,9 @@ impl Builtin for ArrayBufferGetSpecies {
     const LENGTH: u8 = 0;
 
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayBufferConstructor::species);
+}
+impl BuiltinGetter for ArrayBufferGetSpecies {
+    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
 }
 
 impl ArrayBufferConstructor {
@@ -76,18 +79,7 @@ impl ArrayBufferConstructor {
         .with_property_capacity(3)
         .with_builtin_function_property::<ArrayBufferIsView>()
         .with_prototype_property(array_buffer_prototype.into_object())
-        .with_property(|builder| {
-            builder
-                .with_key(WellKnownSymbolIndexes::Species.into())
-                .with_getter(|agent| {
-                    BuiltinFunctionBuilder::new::<ArrayBufferGetSpecies>(agent, realm)
-                        .build()
-                        .into_function()
-                })
-                .with_enumerable(false)
-                .with_configurable(true)
-                .build()
-        })
+        .with_builtin_function_getter_property::<ArrayBufferGetSpecies>()
         .build();
     }
 }

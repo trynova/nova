@@ -1,9 +1,9 @@
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, IntoObject, Object, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoObject, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -27,6 +27,9 @@ impl Builtin for MapGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapConstructor::get_species);
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+}
+impl BuiltinGetter for MapGetSpecies {
+    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
 }
 
 impl MapConstructor {
@@ -70,18 +73,7 @@ impl MapConstructor {
         .with_property_capacity(3)
         .with_builtin_function_property::<MapGroupBy>()
         .with_prototype_property(map_prototype.into_object())
-        .with_property(|builder| {
-            builder
-                .with_key(WellKnownSymbolIndexes::Species.into())
-                .with_getter(|agent| {
-                    BuiltinFunctionBuilder::new::<MapGetSpecies>(agent, realm)
-                        .build()
-                        .into_function()
-                })
-                .with_enumerable(false)
-                .with_configurable(true)
-                .build()
-        })
+        .with_builtin_function_getter_property::<MapGetSpecies>()
         .build();
     }
 }
