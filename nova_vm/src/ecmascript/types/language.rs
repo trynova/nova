@@ -29,3 +29,7 @@ pub use primitive::Primitive;
 pub use string::{String, StringHeapData, BUILTIN_STRINGS_LIST, BUILTIN_STRING_MEMORY};
 pub use symbol::{Symbol, SymbolHeapData};
 pub use value::Value;
+pub(crate) use value::{
+    BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT,
+    NUMBER_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
+};

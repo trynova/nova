@@ -5,13 +5,16 @@ use super::{
     indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
         DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, NumberIndex, ObjectIndex,
-        RegExpIndex, StringIndex, SymbolIndex,
+        PrimitiveObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
     },
     ArrayHeapData, Heap, NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
 };
 use crate::ecmascript::{
     builtins::{
-        date::data::DateHeapData, error::ErrorHeapData, regexp::RegExpHeapData,
+        date::data::DateHeapData,
+        error::ErrorHeapData,
+        primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
+        regexp::RegExpHeapData,
         ArrayBufferHeapData, BuiltinFunction, SealableElementsVector,
     },
     execution::{
@@ -58,6 +61,7 @@ pub struct HeapBits {
     pub errors: Box<[bool]>,
     pub numbers: Box<[bool]>,
     pub objects: Box<[bool]>,
+    pub primitive_objects: Box<[bool]>,
     pub regexps: Box<[bool]>,
     pub strings: Box<[bool]>,
     pub symbols: Box<[bool]>,
@@ -90,6 +94,7 @@ pub(crate) struct WorkQueues {
     pub dates: Vec<DateIndex>,
     pub numbers: Vec<NumberIndex>,
     pub objects: Vec<ObjectIndex>,
+    pub primitive_objects: Vec<PrimitiveObjectIndex>,
     pub regexps: Vec<RegExpIndex>,
     pub strings: Vec<StringIndex>,
     pub symbols: Vec<SymbolIndex>,
@@ -122,6 +127,7 @@ impl HeapBits {
         let dates = vec![false; heap.dates.len()];
         let numbers = vec![false; heap.numbers.len()];
         let objects = vec![false; heap.objects.len()];
+        let primitive_objects = vec![false; heap.primitive_objects.len()];
         let regexps = vec![false; heap.regexps.len()];
         let strings = vec![false; heap.strings.len()];
         let symbols = vec![false; heap.symbols.len()];
@@ -151,6 +157,7 @@ impl HeapBits {
             dates: dates.into_boxed_slice(),
             numbers: numbers.into_boxed_slice(),
             objects: objects.into_boxed_slice(),
+            primitive_objects: primitive_objects.into_boxed_slice(),
             regexps: regexps.into_boxed_slice(),
             strings: strings.into_boxed_slice(),
             symbols: symbols.into_boxed_slice(),
@@ -186,6 +193,7 @@ impl WorkQueues {
             dates: Vec::with_capacity(heap.dates.len() / 4),
             numbers: Vec::with_capacity(heap.numbers.len() / 4),
             objects: Vec::with_capacity(heap.objects.len() / 4),
+            primitive_objects: Vec::with_capacity(heap.primitive_objects.len() / 4),
             regexps: Vec::with_capacity(heap.regexps.len() / 4),
             strings: Vec::with_capacity(heap.strings.len() / 4),
             symbols: Vec::with_capacity(heap.symbols.len() / 4),
@@ -1723,5 +1731,27 @@ impl HeapMarkAndSweep<()> for PrivateEnvironment {
 
     fn sweep_values(&mut self, _compactions: &CompactionLists, _data: impl Borrow<()>) {
         todo!()
+    }
+}
+
+impl HeapMarkAndSweep<()> for PrimitiveObjectHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+        match self.data {
+            PrimitiveObjectData::String(data) => data.mark_values(queues, ()),
+            PrimitiveObjectData::Number(data) => data.mark_values(queues, ()),
+            PrimitiveObjectData::BigInt(data) => data.mark_values(queues, ()),
+            _ => {}
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
+        match &mut self.data {
+            PrimitiveObjectData::String(data) => data.sweep_values(compactions, ()),
+            PrimitiveObjectData::Number(data) => data.sweep_values(compactions, ()),
+            PrimitiveObjectData::BigInt(data) => data.sweep_values(compactions, ()),
+            _ => {}
+        }
     }
 }
