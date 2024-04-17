@@ -289,6 +289,17 @@ impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, N
 impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, CreatorProperties> {
     pub fn build(self) -> OrdinaryObject {
         assert_eq!(self.properties.0.len(), self.properties.0.capacity());
+        {
+            let slice = self.properties.0.as_slice();
+            let duplicate = (1..slice.len()).find(|first_index| {
+                slice[*first_index..]
+                    .iter()
+                    .any(|(key, _, _)| *key == slice[first_index - 1].0)
+            });
+            if let Some(index) = duplicate {
+                panic!("Duplicate key found: {:?}", slice[index].0);
+            }
+        }
         let (keys, values) = self
             .agent
             .heap
@@ -314,6 +325,17 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, CreatorProperties> {
 impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, CreatorProperties> {
     pub fn build(self) -> OrdinaryObject {
         assert_eq!(self.properties.0.len(), self.properties.0.capacity());
+        {
+            let slice = self.properties.0.as_slice();
+            let duplicate = (1..slice.len()).find(|first_index| {
+                slice[*first_index..]
+                    .iter()
+                    .any(|(key, _, _)| *key == slice[first_index - 1].0)
+            });
+            if let Some(index) = duplicate {
+                panic!("Duplicate key found: {:?}", slice[index].0);
+            }
+        }
         let (keys, values) = self
             .agent
             .heap

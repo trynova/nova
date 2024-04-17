@@ -520,6 +520,17 @@ impl<'agent>
             ..
         } = self;
         let properties = properties.0;
+        {
+            let slice = properties.as_slice();
+            let duplicate = (1..slice.len()).find(|first_index| {
+                slice[*first_index..]
+                    .iter()
+                    .any(|(key, _, _)| *key == slice[first_index - 1].0)
+            });
+            if let Some(index) = duplicate {
+                panic!("Duplicate key found: {:?}", slice[index].0);
+            }
+        }
 
         let (keys, values) = agent.heap.elements.create_with_stuff(properties);
 
@@ -585,6 +596,17 @@ impl<'agent>
             ..
         } = self;
         let properties = properties.0;
+        {
+            let slice = properties.as_slice();
+            let duplicate = (1..slice.len()).find(|first_index| {
+                slice[*first_index..]
+                    .iter()
+                    .any(|(key, _, _)| *key == slice[first_index - 1].0)
+            });
+            if let Some(index) = duplicate {
+                panic!("Duplicate key found: {:?}", slice[index].0);
+            }
+        }
 
         let (keys, values) = agent.heap.elements.create_with_stuff(properties);
 
