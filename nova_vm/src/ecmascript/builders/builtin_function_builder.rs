@@ -524,6 +524,7 @@ impl<'agent>
             ..
         } = self;
         let properties = properties.0;
+        assert_eq!(properties.len(), properties.capacity());
         {
             let slice = properties.as_slice();
             let duplicate = (1..slice.len()).find(|first_index| {
@@ -600,6 +601,7 @@ impl<'agent>
             ..
         } = self;
         let properties = properties.0;
+        assert_eq!(properties.len(), properties.capacity());
         {
             let slice = properties.as_slice();
             let duplicate = (1..slice.len()).find(|first_index| {

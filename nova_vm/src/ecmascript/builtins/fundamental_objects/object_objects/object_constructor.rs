@@ -454,7 +454,7 @@ impl ObjectConstructor {
         let object_prototype = intrinsics.object_prototype();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ObjectConstructor>(agent, realm)
-            .with_property_capacity(25)
+            .with_property_capacity(24)
             .with_builtin_function_property::<ObjectAssign>()
             .with_builtin_function_property::<ObjectCreate>()
             .with_builtin_function_property::<ObjectDefineProperties>()

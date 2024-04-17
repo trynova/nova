@@ -133,7 +133,7 @@ impl PromiseConstructor {
         let promise_prototype = intrinsics.promise_prototype();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<PromiseConstructor>(agent, realm)
-            .with_property_capacity(3)
+            .with_property_capacity(9)
             .with_builtin_function_property::<PromiseAll>()
             .with_builtin_function_property::<PromiseAllSettled>()
             .with_builtin_function_property::<PromiseAny>()

@@ -164,7 +164,7 @@ impl NumberConstructor {
         let parse_int = intrinsics.parse_int().into_value();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<NumberConstructor>(agent, realm)
-            .with_property_capacity(16)
+            .with_property_capacity(15)
             .with_property(|builder| {
                 // 21.1.2.1 Number.EPSILON
                 // https://tc39.es/ecma262/#sec-number.epsilon
