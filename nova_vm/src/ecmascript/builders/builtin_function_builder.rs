@@ -1,6 +1,9 @@
 use crate::{
     ecmascript::{
-        builtins::{Behaviour, Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic},
+        builtins::{
+            Behaviour, Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic,
+            BuiltinIntrinsicConstructor,
+        },
         execution::{Agent, RealmIdentifier},
         types::{
             BuiltinFunctionHeapData, IntoFunction, IntoObject, IntoValue, Object, ObjectHeapData,
@@ -89,11 +92,9 @@ impl<'agent>
     }
 
     #[must_use]
-    pub(crate) fn new_intrinsic_constructor<T: Builtin>(
+    pub(crate) fn new_intrinsic_constructor<T: BuiltinIntrinsicConstructor>(
         agent: &'agent mut Agent,
         realm: RealmIdentifier,
-        this: BuiltinFunction,
-        base_object: Option<ObjectIndex>,
     ) -> BuiltinFunctionBuilder<
         'agent,
         NoPrototype,
@@ -102,11 +103,14 @@ impl<'agent>
         CreatorBehaviour,
         NoProperties,
     > {
+        let intrinsics = agent.get_realm(realm).intrinsics();
+        let this = intrinsics.intrinsic_constructor_index_to_builtin_function(T::INDEX);
+        let object_index = Some(intrinsics.intrinsic_constructor_index_to_object_index(T::INDEX));
         let name = T::NAME;
         BuiltinFunctionBuilder {
             agent,
             this,
-            object_index: base_object,
+            object_index,
             realm,
             prototype: Default::default(),
             length: CreatorLength(T::LENGTH),

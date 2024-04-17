@@ -4,12 +4,12 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             error::Error, ordinary::ordinary_create_from_constructor, ArgumentsList, Behaviour,
-            Builtin,
+            Builtin, BuiltinIntrinsicConstructor,
         },
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
         types::{Function, IntoObject, IntoValue, Object, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::GetHeapData,
+    heap::{GetHeapData, IntrinsicConstructorIndexes},
 };
 
 use super::error_constructor::get_error_cause;
@@ -22,6 +22,9 @@ impl Builtin for EvalErrorConstructor {
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(NativeErrorConstructors::eval_behaviour);
 }
+impl BuiltinIntrinsicConstructor for EvalErrorConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::EvalError;
+}
 struct RangeErrorConstructor;
 impl Builtin for RangeErrorConstructor {
     const NAME: String = BUILTIN_STRING_MEMORY.RangeError;
@@ -29,6 +32,9 @@ impl Builtin for RangeErrorConstructor {
     const LENGTH: u8 = 1;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(NativeErrorConstructors::range_behaviour);
+}
+impl BuiltinIntrinsicConstructor for RangeErrorConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::RangeError;
 }
 struct ReferenceErrorConstructor;
 impl Builtin for ReferenceErrorConstructor {
@@ -39,6 +45,9 @@ impl Builtin for ReferenceErrorConstructor {
     const BEHAVIOUR: Behaviour =
         Behaviour::Constructor(NativeErrorConstructors::reference_behaviour);
 }
+impl BuiltinIntrinsicConstructor for ReferenceErrorConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::ReferenceError;
+}
 struct SyntaxErrorConstructor;
 impl Builtin for SyntaxErrorConstructor {
     const NAME: String = BUILTIN_STRING_MEMORY.SyntaxError;
@@ -46,6 +55,9 @@ impl Builtin for SyntaxErrorConstructor {
     const LENGTH: u8 = 1;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(NativeErrorConstructors::syntax_behaviour);
+}
+impl BuiltinIntrinsicConstructor for SyntaxErrorConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::SyntaxError;
 }
 struct TypeErrorConstructor;
 impl Builtin for TypeErrorConstructor {
@@ -55,6 +67,9 @@ impl Builtin for TypeErrorConstructor {
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(NativeErrorConstructors::type_behaviour);
 }
+impl BuiltinIntrinsicConstructor for TypeErrorConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::TypeError;
+}
 struct URIErrorConstructor;
 impl Builtin for URIErrorConstructor {
     const NAME: String = BUILTIN_STRING_MEMORY.URIError;
@@ -62,6 +77,9 @@ impl Builtin for URIErrorConstructor {
     const LENGTH: u8 = 1;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(NativeErrorConstructors::uri_behaviour);
+}
+impl BuiltinIntrinsicConstructor for URIErrorConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::URIError;
 }
 
 pub(crate) struct NativeErrorConstructors;
@@ -165,77 +183,37 @@ impl NativeErrorConstructors {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
-        let eval_this = intrinsics.eval_error();
-        let eval_this_base_object = intrinsics.eval_error_base_object();
         let eval_error_prototype = intrinsics.eval_error_prototype();
-        let range_this = intrinsics.range_error();
-        let range_this_base_object = intrinsics.range_error_base_object();
         let range_error_prototype = intrinsics.range_error_prototype();
-        let reference_this = intrinsics.reference_error();
-        let reference_this_base_object = intrinsics.reference_error_base_object();
         let reference_error_prototype = intrinsics.reference_error_prototype();
-        let syntax_this = intrinsics.syntax_error();
-        let syntax_this_base_object = intrinsics.syntax_error_base_object();
         let syntax_error_prototype = intrinsics.syntax_error_prototype();
-        let type_this = intrinsics.type_error();
-        let type_this_base_object = intrinsics.type_error_base_object();
         let type_error_prototype = intrinsics.type_error_prototype();
-        let uri_this = intrinsics.uri_error();
-        let uri_this_base_object = intrinsics.uri_error_base_object();
         let uri_error_prototype = intrinsics.uri_error_prototype();
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<EvalErrorConstructor>(
-            agent,
-            realm,
-            eval_this,
-            Some(eval_this_base_object),
-        )
-        .with_property_capacity(1)
-        .with_prototype_property(eval_error_prototype.into_object())
-        .build();
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<RangeErrorConstructor>(
-            agent,
-            realm,
-            range_this,
-            Some(range_this_base_object),
-        )
-        .with_property_capacity(1)
-        .with_prototype_property(range_error_prototype.into_object())
-        .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<EvalErrorConstructor>(agent, realm)
+            .with_property_capacity(1)
+            .with_prototype_property(eval_error_prototype.into_object())
+            .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<RangeErrorConstructor>(agent, realm)
+            .with_property_capacity(1)
+            .with_prototype_property(range_error_prototype.into_object())
+            .build();
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ReferenceErrorConstructor>(
-            agent,
-            realm,
-            reference_this,
-            Some(reference_this_base_object),
+            agent, realm,
         )
         .with_property_capacity(1)
         .with_prototype_property(reference_error_prototype.into_object())
         .build();
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<SyntaxErrorConstructor>(
-            agent,
-            realm,
-            syntax_this,
-            Some(syntax_this_base_object),
-        )
-        .with_property_capacity(1)
-        .with_prototype_property(syntax_error_prototype.into_object())
-        .build();
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<TypeErrorConstructor>(
-            agent,
-            realm,
-            type_this,
-            Some(type_this_base_object),
-        )
-        .with_property_capacity(1)
-        .with_prototype_property(type_error_prototype.into_object())
-        .build();
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<URIErrorConstructor>(
-            agent,
-            realm,
-            uri_this,
-            Some(uri_this_base_object),
-        )
-        .with_property_capacity(1)
-        .with_prototype_property(uri_error_prototype.into_object())
-        .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<SyntaxErrorConstructor>(agent, realm)
+            .with_property_capacity(1)
+            .with_prototype_property(syntax_error_prototype.into_object())
+            .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<TypeErrorConstructor>(agent, realm)
+            .with_property_capacity(1)
+            .with_prototype_property(type_error_prototype.into_object())
+            .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<URIErrorConstructor>(agent, realm)
+            .with_property_capacity(1)
+            .with_prototype_property(uri_error_prototype.into_object())
+            .build();
     }
 }

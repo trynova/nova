@@ -1,11 +1,11 @@
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, RealmIdentifier},
         types::{IntoObject, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct SharedArrayBufferConstructor;
@@ -15,6 +15,9 @@ impl Builtin for SharedArrayBufferConstructor {
     const LENGTH: u8 = 1;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(SharedArrayBufferConstructor::behaviour);
+}
+impl BuiltinIntrinsicConstructor for SharedArrayBufferConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::SharedArrayBuffer;
 }
 
 struct SharedArrayBufferGetSpecies;
@@ -50,14 +53,9 @@ impl SharedArrayBufferConstructor {
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let shared_array_buffer_prototype = intrinsics.shared_array_buffer_prototype();
-        let this = intrinsics.shared_array_buffer();
-        let this_object_index = intrinsics.shared_array_buffer_base_object();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<SharedArrayBufferConstructor>(
-            agent,
-            realm,
-            this,
-            Some(this_object_index),
+            agent, realm,
         )
         .with_property_capacity(2)
         .with_prototype_property(shared_array_buffer_prototype.into_object())

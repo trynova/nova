@@ -1,11 +1,11 @@
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, RealmIdentifier},
         types::{IntoObject, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct MapConstructor;
@@ -15,6 +15,9 @@ impl Builtin for MapConstructor {
     const LENGTH: u8 = 0;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(MapConstructor::behaviour);
+}
+impl BuiltinIntrinsicConstructor for MapConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Map;
 }
 struct MapGroupBy;
 impl Builtin for MapGroupBy {
@@ -61,19 +64,12 @@ impl MapConstructor {
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let map_prototype = intrinsics.map_prototype();
-        let this = intrinsics.map();
-        let this_object_index = intrinsics.map_base_object();
 
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<MapConstructor>(
-            agent,
-            realm,
-            this,
-            Some(this_object_index),
-        )
-        .with_property_capacity(3)
-        .with_builtin_function_property::<MapGroupBy>()
-        .with_prototype_property(map_prototype.into_object())
-        .with_builtin_function_getter_property::<MapGetSpecies>()
-        .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<MapConstructor>(agent, realm)
+            .with_property_capacity(3)
+            .with_builtin_function_property::<MapGroupBy>()
+            .with_prototype_property(map_prototype.into_object())
+            .with_builtin_function_getter_property::<MapGetSpecies>()
+            .build();
     }
 }

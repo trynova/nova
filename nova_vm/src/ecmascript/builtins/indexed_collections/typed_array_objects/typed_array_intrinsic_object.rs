@@ -6,6 +6,7 @@ use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::builtins::BuiltinGetter;
 use crate::ecmascript::builtins::BuiltinIntrinsic;
+use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::RealmIdentifier;
@@ -17,6 +18,7 @@ use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::IntrinsicFunctionIndexes;
 use crate::heap::WellKnownSymbolIndexes;
 
@@ -26,6 +28,9 @@ impl Builtin for TypedArrayIntrinsicObject {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.TypedArray;
+}
+impl BuiltinIntrinsicConstructor for TypedArrayIntrinsicObject {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::TypedArray;
 }
 
 struct TypedArrayFrom;
@@ -89,14 +94,9 @@ impl TypedArrayIntrinsicObject {
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let typed_array_prototype = intrinsics.typed_array_prototype();
-        let this = intrinsics.typed_array();
-        let this_object_index = intrinsics.typed_array_base_object();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<TypedArrayIntrinsicObject>(
-            agent,
-            realm,
-            this,
-            Some(this_object_index),
+            agent, realm,
         )
         .with_property_capacity(4)
         .with_builtin_function_property::<TypedArrayFrom>()

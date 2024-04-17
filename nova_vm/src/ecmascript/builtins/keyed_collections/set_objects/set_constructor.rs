@@ -1,11 +1,11 @@
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, RealmIdentifier},
         types::{IntoObject, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct SetConstructor;
@@ -15,6 +15,9 @@ impl Builtin for SetConstructor {
     const LENGTH: u8 = 1;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(SetConstructor::behaviour);
+}
+impl BuiltinIntrinsicConstructor for SetConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Set;
 }
 struct SetGetSpecies;
 impl Builtin for SetGetSpecies {
@@ -47,18 +50,11 @@ impl SetConstructor {
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let set_prototype = intrinsics.set_prototype();
-        let this = intrinsics.set();
-        let this_object_index = intrinsics.set_base_object();
 
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<SetConstructor>(
-            agent,
-            realm,
-            this,
-            Some(this_object_index),
-        )
-        .with_property_capacity(2)
-        .with_prototype_property(set_prototype.into_object())
-        .with_builtin_function_getter_property::<SetGetSpecies>()
-        .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<SetConstructor>(agent, realm)
+            .with_property_capacity(2)
+            .with_prototype_property(set_prototype.into_object())
+            .with_builtin_function_getter_property::<SetGetSpecies>()
+            .build();
     }
 }

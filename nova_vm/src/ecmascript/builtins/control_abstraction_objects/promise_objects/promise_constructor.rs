@@ -1,11 +1,11 @@
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, RealmIdentifier},
         types::{IntoObject, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct PromiseConstructor;
@@ -15,6 +15,9 @@ impl Builtin for PromiseConstructor {
     const LENGTH: u8 = 0;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(PromiseConstructor::behaviour);
+}
+impl BuiltinIntrinsicConstructor for PromiseConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Promise;
 }
 struct PromiseAll;
 impl Builtin for PromiseAll {
@@ -128,25 +131,18 @@ impl PromiseConstructor {
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let promise_prototype = intrinsics.promise_prototype();
-        let this = intrinsics.promise();
-        let this_object_index = intrinsics.promise_base_object();
 
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<PromiseConstructor>(
-            agent,
-            realm,
-            this,
-            Some(this_object_index),
-        )
-        .with_property_capacity(3)
-        .with_builtin_function_property::<PromiseAll>()
-        .with_builtin_function_property::<PromiseAllSettled>()
-        .with_builtin_function_property::<PromiseAny>()
-        .with_prototype_property(promise_prototype.into_object())
-        .with_builtin_function_property::<PromiseRace>()
-        .with_builtin_function_property::<PromiseReject>()
-        .with_builtin_function_property::<PromiseResolve>()
-        .with_builtin_function_property::<PromiseWithResolvers>()
-        .with_builtin_function_getter_property::<PromiseGetSpecies>()
-        .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<PromiseConstructor>(agent, realm)
+            .with_property_capacity(3)
+            .with_builtin_function_property::<PromiseAll>()
+            .with_builtin_function_property::<PromiseAllSettled>()
+            .with_builtin_function_property::<PromiseAny>()
+            .with_prototype_property(promise_prototype.into_object())
+            .with_builtin_function_property::<PromiseRace>()
+            .with_builtin_function_property::<PromiseReject>()
+            .with_builtin_function_property::<PromiseResolve>()
+            .with_builtin_function_property::<PromiseWithResolvers>()
+            .with_builtin_function_getter_property::<PromiseGetSpecies>()
+            .build();
     }
 }
