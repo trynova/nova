@@ -6,6 +6,7 @@
 [object Error]
 [object Function]
 [object Null]
+[object Number]
 [object RegExp]
 [object String]
 [object Undefined]

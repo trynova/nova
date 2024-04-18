@@ -10,7 +10,7 @@ use super::{
     indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
         DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, NumberIndex, ObjectIndex,
-        RegExpIndex, StringIndex, SymbolIndex,
+        PrimitiveObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
     },
     Heap,
 };
@@ -57,6 +57,7 @@ pub fn heap_gc(heap: &mut Heap) {
             globals: _,
             numbers,
             objects,
+            primitive_objects,
             regexps,
             strings,
             symbols,
@@ -312,6 +313,20 @@ pub fn heap_gc(heap: &mut Heap) {
                 numbers.get(index).mark_values(&mut queues, ());
             }
         });
+        let mut primitive_object_marks: Box<[PrimitiveObjectIndex]> =
+            queues.primitive_objects.drain(..).collect();
+        primitive_object_marks.sort();
+        primitive_object_marks.iter().for_each(|&idx| {
+            let index = idx.into_index();
+            if let Some(marked) = bits.primitive_objects.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                primitive_objects.get(index).mark_values(&mut queues, ());
+            }
+        });
         let mut regexp_marks: Box<[RegExpIndex]> = queues.regexps.drain(..).collect();
         regexp_marks.sort();
         regexp_marks.iter().for_each(|&idx| {
@@ -504,6 +519,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
         globals,
         numbers,
         objects,
+        primitive_objects,
         regexps,
         strings,
         symbols,
@@ -609,6 +625,9 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
         });
         s.spawn(|| {
             sweep_heap_vector_values(objects, &compactions, &bits.objects);
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(primitive_objects, &compactions, &bits.primitive_objects);
         });
         s.spawn(|| {
             sweep_heap_vector_values(regexps, &compactions, &bits.regexps);

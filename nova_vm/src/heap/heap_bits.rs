@@ -5,13 +5,16 @@ use super::{
     indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
         DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, NumberIndex, ObjectIndex,
-        RegExpIndex, StringIndex, SymbolIndex,
+        PrimitiveObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
     },
     ArrayHeapData, Heap, NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
 };
 use crate::ecmascript::{
     builtins::{
-        date::data::DateHeapData, error::ErrorHeapData, regexp::RegExpHeapData,
+        date::data::DateHeapData,
+        error::ErrorHeapData,
+        primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
+        regexp::RegExpHeapData,
         ArrayBufferHeapData, BuiltinFunction, SealableElementsVector,
     },
     execution::{
@@ -58,6 +61,7 @@ pub struct HeapBits {
     pub errors: Box<[bool]>,
     pub numbers: Box<[bool]>,
     pub objects: Box<[bool]>,
+    pub primitive_objects: Box<[bool]>,
     pub regexps: Box<[bool]>,
     pub strings: Box<[bool]>,
     pub symbols: Box<[bool]>,
@@ -90,6 +94,7 @@ pub(crate) struct WorkQueues {
     pub dates: Vec<DateIndex>,
     pub numbers: Vec<NumberIndex>,
     pub objects: Vec<ObjectIndex>,
+    pub primitive_objects: Vec<PrimitiveObjectIndex>,
     pub regexps: Vec<RegExpIndex>,
     pub strings: Vec<StringIndex>,
     pub symbols: Vec<SymbolIndex>,
@@ -122,6 +127,7 @@ impl HeapBits {
         let dates = vec![false; heap.dates.len()];
         let numbers = vec![false; heap.numbers.len()];
         let objects = vec![false; heap.objects.len()];
+        let primitive_objects = vec![false; heap.primitive_objects.len()];
         let regexps = vec![false; heap.regexps.len()];
         let strings = vec![false; heap.strings.len()];
         let symbols = vec![false; heap.symbols.len()];
@@ -151,6 +157,7 @@ impl HeapBits {
             dates: dates.into_boxed_slice(),
             numbers: numbers.into_boxed_slice(),
             objects: objects.into_boxed_slice(),
+            primitive_objects: primitive_objects.into_boxed_slice(),
             regexps: regexps.into_boxed_slice(),
             strings: strings.into_boxed_slice(),
             symbols: symbols.into_boxed_slice(),
@@ -186,6 +193,7 @@ impl WorkQueues {
             dates: Vec::with_capacity(heap.dates.len() / 4),
             numbers: Vec::with_capacity(heap.numbers.len() / 4),
             objects: Vec::with_capacity(heap.objects.len() / 4),
+            primitive_objects: Vec::with_capacity(heap.primitive_objects.len() / 4),
             regexps: Vec::with_capacity(heap.regexps.len() / 4),
             strings: Vec::with_capacity(heap.strings.len() / 4),
             symbols: Vec::with_capacity(heap.symbols.len() / 4),
@@ -196,8 +204,6 @@ impl WorkQueues {
         match value {
             Value::Array(idx) => self.arrays.push(idx),
             Value::ArrayBuffer(idx) => self.array_buffers.push(idx),
-            // Value::BigIntObject(_) => todo!(),
-            // Value::BooleanObject(idx) => todo!(),
             Value::Boolean(_) => {}
             Value::Date(idx) => self.dates.push(idx),
             Value::Error(idx) => self.errors.push(idx),
@@ -208,22 +214,15 @@ impl WorkQueues {
             Value::Number(idx) => self.numbers.push(idx),
             Value::String(idx) => self.strings.push(idx),
             Value::Null => {}
-            // Value::NumberObject(_) => todo!(),
             Value::Object(idx) => self.objects.push(idx),
             Value::RegExp(idx) => self.regexps.push(idx),
             Value::SmallString(_) => {}
             Value::SmallBigInt(_) => {}
-            // Value::StringObject(_) => todo!(),
             Value::Symbol(idx) => self.symbols.push(idx),
-            // Value::SymbolObject(_) => todo!(),
             Value::Undefined => {}
             Value::Integer(_) => {}
             Value::Float(_) => {}
-            Value::BigIntObject => todo!(),
-            Value::BooleanObject => todo!(),
-            Value::NumberObject => todo!(),
-            Value::StringObject => todo!(),
-            Value::SymbolObject => todo!(),
+            Value::PrimitiveObject(idx) => self.primitive_objects.push(idx),
             Value::Arguments => todo!(),
             Value::DataView => todo!(),
             Value::FinalizationRegistry => todo!(),
@@ -476,6 +475,7 @@ pub(crate) struct CompactionLists {
     pub errors: CompactionList,
     pub numbers: CompactionList,
     pub objects: CompactionList,
+    pub primitive_objects: CompactionList,
     pub regexps: CompactionList,
     pub strings: CompactionList,
     pub symbols: CompactionList,
@@ -520,6 +520,7 @@ impl CompactionLists {
             errors: CompactionList::from_mark_bits(&bits.errors),
             numbers: CompactionList::from_mark_bits(&bits.numbers),
             objects: CompactionList::from_mark_bits(&bits.objects),
+            primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),
             regexps: CompactionList::from_mark_bits(&bits.regexps),
             strings: CompactionList::from_mark_bits(&bits.strings),
             symbols: CompactionList::from_mark_bits(&bits.symbols),
@@ -824,6 +825,22 @@ impl HeapMarkAndSweep<()> for ObjectIndex {
     }
 }
 
+impl HeapMarkAndSweep<()> for PrimitiveObjectIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.primitive_objects.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(
+            self_index
+                - compactions
+                    .primitive_objects
+                    .get_shift_for_index(self_index),
+        );
+    }
+}
+
 impl HeapMarkAndSweep<()> for RegExpIndex {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
         queues.regexps.push(*self);
@@ -882,11 +899,7 @@ impl HeapMarkAndSweep<()> for Value {
             Value::BuiltinFunction(idx) => idx.mark_values(queues, ()),
             Value::ECMAScriptFunction(idx) => idx.mark_values(queues, ()),
             Value::RegExp(idx) => idx.mark_values(queues, ()),
-            Value::BigIntObject => todo!(),
-            Value::BooleanObject => todo!(),
-            Value::NumberObject => todo!(),
-            Value::StringObject => todo!(),
-            Value::SymbolObject => todo!(),
+            Value::PrimitiveObject(idx) => idx.mark_values(queues, ()),
             Value::Arguments => todo!(),
             Value::DataView => todo!(),
             Value::FinalizationRegistry => todo!(),
@@ -951,11 +964,7 @@ impl HeapMarkAndSweep<()> for Value {
             Value::BuiltinFunction(idx) => idx.sweep_values(compactions, ()),
             Value::ECMAScriptFunction(idx) => idx.sweep_values(compactions, ()),
             Value::RegExp(idx) => idx.sweep_values(compactions, ()),
-            Value::BigIntObject => todo!(),
-            Value::BooleanObject => todo!(),
-            Value::NumberObject => todo!(),
-            Value::StringObject => todo!(),
-            Value::SymbolObject => todo!(),
+            Value::PrimitiveObject(idx) => idx.sweep_values(compactions, ()),
             Value::Arguments => todo!(),
             Value::DataView => todo!(),
             Value::FinalizationRegistry => todo!(),
@@ -1080,11 +1089,7 @@ impl HeapMarkAndSweep<()> for Object {
             Object::BuiltinPromiseRejectFunction => todo!(),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
-            Object::BigIntObject => todo!(),
-            Object::BooleanObject => todo!(),
-            Object::NumberObject => todo!(),
-            Object::StringObject => todo!(),
-            Object::SymbolObject => todo!(),
+            Object::PrimitiveObject(idx) => idx.mark_values(queues, ()),
             Object::Arguments => todo!(),
             Object::DataView => todo!(),
             Object::FinalizationRegistry => todo!(),
@@ -1723,5 +1728,29 @@ impl HeapMarkAndSweep<()> for PrivateEnvironment {
 
     fn sweep_values(&mut self, _compactions: &CompactionLists, _data: impl Borrow<()>) {
         todo!()
+    }
+}
+
+impl HeapMarkAndSweep<()> for PrimitiveObjectHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+        match self.data {
+            PrimitiveObjectData::String(data) => data.mark_values(queues, ()),
+            PrimitiveObjectData::Symbol(data) => data.mark_values(queues, ()),
+            PrimitiveObjectData::Number(data) => data.mark_values(queues, ()),
+            PrimitiveObjectData::BigInt(data) => data.mark_values(queues, ()),
+            _ => {}
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
+        match &mut self.data {
+            PrimitiveObjectData::String(data) => data.sweep_values(compactions, ()),
+            PrimitiveObjectData::Symbol(data) => data.sweep_values(compactions, ()),
+            PrimitiveObjectData::Number(data) => data.sweep_values(compactions, ()),
+            PrimitiveObjectData::BigInt(data) => data.sweep_values(compactions, ()),
+            _ => {}
+        }
     }
 }

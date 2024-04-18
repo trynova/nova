@@ -31,6 +31,7 @@ use crate::ecmascript::{
     builtins::{
         date::{data::DateHeapData, Date},
         error::{Error, ErrorHeapData},
+        primitive_objects::PrimitiveObjectHeapData,
         regexp::RegExpHeapData,
     },
     types::BUILTIN_STRINGS_LIST,
@@ -70,6 +71,7 @@ pub struct Heap {
     pub globals: Vec<Value>,
     pub numbers: Vec<Option<NumberHeapData>>,
     pub objects: Vec<Option<ObjectHeapData>>,
+    pub(crate) primitive_objects: Vec<Option<PrimitiveObjectHeapData>>,
     pub regexps: Vec<Option<RegExpHeapData>>,
     pub strings: Vec<Option<StringHeapData>>,
     pub symbols: Vec<Option<SymbolHeapData>>,
@@ -185,6 +187,11 @@ impl_heap_data!(
 );
 impl_heap_data!(numbers, NumberHeapData, f64, data);
 impl_heap_data!(objects, ObjectHeapData, ObjectHeapData);
+impl_heap_data!(
+    primitive_objects,
+    PrimitiveObjectHeapData,
+    PrimitiveObjectHeapData
+);
 impl_heap_data!(strings, StringHeapData, StringHeapData);
 impl_heap_data!(symbols, SymbolHeapData, SymbolHeapData);
 impl_heap_data!(bigints, BigIntHeapData, BigIntHeapData);
@@ -288,6 +295,7 @@ impl Heap {
             globals: Vec::with_capacity(1024),
             numbers: Vec::with_capacity(1024),
             objects: Vec::with_capacity(1024),
+            primitive_objects: Vec::with_capacity(0),
             regexps: Vec::with_capacity(1024),
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),

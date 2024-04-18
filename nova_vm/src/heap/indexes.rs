@@ -1,7 +1,7 @@
 use crate::ecmascript::{
     builtins::{
-        date::data::DateHeapData, error::ErrorHeapData, regexp::RegExpHeapData,
-        ArrayBufferHeapData, ArrayHeapData,
+        date::data::DateHeapData, error::ErrorHeapData, primitive_objects::PrimitiveObjectHeapData,
+        regexp::RegExpHeapData, ArrayBufferHeapData, ArrayHeapData,
     },
     execution::Agent,
     types::{
@@ -130,6 +130,7 @@ pub type ECMAScriptFunctionIndex = BaseIndex<ECMAScriptFunctionHeapData>;
 pub type ErrorIndex = BaseIndex<ErrorHeapData>;
 pub type NumberIndex = BaseIndex<NumberHeapData>;
 pub type ObjectIndex = BaseIndex<ObjectHeapData>;
+pub type PrimitiveObjectIndex = BaseIndex<PrimitiveObjectHeapData>;
 pub type RegExpIndex = BaseIndex<RegExpHeapData>;
 pub type StringIndex = BaseIndex<StringHeapData>;
 pub type SymbolIndex = BaseIndex<SymbolHeapData>;

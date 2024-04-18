@@ -10,8 +10,8 @@ use crate::{
     heap::{
         indexes::{
             ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
-            DateIndex, ECMAScriptFunctionIndex, ErrorIndex, NumberIndex, ObjectIndex, RegExpIndex,
-            StringIndex, SymbolIndex,
+            DateIndex, ECMAScriptFunctionIndex, ErrorIndex, NumberIndex, ObjectIndex,
+            PrimitiveObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
         },
         GetHeapData,
     },
@@ -70,12 +70,8 @@ pub enum Value {
     ECMAScriptConstructorFunction,
     ECMAScriptGeneratorFunction,
 
-    // TODO: Implement primitive value objects, those useless things.
-    BigIntObject,
-    BooleanObject,
-    NumberObject,
-    StringObject,
-    SymbolObject,
+    // Boolean, Number, String, Symbol, BigInt objects
+    PrimitiveObject(PrimitiveObjectIndex),
 
     // Well-known object types
     // Roughly corresponding to 6.1.7.4 Well-Known Intrinsic Objects
@@ -203,11 +199,9 @@ pub(crate) const ECMASCRIPT_CONSTRUCTOR_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::ECMAScriptConstructorFunction);
 pub(crate) const ECMASCRIPT_GENERATOR_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::ECMAScriptGeneratorFunction);
-pub(crate) const BIGINT_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::BigIntObject);
-pub(crate) const BOOLEAN_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::BooleanObject);
-pub(crate) const NUMBER_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::NumberObject);
-pub(crate) const STRING_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::StringObject);
-pub(crate) const SYMBOL_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::SymbolObject);
+pub(crate) const PRIMITIVE_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::PrimitiveObject(
+    PrimitiveObjectIndex::from_u32_index(0),
+));
 pub(crate) const ARGUMENTS_DISCRIMINANT: u8 = value_discriminant(Value::Arguments);
 pub(crate) const DATA_VIEW_DISCRIMINANT: u8 = value_discriminant(Value::DataView);
 pub(crate) const FINALIZATION_REGISTRY_DISCRIMINANT: u8 =
