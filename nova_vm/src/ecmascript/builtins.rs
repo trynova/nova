@@ -17,11 +17,13 @@ pub(crate) mod global_object;
 pub(crate) mod indexed_collections;
 pub(crate) mod keyed_collections;
 pub(crate) mod managing_memory;
+pub(crate) mod map;
 pub(crate) mod numbers_and_dates;
 pub mod ordinary;
 pub(crate) mod primitive_objects;
 pub(crate) mod reflection;
 pub(crate) mod regexp;
+pub(crate) mod set;
 pub(crate) mod structured_data;
 pub(crate) mod text_processing;
 

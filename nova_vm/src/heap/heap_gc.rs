@@ -9,8 +9,8 @@ use super::{
     },
     indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
-        DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, NumberIndex, ObjectIndex,
-        PrimitiveObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
+        DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, MapIndex, NumberIndex,
+        ObjectIndex, PrimitiveObjectIndex, RegExpIndex, SetIndex, StringIndex, SymbolIndex,
     },
     Heap,
 };
@@ -55,10 +55,12 @@ pub fn heap_gc(heap: &mut Heap) {
             ecmascript_functions,
             dates,
             globals: _,
+            maps,
             numbers,
             objects,
             primitive_objects,
             regexps,
+            sets,
             strings,
             symbols,
         } = heap;
@@ -300,6 +302,19 @@ pub fn heap_gc(heap: &mut Heap) {
                 objects.get(index).mark_values(&mut queues, ());
             }
         });
+        let mut map_marks: Box<[MapIndex]> = queues.maps.drain(..).collect();
+        map_marks.sort();
+        map_marks.iter().for_each(|&idx| {
+            let index = idx.into_index();
+            if let Some(marked) = bits.maps.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                maps.get(index).mark_values(&mut queues, ());
+            }
+        });
         let mut number_marks: Box<[NumberIndex]> = queues.numbers.drain(..).collect();
         number_marks.sort();
         number_marks.iter().for_each(|&idx| {
@@ -338,6 +353,19 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 regexps.get(index).mark_values(&mut queues, ());
+            }
+        });
+        let mut set_marks: Box<[SetIndex]> = queues.sets.drain(..).collect();
+        set_marks.sort();
+        set_marks.iter().for_each(|&idx| {
+            let index = idx.into_index();
+            if let Some(marked) = bits.sets.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                sets.get(index).mark_values(&mut queues, ());
             }
         });
         let mut string_marks: Box<[StringIndex]> = queues.strings.drain(..).collect();
@@ -517,10 +545,12 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
         ecmascript_functions,
         dates,
         globals,
+        maps,
         numbers,
         objects,
         primitive_objects,
         regexps,
+        sets,
         strings,
         symbols,
     } = heap;
@@ -621,6 +651,9 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
             }
         });
         s.spawn(|| {
+            sweep_heap_vector_values(maps, &compactions, &bits.maps);
+        });
+        s.spawn(|| {
             sweep_heap_vector_values(numbers, &compactions, &bits.numbers);
         });
         s.spawn(|| {
@@ -631,6 +664,9 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
         });
         s.spawn(|| {
             sweep_heap_vector_values(regexps, &compactions, &bits.regexps);
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(sets, &compactions, &bits.sets);
         });
         s.spawn(|| {
             sweep_heap_vector_values(strings, &compactions, &bits.strings);

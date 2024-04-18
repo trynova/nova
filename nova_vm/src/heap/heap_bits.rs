@@ -4,8 +4,8 @@ use super::{
     element_array::{ElementArrayKey, ElementsVector},
     indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
-        DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, NumberIndex, ObjectIndex,
-        PrimitiveObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
+        DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, MapIndex, NumberIndex,
+        ObjectIndex, PrimitiveObjectIndex, RegExpIndex, SetIndex, StringIndex, SymbolIndex,
     },
     ArrayHeapData, Heap, NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
 };
@@ -13,8 +13,10 @@ use crate::ecmascript::{
     builtins::{
         date::data::DateHeapData,
         error::ErrorHeapData,
+        map::{data::MapHeapData, Map},
         primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
         regexp::RegExpHeapData,
+        set::{data::SetHeapData, Set},
         ArrayBufferHeapData, BuiltinFunction, SealableElementsVector,
     },
     execution::{
@@ -60,9 +62,11 @@ pub struct HeapBits {
     pub dates: Box<[bool]>,
     pub errors: Box<[bool]>,
     pub numbers: Box<[bool]>,
+    pub maps: Box<[bool]>,
     pub objects: Box<[bool]>,
     pub primitive_objects: Box<[bool]>,
     pub regexps: Box<[bool]>,
+    pub sets: Box<[bool]>,
     pub strings: Box<[bool]>,
     pub symbols: Box<[bool]>,
 }
@@ -92,10 +96,12 @@ pub(crate) struct WorkQueues {
     pub builtin_functions: Vec<BuiltinFunctionIndex>,
     pub ecmascript_functions: Vec<ECMAScriptFunctionIndex>,
     pub dates: Vec<DateIndex>,
+    pub maps: Vec<MapIndex>,
     pub numbers: Vec<NumberIndex>,
     pub objects: Vec<ObjectIndex>,
     pub primitive_objects: Vec<PrimitiveObjectIndex>,
     pub regexps: Vec<RegExpIndex>,
+    pub sets: Vec<SetIndex>,
     pub strings: Vec<StringIndex>,
     pub symbols: Vec<SymbolIndex>,
 }
@@ -125,10 +131,12 @@ impl HeapBits {
         let builtin_functions = vec![false; heap.builtin_functions.len()];
         let ecmascript_functions = vec![false; heap.ecmascript_functions.len()];
         let dates = vec![false; heap.dates.len()];
+        let maps = vec![false; heap.maps.len()];
         let numbers = vec![false; heap.numbers.len()];
         let objects = vec![false; heap.objects.len()];
         let primitive_objects = vec![false; heap.primitive_objects.len()];
         let regexps = vec![false; heap.regexps.len()];
+        let sets = vec![false; heap.sets.len()];
         let strings = vec![false; heap.strings.len()];
         let symbols = vec![false; heap.symbols.len()];
         Self {
@@ -156,9 +164,11 @@ impl HeapBits {
             ecmascript_functions: ecmascript_functions.into_boxed_slice(),
             dates: dates.into_boxed_slice(),
             numbers: numbers.into_boxed_slice(),
+            maps: maps.into_boxed_slice(),
             objects: objects.into_boxed_slice(),
             primitive_objects: primitive_objects.into_boxed_slice(),
             regexps: regexps.into_boxed_slice(),
+            sets: sets.into_boxed_slice(),
             strings: strings.into_boxed_slice(),
             symbols: symbols.into_boxed_slice(),
         }
@@ -191,10 +201,12 @@ impl WorkQueues {
             builtin_functions: Vec::with_capacity(heap.builtin_functions.len() / 4),
             ecmascript_functions: Vec::with_capacity(heap.ecmascript_functions.len() / 4),
             dates: Vec::with_capacity(heap.dates.len() / 4),
+            maps: Vec::with_capacity(heap.maps.len() / 4),
             numbers: Vec::with_capacity(heap.numbers.len() / 4),
             objects: Vec::with_capacity(heap.objects.len() / 4),
             primitive_objects: Vec::with_capacity(heap.primitive_objects.len() / 4),
             regexps: Vec::with_capacity(heap.regexps.len() / 4),
+            sets: Vec::with_capacity(heap.sets.len() / 4),
             strings: Vec::with_capacity(heap.strings.len() / 4),
             symbols: Vec::with_capacity(heap.symbols.len() / 4),
         }
@@ -226,10 +238,10 @@ impl WorkQueues {
             Value::Arguments => todo!(),
             Value::DataView => todo!(),
             Value::FinalizationRegistry => todo!(),
-            Value::Map => todo!(),
+            Value::Map(_) => todo!(),
             Value::Proxy => todo!(),
             Value::Promise => todo!(),
-            Value::Set => todo!(),
+            Value::Set(_) => todo!(),
             Value::SharedArrayBuffer => todo!(),
             Value::WeakMap => todo!(),
             Value::WeakRef => todo!(),
@@ -473,10 +485,12 @@ pub(crate) struct CompactionLists {
     pub ecmascript_functions: CompactionList,
     pub dates: CompactionList,
     pub errors: CompactionList,
+    pub maps: CompactionList,
     pub numbers: CompactionList,
     pub objects: CompactionList,
     pub primitive_objects: CompactionList,
     pub regexps: CompactionList,
+    pub sets: CompactionList,
     pub strings: CompactionList,
     pub symbols: CompactionList,
 }
@@ -518,10 +532,12 @@ impl CompactionLists {
             ecmascript_functions: CompactionList::from_mark_bits(&bits.ecmascript_functions),
             dates: CompactionList::from_mark_bits(&bits.dates),
             errors: CompactionList::from_mark_bits(&bits.errors),
+            maps: CompactionList::from_mark_bits(&bits.maps),
             numbers: CompactionList::from_mark_bits(&bits.numbers),
             objects: CompactionList::from_mark_bits(&bits.objects),
             primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),
             regexps: CompactionList::from_mark_bits(&bits.regexps),
+            sets: CompactionList::from_mark_bits(&bits.sets),
             strings: CompactionList::from_mark_bits(&bits.strings),
             symbols: CompactionList::from_mark_bits(&bits.symbols),
         }
@@ -803,6 +819,17 @@ impl HeapMarkAndSweep<()> for ErrorIndex {
     }
 }
 
+impl HeapMarkAndSweep<()> for MapIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.maps.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.maps.get_shift_for_index(self_index));
+    }
+}
+
 impl HeapMarkAndSweep<()> for NumberIndex {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
         queues.numbers.push(*self);
@@ -849,6 +876,17 @@ impl HeapMarkAndSweep<()> for RegExpIndex {
     fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
         let self_index = self.into_u32();
         *self = Self::from_u32(self_index - compactions.regexps.get_shift_for_index(self_index));
+    }
+}
+
+impl HeapMarkAndSweep<()> for SetIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.sets.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.sets.get_shift_for_index(self_index));
     }
 }
 
@@ -903,10 +941,10 @@ impl HeapMarkAndSweep<()> for Value {
             Value::Arguments => todo!(),
             Value::DataView => todo!(),
             Value::FinalizationRegistry => todo!(),
-            Value::Map => todo!(),
+            Value::Map(_) => todo!(),
             Value::Proxy => todo!(),
             Value::Promise => todo!(),
-            Value::Set => todo!(),
+            Value::Set(_) => todo!(),
             Value::SharedArrayBuffer => todo!(),
             Value::WeakMap => todo!(),
             Value::WeakRef => todo!(),
@@ -968,10 +1006,10 @@ impl HeapMarkAndSweep<()> for Value {
             Value::Arguments => todo!(),
             Value::DataView => todo!(),
             Value::FinalizationRegistry => todo!(),
-            Value::Map => todo!(),
+            Value::Map(_) => todo!(),
             Value::Proxy => todo!(),
             Value::Promise => todo!(),
-            Value::Set => todo!(),
+            Value::Set(_) => todo!(),
             Value::SharedArrayBuffer => todo!(),
             Value::WeakMap => todo!(),
             Value::WeakRef => todo!(),
@@ -1054,6 +1092,16 @@ impl HeapMarkAndSweep<()> for BuiltinFunction {
     }
 }
 
+impl HeapMarkAndSweep<()> for Map {
+    fn mark_values(&self, queues: &mut WorkQueues, data: impl BorrowMut<()>) {
+        self.0.mark_values(queues, data);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, data: impl Borrow<()>) {
+        self.0.sweep_values(compactions, data);
+    }
+}
+
 impl HeapMarkAndSweep<()> for Number {
     fn mark_values(&self, queues: &mut WorkQueues, data: impl BorrowMut<()>) {
         if let Self::Number(idx) = self {
@@ -1093,11 +1141,11 @@ impl HeapMarkAndSweep<()> for Object {
             Object::Arguments => todo!(),
             Object::DataView => todo!(),
             Object::FinalizationRegistry => todo!(),
-            Object::Map => todo!(),
+            Object::Map(_) => todo!(),
             Object::Promise => todo!(),
             Object::Proxy => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set => todo!(),
+            Object::Set(_) => todo!(),
             Object::SharedArrayBuffer => todo!(),
             Object::WeakMap => todo!(),
             Object::WeakRef => todo!(),
@@ -1138,6 +1186,16 @@ impl HeapMarkAndSweep<()> for OrdinaryObject {
 
     fn sweep_values(&mut self, compactions: &CompactionLists, data: impl Borrow<()>) {
         self.0.sweep_values(compactions, data)
+    }
+}
+
+impl HeapMarkAndSweep<()> for Set {
+    fn mark_values(&self, queues: &mut WorkQueues, data: impl BorrowMut<()>) {
+        self.0.mark_values(queues, data);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, data: impl Borrow<()>) {
+        self.0.sweep_values(compactions, data);
     }
 }
 
@@ -1315,6 +1373,28 @@ impl HeapMarkAndSweep<()> for ObjectHeapData {
     }
 }
 
+impl HeapMarkAndSweep<()> for MapHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+        self.keys
+            .iter()
+            .for_each(|value| value.mark_values(queues, ()));
+        self.values
+            .iter()
+            .for_each(|value| value.mark_values(queues, ()));
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
+        self.keys
+            .iter_mut()
+            .for_each(|value| value.sweep_values(compactions, ()));
+        self.values
+            .iter_mut()
+            .for_each(|value| value.sweep_values(compactions, ()));
+    }
+}
+
 impl HeapMarkAndSweep<()> for NumberHeapData {
     fn mark_values(&self, _queues: &mut WorkQueues, _data: impl BorrowMut<()>) {}
 
@@ -1328,6 +1408,22 @@ impl HeapMarkAndSweep<()> for RegExpHeapData {
 
     fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
         self.object_index.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for SetHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+        self.set
+            .iter()
+            .for_each(|value| value.mark_values(queues, ()));
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
+        self.set
+            .iter_mut()
+            .for_each(|value| value.sweep_values(compactions, ()));
     }
 }
 
