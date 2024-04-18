@@ -71,7 +71,7 @@ pub struct Heap {
     pub globals: Vec<Value>,
     pub numbers: Vec<Option<NumberHeapData>>,
     pub objects: Vec<Option<ObjectHeapData>>,
-    pub(crate) primitive_objects: Vec<PrimitiveObjectHeapData>,
+    pub(crate) primitive_objects: Vec<Option<PrimitiveObjectHeapData>>,
     pub regexps: Vec<Option<RegExpHeapData>>,
     pub strings: Vec<Option<StringHeapData>>,
     pub symbols: Vec<Option<SymbolHeapData>>,
@@ -187,6 +187,11 @@ impl_heap_data!(
 );
 impl_heap_data!(numbers, NumberHeapData, f64, data);
 impl_heap_data!(objects, ObjectHeapData, ObjectHeapData);
+impl_heap_data!(
+    primitive_objects,
+    PrimitiveObjectHeapData,
+    PrimitiveObjectHeapData
+);
 impl_heap_data!(strings, StringHeapData, StringHeapData);
 impl_heap_data!(symbols, SymbolHeapData, SymbolHeapData);
 impl_heap_data!(bigints, BigIntHeapData, BigIntHeapData);

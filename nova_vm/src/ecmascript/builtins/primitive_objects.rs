@@ -4,9 +4,9 @@ use crate::{
     ecmascript::types::{
         BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT,
         NUMBER_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT,
-        STRING_DISCRIMINANT,
+        STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
     },
-    heap::indexes::{BigIntIndex, NumberIndex, ObjectIndex, StringIndex},
+    heap::indexes::{BigIntIndex, NumberIndex, ObjectIndex, StringIndex, SymbolIndex},
     SmallInteger,
 };
 
@@ -16,6 +16,7 @@ pub(crate) enum PrimitiveObjectData {
     Boolean(bool) = BOOLEAN_DISCRIMINANT,
     String(StringIndex) = STRING_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
+    Symbol(SymbolIndex) = SYMBOL_DISCRIMINANT,
     Number(NumberIndex) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     Float(f32) = FLOAT_DISCRIMINANT,
@@ -24,7 +25,7 @@ pub(crate) enum PrimitiveObjectData {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct PrimitiveObjectHeapData {
+pub struct PrimitiveObjectHeapData {
     pub(crate) object_index: Option<ObjectIndex>,
     pub(crate) data: PrimitiveObjectData,
 }

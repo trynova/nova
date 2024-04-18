@@ -204,8 +204,6 @@ impl WorkQueues {
         match value {
             Value::Array(idx) => self.arrays.push(idx),
             Value::ArrayBuffer(idx) => self.array_buffers.push(idx),
-            // Value::BigIntObject(_) => todo!(),
-            // Value::BooleanObject(idx) => todo!(),
             Value::Boolean(_) => {}
             Value::Date(idx) => self.dates.push(idx),
             Value::Error(idx) => self.errors.push(idx),
@@ -216,22 +214,15 @@ impl WorkQueues {
             Value::Number(idx) => self.numbers.push(idx),
             Value::String(idx) => self.strings.push(idx),
             Value::Null => {}
-            // Value::NumberObject(_) => todo!(),
             Value::Object(idx) => self.objects.push(idx),
             Value::RegExp(idx) => self.regexps.push(idx),
             Value::SmallString(_) => {}
             Value::SmallBigInt(_) => {}
-            // Value::StringObject(_) => todo!(),
             Value::Symbol(idx) => self.symbols.push(idx),
-            // Value::SymbolObject(_) => todo!(),
             Value::Undefined => {}
             Value::Integer(_) => {}
             Value::Float(_) => {}
-            Value::BigIntObject => todo!(),
-            Value::BooleanObject => todo!(),
-            Value::NumberObject => todo!(),
-            Value::StringObject => todo!(),
-            Value::SymbolObject => todo!(),
+            Value::PrimitiveObject(idx) => self.primitive_objects.push(idx),
             Value::Arguments => todo!(),
             Value::DataView => todo!(),
             Value::FinalizationRegistry => todo!(),
@@ -484,6 +475,7 @@ pub(crate) struct CompactionLists {
     pub errors: CompactionList,
     pub numbers: CompactionList,
     pub objects: CompactionList,
+    pub primitive_objects: CompactionList,
     pub regexps: CompactionList,
     pub strings: CompactionList,
     pub symbols: CompactionList,
@@ -528,6 +520,7 @@ impl CompactionLists {
             errors: CompactionList::from_mark_bits(&bits.errors),
             numbers: CompactionList::from_mark_bits(&bits.numbers),
             objects: CompactionList::from_mark_bits(&bits.objects),
+            primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),
             regexps: CompactionList::from_mark_bits(&bits.regexps),
             strings: CompactionList::from_mark_bits(&bits.strings),
             symbols: CompactionList::from_mark_bits(&bits.symbols),
@@ -832,6 +825,22 @@ impl HeapMarkAndSweep<()> for ObjectIndex {
     }
 }
 
+impl HeapMarkAndSweep<()> for PrimitiveObjectIndex {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        queues.primitive_objects.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(
+            self_index
+                - compactions
+                    .primitive_objects
+                    .get_shift_for_index(self_index),
+        );
+    }
+}
+
 impl HeapMarkAndSweep<()> for RegExpIndex {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
         queues.regexps.push(*self);
@@ -890,11 +899,7 @@ impl HeapMarkAndSweep<()> for Value {
             Value::BuiltinFunction(idx) => idx.mark_values(queues, ()),
             Value::ECMAScriptFunction(idx) => idx.mark_values(queues, ()),
             Value::RegExp(idx) => idx.mark_values(queues, ()),
-            Value::BigIntObject => todo!(),
-            Value::BooleanObject => todo!(),
-            Value::NumberObject => todo!(),
-            Value::StringObject => todo!(),
-            Value::SymbolObject => todo!(),
+            Value::PrimitiveObject(idx) => idx.mark_values(queues, ()),
             Value::Arguments => todo!(),
             Value::DataView => todo!(),
             Value::FinalizationRegistry => todo!(),
@@ -959,11 +964,7 @@ impl HeapMarkAndSweep<()> for Value {
             Value::BuiltinFunction(idx) => idx.sweep_values(compactions, ()),
             Value::ECMAScriptFunction(idx) => idx.sweep_values(compactions, ()),
             Value::RegExp(idx) => idx.sweep_values(compactions, ()),
-            Value::BigIntObject => todo!(),
-            Value::BooleanObject => todo!(),
-            Value::NumberObject => todo!(),
-            Value::StringObject => todo!(),
-            Value::SymbolObject => todo!(),
+            Value::PrimitiveObject(idx) => idx.sweep_values(compactions, ()),
             Value::Arguments => todo!(),
             Value::DataView => todo!(),
             Value::FinalizationRegistry => todo!(),
@@ -1088,11 +1089,7 @@ impl HeapMarkAndSweep<()> for Object {
             Object::BuiltinPromiseRejectFunction => todo!(),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
-            Object::BigIntObject => todo!(),
-            Object::BooleanObject => todo!(),
-            Object::NumberObject => todo!(),
-            Object::StringObject => todo!(),
-            Object::SymbolObject => todo!(),
+            Object::PrimitiveObject(idx) => idx.mark_values(queues, ()),
             Object::Arguments => todo!(),
             Object::DataView => todo!(),
             Object::FinalizationRegistry => todo!(),
@@ -1739,6 +1736,7 @@ impl HeapMarkAndSweep<()> for PrimitiveObjectHeapData {
         self.object_index.mark_values(queues, ());
         match self.data {
             PrimitiveObjectData::String(data) => data.mark_values(queues, ()),
+            PrimitiveObjectData::Symbol(data) => data.mark_values(queues, ()),
             PrimitiveObjectData::Number(data) => data.mark_values(queues, ()),
             PrimitiveObjectData::BigInt(data) => data.mark_values(queues, ()),
             _ => {}
@@ -1749,6 +1747,7 @@ impl HeapMarkAndSweep<()> for PrimitiveObjectHeapData {
         self.object_index.sweep_values(compactions, ());
         match &mut self.data {
             PrimitiveObjectData::String(data) => data.sweep_values(compactions, ()),
+            PrimitiveObjectData::Symbol(data) => data.sweep_values(compactions, ()),
             PrimitiveObjectData::Number(data) => data.sweep_values(compactions, ()),
             PrimitiveObjectData::BigInt(data) => data.sweep_values(compactions, ()),
             _ => {}

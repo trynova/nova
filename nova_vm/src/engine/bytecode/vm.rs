@@ -627,12 +627,8 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::Date(_)  |
         Value::Error(_)  |
         // 14. Return "object".
+        Value::PrimitiveObject(_) |
         Value::RegExp(_) |
-        Value::BigIntObject |
-        Value::BooleanObject |
-        Value::NumberObject |
-        Value::StringObject |
-        Value::SymbolObject |
         Value::Arguments |
         Value::DataView |
         Value::FinalizationRegistry |
