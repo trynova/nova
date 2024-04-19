@@ -10,8 +10,8 @@ use crate::{
     heap::{
         indexes::{
             ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
-            DateIndex, ECMAScriptFunctionIndex, ErrorIndex, NumberIndex, ObjectIndex,
-            PrimitiveObjectIndex, RegExpIndex, StringIndex, SymbolIndex,
+            DateIndex, ECMAScriptFunctionIndex, ErrorIndex, MapIndex, NumberIndex, ObjectIndex,
+            PrimitiveObjectIndex, RegExpIndex, SetIndex, StringIndex, SymbolIndex,
         },
         GetHeapData,
     },
@@ -85,11 +85,11 @@ pub enum Value {
     Date(DateIndex),
     Error(ErrorIndex),
     FinalizationRegistry,
-    Map,
+    Map(MapIndex),
     Promise,
     Proxy,
     RegExp(RegExpIndex),
-    Set,
+    Set(SetIndex),
     SharedArrayBuffer,
     WeakMap,
     WeakRef,
@@ -206,10 +206,10 @@ pub(crate) const ARGUMENTS_DISCRIMINANT: u8 = value_discriminant(Value::Argument
 pub(crate) const DATA_VIEW_DISCRIMINANT: u8 = value_discriminant(Value::DataView);
 pub(crate) const FINALIZATION_REGISTRY_DISCRIMINANT: u8 =
     value_discriminant(Value::FinalizationRegistry);
-pub(crate) const MAP_DISCRIMINANT: u8 = value_discriminant(Value::Map);
+pub(crate) const MAP_DISCRIMINANT: u8 = value_discriminant(Value::Map(MapIndex::from_u32_index(0)));
 pub(crate) const PROMISE_DISCRIMINANT: u8 = value_discriminant(Value::Promise);
 pub(crate) const PROXY_DISCRIMINANT: u8 = value_discriminant(Value::Proxy);
-pub(crate) const SET_DISCRIMINANT: u8 = value_discriminant(Value::Set);
+pub(crate) const SET_DISCRIMINANT: u8 = value_discriminant(Value::Set(SetIndex::from_u32_index(0)));
 pub(crate) const SHARED_ARRAY_BUFFER_DISCRIMINANT: u8 =
     value_discriminant(Value::SharedArrayBuffer);
 pub(crate) const WEAK_MAP_DISCRIMINANT: u8 = value_discriminant(Value::WeakMap);

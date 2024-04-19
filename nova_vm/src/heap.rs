@@ -31,8 +31,10 @@ use crate::ecmascript::{
     builtins::{
         date::{data::DateHeapData, Date},
         error::{Error, ErrorHeapData},
+        map::data::MapHeapData,
         primitive_objects::PrimitiveObjectHeapData,
         regexp::RegExpHeapData,
+        set::data::SetHeapData,
     },
     types::BUILTIN_STRINGS_LIST,
 };
@@ -69,10 +71,12 @@ pub struct Heap {
     pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,
     pub dates: Vec<Option<DateHeapData>>,
     pub globals: Vec<Value>,
+    pub maps: Vec<Option<MapHeapData>>,
     pub numbers: Vec<Option<NumberHeapData>>,
     pub objects: Vec<Option<ObjectHeapData>>,
     pub(crate) primitive_objects: Vec<Option<PrimitiveObjectHeapData>>,
     pub regexps: Vec<Option<RegExpHeapData>>,
+    pub sets: Vec<Option<SetHeapData>>,
     pub strings: Vec<Option<StringHeapData>>,
     pub symbols: Vec<Option<SymbolHeapData>>,
 }
@@ -185,6 +189,7 @@ impl_heap_data!(
     ECMAScriptFunctionHeapData,
     ECMAScriptFunctionHeapData
 );
+impl_heap_data!(maps, MapHeapData, MapHeapData);
 impl_heap_data!(numbers, NumberHeapData, f64, data);
 impl_heap_data!(objects, ObjectHeapData, ObjectHeapData);
 impl_heap_data!(
@@ -192,6 +197,7 @@ impl_heap_data!(
     PrimitiveObjectHeapData,
     PrimitiveObjectHeapData
 );
+impl_heap_data!(sets, SetHeapData, SetHeapData);
 impl_heap_data!(strings, StringHeapData, StringHeapData);
 impl_heap_data!(symbols, SymbolHeapData, SymbolHeapData);
 impl_heap_data!(bigints, BigIntHeapData, BigIntHeapData);
@@ -293,10 +299,12 @@ impl Heap {
             ecmascript_functions: Vec::with_capacity(1024),
             dates: Vec::with_capacity(1024),
             globals: Vec::with_capacity(1024),
+            maps: Vec::with_capacity(128),
             numbers: Vec::with_capacity(1024),
             objects: Vec::with_capacity(1024),
             primitive_objects: Vec::with_capacity(0),
             regexps: Vec::with_capacity(1024),
+            sets: Vec::with_capacity(128),
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
         };

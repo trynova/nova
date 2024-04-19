@@ -632,9 +632,9 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::Arguments |
         Value::DataView |
         Value::FinalizationRegistry |
-        Value::Map |
+        Value::Map(_) |
         Value::Promise |
-        Value::Set |
+        Value::Set(_) |
         Value::SharedArrayBuffer |
         Value::WeakMap |
         Value::WeakRef |
