@@ -170,9 +170,9 @@ impl ObjectPrototype {
                 Ok(BUILTIN_STRING_MEMORY._object_Function_.into_value())
             }
             // TODO: Check for [[Call]] slot of Proxy
-            Value::Proxy => todo!(),
+            Value::Proxy(_) => todo!(),
             // TODO: Check for [[Call]] slot of EmbedderObject
-            Value::EmbedderObject => todo!(),
+            Value::EmbedderObject(_) => todo!(),
             // 13. Else if O has a [[RegExpMatcher]] internal slot, let builtinTag be "RegExp".
             Value::RegExp(_) => Ok(BUILTIN_STRING_MEMORY._object_RegExp_.into_value()),
             Value::PrimitiveObject(idx) => match agent.heap.get(idx).data {

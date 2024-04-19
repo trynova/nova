@@ -1,7 +1,9 @@
 use std::marker::PhantomData;
 
+use crate::ecmascript::builtins::module::data::ModuleHeapData;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ModuleIdentifier(u32, PhantomData<Module>);
+pub struct ModuleIdentifier(u32, PhantomData<ModuleHeapData>);
 
 impl ModuleIdentifier {
     /// Creates a module identififer from a usize.
@@ -18,7 +20,7 @@ impl ModuleIdentifier {
         Self(value, PhantomData)
     }
 
-    pub(crate) fn last(modules: &[Option<Module>]) -> Self {
+    pub(crate) fn last(modules: &[Option<ModuleHeapData>]) -> Self {
         let index = modules.len() - 1;
         Self::from_index(index)
     }
@@ -31,6 +33,3 @@ impl ModuleIdentifier {
         self.0
     }
 }
-
-#[derive(Debug)]
-pub struct Module {}

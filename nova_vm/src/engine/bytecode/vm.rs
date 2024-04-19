@@ -630,31 +630,31 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::PrimitiveObject(_) |
         Value::RegExp(_) |
         Value::Arguments |
-        Value::DataView |
-        Value::FinalizationRegistry |
+        Value::DataView(_) |
+        Value::FinalizationRegistry(_) |
         Value::Map(_) |
-        Value::Promise |
+        Value::Promise(_) |
         Value::Set(_) |
-        Value::SharedArrayBuffer |
-        Value::WeakMap |
-        Value::WeakRef |
-        Value::WeakSet |
-        Value::Int8Array |
-        Value::Uint8Array |
-        Value::Uint8ClampedArray |
-        Value::Int16Array |
-        Value::Uint16Array |
-        Value::Int32Array |
-        Value::Uint32Array |
-        Value::BigInt64Array |
-        Value::BigUint64Array |
-        Value::Float32Array |
-        Value::Float64Array |
+        Value::SharedArrayBuffer(_) |
+        Value::WeakMap(_) |
+        Value::WeakRef(_) |
+        Value::WeakSet(_) |
+        Value::Int8Array(_) |
+        Value::Uint8Array(_) |
+        Value::Uint8ClampedArray(_) |
+        Value::Int16Array(_) |
+        Value::Uint16Array(_) |
+        Value::Int32Array(_) |
+        Value::Uint32Array(_) |
+        Value::BigInt64Array(_) |
+        Value::BigUint64Array(_) |
+        Value::Float32Array(_) |
+        Value::Float64Array(_) |
         Value::AsyncFromSyncIterator |
         Value::AsyncIterator |
         Value::Iterator |
-        Value::Module |
-        Value::EmbedderObject => BUILTIN_STRING_MEMORY.object,
+        Value::Module(_) |
+        Value::EmbedderObject(_) => BUILTIN_STRING_MEMORY.object,
         // 13. If val has a [[Call]] internal slot, return "function".
         Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) |
         Value::BuiltinGeneratorFunction |
@@ -668,6 +668,6 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::ECMAScriptConstructorFunction |
         Value::ECMAScriptGeneratorFunction => BUILTIN_STRING_MEMORY.function,
         // TODO: Check [[Call]] slot for Proxy
-        Value::Proxy => todo!(),
+        Value::Proxy(_) => todo!(),
     }
 }

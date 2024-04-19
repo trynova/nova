@@ -1,8 +1,14 @@
 use crate::ecmascript::{
     builtins::{
-        date::data::DateHeapData, error::ErrorHeapData, map::data::MapHeapData,
-        primitive_objects::PrimitiveObjectHeapData, regexp::RegExpHeapData, set::data::SetHeapData,
-        ArrayBufferHeapData, ArrayHeapData,
+        data_view::data::DataViewHeapData, date::data::DateHeapData,
+        embedder_object::data::EmbedderObjectHeapData, error::ErrorHeapData,
+        finalization_registry::data::FinalizationRegistryHeapData, map::data::MapHeapData,
+        primitive_objects::PrimitiveObjectHeapData, promise::data::PromiseHeapData,
+        proxy::data::ProxyHeapData, regexp::RegExpHeapData, set::data::SetHeapData,
+        shared_array_buffer::data::SharedArrayBufferHeapData,
+        typed_array::data::TypedArrayHeapData, weak_map::data::WeakMapHeapData,
+        weak_ref::data::WeakRefHeapData, weak_set::data::WeakSetHeapData, ArrayBufferHeapData,
+        ArrayHeapData,
     },
     execution::Agent,
     types::{
@@ -121,23 +127,39 @@ impl<T: ?Sized> BaseIndex<T> {
     }
 }
 
+impl<T> Default for BaseIndex<T> {
+    fn default() -> Self {
+        Self::from_u32_index(0)
+    }
+}
+
 pub type ArrayBufferIndex = BaseIndex<ArrayBufferHeapData>;
 pub type ArrayIndex = BaseIndex<ArrayHeapData>;
 pub type BigIntIndex = BaseIndex<BigIntHeapData>;
 pub type BoundFunctionIndex = BaseIndex<BoundFunctionHeapData>;
 pub type BuiltinFunctionIndex = BaseIndex<BuiltinFunctionHeapData>;
+pub type DataViewIndex = BaseIndex<DataViewHeapData>;
 pub type DateIndex = BaseIndex<DateHeapData>;
 pub type ECMAScriptFunctionIndex = BaseIndex<ECMAScriptFunctionHeapData>;
+pub type ElementIndex = BaseIndex<[Option<Value>]>;
+pub type EmbedderObjectIndex = BaseIndex<EmbedderObjectHeapData>;
 pub type ErrorIndex = BaseIndex<ErrorHeapData>;
+pub type FinalizationRegistryIndex = BaseIndex<FinalizationRegistryHeapData>;
 pub type MapIndex = BaseIndex<MapHeapData>;
 pub type NumberIndex = BaseIndex<NumberHeapData>;
 pub type ObjectIndex = BaseIndex<ObjectHeapData>;
 pub type PrimitiveObjectIndex = BaseIndex<PrimitiveObjectHeapData>;
+pub type PromiseIndex = BaseIndex<PromiseHeapData>;
+pub type ProxyIndex = BaseIndex<ProxyHeapData>;
 pub type RegExpIndex = BaseIndex<RegExpHeapData>;
 pub type SetIndex = BaseIndex<SetHeapData>;
+pub type SharedArrayBufferIndex = BaseIndex<SharedArrayBufferHeapData>;
 pub type StringIndex = BaseIndex<StringHeapData>;
 pub type SymbolIndex = BaseIndex<SymbolHeapData>;
-pub type ElementIndex = BaseIndex<[Option<Value>]>;
+pub type TypedArrayIndex = BaseIndex<TypedArrayHeapData>;
+pub type WeakMapIndex = BaseIndex<WeakMapHeapData>;
+pub type WeakRefIndex = BaseIndex<WeakRefHeapData>;
+pub type WeakSetIndex = BaseIndex<WeakSetHeapData>;
 
 impl ObjectIndex {
     pub fn get(self, agent: &Agent) -> &ObjectHeapData {
