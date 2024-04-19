@@ -4,19 +4,33 @@ use super::{
     element_array::{ElementArrayKey, ElementsVector},
     indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
-        DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, MapIndex, NumberIndex,
-        ObjectIndex, PrimitiveObjectIndex, RegExpIndex, SetIndex, StringIndex, SymbolIndex,
+        DataViewIndex, DateIndex, ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex,
+        ErrorIndex, FinalizationRegistryIndex, MapIndex, NumberIndex, ObjectIndex,
+        PrimitiveObjectIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex,
+        SharedArrayBufferIndex, StringIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
+        WeakRefIndex, WeakSetIndex,
     },
     ArrayHeapData, Heap, NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
 };
 use crate::ecmascript::{
     builtins::{
+        data_view::data::DataViewHeapData,
         date::data::DateHeapData,
+        embedder_object::data::EmbedderObjectHeapData,
         error::ErrorHeapData,
+        finalization_registry::data::FinalizationRegistryHeapData,
         map::{data::MapHeapData, Map},
+        module::data::ModuleHeapData,
         primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
+        promise::data::PromiseHeapData,
+        proxy::data::ProxyHeapData,
         regexp::RegExpHeapData,
         set::{data::SetHeapData, Set},
+        shared_array_buffer::data::SharedArrayBufferHeapData,
+        typed_array::data::TypedArrayHeapData,
+        weak_map::data::WeakMapHeapData,
+        weak_ref::data::WeakRefHeapData,
+        weak_set::data::WeakSetHeapData,
         ArrayBufferHeapData, BuiltinFunction, SealableElementsVector,
     },
     execution::{
@@ -26,7 +40,7 @@ use crate::ecmascript::{
         Realm, RealmIdentifier,
     },
     scripts_and_modules::{
-        module::{Module, ModuleIdentifier},
+        module::ModuleIdentifier,
         script::{Script, ScriptIdentifier},
         ScriptOrModule,
     },
@@ -38,139 +52,179 @@ use crate::ecmascript::{
 
 #[derive(Debug)]
 pub struct HeapBits {
-    pub modules: Box<[bool]>,
-    pub scripts: Box<[bool]>,
-    pub realms: Box<[bool]>,
+    pub array_buffers: Box<[bool]>,
+    pub arrays: Box<[bool]>,
+    pub bigints: Box<[bool]>,
+    pub bound_functions: Box<[bool]>,
+    pub builtin_functions: Box<[bool]>,
+    pub data_views: Box<[bool]>,
+    pub dates: Box<[bool]>,
     pub declarative_environments: Box<[bool]>,
-    pub function_environments: Box<[bool]>,
-    pub global_environments: Box<[bool]>,
-    pub object_environments: Box<[bool]>,
-    pub e_2_4: Box<[(bool, u8)]>,
-    pub e_2_6: Box<[(bool, u8)]>,
-    pub e_2_8: Box<[(bool, u8)]>,
     pub e_2_10: Box<[(bool, u16)]>,
     pub e_2_12: Box<[(bool, u16)]>,
     pub e_2_16: Box<[(bool, u16)]>,
     pub e_2_24: Box<[(bool, u32)]>,
     pub e_2_32: Box<[(bool, u32)]>,
-    pub arrays: Box<[bool]>,
-    pub array_buffers: Box<[bool]>,
-    pub bigints: Box<[bool]>,
-    pub bound_functions: Box<[bool]>,
-    pub builtin_functions: Box<[bool]>,
+    pub e_2_4: Box<[(bool, u8)]>,
+    pub e_2_6: Box<[(bool, u8)]>,
+    pub e_2_8: Box<[(bool, u8)]>,
     pub ecmascript_functions: Box<[bool]>,
-    pub dates: Box<[bool]>,
+    pub embedder_objects: Box<[bool]>,
     pub errors: Box<[bool]>,
-    pub numbers: Box<[bool]>,
+    pub finalization_registrys: Box<[bool]>,
+    pub function_environments: Box<[bool]>,
+    pub global_environments: Box<[bool]>,
     pub maps: Box<[bool]>,
+    pub modules: Box<[bool]>,
+    pub numbers: Box<[bool]>,
+    pub object_environments: Box<[bool]>,
     pub objects: Box<[bool]>,
     pub primitive_objects: Box<[bool]>,
+    pub promises: Box<[bool]>,
+    pub proxys: Box<[bool]>,
+    pub realms: Box<[bool]>,
     pub regexps: Box<[bool]>,
+    pub scripts: Box<[bool]>,
     pub sets: Box<[bool]>,
+    pub shared_array_buffers: Box<[bool]>,
     pub strings: Box<[bool]>,
     pub symbols: Box<[bool]>,
+    pub typed_arrays: Box<[bool]>,
+    pub weak_maps: Box<[bool]>,
+    pub weak_refs: Box<[bool]>,
+    pub weak_sets: Box<[bool]>,
 }
 
 #[derive(Debug)]
 pub(crate) struct WorkQueues {
-    pub modules: Vec<ModuleIdentifier>,
-    pub scripts: Vec<ScriptIdentifier>,
-    pub realms: Vec<RealmIdentifier>,
+    pub array_buffers: Vec<ArrayBufferIndex>,
+    pub arrays: Vec<ArrayIndex>,
+    pub bigints: Vec<BigIntIndex>,
+    pub bound_functions: Vec<BoundFunctionIndex>,
+    pub builtin_functions: Vec<BuiltinFunctionIndex>,
+    pub data_views: Vec<DataViewIndex>,
+    pub dates: Vec<DateIndex>,
     pub declarative_environments: Vec<DeclarativeEnvironmentIndex>,
-    pub function_environments: Vec<FunctionEnvironmentIndex>,
-    pub global_environments: Vec<GlobalEnvironmentIndex>,
-    pub object_environments: Vec<ObjectEnvironmentIndex>,
-    pub e_2_4: Vec<(ElementIndex, u32)>,
-    pub e_2_6: Vec<(ElementIndex, u32)>,
-    pub e_2_8: Vec<(ElementIndex, u32)>,
     pub e_2_10: Vec<(ElementIndex, u32)>,
     pub e_2_12: Vec<(ElementIndex, u32)>,
     pub e_2_16: Vec<(ElementIndex, u32)>,
     pub e_2_24: Vec<(ElementIndex, u32)>,
     pub e_2_32: Vec<(ElementIndex, u32)>,
-    pub arrays: Vec<ArrayIndex>,
-    pub array_buffers: Vec<ArrayBufferIndex>,
-    pub bigints: Vec<BigIntIndex>,
-    pub errors: Vec<ErrorIndex>,
-    pub bound_functions: Vec<BoundFunctionIndex>,
-    pub builtin_functions: Vec<BuiltinFunctionIndex>,
+    pub e_2_4: Vec<(ElementIndex, u32)>,
+    pub e_2_6: Vec<(ElementIndex, u32)>,
+    pub e_2_8: Vec<(ElementIndex, u32)>,
     pub ecmascript_functions: Vec<ECMAScriptFunctionIndex>,
-    pub dates: Vec<DateIndex>,
+    pub embedder_objects: Vec<EmbedderObjectIndex>,
+    pub errors: Vec<ErrorIndex>,
+    pub finalization_registrys: Vec<FinalizationRegistryIndex>,
+    pub function_environments: Vec<FunctionEnvironmentIndex>,
+    pub global_environments: Vec<GlobalEnvironmentIndex>,
     pub maps: Vec<MapIndex>,
+    pub modules: Vec<ModuleIdentifier>,
     pub numbers: Vec<NumberIndex>,
+    pub object_environments: Vec<ObjectEnvironmentIndex>,
     pub objects: Vec<ObjectIndex>,
     pub primitive_objects: Vec<PrimitiveObjectIndex>,
+    pub promises: Vec<PromiseIndex>,
+    pub proxys: Vec<ProxyIndex>,
+    pub realms: Vec<RealmIdentifier>,
     pub regexps: Vec<RegExpIndex>,
+    pub scripts: Vec<ScriptIdentifier>,
     pub sets: Vec<SetIndex>,
+    pub shared_array_buffers: Vec<SharedArrayBufferIndex>,
     pub strings: Vec<StringIndex>,
     pub symbols: Vec<SymbolIndex>,
+    pub typed_arrays: Vec<TypedArrayIndex>,
+    pub weak_maps: Vec<WeakMapIndex>,
+    pub weak_refs: Vec<WeakRefIndex>,
+    pub weak_sets: Vec<WeakSetIndex>,
 }
 
 impl HeapBits {
     pub fn new(heap: &Heap) -> Self {
-        let modules = vec![false; heap.modules.len()];
-        let scripts = vec![false; heap.scripts.len()];
-        let realms = vec![false; heap.realms.len()];
+        let array_buffers = vec![false; heap.array_buffers.len()];
+        let arrays = vec![false; heap.arrays.len()];
+        let bigints = vec![false; heap.bigints.len()];
+        let bound_functions = vec![false; heap.bound_functions.len()];
+        let builtin_functions = vec![false; heap.builtin_functions.len()];
+        let data_views = vec![false; heap.data_views.len()];
+        let dates = vec![false; heap.dates.len()];
         let declarative_environments = vec![false; heap.environments.declarative.len()];
-        let function_environments = vec![false; heap.environments.function.len()];
-        let global_environments = vec![false; heap.environments.global.len()];
-        let object_environments = vec![false; heap.environments.object.len()];
-        let e_2_4 = vec![(false, 0u8); heap.elements.e2pow4.values.len()];
-        let e_2_6 = vec![(false, 0u8); heap.elements.e2pow6.values.len()];
-        let e_2_8 = vec![(false, 0u8); heap.elements.e2pow8.values.len()];
         let e_2_10 = vec![(false, 0u16); heap.elements.e2pow10.values.len()];
         let e_2_12 = vec![(false, 0u16); heap.elements.e2pow12.values.len()];
         let e_2_16 = vec![(false, 0u16); heap.elements.e2pow16.values.len()];
         let e_2_24 = vec![(false, 0u32); heap.elements.e2pow24.values.len()];
         let e_2_32 = vec![(false, 0u32); heap.elements.e2pow32.values.len()];
-        let arrays = vec![false; heap.arrays.len()];
-        let array_buffers = vec![false; heap.array_buffers.len()];
-        let bigints = vec![false; heap.bigints.len()];
-        let errors = vec![false; heap.errors.len()];
-        let bound_functions = vec![false; heap.bound_functions.len()];
-        let builtin_functions = vec![false; heap.builtin_functions.len()];
+        let e_2_4 = vec![(false, 0u8); heap.elements.e2pow4.values.len()];
+        let e_2_6 = vec![(false, 0u8); heap.elements.e2pow6.values.len()];
+        let e_2_8 = vec![(false, 0u8); heap.elements.e2pow8.values.len()];
         let ecmascript_functions = vec![false; heap.ecmascript_functions.len()];
-        let dates = vec![false; heap.dates.len()];
+        let embedder_objects = vec![false; heap.embedder_objects.len()];
+        let errors = vec![false; heap.errors.len()];
+        let finalization_registrys = vec![false; heap.finalization_registrys.len()];
+        let function_environments = vec![false; heap.environments.function.len()];
+        let global_environments = vec![false; heap.environments.global.len()];
         let maps = vec![false; heap.maps.len()];
+        let modules = vec![false; heap.modules.len()];
         let numbers = vec![false; heap.numbers.len()];
+        let object_environments = vec![false; heap.environments.object.len()];
         let objects = vec![false; heap.objects.len()];
         let primitive_objects = vec![false; heap.primitive_objects.len()];
+        let promises = vec![false; heap.promises.len()];
+        let proxys = vec![false; heap.proxys.len()];
+        let realms = vec![false; heap.realms.len()];
         let regexps = vec![false; heap.regexps.len()];
+        let scripts = vec![false; heap.scripts.len()];
         let sets = vec![false; heap.sets.len()];
+        let shared_array_buffers = vec![false; heap.shared_array_buffers.len()];
         let strings = vec![false; heap.strings.len()];
         let symbols = vec![false; heap.symbols.len()];
+        let typed_arrays = vec![false; heap.typed_arrays.len()];
+        let weak_maps = vec![false; heap.weak_maps.len()];
+        let weak_refs = vec![false; heap.weak_refs.len()];
+        let weak_sets = vec![false; heap.weak_sets.len()];
         Self {
-            modules: modules.into_boxed_slice(),
-            scripts: scripts.into_boxed_slice(),
-            realms: realms.into_boxed_slice(),
+            array_buffers: array_buffers.into_boxed_slice(),
+            arrays: arrays.into_boxed_slice(),
+            bigints: bigints.into_boxed_slice(),
+            bound_functions: bound_functions.into_boxed_slice(),
+            builtin_functions: builtin_functions.into_boxed_slice(),
+            data_views: data_views.into_boxed_slice(),
+            dates: dates.into_boxed_slice(),
             declarative_environments: declarative_environments.into_boxed_slice(),
-            function_environments: function_environments.into_boxed_slice(),
-            global_environments: global_environments.into_boxed_slice(),
-            object_environments: object_environments.into_boxed_slice(),
-            e_2_4: e_2_4.into_boxed_slice(),
-            e_2_6: e_2_6.into_boxed_slice(),
-            e_2_8: e_2_8.into_boxed_slice(),
             e_2_10: e_2_10.into_boxed_slice(),
             e_2_12: e_2_12.into_boxed_slice(),
             e_2_16: e_2_16.into_boxed_slice(),
             e_2_24: e_2_24.into_boxed_slice(),
             e_2_32: e_2_32.into_boxed_slice(),
-            errors: errors.into_boxed_slice(),
-            arrays: arrays.into_boxed_slice(),
-            array_buffers: array_buffers.into_boxed_slice(),
-            bigints: bigints.into_boxed_slice(),
-            bound_functions: bound_functions.into_boxed_slice(),
-            builtin_functions: builtin_functions.into_boxed_slice(),
+            e_2_4: e_2_4.into_boxed_slice(),
+            e_2_6: e_2_6.into_boxed_slice(),
+            e_2_8: e_2_8.into_boxed_slice(),
             ecmascript_functions: ecmascript_functions.into_boxed_slice(),
-            dates: dates.into_boxed_slice(),
-            numbers: numbers.into_boxed_slice(),
+            embedder_objects: embedder_objects.into_boxed_slice(),
+            errors: errors.into_boxed_slice(),
+            finalization_registrys: finalization_registrys.into_boxed_slice(),
+            function_environments: function_environments.into_boxed_slice(),
+            global_environments: global_environments.into_boxed_slice(),
             maps: maps.into_boxed_slice(),
+            modules: modules.into_boxed_slice(),
+            numbers: numbers.into_boxed_slice(),
+            object_environments: object_environments.into_boxed_slice(),
             objects: objects.into_boxed_slice(),
             primitive_objects: primitive_objects.into_boxed_slice(),
+            promises: promises.into_boxed_slice(),
+            proxys: proxys.into_boxed_slice(),
+            realms: realms.into_boxed_slice(),
             regexps: regexps.into_boxed_slice(),
+            scripts: scripts.into_boxed_slice(),
             sets: sets.into_boxed_slice(),
+            shared_array_buffers: shared_array_buffers.into_boxed_slice(),
             strings: strings.into_boxed_slice(),
             symbols: symbols.into_boxed_slice(),
+            typed_arrays: typed_arrays.into_boxed_slice(),
+            weak_maps: weak_maps.into_boxed_slice(),
+            weak_refs: weak_refs.into_boxed_slice(),
+            weak_sets: weak_sets.into_boxed_slice(),
         }
     }
 }
@@ -178,37 +232,47 @@ impl HeapBits {
 impl WorkQueues {
     pub fn new(heap: &Heap) -> Self {
         Self {
-            modules: Vec::with_capacity(heap.modules.len() / 4),
-            scripts: Vec::with_capacity(heap.scripts.len() / 4),
-            realms: Vec::with_capacity(heap.realms.len() / 4),
+            array_buffers: Vec::with_capacity(heap.array_buffers.len() / 4),
+            arrays: Vec::with_capacity(heap.arrays.len() / 4),
+            bigints: Vec::with_capacity(heap.bigints.len() / 4),
+            bound_functions: Vec::with_capacity(heap.bound_functions.len() / 4),
+            builtin_functions: Vec::with_capacity(heap.builtin_functions.len() / 4),
+            data_views: Vec::with_capacity(heap.data_views.len() / 4),
+            dates: Vec::with_capacity(heap.dates.len() / 4),
             declarative_environments: Vec::with_capacity(heap.environments.declarative.len() / 4),
-            function_environments: Vec::with_capacity(heap.environments.function.len() / 4),
-            global_environments: Vec::with_capacity(heap.environments.global.len() / 4),
-            object_environments: Vec::with_capacity(heap.environments.object.len() / 4),
-            e_2_4: Vec::with_capacity(heap.elements.e2pow4.values.len() / 4),
-            e_2_6: Vec::with_capacity(heap.elements.e2pow6.values.len() / 4),
-            e_2_8: Vec::with_capacity(heap.elements.e2pow8.values.len() / 4),
             e_2_10: Vec::with_capacity(heap.elements.e2pow10.values.len() / 4),
             e_2_12: Vec::with_capacity(heap.elements.e2pow12.values.len() / 4),
             e_2_16: Vec::with_capacity(heap.elements.e2pow16.values.len() / 4),
             e_2_24: Vec::with_capacity(heap.elements.e2pow24.values.len() / 4),
             e_2_32: Vec::with_capacity(heap.elements.e2pow32.values.len() / 4),
-            arrays: Vec::with_capacity(heap.arrays.len() / 4),
-            array_buffers: Vec::with_capacity(heap.array_buffers.len() / 4),
-            bigints: Vec::with_capacity(heap.bigints.len() / 4),
-            errors: Vec::with_capacity(heap.errors.len() / 4),
-            bound_functions: Vec::with_capacity(heap.bound_functions.len() / 4),
-            builtin_functions: Vec::with_capacity(heap.builtin_functions.len() / 4),
+            e_2_4: Vec::with_capacity(heap.elements.e2pow4.values.len() / 4),
+            e_2_6: Vec::with_capacity(heap.elements.e2pow6.values.len() / 4),
+            e_2_8: Vec::with_capacity(heap.elements.e2pow8.values.len() / 4),
             ecmascript_functions: Vec::with_capacity(heap.ecmascript_functions.len() / 4),
-            dates: Vec::with_capacity(heap.dates.len() / 4),
+            embedder_objects: Vec::with_capacity(heap.embedder_objects.len() / 4),
+            errors: Vec::with_capacity(heap.errors.len() / 4),
+            finalization_registrys: Vec::with_capacity(heap.finalization_registrys.len() / 4),
+            function_environments: Vec::with_capacity(heap.environments.function.len() / 4),
+            global_environments: Vec::with_capacity(heap.environments.global.len() / 4),
             maps: Vec::with_capacity(heap.maps.len() / 4),
+            modules: Vec::with_capacity(heap.modules.len() / 4),
             numbers: Vec::with_capacity(heap.numbers.len() / 4),
+            object_environments: Vec::with_capacity(heap.environments.object.len() / 4),
             objects: Vec::with_capacity(heap.objects.len() / 4),
             primitive_objects: Vec::with_capacity(heap.primitive_objects.len() / 4),
+            promises: Vec::with_capacity(heap.promises.len() / 4),
+            proxys: Vec::with_capacity(heap.proxys.len() / 4),
+            realms: Vec::with_capacity(heap.realms.len() / 4),
             regexps: Vec::with_capacity(heap.regexps.len() / 4),
+            scripts: Vec::with_capacity(heap.scripts.len() / 4),
             sets: Vec::with_capacity(heap.sets.len() / 4),
+            shared_array_buffers: Vec::with_capacity(heap.shared_array_buffers.len() / 4),
             strings: Vec::with_capacity(heap.strings.len() / 4),
             symbols: Vec::with_capacity(heap.symbols.len() / 4),
+            typed_arrays: Vec::with_capacity(heap.typed_arrays.len() / 4),
+            weak_maps: Vec::with_capacity(heap.weak_maps.len() / 4),
+            weak_refs: Vec::with_capacity(heap.weak_refs.len() / 4),
+            weak_sets: Vec::with_capacity(heap.weak_sets.len() / 4),
         }
     }
 
@@ -236,27 +300,27 @@ impl WorkQueues {
             Value::Float(_) => {}
             Value::PrimitiveObject(idx) => self.primitive_objects.push(idx),
             Value::Arguments => todo!(),
-            Value::DataView => todo!(),
-            Value::FinalizationRegistry => todo!(),
-            Value::Map(_) => todo!(),
-            Value::Proxy => todo!(),
-            Value::Promise => todo!(),
-            Value::Set(_) => todo!(),
-            Value::SharedArrayBuffer => todo!(),
-            Value::WeakMap => todo!(),
-            Value::WeakRef => todo!(),
-            Value::WeakSet => todo!(),
-            Value::Int8Array => todo!(),
-            Value::Uint8Array => todo!(),
-            Value::Uint8ClampedArray => todo!(),
-            Value::Int16Array => todo!(),
-            Value::Uint16Array => todo!(),
-            Value::Int32Array => todo!(),
-            Value::Uint32Array => todo!(),
-            Value::BigInt64Array => todo!(),
-            Value::BigUint64Array => todo!(),
-            Value::Float32Array => todo!(),
-            Value::Float64Array => todo!(),
+            Value::DataView(idx) => self.data_views.push(idx),
+            Value::FinalizationRegistry(idx) => self.finalization_registrys.push(idx),
+            Value::Map(idx) => self.maps.push(idx),
+            Value::Proxy(idx) => self.proxys.push(idx),
+            Value::Promise(idx) => self.promises.push(idx),
+            Value::Set(idx) => self.sets.push(idx),
+            Value::SharedArrayBuffer(idx) => self.shared_array_buffers.push(idx),
+            Value::WeakMap(idx) => self.weak_maps.push(idx),
+            Value::WeakRef(idx) => self.weak_refs.push(idx),
+            Value::WeakSet(idx) => self.weak_sets.push(idx),
+            Value::Int8Array(idx) => self.typed_arrays.push(idx),
+            Value::Uint8Array(idx) => self.typed_arrays.push(idx),
+            Value::Uint8ClampedArray(idx) => self.typed_arrays.push(idx),
+            Value::Int16Array(idx) => self.typed_arrays.push(idx),
+            Value::Uint16Array(idx) => self.typed_arrays.push(idx),
+            Value::Int32Array(idx) => self.typed_arrays.push(idx),
+            Value::Uint32Array(idx) => self.typed_arrays.push(idx),
+            Value::BigInt64Array(idx) => self.typed_arrays.push(idx),
+            Value::BigUint64Array(idx) => self.typed_arrays.push(idx),
+            Value::Float32Array(idx) => self.typed_arrays.push(idx),
+            Value::Float64Array(idx) => self.typed_arrays.push(idx),
             Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction => todo!(),
             Value::BuiltinPromiseResolveFunction => todo!(),
@@ -270,8 +334,8 @@ impl WorkQueues {
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
-            Value::Module => todo!(),
-            Value::EmbedderObject => todo!(),
+            Value::Module(_) => todo!(),
+            Value::EmbedderObject(_) => todo!(),
         }
     }
 
@@ -939,27 +1003,27 @@ impl HeapMarkAndSweep<()> for Value {
             Value::RegExp(idx) => idx.mark_values(queues, ()),
             Value::PrimitiveObject(idx) => idx.mark_values(queues, ()),
             Value::Arguments => todo!(),
-            Value::DataView => todo!(),
-            Value::FinalizationRegistry => todo!(),
+            Value::DataView(_) => todo!(),
+            Value::FinalizationRegistry(_) => todo!(),
             Value::Map(_) => todo!(),
-            Value::Proxy => todo!(),
-            Value::Promise => todo!(),
+            Value::Proxy(_) => todo!(),
+            Value::Promise(_) => todo!(),
             Value::Set(_) => todo!(),
-            Value::SharedArrayBuffer => todo!(),
-            Value::WeakMap => todo!(),
-            Value::WeakRef => todo!(),
-            Value::WeakSet => todo!(),
-            Value::Int8Array => todo!(),
-            Value::Uint8Array => todo!(),
-            Value::Uint8ClampedArray => todo!(),
-            Value::Int16Array => todo!(),
-            Value::Uint16Array => todo!(),
-            Value::Int32Array => todo!(),
-            Value::Uint32Array => todo!(),
-            Value::BigInt64Array => todo!(),
-            Value::BigUint64Array => todo!(),
-            Value::Float32Array => todo!(),
-            Value::Float64Array => todo!(),
+            Value::SharedArrayBuffer(_) => todo!(),
+            Value::WeakMap(_) => todo!(),
+            Value::WeakRef(_) => todo!(),
+            Value::WeakSet(_) => todo!(),
+            Value::Int8Array(_) => todo!(),
+            Value::Uint8Array(_) => todo!(),
+            Value::Uint8ClampedArray(_) => todo!(),
+            Value::Int16Array(_) => todo!(),
+            Value::Uint16Array(_) => todo!(),
+            Value::Int32Array(_) => todo!(),
+            Value::Uint32Array(_) => todo!(),
+            Value::BigInt64Array(_) => todo!(),
+            Value::BigUint64Array(_) => todo!(),
+            Value::Float32Array(_) => todo!(),
+            Value::Float64Array(_) => todo!(),
             Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction => todo!(),
             Value::BuiltinPromiseResolveFunction => todo!(),
@@ -973,8 +1037,8 @@ impl HeapMarkAndSweep<()> for Value {
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
-            Value::Module => todo!(),
-            Value::EmbedderObject => todo!(),
+            Value::Module(_) => todo!(),
+            Value::EmbedderObject(_) => todo!(),
         }
     }
 
@@ -1004,27 +1068,27 @@ impl HeapMarkAndSweep<()> for Value {
             Value::RegExp(idx) => idx.sweep_values(compactions, ()),
             Value::PrimitiveObject(idx) => idx.sweep_values(compactions, ()),
             Value::Arguments => todo!(),
-            Value::DataView => todo!(),
-            Value::FinalizationRegistry => todo!(),
+            Value::DataView(_) => todo!(),
+            Value::FinalizationRegistry(_) => todo!(),
             Value::Map(_) => todo!(),
-            Value::Proxy => todo!(),
-            Value::Promise => todo!(),
+            Value::Proxy(_) => todo!(),
+            Value::Promise(_) => todo!(),
             Value::Set(_) => todo!(),
-            Value::SharedArrayBuffer => todo!(),
-            Value::WeakMap => todo!(),
-            Value::WeakRef => todo!(),
-            Value::WeakSet => todo!(),
-            Value::Int8Array => todo!(),
-            Value::Uint8Array => todo!(),
-            Value::Uint8ClampedArray => todo!(),
-            Value::Int16Array => todo!(),
-            Value::Uint16Array => todo!(),
-            Value::Int32Array => todo!(),
-            Value::Uint32Array => todo!(),
-            Value::BigInt64Array => todo!(),
-            Value::BigUint64Array => todo!(),
-            Value::Float32Array => todo!(),
-            Value::Float64Array => todo!(),
+            Value::SharedArrayBuffer(_) => todo!(),
+            Value::WeakMap(_) => todo!(),
+            Value::WeakRef(_) => todo!(),
+            Value::WeakSet(_) => todo!(),
+            Value::Int8Array(_) => todo!(),
+            Value::Uint8Array(_) => todo!(),
+            Value::Uint8ClampedArray(_) => todo!(),
+            Value::Int16Array(_) => todo!(),
+            Value::Uint16Array(_) => todo!(),
+            Value::Int32Array(_) => todo!(),
+            Value::Uint32Array(_) => todo!(),
+            Value::BigInt64Array(_) => todo!(),
+            Value::BigUint64Array(_) => todo!(),
+            Value::Float32Array(_) => todo!(),
+            Value::Float64Array(_) => todo!(),
             Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction => todo!(),
             Value::BuiltinPromiseResolveFunction => todo!(),
@@ -1038,8 +1102,8 @@ impl HeapMarkAndSweep<()> for Value {
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
-            Value::Module => todo!(),
-            Value::EmbedderObject => todo!(),
+            Value::Module(_) => todo!(),
+            Value::EmbedderObject(_) => todo!(),
         }
     }
 }
@@ -1139,33 +1203,33 @@ impl HeapMarkAndSweep<()> for Object {
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(idx) => idx.mark_values(queues, ()),
             Object::Arguments => todo!(),
-            Object::DataView => todo!(),
-            Object::FinalizationRegistry => todo!(),
+            Object::DataView(_) => todo!(),
+            Object::FinalizationRegistry(_) => todo!(),
             Object::Map(_) => todo!(),
-            Object::Promise => todo!(),
-            Object::Proxy => todo!(),
+            Object::Promise(_) => todo!(),
+            Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
             Object::Set(_) => todo!(),
-            Object::SharedArrayBuffer => todo!(),
-            Object::WeakMap => todo!(),
-            Object::WeakRef => todo!(),
-            Object::WeakSet => todo!(),
-            Object::Int8Array => todo!(),
-            Object::Uint8Array => todo!(),
-            Object::Uint8ClampedArray => todo!(),
-            Object::Int16Array => todo!(),
-            Object::Uint16Array => todo!(),
-            Object::Int32Array => todo!(),
-            Object::Uint32Array => todo!(),
-            Object::BigInt64Array => todo!(),
-            Object::BigUint64Array => todo!(),
-            Object::Float32Array => todo!(),
-            Object::Float64Array => todo!(),
+            Object::SharedArrayBuffer(_) => todo!(),
+            Object::WeakMap(_) => todo!(),
+            Object::WeakRef(_) => todo!(),
+            Object::WeakSet(_) => todo!(),
+            Object::Int8Array(_) => todo!(),
+            Object::Uint8Array(_) => todo!(),
+            Object::Uint8ClampedArray(_) => todo!(),
+            Object::Int16Array(_) => todo!(),
+            Object::Uint16Array(_) => todo!(),
+            Object::Int32Array(_) => todo!(),
+            Object::Uint32Array(_) => todo!(),
+            Object::BigInt64Array(_) => todo!(),
+            Object::BigUint64Array(_) => todo!(),
+            Object::Float32Array(_) => todo!(),
+            Object::Float64Array(_) => todo!(),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module => todo!(),
-            Object::EmbedderObject => todo!(),
+            Object::Module(_) => todo!(),
+            Object::EmbedderObject(_) => todo!(),
         }
     }
 
@@ -1335,6 +1399,16 @@ impl HeapMarkAndSweep<()> for ECMAScriptFunctionHeapData {
     }
 }
 
+impl HeapMarkAndSweep<()> for DataViewHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
+    }
+}
+
 impl HeapMarkAndSweep<()> for DateHeapData {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
         self.object_index.mark_values(queues, ());
@@ -1343,6 +1417,12 @@ impl HeapMarkAndSweep<()> for DateHeapData {
     fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
         self.object_index.sweep_values(compactions, ());
     }
+}
+
+impl HeapMarkAndSweep<()> for EmbedderObjectHeapData {
+    fn mark_values(&self, _queues: &mut WorkQueues, _data: impl BorrowMut<()>) {}
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists, _data: impl Borrow<()>) {}
 }
 
 impl HeapMarkAndSweep<()> for ErrorHeapData {
@@ -1356,6 +1436,16 @@ impl HeapMarkAndSweep<()> for ErrorHeapData {
         self.object_index.sweep_values(compactions, ());
         self.message.sweep_values(compactions, ());
         self.cause.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for FinalizationRegistryHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
     }
 }
 
@@ -1401,6 +1491,26 @@ impl HeapMarkAndSweep<()> for NumberHeapData {
     fn sweep_values(&mut self, _compactions: &CompactionLists, _data: impl Borrow<()>) {}
 }
 
+impl HeapMarkAndSweep<()> for PromiseHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for ProxyHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
+    }
+}
+
 impl HeapMarkAndSweep<()> for RegExpHeapData {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
         self.object_index.mark_values(queues, ());
@@ -1427,6 +1537,16 @@ impl HeapMarkAndSweep<()> for SetHeapData {
     }
 }
 
+impl HeapMarkAndSweep<()> for SharedArrayBufferHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
+    }
+}
+
 impl HeapMarkAndSweep<()> for StringHeapData {
     fn mark_values(&self, _queues: &mut WorkQueues, _data: impl BorrowMut<()>) {}
 
@@ -1443,6 +1563,46 @@ impl HeapMarkAndSweep<()> for SymbolHeapData {
     }
 }
 
+impl HeapMarkAndSweep<()> for TypedArrayHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for WeakMapHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for WeakSetHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
+    }
+}
+
+impl HeapMarkAndSweep<()> for WeakRefHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
+        self.object_index.mark_values(queues, ());
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
+        self.object_index.sweep_values(compactions, ());
+    }
+}
+
 impl HeapMarkAndSweep<()> for ModuleIdentifier {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
         queues.modules.push(*self);
@@ -1454,7 +1614,7 @@ impl HeapMarkAndSweep<()> for ModuleIdentifier {
     }
 }
 
-impl HeapMarkAndSweep<()> for Module {
+impl HeapMarkAndSweep<()> for ModuleHeapData {
     fn mark_values(&self, _queues: &mut WorkQueues, _data: impl BorrowMut<()>) {}
 
     fn sweep_values(&mut self, _compactions: &CompactionLists, _data: impl Borrow<()>) {}

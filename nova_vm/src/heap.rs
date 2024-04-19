@@ -29,12 +29,23 @@ use self::{
 };
 use crate::ecmascript::{
     builtins::{
+        data_view::data::DataViewHeapData,
         date::{data::DateHeapData, Date},
+        embedder_object::data::EmbedderObjectHeapData,
         error::{Error, ErrorHeapData},
+        finalization_registry::data::FinalizationRegistryHeapData,
         map::data::MapHeapData,
+        module::data::ModuleHeapData,
         primitive_objects::PrimitiveObjectHeapData,
+        promise::data::PromiseHeapData,
+        proxy::data::ProxyHeapData,
         regexp::RegExpHeapData,
         set::data::SetHeapData,
+        shared_array_buffer::data::SharedArrayBufferHeapData,
+        typed_array::data::TypedArrayHeapData,
+        weak_map::data::WeakMapHeapData,
+        weak_ref::data::WeakRefHeapData,
+        weak_set::data::WeakSetHeapData,
     },
     types::BUILTIN_STRINGS_LIST,
 };
@@ -42,7 +53,7 @@ use crate::ecmascript::{
     builtins::{ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
     execution::{Environments, Realm, RealmIdentifier},
     scripts_and_modules::{
-        module::{Module, ModuleIdentifier},
+        module::ModuleIdentifier,
         script::{Script, ScriptIdentifier},
     },
     types::{
@@ -54,31 +65,41 @@ use crate::ecmascript::{
 
 #[derive(Debug)]
 pub struct Heap {
-    pub modules: Vec<Option<Module>>,
-    pub realms: Vec<Option<Realm>>,
-    pub scripts: Vec<Option<Script>>,
-    pub environments: Environments,
+    pub array_buffers: Vec<Option<ArrayBufferHeapData>>,
+    pub arrays: Vec<Option<ArrayHeapData>>,
+    pub bigints: Vec<Option<BigIntHeapData>>,
+    pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
+    pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
+    pub data_views: Vec<Option<DataViewHeapData>>,
+    pub dates: Vec<Option<DateHeapData>>,
+    pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,
     /// ElementsArrays is where all element arrays live;
     /// Element arrays are static arrays of Values plus
     /// a HashMap of possible property descriptors.
     pub elements: ElementArrays,
-    pub arrays: Vec<Option<ArrayHeapData>>,
-    pub array_buffers: Vec<Option<ArrayBufferHeapData>>,
-    pub bigints: Vec<Option<BigIntHeapData>>,
+    pub embedder_objects: Vec<Option<EmbedderObjectHeapData>>,
+    pub environments: Environments,
     pub errors: Vec<Option<ErrorHeapData>>,
-    pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
-    pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
-    pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,
-    pub dates: Vec<Option<DateHeapData>>,
+    pub finalization_registrys: Vec<Option<FinalizationRegistryHeapData>>,
     pub globals: Vec<Value>,
     pub maps: Vec<Option<MapHeapData>>,
+    pub modules: Vec<Option<ModuleHeapData>>,
     pub numbers: Vec<Option<NumberHeapData>>,
     pub objects: Vec<Option<ObjectHeapData>>,
-    pub(crate) primitive_objects: Vec<Option<PrimitiveObjectHeapData>>,
+    pub primitive_objects: Vec<Option<PrimitiveObjectHeapData>>,
+    pub promises: Vec<Option<PromiseHeapData>>,
+    pub proxys: Vec<Option<ProxyHeapData>>,
+    pub realms: Vec<Option<Realm>>,
     pub regexps: Vec<Option<RegExpHeapData>>,
+    pub scripts: Vec<Option<Script>>,
     pub sets: Vec<Option<SetHeapData>>,
+    pub shared_array_buffers: Vec<Option<SharedArrayBufferHeapData>>,
     pub strings: Vec<Option<StringHeapData>>,
     pub symbols: Vec<Option<SymbolHeapData>>,
+    pub typed_arrays: Vec<Option<TypedArrayHeapData>>,
+    pub weak_maps: Vec<Option<WeakMapHeapData>>,
+    pub weak_refs: Vec<Option<WeakSetHeapData>>,
+    pub weak_sets: Vec<Option<WeakRefHeapData>>,
 }
 
 pub trait CreateHeapData<T, F> {
@@ -170,10 +191,9 @@ macro_rules! impl_heap_data {
     };
 }
 
-impl_heap_data!(arrays, ArrayHeapData, ArrayHeapData);
 impl_heap_data!(array_buffers, ArrayBufferHeapData, ArrayBufferHeapData);
-impl_heap_data!(dates, DateHeapData, DateHeapData);
-impl_heap_data!(errors, ErrorHeapData, ErrorHeapData);
+impl_heap_data!(arrays, ArrayHeapData, ArrayHeapData);
+impl_heap_data!(bigints, BigIntHeapData, BigIntHeapData);
 impl_heap_data!(
     bound_functions,
     BoundFunctionHeapData,
@@ -184,10 +204,23 @@ impl_heap_data!(
     BuiltinFunctionHeapData,
     BuiltinFunctionHeapData
 );
+impl_heap_data!(data_views, DataViewHeapData, DataViewHeapData);
+impl_heap_data!(dates, DateHeapData, DateHeapData);
 impl_heap_data!(
     ecmascript_functions,
     ECMAScriptFunctionHeapData,
     ECMAScriptFunctionHeapData
+);
+impl_heap_data!(
+    embedder_objects,
+    EmbedderObjectHeapData,
+    EmbedderObjectHeapData
+);
+impl_heap_data!(errors, ErrorHeapData, ErrorHeapData);
+impl_heap_data!(
+    finalization_registrys,
+    FinalizationRegistryHeapData,
+    FinalizationRegistryHeapData
 );
 impl_heap_data!(maps, MapHeapData, MapHeapData);
 impl_heap_data!(numbers, NumberHeapData, f64, data);
@@ -197,10 +230,21 @@ impl_heap_data!(
     PrimitiveObjectHeapData,
     PrimitiveObjectHeapData
 );
+impl_heap_data!(promises, PromiseHeapData, PromiseHeapData);
+impl_heap_data!(proxys, ProxyHeapData, ProxyHeapData);
+impl_heap_data!(regexps, RegExpHeapData, RegExpHeapData);
 impl_heap_data!(sets, SetHeapData, SetHeapData);
+impl_heap_data!(
+    shared_array_buffers,
+    SharedArrayBufferHeapData,
+    SharedArrayBufferHeapData
+);
 impl_heap_data!(strings, StringHeapData, StringHeapData);
 impl_heap_data!(symbols, SymbolHeapData, SymbolHeapData);
-impl_heap_data!(bigints, BigIntHeapData, BigIntHeapData);
+impl_heap_data!(typed_arrays, TypedArrayHeapData, TypedArrayHeapData);
+impl_heap_data!(weak_maps, WeakMapHeapData, WeakMapHeapData);
+impl_heap_data!(weak_refs, WeakSetHeapData, WeakSetHeapData);
+impl_heap_data!(weak_sets, WeakRefHeapData, WeakRefHeapData);
 
 impl CreateHeapData<&str, String> for Heap {
     fn create(&mut self, data: &str) -> String {
@@ -276,10 +320,14 @@ impl CreateHeapData<BigIntHeapData, BigInt> for Heap {
 impl Heap {
     pub fn new() -> Heap {
         let mut heap = Heap {
-            modules: vec![],
-            realms: Vec::with_capacity(1),
-            scripts: Vec::with_capacity(1),
-            environments: Default::default(),
+            array_buffers: Vec::with_capacity(1024),
+            arrays: Vec::with_capacity(1024),
+            bigints: Vec::with_capacity(1024),
+            bound_functions: Vec::with_capacity(256),
+            builtin_functions: Vec::with_capacity(1024),
+            data_views: Vec::with_capacity(0),
+            dates: Vec::with_capacity(1024),
+            ecmascript_functions: Vec::with_capacity(1024),
             elements: ElementArrays {
                 e2pow4: ElementArray2Pow4::with_capacity(1024),
                 e2pow6: ElementArray2Pow6::with_capacity(1024),
@@ -290,23 +338,29 @@ impl Heap {
                 e2pow24: ElementArray2Pow24::default(),
                 e2pow32: ElementArray2Pow32::default(),
             },
-            arrays: Vec::with_capacity(1024),
-            array_buffers: Vec::with_capacity(1024),
-            bigints: Vec::with_capacity(1024),
+            embedder_objects: Vec::with_capacity(0),
+            environments: Default::default(),
             errors: Vec::with_capacity(1024),
-            bound_functions: Vec::with_capacity(256),
-            builtin_functions: Vec::with_capacity(1024),
-            ecmascript_functions: Vec::with_capacity(1024),
-            dates: Vec::with_capacity(1024),
+            finalization_registrys: Vec::with_capacity(0),
             globals: Vec::with_capacity(1024),
             maps: Vec::with_capacity(128),
+            modules: Vec::with_capacity(0),
             numbers: Vec::with_capacity(1024),
             objects: Vec::with_capacity(1024),
             primitive_objects: Vec::with_capacity(0),
+            promises: Vec::with_capacity(0),
+            proxys: Vec::with_capacity(0),
+            realms: Vec::with_capacity(1),
             regexps: Vec::with_capacity(1024),
+            scripts: Vec::with_capacity(1),
             sets: Vec::with_capacity(128),
+            shared_array_buffers: Vec::with_capacity(0),
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
+            typed_arrays: Vec::with_capacity(0),
+            weak_maps: Vec::with_capacity(0),
+            weak_refs: Vec::with_capacity(0),
+            weak_sets: Vec::with_capacity(0),
         };
 
         heap.strings.extend_from_slice(
@@ -317,7 +371,7 @@ impl Heap {
         heap
     }
 
-    pub(crate) fn add_module(&mut self, module: Module) -> ModuleIdentifier {
+    pub(crate) fn add_module(&mut self, module: ModuleHeapData) -> ModuleIdentifier {
         self.modules.push(Some(module));
         ModuleIdentifier::last(&self.modules)
     }
@@ -330,22 +384,6 @@ impl Heap {
     pub(crate) fn add_script(&mut self, script: Script) -> ScriptIdentifier {
         self.scripts.push(Some(script));
         ScriptIdentifier::last(&self.scripts)
-    }
-
-    pub(crate) fn get_module(&self, id: ModuleIdentifier) -> &Module {
-        self.modules
-            .get(id.into_index())
-            .expect("ModuleIdentifier did not match a Module")
-            .as_ref()
-            .expect("ModuleIdentifier matched a freed Module")
-    }
-
-    pub(crate) fn get_module_mut(&mut self, id: ModuleIdentifier) -> &mut Module {
-        self.modules
-            .get_mut(id.into_index())
-            .expect("ModuleIdentifier did not match a Module")
-            .as_mut()
-            .expect("ModuleIdentifier matched a freed Module")
     }
 
     pub(crate) fn get_realm(&self, id: RealmIdentifier) -> &Realm {

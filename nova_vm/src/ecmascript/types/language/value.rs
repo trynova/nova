@@ -6,12 +6,15 @@ use crate::{
             to_big_int, to_int32, to_number, to_numeric, to_uint32,
         },
         execution::{Agent, JsResult},
+        scripts_and_modules::module::ModuleIdentifier,
     },
     heap::{
         indexes::{
             ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
-            DateIndex, ECMAScriptFunctionIndex, ErrorIndex, MapIndex, NumberIndex, ObjectIndex,
-            PrimitiveObjectIndex, RegExpIndex, SetIndex, StringIndex, SymbolIndex,
+            DataViewIndex, DateIndex, ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex,
+            FinalizationRegistryIndex, MapIndex, NumberIndex, ObjectIndex, PrimitiveObjectIndex,
+            PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex,
+            SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
         },
         GetHeapData,
     },
@@ -81,32 +84,32 @@ pub enum Value {
     Arguments,
     Array(ArrayIndex),
     ArrayBuffer(ArrayBufferIndex),
-    DataView,
+    DataView(DataViewIndex),
     Date(DateIndex),
     Error(ErrorIndex),
-    FinalizationRegistry,
+    FinalizationRegistry(FinalizationRegistryIndex),
     Map(MapIndex),
-    Promise,
-    Proxy,
+    Promise(PromiseIndex),
+    Proxy(ProxyIndex),
     RegExp(RegExpIndex),
     Set(SetIndex),
-    SharedArrayBuffer,
-    WeakMap,
-    WeakRef,
-    WeakSet,
+    SharedArrayBuffer(SharedArrayBufferIndex),
+    WeakMap(WeakMapIndex),
+    WeakRef(WeakRefIndex),
+    WeakSet(WeakSetIndex),
 
     // TypedArrays
-    Int8Array,
-    Uint8Array,
-    Uint8ClampedArray,
-    Int16Array,
-    Uint16Array,
-    Int32Array,
-    Uint32Array,
-    BigInt64Array,
-    BigUint64Array,
-    Float32Array,
-    Float64Array,
+    Int8Array(TypedArrayIndex),
+    Uint8Array(TypedArrayIndex),
+    Uint8ClampedArray(TypedArrayIndex),
+    Int16Array(TypedArrayIndex),
+    Uint16Array(TypedArrayIndex),
+    Int32Array(TypedArrayIndex),
+    Uint32Array(TypedArrayIndex),
+    BigInt64Array(TypedArrayIndex),
+    BigUint64Array(TypedArrayIndex),
+    Float32Array(TypedArrayIndex),
+    Float64Array(TypedArrayIndex),
 
     // Iterator objects
     // TODO: Figure out if these are needed at all.
@@ -115,10 +118,10 @@ pub enum Value {
     Iterator,
 
     // ECMAScript Module
-    Module,
+    Module(ModuleIdentifier),
 
     // Embedder objects
-    EmbedderObject = 0x7f,
+    EmbedderObject(EmbedderObjectIndex) = 0x7f,
 }
 
 /// We want to guarantee that all handles to JS values are register sized. This
@@ -203,36 +206,57 @@ pub(crate) const PRIMITIVE_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::P
     PrimitiveObjectIndex::from_u32_index(0),
 ));
 pub(crate) const ARGUMENTS_DISCRIMINANT: u8 = value_discriminant(Value::Arguments);
-pub(crate) const DATA_VIEW_DISCRIMINANT: u8 = value_discriminant(Value::DataView);
-pub(crate) const FINALIZATION_REGISTRY_DISCRIMINANT: u8 =
-    value_discriminant(Value::FinalizationRegistry);
+pub(crate) const DATA_VIEW_DISCRIMINANT: u8 =
+    value_discriminant(Value::DataView(DataViewIndex::from_u32_index(0)));
+pub(crate) const FINALIZATION_REGISTRY_DISCRIMINANT: u8 = value_discriminant(
+    Value::FinalizationRegistry(FinalizationRegistryIndex::from_u32_index(0)),
+);
 pub(crate) const MAP_DISCRIMINANT: u8 = value_discriminant(Value::Map(MapIndex::from_u32_index(0)));
-pub(crate) const PROMISE_DISCRIMINANT: u8 = value_discriminant(Value::Promise);
-pub(crate) const PROXY_DISCRIMINANT: u8 = value_discriminant(Value::Proxy);
+pub(crate) const PROMISE_DISCRIMINANT: u8 =
+    value_discriminant(Value::Promise(PromiseIndex::from_u32_index(0)));
+pub(crate) const PROXY_DISCRIMINANT: u8 =
+    value_discriminant(Value::Proxy(ProxyIndex::from_u32_index(0)));
 pub(crate) const SET_DISCRIMINANT: u8 = value_discriminant(Value::Set(SetIndex::from_u32_index(0)));
-pub(crate) const SHARED_ARRAY_BUFFER_DISCRIMINANT: u8 =
-    value_discriminant(Value::SharedArrayBuffer);
-pub(crate) const WEAK_MAP_DISCRIMINANT: u8 = value_discriminant(Value::WeakMap);
-pub(crate) const WEAK_REF_DISCRIMINANT: u8 = value_discriminant(Value::WeakRef);
-pub(crate) const WEAK_SET_DISCRIMINANT: u8 = value_discriminant(Value::WeakSet);
-pub(crate) const INT_8_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Int8Array);
-pub(crate) const UINT_8_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Uint8Array);
+pub(crate) const SHARED_ARRAY_BUFFER_DISCRIMINANT: u8 = value_discriminant(
+    Value::SharedArrayBuffer(SharedArrayBufferIndex::from_u32_index(0)),
+);
+pub(crate) const WEAK_MAP_DISCRIMINANT: u8 =
+    value_discriminant(Value::WeakMap(WeakMapIndex::from_u32_index(0)));
+pub(crate) const WEAK_REF_DISCRIMINANT: u8 =
+    value_discriminant(Value::WeakRef(WeakRefIndex::from_u32_index(0)));
+pub(crate) const WEAK_SET_DISCRIMINANT: u8 =
+    value_discriminant(Value::WeakSet(WeakSetIndex::from_u32_index(0)));
+pub(crate) const INT_8_ARRAY_DISCRIMINANT: u8 =
+    value_discriminant(Value::Int8Array(TypedArrayIndex::from_u32_index(0)));
+pub(crate) const UINT_8_ARRAY_DISCRIMINANT: u8 =
+    value_discriminant(Value::Uint8Array(TypedArrayIndex::from_u32_index(0)));
 pub(crate) const UINT_8_CLAMPED_ARRAY_DISCRIMINANT: u8 =
-    value_discriminant(Value::Uint8ClampedArray);
-pub(crate) const INT_16_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Int16Array);
-pub(crate) const UINT_16_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Uint16Array);
-pub(crate) const INT_32_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Int32Array);
-pub(crate) const UINT_32_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Uint32Array);
-pub(crate) const BIGINT_64_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::BigInt64Array);
-pub(crate) const BIGUINT_64_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::BigUint64Array);
-pub(crate) const FLOAT_32_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Float32Array);
-pub(crate) const FLOAT_64_ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Float64Array);
+    value_discriminant(Value::Uint8ClampedArray(TypedArrayIndex::from_u32_index(0)));
+pub(crate) const INT_16_ARRAY_DISCRIMINANT: u8 =
+    value_discriminant(Value::Int16Array(TypedArrayIndex::from_u32_index(0)));
+pub(crate) const UINT_16_ARRAY_DISCRIMINANT: u8 =
+    value_discriminant(Value::Uint16Array(TypedArrayIndex::from_u32_index(0)));
+pub(crate) const INT_32_ARRAY_DISCRIMINANT: u8 =
+    value_discriminant(Value::Int32Array(TypedArrayIndex::from_u32_index(0)));
+pub(crate) const UINT_32_ARRAY_DISCRIMINANT: u8 =
+    value_discriminant(Value::Uint32Array(TypedArrayIndex::from_u32_index(0)));
+pub(crate) const BIGINT_64_ARRAY_DISCRIMINANT: u8 =
+    value_discriminant(Value::BigInt64Array(TypedArrayIndex::from_u32_index(0)));
+pub(crate) const BIGUINT_64_ARRAY_DISCRIMINANT: u8 =
+    value_discriminant(Value::BigUint64Array(TypedArrayIndex::from_u32_index(0)));
+pub(crate) const FLOAT_32_ARRAY_DISCRIMINANT: u8 =
+    value_discriminant(Value::Float32Array(TypedArrayIndex::from_u32_index(0)));
+pub(crate) const FLOAT_64_ARRAY_DISCRIMINANT: u8 =
+    value_discriminant(Value::Float64Array(TypedArrayIndex::from_u32_index(0)));
 pub(crate) const ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::AsyncFromSyncIterator);
 pub(crate) const ASYNC_ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::AsyncIterator);
 pub(crate) const ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::Iterator);
-pub(crate) const MODULE_DISCRIMINANT: u8 = value_discriminant(Value::Module);
-pub(crate) const EMBEDDER_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::EmbedderObject);
+pub(crate) const MODULE_DISCRIMINANT: u8 =
+    value_discriminant(Value::Module(ModuleIdentifier::from_u32(0)));
+pub(crate) const EMBEDDER_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::EmbedderObject(
+    EmbedderObjectIndex::from_u32_index(0),
+));
 
 impl Value {
     pub fn from_str(agent: &mut Agent, str: &str) -> Value {

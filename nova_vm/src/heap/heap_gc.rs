@@ -9,8 +9,11 @@ use super::{
     },
     indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
-        DateIndex, ECMAScriptFunctionIndex, ElementIndex, ErrorIndex, MapIndex, NumberIndex,
-        ObjectIndex, PrimitiveObjectIndex, RegExpIndex, SetIndex, StringIndex, SymbolIndex,
+        DataViewIndex, DateIndex, ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex,
+        ErrorIndex, FinalizationRegistryIndex, MapIndex, NumberIndex, ObjectIndex,
+        PrimitiveObjectIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex,
+        SharedArrayBufferIndex, StringIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
+        WeakRefIndex, WeakSetIndex,
     },
     Heap,
 };
@@ -41,28 +44,38 @@ pub fn heap_gc(heap: &mut Heap) {
 
     while !queues.is_empty() {
         let Heap {
-            modules,
-            realms,
-            scripts,
-            environments,
-            elements,
-            arrays,
             array_buffers,
+            arrays,
             bigints,
-            errors,
             bound_functions,
             builtin_functions,
-            ecmascript_functions,
+            data_views,
             dates,
+            ecmascript_functions,
+            elements,
+            embedder_objects,
+            environments,
+            errors,
+            finalization_registrys,
             globals: _,
             maps,
+            modules,
             numbers,
             objects,
             primitive_objects,
+            promises,
+            proxys,
+            realms,
             regexps,
+            scripts,
             sets,
+            shared_array_buffers,
             strings,
             symbols,
+            typed_arrays,
+            weak_maps,
+            weak_refs,
+            weak_sets,
         } = heap;
         let Environments {
             declarative: declarative_environments,
@@ -276,6 +289,19 @@ pub fn heap_gc(heap: &mut Heap) {
                 builtin_functions.get(index).mark_values(&mut queues, ());
             }
         });
+        let mut data_view_marks: Box<[DataViewIndex]> = queues.data_views.drain(..).collect();
+        data_view_marks.sort();
+        data_view_marks.iter().for_each(|&idx| {
+            let index = idx.into_index();
+            if let Some(marked) = bits.data_views.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                data_views.get(index).mark_values(&mut queues, ());
+            }
+        });
         let mut date_marks: Box<[DateIndex]> = queues.dates.drain(..).collect();
         date_marks.sort();
         date_marks.iter().for_each(|&idx| {
@@ -289,6 +315,36 @@ pub fn heap_gc(heap: &mut Heap) {
                 dates.get(index).mark_values(&mut queues, ());
             }
         });
+        let mut embedder_object_marks: Box<[EmbedderObjectIndex]> =
+            queues.embedder_objects.drain(..).collect();
+        embedder_object_marks.sort();
+        embedder_object_marks.iter().for_each(|&idx| {
+            let index = idx.into_index();
+            if let Some(marked) = bits.embedder_objects.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                embedder_objects.get(index).mark_values(&mut queues, ());
+            }
+        });
+        let mut finalization_registry_marks: Box<[FinalizationRegistryIndex]> =
+            queues.finalization_registrys.drain(..).collect();
+        finalization_registry_marks.sort();
+        finalization_registry_marks.iter().for_each(|&idx| {
+            let index = idx.into_index();
+            if let Some(marked) = bits.finalization_registrys.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                finalization_registrys
+                    .get(index)
+                    .mark_values(&mut queues, ());
+            }
+        });
         let mut object_marks: Box<[ObjectIndex]> = queues.objects.drain(..).collect();
         object_marks.sort();
         object_marks.iter().for_each(|&idx| {
@@ -300,6 +356,32 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 objects.get(index).mark_values(&mut queues, ());
+            }
+        });
+        let mut promise_marks: Box<[PromiseIndex]> = queues.promises.drain(..).collect();
+        promise_marks.sort();
+        promise_marks.iter().for_each(|&idx| {
+            let index = idx.into_index();
+            if let Some(marked) = bits.promises.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                promises.get(index).mark_values(&mut queues, ());
+            }
+        });
+        let mut proxy_marks: Box<[ProxyIndex]> = queues.proxys.drain(..).collect();
+        proxy_marks.sort();
+        proxy_marks.iter().for_each(|&idx| {
+            let index = idx.into_index();
+            if let Some(marked) = bits.proxys.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                proxys.get(index).mark_values(&mut queues, ());
             }
         });
         let mut map_marks: Box<[MapIndex]> = queues.maps.drain(..).collect();
@@ -368,6 +450,20 @@ pub fn heap_gc(heap: &mut Heap) {
                 sets.get(index).mark_values(&mut queues, ());
             }
         });
+        let mut shared_array_buffer_marks: Box<[SharedArrayBufferIndex]> =
+            queues.shared_array_buffers.drain(..).collect();
+        shared_array_buffer_marks.sort();
+        shared_array_buffer_marks.iter().for_each(|&idx| {
+            let index = idx.into_index();
+            if let Some(marked) = bits.shared_array_buffers.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                shared_array_buffers.get(index).mark_values(&mut queues, ());
+            }
+        });
         let mut string_marks: Box<[StringIndex]> = queues.strings.drain(..).collect();
         string_marks.sort();
         string_marks.iter().for_each(|&idx| {
@@ -392,6 +488,59 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 symbols.get(index).mark_values(&mut queues, ());
+            }
+        });
+        let mut typed_arrays_marks: Box<[TypedArrayIndex]> =
+            queues.typed_arrays.drain(..).collect();
+        typed_arrays_marks.sort();
+        typed_arrays_marks.iter().for_each(|&idx| {
+            let index = idx.into_index();
+            if let Some(marked) = bits.typed_arrays.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                typed_arrays.get(index).mark_values(&mut queues, ());
+            }
+        });
+        let mut weak_map_marks: Box<[WeakMapIndex]> = queues.weak_maps.drain(..).collect();
+        weak_map_marks.sort();
+        weak_map_marks.iter().for_each(|&idx| {
+            let index = idx.into_index();
+            if let Some(marked) = bits.weak_maps.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                weak_maps.get(index).mark_values(&mut queues, ());
+            }
+        });
+        let mut weak_ref_marks: Box<[WeakRefIndex]> = queues.weak_refs.drain(..).collect();
+        weak_ref_marks.sort();
+        weak_ref_marks.iter().for_each(|&idx| {
+            let index = idx.into_index();
+            if let Some(marked) = bits.weak_refs.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                weak_refs.get(index).mark_values(&mut queues, ());
+            }
+        });
+        let mut weak_set_marks: Box<[WeakSetIndex]> = queues.weak_sets.drain(..).collect();
+        weak_set_marks.sort();
+        weak_set_marks.iter().for_each(|&idx| {
+            let index = idx.into_index();
+            if let Some(marked) = bits.weak_sets.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                weak_sets.get(index).mark_values(&mut queues, ());
             }
         });
         let mut e_2_4_marks: Box<[(ElementIndex, u32)]> = queues.e_2_4.drain(..).collect();
@@ -531,28 +680,38 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
     let compactions = CompactionLists::create_from_bits(bits);
 
     let Heap {
-        modules,
-        realms,
-        scripts,
-        environments,
-        elements,
-        arrays,
         array_buffers,
+        arrays,
         bigints,
-        errors,
         bound_functions,
         builtin_functions,
-        ecmascript_functions,
+        data_views,
         dates,
+        ecmascript_functions,
+        elements,
+        embedder_objects,
+        environments,
+        errors,
+        finalization_registrys,
         globals,
         maps,
+        modules,
         numbers,
         objects,
         primitive_objects,
+        promises,
+        proxys,
+        realms,
         regexps,
+        scripts,
         sets,
+        shared_array_buffers,
         strings,
         symbols,
+        typed_arrays,
+        weak_maps,
+        weak_refs,
+        weak_sets,
     } = heap;
     let Environments {
         declarative,
@@ -573,13 +732,9 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
 
     thread::scope(|s| {
         s.spawn(|| {
-            sweep_heap_u8_elements_vector_values(&mut e2pow4.values, &compactions, &bits.e_2_4);
-        });
-        s.spawn(|| {
-            sweep_heap_u8_elements_vector_values(&mut e2pow6.values, &compactions, &bits.e_2_6);
-        });
-        s.spawn(|| {
-            sweep_heap_u8_elements_vector_values(&mut e2pow8.values, &compactions, &bits.e_2_8);
+            for value in globals {
+                value.sweep_values(&compactions, ());
+            }
         });
         s.spawn(|| {
             sweep_heap_u16_elements_vector_values(&mut e2pow10.values, &compactions, &bits.e_2_10);
@@ -597,25 +752,22 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
             sweep_heap_u32_elements_vector_values(&mut e2pow32.values, &compactions, &bits.e_2_32);
         });
         s.spawn(|| {
-            sweep_heap_vector_values(modules, &compactions, &bits.modules);
+            sweep_heap_u8_elements_vector_values(&mut e2pow4.values, &compactions, &bits.e_2_4);
         });
         s.spawn(|| {
-            sweep_heap_vector_values(realms, &compactions, &bits.realms);
+            sweep_heap_u8_elements_vector_values(&mut e2pow6.values, &compactions, &bits.e_2_6);
         });
         s.spawn(|| {
-            sweep_heap_vector_values(scripts, &compactions, &bits.scripts);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(arrays, &compactions, &bits.arrays);
+            sweep_heap_u8_elements_vector_values(&mut e2pow8.values, &compactions, &bits.e_2_8);
         });
         s.spawn(|| {
             sweep_heap_vector_values(array_buffers, &compactions, &bits.array_buffers);
         });
         s.spawn(|| {
-            sweep_heap_vector_values(bigints, &compactions, &bits.bigints);
+            sweep_heap_vector_values(arrays, &compactions, &bits.arrays);
         });
         s.spawn(|| {
-            sweep_heap_vector_values(errors, &compactions, &bits.errors);
+            sweep_heap_vector_values(bigints, &compactions, &bits.bigints);
         });
         s.spawn(|| {
             sweep_heap_vector_values(bound_functions, &compactions, &bits.bound_functions);
@@ -624,16 +776,13 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
             sweep_heap_vector_values(builtin_functions, &compactions, &bits.builtin_functions);
         });
         s.spawn(|| {
+            sweep_heap_vector_values(data_views, &compactions, &bits.data_views);
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(dates, &compactions, &bits.dates);
+        });
+        s.spawn(|| {
             sweep_heap_vector_values(declarative, &compactions, &bits.declarative_environments);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(function, &compactions, &bits.function_environments);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(global, &compactions, &bits.global_environments);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(object, &compactions, &bits.object_environments);
         });
         s.spawn(|| {
             sweep_heap_vector_values(
@@ -643,18 +792,35 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
             );
         });
         s.spawn(|| {
-            sweep_heap_vector_values(dates, &compactions, &bits.dates);
+            sweep_heap_vector_values(embedder_objects, &compactions, &bits.embedder_objects);
         });
         s.spawn(|| {
-            for value in globals {
-                value.sweep_values(&compactions, ());
-            }
+            sweep_heap_vector_values(errors, &compactions, &bits.errors);
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(
+                finalization_registrys,
+                &compactions,
+                &bits.finalization_registrys,
+            );
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(function, &compactions, &bits.function_environments);
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(global, &compactions, &bits.global_environments);
         });
         s.spawn(|| {
             sweep_heap_vector_values(maps, &compactions, &bits.maps);
         });
         s.spawn(|| {
+            sweep_heap_vector_values(modules, &compactions, &bits.modules);
+        });
+        s.spawn(|| {
             sweep_heap_vector_values(numbers, &compactions, &bits.numbers);
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(object, &compactions, &bits.object_environments);
         });
         s.spawn(|| {
             sweep_heap_vector_values(objects, &compactions, &bits.objects);
@@ -663,16 +829,47 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
             sweep_heap_vector_values(primitive_objects, &compactions, &bits.primitive_objects);
         });
         s.spawn(|| {
+            sweep_heap_vector_values(promises, &compactions, &bits.promises);
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(proxys, &compactions, &bits.proxys);
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(realms, &compactions, &bits.realms);
+        });
+        s.spawn(|| {
             sweep_heap_vector_values(regexps, &compactions, &bits.regexps);
         });
         s.spawn(|| {
+            sweep_heap_vector_values(scripts, &compactions, &bits.scripts);
+        });
+        s.spawn(|| {
             sweep_heap_vector_values(sets, &compactions, &bits.sets);
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(
+                shared_array_buffers,
+                &compactions,
+                &bits.shared_array_buffers,
+            );
         });
         s.spawn(|| {
             sweep_heap_vector_values(strings, &compactions, &bits.strings);
         });
         s.spawn(|| {
             sweep_heap_vector_values(symbols, &compactions, &bits.symbols);
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(typed_arrays, &compactions, &bits.typed_arrays);
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(weak_maps, &compactions, &bits.weak_maps);
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(weak_refs, &compactions, &bits.weak_refs);
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(weak_sets, &compactions, &bits.weak_sets);
         });
     });
 }
