@@ -19,6 +19,16 @@ pub struct ArrayBufferHeapData {
     // detach_key
 }
 
+impl Default for ArrayBufferHeapData {
+    #[inline(always)]
+    fn default() -> Self {
+        Self {
+            object_index: None,
+            buffer: InternalBuffer::Detached,
+        }
+    }
+}
+
 unsafe impl Send for ArrayBufferHeapData {}
 
 impl ArrayBufferHeapData {

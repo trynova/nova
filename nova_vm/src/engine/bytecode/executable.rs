@@ -150,7 +150,7 @@ impl Executable {
 
     fn _push_instruction(&mut self, instruction: Instruction) {
         self.instructions
-            .push(unsafe { std::mem::transmute(instruction) });
+            .push(unsafe { std::mem::transmute::<Instruction, u8>(instruction) });
     }
 
     fn add_instruction(&mut self, instruction: Instruction) {

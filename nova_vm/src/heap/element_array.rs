@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ElementArrayKey {
+    Empty,
     /// up to 16 elements
     E4,
     /// up to 64 elements
@@ -60,6 +61,7 @@ pub struct ElementsVector {
 impl ElementsVector {
     pub fn cap(&self) -> u32 {
         match self.cap {
+            ElementArrayKey::Empty => 0,
             ElementArrayKey::E4 => 2u32.pow(4),
             ElementArrayKey::E6 => 2u32.pow(6),
             ElementArrayKey::E8 => 2u32.pow(8),
@@ -85,6 +87,7 @@ impl ElementsVector {
 
     fn grow_inner(&mut self, elements: &mut ElementArrays) {
         let next_key = match self.cap {
+            ElementArrayKey::Empty => ElementArrayKey::E4,
             ElementArrayKey::E4 => ElementArrayKey::E6,
             ElementArrayKey::E6 => ElementArrayKey::E8,
             ElementArrayKey::E8 => ElementArrayKey::E10,
@@ -99,6 +102,7 @@ impl ElementsVector {
             let usize_index = elements_index.into_index();
             let len = self.len() as usize;
             match self.cap {
+                ElementArrayKey::Empty => (vec![], None),
                 ElementArrayKey::E4 => {
                     let descriptors = elements.e2pow4.descriptors.get(&elements_index).cloned();
                     let elements = elements
@@ -201,6 +205,7 @@ impl ElementsVector {
             self.grow_inner(elements);
         }
         let next_over_end = match self.cap {
+            ElementArrayKey::Empty => unreachable!(),
             ElementArrayKey::E4 => elements
                 .e2pow4
                 .values
@@ -721,6 +726,7 @@ impl ElementArrays {
             std::mem::size_of::<[Option<Value>; 1]>()
         );
         match key {
+            ElementArrayKey::Empty => ElementIndex::from_u32_index(0),
             ElementArrayKey::E4 => {
                 let elements = &mut self.e2pow4;
                 const N: usize = usize::pow(2, 4);
@@ -744,7 +750,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -773,7 +779,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -802,7 +808,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -831,7 +837,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -860,7 +866,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -889,7 +895,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -918,7 +924,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -947,7 +953,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -1061,6 +1067,7 @@ impl ElementArrays {
 
     pub fn get(&self, vector: ElementsVector) -> &[Option<Value>] {
         match vector.cap {
+            ElementArrayKey::Empty => &[],
             ElementArrayKey::E4 => &self
                 .e2pow4
                 .values
@@ -1130,6 +1137,7 @@ impl ElementArrays {
 
     pub fn get_mut(&mut self, vector: ElementsVector) -> &mut [Option<Value>] {
         match vector.cap {
+            ElementArrayKey::Empty => &mut [],
             ElementArrayKey::E4 => &mut self
                 .e2pow4
                 .values
@@ -1199,6 +1207,7 @@ impl ElementArrays {
 
     pub fn has(&self, vector: ElementsVector, element: Value) -> bool {
         match vector.cap {
+            ElementArrayKey::Empty => false,
             ElementArrayKey::E4 => self
                 .e2pow4
                 .values

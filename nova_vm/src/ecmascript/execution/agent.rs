@@ -173,6 +173,7 @@ pub(crate) fn resolve_binding(
 #[derive(Debug, Clone, Copy)]
 pub enum ExceptionType {
     Error,
+    AggregateError,
     EvalError,
     RangeError,
     ReferenceError,

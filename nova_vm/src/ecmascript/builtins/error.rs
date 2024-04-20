@@ -139,6 +139,9 @@ impl InternalMethods for Error {
                 .get(agent, property_key, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
             match agent.heap.get(self.0).kind {
+                ExceptionType::AggregateError => {
+                    Ok(BUILTIN_STRING_MEMORY.AggregateError.into_value())
+                }
                 ExceptionType::Error => Ok(BUILTIN_STRING_MEMORY.Error.into_value()),
                 ExceptionType::EvalError => Ok(BUILTIN_STRING_MEMORY.EvalError.into_value()),
                 ExceptionType::RangeError => Ok(BUILTIN_STRING_MEMORY.RangeError.into_value()),

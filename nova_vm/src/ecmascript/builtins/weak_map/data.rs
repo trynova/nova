@@ -1,6 +1,6 @@
 use crate::{ecmascript::types::Value, heap::indexes::ObjectIndex};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct WeakMapHeapData {
     pub(crate) object_index: Option<ObjectIndex>,
     // TODO: This isn't even close to a hashmap; HashMap won't allow inserting
