@@ -1,11 +1,11 @@
 use crate::ecmascript::{
     abstract_operations::testing_and_comparison::same_value,
     builtins::ordinary::ordinary_get_own_property,
-    execution::{Agent, JsResult},
+    execution::{agent::ExceptionType, Agent, JsResult},
     scripts_and_modules::module::ModuleIdentifier,
     types::{
         InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
-        PropertyDescriptor, PropertyKey, Value,
+        PropertyDescriptor, PropertyKey, String, Value,
     },
 };
 
@@ -56,7 +56,7 @@ impl From<Module> for Object {
 }
 
 impl Module {
-    fn get_backing_object(self, agent: &mut Agent) -> Option<Object> {
+    fn get_backing_object(self, agent: &Agent) -> Option<Object> {
         agent
             .heap
             .get_module(self.0)
@@ -122,12 +122,30 @@ impl InternalMethods for Module {
             // integer-valued names.
             PropertyKey::Integer(_) => Ok(None),
             PropertyKey::SmallString(_) | PropertyKey::String(_) => {
-                // TODO: Actually implement module exports.
                 // 2. Let exports be O.[[Exports]].
+                let exports: &[String] = &agent.heap.get_module(self.0).exports;
+                let key = match property_key {
+                    PropertyKey::SmallString(data) => String::SmallString(data),
+                    PropertyKey::String(data) => String::String(data),
+                    PropertyKey::Integer(_) | PropertyKey::Symbol(_) => unreachable!(),
+                };
+                let exports_contains_p = exports.contains(&key);
                 // 3. If exports does not contain P, return undefined.
-                // 4. Let value be ? O.[[Get]](P, O).
-                // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
-                Ok(None)
+                if !exports_contains_p {
+                    Ok(None)
+                } else {
+                    // 4. Let value be ? O.[[Get]](P, O).
+                    let value = self.internal_get(agent, property_key, self.into_value())?;
+                    // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
+                    Ok(Some(PropertyDescriptor {
+                        value: Some(value),
+                        writable: Some(true),
+                        get: None,
+                        set: None,
+                        enumerable: Some(true),
+                        configurable: Some(false),
+                    }))
+                }
             }
         }
     }
@@ -187,10 +205,20 @@ impl InternalMethods for Module {
         match property_key {
             PropertyKey::Integer(_) => Ok(false),
             PropertyKey::SmallString(_) | PropertyKey::String(_) => {
+                let p = match property_key {
+                    PropertyKey::String(data) => String::String(data),
+                    PropertyKey::SmallString(data) => String::SmallString(data),
+                    _ => unreachable!(),
+                };
                 // 2. Let exports be O.[[Exports]].
+                let exports: &[String] = &agent.heap.get_module(self.0).exports;
                 // 3. If exports contains P, return true.
-                // 4. Return false.
-                todo!();
+                if exports.contains(&p) {
+                    Ok(true)
+                } else {
+                    // 4. Return false.
+                    Ok(false)
+                }
             }
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryHasProperty(O, P).
@@ -226,18 +254,51 @@ impl InternalMethods for Module {
             PropertyKey::Integer(_) => Ok(Value::Undefined),
             PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let exports be O.[[Exports]].
+                let exports: &[String] = &agent.heap.get_module(self.0).exports;
+                let key = match property_key {
+                    PropertyKey::SmallString(data) => String::SmallString(data),
+                    PropertyKey::String(data) => String::String(data),
+                    PropertyKey::Integer(_) | PropertyKey::Symbol(_) => unreachable!(),
+                };
+                let exports_contains_p = exports.contains(&key);
                 // 3. If exports does not contain P, return undefined.
-                // 4. Let m be O.[[Module]].
-                // 5. Let binding be m.ResolveExport(P).
-                // 6. Assert: binding is a ResolvedBinding Record.
-                // 7. Let targetModule be binding.[[Module]].
-                // 8. Assert: targetModule is not undefined.
-                // 9. If binding.[[BindingName]] is NAMESPACE, then
-                // a. Return GetModuleNamespace(targetModule).
-                // 10. Let targetEnv be targetModule.[[Environment]].
-                // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
-                // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
-                todo!()
+                if !exports_contains_p {
+                    Ok(Value::Undefined)
+                } else {
+                    // 4. Let m be O.[[Module]].
+                    let m = &agent.heap.get_module(self.0).module;
+                    // 5. Let binding be m.ResolveExport(P).
+                    let binding = m.resolve_export(property_key);
+                    // 6. Assert: binding is a ResolvedBinding Record.
+                    let Some(data::ResolveExportResult::Resolved(binding)) = binding else {
+                        unreachable!();
+                    };
+                    // 7. Let targetModule be binding.[[Module]].
+                    // 8. Assert: targetModule is not undefined.
+                    let target_module = binding.module.unwrap();
+                    // 9. If binding.[[BindingName]] is NAMESPACE, then
+                    let _binding_name = match binding.binding_name {
+                        data::ResolvedBindingName::Namespace => {
+                            // a. Return GetModuleNamespace(targetModule).
+                            todo!();
+                        }
+                        data::ResolvedBindingName::String(data) => String::String(data),
+                        data::ResolvedBindingName::SmallString(data) => String::SmallString(data),
+                    };
+                    // 10. Let targetEnv be targetModule.[[Environment]].
+                    let target_env = agent.heap.get_module(target_module).module.environment;
+                    // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
+                    match target_env {
+                        None => Err(agent.throw_exception(
+                            ExceptionType::ReferenceError,
+                            "Could not resolve module",
+                        )),
+                        Some(_target_env) => {
+                            // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
+                            todo!()
+                        }
+                    }
+                }
             }
         }
     }
@@ -263,21 +324,44 @@ impl InternalMethods for Module {
             }
             PropertyKey::Integer(_) => Ok(false),
             PropertyKey::SmallString(_) | PropertyKey::String(_) => {
+                let p = match property_key {
+                    PropertyKey::String(data) => String::String(data),
+                    PropertyKey::SmallString(data) => String::SmallString(data),
+                    _ => unreachable!(),
+                };
                 // 2. Let exports be O.[[Exports]].
+                let exports = &agent.heap.get_module(self.0).exports;
                 // 3. If exports contains P, return false.
-                // 4. Return true.
-                Ok(true)
+                if exports.contains(&p) {
+                    Ok(false)
+                } else {
+                    // 4. Return true.
+                    Ok(true)
+                }
             }
         }
     }
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         // 1. Let exports be O.[[Exports]].
+        let exports = agent
+            .heap
+            .get_module(self.0)
+            .exports
+            .iter()
+            .map(|string| PropertyKey::from(*string));
+        let exports_count = exports.len();
         // 2. Let symbolKeys be OrdinaryOwnPropertyKeys(O).
         let symbol_keys = self
             .get_backing_object(agent)
             .map_or(vec![], |object| ordinary_own_property_keys(agent, object));
+        let symbol_keys_count = symbol_keys.len();
         // 3. Return the list-concatenation of exports and symbolKeys.
-        Ok(symbol_keys)
+        let mut own_property_keys = Vec::with_capacity(exports_count + symbol_keys_count);
+        exports.for_each(|export_key| own_property_keys.push(export_key));
+        symbol_keys
+            .iter()
+            .for_each(|symbol_key| own_property_keys.push(*symbol_key));
+        Ok(own_property_keys)
     }
 }

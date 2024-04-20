@@ -9,8 +9,9 @@ pub use default_host_hooks::DefaultHostHooks;
 pub(crate) use environments::{
     new_declarative_environment, new_function_environment, DeclarativeEnvironment,
     DeclarativeEnvironmentIndex, EnvironmentIndex, Environments, FunctionEnvironment,
-    FunctionEnvironmentIndex, GlobalEnvironment, GlobalEnvironmentIndex, ObjectEnvironment,
-    ObjectEnvironmentIndex, PrivateEnvironment, PrivateEnvironmentIndex, ThisBindingStatus,
+    FunctionEnvironmentIndex, GlobalEnvironment, GlobalEnvironmentIndex, ModuleEnvironmentIndex,
+    ObjectEnvironment, ObjectEnvironmentIndex, PrivateEnvironment, PrivateEnvironmentIndex,
+    ThisBindingStatus,
 };
 pub(crate) use execution_context::*;
 pub use realm::{

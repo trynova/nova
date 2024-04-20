@@ -724,7 +724,7 @@ pub(crate) fn ordinary_delete(
 }
 
 /// ### [10.1.11.1 OrdinaryOwnPropertyKeys ( O )](https://tc39.es/ecma262/#sec-ordinaryownpropertykeys)
-pub(crate) fn ordinary_own_property_keys(_agent: &mut Agent, _object: Object) -> Vec<PropertyKey> {
+pub(crate) fn ordinary_own_property_keys(_agent: &Agent, _object: Object) -> Vec<PropertyKey> {
     // 1. Let keys be a new empty List.
 
     // 2. For each own property key P of O such that P is an array index, in ascending numeric
