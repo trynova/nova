@@ -31,6 +31,17 @@ impl SealableElementsVector {
     }
 }
 
+impl Default for SealableElementsVector {
+    fn default() -> Self {
+        Self {
+            elements_index: ElementIndex::from_u32_index(0),
+            cap: ElementArrayKey::Empty,
+            len: 0,
+            len_writable: true,
+        }
+    }
+}
+
 impl From<SealableElementsVector> for ElementsVector {
     #[inline(always)]
     fn from(value: SealableElementsVector) -> Self {
@@ -47,7 +58,7 @@ impl From<SealableElementsVector> for ElementsVector {
 /// is also called an element. Every Array has a non-configurable "**length**"
 /// property whose value is always a non-negative integral Number whose
 /// mathematical value is strictly less than 2**32.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct ArrayHeapData {
     pub object_index: Option<ObjectIndex>,
     // TODO: Use enum { ElementsVector, SmallVec<[Value; 3]> }

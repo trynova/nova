@@ -121,7 +121,10 @@ impl<T: ?Sized> BaseIndex<T> {
         Self(unsafe { NonZeroU32::new_unchecked(value) }, PhantomData)
     }
 
-    pub fn last<U: Sized>(vec: &[Option<U>]) -> Self {
+    pub fn last(vec: &[Option<T>]) -> Self
+    where
+        T: Sized,
+    {
         assert!(!vec.is_empty());
         Self::from_usize(vec.len())
     }
@@ -160,6 +163,13 @@ pub type TypedArrayIndex = BaseIndex<TypedArrayHeapData>;
 pub type WeakMapIndex = BaseIndex<WeakMapHeapData>;
 pub type WeakRefIndex = BaseIndex<WeakRefHeapData>;
 pub type WeakSetIndex = BaseIndex<WeakSetHeapData>;
+
+impl ElementIndex {
+    pub fn last_element_index<const N: usize>(vec: &[Option<[Option<Value>; N]>]) -> Self {
+        assert!(!vec.is_empty());
+        Self::from_usize(vec.len())
+    }
+}
 
 impl ObjectIndex {
     pub fn get(self, agent: &Agent) -> &ObjectHeapData {

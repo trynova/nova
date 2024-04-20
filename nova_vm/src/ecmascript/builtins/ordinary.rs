@@ -7,15 +7,23 @@ use crate::{
         builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, InternalMethods, IntoObject, Object, OrdinaryObject,
-            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
+            Function, InternalMethods, IntoFunction, IntoObject, Object, OrdinaryObject,
+            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, String, Symbol, Value,
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::CreateHeapData,
+    heap::{CreateHeapData, WellKnownSymbolIndexes},
 };
 
-use super::{date::data::DateHeapData, error::ErrorHeapData};
+use super::{
+    data_view::data::DataViewHeapData, date::data::DateHeapData, error::ErrorHeapData,
+    finalization_registry::data::FinalizationRegistryHeapData, map::data::MapHeapData,
+    primitive_objects::PrimitiveObjectHeapData, promise::data::PromiseHeapData,
+    regexp::RegExpHeapData, set::data::SetHeapData,
+    shared_array_buffer::data::SharedArrayBufferHeapData, typed_array::data::TypedArrayHeapData,
+    weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
+    weak_set::data::WeakSetHeapData, ArrayBufferHeapData, ArrayHeapData,
+};
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 impl InternalMethods for OrdinaryObject {
@@ -777,10 +785,14 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
     };
 
     match prototype {
-        ProtoIntrinsics::Array => todo!(),
-        ProtoIntrinsics::ArrayBuffer => todo!(),
-        ProtoIntrinsics::BigInt => todo!(),
-        ProtoIntrinsics::Boolean => todo!(),
+        ProtoIntrinsics::Array => agent.heap.create(ArrayHeapData::default()).into(),
+        ProtoIntrinsics::ArrayBuffer => agent.heap.create(ArrayBufferHeapData::default()).into(),
+        ProtoIntrinsics::BigInt => agent
+            .heap
+            .create(PrimitiveObjectHeapData::new_big_int_object(0.into())),
+        ProtoIntrinsics::Boolean => agent
+            .heap
+            .create(PrimitiveObjectHeapData::new_boolean_object(false)),
         ProtoIntrinsics::Error => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::Error, None, None))
@@ -791,7 +803,9 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .into_object(),
         ProtoIntrinsics::Date => agent.heap.create(DateHeapData::new_invalid()).into_object(),
         ProtoIntrinsics::Function => todo!(),
-        ProtoIntrinsics::Number => todo!(),
+        ProtoIntrinsics::Number => agent
+            .heap
+            .create(PrimitiveObjectHeapData::new_number_object(0.into())),
         ProtoIntrinsics::Object => agent
             .heap
             .create_object_with_prototype(
@@ -815,8 +829,16 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
                 None,
             ))
             .into_object(),
-        ProtoIntrinsics::String => todo!(),
-        ProtoIntrinsics::Symbol => todo!(),
+        ProtoIntrinsics::String => agent
+            .heap
+            .create(PrimitiveObjectHeapData::new_string_object(
+                String::EMPTY_STRING,
+            )),
+        ProtoIntrinsics::Symbol => agent
+            .heap
+            .create(PrimitiveObjectHeapData::new_symbol_object(Symbol::from(
+                WellKnownSymbolIndexes::AsyncIterator,
+            ))),
         ProtoIntrinsics::SyntaxError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::SyntaxError, None, None))
@@ -829,6 +851,73 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .heap
             .create(ErrorHeapData::new(ExceptionType::UriError, None, None))
             .into_object(),
+        ProtoIntrinsics::AggregateError => agent
+            .heap
+            .create(ErrorHeapData::new(
+                ExceptionType::AggregateError,
+                None,
+                None,
+            ))
+            .into_object(),
+        ProtoIntrinsics::AsyncFunction => todo!(),
+        ProtoIntrinsics::AsyncGeneratorFunction => todo!(),
+        ProtoIntrinsics::BigInt64Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::BigUint64Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::DataView => agent.heap.create(DataViewHeapData::default()).into_object(),
+        ProtoIntrinsics::FinalizationRegistry => agent
+            .heap
+            .create(FinalizationRegistryHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Float32Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Float64Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::GeneratorFunction => todo!(),
+        ProtoIntrinsics::Int16Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Int32Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Int8Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Map => agent.heap.create(MapHeapData::default()).into_object(),
+        ProtoIntrinsics::Promise => agent.heap.create(PromiseHeapData::default()),
+        ProtoIntrinsics::RegExp => agent.heap.create(RegExpHeapData::default()),
+        ProtoIntrinsics::Set => agent.heap.create(SetHeapData::default()).into_object(),
+        ProtoIntrinsics::SharedArrayBuffer => agent
+            .heap
+            .create(SharedArrayBufferHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Uint16Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Uint32Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Uint8Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::WeakMap => agent.heap.create(WeakMapHeapData::default()).into_object(),
+        ProtoIntrinsics::WeakRef => agent.heap.create(WeakRefHeapData::default()).into_object(),
+        ProtoIntrinsics::WeakSet => agent.heap.create(WeakSetHeapData::default()).into_object(),
     }
 }
 
@@ -880,6 +969,186 @@ pub(crate) fn get_prototype_from_constructor(
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
 ) -> JsResult<Object> {
+    let function_realm = get_function_realm(agent, constructor);
+    // NOTE: %Constructor%.prototype is an immutable property; we can thus
+    // check if we %Constructor% is the ProtoIntrinsic we expect and if it is,
+    // use the %Constructor%.prototype we know it has.
+    if let Ok(intrinsics) = function_realm.map(|realm| agent.get_realm(realm).intrinsics()) {
+        let (intrinsic_constructor, intrinsic_prototype) = match intrinsic_default_proto {
+            ProtoIntrinsics::AggregateError => (
+                intrinsics.aggregate_error().into_function(),
+                intrinsics.aggregate_error_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Array => (
+                intrinsics.array().into_function(),
+                intrinsics.array_prototype().into_object(),
+            ),
+            ProtoIntrinsics::ArrayBuffer => (
+                intrinsics.array_buffer().into_function(),
+                intrinsics.array_buffer_prototype().into_object(),
+            ),
+            ProtoIntrinsics::AsyncFunction => (
+                intrinsics.async_function().into_function(),
+                intrinsics.async_function_prototype().into_object(),
+            ),
+            ProtoIntrinsics::AsyncGeneratorFunction => (
+                intrinsics.async_generator_function().into_function(),
+                intrinsics
+                    .async_generator_function_prototype()
+                    .into_object(),
+            ),
+            ProtoIntrinsics::BigInt => (
+                intrinsics.big_int().into_function(),
+                intrinsics.big_int_prototype().into_object(),
+            ),
+            ProtoIntrinsics::BigInt64Array => (
+                intrinsics.big_int64_array().into_function(),
+                intrinsics.big_int64_array_prototype().into_object(),
+            ),
+            ProtoIntrinsics::BigUint64Array => (
+                intrinsics.big_uint64_array().into_function(),
+                intrinsics.big_uint64_array_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Boolean => (
+                intrinsics.boolean().into_function(),
+                intrinsics.boolean_prototype().into_object(),
+            ),
+            ProtoIntrinsics::DataView => (
+                intrinsics.data_view().into_function(),
+                intrinsics.data_view_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Date => (
+                intrinsics.date().into_function(),
+                intrinsics.date_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Error => (
+                intrinsics.error().into_function(),
+                intrinsics.error_prototype().into_object(),
+            ),
+            ProtoIntrinsics::EvalError => (
+                intrinsics.eval_error().into_function(),
+                intrinsics.eval_error_prototype().into_object(),
+            ),
+            ProtoIntrinsics::FinalizationRegistry => (
+                intrinsics.finalization_registry().into_function(),
+                intrinsics.finalization_registry_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Float32Array => (
+                intrinsics.float32_array().into_function(),
+                intrinsics.float32_array_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Float64Array => (
+                intrinsics.float64_array().into_function(),
+                intrinsics.float64_array_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Function => (
+                intrinsics.function().into_function(),
+                intrinsics.function_prototype().into_object(),
+            ),
+            ProtoIntrinsics::GeneratorFunction => (
+                intrinsics.generator_function().into_function(),
+                intrinsics.generator_function_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Int16Array => (
+                intrinsics.int16_array().into_function(),
+                intrinsics.int16_array_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Int32Array => (
+                intrinsics.int32_array().into_function(),
+                intrinsics.int32_array_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Int8Array => (
+                intrinsics.int8_array().into_function(),
+                intrinsics.int8_array_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Map => (
+                intrinsics.map().into_function(),
+                intrinsics.map_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Number => (
+                intrinsics.number().into_function(),
+                intrinsics.number_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Object => (
+                intrinsics.object().into_function(),
+                intrinsics.object_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Promise => (
+                intrinsics.promise().into_function(),
+                intrinsics.promise_prototype().into_object(),
+            ),
+            ProtoIntrinsics::RangeError => (
+                intrinsics.range_error().into_function(),
+                intrinsics.range_error_prototype().into_object(),
+            ),
+            ProtoIntrinsics::ReferenceError => (
+                intrinsics.reference_error().into_function(),
+                intrinsics.reference_error_prototype().into_object(),
+            ),
+            ProtoIntrinsics::RegExp => (
+                intrinsics.reg_exp().into_function(),
+                intrinsics.reg_exp_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Set => (
+                intrinsics.set().into_function(),
+                intrinsics.set_prototype().into_object(),
+            ),
+            ProtoIntrinsics::SharedArrayBuffer => (
+                intrinsics.shared_array_buffer().into_function(),
+                intrinsics.shared_array_buffer_prototype().into_object(),
+            ),
+            ProtoIntrinsics::String => (
+                intrinsics.string().into_function(),
+                intrinsics.string_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Symbol => (
+                intrinsics.symbol().into_function(),
+                intrinsics.symbol_prototype().into_object(),
+            ),
+            ProtoIntrinsics::SyntaxError => (
+                intrinsics.syntax_error().into_function(),
+                intrinsics.syntax_error_prototype().into_object(),
+            ),
+            ProtoIntrinsics::TypeError => (
+                intrinsics.type_error().into_function(),
+                intrinsics.type_error_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Uint16Array => (
+                intrinsics.uint16_array().into_function(),
+                intrinsics.uint16_array_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Uint32Array => (
+                intrinsics.uint32_array().into_function(),
+                intrinsics.uint32_array_prototype().into_object(),
+            ),
+            ProtoIntrinsics::Uint8Array => (
+                intrinsics.uint8_array().into_function(),
+                intrinsics.uint8_array_prototype().into_object(),
+            ),
+            ProtoIntrinsics::UriError => (
+                intrinsics.uri_error().into_function(),
+                intrinsics.uri_error_prototype().into_object(),
+            ),
+            ProtoIntrinsics::WeakMap => (
+                intrinsics.weak_map().into_function(),
+                intrinsics.weak_map_prototype().into_object(),
+            ),
+            ProtoIntrinsics::WeakRef => (
+                intrinsics.weak_ref().into_function(),
+                intrinsics.weak_ref_prototype().into_object(),
+            ),
+            ProtoIntrinsics::WeakSet => (
+                intrinsics.weak_set().into_function(),
+                intrinsics.weak_set_prototype().into_object(),
+            ),
+        };
+        if constructor == intrinsic_constructor {
+            // The ProtoIntrinsic's constructor matches the constructor we're
+            // being called with. We can use its matching intrinsic prototype.
+            return Ok(intrinsic_prototype);
+        }
+    }
+
     // 1. Assert: intrinsicDefaultProto is this specification's name of an
     // intrinsic object. The corresponding object must be an intrinsic that is
     // intended to be used as the [[Prototype]] value of an object.
@@ -890,7 +1159,7 @@ pub(crate) fn get_prototype_from_constructor(
     match Object::try_from(proto) {
         Err(_) => {
             // a. Let realm be ? GetFunctionRealm(constructor).
-            let realm = get_function_realm(agent, constructor)?;
+            let realm = function_realm?;
             // b. Set proto to realm's intrinsic object named intrinsicDefaultProto.
             Ok(agent
                 .get_realm(realm)

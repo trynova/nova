@@ -15,7 +15,11 @@ pub(crate) use self::heap_constants::{
     LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX, LAST_INTRINSIC_OBJECT_INDEX,
     LAST_WELL_KNOWN_SYMBOL_INDEX,
 };
-use self::indexes::{DateIndex, ErrorIndex};
+use self::indexes::{
+    ArrayBufferIndex, ArrayIndex, DataViewIndex, DateIndex, ErrorIndex, FinalizationRegistryIndex,
+    MapIndex, PrimitiveObjectIndex, PromiseIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex,
+    TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
+};
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
     element_array::{
@@ -29,23 +33,24 @@ use self::{
 };
 use crate::ecmascript::{
     builtins::{
-        data_view::data::DataViewHeapData,
+        data_view::{data::DataViewHeapData, DataView},
         date::{data::DateHeapData, Date},
         embedder_object::data::EmbedderObjectHeapData,
         error::{Error, ErrorHeapData},
-        finalization_registry::data::FinalizationRegistryHeapData,
-        map::data::MapHeapData,
+        finalization_registry::{data::FinalizationRegistryHeapData, FinalizationRegistry},
+        map::{data::MapHeapData, Map},
         module::data::ModuleHeapData,
         primitive_objects::PrimitiveObjectHeapData,
         promise::data::PromiseHeapData,
         proxy::data::ProxyHeapData,
         regexp::RegExpHeapData,
-        set::data::SetHeapData,
-        shared_array_buffer::data::SharedArrayBufferHeapData,
-        typed_array::data::TypedArrayHeapData,
-        weak_map::data::WeakMapHeapData,
-        weak_ref::data::WeakRefHeapData,
-        weak_set::data::WeakSetHeapData,
+        set::{data::SetHeapData, Set},
+        shared_array_buffer::{data::SharedArrayBufferHeapData, SharedArrayBuffer},
+        typed_array::{data::TypedArrayHeapData, TypedArray},
+        weak_map::{data::WeakMapHeapData, WeakMap},
+        weak_ref::{data::WeakRefHeapData, WeakRef},
+        weak_set::{data::WeakSetHeapData, WeakSet},
+        Array, ArrayBuffer,
     },
     types::BUILTIN_STRINGS_LIST,
 };
@@ -98,8 +103,8 @@ pub struct Heap {
     pub symbols: Vec<Option<SymbolHeapData>>,
     pub typed_arrays: Vec<Option<TypedArrayHeapData>>,
     pub weak_maps: Vec<Option<WeakMapHeapData>>,
-    pub weak_refs: Vec<Option<WeakSetHeapData>>,
-    pub weak_sets: Vec<Option<WeakRefHeapData>>,
+    pub weak_refs: Vec<Option<WeakRefHeapData>>,
+    pub weak_sets: Vec<Option<WeakSetHeapData>>,
 }
 
 pub trait CreateHeapData<T, F> {
@@ -243,8 +248,8 @@ impl_heap_data!(strings, StringHeapData, StringHeapData);
 impl_heap_data!(symbols, SymbolHeapData, SymbolHeapData);
 impl_heap_data!(typed_arrays, TypedArrayHeapData, TypedArrayHeapData);
 impl_heap_data!(weak_maps, WeakMapHeapData, WeakMapHeapData);
-impl_heap_data!(weak_refs, WeakSetHeapData, WeakSetHeapData);
-impl_heap_data!(weak_sets, WeakRefHeapData, WeakRefHeapData);
+impl_heap_data!(weak_refs, WeakRefHeapData, WeakRefHeapData);
+impl_heap_data!(weak_sets, WeakSetHeapData, WeakSetHeapData);
 
 impl CreateHeapData<&str, String> for Heap {
     fn create(&mut self, data: &str) -> String {
@@ -268,6 +273,34 @@ impl CreateHeapData<std::string::String, String> for Heap {
     }
 }
 
+impl CreateHeapData<ArrayHeapData, Array> for Heap {
+    fn create(&mut self, data: ArrayHeapData) -> Array {
+        self.arrays.push(Some(data));
+        Array::from(ArrayIndex::last(&self.arrays))
+    }
+}
+
+impl CreateHeapData<ArrayBufferHeapData, ArrayBuffer> for Heap {
+    fn create(&mut self, data: ArrayBufferHeapData) -> ArrayBuffer {
+        self.array_buffers.push(Some(data));
+        ArrayBuffer::from(ArrayBufferIndex::last(&self.array_buffers))
+    }
+}
+
+impl CreateHeapData<BigIntHeapData, BigInt> for Heap {
+    fn create(&mut self, data: BigIntHeapData) -> BigInt {
+        self.bigints.push(Some(data));
+        BigInt::BigInt(BigIntIndex::last(&self.bigints))
+    }
+}
+
+impl CreateHeapData<DataViewHeapData, DataView> for Heap {
+    fn create(&mut self, data: DataViewHeapData) -> DataView {
+        self.data_views.push(Some(data));
+        DataView::from(DataViewIndex::last(&self.data_views))
+    }
+}
+
 impl CreateHeapData<DateHeapData, Date> for Heap {
     fn create(&mut self, data: DateHeapData) -> Date {
         self.dates.push(Some(data));
@@ -279,6 +312,15 @@ impl CreateHeapData<ErrorHeapData, Error> for Heap {
     fn create(&mut self, data: ErrorHeapData) -> Error {
         self.errors.push(Some(data));
         Error::from(ErrorIndex::last(&self.errors))
+    }
+}
+
+impl CreateHeapData<FinalizationRegistryHeapData, FinalizationRegistry> for Heap {
+    fn create(&mut self, data: FinalizationRegistryHeapData) -> FinalizationRegistry {
+        self.finalization_registrys.push(Some(data));
+        FinalizationRegistry(FinalizationRegistryIndex::last(
+            &self.finalization_registrys,
+        ))
     }
 }
 
@@ -303,6 +345,13 @@ impl CreateHeapData<ECMAScriptFunctionHeapData, Function> for Heap {
     }
 }
 
+impl CreateHeapData<MapHeapData, Map> for Heap {
+    fn create(&mut self, data: MapHeapData) -> Map {
+        self.maps.push(Some(data));
+        Map(MapIndex::last(&self.maps))
+    }
+}
+
 impl CreateHeapData<ObjectHeapData, Object> for Heap {
     fn create(&mut self, data: ObjectHeapData) -> Object {
         self.objects.push(Some(data));
@@ -310,10 +359,70 @@ impl CreateHeapData<ObjectHeapData, Object> for Heap {
     }
 }
 
-impl CreateHeapData<BigIntHeapData, BigInt> for Heap {
-    fn create(&mut self, data: BigIntHeapData) -> BigInt {
-        self.bigints.push(Some(data));
-        BigInt::BigInt(BigIntIndex::last(&self.bigints))
+impl CreateHeapData<PrimitiveObjectHeapData, Object> for Heap {
+    fn create(&mut self, data: PrimitiveObjectHeapData) -> Object {
+        self.primitive_objects.push(Some(data));
+        Object::PrimitiveObject(PrimitiveObjectIndex::last(&self.primitive_objects))
+    }
+}
+
+impl CreateHeapData<PromiseHeapData, Object> for Heap {
+    fn create(&mut self, data: PromiseHeapData) -> Object {
+        self.promises.push(Some(data));
+        Object::Promise(PromiseIndex::last(&self.promises))
+    }
+}
+
+impl CreateHeapData<RegExpHeapData, Object> for Heap {
+    fn create(&mut self, data: RegExpHeapData) -> Object {
+        self.regexps.push(Some(data));
+        Object::RegExp(RegExpIndex::last(&self.regexps))
+    }
+}
+
+impl CreateHeapData<SetHeapData, Set> for Heap {
+    fn create(&mut self, data: SetHeapData) -> Set {
+        self.sets.push(Some(data));
+        Set(SetIndex::last(&self.sets))
+    }
+}
+
+impl CreateHeapData<SharedArrayBufferHeapData, SharedArrayBuffer> for Heap {
+    fn create(&mut self, data: SharedArrayBufferHeapData) -> SharedArrayBuffer {
+        self.shared_array_buffers.push(Some(data));
+        SharedArrayBuffer(SharedArrayBufferIndex::last(&self.shared_array_buffers))
+    }
+}
+
+impl CreateHeapData<TypedArrayHeapData, TypedArray> for Heap {
+    fn create(&mut self, data: TypedArrayHeapData) -> TypedArray {
+        self.typed_arrays.push(Some(data));
+        // TODO: The type should be checked based on data or something equally stupid
+        TypedArray::Uint8Array(TypedArrayIndex::last(&self.typed_arrays))
+    }
+}
+
+impl CreateHeapData<WeakMapHeapData, WeakMap> for Heap {
+    fn create(&mut self, data: WeakMapHeapData) -> WeakMap {
+        self.weak_maps.push(Some(data));
+        // TODO: The type should be checked based on data or something equally stupid
+        WeakMap(WeakMapIndex::last(&self.weak_maps))
+    }
+}
+
+impl CreateHeapData<WeakRefHeapData, WeakRef> for Heap {
+    fn create(&mut self, data: WeakRefHeapData) -> WeakRef {
+        self.weak_refs.push(Some(data));
+        // TODO: The type should be checked based on data or something equally stupid
+        WeakRef(WeakRefIndex::last(&self.weak_refs))
+    }
+}
+
+impl CreateHeapData<WeakSetHeapData, WeakSet> for Heap {
+    fn create(&mut self, data: WeakSetHeapData) -> WeakSet {
+        self.weak_sets.push(Some(data));
+        // TODO: The type should be checked based on data or something equally stupid
+        WeakSet(WeakSetIndex::last(&self.weak_sets))
     }
 }
 

@@ -341,6 +341,7 @@ impl WorkQueues {
 
     pub fn push_elements_vector(&mut self, vec: &ElementsVector) {
         match vec.cap {
+            ElementArrayKey::Empty => {}
             ElementArrayKey::E4 => self.e_2_4.push((vec.elements_index, vec.len)),
             ElementArrayKey::E6 => self.e_2_6.push((vec.elements_index, vec.len)),
             ElementArrayKey::E8 => self.e_2_8.push((vec.elements_index, vec.len)),
@@ -1280,6 +1281,7 @@ impl HeapMarkAndSweep<()> for String {
 impl HeapMarkAndSweep<()> for ElementsVector {
     fn mark_values(&self, queues: &mut WorkQueues, _data: impl BorrowMut<()>) {
         match self.cap {
+            ElementArrayKey::Empty => {}
             ElementArrayKey::E4 => queues.e_2_4.push((self.elements_index, self.len)),
             ElementArrayKey::E6 => queues.e_2_6.push((self.elements_index, self.len)),
             ElementArrayKey::E8 => queues.e_2_8.push((self.elements_index, self.len)),
@@ -1294,6 +1296,9 @@ impl HeapMarkAndSweep<()> for ElementsVector {
     fn sweep_values(&mut self, compactions: &CompactionLists, _data: impl Borrow<()>) {
         let self_index = self.elements_index.into_u32();
         let shift = match self.cap {
+            ElementArrayKey::Empty => {
+                return;
+            }
             ElementArrayKey::E4 => compactions.e_2_4.get_shift_for_index(self_index),
             ElementArrayKey::E6 => compactions.e_2_6.get_shift_for_index(self_index),
             ElementArrayKey::E8 => compactions.e_2_8.get_shift_for_index(self_index),

@@ -97,10 +97,10 @@ impl From<SmallInteger> for Number {
 
 impl From<i64> for Number {
     fn from(value: i64) -> Self {
-        let n = value
-            .min(SmallInteger::MAX_NUMBER)
-            .max(SmallInteger::MIN_NUMBER);
-        Number::Integer(SmallInteger::try_from(n).unwrap())
+        Number::Integer(
+            SmallInteger::try_from(value.clamp(SmallInteger::MIN_NUMBER, SmallInteger::MAX_NUMBER))
+                .unwrap(),
+        )
     }
 }
 
