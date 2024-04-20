@@ -29,7 +29,9 @@ pub enum ElementArrayKey {
 
 impl From<usize> for ElementArrayKey {
     fn from(value: usize) -> Self {
-        if value <= usize::pow(2, 4) {
+        if value == 0 {
+            ElementArrayKey::Empty
+        } else if value <= usize::pow(2, 4) {
             ElementArrayKey::E4
         } else if value <= usize::pow(2, 6) {
             ElementArrayKey::E6
@@ -421,7 +423,7 @@ impl ElementDescriptor {
     }
 
     pub(crate) fn from_property_descriptor(
-        desc: ObjectEntryPropertyDescriptor,
+        desc: &ObjectEntryPropertyDescriptor,
     ) -> (Option<ElementDescriptor>, Option<Value>) {
         match desc {
             ObjectEntryPropertyDescriptor::Data {
@@ -430,34 +432,34 @@ impl ElementDescriptor {
                 enumerable,
                 configurable,
             } => match (writable, enumerable, configurable) {
-                (true, true, true) => (None, Some(value)),
+                (true, true, true) => (None, Some(*value)),
                 (true, true, false) => (
                     Some(ElementDescriptor::WritableEnumerableUnconfigurableData),
-                    Some(value),
+                    Some(*value),
                 ),
                 (true, false, true) => (
                     Some(ElementDescriptor::WritableUnenumerableConfigurableData),
-                    Some(value),
+                    Some(*value),
                 ),
                 (true, false, false) => (
                     Some(ElementDescriptor::WritableUnenumerableUnconfigurableData),
-                    Some(value),
+                    Some(*value),
                 ),
                 (false, true, true) => (
                     Some(ElementDescriptor::ReadOnlyEnumerableConfigurableData),
-                    Some(value),
+                    Some(*value),
                 ),
                 (false, true, false) => (
                     Some(ElementDescriptor::ReadOnlyEnumerableUnconfigurableData),
-                    Some(value),
+                    Some(*value),
                 ),
                 (false, false, true) => (
                     Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
-                    Some(value),
+                    Some(*value),
                 ),
                 (false, false, false) => (
                     Some(ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData),
-                    Some(value),
+                    Some(*value),
                 ),
             },
             ObjectEntryPropertyDescriptor::Blocked { .. } => unreachable!(),
@@ -467,19 +469,21 @@ impl ElementDescriptor {
                 configurable,
             } => match (enumerable, configurable) {
                 (true, true) => (
-                    Some(ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }),
+                    Some(ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get: *get }),
                     None,
                 ),
                 (true, false) => (
-                    Some(ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }),
+                    Some(ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get: *get }),
                     None,
                 ),
                 (false, true) => (
-                    Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get }),
+                    Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get: *get }),
                     None,
                 ),
                 (false, false) => (
-                    Some(ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { get }),
+                    Some(
+                        ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { get: *get },
+                    ),
                     None,
                 ),
             },
@@ -489,19 +493,27 @@ impl ElementDescriptor {
                 configurable,
             } => match (enumerable, configurable) {
                 (true, true) => (
-                    Some(ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set }),
+                    Some(ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set: *set }),
                     None,
                 ),
                 (true, false) => (
-                    Some(ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set }),
+                    Some(
+                        ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set: *set },
+                    ),
                     None,
                 ),
                 (false, true) => (
-                    Some(ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { set }),
+                    Some(
+                        ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { set: *set },
+                    ),
                     None,
                 ),
                 (false, false) => (
-                    Some(ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor { set }),
+                    Some(
+                        ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor {
+                            set: *set,
+                        },
+                    ),
                     None,
                 ),
             },
@@ -512,20 +524,36 @@ impl ElementDescriptor {
                 configurable,
             } => match (enumerable, configurable) {
                 (true, true) => (
-                    Some(ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { get, set }),
+                    Some(ElementDescriptor::ReadWriteEnumerableConfigurableAccessor {
+                        get: *get,
+                        set: *set,
+                    }),
                     None,
                 ),
                 (true, false) => (
-                    Some(ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { get, set }),
+                    Some(
+                        ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor {
+                            get: *get,
+                            set: *set,
+                        },
+                    ),
                     None,
                 ),
                 (false, true) => (
-                    Some(ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { get, set }),
+                    Some(
+                        ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor {
+                            get: *get,
+                            set: *set,
+                        },
+                    ),
                     None,
                 ),
                 (false, false) => (
                     Some(
-                        ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { get, set },
+                        ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor {
+                            get: *get,
+                            set: *set,
+                        },
                     ),
                     None,
                 ),
@@ -1019,21 +1047,21 @@ impl ElementArrays {
 
     pub(crate) fn create_object_entries(
         &mut self,
-        mut entries: Vec<ObjectEntry>,
+        entries: &[ObjectEntry],
     ) -> (ElementsVector, ElementsVector) {
         let length = entries.len();
         let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut descriptors: Option<HashMap<u32, ElementDescriptor>> = None;
-        entries.drain(..).enumerate().for_each(|(index, entry)| {
+        entries.iter().enumerate().for_each(|(index, entry)| {
             let ObjectEntry { key, value } = entry;
             let (maybe_descriptor, maybe_value) =
                 ElementDescriptor::from_property_descriptor(value);
             let key = match key {
-                PropertyKey::Integer(data) => Value::Integer(data),
-                PropertyKey::SmallString(data) => Value::SmallString(data),
-                PropertyKey::String(data) => Value::String(data),
-                PropertyKey::Symbol(data) => Value::Symbol(data),
+                PropertyKey::Integer(data) => Value::Integer(*data),
+                PropertyKey::SmallString(data) => Value::SmallString(*data),
+                PropertyKey::String(data) => Value::String(*data),
+                PropertyKey::Symbol(data) => Value::Symbol(*data),
             };
             keys.push(Some(key));
             values.push(maybe_value);

@@ -158,7 +158,7 @@ impl InternalMethods for DataView {
             };
             let object_index = agent
                 .heap
-                .create_object_with_prototype(prototype.into_object(), vec![new_entry]);
+                .create_object_with_prototype(prototype.into_object(), &[new_entry]);
             agent.heap.get_mut(self.0).object_index = Some(object_index);
             Ok(true)
         }

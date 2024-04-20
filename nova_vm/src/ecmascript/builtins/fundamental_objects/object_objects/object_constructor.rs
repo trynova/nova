@@ -288,9 +288,9 @@ impl ObjectConstructor {
     fn create(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         let o = arguments.get(0);
         let obj: OrdinaryObject = if o == Value::Null {
-            agent.heap.create_null_object(vec![]).into()
+            agent.heap.create_null_object(&[]).into()
         } else if let Ok(o) = Object::try_from(o) {
-            agent.heap.create_object_with_prototype(o, vec![]).into()
+            agent.heap.create_object_with_prototype(o, &[]).into()
         } else {
             return Err(agent.throw_exception(ExceptionType::TypeError, "fail"));
         };

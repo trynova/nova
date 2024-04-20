@@ -878,13 +878,13 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
 fn test_heap_gc() {
     let mut heap: Heap = Default::default();
     assert!(heap.objects.is_empty());
-    let obj = Value::Object(heap.create_null_object(vec![]));
+    let obj = Value::Object(heap.create_null_object(&[]));
     println!("Object: {:#?}", obj);
     heap.globals.push(obj);
     heap_gc(&mut heap);
     println!("Objects: {:#?}", heap.objects);
     assert_eq!(heap.objects.len(), 1);
-    assert_eq!(heap.elements.e2pow4.values.len(), 2);
+    assert_eq!(heap.elements.e2pow4.values.len(), 0);
     assert!(heap.globals.last().is_some());
     println!("Global #1: {:#?}", heap.globals.last().unwrap());
 }

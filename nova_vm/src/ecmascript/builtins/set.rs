@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut};
+
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
@@ -7,7 +9,10 @@ use crate::{
         },
     },
     heap::{indexes::SetIndex, GetHeapData, ObjectEntry, ObjectEntryPropertyDescriptor},
+    Heap,
 };
+
+use self::data::SetHeapData;
 
 use super::ordinary::ordinary_set_prototype_of_check_loop;
 
@@ -52,6 +57,42 @@ impl From<Set> for Object {
     }
 }
 
+impl Index<Set> for Heap {
+    type Output = SetHeapData;
+
+    fn index(&self, index: Set) -> &Self::Output {
+        self.sets
+            .get(index.0.into_index())
+            .expect("Set out of bounds")
+            .as_ref()
+            .expect("Set slot empty")
+    }
+}
+
+impl IndexMut<Set> for Heap {
+    fn index_mut(&mut self, index: Set) -> &mut Self::Output {
+        self.sets
+            .get_mut(index.0.into_index())
+            .expect("Set out of bounds")
+            .as_mut()
+            .expect("Set slot empty")
+    }
+}
+
+fn create_set_base_object(agent: &mut Agent, set: Set, entries: &[ObjectEntry]) -> OrdinaryObject {
+    // TODO: An issue crops up if multiple realms are in play:
+    // The prototype should not be dependent on the realm we're operating in
+    // but should instead be bound to the realm the object was created in.
+    // We'll have to cross this bridge at a later point, likely be designating
+    // a "default realm" and making non-default realms always initialize ObjectHeapData.
+    let prototype = agent.current_realm().intrinsics().set_prototype();
+    let object_index = agent
+        .heap
+        .create_object_with_prototype(prototype.into(), entries);
+    agent.heap[set].object_index = Some(object_index);
+    OrdinaryObject::from(object_index)
+}
+
 impl OrdinaryObjectInternalSlots for Set {
     fn internal_extensible(self, agent: &Agent) -> bool {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
@@ -64,9 +105,10 @@ impl OrdinaryObjectInternalSlots for Set {
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
             OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
-        } else {
+        } else if !value {
             // Create base object and set inextensible
-            todo!()
+            let base = create_set_base_object(agent, self, &[]);
+            base.internal_set_extensible(agent, value);
         }
     }
 
@@ -88,8 +130,9 @@ impl OrdinaryObjectInternalSlots for Set {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
             OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
         } else {
-            // Create base object and set inextensible
-            todo!()
+            // Create base object and set prototype
+            let base = create_set_base_object(agent, self, &[]);
+            base.internal_set_prototype(agent, prototype);
         }
     }
 }
@@ -151,15 +194,11 @@ impl InternalMethods for Set {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
             OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
         } else {
-            let prototype = agent.current_realm().intrinsics().set_prototype();
             let new_entry = ObjectEntry {
                 key: property_key,
                 value: ObjectEntryPropertyDescriptor::from(property_descriptor),
             };
-            let object_index = agent
-                .heap
-                .create_object_with_prototype(prototype.into_object(), vec![new_entry]);
-            agent.heap.get_mut(self.0).object_index = Some(object_index);
+            create_set_base_object(agent, self, &[new_entry]);
             Ok(true)
         }
     }
@@ -168,10 +207,8 @@ impl InternalMethods for Set {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
             OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
         } else {
-            let parent = self.internal_get_prototype_of(agent)?;
-            parent.map_or(Ok(false), |parent| {
-                parent.internal_has_property(agent, property_key)
-            })
+            let parent = agent.current_realm().intrinsics().set_prototype();
+            parent.internal_has_property(agent, property_key)
         }
     }
 
@@ -184,10 +221,8 @@ impl InternalMethods for Set {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
             OrdinaryObject::from(object_index).internal_get(agent, property_key, receiver)
         } else {
-            let parent = self.internal_get_prototype_of(agent)?;
-            parent.map_or(Ok(Value::Undefined), |parent| {
-                parent.internal_get(agent, property_key, receiver)
-            })
+            let parent = agent.current_realm().intrinsics().set_prototype();
+            parent.internal_get(agent, property_key, receiver)
         }
     }
 

@@ -56,7 +56,7 @@ fn create_array_buffer_base_object(agent: &mut Agent, array_buffer: ArrayBuffer)
     let prototype = agent.current_realm().intrinsics().array_buffer_prototype();
     let object_index = agent
         .heap
-        .create_object_with_prototype(prototype.into(), vec![]);
+        .create_object_with_prototype(prototype.into(), &[]);
     agent.heap.get_mut(*array_buffer).object_index = Some(object_index);
     OrdinaryObject::from(object_index)
 }
@@ -104,9 +104,9 @@ impl OrdinaryObjectInternalSlots for ArrayBuffer {
                     prototype,
                     Some(self.into())
                 ));
-                agent.heap.create_object_with_prototype(prototype, vec![])
+                agent.heap.create_object_with_prototype(prototype, &[])
             } else {
-                agent.heap.create_null_object(vec![])
+                agent.heap.create_null_object(&[])
             };
             agent.heap.get_mut(*self).object_index = Some(object_index);
         }
