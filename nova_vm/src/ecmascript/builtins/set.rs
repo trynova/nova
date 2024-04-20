@@ -78,7 +78,7 @@ impl OrdinaryObjectInternalSlots for Set {
                 agent
                     .current_realm()
                     .intrinsics()
-                    .map_prototype()
+                    .set_prototype()
                     .into_object(),
             )
         }
@@ -104,7 +104,7 @@ impl InternalMethods for Set {
             OrdinaryObject::from(object_index).set_prototype_of(agent, prototype)
         } else {
             // If we're setting %Set.prototype% then we can still avoid creating the ObjectHeapData.
-            let current = agent.current_realm().intrinsics().map_prototype();
+            let current = agent.current_realm().intrinsics().set_prototype();
             if prototype == Some(current.into_object()) {
                 return Ok(true);
             }
@@ -147,7 +147,7 @@ impl InternalMethods for Set {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
             OrdinaryObject::from(object_index).has_property(agent, property_key)
         } else {
-            let prototype = agent.current_realm().intrinsics().map_prototype();
+            let prototype = agent.current_realm().intrinsics().set_prototype();
             let new_entry = ObjectEntry {
                 key: property_key,
                 value: ObjectEntryPropertyDescriptor::from(property_descriptor),
@@ -190,7 +190,7 @@ impl InternalMethods for Set {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
             OrdinaryObject::from(object_index).set(agent, property_key, value, receiver)
         } else {
-            let prototype = agent.current_realm().intrinsics().map_prototype();
+            let prototype = agent.current_realm().intrinsics().set_prototype();
             prototype.set(agent, property_key, value, receiver)
         }
     }
