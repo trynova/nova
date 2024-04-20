@@ -1,5 +1,3 @@
-use oxc_span::Atom;
-
 use crate::ecmascript::types::{Function, Value};
 use std::collections::HashMap;
 
@@ -40,7 +38,7 @@ pub struct PrivateEnvironment {
     /// ### \[\[Names\]\]
     ///
     /// The Private Names declared by this class.
-    names: HashMap<Atom, PrivateName>,
+    names: HashMap<String, PrivateName>,
 }
 
 /// ### [9.2.1.1 NewPrivateEnvironment ( outerPrivEnv )](https://tc39.es/ecma262/#sec-newprivateenvironment)

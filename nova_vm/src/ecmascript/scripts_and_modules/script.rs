@@ -13,7 +13,7 @@ use crate::{
                 LexicallyScopedDeclaration, VarScopedDeclaration,
             },
         },
-        types::{IntoValue, Value},
+        types::{IntoValue, String, Value},
     },
     engine::{Executable, Vm},
 };
@@ -23,7 +23,7 @@ use oxc_ast::{
     syntax_directed_operations::BoundNames,
 };
 use oxc_parser::{Parser, ParserReturn};
-use oxc_span::{Atom, SourceType};
+use oxc_span::SourceType;
 use std::{any::Any, collections::HashSet, marker::PhantomData};
 
 pub type HostDefined = &'static mut dyn Any;
@@ -237,19 +237,12 @@ pub(crate) fn global_declaration_instantiation(
     env: GlobalEnvironmentIndex,
 ) -> JsResult<()> {
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
-    let Script {
-        ecmascript_code: script,
-        ..
-    } = agent.heap.get_script(script);
     // SAFETY: Analysing the script cannot cause the environment to move even though we change other parts of the Heap.
-
-    // 1. Let lexNames be the LexicallyDeclaredNames of script.
-    let lex_names = script_lexically_declared_names(script);
-    // 2. Let varNames be the VarDeclaredNames of script.
-    let var_names = script_var_declared_names(script);
-
-    // 5. Let varDeclarations be the VarScopedDeclarations of script.
-    let var_declarations = {
+    let (lex_names, var_names, var_declarations, lex_declarations) = {
+        let Script {
+            ecmascript_code: script,
+            ..
+        } = agent.heap.get_script(script);
         // SAFETY: The borrow of Program is valid for the duration of this
         // block; the contents of Program are guaranteed to be valid for as
         // long as the Script is alive in the heap as they are not reallocated.
@@ -257,27 +250,28 @@ pub(crate) fn global_declaration_instantiation(
         // of the global_declaration_instantiation call.
         let script =
             unsafe { std::mem::transmute::<&Program<'_>, &'static Program<'static>>(script) };
-        script_var_scoped_declarations(script)
-    };
-    // 13. Let lexDeclarations be the LexicallyScopedDeclarations of script.
-    let lex_declarations = {
-        // SAFETY: As above, Program is valid in this block, declarations are
-        // valid for the duration of global_declaration_instantiation call.
-        let script =
-            unsafe { std::mem::transmute::<&Program<'_>, &'static Program<'static>>(script) };
-        script_lexically_scoped_declarations(script)
+        // 1. Let lexNames be the LexicallyDeclaredNames of script.
+        let lex_names = script_lexically_declared_names(script);
+        // 2. Let varNames be the VarDeclaredNames of script.
+        let var_names = script_var_declared_names(script);
+        // 5. Let varDeclarations be the VarScopedDeclarations of script.
+        let var_declarations = script_var_scoped_declarations(script);
+        // 13. Let lexDeclarations be the LexicallyScopedDeclarations of script.
+        let lex_declarations = script_lexically_scoped_declarations(script);
+        (lex_names, var_names, var_declarations, lex_declarations)
     };
 
     // 3. For each element name of lexNames, do
     for name in lex_names {
+        let name = String::from_str(agent, name.as_str());
         if
         // a. If env.HasVarDeclaration(name) is true, throw a SyntaxError exception.
-        env.has_var_declaration(agent, &name)
+        env.has_var_declaration(agent, name)
             // b. If env.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
-            || env.has_lexical_declaration(agent, &name)
+            || env.has_lexical_declaration(agent, name)
             // c. Let hasRestrictedGlobal be ? env.HasRestrictedGlobalProperty(name).
             // d. If hasRestrictedGlobal is true, throw a SyntaxError exception.
-            || env.has_restricted_global_property(agent, &name)?
+            || env.has_restricted_global_property(agent, name)?
         {
             return Err(
                 agent.throw_exception(ExceptionType::SyntaxError, "Variable already defined.")
@@ -288,6 +282,7 @@ pub(crate) fn global_declaration_instantiation(
     // 4. For each element name of varNames, do
     for name in &var_names {
         // a. If env.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
+        let name = String::from_str(agent, name.as_str());
         if env.has_lexical_declaration(agent, name) {
             return Err(
                 agent.throw_exception(ExceptionType::SyntaxError, "Variable already defined.")
@@ -315,8 +310,8 @@ pub(crate) fn global_declaration_instantiation(
             // iv. If declaredFunctionNames does not contain fn, then
             if declared_function_names.insert(function_name.clone()) {
                 // 1. Let fnDefinable be ? env.CanDeclareGlobalFunction(fn).
-                let fn_definable =
-                    env.can_declare_global_function(agent, function_name.as_str())?;
+                let function_name = String::from_str(agent, function_name.as_str());
+                let fn_definable = env.can_declare_global_function(agent, function_name)?;
                 // 2. If fnDefinable is false, throw a TypeError exception.
                 if !fn_definable {
                     return Err(agent.throw_exception(
@@ -346,7 +341,8 @@ pub(crate) fn global_declaration_instantiation(
                 // 1. If declaredFunctionNames does not contain vn, then
                 if !declared_function_names.contains(&vn) {
                     // a. Let vnDefinable be ? env.CanDeclareGlobalVar(vn).
-                    let vn_definable = env.can_declare_global_var(agent, &vn)?;
+                    let vn = String::from_str(agent, vn.as_str());
+                    let vn_definable = env.can_declare_global_var(agent, vn)?;
                     // b. If vnDefinable is false, throw a TypeError exception.
                     if !vn_definable {
                         return Err(agent.throw_exception(
@@ -356,7 +352,7 @@ pub(crate) fn global_declaration_instantiation(
                     }
                     // c. If declaredVarNames does not contain vn, then
                     // i. Append vn to declaredVarNames.
-                    declared_var_names.insert(vn.clone());
+                    declared_var_names.insert(vn);
                 }
             }
         }
@@ -376,13 +372,13 @@ pub(crate) fn global_declaration_instantiation(
         let mut bound_names = vec![];
         let mut const_bound_names = vec![];
         let mut closure = |identifier: &BindingIdentifier| {
-            bound_names.push(identifier.name.clone());
+            bound_names.push(String::from_str(agent, identifier.name.as_str()));
         };
         match d {
             LexicallyScopedDeclaration::Variable(decl) => {
                 if decl.kind == VariableDeclarationKind::Const {
                     decl.id.bound_names(&mut |identifier| {
-                        const_bound_names.push(identifier.name.clone())
+                        const_bound_names.push(String::from_str(agent, identifier.name.as_str()))
                     });
                 } else {
                     decl.id.bound_names(&mut closure)
@@ -391,19 +387,19 @@ pub(crate) fn global_declaration_instantiation(
             LexicallyScopedDeclaration::Function(decl) => decl.bound_names(&mut closure),
             LexicallyScopedDeclaration::Class(decl) => decl.bound_names(&mut closure),
             LexicallyScopedDeclaration::DefaultExport => {
-                bound_names.push(Atom::new_inline("*default*"))
+                bound_names.push(String::from_static_str(agent, "*default*"))
             }
         }
         // b. For each element dn of the BoundNames of d, do
         for dn in const_bound_names {
             // i. If IsConstantDeclaration of d is true, then
             // 1. Perform ? env.CreateImmutableBinding(dn, true).
-            env.create_immutable_binding(agent, &dn, true)?;
+            env.create_immutable_binding(agent, dn, true)?;
         }
         for dn in bound_names {
             // ii. Else,
             // 1. Perform ? env.CreateMutableBinding(dn, false).
-            env.create_mutable_binding(agent, &dn, false)?;
+            env.create_mutable_binding(agent, dn, false)?;
         }
     }
 
@@ -415,7 +411,7 @@ pub(crate) fn global_declaration_instantiation(
             assert!(function_name.is_none());
             function_name = Some(identifier.name.clone());
         });
-        let function_name = function_name.unwrap();
+        let function_name = String::from_str(agent, function_name.unwrap().as_str());
         // b. Let fo be InstantiateFunctionObject of f with arguments env and privateEnv.
         let fo = instantiate_function_object(agent, f, EnvironmentIndex::Global(env), private_env);
         // c. Perform ? env.CreateGlobalFunctionBinding(fn, fo, false).
@@ -445,7 +441,6 @@ mod test {
         types::{InternalMethods, IntoValue, Number, Object, PropertyKey, String, Value},
     };
     use oxc_allocator::Allocator;
-    use oxc_span::Atom;
 
     #[test]
     fn empty_script() {
@@ -703,11 +698,12 @@ mod test {
         let script = parse_script(&allocator, "var foo = [];".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
+        let foo_key = String::from_static_str(&mut agent, "foo");
         let foo = agent
             .get_realm(realm)
             .global_env
             .unwrap()
-            .get_binding_value(&mut agent, &Atom::new_inline("foo"), true)
+            .get_binding_value(&mut agent, foo_key, true)
             .unwrap();
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
@@ -725,11 +721,12 @@ mod test {
         let script = parse_script(&allocator, "var foo = [ 'a', 3 ];".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
+        let foo_key = String::from_static_str(&mut agent, "foo");
         let foo = agent
             .get_realm(realm)
             .global_env
             .unwrap()
-            .get_binding_value(&mut agent, &Atom::new_inline("foo"), true)
+            .get_binding_value(&mut agent, foo_key, true)
             .unwrap();
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
@@ -1016,21 +1013,19 @@ mod test {
         assert_eq!(result, Value::Undefined);
 
         let global_env = agent.get_realm(realm).global_env.unwrap();
-        assert!(global_env
-            .has_binding(&mut agent, &Atom::new_inline("a"))
-            .unwrap());
-        assert!(global_env
-            .has_binding(&mut agent, &Atom::new_inline("i"))
-            .unwrap());
+        let a_key = String::from_static_str(&mut agent, "a");
+        let i_key = String::from_static_str(&mut agent, "i");
+        assert!(global_env.has_binding(&mut agent, a_key).unwrap());
+        assert!(global_env.has_binding(&mut agent, i_key).unwrap());
         assert_eq!(
             global_env
-                .get_binding_value(&mut agent, &Atom::new_inline("a"), true)
+                .get_binding_value(&mut agent, a_key, true)
                 .unwrap(),
             String::from_small_string("foo").into_value()
         );
         assert_eq!(
             global_env
-                .get_binding_value(&mut agent, &Atom::new_inline("i"), true)
+                .get_binding_value(&mut agent, i_key, true)
                 .unwrap(),
             Value::from(3)
         );
@@ -1054,8 +1049,10 @@ mod test {
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Undefined);
 
+        let a_key = String::from_static_str(&mut agent, "a");
+        let i_key = String::from_static_str(&mut agent, "i");
         let global_env = agent.get_realm(realm).global_env.unwrap();
-        assert!(!global_env.has_lexical_declaration(&agent, &Atom::new_inline("a")));
-        assert!(!global_env.has_lexical_declaration(&agent, &Atom::new_inline("i")));
+        assert!(!global_env.has_lexical_declaration(&agent, a_key));
+        assert!(!global_env.has_lexical_declaration(&agent, i_key));
     }
 }

@@ -19,6 +19,7 @@
 [Symbol.search]
 [Symbol.split]
 [Symbol.toPrimitive]
+*default*
 abs
 acos
 acosh

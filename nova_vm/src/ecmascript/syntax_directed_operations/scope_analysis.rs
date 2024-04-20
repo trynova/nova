@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use oxc_ast::{
     ast::{
         BindingIdentifier, Class, Declaration, ExportDefaultDeclarationKind, ForStatementInit,
@@ -13,11 +15,13 @@ use oxc_span::Atom;
 /// The syntax-directed operation LexicallyDeclaredNames takes no arguments and
 /// returns a List of Strings.
 pub(crate) trait LexicallyDeclaredNames<'a> {
-    fn lexically_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F);
+    fn lexically_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F);
 }
 
-pub(crate) fn script_lexically_declared_names(script: &Program<'_>) -> Vec<Atom> {
-    let mut lexically_declared_names = vec![];
+pub(crate) fn script_lexically_declared_names<'a, 'b: 'a>(
+    script: &'b Program<'a>,
+) -> Vec<Atom<'a>> {
+    let mut lexically_declared_names: Vec<Atom<'a>> = vec![];
     // Script : [empty]
     // 1. Return a new empty List.
     // ScriptBody : StatementList
@@ -32,7 +36,7 @@ pub(crate) fn script_lexically_declared_names(script: &Program<'_>) -> Vec<Atom>
     lexically_declared_names
 }
 
-pub(crate) fn module_lexically_declared_names(script: &Program<'_>) -> Vec<Atom> {
+pub(crate) fn module_lexically_declared_names<'a>(script: &'a Program<'a>) -> Vec<Atom<'a>> {
     let mut lexically_declared_names = vec![];
     // NOTE 2
     // The LexicallyDeclaredNames of a Module includes the names of all of its imported bindings.
@@ -52,7 +56,9 @@ pub(crate) fn module_lexically_declared_names(script: &Program<'_>) -> Vec<Atom>
     lexically_declared_names
 }
 
-pub(crate) fn function_body_lexically_declared_names(body: &FunctionBody<'_>) -> Vec<Atom> {
+pub(crate) fn function_body_lexically_declared_names<'a>(
+    body: &'a FunctionBody<'a>,
+) -> Vec<Atom<'a>> {
     let mut lexically_declared_names = vec![];
     // FunctionStatementList : [empty]
     // 1. Return a new empty List.
@@ -74,8 +80,8 @@ pub(crate) fn function_body_lexically_declared_names(body: &FunctionBody<'_>) ->
 // AsyncConciseBody : ExpressionBody
 // 1. Return a new empty List.
 
-impl<'a> LexicallyDeclaredNames<'a> for oxc_allocator::Vec<'_, Statement<'_>> {
-    fn lexically_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F) {
+impl<'a> LexicallyDeclaredNames<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
+    fn lexically_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
         // StatementList : StatementList StatementListItem
         // 1. Let names1 be LexicallyDeclaredNames of StatementList.
         // 2. Let names2 be LexicallyDeclaredNames of StatementListItem.
@@ -86,8 +92,8 @@ impl<'a> LexicallyDeclaredNames<'a> for oxc_allocator::Vec<'_, Statement<'_>> {
     }
 }
 
-impl<'a> LexicallyDeclaredNames<'a> for Statement<'_> {
-    fn lexically_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F) {
+impl<'a> LexicallyDeclaredNames<'a> for Statement<'a> {
+    fn lexically_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
         match self {
             // Block : { }
             // 1. Return a new empty List.
@@ -120,7 +126,7 @@ impl<'a> LexicallyDeclaredNames<'a> for Statement<'_> {
                 }
             }
             Statement::ModuleDeclaration(st) => {
-                match &st.0 {
+                match st.deref() {
                     // ModuleItem : ImportDeclaration
                     // 1. Return the BoundNames of ImportDeclaration.
                     // NOTE 2
@@ -177,8 +183,8 @@ impl<'a> LexicallyDeclaredNames<'a> for Statement<'_> {
     }
 }
 
-impl<'a> LexicallyDeclaredNames<'a> for LabeledStatement<'_> {
-    fn lexically_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F) {
+impl<'a> LexicallyDeclaredNames<'a> for LabeledStatement<'a> {
+    fn lexically_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
         // LabelledStatement : LabelIdentifier : LabelledItem
         // 1. Return the LexicallyDeclaredNames of LabelledItem.
         // LabelledItem : Statement
@@ -322,7 +328,7 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                 // StatementListItem : Statement
 
                 // 1. If Statement is Statement : LabelledStatement , return LexicallyScopedDeclarations of LabelledStatement.
-                st.0.lexically_scoped_declarations(f);
+                st.deref().lexically_scoped_declarations(f);
                 // 2. Return a new empty List.
             },
             Statement::BlockStatement(_) |
@@ -373,7 +379,7 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                 }
             },
             Statement::ModuleDeclaration(st) => {
-                match &st.0 {
+                match st.deref() {
                     // ExportDeclaration :
                     // ModuleItem : ImportDeclaration
                     // 1. Return a new empty List.
@@ -449,10 +455,10 @@ impl<'a> LexicallyScopedDeclarations<'a> for LabeledStatement<'a> {
 /// The syntax-directed operation VarDeclaredNames takes no arguments and
 /// returns a List of Strings.
 pub(crate) trait VarDeclaredNames<'a> {
-    fn var_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F);
+    fn var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&self, f: &mut F);
 }
 
-pub(crate) fn script_var_declared_names(script: &Program<'_>) -> Vec<Atom> {
+pub(crate) fn script_var_declared_names<'a>(script: &'a Program<'a>) -> Vec<Atom<'a>> {
     let mut var_declared_names = vec![];
     // Script : [empty]
     // 1. Return a new empty List.
@@ -466,7 +472,7 @@ pub(crate) fn script_var_declared_names(script: &Program<'_>) -> Vec<Atom> {
     var_declared_names
 }
 
-pub(crate) fn module_var_declared_names(module: &Program<'_>) -> Vec<Atom> {
+pub(crate) fn module_var_declared_names<'a>(module: &Program<'a>) -> Vec<Atom<'a>> {
     let mut var_declared_names = vec![];
     // ModuleItemList : ModuleItemList ModuleItem
     // 1. Let names1 be VarDeclaredNames of ModuleItemList.
@@ -478,7 +484,9 @@ pub(crate) fn module_var_declared_names(module: &Program<'_>) -> Vec<Atom> {
     var_declared_names
 }
 
-pub(crate) fn function_body_var_declared_names(function: &FunctionBody<'_>) -> Vec<Atom> {
+pub(crate) fn function_body_var_declared_names<'a>(
+    function: &'a FunctionBody<'a>,
+) -> Vec<Atom<'a>> {
     let mut var_declared_names = vec![];
     // NOTE
     // This section is extended by Annex B.3.5.
@@ -495,7 +503,9 @@ pub(crate) fn function_body_var_declared_names(function: &FunctionBody<'_>) -> V
     var_declared_names
 }
 
-pub(crate) fn class_static_block_var_declared_names(static_block: &StaticBlock<'_>) -> Vec<Atom> {
+pub(crate) fn class_static_block_var_declared_names<'a>(
+    static_block: &'a StaticBlock<'a>,
+) -> Vec<Atom<'a>> {
     let mut var_declared_names = vec![];
     // ClassStaticBlockStatementList : [empty]
     // 1. Return a new empty List.
@@ -509,7 +519,9 @@ pub(crate) fn class_static_block_var_declared_names(static_block: &StaticBlock<'
     var_declared_names
 }
 
-pub(crate) fn arrow_function_var_declared_names(arrow_function: &FunctionBody<'_>) -> Vec<Atom> {
+pub(crate) fn arrow_function_var_declared_names<'a>(
+    arrow_function: &FunctionBody<'a>,
+) -> Vec<Atom<'a>> {
     debug_assert!(arrow_function.statements.len() <= 1);
     if let Some(body) = arrow_function.statements.first() {
         debug_assert!(matches!(body, Statement::ExpressionStatement(_)));
@@ -522,7 +534,7 @@ pub(crate) fn arrow_function_var_declared_names(arrow_function: &FunctionBody<'_
 }
 
 impl<'a> VarDeclaredNames<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
-    fn var_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F) {
+    fn var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&self, f: &mut F) {
         // StatementList : StatementList StatementListItem
         // 1. Let names1 be VarDeclaredNames of StatementList.
         // 2. Let names2 be VarDeclaredNames of StatementListItem.
@@ -534,7 +546,7 @@ impl<'a> VarDeclaredNames<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
 }
 
 impl<'a> VarDeclaredNames<'a> for Statement<'a> {
-    fn var_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F) {
+    fn var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&self, f: &mut F) {
         match self {
             // Statement :
             // BreakStatement
@@ -688,7 +700,7 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
                 st.body.var_declared_names(f);
             },
             Statement::ModuleDeclaration(decl) => {
-                match &decl.0 {
+                match &decl.deref() {
                     // ModuleItem : ImportDeclaration
                     // 1. Return a new empty List.
                     ModuleDeclaration::ImportDeclaration(_) |
@@ -968,7 +980,7 @@ impl<'a> VarScopedDeclarations<'a> for Statement<'a> {
                 // 4. Return the list-concatenation of declarations1, declarations2, and declarations3.
             },
             Statement::ModuleDeclaration(st) => {
-                match &st.0 {
+                match st.deref() {
                     // ModuleItem : ImportDeclaration
                     ModuleDeclaration::ImportDeclaration(_) => {
                         // 1. Return a new empty List.
@@ -1012,11 +1024,11 @@ impl<'a> VarScopedDeclarations<'a> for VariableDeclaration<'a> {
 /// The syntax-directed operation TopLevelLexicallyDeclaredNames takes no
 /// arguments and returns a List of Strings.
 trait TopLevelLexicallyDeclaredNames<'a> {
-    fn top_level_lexically_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F);
+    fn top_level_lexically_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F);
 }
 
-impl<'a> TopLevelLexicallyDeclaredNames<'a> for oxc_allocator::Vec<'_, Statement<'_>> {
-    fn top_level_lexically_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F) {
+impl<'a> TopLevelLexicallyDeclaredNames<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
+    fn top_level_lexically_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
         // StatementList : StatementList StatementListItem
         // 1. Let names1 be TopLevelLexicallyDeclaredNames of StatementList.
         // 2. Let names2 be TopLevelLexicallyDeclaredNames of StatementListItem.
@@ -1027,8 +1039,8 @@ impl<'a> TopLevelLexicallyDeclaredNames<'a> for oxc_allocator::Vec<'_, Statement
     }
 }
 
-impl<'a> TopLevelLexicallyDeclaredNames<'a> for Statement<'_> {
-    fn top_level_lexically_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F) {
+impl<'a> TopLevelLexicallyDeclaredNames<'a> for Statement<'a> {
+    fn top_level_lexically_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
         // StatementListItem : Statement
         // 1. Return a new empty List.
         // NOTE
@@ -1120,11 +1132,11 @@ impl<'a> TopLevelLexicallyScopedDeclarations<'a> for Statement<'a> {
 /// The syntax-directed operation TopLevelVarDeclaredNames takes no arguments
 /// and returns a List of Strings.
 trait TopLevelVarDeclaredNames<'a> {
-    fn top_level_var_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F);
+    fn top_level_var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F);
 }
 
 impl<'a> TopLevelVarDeclaredNames<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
-    fn top_level_var_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F) {
+    fn top_level_var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
         // StatementList : StatementList StatementListItem
         // 1. Let names1 be TopLevelVarDeclaredNames of StatementList.
         // 2. Let names2 be TopLevelVarDeclaredNames of StatementListItem.
@@ -1136,7 +1148,7 @@ impl<'a> TopLevelVarDeclaredNames<'a> for oxc_allocator::Vec<'a, Statement<'a>> 
 }
 
 impl<'a> TopLevelVarDeclaredNames<'a> for Statement<'a> {
-    fn top_level_var_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F) {
+    fn top_level_var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
         match self {
             Statement::LabeledStatement(st) => {
                 // StatementListItem : Statement
@@ -1168,7 +1180,7 @@ impl<'a> TopLevelVarDeclaredNames<'a> for Statement<'a> {
 }
 
 impl<'a> TopLevelVarDeclaredNames<'a> for LabeledStatement<'a> {
-    fn top_level_var_declared_names<F: FnMut(&BindingIdentifier)>(&self, f: &mut F) {
+    fn top_level_var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
         // LabelledStatement : LabelIdentifier : LabelledItem
         // 1. Return the TopLevelVarDeclaredNames of LabelledItem.
 

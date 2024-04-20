@@ -1,33 +1,27 @@
-use oxc_span::Atom;
 use oxc_syntax::operator::BinaryOperator;
 
-use crate::{
-    ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{call, construct, create_data_property_or_throw},
-            testing_and_comparison::{
-                is_constructor, is_less_than, is_same_type, is_strictly_equal,
-            },
-            type_conversion::{
-                to_boolean, to_number, to_numeric, to_primitive, to_property_key, to_string,
-            },
-        },
-        builtins::{
-            array_create, ordinary::ordinary_object_create_with_intrinsics,
-            ordinary_function_create, ArgumentsList, Array, OrdinaryFunctionCreateParams, ThisMode,
-        },
-        execution::{
-            agent::{resolve_binding, ExceptionType, JsError},
-            new_declarative_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
-            JsResult, ProtoIntrinsics,
-        },
-        types::{
-            get_value, is_unresolvable_reference, put_value, Base, BigInt, Function, IntoValue,
-            Number, Numeric, Object, PropertyKey, Reference, ReferencedName, String, Value,
-            BUILTIN_STRING_MEMORY,
+use crate::ecmascript::{
+    abstract_operations::{
+        operations_on_objects::{call, construct, create_data_property_or_throw},
+        testing_and_comparison::{is_constructor, is_less_than, is_same_type, is_strictly_equal},
+        type_conversion::{
+            to_boolean, to_number, to_numeric, to_primitive, to_property_key, to_string,
         },
     },
-    heap::GetHeapData,
+    builtins::{
+        array_create, ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
+        ArgumentsList, Array, OrdinaryFunctionCreateParams, ThisMode,
+    },
+    execution::{
+        agent::{resolve_binding, ExceptionType, JsError},
+        new_declarative_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
+        JsResult, ProtoIntrinsics,
+    },
+    types::{
+        get_value, is_unresolvable_reference, put_value, Base, BigInt, Function, IntoValue, Number,
+        Numeric, Object, PropertyKey, Reference, ReferencedName, String, Value,
+        BUILTIN_STRING_MEMORY,
+    },
 };
 
 use super::{Executable, Instruction, InstructionIter};
@@ -61,8 +55,8 @@ impl Vm {
         }
     }
 
-    fn fetch_identifier<'a>(&self, exe: &'a Executable, index: usize) -> &'a Atom {
-        &exe.identifiers[index]
+    fn fetch_identifier(&self, exe: &Executable, index: usize) -> String {
+        exe.identifiers[index]
     }
 
     fn fetch_constant(&self, exe: &Executable, index: usize) -> Value {
@@ -327,13 +321,8 @@ impl Vm {
                     vm.reference = Some(Reference {
                         base: Base::Value(base_value),
                         referenced_name: match property_key {
-                            PropertyKey::SmallString(s) => {
-                                ReferencedName::String(Atom::from(s.as_str()))
-                            }
-                            PropertyKey::String(s) => {
-                                let s = agent.heap.get(s);
-                                ReferencedName::String(Atom::from(s.as_str().to_string()))
-                            }
+                            PropertyKey::SmallString(s) => ReferencedName::SmallString(s),
+                            PropertyKey::String(s) => ReferencedName::String(s),
                             PropertyKey::Symbol(s) => ReferencedName::Symbol(s.into()),
                             _ => todo!("Index properties in ReferencedName"),
                         },
@@ -342,15 +331,14 @@ impl Vm {
                     });
                 }
                 Instruction::EvaluatePropertyAccessWithIdentifierKey => {
-                    let property_name_string = vm
-                        .fetch_identifier(executable, instr.args[0].unwrap() as usize)
-                        .clone();
+                    let property_name_string =
+                        vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
                     let base_value = vm.result.take().unwrap();
                     let strict = true;
 
                     vm.reference = Some(Reference {
                         base: Base::Value(base_value),
-                        referenced_name: ReferencedName::String(property_name_string),
+                        referenced_name: ReferencedName::from(property_name_string),
                         strict,
                         this_value: None,
                     });
@@ -411,8 +399,10 @@ impl Vm {
                     let Base::Environment(base) = base else {
                         unreachable!()
                     };
-                    let ReferencedName::String(referenced_name) = &v.referenced_name else {
-                        unreachable!()
+                    let referenced_name = match v.referenced_name {
+                        ReferencedName::String(data) => String::String(data),
+                        ReferencedName::SmallString(data) => String::SmallString(data),
+                        ReferencedName::Symbol(_) | ReferencedName::PrivateName => unreachable!(),
                     };
                     // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
                     base.initialize_binding(agent, referenced_name, w).unwrap();

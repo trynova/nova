@@ -3,8 +3,6 @@
 //! - This is inspired by and/or copied from Kiesel engine:
 //!   Copyright (c) 2023-2024 Linus Groh
 
-use oxc_span::Atom;
-
 use super::{
     environments::get_identifier_reference, EnvironmentIndex, ExecutionContext, Realm,
     RealmIdentifier,
@@ -143,7 +141,7 @@ pub(crate) fn get_active_script_or_module(agent: &mut Agent) -> Option<ScriptOrM
 /// binding.
 pub(crate) fn resolve_binding(
     agent: &mut Agent,
-    name: &Atom,
+    name: String,
     env: Option<EnvironmentIndex>,
 ) -> JsResult<Reference> {
     let env = env.unwrap_or_else(|| {

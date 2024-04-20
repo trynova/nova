@@ -34,10 +34,9 @@ pub(crate) use function_environment::{
 };
 pub(crate) use global_environment::GlobalEnvironment;
 pub(crate) use object_environment::ObjectEnvironment;
-use oxc_span::Atom;
 pub(crate) use private_environment::PrivateEnvironment;
 
-use crate::ecmascript::types::{Base, Object, Reference, ReferencedName, Value};
+use crate::ecmascript::types::{Base, Object, Reference, ReferencedName, String, Value};
 
 use super::{Agent, JsResult};
 
@@ -137,7 +136,7 @@ impl EnvironmentIndex {
     ///
     /// Determine if an Environment Record has a binding for the String value
     /// N. Return true if it does and false if it does not.
-    pub(crate) fn has_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
+    pub(crate) fn has_binding(self, agent: &mut Agent, name: String) -> JsResult<bool> {
         match self {
             EnvironmentIndex::Declarative(idx) => Ok(idx.has_binding(agent, name)),
             EnvironmentIndex::Function(idx) => Ok(idx.has_binding(agent, name)),
@@ -154,7 +153,7 @@ impl EnvironmentIndex {
     pub(crate) fn create_mutable_binding(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         is_deletable: bool,
     ) -> JsResult<()> {
         match self {
@@ -181,7 +180,7 @@ impl EnvironmentIndex {
     pub(crate) fn create_immutable_binding(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         is_strict: bool,
     ) -> JsResult<()> {
         match self {
@@ -210,7 +209,7 @@ impl EnvironmentIndex {
     pub(crate) fn initialize_binding(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         value: Value,
     ) -> JsResult<()> {
         match self {
@@ -237,7 +236,7 @@ impl EnvironmentIndex {
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         value: Value,
         is_strict: bool,
     ) -> JsResult<()> {
@@ -265,7 +264,7 @@ impl EnvironmentIndex {
     pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         is_strict: bool,
     ) -> JsResult<Value> {
         match self {
@@ -282,7 +281,7 @@ impl EnvironmentIndex {
     /// text of the bound name. If a binding for N exists, remove the binding
     /// and return true. If the binding exists but cannot be removed return
     /// false.
-    pub(crate) fn delete_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
+    pub(crate) fn delete_binding(self, agent: &mut Agent, name: String) -> JsResult<bool> {
         match self {
             EnvironmentIndex::Declarative(idx) => Ok(idx.delete_binding(agent, name)),
             EnvironmentIndex::Function(idx) => Ok(idx.delete_binding(agent, name)),
@@ -359,7 +358,7 @@ impl Default for Environments {
 pub(crate) fn get_identifier_reference(
     agent: &mut Agent,
     env: Option<EnvironmentIndex>,
-    name: &Atom,
+    name: String,
     strict: bool,
 ) -> JsResult<Reference> {
     // 1. If env is null, then
@@ -369,7 +368,7 @@ pub(crate) fn get_identifier_reference(
             // [[Base]]: UNRESOLVABLE,
             base: Base::Unresolvable,
             // [[ReferencedName]]: name,
-            referenced_name: ReferencedName::String(name.clone()),
+            referenced_name: ReferencedName::from(name),
             // [[Strict]]: strict,
             strict,
             // [[ThisValue]]: EMPTY
@@ -388,7 +387,7 @@ pub(crate) fn get_identifier_reference(
             // [[Base]]: env,
             base: Base::Environment(env),
             // [[ReferencedName]]: name,
-            referenced_name: ReferencedName::String(name.clone()),
+            referenced_name: ReferencedName::from(name),
             // [[Strict]]: strict,
             strict,
             // [[ThisValue]]: EMPTY

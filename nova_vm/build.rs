@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{self, prelude::*, BufReader};
 
 fn replace_invalid_key_characters(string: &str) -> String {
-    string.replace(['[', ']', ' ', '.', '-'], "_")
+    string.replace(['[', ']', ' ', '.', '-', '*'], "_")
 }
 
 fn gen_builtin_strings() -> io::Result<Vec<u8>> {

@@ -1,5 +1,3 @@
-use oxc_span::Atom;
-
 use super::{ObjectEnvironmentIndex, OuterEnv};
 use crate::{
     ecmascript::{
@@ -8,7 +6,7 @@ use crate::{
             type_conversion::to_boolean,
         },
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{InternalMethods, Object, PropertyDescriptor, PropertyKey, Value},
+        types::{InternalMethods, Object, PropertyDescriptor, PropertyKey, String, Value},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -82,12 +80,12 @@ impl ObjectEnvironmentIndex {
     /// takes argument N (a String) and returns either a normal completion
     /// containing a Boolean or a throw completion. It determines if its
     /// associated binding object has a property whose name is N.
-    pub(crate) fn has_binding(self, agent: &mut Agent, n: &Atom) -> JsResult<bool> {
+    pub(crate) fn has_binding(self, agent: &mut Agent, n: String) -> JsResult<bool> {
         let env_rec = self.heap_data(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         let is_with_environment = env_rec.is_with_environment;
-        let name = PropertyKey::from_str(agent, n.as_str());
+        let name = PropertyKey::from(n);
         // 2. Let foundBinding be ? HasProperty(bindingObject, N).
         let found_binding = has_property(agent, binding_object, name)?;
         // 3. If foundBinding is false, return false.
@@ -128,14 +126,14 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn create_mutable_binding(
         self,
         agent: &mut Agent,
-        n: &Atom,
+        n: String,
         d: bool,
     ) -> JsResult<()> {
         let env_rec = self.heap_data(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         // 2. Perform ? DefinePropertyOrThrow(bindingObject, N, PropertyDescriptor { [[Value]]: undefined, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: D }).
-        let n = PropertyKey::from_str(agent, n.as_str());
+        let n = PropertyKey::from(n);
         define_property_or_throw(
             agent,
             binding_object,
@@ -159,7 +157,7 @@ impl ObjectEnvironmentIndex {
     }
 
     /// ### [9.1.1.2.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-object-environment-records-createimmutablebinding-n-s)
-    pub(crate) fn create_immutable_binding(self, _: &mut Agent, _: &Atom, _: bool) {
+    pub(crate) fn create_immutable_binding(self, _: &mut Agent, _: String, _: bool) {
         unreachable!("The CreateImmutableBinding concrete method of an Object Environment Record is never used within this specification.")
     }
     /// ### [9.1.1.2.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-object-environment-records-initializebinding-n-v)
@@ -169,7 +167,7 @@ impl ObjectEnvironmentIndex {
     /// value) and returns either a normal completion containing UNUSED or a
     /// throw completion. It is used to set the bound value of the current
     /// binding of the identifier whose name is N to the value V.
-    pub(crate) fn initialize_binding(self, agent: &mut Agent, n: &Atom, v: Value) -> JsResult<()> {
+    pub(crate) fn initialize_binding(self, agent: &mut Agent, n: String, v: Value) -> JsResult<()> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
         self.set_mutable_binding(agent, n, v, false)?;
         // 2. Return UNUSED.
@@ -195,7 +193,7 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
-        n: &Atom,
+        n: String,
         v: Value,
         s: bool,
     ) -> JsResult<()> {
@@ -203,7 +201,7 @@ impl ObjectEnvironmentIndex {
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         // 2. Let stillExists be ? HasProperty(bindingObject, N).
-        let n = PropertyKey::from_str(agent, n.as_str());
+        let n = PropertyKey::from(n);
         let still_exists = has_property(agent, binding_object, n)?;
         // 3. If stillExists is false and S is true, throw a ReferenceError exception.
         if !still_exists && s {
@@ -223,11 +221,16 @@ impl ObjectEnvironmentIndex {
     /// throw completion. It returns the value of its associated binding
     /// object's property whose name is N. The property should already exist
     /// but if it does not the result depends upon S.
-    pub(crate) fn get_binding_value(self, agent: &mut Agent, n: &Atom, s: bool) -> JsResult<Value> {
+    pub(crate) fn get_binding_value(
+        self,
+        agent: &mut Agent,
+        n: String,
+        s: bool,
+    ) -> JsResult<Value> {
         let env_rec = self.heap_data(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
-        let name = PropertyKey::from_str(agent, n.as_str());
+        let name = PropertyKey::from(n);
         // 2. Let value be ? HasProperty(bindingObject, N).
         let value = has_property(agent, binding_object, name)?;
         // 3. If value is false, then
@@ -251,11 +254,11 @@ impl ObjectEnvironmentIndex {
     /// completion containing a Boolean or a throw completion. It can only
     /// delete bindings that correspond to properties of the environment
     /// object whose [[Configurable]] attribute have the value true.
-    pub(crate) fn delete_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
+    pub(crate) fn delete_binding(self, agent: &mut Agent, name: String) -> JsResult<bool> {
         let env_rec = self.heap_data(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_boject = env_rec.binding_object;
-        let name = PropertyKey::from_str(agent, name.as_str());
+        let name = PropertyKey::from(name);
         // 2. Return ? bindingObject.[[Delete]](N).
         binding_boject.delete(agent, name)
     }
