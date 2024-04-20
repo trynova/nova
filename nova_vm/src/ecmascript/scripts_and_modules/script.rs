@@ -636,14 +636,17 @@ mod test {
         let foo = agent
             .get_realm(realm)
             .global_object
-            .get_own_property(&mut agent, key)
+            .internal_get_own_property(&mut agent, key)
             .unwrap()
             .unwrap()
             .value
             .unwrap();
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
-        assert!(result.own_property_keys(&mut agent).unwrap().is_empty());
+        assert!(result
+            .internal_own_property_keys(&mut agent)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -661,7 +664,7 @@ mod test {
         let foo = agent
             .get_realm(realm)
             .global_object
-            .get_own_property(&mut agent, key)
+            .internal_get_own_property(&mut agent, key)
             .unwrap()
             .unwrap()
             .value
@@ -669,10 +672,10 @@ mod test {
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
         let key = PropertyKey::from_static_str(&mut agent, "a");
-        assert!(result.has_property(&mut agent, key).unwrap());
+        assert!(result.internal_has_property(&mut agent, key).unwrap());
         assert_eq!(
             result
-                .get_own_property(&mut agent, key)
+                .internal_get_own_property(&mut agent, key)
                 .unwrap()
                 .unwrap()
                 .value,
@@ -707,7 +710,10 @@ mod test {
             .unwrap();
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
-        assert!(result.own_property_keys(&mut agent).unwrap().is_empty());
+        assert!(result
+            .internal_own_property_keys(&mut agent)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -731,20 +737,20 @@ mod test {
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
         let key = PropertyKey::Integer(0.into());
-        assert!(result.has_property(&mut agent, key).unwrap());
+        assert!(result.internal_has_property(&mut agent, key).unwrap());
         assert_eq!(
             result
-                .get_own_property(&mut agent, key)
+                .internal_get_own_property(&mut agent, key)
                 .unwrap()
                 .unwrap()
                 .value,
             Some(Value::from_static_str(&mut agent, "a"))
         );
         let key = PropertyKey::Integer(1.into());
-        assert!(result.has_property(&mut agent, key).unwrap());
+        assert!(result.internal_has_property(&mut agent, key).unwrap());
         assert_eq!(
             result
-                .get_own_property(&mut agent, key)
+                .internal_get_own_property(&mut agent, key)
                 .unwrap()
                 .unwrap()
                 .value,
@@ -986,7 +992,7 @@ mod test {
         let i: Value = agent
             .get_realm(realm)
             .global_object
-            .get_own_property(&mut agent, key)
+            .internal_get_own_property(&mut agent, key)
             .unwrap()
             .unwrap()
             .value

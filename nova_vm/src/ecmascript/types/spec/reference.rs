@@ -118,7 +118,7 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             };
             if let Ok(object) = Object::try_from(value) {
                 // c. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
-                Ok(object.get(agent, referenced_name, get_this_value(reference))?)
+                Ok(object.internal_get(agent, referenced_name, get_this_value(reference))?)
             } else {
                 // Primitive value. annoying stuff.
                 match value {
@@ -134,27 +134,27 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
                         .current_realm()
                         .intrinsics()
                         .boolean_prototype()
-                        .get(agent, referenced_name, value),
+                        .internal_get(agent, referenced_name, value),
                     Value::String(_) | Value::SmallString(_) => agent
                         .current_realm()
                         .intrinsics()
                         .string_prototype()
-                        .get(agent, referenced_name, value),
-                    Value::Symbol(_) => agent.current_realm().intrinsics().symbol_prototype().get(
-                        agent,
-                        referenced_name,
-                        value,
-                    ),
+                        .internal_get(agent, referenced_name, value),
+                    Value::Symbol(_) => agent
+                        .current_realm()
+                        .intrinsics()
+                        .symbol_prototype()
+                        .internal_get(agent, referenced_name, value),
                     Value::Number(_) | Value::Integer(_) | Value::Float(_) => agent
                         .current_realm()
                         .intrinsics()
                         .number_prototype()
-                        .get(agent, referenced_name, value),
+                        .internal_get(agent, referenced_name, value),
                     Value::BigInt(_) | Value::SmallBigInt(_) => agent
                         .current_realm()
                         .intrinsics()
                         .big_int_prototype()
-                        .get(agent, referenced_name, value),
+                        .internal_get(agent, referenced_name, value),
                     _ => unreachable!(),
                 }
             }
@@ -229,7 +229,7 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
             ReferencedName::Symbol(_) => todo!(),
             ReferencedName::PrivateName => todo!(),
         };
-        let succeeded = base_obj.set(agent, referenced_name, w, this_value)?;
+        let succeeded = base_obj.internal_set(agent, referenced_name, w, this_value)?;
         if !succeeded && v.strict {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
             return Err(

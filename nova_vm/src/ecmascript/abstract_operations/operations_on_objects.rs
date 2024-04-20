@@ -51,7 +51,7 @@ pub(crate) fn make_basic_object(_agent: &mut Agent, _internal_slots_list: ()) ->
 /// specific property of an object.
 pub(crate) fn get(agent: &mut Agent, o: Object, p: PropertyKey) -> JsResult<Value> {
     // 1. Return ? O.[[Get]](P, O).
-    o.get(agent, p, o.into())
+    o.internal_get(agent, p, o.into())
 }
 
 /// ### [7.3.3 GetV ( V, P )](https://tc39.es/ecma262/#sec-getv)
@@ -66,7 +66,7 @@ pub(crate) fn get_v(agent: &mut Agent, v: Value, p: PropertyKey) -> JsResult<Val
     // 1. Let O be ? ToObject(V).
     let o = to_object(agent, v)?;
     // 2. Return ? O.[[Get]](P, V).
-    o.get(agent, p, o.into())
+    o.internal_get(agent, p, o.into())
 }
 
 /// ### [7.3.4 Set ( O, P, V, Throw )](https://tc39.es/ecma262/#sec-set-o-p-v-throw)
@@ -84,7 +84,7 @@ pub(crate) fn set(
     throw: bool,
 ) -> JsResult<()> {
     // 1. Let success be ? O.[[Set]](P, V, O).
-    let success = o.set(agent, p, v, o.into_value())?;
+    let success = o.internal_set(agent, p, v, o.into_value())?;
     // 2. If success is false and Throw is true, throw a TypeError exception.
     if !success && throw {
         return Err(agent.throw_exception(ExceptionType::TypeError, "Could not set property."));
@@ -121,7 +121,7 @@ pub(crate) fn create_data_property(
         configurable: Some(true),
     };
     // 2. Return ? O.[[DefineOwnProperty]](P, newDesc).
-    object.define_own_property(agent, property_key, new_desc)
+    object.internal_define_own_property(agent, property_key, new_desc)
 }
 
 /// ### [7.3.7 CreateDataPropertyOrThrow ( O, P, V )](https://tc39.es/ecma262/#sec-createdatapropertyorthrow)
@@ -160,7 +160,7 @@ pub(crate) fn define_property_or_throw(
     desc: PropertyDescriptor,
 ) -> JsResult<()> {
     // 1. Let success be ? O.[[DefineOwnProperty]](P, desc).
-    let success = object.define_own_property(agent, property_key, desc)?;
+    let success = object.internal_define_own_property(agent, property_key, desc)?;
     // 2. If success is false, throw a TypeError exception.
     if !success {
         Err(agent.throw_exception(
@@ -214,7 +214,7 @@ pub(crate) fn get_method(
 /// inherited.
 pub(crate) fn has_property(agent: &mut Agent, o: Object, p: PropertyKey) -> JsResult<bool> {
     // 1. Return ? O.[[HasProperty]](P).
-    o.has_property(agent, p)
+    o.internal_has_property(agent, p)
 }
 
 /// ### [7.3.13 HasOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-hasownproperty)
@@ -225,7 +225,7 @@ pub(crate) fn has_property(agent: &mut Agent, o: Object, p: PropertyKey) -> JsRe
 /// has an own property with the specified property key.
 pub(crate) fn has_own_property(agent: &mut Agent, o: Object, p: PropertyKey) -> JsResult<bool> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let desc = o.get_own_property(agent, p)?;
+    let desc = o.internal_get_own_property(agent, p)?;
     // 2. If desc is undefined, return false.
     // 3. Return true.
     Ok(desc.is_some())
@@ -256,12 +256,14 @@ pub(crate) fn call(
     } else {
         // 3. Return ? F.[[Call]](V, argumentsList).
         match f {
-            Value::BoundFunction(idx) => Function::from(idx).call(agent, v, arguments_list),
+            Value::BoundFunction(idx) => {
+                Function::from(idx).internal_call(agent, v, arguments_list)
+            }
             Value::BuiltinFunction(idx) => {
-                BuiltinFunction::from(idx).call(agent, v, arguments_list)
+                BuiltinFunction::from(idx).internal_call(agent, v, arguments_list)
             }
             Value::ECMAScriptFunction(idx) => {
-                ECMAScriptFunction::from(idx).call(agent, v, arguments_list)
+                ECMAScriptFunction::from(idx).internal_call(agent, v, arguments_list)
             }
             _ => unreachable!(),
         }
@@ -276,7 +278,7 @@ pub(crate) fn call_function(
     arguments_list: Option<ArgumentsList>,
 ) -> JsResult<Value> {
     let arguments_list = arguments_list.unwrap_or_default();
-    f.call(agent, v, arguments_list)
+    f.internal_call(agent, v, arguments_list)
 }
 
 pub(crate) fn construct(
@@ -289,7 +291,7 @@ pub(crate) fn construct(
     let new_target = new_target.unwrap_or(f);
     // 2. If argumentsList is not present, set argumentsList to a new empty List.
     let arguments_list = arguments_list.unwrap_or_default();
-    f.construct(agent, arguments_list, new_target)
+    f.internal_construct(agent, arguments_list, new_target)
 }
 
 /// ### [7.3.20 Invoke ( V, P \[ , argumentsList \] )]()
@@ -350,7 +352,7 @@ pub(crate) fn ordinary_has_instance(agent: &mut Agent, c: Value, o: Value) -> Js
     // 6. Repeat,
     loop {
         // a. Set O to ? O.[[GetPrototypeOf]]().
-        let o_prototype = o.get_prototype_of(agent)?;
+        let o_prototype = o.internal_get_prototype_of(agent)?;
         if let Some(o_prototype) = o_prototype {
             o = o_prototype;
         } else {

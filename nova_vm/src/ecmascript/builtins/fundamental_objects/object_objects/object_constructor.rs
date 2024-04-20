@@ -375,7 +375,7 @@ impl ObjectConstructor {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let obj = to_object(agent, arguments.get(0))?;
-        obj.get_prototype_of(agent)
+        obj.internal_get_prototype_of(agent)
             .map(|proto| proto.map_or(Value::Null, |proto| proto.into_value()))
     }
 

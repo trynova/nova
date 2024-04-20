@@ -162,26 +162,26 @@ impl From<BuiltinFunction> for Function {
 }
 
 impl OrdinaryObjectInternalSlots for BuiltinFunction {
-    fn extensible(self, agent: &Agent) -> bool {
+    fn internal_extensible(self, agent: &Agent) -> bool {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
-            OrdinaryObject::from(object_index).extensible(agent)
+            OrdinaryObject::from(object_index).internal_extensible(agent)
         } else {
             true
         }
     }
 
-    fn set_extensible(self, agent: &mut Agent, value: bool) {
+    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
-            OrdinaryObject::from(object_index).set_extensible(agent, value)
+            OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
         } else {
             // Create function base object and set inextensible
             todo!()
         }
     }
 
-    fn prototype(self, agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
-            OrdinaryObject::from(object_index).prototype(agent)
+            OrdinaryObject::from(object_index).internal_prototype(agent)
         } else {
             Some(
                 agent
@@ -193,9 +193,9 @@ impl OrdinaryObjectInternalSlots for BuiltinFunction {
         }
     }
 
-    fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
-            OrdinaryObject::from(object_index).set_prototype(agent, prototype)
+            OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
         } else {
             // Create function base object and set inextensible
             todo!()
@@ -204,13 +204,17 @@ impl OrdinaryObjectInternalSlots for BuiltinFunction {
 }
 
 impl InternalMethods for BuiltinFunction {
-    fn get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
-        Ok(self.prototype(agent))
+    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
+        Ok(self.internal_prototype(agent))
     }
 
-    fn set_prototype_of(self, agent: &mut Agent, prototype: Option<Object>) -> JsResult<bool> {
+    fn internal_set_prototype_of(
+        self,
+        agent: &mut Agent,
+        prototype: Option<Object>,
+    ) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
-            OrdinaryObject::from(object_index).set_prototype_of(agent, prototype)
+            OrdinaryObject::from(object_index).internal_set_prototype_of(agent, prototype)
         } else {
             // If we're setting %ArrayBuffer.prototype% then we can still avoid creating the ObjectHeapData.
             let current = agent.current_realm().intrinsics().function_prototype();
@@ -221,27 +225,27 @@ impl InternalMethods for BuiltinFunction {
                 // OrdinarySetPrototypeOf 7.b.i: Setting prototype would cause a loop to occur.
                 return Ok(false);
             }
-            self.set_prototype(agent, prototype);
+            self.internal_set_prototype(agent, prototype);
             Ok(true)
         }
     }
 
-    fn is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
-        Ok(self.extensible(agent))
+    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
+        Ok(self.internal_extensible(agent))
     }
 
-    fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
-        self.set_extensible(agent, false);
+    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+        self.internal_set_extensible(agent, false);
         Ok(true)
     }
 
-    fn get_own_property(
+    fn internal_get_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
-            OrdinaryObject::from(object_index).get_own_property(agent, property_key)
+            OrdinaryObject::from(object_index).internal_get_own_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(Some(PropertyDescriptor {
                 value: Some(agent.heap.get(self.0).length.into()),
@@ -263,14 +267,14 @@ impl InternalMethods for BuiltinFunction {
         }
     }
 
-    fn define_own_property(
+    fn internal_define_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
-            OrdinaryObject::from(object_index).has_property(agent, property_key)
+            OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             let prototype = agent.current_realm().intrinsics().array_prototype();
             let length_entry = ObjectEntry {
@@ -346,35 +350,42 @@ impl InternalMethods for BuiltinFunction {
         }
     }
 
-    fn has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
-            OrdinaryObject::from(object_index).has_property(agent, property_key)
+            OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
             Ok(true)
         } else {
-            let parent = self.get_prototype_of(agent)?;
-            parent.map_or(Ok(false), |parent| parent.has_property(agent, property_key))
+            let parent = self.internal_get_prototype_of(agent)?;
+            parent.map_or(Ok(false), |parent| {
+                parent.internal_has_property(agent, property_key)
+            })
         }
     }
 
-    fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
+    fn internal_get(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
+    ) -> JsResult<Value> {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
-            OrdinaryObject::from(object_index).get(agent, property_key, receiver)
+            OrdinaryObject::from(object_index).internal_get(agent, property_key, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(agent.heap.get(self.0).length.into())
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
             Ok(agent.heap.get(self.0).initial_name.into())
         } else {
-            let parent = self.get_prototype_of(agent)?;
+            let parent = self.internal_get_prototype_of(agent)?;
             parent.map_or(Ok(Value::Undefined), |parent| {
-                parent.get(agent, property_key, receiver)
+                parent.internal_get(agent, property_key, receiver)
             })
         }
     }
 
-    fn set(
+    fn internal_set(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
@@ -382,7 +393,7 @@ impl InternalMethods for BuiltinFunction {
         receiver: Value,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
-            OrdinaryObject::from(object_index).set(agent, property_key, value, receiver)
+            OrdinaryObject::from(object_index).internal_set(agent, property_key, value, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
@@ -390,13 +401,13 @@ impl InternalMethods for BuiltinFunction {
             Ok(false)
         } else {
             let prototype = agent.current_realm().intrinsics().array_prototype();
-            prototype.set(agent, property_key, value, receiver)
+            prototype.internal_set(agent, property_key, value, receiver)
         }
     }
 
-    fn delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
-            OrdinaryObject::from(object_index).delete(agent, property_key)
+            OrdinaryObject::from(object_index).internal_delete(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
@@ -433,9 +444,9 @@ impl InternalMethods for BuiltinFunction {
         }
     }
 
-    fn own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         if let Some(object_index) = agent.heap.get(self.0).object_index {
-            OrdinaryObject::from(object_index).own_property_keys(agent)
+            OrdinaryObject::from(object_index).internal_own_property_keys(agent)
         } else {
             Ok(vec![
                 PropertyKey::from(BUILTIN_STRING_MEMORY.length),
@@ -451,7 +462,7 @@ impl InternalMethods for BuiltinFunction {
     /// (a List of ECMAScript language values) and returns either a normal
     /// completion containing an ECMAScript language value or a throw
     /// completion.
-    fn call(
+    fn internal_call(
         self,
         agent: &mut Agent,
         this_argument: Value,
@@ -467,7 +478,7 @@ impl InternalMethods for BuiltinFunction {
     /// the method is present) takes arguments argumentsList (a List of
     /// ECMAScript language values) and newTarget (a constructor) and returns
     /// either a normal completion containing an Object or a throw completion.
-    fn construct(
+    fn internal_construct(
         self,
         agent: &mut Agent,
         arguments_list: ArgumentsList,

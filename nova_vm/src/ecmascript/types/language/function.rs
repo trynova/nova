@@ -196,7 +196,7 @@ impl Function {
 }
 
 impl OrdinaryObjectInternalSlots for Function {
-    fn extensible(self, agent: &Agent) -> bool {
+    fn internal_extensible(self, agent: &Agent) -> bool {
         if let Some(object_index) = match self {
             Function::BoundFunction(d) => agent.heap.get(d).object_index,
             Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
@@ -212,13 +212,13 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::ECMAScriptConstructorFunction => todo!(),
             Function::ECMAScriptGeneratorFunction => todo!(),
         } {
-            OrdinaryObject::from(object_index).extensible(agent)
+            OrdinaryObject::from(object_index).internal_extensible(agent)
         } else {
             true
         }
     }
 
-    fn set_extensible(self, agent: &mut Agent, value: bool) {
+    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
         if let Some(object_index) = match self {
             Function::BoundFunction(d) => agent.heap.get(d).object_index,
             Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
@@ -234,14 +234,14 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::ECMAScriptConstructorFunction => todo!(),
             Function::ECMAScriptGeneratorFunction => todo!(),
         } {
-            OrdinaryObject::from(object_index).set_extensible(agent, value)
+            OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
         } else if !value {
             // Create function base object and set inextensible
             todo!()
         }
     }
 
-    fn prototype(self, agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
         if let Some(object_index) = match self {
             Function::BoundFunction(d) => agent.heap.get(d).object_index,
             Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
@@ -257,7 +257,7 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::ECMAScriptConstructorFunction => todo!(),
             Function::ECMAScriptGeneratorFunction => todo!(),
         } {
-            OrdinaryObject::from(object_index).prototype(agent)
+            OrdinaryObject::from(object_index).internal_prototype(agent)
         } else {
             Some(
                 agent
@@ -269,7 +269,7 @@ impl OrdinaryObjectInternalSlots for Function {
         }
     }
 
-    fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         if let Some(object_index) = match self {
             Function::BoundFunction(d) => agent.heap.get(d).object_index,
             Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
@@ -285,7 +285,7 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::ECMAScriptConstructorFunction => todo!(),
             Function::ECMAScriptGeneratorFunction => todo!(),
         } {
-            OrdinaryObject::from(object_index).set_prototype(agent, prototype)
+            OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
         } else if prototype
             != Some(
                 agent
@@ -302,23 +302,27 @@ impl OrdinaryObjectInternalSlots for Function {
 }
 
 impl InternalMethods for Function {
-    fn get_prototype_of(self, _agent: &mut Agent) -> JsResult<Option<Object>> {
+    fn internal_get_prototype_of(self, _agent: &mut Agent) -> JsResult<Option<Object>> {
         todo!()
     }
 
-    fn set_prototype_of(self, _agent: &mut Agent, _prototype: Option<Object>) -> JsResult<bool> {
+    fn internal_set_prototype_of(
+        self,
+        _agent: &mut Agent,
+        _prototype: Option<Object>,
+    ) -> JsResult<bool> {
         todo!()
     }
 
-    fn is_extensible(self, _agent: &mut Agent) -> JsResult<bool> {
+    fn internal_is_extensible(self, _agent: &mut Agent) -> JsResult<bool> {
         todo!()
     }
 
-    fn prevent_extensions(self, _agent: &mut Agent) -> JsResult<bool> {
+    fn internal_prevent_extensions(self, _agent: &mut Agent) -> JsResult<bool> {
         todo!()
     }
 
-    fn get_own_property(
+    fn internal_get_own_property(
         self,
         _agent: &mut Agent,
         _property_key: PropertyKey,
@@ -326,7 +330,7 @@ impl InternalMethods for Function {
         todo!()
     }
 
-    fn define_own_property(
+    fn internal_define_own_property(
         self,
         _agent: &mut Agent,
         _property_key: PropertyKey,
@@ -335,18 +339,27 @@ impl InternalMethods for Function {
         todo!()
     }
 
-    fn has_property(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(
+        self,
+        _agent: &mut Agent,
+        _property_key: PropertyKey,
+    ) -> JsResult<bool> {
         todo!()
     }
 
-    fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
+    fn internal_get(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
+    ) -> JsResult<Value> {
         match self {
             Function::BoundFunction(_) => todo!(),
             Function::BuiltinFunction(x) => {
-                BuiltinFunction::from(x).get(agent, property_key, receiver)
+                BuiltinFunction::from(x).internal_get(agent, property_key, receiver)
             }
             Function::ECMAScriptFunction(x) => {
-                ECMAScriptFunction::from(x).get(agent, property_key, receiver)
+                ECMAScriptFunction::from(x).internal_get(agent, property_key, receiver)
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
@@ -361,7 +374,7 @@ impl InternalMethods for Function {
         }
     }
 
-    fn set(
+    fn internal_set(
         self,
         _agent: &mut Agent,
         _property_key: PropertyKey,
@@ -371,15 +384,15 @@ impl InternalMethods for Function {
         todo!()
     }
 
-    fn delete(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
         todo!()
     }
 
-    fn own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         todo!()
     }
 
-    fn call(
+    fn internal_call(
         self,
         agent: &mut Agent,
         this_argument: Value,
@@ -388,10 +401,10 @@ impl InternalMethods for Function {
         match self {
             Function::BoundFunction(_idx) => todo!(),
             Function::BuiltinFunction(idx) => {
-                BuiltinFunction::from(idx).call(agent, this_argument, arguments_list)
+                BuiltinFunction::from(idx).internal_call(agent, this_argument, arguments_list)
             }
             Function::ECMAScriptFunction(idx) => {
-                ECMAScriptFunction::from(idx).call(agent, this_argument, arguments_list)
+                ECMAScriptFunction::from(idx).internal_call(agent, this_argument, arguments_list)
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
@@ -406,7 +419,7 @@ impl InternalMethods for Function {
         }
     }
 
-    fn construct(
+    fn internal_construct(
         self,
         agent: &mut Agent,
         arguments_list: ArgumentsList,
@@ -415,10 +428,10 @@ impl InternalMethods for Function {
         match self {
             Function::BoundFunction(_) => todo!(),
             Function::BuiltinFunction(idx) => {
-                BuiltinFunction::from(idx).construct(agent, arguments_list, new_target)
+                BuiltinFunction::from(idx).internal_construct(agent, arguments_list, new_target)
             }
             Function::ECMAScriptFunction(idx) => {
-                ECMAScriptFunction::from(idx).construct(agent, arguments_list, new_target)
+                ECMAScriptFunction::from(idx).internal_construct(agent, arguments_list, new_target)
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),

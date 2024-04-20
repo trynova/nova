@@ -362,7 +362,7 @@ impl FunctionEnvironmentIndex {
         // 3. Assert: home is an Object.
         // Type guarantees Objectness.
         // 4. Return ? home.[[GetPrototypeOf]]().
-        home.get_prototype_of(agent)
+        home.internal_get_prototype_of(agent)
             .map(|proto| proto.map_or_else(|| Value::Null, |proto| proto.into_value()))
     }
 }

@@ -91,7 +91,7 @@ pub(crate) fn is_constructor(agent: &mut Agent, constructor: Value) -> bool {
 /// added to O.
 pub(crate) fn is_extensible(agent: &mut Agent, o: Object) -> JsResult<bool> {
     // 1. Return ? O.[[IsExtensible]]().
-    o.is_extensible(agent)
+    o.internal_is_extensible(agent)
 }
 
 pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1, y: V2) -> bool {

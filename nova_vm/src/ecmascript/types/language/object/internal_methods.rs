@@ -11,26 +11,30 @@ where
     Self: Sized + Clone + Copy + Into<Object>,
 {
     /// \[\[GetPrototypeOf\]\]
-    fn get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>>;
+    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>>;
 
     /// \[\[SetPrototypeOf\]\]
-    fn set_prototype_of(self, agent: &mut Agent, prototype: Option<Object>) -> JsResult<bool>;
+    fn internal_set_prototype_of(
+        self,
+        agent: &mut Agent,
+        prototype: Option<Object>,
+    ) -> JsResult<bool>;
 
     /// \[\[IsExtensible\]\]
-    fn is_extensible(self, agent: &mut Agent) -> JsResult<bool>;
+    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool>;
 
     /// \[\[PreventExtensions\]\]
-    fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool>;
+    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool>;
 
     /// \[\[GetOwnProperty\]\]
-    fn get_own_property(
+    fn internal_get_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>>;
 
     /// \[\[DefineOwnProperty\]\]
-    fn define_own_property(
+    fn internal_define_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
@@ -38,13 +42,18 @@ where
     ) -> JsResult<bool>;
 
     /// \[\[HasProperty\]\]
-    fn has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool>;
+    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool>;
 
     /// \[\[Get\]\]
-    fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value>;
+    fn internal_get(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
+    ) -> JsResult<Value>;
 
     /// \[\[Set\]\]
-    fn set(
+    fn internal_set(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
@@ -53,13 +62,13 @@ where
     ) -> JsResult<bool>;
 
     /// \[\[Delete\]\]
-    fn delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool>;
+    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool>;
 
     /// \[\[OwnPropertyKeys\]\]
-    fn own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>>;
+    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>>;
 
     /// \[\[Call\]\]
-    fn call(
+    fn internal_call(
         self,
         _agent: &mut Agent,
         _this_value: Value,
@@ -69,7 +78,7 @@ where
     }
 
     /// \[\[Construct\]\]
-    fn construct(
+    fn internal_construct(
         self,
         _agent: &mut Agent,
         _arguments_list: ArgumentsList,
