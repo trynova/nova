@@ -111,7 +111,7 @@ impl InternalMethods for OrdinaryObject {
     /// ### [10.1.11 \[\[OwnPropertyKeys\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-ownpropertykeys)
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         // 1. Return OrdinaryOwnPropertyKeys(O).
-        ordinary_own_property_keys(agent, self.into())
+        Ok(ordinary_own_property_keys(agent, self.into()))
     }
 }
 
@@ -724,12 +724,8 @@ pub(crate) fn ordinary_delete(
 }
 
 /// ### [10.1.11.1 OrdinaryOwnPropertyKeys ( O )](https://tc39.es/ecma262/#sec-ordinaryownpropertykeys)
-pub(crate) fn ordinary_own_property_keys(
-    _agent: &mut Agent,
-    _object: Object,
-) -> JsResult<Vec<PropertyKey>> {
+pub(crate) fn ordinary_own_property_keys(_agent: &mut Agent, _object: Object) -> Vec<PropertyKey> {
     // 1. Let keys be a new empty List.
-    let keys = Vec::new();
 
     // 2. For each own property key P of O such that P is an array index, in ascending numeric
     //    index order, do
@@ -766,7 +762,7 @@ pub(crate) fn ordinary_own_property_keys(
     // }
 
     // 5. Return keys.
-    Ok(keys)
+    Vec::new()
 }
 
 /// ### [10.1.12 OrdinaryObjectCreate ( proto \[ , additionalInternalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinaryobjectcreate)
@@ -1180,4 +1176,22 @@ pub(crate) fn get_prototype_from_constructor(
             Ok(proto)
         }
     }
+}
+
+/// 10.4.7.2 SetImmutablePrototype ( O, V )
+///
+/// The abstract operation SetImmutablePrototype takes arguments O (an Object)
+/// and V (an Object or null) and returns either a normal completion containing
+/// a Boolean or a throw completion.
+#[inline]
+pub(crate) fn set_immutable_prototype(
+    agent: &mut Agent,
+    o: Object,
+    v: Option<Object>,
+) -> JsResult<bool> {
+    // 1. Let current be ? O.[[GetPrototypeOf]]().
+    let current = o.internal_get_prototype_of(agent)?;
+    // 2. If SameValue(V, current) is true, return true.
+    // 3. Return false.
+    Ok(same_value(agent, v, current))
 }
