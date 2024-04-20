@@ -101,26 +101,26 @@ impl Deref for Array {
 }
 
 impl OrdinaryObjectInternalSlots for Array {
-    fn extensible(self, agent: &Agent) -> bool {
+    fn internal_extensible(self, agent: &Agent) -> bool {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).extensible(agent)
+            OrdinaryObject::from(object_index).internal_extensible(agent)
         } else {
             true
         }
     }
 
-    fn set_extensible(self, agent: &mut Agent, value: bool) {
+    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).set_extensible(agent, value)
+            OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
         } else if !value {
             // Create array base object and set inextensible
             todo!()
         }
     }
 
-    fn prototype(self, agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).prototype(agent)
+            OrdinaryObject::from(object_index).internal_prototype(agent)
         } else {
             Some(
                 agent
@@ -132,9 +132,9 @@ impl OrdinaryObjectInternalSlots for Array {
         }
     }
 
-    fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).set_prototype(agent, prototype)
+            OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
         } else {
             // Create array base object with custom prototype
             todo!()
@@ -143,9 +143,9 @@ impl OrdinaryObjectInternalSlots for Array {
 }
 
 impl InternalMethods for Array {
-    fn get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
+    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).get_prototype_of(agent)
+            OrdinaryObject::from(object_index).internal_get_prototype_of(agent)
         } else {
             Ok(Some(
                 agent
@@ -157,9 +157,13 @@ impl InternalMethods for Array {
         }
     }
 
-    fn set_prototype_of(self, agent: &mut Agent, prototype: Option<Object>) -> JsResult<bool> {
+    fn internal_set_prototype_of(
+        self,
+        agent: &mut Agent,
+        prototype: Option<Object>,
+    ) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).set_prototype_of(agent, prototype)
+            OrdinaryObject::from(object_index).internal_set_prototype_of(agent, prototype)
         } else {
             // 1. Let current be O.[[Prototype]].
             let current = agent.current_realm().intrinsics().array_prototype();
@@ -178,24 +182,24 @@ impl InternalMethods for Array {
         }
     }
 
-    fn is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).is_extensible(agent)
+            OrdinaryObject::from(object_index).internal_is_extensible(agent)
         } else {
             Ok(true)
         }
     }
 
-    fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).prevent_extensions(agent)
+            OrdinaryObject::from(object_index).internal_prevent_extensions(agent)
         } else {
             // TODO: Create base array object and call prevent extensions on it.
             Ok(true)
         }
     }
 
-    fn get_own_property(
+    fn internal_get_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
@@ -220,13 +224,13 @@ impl InternalMethods for Array {
                 ..Default::default()
             }))
         } else if let Some(object_index) = array_data.object_index {
-            Object::Object(object_index).get_own_property(agent, property_key)
+            Object::Object(object_index).internal_get_own_property(agent, property_key)
         } else {
             Ok(None)
         }
     }
 
-    fn define_own_property(
+    fn internal_define_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
@@ -287,26 +291,31 @@ impl InternalMethods for Array {
         }
     }
 
-    fn has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        let has_own = self.get_own_property(agent, property_key)?;
+    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+        let has_own = self.internal_get_own_property(agent, property_key)?;
         if has_own.is_some() {
             return Ok(true);
         }
 
         // 3. Let parent be ? O.[[GetPrototypeOf]]().
-        let parent = self.get_prototype_of(agent)?;
+        let parent = self.internal_get_prototype_of(agent)?;
 
         // 4. If parent is not null, then
         if let Some(parent) = parent {
             // a. Return ? parent.[[HasProperty]](P).
-            return parent.has_property(agent, property_key);
+            return parent.internal_has_property(agent, property_key);
         }
 
         // 5. Return false.
         Ok(false)
     }
 
-    fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
+    fn internal_get(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
+    ) -> JsResult<Value> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(self.len(agent).into())
         } else if let PropertyKey::Integer(index) = property_key {
@@ -315,7 +324,11 @@ impl InternalMethods for Array {
                 let Some(object_index) = agent.heap.get(self.0).object_index else {
                     return Ok(Value::Undefined);
                 };
-                return OrdinaryObject::new(object_index).get(agent, property_key, receiver);
+                return OrdinaryObject::new(object_index).internal_get(
+                    agent,
+                    property_key,
+                    receiver,
+                );
             }
             if index >= i64::pow(2, 32) {
                 return Ok(Value::Undefined);
@@ -335,11 +348,11 @@ impl InternalMethods for Array {
             let Some(object_index) = agent.heap.get(self.0).object_index else {
                 return Ok(Value::Undefined);
             };
-            OrdinaryObject::new(object_index).get(agent, property_key, receiver)
+            OrdinaryObject::new(object_index).internal_get(agent, property_key, receiver)
         }
     }
 
-    fn set(
+    fn internal_set(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
@@ -349,7 +362,7 @@ impl InternalMethods for Array {
         ordinary_set(agent, self.into_object(), property_key, value, receiver)
     }
 
-    fn delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(true)
         } else if let PropertyKey::Integer(index) = property_key {
@@ -360,7 +373,7 @@ impl InternalMethods for Array {
                     .get(self.0)
                     .object_index
                     .map_or(Ok(true), |object_index| {
-                        OrdinaryObject::new(object_index).delete(agent, property_key)
+                        OrdinaryObject::new(object_index).internal_delete(agent, property_key)
                     });
             } else if index >= i64::pow(2, 32) {
                 return Ok(true);
@@ -380,12 +393,12 @@ impl InternalMethods for Array {
                 .get(self.0)
                 .object_index
                 .map_or(Ok(true), |object_index| {
-                    OrdinaryObject::new(object_index).delete(agent, property_key)
+                    OrdinaryObject::new(object_index).internal_delete(agent, property_key)
                 })
         }
     }
 
-    fn own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         let array_data = *agent.heap.get(*self);
         // TODO: Handle object_index
         let mut keys = Vec::with_capacity(array_data.elements.len() as usize);

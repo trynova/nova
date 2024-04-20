@@ -28,29 +28,33 @@ use super::{
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 impl InternalMethods for OrdinaryObject {
     /// ### [10.1.1 \[\[GetPrototypeOf\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-getprototypeof)
-    fn get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
+    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
         Ok(ordinary_get_prototype_of(agent, self.into()))
     }
 
     /// ### [10.1.2 \[\[SetPrototypeOf\]\] ( V )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-setprototypeof-v)
-    fn set_prototype_of(self, agent: &mut Agent, prototype: Option<Object>) -> JsResult<bool> {
+    fn internal_set_prototype_of(
+        self,
+        agent: &mut Agent,
+        prototype: Option<Object>,
+    ) -> JsResult<bool> {
         Ok(ordinary_set_prototype_of(agent, self.into(), prototype))
     }
 
     /// ### [10.1.3 \[\[IsExtensible\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-isextensible)
-    fn is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
         // 1. Return OrdinaryIsExtensible(O).
         Ok(ordinary_is_extensible(agent, self.into()))
     }
 
     /// ### [10.1.4 \[\[PreventExtensions\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-preventextensions)
-    fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
         // 1. Return OrdinaryPreventExtensions(O).
         Ok(ordinary_prevent_extensions(agent, self.into()))
     }
 
     /// ### [10.1.5 \[\[GetOwnProperty\]\] ( P )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-getownproperty-p)
-    fn get_own_property(
+    fn internal_get_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
@@ -60,7 +64,7 @@ impl InternalMethods for OrdinaryObject {
     }
 
     /// ### [10.1.6 \[\[DefineOwnProperty\]\] ( P, Desc )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-defineownproperty-p-desc)
-    fn define_own_property(
+    fn internal_define_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
@@ -70,19 +74,24 @@ impl InternalMethods for OrdinaryObject {
     }
 
     /// ### [10.1.7 \[\[HasProperty\]\] ( P )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-hasproperty-p)
-    fn has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         // 1. Return ? OrdinaryHasProperty(O, P).
         ordinary_has_property(agent, self.into(), property_key)
     }
 
     /// ### [10.1.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-get-p-receiver)
-    fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
+    fn internal_get(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
+    ) -> JsResult<Value> {
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         ordinary_get(agent, self.into(), property_key, receiver)
     }
 
     /// ### [10.1.9 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-set-p-v-receiver)
-    fn set(
+    fn internal_set(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
@@ -94,13 +103,13 @@ impl InternalMethods for OrdinaryObject {
     }
 
     /// ### [10.1.10 \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-delete-p)
-    fn delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         // 1. Return ? OrdinaryDelete(O, P).
         ordinary_delete(agent, self.into(), property_key)
     }
 
     /// ### [10.1.11 \[\[OwnPropertyKeys\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-ownpropertykeys)
-    fn own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         // 1. Return OrdinaryOwnPropertyKeys(O).
         ordinary_own_property_keys(agent, self.into())
     }
@@ -109,7 +118,7 @@ impl InternalMethods for OrdinaryObject {
 /// ### [10.1.1.1 OrdinaryGetPrototypeOf ( O )](https://tc39.es/ecma262/#sec-ordinarygetprototypeof)
 pub(crate) fn ordinary_get_prototype_of(agent: &mut Agent, object: Object) -> Option<Object> {
     // 1. Return O.[[Prototype]].
-    object.prototype(agent)
+    object.internal_prototype(agent)
 }
 
 /// Implements steps 5 through 7 of OrdinarySetPrototypeOf
@@ -146,7 +155,7 @@ pub(crate) fn ordinary_set_prototype_of_check_loop(
         // }
 
         // ii. Else, set p to p.[[Prototype]].
-        p = p_inner.prototype(agent);
+        p = p_inner.internal_prototype(agent);
     }
     true
 }
@@ -158,7 +167,7 @@ pub(crate) fn ordinary_set_prototype_of(
     prototype: Option<Object>,
 ) -> bool {
     // 1. Let current be O.[[Prototype]].
-    let current = object.prototype(agent);
+    let current = object.internal_prototype(agent);
 
     // 2. If SameValue(V, current) is true, return true.
     match (prototype, current) {
@@ -168,7 +177,7 @@ pub(crate) fn ordinary_set_prototype_of(
     }
 
     // 3. Let extensible be O.[[Extensible]].
-    let extensible = object.extensible(agent);
+    let extensible = object.internal_extensible(agent);
 
     // 4. If extensible is false, return false.
     if !extensible {
@@ -181,7 +190,7 @@ pub(crate) fn ordinary_set_prototype_of(
     }
 
     // 8. Set O.[[Prototype]] to V.
-    object.set_prototype(agent, prototype);
+    object.internal_set_prototype(agent, prototype);
 
     // 9. Return true.
     true
@@ -190,13 +199,13 @@ pub(crate) fn ordinary_set_prototype_of(
 /// ### [10.1.3.1 OrdinaryIsExtensible ( O )](https://tc39.es/ecma262/#sec-ordinaryisextensible)
 pub(crate) fn ordinary_is_extensible(agent: &mut Agent, object: Object) -> bool {
     // 1. Return O.[[Extensible]].
-    object.extensible(agent)
+    object.internal_extensible(agent)
 }
 
 /// ### [10.1.4.1 OrdinaryPreventExtensions ( O )](https://tc39.es/ecma262/#sec-ordinarypreventextensions)
 pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: Object) -> bool {
     // 1. Set O.[[Extensible]] to false.
-    object.set_extensible(agent, false);
+    object.internal_set_extensible(agent, false);
 
     // 2. Return true.
     true
@@ -252,10 +261,10 @@ pub(crate) fn ordinary_define_own_property(
     descriptor: PropertyDescriptor,
 ) -> JsResult<bool> {
     // 1. Let current be ? O.[[GetOwnProperty]](P).
-    let current = object.get_own_property(agent, property_key)?;
+    let current = object.internal_get_own_property(agent, property_key)?;
 
     // 2. Let extensible be ? IsExtensible(O).
-    let extensible = object.extensible(agent);
+    let extensible = object.internal_extensible(agent);
 
     // 3. Return ValidateAndApplyPropertyDescriptor(O, P, extensible, Desc, current).
     validate_and_apply_property_descriptor(
@@ -515,7 +524,7 @@ pub(crate) fn ordinary_has_property(
     property_key: PropertyKey,
 ) -> JsResult<bool> {
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
-    let has_own = object.get_own_property(agent, property_key)?;
+    let has_own = object.internal_get_own_property(agent, property_key)?;
 
     // 2. If hasOwn is not undefined, return true.
     if has_own.is_some() {
@@ -523,12 +532,12 @@ pub(crate) fn ordinary_has_property(
     }
 
     // 3. Let parent be ? O.[[GetPrototypeOf]]().
-    let parent = object.get_prototype_of(agent)?;
+    let parent = object.internal_get_prototype_of(agent)?;
 
     // 4. If parent is not null, then
     if let Some(parent) = parent {
         // a. Return ? parent.[[HasProperty]](P).
-        return parent.has_property(agent, property_key);
+        return parent.internal_has_property(agent, property_key);
     }
 
     // 5. Return false.
@@ -543,16 +552,16 @@ pub(crate) fn ordinary_get(
     receiver: Value,
 ) -> JsResult<Value> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let Some(descriptor) = object.get_own_property(agent, property_key)? else {
+    let Some(descriptor) = object.internal_get_own_property(agent, property_key)? else {
         // 2. If desc is undefined, then
 
         // a. Let parent be ? O.[[GetPrototypeOf]]().
-        let Some(parent) = object.get_prototype_of(agent)? else {
+        let Some(parent) = object.internal_get_prototype_of(agent)? else {
             return Ok(Value::Undefined);
         };
 
         // c. Return ? parent.[[Get]](P, Receiver).
-        return parent.get(agent, property_key, receiver);
+        return parent.internal_get(agent, property_key, receiver);
     };
 
     // 3. If IsDataDescriptor(desc) is true, return desc.[[Value]].
@@ -583,7 +592,7 @@ pub(crate) fn ordinary_set(
     receiver: Value,
 ) -> JsResult<bool> {
     // 1. Let ownDesc be ? O.[[GetOwnProperty]](P).
-    let own_descriptor = object.get_own_property(agent, property_key)?;
+    let own_descriptor = object.internal_get_own_property(agent, property_key)?;
 
     // 2. Return ? OrdinarySetWithOwnDescriptor(O, P, V, Receiver, ownDesc).
     ordinary_set_with_own_descriptor(agent, object, property_key, value, receiver, own_descriptor)
@@ -603,12 +612,12 @@ pub(crate) fn ordinary_set_with_own_descriptor(
     } else {
         // 1. If ownDesc is undefined, then
         // a. Let parent be ? O.[[GetPrototypeOf]]().
-        let parent = object.get_prototype_of(agent)?;
+        let parent = object.internal_get_prototype_of(agent)?;
 
         // b. If parent is not null, then
         if let Some(parent) = parent {
             // i. Return ? parent.[[Set]](P, V, Receiver).
-            return parent.set(agent, property_key, value, receiver);
+            return parent.internal_set(agent, property_key, value, receiver);
         }
         // c. Else,
         else {
@@ -638,7 +647,7 @@ pub(crate) fn ordinary_set_with_own_descriptor(
         };
 
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
-        let existing_descriptor = receiver.get_own_property(agent, property_key)?;
+        let existing_descriptor = receiver.internal_get_own_property(agent, property_key)?;
 
         // d. If existingDescriptor is not undefined, then
         if let Some(existing_descriptor) = existing_descriptor {
@@ -659,7 +668,7 @@ pub(crate) fn ordinary_set_with_own_descriptor(
             };
 
             // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
-            return receiver.define_own_property(agent, property_key, value_descriptor);
+            return receiver.internal_define_own_property(agent, property_key, value_descriptor);
         }
         // e. Else,
         else {
@@ -694,7 +703,7 @@ pub(crate) fn ordinary_delete(
     property_key: PropertyKey,
 ) -> JsResult<bool> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let descriptor = object.get_own_property(agent, property_key)?;
+    let descriptor = object.internal_get_own_property(agent, property_key)?;
 
     // 2. If desc is undefined, return true.
     let Some(descriptor) = descriptor else {

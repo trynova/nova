@@ -75,41 +75,45 @@ impl TryFrom<Object> for Error {
 }
 
 impl OrdinaryObjectInternalSlots for Error {
-    fn extensible(self, _agent: &Agent) -> bool {
+    fn internal_extensible(self, _agent: &Agent) -> bool {
         false
     }
 
-    fn set_extensible(self, _agent: &mut Agent, _value: bool) {
+    fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {
         todo!()
     }
 
-    fn prototype(self, _agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, _agent: &Agent) -> Option<Object> {
         todo!()
     }
 
-    fn set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
+    fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
         todo!()
     }
 }
 
 impl InternalMethods for Error {
-    fn get_prototype_of(self, _agent: &mut Agent) -> JsResult<Option<Object>> {
+    fn internal_get_prototype_of(self, _agent: &mut Agent) -> JsResult<Option<Object>> {
         todo!()
     }
 
-    fn set_prototype_of(self, _agent: &mut Agent, _prototype: Option<Object>) -> JsResult<bool> {
+    fn internal_set_prototype_of(
+        self,
+        _agent: &mut Agent,
+        _prototype: Option<Object>,
+    ) -> JsResult<bool> {
         todo!()
     }
 
-    fn is_extensible(self, _agent: &mut Agent) -> JsResult<bool> {
+    fn internal_is_extensible(self, _agent: &mut Agent) -> JsResult<bool> {
         todo!()
     }
 
-    fn prevent_extensions(self, _agent: &mut Agent) -> JsResult<bool> {
+    fn internal_prevent_extensions(self, _agent: &mut Agent) -> JsResult<bool> {
         todo!()
     }
 
-    fn get_own_property(
+    fn internal_get_own_property(
         self,
         _agent: &mut Agent,
         _property_key: PropertyKey,
@@ -117,7 +121,7 @@ impl InternalMethods for Error {
         todo!()
     }
 
-    fn define_own_property(
+    fn internal_define_own_property(
         self,
         _agent: &mut Agent,
         _property_key: PropertyKey,
@@ -126,17 +130,26 @@ impl InternalMethods for Error {
         todo!()
     }
 
-    fn has_property(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(
+        self,
+        _agent: &mut Agent,
+        _property_key: PropertyKey,
+    ) -> JsResult<bool> {
         todo!()
     }
 
-    fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
+    fn internal_get(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
+    ) -> JsResult<Value> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.toString) {
             agent
                 .current_realm()
                 .intrinsics()
                 .error_prototype()
-                .get(agent, property_key, receiver)
+                .internal_get(agent, property_key, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
             match agent.heap.get(self.0).kind {
                 ExceptionType::AggregateError => {
@@ -165,7 +178,7 @@ impl InternalMethods for Error {
         }
     }
 
-    fn set(
+    fn internal_set(
         self,
         _agent: &mut Agent,
         _property_key: PropertyKey,
@@ -175,11 +188,11 @@ impl InternalMethods for Error {
         todo!()
     }
 
-    fn delete(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
         todo!()
     }
 
-    fn own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         todo!()
     }
 }

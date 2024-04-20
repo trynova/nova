@@ -62,26 +62,26 @@ fn create_array_buffer_base_object(agent: &mut Agent, array_buffer: ArrayBuffer)
 }
 
 impl OrdinaryObjectInternalSlots for ArrayBuffer {
-    fn extensible(self, agent: &Agent) -> bool {
+    fn internal_extensible(self, agent: &Agent) -> bool {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).extensible(agent)
+            OrdinaryObject::from(object_index).internal_extensible(agent)
         } else {
             true
         }
     }
 
-    fn set_extensible(self, agent: &mut Agent, value: bool) {
+    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).set_extensible(agent, value)
+            OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
         } else {
             debug_assert!(!value);
-            create_array_buffer_base_object(agent, self).set_extensible(agent, value)
+            create_array_buffer_base_object(agent, self).internal_set_extensible(agent, value)
         }
     }
 
-    fn prototype(self, agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).prototype(agent)
+            OrdinaryObject::from(object_index).internal_prototype(agent)
         } else {
             Some(
                 agent
@@ -93,9 +93,9 @@ impl OrdinaryObjectInternalSlots for ArrayBuffer {
         }
     }
 
-    fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).set_prototype(agent, prototype)
+            OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
         } else {
             // Create ArrayBuffer base object with custom prototype
             let object_index = if let Some(prototype) = prototype {
@@ -114,13 +114,17 @@ impl OrdinaryObjectInternalSlots for ArrayBuffer {
 }
 
 impl InternalMethods for ArrayBuffer {
-    fn get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
-        Ok(self.prototype(agent))
+    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
+        Ok(self.internal_prototype(agent))
     }
 
-    fn set_prototype_of(self, agent: &mut Agent, prototype: Option<Object>) -> JsResult<bool> {
+    fn internal_set_prototype_of(
+        self,
+        agent: &mut Agent,
+        prototype: Option<Object>,
+    ) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).set_prototype_of(agent, prototype)
+            OrdinaryObject::from(object_index).internal_set_prototype_of(agent, prototype)
         } else {
             // If we're setting %ArrayBuffer.prototype% then we can still avoid creating the ObjectHeapData.
             let current = agent.current_realm().intrinsics().array_buffer_prototype();
@@ -133,82 +137,92 @@ impl InternalMethods for ArrayBuffer {
                 // OrdinarySetPrototypeOf 7.b.i: Setting prototype would cause a loop to occur.
                 return Ok(false);
             }
-            self.set_prototype(agent, prototype);
+            self.internal_set_prototype(agent, prototype);
             Ok(true)
         }
     }
 
-    fn is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
-        Ok(self.extensible(agent))
+    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
+        Ok(self.internal_extensible(agent))
     }
 
-    fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
-        self.set_extensible(agent, false);
+    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+        self.internal_set_extensible(agent, false);
         Ok(true)
     }
 
-    fn get_own_property(
+    fn internal_get_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).get_own_property(agent, property_key)
+            OrdinaryObject::from(object_index).internal_get_own_property(agent, property_key)
         } else {
             Ok(None)
         }
     }
 
-    fn define_own_property(
+    fn internal_define_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: crate::ecmascript::types::PropertyDescriptor,
     ) -> JsResult<bool> {
-        create_array_buffer_base_object(agent, self).define_own_property(
+        create_array_buffer_base_object(agent, self).internal_define_own_property(
             agent,
             property_key,
             property_descriptor,
         )
     }
 
-    fn has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).has_property(agent, property_key)
+            OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
         } else {
             agent
                 .current_realm()
                 .intrinsics()
                 .array_buffer_prototype()
-                .has_property(agent, property_key)
+                .internal_has_property(agent, property_key)
         }
     }
 
-    fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
+    fn internal_get(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
+    ) -> JsResult<Value> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).get(agent, property_key, receiver)
+            OrdinaryObject::from(object_index).internal_get(agent, property_key, receiver)
         } else {
             agent
                 .current_realm()
                 .intrinsics()
                 .array_buffer_prototype()
-                .get(agent, property_key, receiver)
+                .internal_get(agent, property_key, receiver)
         }
     }
 
-    fn set(
+    fn internal_set(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
     ) -> JsResult<bool> {
-        create_array_buffer_base_object(agent, self).set(agent, property_key, value, receiver)
+        create_array_buffer_base_object(agent, self).internal_set(
+            agent,
+            property_key,
+            value,
+            receiver,
+        )
     }
 
-    fn delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).delete(agent, property_key)
+            OrdinaryObject::from(object_index).internal_delete(agent, property_key)
         } else {
             // OrdinaryDelete essentially returns "didn't exist or was deleted":
             // We know properties didn't exist in this branch.
@@ -216,9 +230,9 @@ impl InternalMethods for ArrayBuffer {
         }
     }
 
-    fn own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).own_property_keys(agent)
+            OrdinaryObject::from(object_index).internal_own_property_keys(agent)
         } else {
             // OrdinaryDelete essentially returns "didn't exist or was deleted":
             // We know properties didn't exist in this branch.

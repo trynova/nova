@@ -405,7 +405,7 @@ impl GlobalEnvironmentIndex {
         let global_object = obj_rec.heap_data(agent).binding_object;
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let n = PropertyKey::from(name);
-        let existing_prop = global_object.get_own_property(agent, n)?;
+        let existing_prop = global_object.internal_get_own_property(agent, n)?;
         let Some(existing_prop) = existing_prop else {
             // 4. If existingProp is undefined, return false.
             return Ok(false);
@@ -460,7 +460,7 @@ impl GlobalEnvironmentIndex {
         let global_object = obj_rec.heap_data(agent).binding_object;
         let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        let existing_prop = global_object.get_own_property(agent, n)?;
+        let existing_prop = global_object.internal_get_own_property(agent, n)?;
         // 4. If existingProp is undefined, return ? IsExtensible(globalObject).
         let Some(existing_prop) = existing_prop else {
             return is_extensible(agent, global_object);
@@ -544,7 +544,7 @@ impl GlobalEnvironmentIndex {
         let global_object = obj_rec.heap_data(agent).binding_object;
         let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        let existing_prop = global_object.get_own_property(agent, n)?;
+        let existing_prop = global_object.internal_get_own_property(agent, n)?;
         // 4. If existingProp is undefined or existingProp.[[Configurable]] is true, then
         let desc = if existing_prop.is_none() || existing_prop.unwrap().configurable == Some(true) {
             // a. Let desc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: D }.

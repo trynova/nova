@@ -97,7 +97,7 @@ impl ObjectPrototype {
         };
         let o = to_object(agent, this_value)?;
         loop {
-            let proto = v.get_prototype_of(agent)?;
+            let proto = v.internal_get_prototype_of(agent)?;
             if let Some(proto) = proto {
                 v = proto;
                 if same_value(agent, o, v) {
@@ -116,7 +116,7 @@ impl ObjectPrototype {
     ) -> JsResult<Value> {
         let p = to_property_key(agent, arguments.get(0))?;
         let o = to_object(agent, this_value)?;
-        let desc = o.get_own_property(agent, p)?;
+        let desc = o.internal_get_own_property(agent, p)?;
         if let Some(desc) = desc {
             Ok(desc.enumerable.unwrap_or(false).into())
         } else {

@@ -51,42 +51,46 @@ impl From<Proxy> for Object {
 }
 
 impl OrdinaryObjectInternalSlots for Proxy {
-    fn extensible(self, _agent: &Agent) -> bool {
+    fn internal_extensible(self, _agent: &Agent) -> bool {
         todo!();
     }
 
-    fn set_extensible(self, _agent: &mut Agent, _value: bool) {
+    fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {
         todo!();
     }
 
-    fn prototype(self, _agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, _agent: &Agent) -> Option<Object> {
         todo!();
     }
 
-    fn set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
+    fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
         todo!();
     }
 }
 
 impl InternalMethods for Proxy {
-    fn get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
-        Ok(self.prototype(agent))
+    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
+        Ok(self.internal_prototype(agent))
     }
 
-    fn set_prototype_of(self, _agent: &mut Agent, _prototype: Option<Object>) -> JsResult<bool> {
+    fn internal_set_prototype_of(
+        self,
+        _agent: &mut Agent,
+        _prototype: Option<Object>,
+    ) -> JsResult<bool> {
         todo!();
     }
 
-    fn is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
-        Ok(self.extensible(agent))
+    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
+        Ok(self.internal_extensible(agent))
     }
 
-    fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
-        self.set_extensible(agent, false);
+    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+        self.internal_set_extensible(agent, false);
         Ok(true)
     }
 
-    fn get_own_property(
+    fn internal_get_own_property(
         self,
         _agent: &mut Agent,
         _property_key: PropertyKey,
@@ -94,7 +98,7 @@ impl InternalMethods for Proxy {
         todo!();
     }
 
-    fn define_own_property(
+    fn internal_define_own_property(
         self,
         _agent: &mut Agent,
         _property_key: PropertyKey,
@@ -103,11 +107,15 @@ impl InternalMethods for Proxy {
         todo!();
     }
 
-    fn has_property(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(
+        self,
+        _agent: &mut Agent,
+        _property_key: PropertyKey,
+    ) -> JsResult<bool> {
         todo!();
     }
 
-    fn get(
+    fn internal_get(
         self,
         _agent: &mut Agent,
         _property_key: PropertyKey,
@@ -116,7 +124,7 @@ impl InternalMethods for Proxy {
         todo!();
     }
 
-    fn set(
+    fn internal_set(
         self,
         _agent: &mut Agent,
         _property_key: PropertyKey,
@@ -126,11 +134,11 @@ impl InternalMethods for Proxy {
         todo!();
     }
 
-    fn delete(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
         todo!();
     }
 
-    fn own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         todo!();
     }
 }

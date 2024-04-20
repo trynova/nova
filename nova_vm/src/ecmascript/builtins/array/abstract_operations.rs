@@ -120,7 +120,9 @@ pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -
     debug_assert!(old_len > new_len);
     for i in old_len..new_len {
         // a. Let deleteSucceeded be ! A.[[Delete]](P).
-        let delete_succeeded = a.delete(agent, PropertyKey::Integer(i.into())).unwrap();
+        let delete_succeeded = a
+            .internal_delete(agent, PropertyKey::Integer(i.into()))
+            .unwrap();
         // b. If deleteSucceeded is false, then
         if !delete_succeeded {
             let array_heap_data = agent.heap.get_mut(a.0);

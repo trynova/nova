@@ -260,7 +260,7 @@ impl ObjectEnvironmentIndex {
         let binding_boject = env_rec.binding_object;
         let name = PropertyKey::from(name);
         // 2. Return ? bindingObject.[[Delete]](N).
-        binding_boject.delete(agent, name)
+        binding_boject.internal_delete(agent, name)
     }
 
     /// ### [9.1.1.2.8 HasThisBinding ( )](https://tc39.es/ecma262/#sec-object-environment-records-hasthisbinding)
