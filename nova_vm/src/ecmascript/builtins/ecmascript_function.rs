@@ -549,7 +549,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
             function.object_index = Some(
                 agent
                     .heap
-                    .create_object_with_prototype(function_prototype, vec![]),
+                    .create_object_with_prototype(function_prototype, &[]),
             );
         }
     }

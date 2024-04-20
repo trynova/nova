@@ -290,10 +290,9 @@ impl InternalMethods for BuiltinFunction {
                     configurable: true,
                 },
             };
-            let object_index = agent.heap.create_object_with_prototype(
-                prototype.into_object(),
-                vec![length_entry, name_entry],
-            );
+            let object_index = agent
+                .heap
+                .create_object_with_prototype(prototype.into_object(), &[length_entry, name_entry]);
             agent.heap.get_mut(self.0).object_index = Some(object_index);
             Ok(true)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
@@ -311,10 +310,9 @@ impl InternalMethods for BuiltinFunction {
                 key: property_key,
                 value: ObjectEntryPropertyDescriptor::from(property_descriptor),
             };
-            let object_index = agent.heap.create_object_with_prototype(
-                prototype.into_object(),
-                vec![length_entry, name_entry],
-            );
+            let object_index = agent
+                .heap
+                .create_object_with_prototype(prototype.into_object(), &[length_entry, name_entry]);
             agent.heap.get_mut(self.0).object_index = Some(object_index);
             Ok(true)
         } else {
@@ -343,7 +341,7 @@ impl InternalMethods for BuiltinFunction {
             };
             let object_index = agent.heap.create_object_with_prototype(
                 prototype.into_object(),
-                vec![length_entry, name_entry, other_entry],
+                &[length_entry, name_entry, other_entry],
             );
             agent.heap.get_mut(self.0).object_index = Some(object_index);
             Ok(true)
@@ -435,7 +433,7 @@ impl InternalMethods for BuiltinFunction {
             };
             let object_index = agent
                 .heap
-                .create_object_with_prototype(prototype.into_object(), vec![entry]);
+                .create_object_with_prototype(prototype.into_object(), &[entry]);
             agent.heap.get_mut(self.0).object_index = Some(object_index);
             Ok(true)
         } else {
@@ -645,7 +643,7 @@ pub fn create_builtin_function(
             Some(
                 agent
                     .heap
-                    .create_object_with_prototype(prototype, vec![length_entry, name_entry]),
+                    .create_object_with_prototype(prototype, &[length_entry, name_entry]),
             )
         }
     } else {

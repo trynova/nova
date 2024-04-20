@@ -786,7 +786,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
     prototype: Option<ProtoIntrinsics>,
 ) -> Object {
     let Some(prototype) = prototype else {
-        return agent.heap.create_null_object(vec![]).into();
+        return agent.heap.create_null_object(&[]).into();
     };
 
     match prototype {
@@ -819,7 +819,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
                     .intrinsics()
                     .object_prototype()
                     .into_object(),
-                vec![],
+                &[],
             )
             .into(),
         ProtoIntrinsics::RangeError => agent

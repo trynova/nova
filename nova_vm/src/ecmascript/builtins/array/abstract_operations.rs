@@ -43,7 +43,7 @@ pub fn array_create(
         {
             None
         } else {
-            Some(agent.heap.create_object_with_prototype(proto, vec![]))
+            Some(agent.heap.create_object_with_prototype(proto, &[]))
         }
     } else {
         None

@@ -630,7 +630,7 @@ impl Heap {
         NumberIndex::last(&self.numbers)
     }
 
-    pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
+    pub(crate) fn create_null_object(&mut self, entries: &[ObjectEntry]) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -645,7 +645,7 @@ impl Heap {
     pub(crate) fn create_object_with_prototype(
         &mut self,
         prototype: Object,
-        entries: Vec<ObjectEntry>,
+        entries: &[ObjectEntry],
     ) -> ObjectIndex {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {

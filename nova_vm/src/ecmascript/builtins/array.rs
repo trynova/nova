@@ -172,7 +172,7 @@ impl InternalMethods for Array {
                     return Ok(true);
                 } else {
                     // TODO: Proper handling
-                    Some(agent.heap.create_object_with_prototype(v, vec![]))
+                    Some(agent.heap.create_object_with_prototype(v, &[]))
                 }
             } else {
                 Some(agent.heap.create_null_object(Default::default()))
