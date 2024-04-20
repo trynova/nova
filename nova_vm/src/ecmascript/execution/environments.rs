@@ -25,6 +25,7 @@ use std::{marker::PhantomData, num::NonZeroU32};
 mod declarative_environment;
 mod function_environment;
 mod global_environment;
+mod module_environment;
 mod object_environment;
 mod private_environment;
 
@@ -98,6 +99,33 @@ create_environment_index!(GlobalEnvironment, GlobalEnvironmentIndex);
 create_environment_index!(ObjectEnvironment, ObjectEnvironmentIndex);
 create_environment_index!(PrivateEnvironment, PrivateEnvironmentIndex);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct ModuleEnvironmentIndex(NonZeroU32, PhantomData<DeclarativeEnvironment>);
+impl ModuleEnvironmentIndex {
+    /// Creates a new index from a u32.
+    ///
+    /// ## Panics
+    /// - If the value is equal to 0.
+    pub(crate) const fn from_u32(value: u32) -> Self {
+        assert!(value != 0);
+        // SAFETY: Number is not 0 and will not overflow to zero.
+        // This check is done manually to allow const context.
+        Self(unsafe { NonZeroU32::new_unchecked(value) }, PhantomData)
+    }
+
+    pub(crate) const fn into_index(self) -> usize {
+        self.0.get() as usize - 1
+    }
+
+    pub(crate) const fn into_u32(self) -> u32 {
+        self.0.get()
+    }
+
+    pub(crate) fn last(vec: &[Option<DeclarativeEnvironment>]) -> Self {
+        Self::from_u32(vec.len() as u32)
+    }
+}
+
 /// ### [9.1.1 The Environment Record Type Hierarchy](https://tc39.es/ecma262/#sec-the-environment-record-type-hierarchy)
 ///
 /// Environment Records can be thought of as existing in a simple
@@ -113,6 +141,7 @@ pub(crate) enum EnvironmentIndex {
     Declarative(DeclarativeEnvironmentIndex) = 1,
     Function(FunctionEnvironmentIndex),
     Global(GlobalEnvironmentIndex),
+    // Module(ModuleEnvironmentIndex),
     Object(ObjectEnvironmentIndex),
 }
 

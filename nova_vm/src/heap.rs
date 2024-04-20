@@ -527,6 +527,22 @@ impl Heap {
             .expect("ScriptIdentifier matched a freed Script")
     }
 
+    pub(crate) fn get_module(&self, id: ModuleIdentifier) -> &ModuleHeapData {
+        self.modules
+            .get(id.into_index())
+            .expect("ModuleIdentifier did not match a Module")
+            .as_ref()
+            .expect("ModuleIdentifier matched a freed Module")
+    }
+
+    pub(crate) fn get_module_mut(&mut self, id: ModuleIdentifier) -> &mut ModuleHeapData {
+        self.modules
+            .get_mut(id.into_index())
+            .expect("ModuleIdentifier did not match a Module")
+            .as_mut()
+            .expect("ModuleIdentifier matched a freed Module")
+    }
+
     /// Allocate a string onto the Agent heap
     ///
     /// This method will currently iterate through all heap strings to look for
