@@ -1,10 +1,8 @@
-use oxc_span::Atom;
-
 use super::{DeclarativeEnvironment, DeclarativeEnvironmentIndex, FunctionEnvironmentIndex};
 use crate::ecmascript::{
     builtins::{ECMAScriptFunction, ThisMode},
     execution::{agent::ExceptionType, Agent, JsResult},
-    types::{Function, InternalMethods, IntoFunction, Object, Value},
+    types::{Function, InternalMethods, IntoFunction, Object, String, Value},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -125,25 +123,30 @@ impl FunctionEnvironmentIndex {
     }
 
     /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
-    pub(crate) fn has_binding(self, agent: &Agent, name: &str) -> bool {
+    pub(crate) fn has_binding(self, agent: &Agent, name: String) -> bool {
         let env_rec = self.heap_data(agent);
         env_rec.has_binding(agent, name)
     }
 
     /// ### [9.1.1.1.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-declarative-environment-records-createmutablebinding-n-d)
-    pub(crate) fn create_mutable_binding(self, agent: &mut Agent, name: &Atom, is_deletable: bool) {
+    pub(crate) fn create_mutable_binding(
+        self,
+        agent: &mut Agent,
+        name: String,
+        is_deletable: bool,
+    ) {
         let env_rec = self.heap_data_mut(agent);
         env_rec.create_mutable_binding(agent, name, is_deletable);
     }
 
     /// ### [9.1.1.1.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-createimmutablebinding-n-s)
-    pub(crate) fn create_immutable_binding(self, agent: &mut Agent, name: &Atom, is_strict: bool) {
+    pub(crate) fn create_immutable_binding(self, agent: &mut Agent, name: String, is_strict: bool) {
         let env_rec = self.heap_data_mut(agent);
         env_rec.create_immutable_binding(agent, name, is_strict);
     }
 
     /// ### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
-    pub(crate) fn initialize_binding(self, agent: &mut Agent, name: &Atom, value: Value) {
+    pub(crate) fn initialize_binding(self, agent: &mut Agent, name: String, value: Value) {
         let env_rec = self.heap_data_mut(agent);
         env_rec.initialize_binding(agent, name, value)
     }
@@ -152,7 +155,7 @@ impl FunctionEnvironmentIndex {
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         value: Value,
         mut is_strict: bool,
     ) -> JsResult<()> {
@@ -176,7 +179,11 @@ impl FunctionEnvironmentIndex {
             return Ok(());
         };
 
-        let binding = dcl_rec.heap_data_mut(agent).bindings.get_mut(name).unwrap();
+        let binding = dcl_rec
+            .heap_data_mut(agent)
+            .bindings
+            .get_mut(&name)
+            .unwrap();
 
         // 2. If the binding for N in envRec is a strict binding, set S to true.
         if binding.strict {
@@ -217,7 +224,7 @@ impl FunctionEnvironmentIndex {
     pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         is_strict: bool,
     ) -> JsResult<Value> {
         let env_rec = self.heap_data(agent);
@@ -225,7 +232,7 @@ impl FunctionEnvironmentIndex {
     }
 
     /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
-    pub(crate) fn delete_binding(self, agent: &mut Agent, name: &Atom) -> bool {
+    pub(crate) fn delete_binding(self, agent: &mut Agent, name: String) -> bool {
         let env_rec = self.heap_data(agent);
         env_rec.delete_binding(agent, name)
     }

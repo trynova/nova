@@ -2,7 +2,7 @@ use oxc_ast::{
     ast::{FormalParameters, FunctionBody},
     syntax_directed_operations::{BoundNames, IsSimpleParameterList},
 };
-use oxc_span::{Atom, Span};
+use oxc_span::Span;
 
 use crate::{
     ecmascript::{
@@ -762,8 +762,29 @@ pub(crate) fn function_declaration_instantiation(
         private_environment: callee_private_env,
     } = *callee_context.ecmascript_code.as_ref().unwrap();
     // 2. Let code be func.[[ECMAScriptCode]].
+    let (var_names, var_declarations, lexical_names, lex_declarations) = {
+        let code = agent
+            .heap
+            .get(function_object.0)
+            .ecmascript_function
+            .ecmascript_code;
+        // 9. Let varNames be the VarDeclaredNames of code.
+        let var_names = function_body_var_declared_names(code)
+            .iter()
+            .map(|atom| String::from_str(agent, atom.as_str()))
+            .collect::<Vec<_>>();
+        // 10. Let varDeclarations be the VarScopedDeclarations of code.
+        let var_declarations = function_body_var_scoped_declarations(code);
+        // 11. Let lexicalNames be the LexicallyDeclaredNames of code.
+        let lexical_names = function_body_lexically_declared_names(code)
+            .iter()
+            .map(|atom| String::from_str(agent, atom.as_str()))
+            .collect::<Vec<_>>();
+        // 33. Let lexDeclarations be the LexicallyScopedDeclarations of code.
+        let lex_declarations = function_body_lexically_scoped_decarations(code);
+        (var_names, var_declarations, lexical_names, lex_declarations)
+    };
     let heap_data = agent.heap.get(function_object.0);
-    let code = heap_data.ecmascript_function.ecmascript_code;
     // 3. Let strict be func.[[Strict]].
     let strict = heap_data.ecmascript_function.strict;
     // 4. Let formals be func.[[FormalParameters]].
@@ -780,7 +801,7 @@ pub(crate) fn function_declaration_instantiation(
         .ecmascript_function
         .formal_parameters
         .bound_names(&mut |identifier| {
-            parameter_names.push(identifier.name.clone());
+            parameter_names.push(String::from_str(agent, identifier.name.as_str()));
         });
     // 6. If parameterNames has any duplicate entries, let hasDuplicates be true. Otherwise, let hasDuplicates be false.
     // TODO: Check duplicates
@@ -792,37 +813,29 @@ pub(crate) fn function_declaration_instantiation(
     // TODO: impl ContainsExpression
     let has_parameter_expression = false;
 
-    // 9. Let varNames be the VarDeclaredNames of code.
-    let var_names = function_body_var_declared_names(code);
-    // 10. Let varDeclarations be the VarScopedDeclarations of code.
-    let var_declarations = function_body_var_scoped_declarations(code);
-    // 11. Let lexicalNames be the LexicallyDeclaredNames of code.
-    let lexical_names = function_body_lexically_declared_names(code);
-    // 33. Let lexDeclarations be the LexicallyScopedDeclarations of code.
-    let lex_declarations = function_body_lexically_scoped_decarations(code);
     // 12. Let functionNames be a new empty List.
     let mut function_names = vec![];
     // 13. Let functionsToInitialize be a new empty List.
-    let mut functions_to_initialize: Vec<&oxc_ast::ast::Function<'_>> = vec![];
+    let mut functions_to_initialize: Vec<(String, &oxc_ast::ast::Function<'_>)> = vec![];
     // 14. For each element d of varDeclarations, in reverse List order, do
     for d in var_declarations.iter().rev() {
         // a. If d is neither a VariableDeclaration nor a ForBinding nor a BindingIdentifier, then
         if let VarScopedDeclaration::Function(d) = d {
             // i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an AsyncGeneratorDeclaration.
             // ii. Let fn be the sole element of the BoundNames of d.
-            let f_name = d.id.clone().unwrap().name;
+            let f_name = String::from_str(agent, d.id.as_ref().unwrap().name.as_str());
             // iii. If functionNames does not contain fn, then
             if !function_names.contains(&f_name) {
                 // 1. Insert fn as the first element of functionNames.
                 function_names.push(f_name);
                 // 2. NOTE: If there are multiple function declarations for the same name, the last declaration is used.
                 // 3. Insert d as the first element of functionsToInitialize.
-                functions_to_initialize.push(d);
+                functions_to_initialize.push((f_name, d));
             }
         }
     }
     // 15. Let argumentsObjectNeeded be true.
-    let arguments_name = Atom::new_inline("arguments");
+    let arguments_name = BUILTIN_STRING_MEMORY.arguments;
     let mut arguments_object_needed = true;
     // 16. If func.[[ThisMode]] is lexical, then
     if this_mode == ThisMode::Lexical {
@@ -873,19 +886,19 @@ pub(crate) fn function_declaration_instantiation(
     // 21. For each String paramName of parameterNames, do
     for param_name in &parameter_names {
         // a. Let alreadyDeclared be ! env.HasBinding(paramName).
-        let already_declared = env.has_binding(agent, param_name).unwrap();
+        let already_declared = env.has_binding(agent, *param_name).unwrap();
         // b. NOTE: Early errors ensure that duplicate parameter names can only occur
         // in non-strict functions that do not have parameter default values or rest parameters.
         // c. If alreadyDeclared is false, then
         if !already_declared {
             // i. Perform ! env.CreateMutableBinding(paramName, false).
-            env.create_mutable_binding(agent, param_name, false)
+            env.create_mutable_binding(agent, *param_name, false)
                 .unwrap();
         }
         // ii. If hasDuplicates is true, then
         if has_duplicates {
             // 1. Perform ! env.InitializeBinding(paramName, undefined).
-            env.initialize_binding(agent, param_name, Value::Undefined)
+            env.initialize_binding(agent, *param_name, Value::Undefined)
                 .unwrap();
         }
     }
@@ -907,16 +920,16 @@ pub(crate) fn function_declaration_instantiation(
         // c. If strict is true, then
         if strict {
             // i. Perform ! env.CreateImmutableBinding("arguments", false).
-            env.create_immutable_binding(agent, &arguments_name, false)
+            env.create_immutable_binding(agent, arguments_name, false)
                 .unwrap();
         } else {
             // ii. NOTE: In strict mode code early errors prevent attempting to assign to this binding, so its mutability is not observable.
             // d. Else,
             // i. Perform ! env.CreateMutableBinding("arguments", false).
-            env.create_mutable_binding(agent, &arguments_name, false)
+            env.create_mutable_binding(agent, arguments_name, false)
                 .unwrap();
             // e. Perform ! env.InitializeBinding("arguments", ao).
-            env.initialize_binding(agent, &arguments_name, ao).unwrap();
+            env.initialize_binding(agent, arguments_name, ao).unwrap();
             // f. Let parameterBindings be the list-concatenation of parameterNames and « "arguments" ».
         }
         parameter_names.push(arguments_name);
@@ -950,11 +963,11 @@ pub(crate) fn function_declaration_instantiation(
             // i. If instantiatedVarNames does not contain n, then
             if !instantiated_var_names.contains(n) {
                 // 1. Append n to instantiatedVarNames.
-                instantiated_var_names.push(n.clone());
+                instantiated_var_names.push(*n);
                 // 2. Perform ! env.CreateMutableBinding(n, false).
-                env.create_mutable_binding(agent, n, false).unwrap();
+                env.create_mutable_binding(agent, *n, false).unwrap();
                 // 3. Perform ! env.InitializeBinding(n, undefined).
-                env.initialize_binding(agent, n, Value::Undefined).unwrap();
+                env.initialize_binding(agent, *n, Value::Undefined).unwrap();
             }
         }
         // d. Let varEnv be env.
@@ -982,7 +995,7 @@ pub(crate) fn function_declaration_instantiation(
                 // 1. Append n to instantiatedVarNames.
                 instantiated_var_names.push(n);
                 // 2. Perform ! varEnv.CreateMutableBinding(n, false).
-                var_env.create_mutable_binding(agent, n, false).unwrap();
+                var_env.create_mutable_binding(agent, *n, false).unwrap();
                 // 3. If parameterBindings does not contain n, or if functionNames contains n, then
                 let initial_value = if !parameter_bindings.contains(n) || function_names.contains(n)
                 {
@@ -991,10 +1004,12 @@ pub(crate) fn function_declaration_instantiation(
                 } else {
                     // 4. Else,
                     // a. Let initialValue be ! env.GetBindingValue(n, false).
-                    env.get_binding_value(agent, n, false).unwrap()
+                    env.get_binding_value(agent, *n, false).unwrap()
                 };
                 // 5. Perform ! varEnv.InitializeBinding(n, initialValue).
-                var_env.initialize_binding(agent, n, initial_value).unwrap();
+                var_env
+                    .initialize_binding(agent, *n, initial_value)
+                    .unwrap();
                 // 6. NOTE: A var with the same name as a formal parameter initially has
                 // the same value as the corresponding initialized parameter.
             }
@@ -1036,33 +1051,38 @@ pub(crate) fn function_declaration_instantiation(
                 if decl.kind.is_const() {
                     // 1. Perform ! lexEnv.CreateImmutableBinding(dn, true).
                     decl.id.bound_names(&mut |identifier| {
+                        let identifier = String::from_str(agent, identifier.name.as_str());
                         lex_env
-                            .create_immutable_binding(agent, &identifier.name, true)
+                            .create_immutable_binding(agent, identifier, true)
                             .unwrap();
                     });
                 } else {
                     decl.id.bound_names(&mut |identifier| {
                         // ii. Else,
                         // 1. Perform ! lexEnv.CreateMutableBinding(dn, false).
+                        let identifier = String::from_str(agent, identifier.name.as_str());
                         lex_env
-                            .create_mutable_binding(agent, &identifier.name, false)
+                            .create_mutable_binding(agent, identifier, false)
                             .unwrap();
                     });
                 }
             }
             LexicallyScopedDeclaration::Function(decl) => {
+                let identifier = String::from_str(agent, decl.id.as_ref().unwrap().name.as_str());
                 lex_env
-                    .create_mutable_binding(agent, &decl.id.as_ref().unwrap().name, false)
+                    .create_mutable_binding(agent, identifier, false)
                     .unwrap();
             }
             LexicallyScopedDeclaration::Class(decl) => {
+                let identifier = String::from_str(agent, decl.id.as_ref().unwrap().name.as_str());
                 lex_env
-                    .create_mutable_binding(agent, &decl.id.as_ref().unwrap().name, false)
+                    .create_mutable_binding(agent, identifier, false)
                     .unwrap();
             }
             LexicallyScopedDeclaration::DefaultExport => {
+                let identifier = BUILTIN_STRING_MEMORY._default_;
                 lex_env
-                    .create_mutable_binding(agent, &Atom::new_inline("*default*"), false)
+                    .create_mutable_binding(agent, identifier, false)
                     .unwrap();
             }
         }
@@ -1070,9 +1090,9 @@ pub(crate) fn function_declaration_instantiation(
     // 35. Let privateEnv be the PrivateEnvironment of calleeContext.
     let private_env = callee_private_env;
     // 36. For each Parse Node f of functionsToInitialize, do
-    for f in functions_to_initialize {
+    for (f_name, f) in functions_to_initialize {
         // a. Let fn be the sole element of the BoundNames of f.
-        let f_name = &f.id.as_ref().unwrap().name;
+        // We calculated this above already.
         // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
         let fo = instantiate_function_object(agent, f, lex_env, private_env);
         // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).

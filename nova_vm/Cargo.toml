@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 num-bigint = { workspace = true }
+num-traits = "0.2.18"
 oxc_parser = { workspace = true }
 oxc_span = { workspace = true }
 oxc_syntax = { workspace = true }

@@ -1,12 +1,10 @@
-use oxc_span::Atom;
-
 use crate::ecmascript::abstract_operations::operations_on_objects::{
     define_property_or_throw, has_own_property, set,
 };
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_extensible;
 use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::types::{Object, PropertyDescriptor, PropertyKey, Value};
+use crate::ecmascript::types::{Object, PropertyDescriptor, PropertyKey, String, Value};
 use crate::ecmascript::{execution::Agent, types::InternalMethods};
 use std::collections::HashSet;
 
@@ -53,7 +51,7 @@ pub struct GlobalEnvironment {
     /// VariableDeclaration declarations in global code for the associated
     /// realm.
     // TODO: Use the Heap to set this.
-    var_names: HashSet<Atom>,
+    var_names: HashSet<String>,
 }
 
 impl GlobalEnvironment {
@@ -109,7 +107,7 @@ impl GlobalEnvironmentIndex {
     /// takes argument N (a String) and returns either a normal completion
     /// containing a Boolean or a throw completion. It determines if the
     /// argument identifier is one of the identifiers bound by the record.
-    pub(crate) fn has_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
+    pub(crate) fn has_binding(self, agent: &mut Agent, name: String) -> JsResult<bool> {
         let env_rec = self.heap_data(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         // 2. If ! DclRec.HasBinding(N) is true, return true.
@@ -135,7 +133,7 @@ impl GlobalEnvironmentIndex {
     pub(crate) fn create_mutable_binding(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         is_deletable: bool,
     ) -> JsResult<()> {
         let env_rec = self.heap_data(agent);
@@ -163,7 +161,7 @@ impl GlobalEnvironmentIndex {
     pub(crate) fn create_immutable_binding(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         is_strict: bool,
     ) -> JsResult<()> {
         let env_rec = self.heap_data(agent);
@@ -190,7 +188,7 @@ impl GlobalEnvironmentIndex {
     pub(crate) fn initialize_binding(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         value: Value,
     ) -> JsResult<()> {
         let env_rec = self.heap_data(agent);
@@ -223,7 +221,7 @@ impl GlobalEnvironmentIndex {
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         value: Value,
         is_strict: bool,
     ) -> JsResult<()> {
@@ -231,7 +229,7 @@ impl GlobalEnvironmentIndex {
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
-        if dcl_rec.has_binding(agent, name.as_str()) {
+        if dcl_rec.has_binding(agent, name) {
             // a. Return ? DclRec.SetMutableBinding(N, V, S).
             dcl_rec.set_mutable_binding(agent, name, value, is_strict)
         } else {
@@ -252,12 +250,17 @@ impl GlobalEnvironmentIndex {
     /// ReferenceError exception. A property named N normally already exists
     /// but if it does not or is not currently writable, error handling is
     /// determined by S.
-    pub(crate) fn get_binding_value(self, agent: &mut Agent, n: &Atom, s: bool) -> JsResult<Value> {
+    pub(crate) fn get_binding_value(
+        self,
+        agent: &mut Agent,
+        n: String,
+        s: bool,
+    ) -> JsResult<Value> {
         let env_rec = self.heap_data(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
-        if dcl_rec.has_binding(agent, n.as_str()) {
+        if dcl_rec.has_binding(agent, n) {
             // a. Return ? DclRec.GetBindingValue(N, S).
             dcl_rec.get_binding_value(agent, n, s)
         } else {
@@ -274,12 +277,12 @@ impl GlobalEnvironmentIndex {
     /// takes argument N (a String) and returns either a normal completion
     /// containing a Boolean or a throw completion. It can only delete bindings
     /// that have been explicitly designated as being subject to deletion.
-    pub(crate) fn delete_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
+    pub(crate) fn delete_binding(self, agent: &mut Agent, name: String) -> JsResult<bool> {
         let env_rec = self.heap_data(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
-        if dcl_rec.has_binding(agent, name.as_str()) {
+        if dcl_rec.has_binding(agent, name) {
             // a. Return ! DclRec.DeleteBinding(N).
             return Ok(dcl_rec.delete_binding(agent, name));
         }
@@ -288,7 +291,7 @@ impl GlobalEnvironmentIndex {
         // 4. Let globalObject be ObjRec.[[BindingObject]].
         let global_object = obj_rec.heap_data(agent).binding_object;
         // 5. Let existingProp be ? HasOwnProperty(globalObject, N).
-        let n = PropertyKey::from_str(agent, name.as_str());
+        let n = PropertyKey::from(name);
         let existing_prop = has_own_property(agent, global_object, n)?;
         // 6. If existingProp is true, then
         if existing_prop {
@@ -297,9 +300,9 @@ impl GlobalEnvironmentIndex {
             // b. If status is true and envRec.[[VarNames]] contains N, then
             if status {
                 let env_rec = self.heap_data_mut(agent);
-                if env_rec.var_names.contains(name) {
+                if env_rec.var_names.contains(&name) {
                     // i. Remove N from envRec.[[VarNames]].
-                    env_rec.var_names.remove(name);
+                    env_rec.var_names.remove(&name);
                 }
             }
             // c. Return status.
@@ -359,13 +362,13 @@ impl GlobalEnvironmentIndex {
     /// if the argument identifier has a binding in this record that was
     /// created
     /// using a VariableStatement or a FunctionDeclaration.
-    pub(crate) fn has_var_declaration(self, agent: &Agent, name: &str) -> bool {
+    pub(crate) fn has_var_declaration(self, agent: &Agent, name: String) -> bool {
         let env_rec = self.heap_data(agent);
         // 1. Let varDeclaredNames be envRec.[[VarNames]].
         let var_declared_names = &env_rec.var_names;
         // 2. If varDeclaredNames contains N, return true.
         // 3. Return false.
-        var_declared_names.contains(name)
+        var_declared_names.contains(&name)
     }
 
     /// ### [9.1.1.4.13 HasLexicalDeclaration ( N )](https://tc39.es/ecma262/#sec-haslexicaldeclaration)
@@ -375,7 +378,7 @@ impl GlobalEnvironmentIndex {
     /// determines if the argument identifier has a binding in this record that
     /// was created using a lexical declaration such as a LexicalDeclaration or
     /// a ClassDeclaration.
-    pub(crate) fn has_lexical_declaration(self, agent: &Agent, name: &str) -> bool {
+    pub(crate) fn has_lexical_declaration(self, agent: &Agent, name: String) -> bool {
         let env_rec = self.heap_data(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -393,7 +396,7 @@ impl GlobalEnvironmentIndex {
     pub(crate) fn has_restricted_global_property(
         self,
         agent: &mut Agent,
-        name: &str,
+        name: String,
     ) -> JsResult<bool> {
         let env_rec = self.heap_data(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -401,7 +404,7 @@ impl GlobalEnvironmentIndex {
         // 2. Let globalObject be ObjRec.[[BindingObject]].
         let global_object = obj_rec.heap_data(agent).binding_object;
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        let n = PropertyKey::from_str(agent, name);
+        let n = PropertyKey::from(name);
         let existing_prop = global_object.get_own_property(agent, n)?;
         let Some(existing_prop) = existing_prop else {
             // 4. If existingProp is undefined, return false.
@@ -420,14 +423,14 @@ impl GlobalEnvironmentIndex {
     /// a corresponding CreateGlobalVarBinding call would succeed if called for
     /// the same argument N. Redundant var declarations and var declarations
     /// for pre-existing global object properties are allowed.
-    pub(crate) fn can_declare_global_var(self, agent: &mut Agent, name: &str) -> JsResult<bool> {
+    pub(crate) fn can_declare_global_var(self, agent: &mut Agent, name: String) -> JsResult<bool> {
         let env_rec = self.heap_data(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
         let global_object = obj_rec.heap_data(agent).binding_object;
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
-        let n = PropertyKey::from_str(agent, name);
+        let n = PropertyKey::from(name);
         let has_property = has_own_property(agent, global_object, n)?;
         // 4. If hasProperty is true, return true.
         if has_property {
@@ -448,14 +451,14 @@ impl GlobalEnvironmentIndex {
     pub(crate) fn can_declare_global_function(
         self,
         agent: &mut Agent,
-        name: &str,
+        name: String,
     ) -> JsResult<bool> {
         let env_rec = self.heap_data(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
         let global_object = obj_rec.heap_data(agent).binding_object;
-        let n = PropertyKey::from_str(agent, name);
+        let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let existing_prop = global_object.get_own_property(agent, n)?;
         // 4. If existingProp is undefined, return ? IsExtensible(globalObject).
@@ -488,7 +491,7 @@ impl GlobalEnvironmentIndex {
     pub(crate) fn create_global_var_binding(
         self,
         agent: &mut Agent,
-        name: Atom,
+        name: String,
         is_deletable: bool,
     ) -> JsResult<()> {
         let env_rec = self.heap_data(agent);
@@ -496,7 +499,7 @@ impl GlobalEnvironmentIndex {
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
         let global_object = obj_rec.heap_data(agent).binding_object;
-        let n = PropertyKey::from_str(agent, name.as_str());
+        let n = PropertyKey::from(name);
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let has_property = has_own_property(agent, global_object, n)?;
         // 4. Let extensible be ? IsExtensible(globalObject).
@@ -504,9 +507,9 @@ impl GlobalEnvironmentIndex {
         // 5. If hasProperty is false and extensible is true, then
         if !has_property && extensible {
             // a. Perform ? ObjRec.CreateMutableBinding(N, D).
-            obj_rec.create_mutable_binding(agent, &name, is_deletable)?;
+            obj_rec.create_mutable_binding(agent, name, is_deletable)?;
             // b. Perform ? ObjRec.InitializeBinding(N, undefined).
-            obj_rec.initialize_binding(agent, &name, Value::Undefined)?;
+            obj_rec.initialize_binding(agent, name, Value::Undefined)?;
         }
 
         // 6. If envRec.[[VarNames]] does not contain N, then
@@ -530,7 +533,7 @@ impl GlobalEnvironmentIndex {
     pub(crate) fn create_global_function_binding(
         self,
         agent: &mut Agent,
-        name: Atom,
+        name: String,
         value: Value,
         d: bool,
     ) -> JsResult<()> {
@@ -539,7 +542,7 @@ impl GlobalEnvironmentIndex {
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
         let global_object = obj_rec.heap_data(agent).binding_object;
-        let n = PropertyKey::from_str(agent, name.as_str());
+        let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let existing_prop = global_object.get_own_property(agent, n)?;
         // 4. If existingProp is undefined or existingProp.[[Configurable]] is true, then

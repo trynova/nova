@@ -1,13 +1,16 @@
-use crate::ecmascript::{
-    abstract_operations::{operations_on_objects::set, type_conversion::to_object},
-    execution::{
-        agent::{self, ExceptionType},
-        get_global_object, EnvironmentIndex,
+use crate::{
+    ecmascript::{
+        abstract_operations::{operations_on_objects::set, type_conversion::to_object},
+        execution::{
+            agent::{self, ExceptionType},
+            get_global_object, EnvironmentIndex,
+        },
+        types::{InternalMethods, Object, PropertyKey, String, Symbol, Value},
     },
-    types::{InternalMethods, Object, PropertyKey, Symbol, Value},
+    heap::indexes::StringIndex,
 };
 use agent::{Agent, JsResult};
-use oxc_span::Atom;
+use small_string::SmallString;
 
 /// ### [6.2.5 The Reference Record Specification Type](https://tc39.es/ecma262/#sec-reference-record-specification-type)
 ///
@@ -104,7 +107,8 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             // implementation might choose to avoid the actual
             // creation of the object.
             let referenced_name = match &reference.referenced_name {
-                ReferencedName::String(atom) => PropertyKey::from_str(agent, atom.as_str()),
+                ReferencedName::String(data) => PropertyKey::String(*data),
+                ReferencedName::SmallString(data) => PropertyKey::SmallString(*data),
                 ReferencedName::Symbol(symbol) => PropertyKey::from(*symbol),
                 ReferencedName::PrivateName => {
                     // b. If IsPrivateReference(V) is true, then
@@ -161,7 +165,8 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             // b. Assert: base is an Environment Record.
             // c. Return ? base.GetBindingValue(V.[[ReferencedName]], V.[[Strict]]) (see 9.1).
             let referenced_name = match &reference.referenced_name {
-                ReferencedName::String(atom) => atom,
+                ReferencedName::String(data) => String::String(*data),
+                ReferencedName::SmallString(data) => String::SmallString(*data),
                 _ => unreachable!(),
             };
             Ok(env.get_binding_value(agent, referenced_name, reference.strict)?)
@@ -195,7 +200,8 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
         let global_obj = get_global_object(agent);
         // c. Perform ? Set(globalObj, V.[[ReferencedName]], W, false).
         let referenced_name = match &v.referenced_name {
-            ReferencedName::String(atom) => PropertyKey::from_str(agent, atom.as_str()),
+            ReferencedName::String(data) => PropertyKey::String(*data),
+            ReferencedName::SmallString(data) => PropertyKey::SmallString(*data),
             ReferencedName::Symbol(_) => todo!(),
             ReferencedName::PrivateName => todo!(),
         };
@@ -218,7 +224,8 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
         // c. Let succeeded be ? baseObj.[[Set]](V.[[ReferencedName]], W, GetThisValue(V)).
         let this_value = get_this_value(v);
         let referenced_name = match &v.referenced_name {
-            ReferencedName::String(atom) => PropertyKey::from_str(agent, atom.as_str()),
+            ReferencedName::String(data) => PropertyKey::String(*data),
+            ReferencedName::SmallString(data) => PropertyKey::SmallString(*data),
             ReferencedName::Symbol(_) => todo!(),
             ReferencedName::PrivateName => todo!(),
         };
@@ -241,7 +248,8 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
         };
         // c. Return ? base.SetMutableBinding(V.[[ReferencedName]], W, V.[[Strict]]) (see 9.1).
         let referenced_name = match &v.referenced_name {
-            ReferencedName::String(atom) => atom,
+            ReferencedName::String(data) => String::String(*data),
+            ReferencedName::SmallString(data) => String::SmallString(*data),
             ReferencedName::Symbol(_) => todo!(),
             ReferencedName::PrivateName => todo!(),
         };
@@ -275,8 +283,18 @@ pub(crate) enum Base {
 
 #[derive(Debug)]
 pub enum ReferencedName {
-    String(Atom),
+    String(StringIndex),
+    SmallString(SmallString),
     Symbol(Symbol),
     // TODO: implement private names
     PrivateName,
+}
+
+impl From<String> for ReferencedName {
+    fn from(value: String) -> Self {
+        match value {
+            String::String(data) => Self::String(data),
+            String::SmallString(data) => Self::SmallString(data),
+        }
+    }
 }

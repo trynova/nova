@@ -6,15 +6,16 @@ use crate::{
         syntax_directed_operations::scope_analysis::{
             LexicallyScopedDeclaration, LexicallyScopedDeclarations,
         },
-        types::{BigIntHeapData, Reference, Value},
+        types::{BigIntHeapData, Reference, String, Value},
     },
     heap::CreateHeapData,
 };
+use num_bigint::BigInt;
+use num_traits::Num;
 use oxc_ast::{
     ast::{self, CallExpression, FunctionBody, NewExpression, Statement},
     syntax_directed_operations::BoundNames,
 };
-use oxc_span::Atom;
 use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 
 pub type IndexType = u16;
@@ -41,7 +42,7 @@ pub(crate) struct FunctionExpression {
 pub(crate) struct Executable {
     pub instructions: Vec<u8>,
     pub(crate) constants: Vec<Value>,
-    pub(crate) identifiers: Vec<Atom>,
+    pub(crate) identifiers: Vec<String>,
     pub(crate) references: Vec<Reference>,
     pub(crate) function_expressions: Vec<FunctionExpression>,
 }
@@ -198,17 +199,17 @@ impl Executable {
         })
     }
 
-    fn add_identifier(&mut self, identifier: &Atom) -> usize {
+    fn add_identifier(&mut self, identifier: String) -> usize {
         let duplicate = self
             .identifiers
             .iter()
             .enumerate()
-            .find(|item| item.1 == identifier)
+            .find(|item| *item.1 == identifier)
             .map(|(idx, _)| idx);
 
         duplicate.unwrap_or_else(|| {
             let index = self.identifiers.len();
-            self.identifiers.push(identifier.clone());
+            self.identifiers.push(identifier);
             index
         })
     }
@@ -231,7 +232,7 @@ impl Executable {
         self.add_index(constant);
     }
 
-    fn add_instruction_with_identifier(&mut self, instruction: Instruction, identifier: &Atom) {
+    fn add_instruction_with_identifier(&mut self, instruction: Instruction, identifier: String) {
         debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_identifier_index());
         self._push_instruction(instruction);
@@ -242,7 +243,7 @@ impl Executable {
     fn add_instruction_with_identifier_and_constant(
         &mut self,
         instruction: Instruction,
-        identifier: &Atom,
+        identifier: String,
         constant: impl Into<Value>,
     ) {
         debug_assert_eq!(instruction.argument_count(), 2);
@@ -310,7 +311,7 @@ fn is_reference(expression: &ast::Expression) -> bool {
     }
 }
 
-impl CompileEvaluation for ast::NumberLiteral<'_> {
+impl CompileEvaluation for ast::NumericLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let constant = ctx.agent.heap.create(self.value);
         ctx.exe
@@ -325,10 +326,20 @@ impl CompileEvaluation for ast::BooleanLiteral {
     }
 }
 
-impl CompileEvaluation for ast::BigintLiteral {
+impl CompileEvaluation for ast::BigIntLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        let radix = match self.base {
+            oxc_syntax::BigintBase::Decimal => 10,
+            oxc_syntax::BigintBase::Binary => 2,
+            oxc_syntax::BigintBase::Octal => 8,
+            oxc_syntax::BigintBase::Hex => 16,
+        };
+        // Drop out the trailing 'n' from BigInt literals.
+        let last_index = self.raw.len() - 1;
+        let big_int_str = &self.raw.as_str()[..last_index];
         let constant = ctx.agent.heap.create(BigIntHeapData {
-            data: self.value.clone(),
+            // Drop out the trailing 'n' from BigInt literals.
+            data: BigInt::from_str_radix(big_int_str, radix).unwrap(),
         });
         ctx.exe
             .add_instruction_with_constant(Instruction::StoreConstant, constant);
@@ -342,25 +353,27 @@ impl CompileEvaluation for ast::NullLiteral {
     }
 }
 
-impl CompileEvaluation for ast::StringLiteral {
+impl CompileEvaluation for ast::StringLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        let constant = Value::from_str(ctx.agent, self.value.as_str());
+        let constant = String::from_str(ctx.agent, self.value.as_str());
         ctx.exe
             .add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
 }
 
-impl CompileEvaluation for ast::IdentifierReference {
+impl CompileEvaluation for ast::IdentifierReference<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        let identifier = String::from_str(ctx.agent, self.name.as_str());
         ctx.exe
-            .add_instruction_with_identifier(Instruction::ResolveBinding, &self.name);
+            .add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
     }
 }
 
-impl CompileEvaluation for ast::BindingIdentifier {
+impl CompileEvaluation for ast::BindingIdentifier<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        let identifier = String::from_str(ctx.agent, self.name.as_str());
         ctx.exe
-            .add_instruction_with_identifier(Instruction::ResolveBinding, &self.name);
+            .add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
     }
 }
 
@@ -586,7 +599,7 @@ impl CompileEvaluation for ast::ParenthesizedExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::ArrowExpression<'_> {
+impl CompileEvaluation for ast::ArrowFunctionExpression<'_> {
     fn compile(&self, _ctx: &mut CompileContext) {
         todo!()
     }
@@ -766,9 +779,10 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
         }
 
         // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
+        let identifier = String::from_str(ctx.agent, self.property.name.as_str());
         ctx.exe.add_instruction_with_identifier(
             Instruction::EvaluatePropertyAccessWithIdentifierKey,
-            &self.property.name,
+            identifier,
         );
     }
 }
@@ -782,7 +796,7 @@ impl CompileEvaluation for ast::PrivateFieldExpression<'_> {
 impl CompileEvaluation for ast::Expression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
-            ast::Expression::NumberLiteral(x) => x.compile(ctx),
+            ast::Expression::NumericLiteral(x) => x.compile(ctx),
             ast::Expression::BooleanLiteral(x) => x.compile(ctx),
             ast::Expression::Identifier(x) => x.compile(ctx),
             ast::Expression::BigintLiteral(x) => x.compile(ctx),
@@ -895,25 +909,26 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
 
                     // 1. Let bindingId be StringValue of BindingIdentifier.
                     // 2. Let lhs be ? ResolveBinding(bindingId).
+                    let identifier_string = String::from_str(ctx.agent, identifier.name.as_str());
                     ctx.exe.add_instruction_with_identifier(
                         Instruction::ResolveBinding,
-                        &identifier.name,
+                        identifier_string,
                     );
                     ctx.exe.add_instruction(Instruction::PushReference);
 
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
                     match &init {
-                        ast::Expression::ArrowExpression(expr) => {
+                        ast::Expression::ArrowFunctionExpression(expr) => {
                             // Always anonymous
                             // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                            let name_identifier = ctx.exe.add_identifier(&identifier.name);
+                            let name_identifier = ctx.exe.add_identifier(identifier_string);
                             ctx.name_identifier = Some(name_identifier);
                             expr.compile(ctx);
                         }
                         ast::Expression::FunctionExpression(expr) => {
                             if expr.id.is_none() {
                                 // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                                let name_identifier = ctx.exe.add_identifier(&identifier.name);
+                                let name_identifier = ctx.exe.add_identifier(identifier_string);
                                 ctx.name_identifier = Some(name_identifier);
                             }
                             // 4. Else,
@@ -951,9 +966,10 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     };
 
                     // 1. Let lhs be ! ResolveBinding(StringValue of BindingIdentifier).
+                    let identifier_string = String::from_str(ctx.agent, identifier.name.as_str());
                     ctx.exe.add_instruction_with_identifier(
                         Instruction::ResolveBinding,
-                        &identifier.name,
+                        identifier_string,
                     );
 
                     let Some(init) = &decl.init else {
@@ -977,17 +993,17 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     ctx.exe.add_instruction(Instruction::PushReference);
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
                     match &init {
-                        ast::Expression::ArrowExpression(expr) => {
+                        ast::Expression::ArrowFunctionExpression(expr) => {
                             // Always anonymous
                             // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                            let name_identifier = ctx.exe.add_identifier(&identifier.name);
+                            let name_identifier = ctx.exe.add_identifier(identifier_string);
                             ctx.name_identifier = Some(name_identifier);
                             expr.compile(ctx);
                         }
                         ast::Expression::FunctionExpression(expr) => {
                             if expr.id.is_none() {
                                 // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                                let name_identifier = ctx.exe.add_identifier(&identifier.name);
+                                let name_identifier = ctx.exe.add_identifier(identifier_string);
                                 ctx.name_identifier = Some(name_identifier);
                             }
                             // 4. Else,
@@ -1051,16 +1067,18 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
                 LexicallyScopedDeclaration::Variable(decl) => {
                     if decl.kind.is_const() {
                         decl.id.bound_names(&mut |name| {
+                            let identifier = String::from_str(ctx.agent, name.name.as_str());
                             ctx.exe.add_instruction_with_identifier(
                                 Instruction::CreateImmutableBinding,
-                                &name.name,
+                                identifier,
                             );
                         });
                     } else {
                         decl.id.bound_names(&mut |name| {
+                            let identifier = String::from_str(ctx.agent, name.name.as_str());
                             ctx.exe.add_instruction_with_identifier(
                                 Instruction::CreateMutableBinding,
-                                &name.name,
+                                identifier,
                             );
                         });
                     }
@@ -1068,17 +1086,19 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
                 LexicallyScopedDeclaration::Function(decl) => {
                     // TODO: InstantiateFunctionObject and InitializeBinding
                     decl.bound_names(&mut |name| {
+                        let identifier = String::from_str(ctx.agent, name.name.as_str());
                         ctx.exe.add_instruction_with_identifier(
                             Instruction::CreateMutableBinding,
-                            &name.name,
+                            identifier,
                         );
                     });
                 }
                 LexicallyScopedDeclaration::Class(decl) => {
                     decl.bound_names(&mut |name| {
+                        let identifier = String::from_str(ctx.agent, name.name.as_str());
                         ctx.exe.add_instruction_with_identifier(
                             Instruction::CreateMutableBinding,
-                            &name.name,
+                            identifier,
                         );
                     });
                 }

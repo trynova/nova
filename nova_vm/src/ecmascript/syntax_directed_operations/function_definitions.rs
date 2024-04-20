@@ -1,6 +1,3 @@
-use oxc_ast::ast::{self};
-use oxc_span::Atom;
-
 use crate::{
     ecmascript::{
         builtins::{
@@ -11,11 +8,12 @@ use crate::{
             Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult,
             PrivateEnvironmentIndex,
         },
-        types::{Function, PropertyKey, Value},
+        types::{Function, PropertyKey, String, Value},
     },
     engine::{Executable, FunctionExpression, Vm},
     heap::GetHeapData,
 };
+use oxc_ast::ast::{self};
 
 /// ### [15.2.4 Runtime Semantics: InstantiateOrdinaryFunctionObject](https://tc39.es/ecma262/#sec-runtime-semantics-instantiateordinaryfunctionobject)
 ///
@@ -83,13 +81,13 @@ pub(crate) fn instantiate_ordinary_function_object(
 pub(crate) fn instantiate_ordinary_function_expression(
     agent: &mut Agent,
     function: &FunctionExpression,
-    name: Option<&Atom>,
+    name: Option<String>,
 ) -> Function {
     if let Some(_identifier) = function.identifier {
         todo!();
     } else {
         // 1. If name is not present, set name to "".
-        let name = name.map_or_else(|| "", |name| name.as_str());
+        let name = name.map_or_else(|| String::EMPTY_STRING, |name| name);
         // 2. Let env be the LexicalEnvironment of the running execution context.
         // 3. Let privateEnv be the running execution context's PrivateEnvironment.
         let ECMAScriptCodeEvaluationState {
@@ -115,7 +113,7 @@ pub(crate) fn instantiate_ordinary_function_expression(
         };
         let closure = ordinary_function_create(agent, params);
         // 6. Perform SetFunctionName(closure, name).
-        let name = PropertyKey::from_str(agent, name);
+        let name = PropertyKey::from(name);
         set_function_name(agent, closure, name, None);
         // 7. Perform MakeConstructor(closure).
         // 8. Return closure.
