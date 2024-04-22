@@ -1,8 +1,13 @@
 mod data;
 
+use std::ops::{Index, IndexMut};
+
 pub use data::SymbolHeapData;
 
-use crate::heap::indexes::SymbolIndex;
+use crate::{
+    ecmascript::execution::Agent,
+    heap::{indexes::SymbolIndex, Heap},
+};
 
 use super::{IntoPrimitive, IntoValue, Primitive, Value};
 
@@ -70,5 +75,41 @@ impl TryFrom<Primitive> for Symbol {
             Primitive::Symbol(idx) => Ok(Self(idx)),
             _ => Err(()),
         }
+    }
+}
+
+impl Index<Symbol> for Agent {
+    type Output = SymbolHeapData;
+
+    fn index(&self, index: Symbol) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<Symbol> for Agent {
+    fn index_mut(&mut self, index: Symbol) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<Symbol> for Heap {
+    type Output = SymbolHeapData;
+
+    fn index(&self, index: Symbol) -> &Self::Output {
+        self.symbols
+            .get(index.0.into_index())
+            .expect("Symbol out of bounds")
+            .as_ref()
+            .expect("Symbol slot empty")
+    }
+}
+
+impl IndexMut<Symbol> for Heap {
+    fn index_mut(&mut self, index: Symbol) -> &mut Self::Output {
+        self.symbols
+            .get_mut(index.0.into_index())
+            .expect("Symbol out of bounds")
+            .as_mut()
+            .expect("Symbol slot empty")
     }
 }

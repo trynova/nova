@@ -1,13 +1,10 @@
 //! ## [7.2 Testing and Comparison Operations](https://tc39.es/ecma262/#sec-testing-and-comparison-operations)
 
-use crate::{
-    ecmascript::{
-        abstract_operations::type_conversion::to_numeric,
-        builtins::Behaviour,
-        execution::{agent::ExceptionType, Agent, JsResult},
-        types::{bigint::BigInt, InternalMethods, IntoValue, Number, Object, String, Value},
-    },
-    heap::GetHeapData,
+use crate::ecmascript::{
+    abstract_operations::type_conversion::to_numeric,
+    builtins::Behaviour,
+    execution::{agent::ExceptionType, Agent, JsResult},
+    types::{bigint::BigInt, InternalMethods, IntoValue, Number, Object, String, Value},
 };
 
 use super::type_conversion::{string_to_big_int, to_number, to_primitive, PreferredType};
@@ -67,16 +64,14 @@ pub(crate) fn is_constructor(agent: &mut Agent, constructor: Value) -> bool {
     // 2. If argument has a [[Construct]] internal method, return true.
     match constructor {
         Value::BoundFunction(idx) => {
-            let function = agent.heap.get(idx).function;
+            let function = agent[idx].function;
             is_constructor(agent, function.into_value())
         }
         Value::BuiltinFunction(idx) => {
-            let behaviour = agent.heap.get(idx).behaviour;
+            let behaviour = agent[idx].behaviour;
             matches!(behaviour, Behaviour::Constructor(_))
         }
-        Value::ECMAScriptFunction(idx) => {
-            agent.heap.get(idx).ecmascript_function.is_class_constructor
-        }
+        Value::ECMAScriptFunction(idx) => agent[idx].ecmascript_function.is_class_constructor,
         // TODO: Proxy
         _ => false,
     }

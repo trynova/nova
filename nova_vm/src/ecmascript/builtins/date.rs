@@ -1,6 +1,6 @@
 pub(crate) mod data;
 
-use std::ops::Deref;
+use std::ops::{Deref, Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -10,8 +10,10 @@ use crate::{
             OrdinaryObjectInternalSlots, PropertyKey, Value,
         },
     },
-    heap::{indexes::DateIndex, GetHeapData},
+    heap::{indexes::DateIndex, Heap},
 };
+
+use self::data::DateHeapData;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Date(pub(crate) DateIndex);
@@ -79,6 +81,42 @@ impl TryFrom<Object> for Date {
             Object::Date(idx) => Ok(idx.into()),
             _ => Err(()),
         }
+    }
+}
+
+impl Index<Date> for Agent {
+    type Output = DateHeapData;
+
+    fn index(&self, index: Date) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<Date> for Agent {
+    fn index_mut(&mut self, index: Date) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<Date> for Heap {
+    type Output = DateHeapData;
+
+    fn index(&self, index: Date) -> &Self::Output {
+        self.dates
+            .get(index.0.into_index())
+            .expect("Date out of bounds")
+            .as_ref()
+            .expect("Date slot empty")
+    }
+}
+
+impl IndexMut<Date> for Heap {
+    fn index_mut(&mut self, index: Date) -> &mut Self::Output {
+        self.dates
+            .get_mut(index.0.into_index())
+            .expect("Date out of bounds")
+            .as_mut()
+            .expect("Date slot empty")
     }
 }
 
@@ -152,7 +190,7 @@ impl InternalMethods for Date {
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_get(agent, property_key, receiver)
         } else {
             agent

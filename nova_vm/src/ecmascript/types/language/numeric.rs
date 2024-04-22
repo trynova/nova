@@ -3,10 +3,7 @@ use crate::{
         abstract_operations::type_conversion::to_number,
         execution::{Agent, JsResult},
     },
-    heap::{
-        indexes::{BigIntIndex, NumberIndex},
-        GetHeapData,
-    },
+    heap::indexes::{BigIntIndex, NumberIndex},
     SmallInteger,
 };
 
@@ -70,7 +67,7 @@ impl Numeric {
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
     pub fn to_real(self, agent: &mut Agent) -> JsResult<f64> {
         Ok(match self {
-            Self::Number(n) => *agent.heap.get(n),
+            Self::Number(n) => agent[n],
             Self::Integer(i) => i.into_i64() as f64,
             Self::Float(f) => f as f64,
             // NOTE: Converting to a number should give us a nice error message.

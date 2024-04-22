@@ -21,10 +21,7 @@ use crate::{
         execution::{Agent, JsResult},
         types::PropertyDescriptor,
     },
-    heap::{
-        indexes::{BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex},
-        GetHeapData,
-    },
+    heap::indexes::{BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex},
 };
 
 pub(crate) use data::*;
@@ -198,9 +195,9 @@ impl Function {
 impl OrdinaryObjectInternalSlots for Function {
     fn internal_extensible(self, agent: &Agent) -> bool {
         if let Some(object_index) = match self {
-            Function::BoundFunction(d) => agent.heap.get(d).object_index,
-            Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
-            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
+            Function::BoundFunction(d) => agent[d].object_index,
+            Function::BuiltinFunction(d) => agent[d].object_index,
+            Function::ECMAScriptFunction(d) => agent[d].object_index,
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -220,9 +217,9 @@ impl OrdinaryObjectInternalSlots for Function {
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
         if let Some(object_index) = match self {
-            Function::BoundFunction(d) => agent.heap.get(d).object_index,
-            Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
-            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
+            Function::BoundFunction(d) => agent[d].object_index,
+            Function::BuiltinFunction(d) => agent[d].object_index,
+            Function::ECMAScriptFunction(d) => agent[d].object_index,
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -243,9 +240,9 @@ impl OrdinaryObjectInternalSlots for Function {
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
         if let Some(object_index) = match self {
-            Function::BoundFunction(d) => agent.heap.get(d).object_index,
-            Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
-            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
+            Function::BoundFunction(d) => agent[d].object_index,
+            Function::BuiltinFunction(d) => agent[d].object_index,
+            Function::ECMAScriptFunction(d) => agent[d].object_index,
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -271,9 +268,9 @@ impl OrdinaryObjectInternalSlots for Function {
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         if let Some(object_index) = match self {
-            Function::BoundFunction(d) => agent.heap.get(d).object_index,
-            Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
-            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
+            Function::BoundFunction(d) => agent[d].object_index,
+            Function::BuiltinFunction(d) => agent[d].object_index,
+            Function::ECMAScriptFunction(d) => agent[d].object_index,
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),

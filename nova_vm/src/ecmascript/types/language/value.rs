@@ -8,15 +8,12 @@ use crate::{
         execution::{Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
     },
-    heap::{
-        indexes::{
-            ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
-            DataViewIndex, DateIndex, ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex,
-            FinalizationRegistryIndex, MapIndex, NumberIndex, ObjectIndex, PrimitiveObjectIndex,
-            PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex,
-            SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
-        },
-        GetHeapData,
+    heap::indexes::{
+        ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
+        DataViewIndex, DateIndex, ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex,
+        FinalizationRegistryIndex, MapIndex, NumberIndex, ObjectIndex, PrimitiveObjectIndex,
+        PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex,
+        SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
     SmallInteger, SmallString,
 };
@@ -408,7 +405,7 @@ impl Value {
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
     pub fn to_real(self, agent: &mut Agent) -> JsResult<f64> {
         Ok(match self {
-            Value::Number(n) => *agent.heap.get(n),
+            Value::Number(n) => agent[n],
             Value::Integer(i) => i.into_i64() as f64,
             Value::Float(f) => f as f64,
             // NOTE: Converting to a number should give us a nice error message.

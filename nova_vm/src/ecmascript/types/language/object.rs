@@ -40,15 +40,12 @@ use crate::{
         scripts_and_modules::module::ModuleIdentifier,
         types::PropertyDescriptor,
     },
-    heap::{
-        indexes::{
-            ArrayBufferIndex, ArrayIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
-            DateIndex, ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex,
-            FinalizationRegistryIndex, MapIndex, ObjectIndex, PrimitiveObjectIndex, PromiseIndex,
-            ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, TypedArrayIndex,
-            WeakMapIndex, WeakRefIndex, WeakSetIndex,
-        },
-        GetHeapData,
+    heap::indexes::{
+        ArrayBufferIndex, ArrayIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
+        DateIndex, ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex,
+        FinalizationRegistryIndex, MapIndex, ObjectIndex, PrimitiveObjectIndex, PromiseIndex,
+        ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, TypedArrayIndex, WeakMapIndex,
+        WeakRefIndex, WeakSetIndex,
     },
 };
 
@@ -179,19 +176,19 @@ impl Deref for OrdinaryObject {
 
 impl OrdinaryObjectInternalSlots for OrdinaryObject {
     fn internal_extensible(self, agent: &Agent) -> bool {
-        agent.heap.get(*self).extensible
+        agent[self].extensible
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        agent.heap.get_mut(*self).extensible = value;
+        agent[self].extensible = value;
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
-        agent.heap.get(*self).prototype
+        agent[self].prototype
     }
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        agent.heap.get_mut(*self).prototype = prototype;
+        agent[self].prototype = prototype;
     }
 }
 

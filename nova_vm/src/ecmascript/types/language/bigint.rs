@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     ecmascript::execution::{agent::ExceptionType, Agent, JsResult},
-    heap::{indexes::BigIntIndex, CreateHeapData, GetHeapData},
+    heap::{indexes::BigIntIndex, CreateHeapData},
     SmallInteger,
 };
 
@@ -90,7 +90,7 @@ impl BigInt {
                 }
             }
             BigInt::BigInt(x_index) => {
-                let x_data = agent.heap.get(x_index);
+                let x_data = &agent[x_index];
                 agent.heap.create(BigIntHeapData {
                     data: -&x_data.data,
                 })
@@ -108,7 +108,7 @@ impl BigInt {
         match x {
             BigInt::SmallBigInt(x) => BigInt::SmallBigInt(!x),
             BigInt::BigInt(x_index) => {
-                let x_data = agent.heap.get(x_index);
+                let x_data = &agent[x_index];
                 agent.heap.create(BigIntHeapData {
                     data: !&x_data.data,
                 })
@@ -129,7 +129,7 @@ impl BigInt {
         // 1. If exponent < 0ℤ, throw a RangeError exception.
         if match exponent {
             BigInt::SmallBigInt(x) if x.into_i64() < 0 => true,
-            BigInt::BigInt(x) => agent.heap.get(x).data < 0.into(),
+            BigInt::BigInt(x) => agent[x].data < 0.into(),
             _ => false,
         } {
             return Err(
@@ -166,11 +166,11 @@ impl BigInt {
             (BigInt::SmallBigInt(x), BigInt::BigInt(y))
             | (BigInt::BigInt(y), BigInt::SmallBigInt(x)) => {
                 let x = x.into_i64();
-                let y = agent.heap.get(y);
+                let y = &agent[y];
                 agent.heap.create(BigIntHeapData { data: x * &y.data })
             }
             (BigInt::BigInt(x), BigInt::BigInt(y)) => {
-                let (x, y) = (agent.heap.get(x), agent.heap.get(y));
+                let (x, y) = (&agent[x], &agent[y]);
                 agent.heap.create(BigIntHeapData {
                     data: &x.data * &y.data,
                 })
@@ -188,7 +188,7 @@ impl BigInt {
             (BigInt::BigInt(_), BigInt::SmallBigInt(_)) => false,
             (BigInt::SmallBigInt(_), BigInt::BigInt(_)) => true,
             (BigInt::BigInt(b1), BigInt::BigInt(b2)) => {
-                let (b1, b2) = (agent.heap.get(b1), agent.heap.get(b2));
+                let (b1, b2) = (&agent[b1], &agent[b2]);
                 b1.data < b2.data
             }
             (BigInt::SmallBigInt(b1), BigInt::SmallBigInt(b2)) => b1.into_i64() < b2.into_i64(),
@@ -203,7 +203,7 @@ impl BigInt {
         // 1. If ℝ(x) = ℝ(y), return true; otherwise return false.
         match (x, y) {
             (BigInt::BigInt(x), BigInt::BigInt(y)) => {
-                let (x, y) = (agent.heap.get(x), agent.heap.get(y));
+                let (x, y) = (&agent[x], &agent[y]);
                 x.data == y.data
             }
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => x == y,

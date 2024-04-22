@@ -24,7 +24,6 @@ use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
 use crate::heap::indexes::BigIntIndex;
 
-use crate::heap::GetHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::SmallInteger;
 
@@ -148,7 +147,7 @@ fn number_to_big_int(agent: &mut Agent, value: Number) -> JsResult<BigInt> {
     } else {
         match value {
             Number::Number(idx) => {
-                let value = *agent.heap.get(idx);
+                let value = agent[idx];
                 if let Ok(data) = SmallInteger::try_from(value) {
                     Ok(data.into())
                 } else {

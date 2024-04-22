@@ -1,13 +1,20 @@
-use crate::ecmascript::{
-    abstract_operations::testing_and_comparison::same_value,
-    builtins::ordinary::ordinary_get_own_property,
-    execution::{agent::ExceptionType, Agent, JsResult},
-    scripts_and_modules::module::ModuleIdentifier,
-    types::{
-        InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
-        PropertyDescriptor, PropertyKey, String, Value,
+use std::ops::{Index, IndexMut};
+
+use crate::{
+    ecmascript::{
+        abstract_operations::testing_and_comparison::same_value,
+        builtins::ordinary::ordinary_get_own_property,
+        execution::{agent::ExceptionType, Agent, JsResult},
+        scripts_and_modules::module::ModuleIdentifier,
+        types::{
+            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
+            PropertyDescriptor, PropertyKey, String, Value,
+        },
     },
+    Heap,
 };
+
+use self::data::ModuleHeapData;
 
 use super::ordinary::{
     ordinary_define_own_property, ordinary_delete, ordinary_get, ordinary_has_property,
@@ -55,13 +62,45 @@ impl From<Module> for Object {
     }
 }
 
+impl Index<Module> for Agent {
+    type Output = ModuleHeapData;
+
+    fn index(&self, index: Module) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<Module> for Agent {
+    fn index_mut(&mut self, index: Module) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<Module> for Heap {
+    type Output = ModuleHeapData;
+
+    fn index(&self, index: Module) -> &Self::Output {
+        self.modules
+            .get(index.0.into_index())
+            .expect("Module out of bounds")
+            .as_ref()
+            .expect("Module slot empty")
+    }
+}
+
+impl IndexMut<Module> for Heap {
+    fn index_mut(&mut self, index: Module) -> &mut Self::Output {
+        self.modules
+            .get_mut(index.0.into_index())
+            .expect("Module out of bounds")
+            .as_mut()
+            .expect("Module slot empty")
+    }
+}
+
 impl Module {
     fn get_backing_object(self, agent: &Agent) -> Option<Object> {
-        agent
-            .heap
-            .get_module(self.0)
-            .object_index
-            .map(|idx| idx.into())
+        agent[self].object_index.map(|idx| idx.into())
     }
 }
 
@@ -122,7 +161,7 @@ impl InternalMethods for Module {
             PropertyKey::Integer(_) => Ok(None),
             PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let exports be O.[[Exports]].
-                let exports: &[String] = &agent.heap.get_module(self.0).exports;
+                let exports: &[String] = &agent[self].exports;
                 let key = match property_key {
                     PropertyKey::SmallString(data) => String::SmallString(data),
                     PropertyKey::String(data) => String::String(data),
@@ -212,7 +251,7 @@ impl InternalMethods for Module {
                     _ => unreachable!(),
                 };
                 // 2. Let exports be O.[[Exports]].
-                let exports: &[String] = &agent.heap.get_module(self.0).exports;
+                let exports: &[String] = &agent[self].exports;
                 // 3. If exports contains P, return true.
                 if exports.contains(&p) {
                     Ok(true)
@@ -256,7 +295,7 @@ impl InternalMethods for Module {
             PropertyKey::Integer(_) => Ok(Value::Undefined),
             PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let exports be O.[[Exports]].
-                let exports: &[String] = &agent.heap.get_module(self.0).exports;
+                let exports: &[String] = &agent[self].exports;
                 let key = match property_key {
                     PropertyKey::SmallString(data) => String::SmallString(data),
                     PropertyKey::String(data) => String::String(data),
@@ -268,7 +307,7 @@ impl InternalMethods for Module {
                     Ok(Value::Undefined)
                 } else {
                     // 4. Let m be O.[[Module]].
-                    let m = &agent.heap.get_module(self.0).module;
+                    let m = &agent[self].module;
                     // 5. Let binding be m.ResolveExport(P).
                     let binding = m.resolve_export(property_key);
                     // 6. Assert: binding is a ResolvedBinding Record.
@@ -288,7 +327,7 @@ impl InternalMethods for Module {
                         data::ResolvedBindingName::SmallString(data) => String::SmallString(data),
                     };
                     // 10. Let targetEnv be targetModule.[[Environment]].
-                    let target_env = agent.heap.get_module(target_module).module.environment;
+                    let target_env = agent[target_module].module.environment;
                     // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
                     match target_env {
                         None => Err(agent.throw_exception(
@@ -334,7 +373,7 @@ impl InternalMethods for Module {
                     _ => unreachable!(),
                 };
                 // 2. Let exports be O.[[Exports]].
-                let exports = &agent.heap.get_module(self.0).exports;
+                let exports = &agent[self].exports;
                 // 3. If exports contains P, return false.
                 if exports.contains(&p) {
                     Ok(false)
@@ -349,9 +388,7 @@ impl InternalMethods for Module {
     /// ### [10.4.6.11 \[\[OwnPropertyKeys\]\] ( )])(https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-ownpropertykeys)
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         // 1. Let exports be O.[[Exports]].
-        let exports = agent
-            .heap
-            .get_module(self.0)
+        let exports = agent[self]
             .exports
             .iter()
             .map(|string| PropertyKey::from(*string));

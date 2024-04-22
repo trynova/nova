@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut};
+
 use oxc_ast::{
     ast::{FormalParameters, FunctionBody},
     syntax_directed_operations::{BoundNames, IsSimpleParameterList},
@@ -34,7 +36,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{indexes::ECMAScriptFunctionIndex, CreateHeapData, GetHeapData},
+    heap::{indexes::ECMAScriptFunctionIndex, CreateHeapData, Heap},
 };
 
 use super::{
@@ -163,6 +165,42 @@ pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
     pub private_env: Option<PrivateEnvironmentIndex>,
 }
 
+impl Index<ECMAScriptFunction> for Agent {
+    type Output = ECMAScriptFunctionHeapData;
+
+    fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<ECMAScriptFunction> for Agent {
+    fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<ECMAScriptFunction> for Heap {
+    type Output = ECMAScriptFunctionHeapData;
+
+    fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
+        self.ecmascript_functions
+            .get(index.0.into_index())
+            .expect("ECMAScriptFunction out of bounds")
+            .as_ref()
+            .expect("ECMAScriptFunction slot empty")
+    }
+}
+
+impl IndexMut<ECMAScriptFunction> for Heap {
+    fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
+        self.ecmascript_functions
+            .get_mut(index.0.into_index())
+            .expect("ECMAScriptFunction out of bounds")
+            .as_mut()
+            .expect("ECMAScriptFunction slot empty")
+    }
+}
+
 impl InternalMethods for ECMAScriptFunction {
     fn internal_get_prototype_of(self, _agent: &mut Agent) -> JsResult<Option<Object>> {
         todo!()
@@ -263,7 +301,7 @@ impl InternalMethods for ECMAScriptFunction {
         // 3. Assert: calleeContext is now the running execution context.
         // assert!(std::ptr::eq(agent.running_execution_context(), callee_context));
         // 4. If F.[[IsClassConstructor]] is true, then
-        if self.heap_data(agent).is_class_constructor {
+        if agent[self].ecmascript_function.is_class_constructor {
             // a. Let error be a newly created TypeError object.
             // b. NOTE: error is created in calleeContext with F's associated Realm Record.
             let error = agent.throw_exception(ExceptionType::TypeError, "fail");
@@ -296,12 +334,6 @@ impl InternalMethods for ECMAScriptFunction {
     }
 }
 
-impl ECMAScriptFunction {
-    pub(crate) fn heap_data(self, agent: &Agent) -> &ECMAScriptFunctionObjectHeapData {
-        &agent.heap.get(self.0).ecmascript_function
-    }
-}
-
 /// ### [10.2.1.1 PrepareForOrdinaryCall ( F, newTarget )](https://tc39.es/ecma262/#sec-prepareforordinarycall)
 ///
 /// The abstract operation PrepareForOrdinaryCall takes arguments `F` (an
@@ -312,7 +344,7 @@ pub(crate) fn prepare_for_ordinary_call(
     f: ECMAScriptFunction,
     new_target: Option<Object>,
 ) -> &ExecutionContext {
-    let ecmascript_function_object = f.heap_data(agent);
+    let ecmascript_function_object = &agent[f].ecmascript_function;
     let private_environment = ecmascript_function_object.private_environment;
     let script_or_module = ecmascript_function_object.script_or_module;
     // 1. Let callerContext be the running execution context.
@@ -360,7 +392,7 @@ pub(crate) fn ordinary_call_bind_this(
     local_env: EnvironmentIndex,
     this_argument: Value,
 ) {
-    let function_heap_data = f.heap_data(agent);
+    let function_heap_data = &agent[f].ecmascript_function;
     // 1. Let thisMode be F.[[ThisMode]].
     let this_mode = function_heap_data.this_mode;
     // 2. If thisMode is LEXICAL, return UNUSED.
@@ -416,7 +448,7 @@ pub(crate) fn evaluate_body(
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
-    let function_heap_data = function_object.heap_data(agent);
+    let function_heap_data = &agent[function_object].ecmascript_function;
     // SAFETY: Heap is self-referential: This
     let heap_data = function_heap_data;
     if heap_data.ecmascript_code.statements.is_empty()
@@ -593,7 +625,7 @@ pub(crate) fn make_constructor(
         Function::ECMAScriptFunction(idx) => {
             // a. Assert: IsConstructor(F) is false.
             // TODO: How do we separate constructors and non-constructors?
-            let data = agent.heap.get_mut(idx);
+            let data = &mut agent[idx];
             // b. Assert: F is an extensible object that does not have a "prototype" own property.
             // TODO: Handle Some() object indexes?
             assert!(data.object_index.is_none());
@@ -672,7 +704,7 @@ pub(crate) fn set_function_name(
             // a. Let description be name's [[Description]] value.
             // b. If description is undefined, set name to the empty String.
             // c. Else, set name to the string-concatenation of "[", description, and "]".
-            let symbol_data = agent.heap.get(idx);
+            let symbol_data = &agent[idx];
             symbol_data
                 .descriptor
                 .map_or(String::EMPTY_STRING, |descriptor| {
@@ -695,7 +727,7 @@ pub(crate) fn set_function_name(
         Function::BoundFunction(_idx) => todo!(),
         Function::BuiltinFunction(_idx) => todo!(),
         Function::ECMAScriptFunction(idx) => {
-            let function = agent.heap.get_mut(idx);
+            let function = &mut agent[idx];
             // 1. Assert: F is an extensible object that does not have a "name" own property.
             // TODO: Also potentially allow running this function with Some() object index if needed.
             assert!(function.object_index.is_none() && function.name.is_none());
@@ -771,11 +803,7 @@ pub(crate) fn function_declaration_instantiation(
     } = *callee_context.ecmascript_code.as_ref().unwrap();
     // 2. Let code be func.[[ECMAScriptCode]].
     let (var_names, var_declarations, lexical_names, lex_declarations) = {
-        let code = agent
-            .heap
-            .get(function_object.0)
-            .ecmascript_function
-            .ecmascript_code;
+        let code = agent[function_object].ecmascript_function.ecmascript_code;
         // 9. Let varNames be the VarDeclaredNames of code.
         let var_names = function_body_var_declared_names(code)
             .iter()
@@ -792,7 +820,7 @@ pub(crate) fn function_declaration_instantiation(
         let lex_declarations = function_body_lexically_scoped_decarations(code);
         (var_names, var_declarations, lexical_names, lex_declarations)
     };
-    let heap_data = agent.heap.get(function_object.0);
+    let heap_data = &agent[function_object];
     // 3. Let strict be func.[[Strict]].
     let strict = heap_data.ecmascript_function.strict;
     // 4. Let formals be func.[[FormalParameters]].

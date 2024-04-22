@@ -9,7 +9,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
         types::{Function, IntoObject, IntoValue, Object, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::{GetHeapData, IntrinsicConstructorIndexes},
+    heap::IntrinsicConstructorIndexes,
 };
 
 use super::error_constructor::get_error_cause;
@@ -115,7 +115,7 @@ impl NativeErrorConstructors {
         let cause = get_error_cause(agent, options)?;
         let o = Error::try_from(o).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
-        let heap_data = agent.heap.get_mut(o.0);
+        let heap_data = &mut agent[o];
         heap_data.kind = ExceptionType::Error;
         heap_data.message = msg;
         heap_data.cause = cause;

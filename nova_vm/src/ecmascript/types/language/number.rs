@@ -9,7 +9,7 @@ use crate::{
         abstract_operations::type_conversion::to_int32,
         execution::{Agent, JsResult},
     },
-    heap::{indexes::NumberIndex, CreateHeapData, GetHeapData},
+    heap::{indexes::NumberIndex, CreateHeapData},
     SmallInteger,
 };
 
@@ -199,7 +199,7 @@ impl Number {
 
     pub fn is_nan(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => agent.heap.get(n).is_nan(),
+            Number::Number(n) => agent[n].is_nan(),
             Number::Integer(_) => false,
             Number::Float(n) => n.is_nan(),
         }
@@ -207,7 +207,7 @@ impl Number {
 
     pub fn is_pos_zero(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(*agent.heap.get(n)),
+            Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(agent[n]),
             Number::Integer(n) => 0i64 == n.into(),
             Number::Float(n) => f32::to_bits(0.0) == f32::to_bits(n),
         }
@@ -215,7 +215,7 @@ impl Number {
 
     pub fn is_neg_zero(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => f64::to_bits(-0.0) == f64::to_bits(*agent.heap.get(n)),
+            Number::Number(n) => f64::to_bits(-0.0) == f64::to_bits(agent[n]),
             Number::Integer(_) => false,
             Number::Float(n) => f32::to_bits(-0.0) == f32::to_bits(n),
         }
@@ -223,7 +223,7 @@ impl Number {
 
     pub fn is_pos_infinity(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => *agent.heap.get(n) == f64::INFINITY,
+            Number::Number(n) => agent[n] == f64::INFINITY,
             Number::Integer(_) => false,
             Number::Float(n) => n == f32::INFINITY,
         }
@@ -231,7 +231,7 @@ impl Number {
 
     pub fn is_neg_infinity(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => *agent.heap.get(n) == f64::NEG_INFINITY,
+            Number::Number(n) => agent[n] == f64::NEG_INFINITY,
             Number::Integer(_) => false,
             Number::Float(n) => n == f32::NEG_INFINITY,
         }
@@ -239,7 +239,7 @@ impl Number {
 
     pub fn is_finite(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => agent.heap.get(n).is_finite(),
+            Number::Number(n) => agent[n].is_finite(),
             Number::Integer(_) => true,
             Number::Float(n) => n.is_finite(),
         }
@@ -247,7 +247,7 @@ impl Number {
 
     pub fn is_nonzero(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => 0.0 != *agent.heap.get(n),
+            Number::Number(n) => 0.0 != agent[n],
             Number::Integer(n) => 0i64 != n.into(),
             Number::Float(n) => 0.0 != n,
         }
@@ -257,7 +257,7 @@ impl Number {
     pub fn truncate(self, agent: &mut Agent) -> Number {
         match self {
             Number::Number(n) => {
-                let n = agent.heap.get(n).trunc();
+                let n = agent[n].trunc();
                 agent.heap.create(n)
             }
             Number::Integer(_) => self,
@@ -267,7 +267,7 @@ impl Number {
 
     pub fn into_f64(self, agent: &Agent) -> f64 {
         match self {
-            Number::Number(n) => *agent.heap.get(n),
+            Number::Number(n) => agent[n],
             Number::Integer(n) => Into::<i64>::into(n) as f64,
             Number::Float(n) => n as f64,
         }
@@ -275,7 +275,7 @@ impl Number {
 
     pub fn into_i64(self, agent: &Agent) -> i64 {
         match self {
-            Number::Number(n) => *agent.heap.get(n) as i64,
+            Number::Number(n) => agent[n] as i64,
             Number::Integer(n) => Into::<i64>::into(n),
             Number::Float(n) => n as i64,
         }
@@ -289,24 +289,22 @@ impl Number {
     fn is(agent: &mut Agent, x: Self, y: Self) -> bool {
         match (x, y) {
             // Optimisation: First compare by-reference; only read from heap if needed.
-            (Number::Number(x), Number::Number(y)) => {
-                x == y || agent.heap.get(x) == agent.heap.get(y)
-            }
+            (Number::Number(x), Number::Number(y)) => x == y || agent[x] == agent[y],
             (Number::Integer(x), Number::Integer(y)) => x == y,
             (Number::Float(x), Number::Float(y)) => x == y,
             (Number::Number(x), Number::Integer(y)) => {
                 // Optimisation: Integers should never be allocated into the heap as f64s.
-                debug_assert!(*agent.heap.get(x) != y.into_i64() as f64);
+                debug_assert!(agent[x] != y.into_i64() as f64);
                 false
             }
             (Number::Number(x), Number::Float(y)) => {
                 // Optimisation: f32s should never be allocated into the heap
-                debug_assert!(*agent.heap.get(x) != y as f64);
+                debug_assert!(agent[x] != y as f64);
                 false
             }
             (Number::Integer(x), Number::Number(y)) => {
                 // Optimisation: Integers should never be allocated into the heap as f64s.
-                debug_assert!((x.into_i64() as f64) != *agent.heap.get(y));
+                debug_assert!((x.into_i64() as f64) != agent[y]);
                 false
             }
             (Number::Integer(x), Number::Float(y)) => {
@@ -315,7 +313,7 @@ impl Number {
             }
             (Number::Float(x), Number::Number(y)) => {
                 // Optimisation: f32s should never be allocated into the heap
-                debug_assert!((x as f64) != *agent.heap.get(y));
+                debug_assert!((x as f64) != agent[y]);
                 false
             }
             (Number::Float(x), Number::Integer(y)) => {
@@ -327,7 +325,7 @@ impl Number {
 
     pub fn is_odd_integer(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => *agent.heap.get(n) % 2.0 == 1.0,
+            Number::Number(n) => agent[n] % 2.0 == 1.0,
             Number::Integer(n) => Into::<i64>::into(n) % 2 == 1,
             Number::Float(n) => n % 2.0 == 1.0,
         }
@@ -336,7 +334,7 @@ impl Number {
     pub fn abs(self, agent: &mut Agent) -> Self {
         match self {
             Number::Number(n) => {
-                let n = *agent.heap.get(n);
+                let n = agent[n];
                 if n > 0.0 {
                     self
                 } else {
@@ -363,7 +361,7 @@ impl Number {
         // 2. Return the result of negating x; that is, compute a Number with the same magnitude but opposite sign.
         match x {
             Number::Number(n) => {
-                let value = *agent.heap.get(n);
+                let value = agent[n];
                 agent.heap.create(-value)
             }
             Number::Integer(n) => SmallInteger::try_from(-n.into_i64()).unwrap().into(),
@@ -626,13 +624,13 @@ impl Number {
 
         // 11. If ℝ(x) < ℝ(y), return true. Otherwise, return false.
         Some(match (x, y) {
-            (Number::Number(x), Number::Number(y)) => agent.heap.get(x) < agent.heap.get(y),
-            (Number::Number(x), Number::Integer(y)) => *agent.heap.get(x) < y.into_i64() as f64,
-            (Number::Number(x), Number::Float(y)) => *agent.heap.get(x) < y as f64,
-            (Number::Integer(x), Number::Number(y)) => (x.into_i64() as f64) < *agent.heap.get(y),
+            (Number::Number(x), Number::Number(y)) => agent[x] < agent[y],
+            (Number::Number(x), Number::Integer(y)) => agent[x] < y.into_i64() as f64,
+            (Number::Number(x), Number::Float(y)) => agent[x] < y as f64,
+            (Number::Integer(x), Number::Number(y)) => (x.into_i64() as f64) < agent[y],
             (Number::Integer(x), Number::Integer(y)) => x.into_i64() < y.into_i64(),
             (Number::Integer(x), Number::Float(y)) => (x.into_i64() as f64) < y as f64,
-            (Number::Float(x), Number::Number(y)) => (x as f64) < *agent.heap.get(y),
+            (Number::Float(x), Number::Number(y)) => (x as f64) < agent[y],
             (Number::Float(x), Number::Integer(y)) => (x as f64) < y.into_i64() as f64,
             (Number::Float(x), Number::Float(y)) => x < y,
         })

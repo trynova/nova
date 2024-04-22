@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut};
+
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
@@ -6,8 +8,10 @@ use crate::{
             OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::DataViewIndex, GetHeapData, ObjectEntry, ObjectEntryPropertyDescriptor},
+    heap::{indexes::DataViewIndex, Heap, ObjectEntry, ObjectEntryPropertyDescriptor},
 };
+
+use self::data::DataViewHeapData;
 
 use super::ordinary::ordinary_set_prototype_of_check_loop;
 
@@ -52,9 +56,45 @@ impl From<DataView> for Object {
     }
 }
 
+impl Index<DataView> for Agent {
+    type Output = DataViewHeapData;
+
+    fn index(&self, index: DataView) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<DataView> for Agent {
+    fn index_mut(&mut self, index: DataView) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<DataView> for Heap {
+    type Output = DataViewHeapData;
+
+    fn index(&self, index: DataView) -> &Self::Output {
+        self.data_views
+            .get(index.0.into_index())
+            .expect("DataView out of bounds")
+            .as_ref()
+            .expect("DataView slot empty")
+    }
+}
+
+impl IndexMut<DataView> for Heap {
+    fn index_mut(&mut self, index: DataView) -> &mut Self::Output {
+        self.data_views
+            .get_mut(index.0.into_index())
+            .expect("DataView out of bounds")
+            .as_mut()
+            .expect("DataView slot empty")
+    }
+}
+
 impl OrdinaryObjectInternalSlots for DataView {
     fn internal_extensible(self, agent: &Agent) -> bool {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_extensible(agent)
         } else {
             true
@@ -62,7 +102,7 @@ impl OrdinaryObjectInternalSlots for DataView {
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
         } else {
             // Create base object and set inextensible
@@ -71,7 +111,7 @@ impl OrdinaryObjectInternalSlots for DataView {
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_prototype(agent)
         } else {
             Some(
@@ -85,7 +125,7 @@ impl OrdinaryObjectInternalSlots for DataView {
     }
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
         } else {
             // Create base object and set inextensible
@@ -104,7 +144,7 @@ impl InternalMethods for DataView {
         agent: &mut Agent,
         prototype: Option<Object>,
     ) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set_prototype_of(agent, prototype)
         } else {
             // If we're setting %DataView.prototype% then we can still avoid creating the ObjectHeapData.
@@ -135,7 +175,7 @@ impl InternalMethods for DataView {
         agent: &mut Agent,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_get_own_property(agent, property_key)
         } else {
             Ok(None)
@@ -148,7 +188,7 @@ impl InternalMethods for DataView {
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
         } else {
             let prototype = agent.current_realm().intrinsics().data_view_prototype();
@@ -159,13 +199,13 @@ impl InternalMethods for DataView {
             let object_index = agent
                 .heap
                 .create_object_with_prototype(prototype.into_object(), &[new_entry]);
-            agent.heap.get_mut(self.0).object_index = Some(object_index);
+            agent[self].object_index = Some(object_index);
             Ok(true)
         }
     }
 
     fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
         } else {
             let parent = self.internal_get_prototype_of(agent)?;
@@ -181,7 +221,7 @@ impl InternalMethods for DataView {
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_get(agent, property_key, receiver)
         } else {
             let parent = self.internal_get_prototype_of(agent)?;
@@ -198,7 +238,7 @@ impl InternalMethods for DataView {
         value: Value,
         receiver: Value,
     ) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set(agent, property_key, value, receiver)
         } else {
             let prototype = agent.current_realm().intrinsics().data_view_prototype();
@@ -207,7 +247,7 @@ impl InternalMethods for DataView {
     }
 
     fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_delete(agent, property_key)
         } else {
             // Non-existing property
@@ -216,7 +256,7 @@ impl InternalMethods for DataView {
     }
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_own_property_keys(agent)
         } else {
             Ok(vec![])

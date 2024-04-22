@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut};
+
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
@@ -11,8 +13,10 @@ use crate::{
             UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
         },
     },
-    heap::{indexes::TypedArrayIndex, GetHeapData, ObjectEntry, ObjectEntryPropertyDescriptor},
+    heap::{indexes::TypedArrayIndex, Heap, ObjectEntry, ObjectEntryPropertyDescriptor},
 };
+
+use self::data::TypedArrayHeapData;
 
 use super::ordinary::ordinary_set_prototype_of_check_loop;
 
@@ -101,10 +105,47 @@ impl From<TypedArray> for Object {
     }
 }
 
+impl Index<TypedArray> for Agent {
+    type Output = TypedArrayHeapData;
+
+    fn index(&self, index: TypedArray) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<TypedArray> for Agent {
+    fn index_mut(&mut self, index: TypedArray) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<TypedArray> for Heap {
+    type Output = TypedArrayHeapData;
+
+    fn index(&self, index: TypedArray) -> &Self::Output {
+        let index = TypedArrayIndex::from(index).into_index();
+        self.typed_arrays
+            .get(index)
+            .expect("TypedArray out of bounds")
+            .as_ref()
+            .expect("TypedArray slot empty")
+    }
+}
+
+impl IndexMut<TypedArray> for Heap {
+    fn index_mut(&mut self, index: TypedArray) -> &mut Self::Output {
+        let index = TypedArrayIndex::from(index).into_index();
+        self.typed_arrays
+            .get_mut(index)
+            .expect("TypedArray out of bounds")
+            .as_mut()
+            .expect("TypedArray slot empty")
+    }
+}
+
 impl OrdinaryObjectInternalSlots for TypedArray {
     fn internal_extensible(self, agent: &Agent) -> bool {
-        let idx: TypedArrayIndex = self.into();
-        if let Some(object_index) = agent.heap.get(idx).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_extensible(agent)
         } else {
             true
@@ -112,8 +153,7 @@ impl OrdinaryObjectInternalSlots for TypedArray {
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        let idx: TypedArrayIndex = self.into();
-        if let Some(object_index) = agent.heap.get(idx).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
         } else {
             // Create base object and set inextensible
@@ -122,8 +162,7 @@ impl OrdinaryObjectInternalSlots for TypedArray {
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
-        let idx: TypedArrayIndex = self.into();
-        if let Some(object_index) = agent.heap.get(idx).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_prototype(agent)
         } else {
             Some(
@@ -137,8 +176,7 @@ impl OrdinaryObjectInternalSlots for TypedArray {
     }
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        let idx: TypedArrayIndex = self.into();
-        if let Some(object_index) = agent.heap.get(idx).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
         } else {
             // Create base object and set inextensible
@@ -157,8 +195,7 @@ impl InternalMethods for TypedArray {
         agent: &mut Agent,
         prototype: Option<Object>,
     ) -> JsResult<bool> {
-        let idx: TypedArrayIndex = self.into();
-        if let Some(object_index) = agent.heap.get(idx).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set_prototype_of(agent, prototype)
         } else {
             // If we're setting %TypedArray.prototype% then we can still avoid creating the ObjectHeapData.
@@ -189,8 +226,7 @@ impl InternalMethods for TypedArray {
         agent: &mut Agent,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
-        let idx: TypedArrayIndex = self.into();
-        if let Some(object_index) = agent.heap.get(idx).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_get_own_property(agent, property_key)
         } else {
             Ok(None)
@@ -203,8 +239,7 @@ impl InternalMethods for TypedArray {
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
-        let idx: TypedArrayIndex = self.into();
-        if let Some(object_index) = agent.heap.get(idx).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
         } else {
             let prototype = agent.current_realm().intrinsics().typed_array_prototype();
@@ -215,14 +250,13 @@ impl InternalMethods for TypedArray {
             let object_index = agent
                 .heap
                 .create_object_with_prototype(prototype.into_object(), &[new_entry]);
-            agent.heap.get_mut(idx).object_index = Some(object_index);
+            agent[self].object_index = Some(object_index);
             Ok(true)
         }
     }
 
     fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        let idx: TypedArrayIndex = self.into();
-        if let Some(object_index) = agent.heap.get(idx).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
         } else {
             let parent = self.internal_get_prototype_of(agent)?;
@@ -238,8 +272,7 @@ impl InternalMethods for TypedArray {
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
-        let idx: TypedArrayIndex = self.into();
-        if let Some(object_index) = agent.heap.get(idx).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_get(agent, property_key, receiver)
         } else {
             let parent = self.internal_get_prototype_of(agent)?;
@@ -256,8 +289,7 @@ impl InternalMethods for TypedArray {
         value: Value,
         receiver: Value,
     ) -> JsResult<bool> {
-        let idx: TypedArrayIndex = self.into();
-        if let Some(object_index) = agent.heap.get(idx).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set(agent, property_key, value, receiver)
         } else {
             let prototype = agent.current_realm().intrinsics().typed_array_prototype();
@@ -266,8 +298,7 @@ impl InternalMethods for TypedArray {
     }
 
     fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        let idx: TypedArrayIndex = self.into();
-        if let Some(object_index) = agent.heap.get(idx).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_delete(agent, property_key)
         } else {
             // Non-existing property
@@ -276,8 +307,7 @@ impl InternalMethods for TypedArray {
     }
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        let idx: TypedArrayIndex = self.into();
-        if let Some(object_index) = agent.heap.get(idx).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_own_property_keys(agent)
         } else {
             Ok(vec![])

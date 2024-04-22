@@ -9,10 +9,7 @@ use crate::{
             String, Symbol, Value,
         },
     },
-    heap::{
-        indexes::{StringIndex, SymbolIndex},
-        GetHeapData,
-    },
+    heap::indexes::{StringIndex, SymbolIndex},
     SmallInteger, SmallString,
 };
 
@@ -64,7 +61,7 @@ impl PropertyKey {
                 s1.as_str() == s2.as_str()
             }
             (PropertyKey::String(s), PropertyKey::Integer(n)) => {
-                let s = agent.heap.get(s).as_str();
+                let s = agent[s].as_str();
 
                 Self::is_str_eq_num(s, n.into_i64())
             }

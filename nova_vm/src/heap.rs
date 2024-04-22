@@ -27,7 +27,7 @@ use self::{
         ElementArray2Pow32, ElementArray2Pow4, ElementArray2Pow6, ElementArray2Pow8, ElementArrays,
     },
     indexes::{
-        BaseIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex,
+        BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex,
         NumberIndex, ObjectIndex, StringIndex,
     },
 };
@@ -113,11 +113,6 @@ pub trait CreateHeapData<T, F> {
     fn create(&mut self, data: T) -> F;
 }
 
-pub trait GetHeapData<'a, T, F: 'a> {
-    fn get(&'a self, id: BaseIndex<T>) -> &'a F;
-    fn get_mut(&'a mut self, id: BaseIndex<T>) -> &'a mut F;
-}
-
 impl CreateHeapData<f64, Number> for Heap {
     fn create(&mut self, data: f64) -> Number {
         // NOTE: This function cannot currently be implemented
@@ -133,123 +128,6 @@ impl CreateHeapData<f64, Number> for Heap {
         }
     }
 }
-
-macro_rules! impl_heap_data {
-    ($table: ident, $in: ty, $out: ty) => {
-        impl<'a> GetHeapData<'a, $in, $out> for Heap {
-            fn get(&'a self, id: BaseIndex<$in>) -> &'a $out {
-                self.$table
-                    .get(id.into_index())
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex for Heap::get ({id:?}): Index is out of bounds");
-                    })
-                    .as_ref()
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex for Heap::get ({id:?}): No item at index");
-                    })
-            }
-
-            fn get_mut(&'a mut self, id: BaseIndex<$in>) -> &'a mut $out {
-                self.$table
-                    .get_mut(id.into_index())
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex Heap::get_mut ({id:?}): Index is out of bounds");
-                    })
-                    .as_mut()
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex Heap::get_mut ({id:?}): No item at index");
-                    })
-            }
-        }
-    };
-    ($table: ident, $in: ty, $out: ty, $accessor: ident) => {
-        impl<'a> GetHeapData<'a, $in, $out> for Heap {
-            fn get(&'a self, id: BaseIndex<$in>) -> &'a $out {
-                &self
-                    .$table
-                    .get(id.into_index())
-                    .as_ref()
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex Heap::get ({id:?}): Index is out of bounds")
-                    })
-                    .as_ref()
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex Heap::get ({id:?}): No item at index")
-                    })
-                    .$accessor
-            }
-
-            fn get_mut(&'a mut self, id: BaseIndex<$in>) -> &'a mut $out {
-                &mut self
-                    .$table
-                    .get_mut(id.into_index())
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex Heap::get_mut ({id:?}): Index is out of bounds",)
-                    })
-                    .as_mut()
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex Heap::get_mut ({id:?}): No item at index",)
-                    })
-                    .$accessor
-            }
-        }
-    };
-}
-
-impl_heap_data!(array_buffers, ArrayBufferHeapData, ArrayBufferHeapData);
-impl_heap_data!(arrays, ArrayHeapData, ArrayHeapData);
-impl_heap_data!(bigints, BigIntHeapData, BigIntHeapData);
-impl_heap_data!(
-    bound_functions,
-    BoundFunctionHeapData,
-    BoundFunctionHeapData
-);
-impl_heap_data!(
-    builtin_functions,
-    BuiltinFunctionHeapData,
-    BuiltinFunctionHeapData
-);
-impl_heap_data!(data_views, DataViewHeapData, DataViewHeapData);
-impl_heap_data!(dates, DateHeapData, DateHeapData);
-impl_heap_data!(
-    ecmascript_functions,
-    ECMAScriptFunctionHeapData,
-    ECMAScriptFunctionHeapData
-);
-impl_heap_data!(
-    embedder_objects,
-    EmbedderObjectHeapData,
-    EmbedderObjectHeapData
-);
-impl_heap_data!(errors, ErrorHeapData, ErrorHeapData);
-impl_heap_data!(
-    finalization_registrys,
-    FinalizationRegistryHeapData,
-    FinalizationRegistryHeapData
-);
-impl_heap_data!(maps, MapHeapData, MapHeapData);
-impl_heap_data!(numbers, NumberHeapData, f64, data);
-impl_heap_data!(objects, ObjectHeapData, ObjectHeapData);
-impl_heap_data!(
-    primitive_objects,
-    PrimitiveObjectHeapData,
-    PrimitiveObjectHeapData
-);
-impl_heap_data!(promises, PromiseHeapData, PromiseHeapData);
-impl_heap_data!(proxys, ProxyHeapData, ProxyHeapData);
-impl_heap_data!(regexps, RegExpHeapData, RegExpHeapData);
-impl_heap_data!(sets, SetHeapData, SetHeapData);
-impl_heap_data!(
-    shared_array_buffers,
-    SharedArrayBufferHeapData,
-    SharedArrayBufferHeapData
-);
-impl_heap_data!(strings, StringHeapData, StringHeapData);
-impl_heap_data!(symbols, SymbolHeapData, SymbolHeapData);
-impl_heap_data!(typed_arrays, TypedArrayHeapData, TypedArrayHeapData);
-impl_heap_data!(weak_maps, WeakMapHeapData, WeakMapHeapData);
-impl_heap_data!(weak_refs, WeakRefHeapData, WeakRefHeapData);
-impl_heap_data!(weak_sets, WeakSetHeapData, WeakSetHeapData);
 
 impl CreateHeapData<&str, String> for Heap {
     fn create(&mut self, data: &str) -> String {
@@ -493,54 +371,6 @@ impl Heap {
     pub(crate) fn add_script(&mut self, script: Script) -> ScriptIdentifier {
         self.scripts.push(Some(script));
         ScriptIdentifier::last(&self.scripts)
-    }
-
-    pub(crate) fn get_realm(&self, id: RealmIdentifier) -> &Realm {
-        self.realms
-            .get(id.into_index())
-            .expect("RealmIdentifier did not match a Realm")
-            .as_ref()
-            .expect("RealmIdentifier matched a freed Realm")
-    }
-
-    pub(crate) fn get_realm_mut(&mut self, id: RealmIdentifier) -> &mut Realm {
-        self.realms
-            .get_mut(id.into_index())
-            .expect("RealmIdentifier did not match a Realm")
-            .as_mut()
-            .expect("RealmIdentifier matched a freed Realm")
-    }
-
-    pub(crate) fn get_script(&self, id: ScriptIdentifier) -> &Script {
-        self.scripts
-            .get(id.into_index())
-            .expect("ScriptIdentifier did not match a Script")
-            .as_ref()
-            .expect("ScriptIdentifier matched a freed Script")
-    }
-
-    pub(crate) fn get_script_mut(&mut self, id: ScriptIdentifier) -> &mut Script {
-        self.scripts
-            .get_mut(id.into_index())
-            .expect("ScriptIdentifier did not match a Script")
-            .as_mut()
-            .expect("ScriptIdentifier matched a freed Script")
-    }
-
-    pub(crate) fn get_module(&self, id: ModuleIdentifier) -> &ModuleHeapData {
-        self.modules
-            .get(id.into_index())
-            .expect("ModuleIdentifier did not match a Module")
-            .as_ref()
-            .expect("ModuleIdentifier matched a freed Module")
-    }
-
-    pub(crate) fn get_module_mut(&mut self, id: ModuleIdentifier) -> &mut ModuleHeapData {
-        self.modules
-            .get_mut(id.into_index())
-            .expect("ModuleIdentifier did not match a Module")
-            .as_mut()
-            .expect("ModuleIdentifier matched a freed Module")
     }
 
     /// Allocate a string onto the Agent heap

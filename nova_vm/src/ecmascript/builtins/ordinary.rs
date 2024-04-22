@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut};
+
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -7,12 +9,12 @@ use crate::{
         builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, InternalMethods, IntoFunction, IntoObject, Object, OrdinaryObject,
-            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, String, Symbol, Value,
-            BUILTIN_STRING_MEMORY,
+            Function, InternalMethods, IntoFunction, IntoObject, Object, ObjectHeapData,
+            OrdinaryObject, OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, String,
+            Symbol, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{CreateHeapData, WellKnownSymbolIndexes},
+    heap::{CreateHeapData, Heap, WellKnownSymbolIndexes},
 };
 
 use super::{
@@ -24,6 +26,42 @@ use super::{
     weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
     weak_set::data::WeakSetHeapData, ArrayBufferHeapData, ArrayHeapData,
 };
+
+impl Index<OrdinaryObject> for Agent {
+    type Output = ObjectHeapData;
+
+    fn index(&self, index: OrdinaryObject) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<OrdinaryObject> for Agent {
+    fn index_mut(&mut self, index: OrdinaryObject) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<OrdinaryObject> for Heap {
+    type Output = ObjectHeapData;
+
+    fn index(&self, index: OrdinaryObject) -> &Self::Output {
+        self.objects
+            .get(index.0.into_index())
+            .expect("OrdinaryObject out of bounds")
+            .as_ref()
+            .expect("OrdinaryObject slot empty")
+    }
+}
+
+impl IndexMut<OrdinaryObject> for Heap {
+    fn index_mut(&mut self, index: OrdinaryObject) -> &mut Self::Output {
+        self.objects
+            .get_mut(index.0.into_index())
+            .expect("OrdinaryObject out of bounds")
+            .as_mut()
+            .expect("OrdinaryObject slot empty")
+    }
+}
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 impl InternalMethods for OrdinaryObject {

@@ -4,7 +4,7 @@ mod data;
 use super::{IntoPrimitive, IntoValue, Primitive, PropertyKey, Value};
 use crate::{
     ecmascript::execution::Agent,
-    heap::{indexes::StringIndex, CreateHeapData, GetHeapData},
+    heap::{indexes::StringIndex, CreateHeapData},
     SmallString,
 };
 
@@ -168,14 +168,14 @@ impl String {
     /// Byte length of the string.
     pub fn len(self, agent: &Agent) -> usize {
         match self {
-            String::String(s) => agent.heap.get(s).len(),
+            String::String(s) => agent[s].len(),
             String::SmallString(s) => s.len(),
         }
     }
 
     pub fn as_str<'string, 'agent: 'string>(&'string self, agent: &'agent Agent) -> &'string str {
         match self {
-            String::String(s) => agent.heap.get(*s).as_str(),
+            String::String(s) => agent[*s].as_str(),
             String::SmallString(s) => s.as_str(),
         }
     }
@@ -185,8 +185,8 @@ impl String {
     pub fn eq(agent: &mut Agent, x: String, y: String) -> bool {
         match (x, y) {
             (String::String(x), String::String(y)) => {
-                let x = agent.heap.get(x);
-                let y = agent.heap.get(y);
+                let x = &agent[x];
+                let y = &agent[y];
                 x == y
             }
             (String::SmallString(x), String::SmallString(y)) => x == y,

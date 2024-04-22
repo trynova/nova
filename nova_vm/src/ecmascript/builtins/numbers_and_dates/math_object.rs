@@ -8,7 +8,7 @@ use crate::{
         execution::{Agent, JsResult, RealmIdentifier},
         types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::{GetHeapData, WellKnownSymbolIndexes},
+    heap::WellKnownSymbolIndexes,
     SmallInteger,
 };
 
@@ -336,7 +336,7 @@ impl MathObject {
         let n = to_number(agent, arguments.get(0))?;
         match n {
             Number::Number(idx) => {
-                let data = *agent.heap.get(idx);
+                let data = agent[idx];
                 // NaN, -0, and infinites should be handled in Float
                 debug_assert!(!data.is_nan() && data != -0.0 && !data.is_infinite());
                 if data.is_sign_negative() {

@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut};
+
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
@@ -6,10 +8,10 @@ use crate::{
             OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{
-        indexes::FinalizationRegistryIndex, GetHeapData, ObjectEntry, ObjectEntryPropertyDescriptor,
-    },
+    heap::{indexes::FinalizationRegistryIndex, Heap, ObjectEntry, ObjectEntryPropertyDescriptor},
 };
+
+use self::data::FinalizationRegistryHeapData;
 
 use super::ordinary::ordinary_set_prototype_of_check_loop;
 
@@ -54,9 +56,45 @@ impl From<FinalizationRegistry> for Object {
     }
 }
 
+impl Index<FinalizationRegistry> for Agent {
+    type Output = FinalizationRegistryHeapData;
+
+    fn index(&self, index: FinalizationRegistry) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<FinalizationRegistry> for Agent {
+    fn index_mut(&mut self, index: FinalizationRegistry) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<FinalizationRegistry> for Heap {
+    type Output = FinalizationRegistryHeapData;
+
+    fn index(&self, index: FinalizationRegistry) -> &Self::Output {
+        self.finalization_registrys
+            .get(index.0.into_index())
+            .expect("FinalizationRegistry out of bounds")
+            .as_ref()
+            .expect("FinalizationRegistry slot empty")
+    }
+}
+
+impl IndexMut<FinalizationRegistry> for Heap {
+    fn index_mut(&mut self, index: FinalizationRegistry) -> &mut Self::Output {
+        self.finalization_registrys
+            .get_mut(index.0.into_index())
+            .expect("FinalizationRegistry out of bounds")
+            .as_mut()
+            .expect("FinalizationRegistry slot empty")
+    }
+}
+
 impl OrdinaryObjectInternalSlots for FinalizationRegistry {
     fn internal_extensible(self, agent: &Agent) -> bool {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_extensible(agent)
         } else {
             true
@@ -64,7 +102,7 @@ impl OrdinaryObjectInternalSlots for FinalizationRegistry {
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
         } else {
             // Create base object and set inextensible
@@ -73,7 +111,7 @@ impl OrdinaryObjectInternalSlots for FinalizationRegistry {
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_prototype(agent)
         } else {
             Some(
@@ -87,7 +125,7 @@ impl OrdinaryObjectInternalSlots for FinalizationRegistry {
     }
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
         } else {
             // Create base object and set inextensible
@@ -106,7 +144,7 @@ impl InternalMethods for FinalizationRegistry {
         agent: &mut Agent,
         prototype: Option<Object>,
     ) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set_prototype_of(agent, prototype)
         } else {
             // If we're setting %FinalizationRegistry.prototype% then we can still avoid creating the ObjectHeapData.
@@ -140,7 +178,7 @@ impl InternalMethods for FinalizationRegistry {
         agent: &mut Agent,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_get_own_property(agent, property_key)
         } else {
             Ok(None)
@@ -153,7 +191,7 @@ impl InternalMethods for FinalizationRegistry {
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
         } else {
             let prototype = agent
@@ -167,13 +205,13 @@ impl InternalMethods for FinalizationRegistry {
             let object_index = agent
                 .heap
                 .create_object_with_prototype(prototype.into_object(), &[new_entry]);
-            agent.heap.get_mut(self.0).object_index = Some(object_index);
+            agent[self].object_index = Some(object_index);
             Ok(true)
         }
     }
 
     fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
         } else {
             let parent = self.internal_get_prototype_of(agent)?;
@@ -189,7 +227,7 @@ impl InternalMethods for FinalizationRegistry {
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_get(agent, property_key, receiver)
         } else {
             let parent = self.internal_get_prototype_of(agent)?;
@@ -206,7 +244,7 @@ impl InternalMethods for FinalizationRegistry {
         value: Value,
         receiver: Value,
     ) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set(agent, property_key, value, receiver)
         } else {
             let prototype = agent
@@ -218,7 +256,7 @@ impl InternalMethods for FinalizationRegistry {
     }
 
     fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_delete(agent, property_key)
         } else {
             // Non-existing property
@@ -227,7 +265,7 @@ impl InternalMethods for FinalizationRegistry {
     }
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        if let Some(object_index) = agent.heap.get(self.0).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_own_property_keys(agent)
         } else {
             Ok(vec![])

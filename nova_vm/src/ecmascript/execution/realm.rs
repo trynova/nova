@@ -11,11 +11,15 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::indexes::ObjectIndex,
+    heap::{indexes::ObjectIndex, Heap},
 };
 pub(crate) use intrinsics::Intrinsics;
 pub(crate) use intrinsics::ProtoIntrinsics;
-use std::{any::Any, marker::PhantomData};
+use std::{
+    any::Any,
+    marker::PhantomData,
+    ops::{Index, IndexMut},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RealmIdentifier(u32, PhantomData<Realm>);
@@ -46,6 +50,42 @@ impl RealmIdentifier {
 
     pub(crate) const fn into_u32(self) -> u32 {
         self.0
+    }
+}
+
+impl Index<RealmIdentifier> for Agent {
+    type Output = Realm;
+
+    fn index(&self, index: RealmIdentifier) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<RealmIdentifier> for Agent {
+    fn index_mut(&mut self, index: RealmIdentifier) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<RealmIdentifier> for Heap {
+    type Output = Realm;
+
+    fn index(&self, index: RealmIdentifier) -> &Self::Output {
+        self.realms
+            .get(index.into_index())
+            .expect("RealmIdentifier out of bounds")
+            .as_ref()
+            .expect("RealmIdentifier slot empty")
+    }
+}
+
+impl IndexMut<RealmIdentifier> for Heap {
+    fn index_mut(&mut self, index: RealmIdentifier) -> &mut Self::Output {
+        self.realms
+            .get_mut(index.into_index())
+            .expect("RealmIdentifier out of bounds")
+            .as_mut()
+            .expect("RealmIdentifier slot empty")
     }
 }
 
@@ -205,13 +245,13 @@ pub fn set_realm_global_object(
     let this_value = this_value.unwrap_or(global_object);
 
     // 4. Set realmRec.[[GlobalObject]] to globalObj.
-    agent.heap.get_realm_mut(realm_id).global_object = global_object;
+    agent[realm_id].global_object = global_object;
 
     // 5. Let newGlobalEnv be NewGlobalEnvironment(globalObj, thisValue).
     let new_global_env = GlobalEnvironment::new(agent, global_object, this_value);
 
     // 6. Set realmRec.[[GlobalEnv]] to newGlobalEnv.
-    agent.heap.get_realm_mut(realm_id).global_env = Some(
+    agent[realm_id].global_env = Some(
         agent
             .heap
             .environments
@@ -231,7 +271,7 @@ pub(crate) fn set_default_global_bindings(
     realm_id: RealmIdentifier,
 ) -> JsResult<Object> {
     // 1. Let global be realmRec.[[GlobalObject]].
-    let global = agent.heap.get_realm(realm_id).global_object;
+    let global = agent[realm_id].global_object;
 
     // 2. For each property of the Global Object specified in clause 19, do
     // TODO: Actually do other properties aside from globalThis.
@@ -240,7 +280,7 @@ pub(crate) fn set_default_global_bindings(
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.globalThis);
 
         // b. Let desc be the fully populated data Property Descriptor for the property, containing the specified attributes for the property. For properties listed in 19.2, 19.3, or 19.4 the value of the [[Value]] attribute is the corresponding intrinsic object from realmRec.
-        let global_env = agent.heap.get_realm(realm_id).global_env;
+        let global_env = agent[realm_id].global_env;
         let desc = PropertyDescriptor {
             value: Some(global_env.unwrap().get_this_binding(agent).into_value()),
             ..Default::default()

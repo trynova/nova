@@ -1,5 +1,7 @@
 mod data;
 
+use std::ops::{Index, IndexMut};
+
 pub(crate) use data::ErrorHeapData;
 
 use crate::{
@@ -10,7 +12,7 @@ use crate::{
             PropertyKey, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{indexes::ErrorIndex, GetHeapData},
+    heap::{indexes::ErrorIndex, Heap},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -71,6 +73,42 @@ impl TryFrom<Object> for Error {
             Object::Error(idx) => Ok(idx.into()),
             _ => Err(()),
         }
+    }
+}
+
+impl Index<Error> for Agent {
+    type Output = ErrorHeapData;
+
+    fn index(&self, index: Error) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<Error> for Agent {
+    fn index_mut(&mut self, index: Error) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<Error> for Heap {
+    type Output = ErrorHeapData;
+
+    fn index(&self, index: Error) -> &Self::Output {
+        self.errors
+            .get(index.0.into_index())
+            .expect("Error out of bounds")
+            .as_ref()
+            .expect("Error slot empty")
+    }
+}
+
+impl IndexMut<Error> for Heap {
+    fn index_mut(&mut self, index: Error) -> &mut Self::Output {
+        self.errors
+            .get_mut(index.0.into_index())
+            .expect("Error out of bounds")
+            .as_mut()
+            .expect("Error slot empty")
     }
 }
 
@@ -151,7 +189,7 @@ impl InternalMethods for Error {
                 .error_prototype()
                 .internal_get(agent, property_key, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
-            match agent.heap.get(self.0).kind {
+            match agent[self].kind {
                 ExceptionType::AggregateError => {
                     Ok(BUILTIN_STRING_MEMORY.AggregateError.into_value())
                 }
@@ -166,13 +204,11 @@ impl InternalMethods for Error {
                 ExceptionType::UriError => Ok(BUILTIN_STRING_MEMORY.URIError.into_value()),
             }
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
-            Ok(agent
-                .heap
-                .get(self.0)
+            Ok(agent[self]
                 .message
                 .map_or(Value::Undefined, |message| message.into_value()))
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-            Ok(agent.heap.get(self.0).cause.unwrap_or(Value::Undefined))
+            Ok(agent[self].cause.unwrap_or(Value::Undefined))
         } else {
             Ok(Value::Undefined)
         }
