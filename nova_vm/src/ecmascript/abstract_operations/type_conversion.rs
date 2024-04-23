@@ -19,7 +19,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{GetHeapData, WellKnownSymbolIndexes},
+    heap::WellKnownSymbolIndexes,
     SmallInteger,
 };
 
@@ -599,7 +599,7 @@ pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<i64> {
     if match len {
         Number::Integer(n) => n.into_i64() <= 0,
         Number::Float(n) => n <= 0.0,
-        Number::Number(n) => *agent.heap.get(n) <= 0.0,
+        Number::Number(n) => agent[n] <= 0.0,
     } {
         return Ok(0);
     }
@@ -608,7 +608,7 @@ pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<i64> {
     Ok(match len {
         Number::Integer(n) => n.into_i64().min(SmallInteger::MAX_NUMBER),
         Number::Float(n) => n.min(SmallInteger::MAX_NUMBER as f32) as i64,
-        Number::Number(n) => agent.heap.get(n).min(SmallInteger::MAX_NUMBER as f64) as i64,
+        Number::Number(n) => agent[n].min(SmallInteger::MAX_NUMBER as f64) as i64,
     })
 }
 

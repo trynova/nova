@@ -19,7 +19,6 @@ use crate::ecmascript::types::Number;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
-use crate::heap::GetHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::SmallInteger;
 
@@ -114,7 +113,7 @@ impl DateConstructor {
             (),
         )?;
         // 7. Set O.[[DateValue]] to dv.
-        agent.heap.get_mut(*Date::try_from(o).unwrap()).date = Some(dv);
+        agent[Date::try_from(o).unwrap()].date = Some(dv);
         // 8. Return O.
         Ok(o.into_value())
     }

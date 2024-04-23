@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut};
+
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
@@ -6,8 +8,10 @@ use crate::{
             PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::indexes::ProxyIndex,
+    heap::{indexes::ProxyIndex, Heap},
 };
+
+use self::data::ProxyHeapData;
 
 pub mod data;
 
@@ -47,6 +51,42 @@ impl From<Proxy> for Value {
 impl From<Proxy> for Object {
     fn from(val: Proxy) -> Self {
         Object::Proxy(val.0)
+    }
+}
+
+impl Index<Proxy> for Agent {
+    type Output = ProxyHeapData;
+
+    fn index(&self, index: Proxy) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<Proxy> for Agent {
+    fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<Proxy> for Heap {
+    type Output = ProxyHeapData;
+
+    fn index(&self, index: Proxy) -> &Self::Output {
+        self.proxys
+            .get(index.0.into_index())
+            .expect("Proxy out of bounds")
+            .as_ref()
+            .expect("Proxy slot empty")
+    }
+}
+
+impl IndexMut<Proxy> for Heap {
+    fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
+        self.proxys
+            .get_mut(index.0.into_index())
+            .expect("Proxy out of bounds")
+            .as_mut()
+            .expect("Proxy slot empty")
     }
 }
 

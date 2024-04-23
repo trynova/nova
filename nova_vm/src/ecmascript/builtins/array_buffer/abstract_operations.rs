@@ -9,7 +9,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{indexes::ArrayBufferIndex, GetHeapData},
+    heap::indexes::ArrayBufferIndex,
     Heap,
 };
 
@@ -87,7 +87,7 @@ pub(crate) fn array_buffer_byte_length(
     array_buffer: ArrayBuffer,
     _order: Ordering,
 ) -> i64 {
-    let array_buffer = agent.heap.get(*array_buffer);
+    let array_buffer = &agent[array_buffer];
     // 1. If IsSharedArrayBuffer(arrayBuffer) is true and arrayBuffer has an [[ArrayBufferByteLengthData]] internal slot, then
     if let InternalBuffer::SharedResizableLength(_) = array_buffer.buffer {
         // a. Let bufferByteLengthBlock be arrayBuffer.[[ArrayBufferByteLengthData]].
@@ -114,7 +114,7 @@ pub(crate) fn array_buffer_byte_length(
 pub(crate) fn is_detached_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bool {
     // 1. If arrayBuffer.[[ArrayBufferData]] is null, return true.
     // 2. Return false.
-    agent.heap.get(*array_buffer).is_detached_buffer()
+    agent[array_buffer].is_detached_buffer()
 }
 
 /// ### [25.1.3.4 DetachArrayBuffer ( arrayBuffer \[ , key \] )](https://tc39.es/ecma262/#sec-detacharraybuffer)
@@ -127,7 +127,7 @@ pub(crate) fn detach_array_buffer(
     agent: &mut Agent,
     _key: Option<DetachKey>,
 ) {
-    let array_buffer = agent.heap.get_mut(*array_buffer);
+    let array_buffer = &mut agent[array_buffer];
     // 1. Assert: IsSharedArrayBuffer(arrayBuffer) is false.
     // TODO: Use IsSharedArrayBuffer
     debug_assert!(!matches!(
@@ -160,7 +160,7 @@ pub(crate) fn clone_array_buffer(
 ) -> JsResult<ArrayBuffer> {
     {
         // 1. Assert: IsDetachedBuffer(srcBuffer) is false.
-        let src_buffer = agent.heap.get(*src_buffer);
+        let src_buffer = &agent[src_buffer];
         debug_assert!(!src_buffer.is_detached_buffer());
     }
     let array_buffer_constructor = agent.current_realm().intrinsics().array_buffer();
@@ -267,7 +267,7 @@ pub(crate) fn host_resize_array_buffer(
     agent: &mut Agent,
     new_byte_length: u64,
 ) -> bool {
-    let buffer = agent.heap.get_mut(*buffer);
+    let buffer = &mut agent[buffer];
     match &mut buffer.buffer {
         InternalBuffer::Detached => false,
         InternalBuffer::FixedLength(_) => false,
@@ -286,7 +286,7 @@ pub(crate) fn host_resize_array_buffer(
 /// arrayBuffer (an ArrayBuffer or a SharedArrayBuffer) and returns a
 /// Boolean.
 pub(crate) fn is_fixed_length_array_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bool {
-    let array_buffer = agent.heap.get(*array_buffer);
+    let array_buffer = &agent[array_buffer];
     // 1. If arrayBuffer has an [[ArrayBufferMaxByteLength]] internal slot, return false.
     // 2. Return true.
     matches!(

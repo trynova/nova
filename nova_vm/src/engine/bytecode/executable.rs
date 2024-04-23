@@ -95,16 +95,8 @@ impl Executable {
         eprintln!();
         // SAFETY: Script uniquely owns the Program and the body buffer does
         // not move under any circumstances during heap operations.
-        let body: &[Statement] = unsafe {
-            std::mem::transmute(
-                agent
-                    .heap
-                    .get_script(script)
-                    .ecmascript_code
-                    .body
-                    .as_slice(),
-            )
-        };
+        let body: &[Statement] =
+            unsafe { std::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
 
         Self::_compile_statements(agent, body)
     }

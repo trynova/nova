@@ -11,9 +11,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{Function, IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::{
-        GetHeapData, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes,
-    },
+    heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct FunctionPrototype;
@@ -150,7 +148,7 @@ impl FunctionPrototype {
             // HostHasSourceTextAvailable(func) is true, then
             Function::ECMAScriptFunction(idx) => {
                 // a. Return CodePointsToString(func.[[SourceText]]).
-                let data = &agent.heap.get(idx).ecmascript_function;
+                let data = &agent[idx].ecmascript_function;
                 let _span = data.source_text;
                 let _source = data.script_or_module;
                 todo!();
@@ -167,14 +165,13 @@ impl FunctionPrototype {
             // String that would be matched by NativeFunctionAccessor_opt
             // PropertyName must be the value of func.[[InitialName]].
             Function::BuiltinFunction(idx) => {
-                let data = agent.heap.get(idx);
+                let data = &agent[idx];
                 let initial_name = data.initial_name.map_or_else(
                     || "function () {{ [ native code ] }}".into(),
                     |initial_name| match initial_name {
-                        crate::ecmascript::types::String::String(idx) => format!(
-                            "function {}() {{ [ native code ] }}",
-                            agent.heap.get(idx).as_str()
-                        ),
+                        crate::ecmascript::types::String::String(idx) => {
+                            format!("function {}() {{ [ native code ] }}", agent[idx].as_str())
+                        }
                         crate::ecmascript::types::String::SmallString(string) => {
                             format!("function {}() {{ [ native code ] }}", string.as_str())
                         }

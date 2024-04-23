@@ -76,7 +76,7 @@ pub(crate) fn new_function_environment(
     f: ECMAScriptFunction,
     new_target: Option<Object>,
 ) -> FunctionEnvironmentIndex {
-    let ecmascript_function_object = f.heap_data(agent);
+    let ecmascript_function_object = &agent[f].ecmascript_function;
     let this_mode = ecmascript_function_object.this_mode;
     // 1. Let env be a new Function Environment Record containing no bindings.
     let dcl_env = DeclarativeEnvironment::new(Some(ecmascript_function_object.environment));

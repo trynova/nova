@@ -11,7 +11,6 @@ use crate::{
         types::{Function, PropertyKey, String, Value},
     },
     engine::{Executable, FunctionExpression, Vm},
-    heap::GetHeapData,
 };
 use oxc_ast::ast::{self};
 
@@ -134,11 +133,7 @@ pub(crate) fn evaluate_function_body(
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     function_declaration_instantiation(agent, function_object, arguments_list)?;
     // 2. Return ? Evaluation of FunctionStatementList.
-    let body = agent
-        .heap
-        .get(function_object.into())
-        .ecmascript_function
-        .ecmascript_code;
+    let body = agent[function_object].ecmascript_function.ecmascript_code;
     let exe = Executable::compile_function_body(agent, body);
     Ok(Vm::execute(agent, &exe)?.unwrap_or(Value::Undefined))
 }

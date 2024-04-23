@@ -21,7 +21,6 @@ use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::heap::GetHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
 
 pub(crate) struct ErrorConstructor;
@@ -67,7 +66,7 @@ impl ErrorConstructor {
         let o = ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::Error, ())?;
         let o = Error::try_from(o).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
-        let heap_data = agent.heap.get_mut(o.0);
+        let heap_data = &mut agent[o];
         heap_data.kind = ExceptionType::Error;
         heap_data.message = message;
         heap_data.cause = cause;

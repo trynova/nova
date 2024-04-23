@@ -4,16 +4,13 @@ use super::{
     testing_and_comparison::{is_callable, same_value},
     type_conversion::to_object,
 };
-use crate::{
-    ecmascript::{
-        builtins::{ArgumentsList, BuiltinFunction, ECMAScriptFunction},
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{
-            Function, InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey, Value,
-            BUILTIN_STRING_MEMORY,
-        },
+use crate::ecmascript::{
+    builtins::{ArgumentsList, BuiltinFunction, ECMAScriptFunction},
+    execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+    types::{
+        Function, InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey, Value,
+        BUILTIN_STRING_MEMORY,
     },
-    heap::GetHeapData,
 };
 
 /// ### [7.3.1 MakeBasicObject ( internalSlotsList )](https://tc39.es/ecma262/#sec-makebasicobject)
@@ -335,7 +332,7 @@ pub(crate) fn ordinary_has_instance(agent: &mut Agent, c: Value, o: Value) -> Js
     if let Object::BoundFunction(idx) = c {
         // a. Let BC be C.[[BoundTargetFunction]].
         // b. Return ? InstanceofOperator(O, BC).
-        let _bc = agent.heap.get(idx).function;
+        let _bc = agent[idx].function;
         // return instance_of_operator(o, bc);
     }
     // 3. If O is not an Object, return false.
@@ -379,13 +376,13 @@ pub(crate) fn get_function_realm(
     // a. Return obj.[[Realm]].
     let obj = obj.into_object();
     match obj {
-        Object::BuiltinFunction(idx) => Ok(agent.heap.get(idx).realm),
-        Object::ECMAScriptFunction(idx) => Ok(agent.heap.get(idx).ecmascript_function.realm),
+        Object::BuiltinFunction(idx) => Ok(agent[idx].realm),
+        Object::ECMAScriptFunction(idx) => Ok(agent[idx].ecmascript_function.realm),
         Object::BoundFunction(idx) => {
             // 2. If obj is a bound function exotic object, then
             // a. Let boundTargetFunction be obj.[[BoundTargetFunction]].
             // b. Return ? GetFunctionRealm(boundTargetFunction).
-            get_function_realm(agent, agent.heap.get(idx).function)
+            get_function_realm(agent, agent[idx].function)
         }
         // 3. If obj is a Proxy exotic object, then
         // a. Perform ? ValidateNonRevokedProxy(obj).

@@ -5,7 +5,6 @@ use crate::{
         execution::{Agent, Realm},
         types::{PropertyDescriptor, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::GetHeapData,
     Heap,
 };
 
@@ -32,7 +31,7 @@ impl PropertyStorage {
 
         match object {
             Value::Object(object) => {
-                let _keys = &agent.heap.get(object).keys;
+                let _keys = &agent[object].keys;
                 // realm.heap.elements.get(keys).iter().any(|k| {
                 //     if let Some(value) = k {
                 //         value.equals(agent, key)
@@ -46,7 +45,7 @@ impl PropertyStorage {
                     return true;
                 }
 
-                let array = agent.heap.get(array);
+                let array = &agent[array];
 
                 if key.is_array_index() {
                     return agent
@@ -59,7 +58,7 @@ impl PropertyStorage {
                     agent
                         .heap
                         .elements
-                        .has(object.get(agent).keys, key.into_value())
+                        .has(agent[object].keys, key.into_value())
                 } else {
                     false
                 }
@@ -74,7 +73,7 @@ impl PropertyStorage {
     pub fn get(self, agent: &mut Agent, key: PropertyKey) -> Option<PropertyDescriptor> {
         match self.0 {
             Object::Object(object) => {
-                let ObjectHeapData { keys, values, .. } = *agent.heap.get(object);
+                let ObjectHeapData { keys, values, .. } = agent[object];
                 let key = key.into_value();
                 let result = agent
                     .heap
@@ -104,7 +103,7 @@ impl PropertyStorage {
         }
         match self.0 {
             Object::Object(object) => {
-                let ObjectHeapData { keys, values, .. } = *agent.heap.get(object);
+                let ObjectHeapData { keys, values, .. } = agent[object];
                 let property_key = property_key.into_value();
                 let result = agent
                     .heap

@@ -12,11 +12,11 @@ use crate::{
             PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::ArrayBufferIndex, GetHeapData},
+    heap::{indexes::ArrayBufferIndex, Heap},
 };
 
 pub use data::ArrayBufferHeapData;
-use std::ops::Deref;
+use std::ops::{Deref, Index, IndexMut};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ArrayBuffer(ArrayBufferIndex);
@@ -47,6 +47,42 @@ impl Deref for ArrayBuffer {
     }
 }
 
+impl Index<ArrayBuffer> for Agent {
+    type Output = ArrayBufferHeapData;
+
+    fn index(&self, index: ArrayBuffer) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<ArrayBuffer> for Agent {
+    fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<ArrayBuffer> for Heap {
+    type Output = ArrayBufferHeapData;
+
+    fn index(&self, index: ArrayBuffer) -> &Self::Output {
+        self.array_buffers
+            .get(index.0.into_index())
+            .expect("ArrayBuffer out of bounds")
+            .as_ref()
+            .expect("ArrayBuffer slot empty")
+    }
+}
+
+impl IndexMut<ArrayBuffer> for Heap {
+    fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
+        self.array_buffers
+            .get_mut(index.0.into_index())
+            .expect("ArrayBuffer out of bounds")
+            .as_mut()
+            .expect("ArrayBuffer slot empty")
+    }
+}
+
 fn create_array_buffer_base_object(agent: &mut Agent, array_buffer: ArrayBuffer) -> OrdinaryObject {
     // TODO: An issue crops up if multiple realms are in play:
     // The prototype should not be dependent on the realm we're operating in
@@ -57,13 +93,13 @@ fn create_array_buffer_base_object(agent: &mut Agent, array_buffer: ArrayBuffer)
     let object_index = agent
         .heap
         .create_object_with_prototype(prototype.into(), &[]);
-    agent.heap.get_mut(*array_buffer).object_index = Some(object_index);
+    agent[array_buffer].object_index = Some(object_index);
     OrdinaryObject::from(object_index)
 }
 
 impl OrdinaryObjectInternalSlots for ArrayBuffer {
     fn internal_extensible(self, agent: &Agent) -> bool {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_extensible(agent)
         } else {
             true
@@ -71,7 +107,7 @@ impl OrdinaryObjectInternalSlots for ArrayBuffer {
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
         } else {
             debug_assert!(!value);
@@ -80,7 +116,7 @@ impl OrdinaryObjectInternalSlots for ArrayBuffer {
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_prototype(agent)
         } else {
             Some(
@@ -94,7 +130,7 @@ impl OrdinaryObjectInternalSlots for ArrayBuffer {
     }
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
         } else {
             // Create ArrayBuffer base object with custom prototype
@@ -108,7 +144,7 @@ impl OrdinaryObjectInternalSlots for ArrayBuffer {
             } else {
                 agent.heap.create_null_object(&[])
             };
-            agent.heap.get_mut(*self).object_index = Some(object_index);
+            agent[self].object_index = Some(object_index);
         }
     }
 }
@@ -123,7 +159,7 @@ impl InternalMethods for ArrayBuffer {
         agent: &mut Agent,
         prototype: Option<Object>,
     ) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set_prototype_of(agent, prototype)
         } else {
             // If we're setting %ArrayBuffer.prototype% then we can still avoid creating the ObjectHeapData.
@@ -156,7 +192,7 @@ impl InternalMethods for ArrayBuffer {
         agent: &mut Agent,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_get_own_property(agent, property_key)
         } else {
             Ok(None)
@@ -177,7 +213,7 @@ impl InternalMethods for ArrayBuffer {
     }
 
     fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
         } else {
             agent
@@ -194,7 +230,7 @@ impl InternalMethods for ArrayBuffer {
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_get(agent, property_key, receiver)
         } else {
             agent
@@ -221,7 +257,7 @@ impl InternalMethods for ArrayBuffer {
     }
 
     fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_delete(agent, property_key)
         } else {
             // OrdinaryDelete essentially returns "didn't exist or was deleted":
@@ -231,7 +267,7 @@ impl InternalMethods for ArrayBuffer {
     }
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_own_property_keys(agent)
         } else {
             // OrdinaryDelete essentially returns "didn't exist or was deleted":

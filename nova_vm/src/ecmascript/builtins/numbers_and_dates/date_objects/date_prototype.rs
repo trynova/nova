@@ -10,7 +10,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::{GetHeapData, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
     SmallInteger,
 };
 
@@ -530,7 +530,7 @@ impl DatePrototype {
 
     fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         let date_object = check_date_object(agent, this_value)?;
-        let data = &agent.heap.get(date_object.0).date;
+        let data = &agent[date_object].date;
         match data {
             Some(system_time) => {
                 let time_as_millis = system_time

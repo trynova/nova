@@ -16,6 +16,7 @@ use crate::{
         types::{IntoValue, String, Value},
     },
     engine::{Executable, Vm},
+    heap::Heap,
 };
 use oxc_allocator::Allocator;
 use oxc_ast::{
@@ -24,7 +25,12 @@ use oxc_ast::{
 };
 use oxc_parser::{Parser, ParserReturn};
 use oxc_span::SourceType;
-use std::{any::Any, collections::HashSet, marker::PhantomData};
+use std::{
+    any::Any,
+    collections::HashSet,
+    marker::PhantomData,
+    ops::{Index, IndexMut},
+};
 
 pub type HostDefined = &'static mut dyn Any;
 
@@ -57,6 +63,42 @@ impl ScriptIdentifier {
 
     pub(crate) const fn into_u32(self) -> u32 {
         self.0
+    }
+}
+
+impl Index<ScriptIdentifier> for Agent {
+    type Output = Script;
+
+    fn index(&self, index: ScriptIdentifier) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<ScriptIdentifier> for Agent {
+    fn index_mut(&mut self, index: ScriptIdentifier) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<ScriptIdentifier> for Heap {
+    type Output = Script;
+
+    fn index(&self, index: ScriptIdentifier) -> &Self::Output {
+        self.scripts
+            .get(index.into_index())
+            .expect("ScriptIdentifier out of bounds")
+            .as_ref()
+            .expect("ScriptIdentifier slot empty")
+    }
+}
+
+impl IndexMut<ScriptIdentifier> for Heap {
+    fn index_mut(&mut self, index: ScriptIdentifier) -> &mut Self::Output {
+        self.scripts
+            .get_mut(index.into_index())
+            .expect("ScriptIdentifier out of bounds")
+            .as_mut()
+            .expect("ScriptIdentifier slot empty")
     }
 }
 
@@ -242,7 +284,7 @@ pub(crate) fn global_declaration_instantiation(
         let Script {
             ecmascript_code: script,
             ..
-        } = agent.heap.get_script(script);
+        } = &agent[script];
         // SAFETY: The borrow of Program is valid for the duration of this
         // block; the contents of Program are guaranteed to be valid for as
         // long as the Script is alive in the heap as they are not reallocated.
@@ -829,7 +871,7 @@ mod test {
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
-        let global = agent.heap.get_realm(realm).global_object;
+        let global = agent[realm].global_object;
 
         agent.execution_context_stack.push(ExecutionContext {
             ecmascript_code: None,

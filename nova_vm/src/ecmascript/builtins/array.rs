@@ -5,7 +5,7 @@
 pub(crate) mod abstract_operations;
 mod data;
 
-use std::ops::Deref;
+use std::ops::{Deref, Index, IndexMut};
 
 use super::{
     array_set_length,
@@ -20,7 +20,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{indexes::ArrayIndex, GetHeapData},
+    heap::{indexes::ArrayIndex, Heap},
 };
 
 impl IntoValue for ArrayIndex {
@@ -42,7 +42,7 @@ pub struct Array(ArrayIndex);
 
 impl Array {
     pub fn len(&self, agent: &Agent) -> u32 {
-        agent.heap.get(self.0).elements.len()
+        agent[*self].elements.len()
     }
 }
 
@@ -100,9 +100,45 @@ impl Deref for Array {
     }
 }
 
+impl Index<Array> for Agent {
+    type Output = ArrayHeapData;
+
+    fn index(&self, index: Array) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<Array> for Agent {
+    fn index_mut(&mut self, index: Array) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<Array> for Heap {
+    type Output = ArrayHeapData;
+
+    fn index(&self, index: Array) -> &Self::Output {
+        self.arrays
+            .get(index.0.into_index())
+            .expect("Array out of bounds")
+            .as_ref()
+            .expect("Array slot empty")
+    }
+}
+
+impl IndexMut<Array> for Heap {
+    fn index_mut(&mut self, index: Array) -> &mut Self::Output {
+        self.arrays
+            .get_mut(index.0.into_index())
+            .expect("Array out of bounds")
+            .as_mut()
+            .expect("Array slot empty")
+    }
+}
+
 impl OrdinaryObjectInternalSlots for Array {
     fn internal_extensible(self, agent: &Agent) -> bool {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_extensible(agent)
         } else {
             true
@@ -110,7 +146,7 @@ impl OrdinaryObjectInternalSlots for Array {
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
         } else if !value {
             // Create array base object and set inextensible
@@ -119,7 +155,7 @@ impl OrdinaryObjectInternalSlots for Array {
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_prototype(agent)
         } else {
             Some(
@@ -133,7 +169,7 @@ impl OrdinaryObjectInternalSlots for Array {
     }
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
         } else {
             // Create array base object with custom prototype
@@ -144,7 +180,7 @@ impl OrdinaryObjectInternalSlots for Array {
 
 impl InternalMethods for Array {
     fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_get_prototype_of(agent)
         } else {
             Ok(Some(
@@ -162,7 +198,7 @@ impl InternalMethods for Array {
         agent: &mut Agent,
         prototype: Option<Object>,
     ) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_set_prototype_of(agent, prototype)
         } else {
             // 1. Let current be O.[[Prototype]].
@@ -177,13 +213,13 @@ impl InternalMethods for Array {
             } else {
                 Some(agent.heap.create_null_object(Default::default()))
             };
-            agent.heap.get_mut(*self).object_index = object_index;
+            agent[self].object_index = object_index;
             Ok(true)
         }
     }
 
     fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_is_extensible(agent)
         } else {
             Ok(true)
@@ -191,7 +227,7 @@ impl InternalMethods for Array {
     }
 
     fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
+        if let Some(object_index) = agent[self].object_index {
             OrdinaryObject::from(object_index).internal_prevent_extensions(agent)
         } else {
             // TODO: Create base array object and call prevent extensions on it.
@@ -205,8 +241,8 @@ impl InternalMethods for Array {
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         if let PropertyKey::Integer(index) = property_key {
-            let elements = agent.heap.get(*self).elements;
-            let elements = agent.heap.elements.get(elements.into());
+            let elements = agent[self].elements;
+            let elements = &agent[elements];
             if let Some(value) = elements.get(index.into_i64() as usize) {
                 return Ok(value.map(|value| PropertyDescriptor {
                     value: Some(value),
@@ -216,7 +252,7 @@ impl InternalMethods for Array {
             return Ok(None);
         }
         let length_key = PropertyKey::from(BUILTIN_STRING_MEMORY.length);
-        let array_data = agent.heap.get(*self);
+        let array_data = agent[self];
         if property_key == length_key {
             Ok(Some(PropertyDescriptor {
                 value: Some(array_data.elements.len().into()),
@@ -252,7 +288,7 @@ impl InternalMethods for Array {
             // b. Assert: IsDataDescriptor(lengthDesc) is true.
             // c. Assert: lengthDesc.[[Configurable]] is false.
             // d. Let length be lengthDesc.[[Value]].
-            let mut elements = agent.heap.get(self.0).elements;
+            let mut elements = agent[self].elements;
             let length = elements.len();
             // e. Assert: length is a non-negative integral Number.
             // f. Let index be ! ToUint32(P).
@@ -265,7 +301,7 @@ impl InternalMethods for Array {
             }
             // h. Let succeeded be ! OrdinaryDefineOwnProperty(A, P, Desc).
             elements.len = index + 1;
-            let elements_data = agent.heap.elements.get_mut(elements.into());
+            let elements_data = &mut agent[elements];
             *elements_data.get_mut(index as usize).unwrap() = property_descriptor.value;
             // i. If succeeded is false, return false.
             if false {
@@ -274,7 +310,7 @@ impl InternalMethods for Array {
             // j. If index ≥ length, then
             if index >= length {
                 // i. Set lengthDesc.[[Value]] to index + 1𝔽.
-                agent.heap.get_mut(self.0).elements.len = index + 1;
+                agent[self].elements.len = index + 1;
                 // ii. Set succeeded to ! OrdinaryDefineOwnProperty(A, "length", lengthDesc).
                 // iii. Assert: succeeded is true.
             }
@@ -321,7 +357,7 @@ impl InternalMethods for Array {
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
             if index < 0 {
-                let Some(object_index) = agent.heap.get(self.0).object_index else {
+                let Some(object_index) = agent[self].object_index else {
                     return Ok(Value::Undefined);
                 };
                 return OrdinaryObject::new(object_index).internal_get(
@@ -333,11 +369,11 @@ impl InternalMethods for Array {
             if index >= i64::pow(2, 32) {
                 return Ok(Value::Undefined);
             }
-            let elements = agent.heap.get(self.0).elements;
+            let elements = agent[self].elements;
             if index >= elements.len() as i64 {
                 return Ok(Value::Undefined);
             }
-            let elements = agent.heap.elements.get(elements.into());
+            let elements = &agent[elements];
             // Index has been checked to be between 0 <= idx < len; unwrapping should never fail.
             let element = *elements.get(index as usize).unwrap();
             let Some(element) = element else {
@@ -345,7 +381,7 @@ impl InternalMethods for Array {
             };
             Ok(element)
         } else {
-            let Some(object_index) = agent.heap.get(self.0).object_index else {
+            let Some(object_index) = agent[self].object_index else {
                 return Ok(Value::Undefined);
             };
             OrdinaryObject::new(object_index).internal_get(agent, property_key, receiver)
@@ -368,42 +404,34 @@ impl InternalMethods for Array {
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
             if index < 0 {
-                return agent
-                    .heap
-                    .get(self.0)
-                    .object_index
-                    .map_or(Ok(true), |object_index| {
-                        OrdinaryObject::new(object_index).internal_delete(agent, property_key)
-                    });
+                return agent[self].object_index.map_or(Ok(true), |object_index| {
+                    OrdinaryObject::new(object_index).internal_delete(agent, property_key)
+                });
             } else if index >= i64::pow(2, 32) {
                 return Ok(true);
             }
-            let elements = agent.heap.get(self.0).elements;
+            let elements = agent[self].elements;
             if index >= elements.len() as i64 {
                 return Ok(true);
             }
-            let elements = agent.heap.elements.get_mut(elements.into());
+            let elements = &mut agent[elements];
             // TODO: Handle unwritable properties
             // Index has been checked to be between 0 <= idx < len; unwrapping should never fail.
             *elements.get_mut(index as usize).unwrap() = None;
             Ok(true)
         } else {
-            agent
-                .heap
-                .get(self.0)
-                .object_index
-                .map_or(Ok(true), |object_index| {
-                    OrdinaryObject::new(object_index).internal_delete(agent, property_key)
-                })
+            agent[self].object_index.map_or(Ok(true), |object_index| {
+                OrdinaryObject::new(object_index).internal_delete(agent, property_key)
+            })
         }
     }
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        let array_data = *agent.heap.get(*self);
+        let array_data = &agent[self];
         // TODO: Handle object_index
         let mut keys = Vec::with_capacity(array_data.elements.len() as usize);
 
-        let elements_data = agent.heap.elements.get(array_data.elements.into());
+        let elements_data = &agent[array_data.elements];
 
         for (index, value) in elements_data.iter().enumerate() {
             if value.is_some() {

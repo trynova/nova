@@ -88,11 +88,11 @@ impl Agent {
     }
 
     pub fn get_realm(&self, id: RealmIdentifier) -> &Realm {
-        self.heap.get_realm(id)
+        &self[id]
     }
 
     pub fn get_realm_mut(&mut self, id: RealmIdentifier) -> &mut Realm {
-        self.heap.get_realm_mut(id)
+        &mut self[id]
     }
 
     /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)

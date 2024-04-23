@@ -1,10 +1,18 @@
 use super::{
     indexes::ElementIndex,
     object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor},
+    Heap,
 };
-use crate::ecmascript::types::{Function, PropertyKey, Value};
+use crate::ecmascript::{
+    builtins::SealableElementsVector,
+    execution::Agent,
+    types::{Function, PropertyKey, Value},
+};
 use core::panic;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    ops::{Index, IndexMut},
+};
 
 #[derive(Debug, Clone, Copy)]
 pub enum ElementArrayKey {
@@ -740,6 +748,90 @@ pub struct ElementArrays {
     pub e2pow24: ElementArray2Pow24,
     /// up to 4294967296 elements
     pub e2pow32: ElementArray2Pow32,
+}
+
+impl Index<ElementsVector> for ElementArrays {
+    type Output = [Option<Value>];
+
+    fn index(&self, index: ElementsVector) -> &Self::Output {
+        self.get(index)
+    }
+}
+
+impl IndexMut<ElementsVector> for ElementArrays {
+    fn index_mut(&mut self, index: ElementsVector) -> &mut Self::Output {
+        self.get_mut(index)
+    }
+}
+
+impl Index<ElementsVector> for Heap {
+    type Output = [Option<Value>];
+
+    fn index(&self, index: ElementsVector) -> &Self::Output {
+        &self.elements[index]
+    }
+}
+
+impl IndexMut<ElementsVector> for Heap {
+    fn index_mut(&mut self, index: ElementsVector) -> &mut Self::Output {
+        &mut self.elements[index]
+    }
+}
+
+impl Index<ElementsVector> for Agent {
+    type Output = [Option<Value>];
+
+    fn index(&self, index: ElementsVector) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<ElementsVector> for Agent {
+    fn index_mut(&mut self, index: ElementsVector) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<SealableElementsVector> for ElementArrays {
+    type Output = [Option<Value>];
+
+    fn index(&self, index: SealableElementsVector) -> &Self::Output {
+        self.get(index.into())
+    }
+}
+
+impl IndexMut<SealableElementsVector> for ElementArrays {
+    fn index_mut(&mut self, index: SealableElementsVector) -> &mut Self::Output {
+        self.get_mut(index.into())
+    }
+}
+
+impl Index<SealableElementsVector> for Heap {
+    type Output = [Option<Value>];
+
+    fn index(&self, index: SealableElementsVector) -> &Self::Output {
+        &self.elements[index]
+    }
+}
+
+impl IndexMut<SealableElementsVector> for Heap {
+    fn index_mut(&mut self, index: SealableElementsVector) -> &mut Self::Output {
+        &mut self.elements[index]
+    }
+}
+
+impl Index<SealableElementsVector> for Agent {
+    type Output = [Option<Value>];
+
+    fn index(&self, index: SealableElementsVector) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<SealableElementsVector> for Agent {
+    fn index_mut(&mut self, index: SealableElementsVector) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
 }
 
 impl ElementArrays {

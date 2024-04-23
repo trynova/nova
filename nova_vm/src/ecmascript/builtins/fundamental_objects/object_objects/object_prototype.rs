@@ -13,7 +13,7 @@ use crate::{
         execution::{Agent, JsResult, RealmIdentifier},
         types::{InternalMethods, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::{GetHeapData, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct ObjectPrototype;
@@ -175,7 +175,7 @@ impl ObjectPrototype {
             Value::EmbedderObject(_) => todo!(),
             // 13. Else if O has a [[RegExpMatcher]] internal slot, let builtinTag be "RegExp".
             Value::RegExp(_) => Ok(BUILTIN_STRING_MEMORY._object_RegExp_.into_value()),
-            Value::PrimitiveObject(idx) => match agent.heap.get(idx).data {
+            Value::PrimitiveObject(idx) => match &agent[idx].data {
                 PrimitiveObjectData::Boolean(_) => {
                     Ok(BUILTIN_STRING_MEMORY._object_Boolean_.into_value())
                 }
