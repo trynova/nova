@@ -21,7 +21,11 @@ use super::ordinary::{
     ordinary_own_property_keys, set_immutable_prototype,
 };
 
+pub(crate) mod abstract_module_records;
+pub(crate) mod cyclic_module_records;
 pub mod data;
+pub(crate) mod semantics;
+pub(crate) mod source_text_module_records;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Module(pub(crate) ModuleIdentifier);
@@ -307,7 +311,7 @@ impl InternalMethods for Module {
                     Ok(Value::Undefined)
                 } else {
                     // 4. Let m be O.[[Module]].
-                    let m = &agent[self].module;
+                    let m = &agent[self].cyclic;
                     // 5. Let binding be m.ResolveExport(P).
                     let binding = m.resolve_export(property_key);
                     // 6. Assert: binding is a ResolvedBinding Record.

@@ -17,7 +17,7 @@ use crate::{
     heap::indexes::ErrorIndex,
     Heap,
 };
-use std::collections::HashMap;
+use std::{any::Any, collections::HashMap};
 
 #[derive(Debug, Default)]
 pub struct Options {
@@ -28,8 +28,8 @@ pub struct Options {
 
 pub type JsResult<T> = std::result::Result<T, JsError>;
 
-#[derive(Debug, Default, Clone, Copy)]
-pub struct JsError(Value);
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct JsError(pub(crate) Value);
 
 impl JsError {
     pub(crate) fn new(value: Value) -> Self {
@@ -51,6 +51,13 @@ impl JsError {
 pub trait HostHooks: std::fmt::Debug {
     fn host_ensure_can_compile_strings(&self, callee_realm: &mut Realm) -> JsResult<()>;
     fn host_has_source_text_available(&self, func: Function) -> bool;
+    fn host_load_imported_module(
+        &self,
+        referrer: (),
+        specifier: &str,
+        host_defined: Option<Box<dyn Any>>,
+        payload: (),
+    );
 }
 
 /// ### [9.7 Agents](https://tc39.es/ecma262/#sec-agents)
