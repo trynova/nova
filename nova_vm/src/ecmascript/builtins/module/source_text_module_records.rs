@@ -8,7 +8,7 @@ use small_string::SmallString;
 use super::{abstract_module_records::{ModuleRecord, ResolveExportResult}, cyclic_module_records::{CyclicModuleRecord, CyclicModuleRecordStatus}, data::ModuleHeapData, Module};
 use crate::{
     ecmascript::{
-        builtins::module::semantics::{self, module_requests},
+        builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, module::semantics::{self, module_requests}},
         execution::{Agent, ExecutionContext, JsResult, RealmIdentifier},
         scripts_and_modules::script::HostDefined,
         types::{
@@ -566,7 +566,7 @@ pub(crate) fn initialize_environment(agent: &mut Agent, module: Module) -> JsRes
 pub(crate) fn execute_module(
     agent: &mut Agent,
     module: Module,
-    capability: Option<()>,
+    capability: Option<PromiseCapability>,
 ) -> JsResult<()> {
     // 1. Let moduleContext be a new ECMAScript code execution context.
     // 2. Set the Function of moduleContext to null.

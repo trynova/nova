@@ -4,7 +4,7 @@ use oxc_span::Atom;
 
 use crate::ecmascript::{
     abstract_operations::operations_on_objects::call_function,
-    builtins::{create_builtin_function, error::Error, module::source_text_module_records::get_imported_module, promise::Promise, ArgumentsList},
+    builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, create_builtin_function, error::Error, module::source_text_module_records::get_imported_module, promise::Promise, ArgumentsList},
     execution::{agent::JsError, Agent, JsResult},
     types::{String, Value},
 };
@@ -129,7 +129,7 @@ pub(crate) struct CyclicModuleRecord {
     pub(super) async_evaluation: bool,
     /// \[\[TopLevelCapability\]\]
     ///
-    /// TODO: a PromiseCapability Record or empty
+    /// a PromiseCapability Record or empty
     ///
     /// If this module is the \[\[CycleRoot\]\] of some cycle, and Evaluate()
     /// was called on some module in that cycle, this field contains the
@@ -138,7 +138,7 @@ pub(crate) struct CyclicModuleRecord {
     /// method. This field will be empty for any dependencies of that module,
     /// unless a top-level Evaluate() has been initiated for some of those
     /// dependencies.
-    pub(super) top_level_capability: Option<()>,
+    pub(super) top_level_capability: Option<PromiseCapability>,
     /// \[\[AsyncParentModules\]\]
     ///
     /// a List of Cyclic Module Records
@@ -170,10 +170,10 @@ impl CyclicModuleRecord {
 pub(crate) struct GraphLoadingStateRecord {
     /// \[\[PromiseCapability\]\]
     ///
-    /// TODO: a PromiseCapability Record
+    /// a PromiseCapability Record
     ///
     /// The promise to resolve when the loading process finishes.
-    promise_capability: (),
+    promise_capability: PromiseCapability,
     /// \[\[IsLoading\]\]
     ///
     /// It is true if the loading process has not finished yet, neither

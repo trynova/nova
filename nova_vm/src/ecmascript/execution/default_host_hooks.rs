@@ -1,5 +1,5 @@
-use super::{agent::HostHooks, JsResult, Realm};
-use crate::ecmascript::types::Function;
+use super::{agent::{HostHooks, PromiseRejectionOperation}, JsResult, Realm};
+use crate::ecmascript::{builtins::promise::Promise, types::Function};
 
 #[derive(Debug)]
 pub struct DefaultHostHooks;
@@ -15,4 +15,19 @@ impl HostHooks for DefaultHostHooks {
         // The default implementation of HostHasSourceTextAvailable is to return true.
         true
     }
+    
+    fn host_load_imported_module(
+        &self,
+        referrer: (),
+        specifier: &str,
+        host_defined: Option<Box<dyn std::any::Any>>,
+        payload: (),
+    ) {
+        unreachable!("HostLoadImportedModule does not have a default implementation");
+    }
+    
+    fn host_promise_rejection_tracker(&self, promise: Promise, operation: PromiseRejectionOperation) {
+    }
+
+    
 }

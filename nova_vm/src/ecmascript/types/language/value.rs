@@ -4,9 +4,7 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{
             to_big_int, to_int32, to_number, to_numeric, to_uint32,
-        },
-        execution::{Agent, JsResult},
-        scripts_and_modules::module::ModuleIdentifier,
+        }, builtins::control_abstraction_objects::promise_objects::promise_abstract_operations::BuiltinPromiseRejectFunctionIndex, execution::{Agent, JsResult}, scripts_and_modules::module::ModuleIdentifier
     },
     heap::indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
@@ -62,7 +60,7 @@ pub enum Value {
     BuiltinGeneratorFunction,
     BuiltinConstructorFunction,
     BuiltinPromiseResolveFunction,
-    BuiltinPromiseRejectFunction,
+    BuiltinPromiseRejectFunction(BuiltinPromiseRejectFunctionIndex),
     BuiltinPromiseCollectorFunction,
     BuiltinProxyRevokerFunction,
     ECMAScriptAsyncFunction,
@@ -186,7 +184,7 @@ pub(crate) const BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT: u8 =
 pub(crate) const BUILTIN_PROMISE_RESOLVE_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinPromiseResolveFunction);
 pub(crate) const BUILTIN_PROMISE_REJECT_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::BuiltinPromiseRejectFunction);
+    value_discriminant(Value::BuiltinPromiseRejectFunction(BuiltinPromiseRejectFunctionIndex::from_u32_index(0)));
 pub(crate) const BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinPromiseCollectorFunction);
 pub(crate) const BUILTIN_PROXY_REVOKER_FUNCTION: u8 =

@@ -33,26 +33,9 @@ use self::{
 };
 use crate::ecmascript::{
     builtins::{
-        data_view::{data::DataViewHeapData, DataView},
-        date::{data::DateHeapData, Date},
-        embedder_object::data::EmbedderObjectHeapData,
-        error::{Error, ErrorHeapData},
-        finalization_registry::{data::FinalizationRegistryHeapData, FinalizationRegistry},
-        map::{data::MapHeapData, Map},
-        module::data::ModuleHeapData,
-        primitive_objects::PrimitiveObjectHeapData,
-        promise::data::PromiseHeapData,
-        proxy::data::ProxyHeapData,
-        regexp::RegExpHeapData,
-        set::{data::SetHeapData, Set},
-        shared_array_buffer::{data::SharedArrayBufferHeapData, SharedArrayBuffer},
-        typed_array::{data::TypedArrayHeapData, TypedArray},
-        weak_map::{data::WeakMapHeapData, WeakMap},
-        weak_ref::{data::WeakRefHeapData, WeakRef},
-        weak_set::{data::WeakSetHeapData, WeakSet},
-        Array, ArrayBuffer,
+        control_abstraction_objects::promise_objects::promise_abstract_operations::{promise_capability_records::PromiseCapabilityRecord, promise_reaction_records::PromiseReactionRecord, PromiseRejectFunctionHeapData}, data_view::{data::DataViewHeapData, DataView}, date::{data::DateHeapData, Date}, embedder_object::data::EmbedderObjectHeapData, error::{Error, ErrorHeapData}, finalization_registry::{data::FinalizationRegistryHeapData, FinalizationRegistry}, map::{data::MapHeapData, Map}, module::data::ModuleHeapData, primitive_objects::PrimitiveObjectHeapData, promise::data::PromiseHeapData, proxy::data::ProxyHeapData, regexp::RegExpHeapData, set::{data::SetHeapData, Set}, shared_array_buffer::{data::SharedArrayBufferHeapData, SharedArrayBuffer}, typed_array::{data::TypedArrayHeapData, TypedArray}, weak_map::{data::WeakMapHeapData, WeakMap}, weak_ref::{data::WeakRefHeapData, WeakRef}, weak_set::{data::WeakSetHeapData, WeakSet}, Array, ArrayBuffer
     },
-    types::BUILTIN_STRINGS_LIST,
+    types::{AbstractClosureHeapData, BUILTIN_STRINGS_LIST},
 };
 use crate::ecmascript::{
     builtins::{ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
@@ -74,6 +57,7 @@ pub struct Heap {
     pub arrays: Vec<Option<ArrayHeapData>>,
     pub bigints: Vec<Option<BigIntHeapData>>,
     pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
+    pub abstract_closures: Vec<Option<AbstractClosureHeapData>>,
     pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
     pub data_views: Vec<Option<DataViewHeapData>>,
     pub dates: Vec<Option<DateHeapData>>,
@@ -92,6 +76,9 @@ pub struct Heap {
     pub numbers: Vec<Option<NumberHeapData>>,
     pub objects: Vec<Option<ObjectHeapData>>,
     pub primitive_objects: Vec<Option<PrimitiveObjectHeapData>>,
+    pub promise_capability_records: Vec<Option<PromiseCapabilityRecord>>,
+    pub promise_reaction_records: Vec<Option<PromiseReactionRecord>>,
+    pub promise_reject_functions: Vec<Option<PromiseRejectFunctionHeapData>>,
     pub promises: Vec<Option<PromiseHeapData>>,
     pub proxys: Vec<Option<ProxyHeapData>>,
     pub realms: Vec<Option<Realm>>,
@@ -307,6 +294,7 @@ impl CreateHeapData<WeakSetHeapData, WeakSet> for Heap {
 impl Heap {
     pub fn new() -> Heap {
         let mut heap = Heap {
+            abstract_closures: Vec::with_capacity(0),
             array_buffers: Vec::with_capacity(1024),
             arrays: Vec::with_capacity(1024),
             bigints: Vec::with_capacity(1024),
@@ -335,6 +323,9 @@ impl Heap {
             numbers: Vec::with_capacity(1024),
             objects: Vec::with_capacity(1024),
             primitive_objects: Vec::with_capacity(0),
+            promise_capability_records: Vec::with_capacity(0),
+            promise_reaction_records: Vec::with_capacity(0),
+            promise_reject_functions: Vec::with_capacity(0),
             promises: Vec::with_capacity(0),
             proxys: Vec::with_capacity(0),
             realms: Vec::with_capacity(1),

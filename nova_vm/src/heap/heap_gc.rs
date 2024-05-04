@@ -44,6 +44,7 @@ pub fn heap_gc(heap: &mut Heap) {
 
     while !queues.is_empty() {
         let Heap {
+            abstract_closures,
             array_buffers,
             arrays,
             bigints,
@@ -63,6 +64,9 @@ pub fn heap_gc(heap: &mut Heap) {
             numbers,
             objects,
             primitive_objects,
+            promise_capability_records,
+            promise_reaction_records,
+            promise_reject_functions,
             promises,
             proxys,
             realms,
@@ -680,6 +684,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
     let compactions = CompactionLists::create_from_bits(bits);
 
     let Heap {
+        abstract_closures,
         array_buffers,
         arrays,
         bigints,
@@ -699,6 +704,9 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
         numbers,
         objects,
         primitive_objects,
+        promise_capability_records,
+        promise_reaction_records,
+        promise_reject_functions,
         promises,
         proxys,
         realms,

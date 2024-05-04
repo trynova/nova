@@ -33,8 +33,7 @@ use super::{
 use crate::{
     ecmascript::{
         builtins::{
-            date::Date, error::Error, map::Map, set::Set, ArgumentsList, Array, ArrayBuffer,
-            BuiltinFunction, ECMAScriptFunction,
+            control_abstraction_objects::promise_objects::promise_abstract_operations::BuiltinPromiseRejectFunctionIndex, date::Date, error::Error, map::Map, set::Set, ArgumentsList, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction
         },
         execution::{Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
@@ -69,7 +68,7 @@ pub enum Object {
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction = BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
     BuiltinPromiseResolveFunction = BUILTIN_PROMISE_RESOLVE_FUNCTION_DISCRIMINANT,
-    BuiltinPromiseRejectFunction = BUILTIN_PROMISE_REJECT_FUNCTION_DISCRIMINANT,
+    BuiltinPromiseRejectFunction(BuiltinPromiseRejectFunctionIndex) = BUILTIN_PROMISE_REJECT_FUNCTION_DISCRIMINANT,
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
     ECMAScriptAsyncFunction = ECMASCRIPT_ASYNC_FUNCTION_DISCRIMINANT,
@@ -244,7 +243,7 @@ impl From<Object> for Value {
             Object::BuiltinGeneratorFunction => Value::BuiltinGeneratorFunction,
             Object::BuiltinConstructorFunction => Value::BuiltinConstructorFunction,
             Object::BuiltinPromiseResolveFunction => Value::BuiltinPromiseResolveFunction,
-            Object::BuiltinPromiseRejectFunction => Value::BuiltinPromiseRejectFunction,
+            Object::BuiltinPromiseRejectFunction => Value::BuiltinPromiseRejectFunction(todo!()),
             Object::BuiltinPromiseCollectorFunction => Value::BuiltinPromiseCollectorFunction,
             Object::BuiltinProxyRevokerFunction => Value::BuiltinProxyRevokerFunction,
             Object::ECMAScriptAsyncFunction => Value::ECMAScriptAsyncFunction,
@@ -313,7 +312,7 @@ impl TryFrom<Value> for Object {
             Value::BuiltinGeneratorFunction => Ok(Object::BuiltinGeneratorFunction),
             Value::BuiltinConstructorFunction => Ok(Object::BuiltinConstructorFunction),
             Value::BuiltinPromiseResolveFunction => Ok(Object::BuiltinPromiseResolveFunction),
-            Value::BuiltinPromiseRejectFunction => Ok(Object::BuiltinPromiseRejectFunction),
+            Value::BuiltinPromiseRejectFunction(d) => Ok(Object::BuiltinPromiseRejectFunction(d)),
             Value::BuiltinPromiseCollectorFunction => Ok(Object::BuiltinPromiseCollectorFunction),
             Value::BuiltinProxyRevokerFunction => Ok(Object::BuiltinProxyRevokerFunction),
             Value::ECMAScriptAsyncFunction => Ok(Object::ECMAScriptAsyncFunction),
