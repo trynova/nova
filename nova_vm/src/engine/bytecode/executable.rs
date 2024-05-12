@@ -567,11 +567,16 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
             todo!("{:?}", self.left);
         };
 
-        let ast::SimpleAssignmentTarget::AssignmentTargetIdentifier(identifier) = &target else {
-            todo!("{target:?}");
-        };
+        match &target {
+            ast::SimpleAssignmentTarget::AssignmentTargetIdentifier(identifier) => {
+                identifier.compile(ctx);
+            }
+            ast::SimpleAssignmentTarget::MemberAssignmentTarget(expression) => {
+                expression.compile(ctx)
+            }
+            _ => todo!("{target:?}"),
+        }
 
-        identifier.compile(ctx);
         ctx.exe.add_instruction(Instruction::PushReference);
 
         self.right.compile(ctx);
