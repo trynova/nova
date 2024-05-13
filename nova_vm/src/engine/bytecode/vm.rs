@@ -489,9 +489,30 @@ impl Vm {
                 let name = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
                 lex_env.create_immutable_binding(agent, name, true).unwrap();
             }
+            Instruction::CreateCatchBinding => {
+                let lex_env = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap()
+                    .lexical_environment;
+                let name = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                lex_env.create_mutable_binding(agent, name, false).unwrap();
+                lex_env
+                    .initialize_binding(agent, name, vm.exception.unwrap())
+                    .unwrap();
+                vm.exception = None;
+            }
             Instruction::Throw => {
                 let result = vm.result.take().unwrap();
                 return Err(JsError::new(result));
+            }
+            Instruction::PushExceptionJumpTarget => {
+                let ip = instr.args[0].unwrap() as usize;
+                vm.exception_jump_target_stack.push(ip);
+            }
+            Instruction::PopExceptionJumpTarget => {
+                vm.exception_jump_target_stack.pop().unwrap();
             }
             other => todo!("{other:?}"),
         }
