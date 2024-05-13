@@ -98,11 +98,7 @@ impl ArrayConstructor {
         );
 
         // 2. Let proto be ? GetPrototypeFromConstructor(newTarget, "%Array.prototype%").
-        let proto = get_prototype_from_constructor(
-            agent,
-            new_target,
-            ProtoIntrinsics::Array,
-        )?;
+        let proto = get_prototype_from_constructor(agent, new_target, ProtoIntrinsics::Array)?;
 
         // 3. Let numberOfArgs be the number of elements in values.
         let number_of_args = arguments.len();
