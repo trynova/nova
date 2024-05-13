@@ -1333,6 +1333,7 @@ impl ElementArrays {
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),
@@ -1341,6 +1342,7 @@ impl ElementArrays {
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),
@@ -1349,6 +1351,7 @@ impl ElementArrays {
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),
@@ -1357,6 +1360,7 @@ impl ElementArrays {
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),
@@ -1365,6 +1369,7 @@ impl ElementArrays {
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),
@@ -1373,6 +1378,7 @@ impl ElementArrays {
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),
@@ -1381,6 +1387,7 @@ impl ElementArrays {
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),
@@ -1389,6 +1396,7 @@ impl ElementArrays {
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),

@@ -471,16 +471,19 @@ pub(crate) fn global_declaration_instantiation(
 
 #[cfg(test)]
 mod test {
-    use crate::ecmascript::{
-        abstract_operations::operations_on_objects::create_data_property_or_throw,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{
-            agent::Options, create_realm, initialize_default_realm, set_realm_global_object, Agent,
-            DefaultHostHooks, ExecutionContext,
+    use crate::{
+        ecmascript::{
+            abstract_operations::operations_on_objects::create_data_property_or_throw,
+            builders::builtin_function_builder::BuiltinFunctionBuilder,
+            builtins::{ArgumentsList, Behaviour, Builtin},
+            execution::{
+                agent::Options, create_realm, initialize_default_realm, set_realm_global_object,
+                Agent, DefaultHostHooks, ExecutionContext,
+            },
+            scripts_and_modules::script::{parse_script, script_evaluation},
+            types::{InternalMethods, IntoValue, Number, Object, PropertyKey, String, Value},
         },
-        scripts_and_modules::script::{parse_script, script_evaluation},
-        types::{InternalMethods, IntoValue, Number, Object, PropertyKey, String, Value},
+        SmallInteger,
     };
     use oxc_allocator::Allocator;
 
@@ -1102,5 +1105,32 @@ mod test {
         let global_env = agent.get_realm(realm).global_env.unwrap();
         assert!(!global_env.has_lexical_declaration(&agent, a_key));
         assert!(!global_env.has_lexical_declaration(&agent, i_key));
+    }
+
+    #[test]
+    fn object_property_assignment() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "var foo = {}; foo.a = 42; foo".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        let object = Object::try_from(result).unwrap();
+
+        let pk = PropertyKey::from_static_str(&mut agent, "a");
+        assert_eq!(
+            object
+                .internal_get(&mut agent, pk, object.into_value())
+                .unwrap(),
+            Value::Integer(SmallInteger::from(42))
+        );
     }
 }

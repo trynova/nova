@@ -30,16 +30,10 @@ impl PropertyStorage {
         let object = self.into_value();
 
         match object {
-            Value::Object(object) => {
-                let _keys = &agent[object].keys;
-                // realm.heap.elements.get(keys).iter().any(|k| {
-                //     if let Some(value) = k {
-                //         value.equals(agent, key)
-                //     }
-                //     false
-                // });
-                true
-            }
+            Value::Object(object) => agent
+                .heap
+                .elements
+                .has(agent[object].keys, key.into_value()),
             Value::Array(array) => {
                 if key.equals(agent, PropertyKey::from(BUILTIN_STRING_MEMORY.length)) {
                     return true;
