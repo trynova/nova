@@ -2,7 +2,7 @@
 
 use super::{
     testing_and_comparison::{is_callable, same_value},
-    type_conversion::to_object,
+    type_conversion::{to_length, to_object},
 };
 use crate::ecmascript::{
     builtins::{ArgumentsList, BuiltinFunction, ECMAScriptFunction},
@@ -265,6 +265,18 @@ pub(crate) fn call(
             _ => unreachable!(),
         }
     }
+}
+
+/// ### [7.3.18 LengthOfArrayLike ( obj )](https://tc39.es/ecma262/#sec-lengthofarraylike)
+///
+/// The abstract operation LengthOfArrayLike takes argument obj (an Object) and
+/// returns either a normal completion containing a non-negative integer or a
+/// throw completion. It returns the value of the "length" property of an
+/// array-like object.
+pub(crate) fn length_of_array_like(agent: &mut Agent, obj: Object) -> JsResult<i64> {
+    // 1. Return ℝ(? ToLength(? Get(obj, "length"))).
+    let property = get(agent, obj, PropertyKey::from(BUILTIN_STRING_MEMORY.length))?;
+    to_length(agent, property)
 }
 
 /// Abstract operation Call specialized for a Function.
