@@ -36,6 +36,15 @@ enum ContinuationKind {
     Await,
 }
 
+/// Indicates a place to jump after an exception is thrown.
+#[derive(Debug)]
+struct ExceptionJumpTarget {
+    /// Instruction pointer.
+    ip: usize,
+    /// The lexical environment which contains this exception jump target.
+    lexical_environment: EnvironmentIndex,
+}
+
 /// ## Notes
 ///
 /// - This is inspired by and/or copied from Kiesel engine:
@@ -46,7 +55,7 @@ pub(crate) struct Vm {
     ip: usize,
     stack: Vec<Value>,
     reference_stack: Vec<Reference>,
-    exception_jump_target_stack: Vec<usize>,
+    exception_jump_target_stack: Vec<ExceptionJumpTarget>,
     result: Option<Value>,
     exception: Option<Value>,
     reference: Option<Reference>,
@@ -111,8 +120,14 @@ impl Vm {
                 Ok(ContinuationKind::Yield) => todo!(),
                 Ok(ContinuationKind::Await) => todo!(),
                 Err(err) => {
-                    if let Some(catch_ip) = vm.exception_jump_target_stack.pop() {
-                        vm.ip = catch_ip;
+                    if let Some(ejt) = vm.exception_jump_target_stack.pop() {
+                        vm.ip = ejt.ip;
+                        agent
+                            .running_execution_context_mut()
+                            .ecmascript_code
+                            .as_mut()
+                            .unwrap()
+                            .lexical_environment = ejt.lexical_environment;
                         vm.exception = Some(err.value());
                     } else {
                         return Err(err);
@@ -508,8 +523,15 @@ impl Vm {
                 return Err(JsError::new(result));
             }
             Instruction::PushExceptionJumpTarget => {
-                let ip = instr.args[0].unwrap() as usize;
-                vm.exception_jump_target_stack.push(ip);
+                vm.exception_jump_target_stack.push(ExceptionJumpTarget {
+                    ip: instr.args[0].unwrap() as usize,
+                    lexical_environment: agent
+                        .running_execution_context()
+                        .ecmascript_code
+                        .as_ref()
+                        .unwrap()
+                        .lexical_environment,
+                });
             }
             Instruction::PopExceptionJumpTarget => {
                 vm.exception_jump_target_stack.pop().unwrap();
