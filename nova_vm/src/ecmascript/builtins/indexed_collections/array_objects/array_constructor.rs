@@ -169,8 +169,9 @@ impl ArrayConstructor {
         // d. Repeat, while k < numberOfArgs,
         while k < number_of_args {
             // i. Let Pk be ! ToString(𝔽(k)).
-            let pk =
-                PropertyKey::from(to_string(agent, Value::try_from(k as f64).unwrap()).unwrap());
+            let pk = to_string(agent, Value::try_from(k as f64).unwrap())
+                .unwrap()
+                .to_property_key();
 
             // ii. Let itemK be values[k].
             let item_k = arguments.get(k);
@@ -254,7 +255,7 @@ impl ArrayConstructor {
                 // 𝔽(k)
                 let fk: Value = Value::try_from(k as f64).unwrap();
                 // ii. Let Pk be ! ToString(𝔽(k)).
-                let pk = PropertyKey::from(to_string(agent, fk).unwrap());
+                let pk = to_string(agent, fk).unwrap().to_property_key();
 
                 // iii. Let next be ? IteratorStepValue(iteratorRecord).
                 let Some(next) = iterator_step_value(agent, &iterator_record)? else {
@@ -333,7 +334,7 @@ impl ArrayConstructor {
             let fk = Value::try_from(k as f64).unwrap();
 
             // a. Let Pk be ! ToString(𝔽(k)).
-            let pk = PropertyKey::from(to_string(agent, fk).unwrap());
+            let pk = to_string(agent, fk).unwrap().to_property_key();
 
             // b. Let kValue be ? Get(arrayLike, Pk).
             let k_value = get(agent, array_like, pk)?;
@@ -408,8 +409,9 @@ impl ArrayConstructor {
             let k_value = arguments.get(k);
 
             // b. Let Pk be ! ToString(𝔽(k)).
-            let pk =
-                PropertyKey::from(to_string(agent, Value::try_from(k as f64).unwrap()).unwrap());
+            let pk = to_string(agent, Value::try_from(k as f64).unwrap())
+                .unwrap()
+                .to_property_key();
 
             // c. Perform ? CreateDataPropertyOrThrow(A, Pk, kValue).
             create_data_property_or_throw(agent, a, pk, k_value)?;
