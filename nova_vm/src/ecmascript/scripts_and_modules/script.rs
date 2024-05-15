@@ -1133,4 +1133,80 @@ mod test {
             Value::Integer(SmallInteger::from(42))
         );
     }
+
+    #[test]
+    fn try_catch_not_thrown() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "let a = 0; try { a++; } catch { a = 500; }; a++; a".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(2)));
+    }
+
+    #[test]
+    fn try_catch_thrown() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "let a = 0; try { throw null; a = 500 } catch { a++; }; a++; a".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(2)));
+    }
+
+    #[test]
+    fn catch_binding() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "let err; try { throw 'thrown'; } catch(e) { err = e; }; err".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_static_str(&mut agent, "thrown"));
+    }
+
+    #[test]
+    fn throwing_in_try_restores_lexical_environment() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "let a = 42; try { let a = 62; throw 'thrown'; } catch { }; a".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(42)));
+    }
 }

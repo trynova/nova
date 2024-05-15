@@ -36,6 +36,15 @@ enum ContinuationKind {
     Await,
 }
 
+/// Indicates a place to jump after an exception is thrown.
+#[derive(Debug)]
+struct ExceptionJumpTarget {
+    /// Instruction pointer.
+    ip: usize,
+    /// The lexical environment which contains this exception jump target.
+    lexical_environment: EnvironmentIndex,
+}
+
 /// ## Notes
 ///
 /// - This is inspired by and/or copied from Kiesel engine:
@@ -46,7 +55,7 @@ pub(crate) struct Vm {
     ip: usize,
     stack: Vec<Value>,
     reference_stack: Vec<Reference>,
-    exception_jump_target_stack: Vec<usize>,
+    exception_jump_target_stack: Vec<ExceptionJumpTarget>,
     result: Option<Value>,
     exception: Option<Value>,
     reference: Option<Reference>,
@@ -111,8 +120,14 @@ impl Vm {
                 Ok(ContinuationKind::Yield) => todo!(),
                 Ok(ContinuationKind::Await) => todo!(),
                 Err(err) => {
-                    if let Some(catch_ip) = vm.exception_jump_target_stack.pop() {
-                        vm.ip = catch_ip;
+                    if let Some(ejt) = vm.exception_jump_target_stack.pop() {
+                        vm.ip = ejt.ip;
+                        agent
+                            .running_execution_context_mut()
+                            .ecmascript_code
+                            .as_mut()
+                            .unwrap()
+                            .lexical_environment = ejt.lexical_environment;
                         vm.exception = Some(err.value());
                     } else {
                         return Err(err);
@@ -489,9 +504,37 @@ impl Vm {
                 let name = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
                 lex_env.create_immutable_binding(agent, name, true).unwrap();
             }
+            Instruction::CreateCatchBinding => {
+                let lex_env = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap()
+                    .lexical_environment;
+                let name = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                lex_env.create_mutable_binding(agent, name, false).unwrap();
+                lex_env
+                    .initialize_binding(agent, name, vm.exception.unwrap())
+                    .unwrap();
+                vm.exception = None;
+            }
             Instruction::Throw => {
                 let result = vm.result.take().unwrap();
                 return Err(JsError::new(result));
+            }
+            Instruction::PushExceptionJumpTarget => {
+                vm.exception_jump_target_stack.push(ExceptionJumpTarget {
+                    ip: instr.args[0].unwrap() as usize,
+                    lexical_environment: agent
+                        .running_execution_context()
+                        .ecmascript_code
+                        .as_ref()
+                        .unwrap()
+                        .lexical_environment,
+                });
+            }
+            Instruction::PopExceptionJumpTarget => {
+                vm.exception_jump_target_stack.pop().unwrap();
             }
             other => todo!("{other:?}"),
         }
