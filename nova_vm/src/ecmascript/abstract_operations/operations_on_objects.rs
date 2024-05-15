@@ -5,7 +5,7 @@ use super::{
     type_conversion::{to_length, to_object},
 };
 use crate::ecmascript::{
-    builtins::{ArgumentsList, BuiltinFunction, ECMAScriptFunction},
+    builtins::{ArgumentsList, Array, BuiltinFunction, ECMAScriptFunction},
     execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
     types::{
         Function, InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey, Value,
@@ -274,6 +274,11 @@ pub(crate) fn call(
 /// throw completion. It returns the value of the "length" property of an
 /// array-like object.
 pub(crate) fn length_of_array_like(agent: &mut Agent, obj: Object) -> JsResult<i64> {
+    // NOTE: Fast path for Array objects.
+    if let Ok(array) = Array::try_from(obj) {
+        return Ok(array.len(agent) as i64);
+    }
+
     // 1. Return ℝ(? ToLength(? Get(obj, "length"))).
     let property = get(agent, obj, PropertyKey::from(BUILTIN_STRING_MEMORY.length))?;
     to_length(agent, property)

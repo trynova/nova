@@ -15,7 +15,6 @@ use crate::ecmascript::abstract_operations::testing_and_comparison::is_callable;
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_constructor;
 use crate::ecmascript::abstract_operations::testing_and_comparison::same_value_zero;
 use crate::ecmascript::abstract_operations::type_conversion::to_object;
-use crate::ecmascript::abstract_operations::type_conversion::to_string;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
 
 use crate::ecmascript::builtins::array_create;
@@ -35,6 +34,7 @@ use crate::ecmascript::execution::RealmIdentifier;
 use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
+use crate::ecmascript::types::Number;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
@@ -42,6 +42,7 @@ use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::WellKnownSymbolIndexes;
+use crate::SmallInteger;
 
 pub struct ArrayConstructor;
 
@@ -123,7 +124,7 @@ impl ArrayConstructor {
                 create_data_property_or_throw(
                     agent,
                     array.into(),
-                    PropertyKey::from(BUILTIN_STRING_MEMORY.r#_0),
+                    PropertyKey::from(SmallInteger::zero()),
                     len,
                 )
                 .unwrap();
@@ -162,19 +163,20 @@ impl ArrayConstructor {
 
         // b. Let array be ? ArrayCreate(numberOfArgs, proto).
         let array = array_create(agent, number_of_args, 0, Some(proto))?;
+        // NOTE: `array_create` guarantees that it is less than `u32::MAX`
+        let number_of_args = number_of_args as u32;
 
         // c. Let k be 0.
-        let mut k = 0;
+        let mut k: u32 = 0;
 
         // d. Repeat, while k < numberOfArgs,
         while k < number_of_args {
+            // NOTE: We slightly deviate from the exact spec wording here, see [@aapoalas comment on #180](https://github.com/trynova/nova/pull/180#discussion_r1600382492)
             // i. Let Pk be ! ToString(𝔽(k)).
-            let pk = to_string(agent, Value::try_from(k as f64).unwrap())
-                .unwrap()
-                .to_property_key();
+            let pk = PropertyKey::from(SmallInteger::from(k));
 
             // ii. Let itemK be values[k].
-            let item_k = arguments.get(k);
+            let item_k = arguments.get(k as usize);
 
             // iii. Perform ! CreateDataPropertyOrThrow(array, Pk, itemK).
             create_data_property_or_throw(agent, array.into(), pk, item_k).unwrap();
@@ -184,7 +186,7 @@ impl ArrayConstructor {
         }
 
         // e. Assert: The mathematical value of array's "length" property is numberOfArgs.
-        debug_assert_eq!(array.len(agent), number_of_args as u32);
+        debug_assert_eq!(array.len(agent), number_of_args);
 
         // f. Return array.
         Ok(array.into_value())
@@ -222,8 +224,7 @@ impl ArrayConstructor {
         if let Some(using_iterator) = using_iterator {
             // a. If IsConstructor(C) is true, then
             let a = if is_constructor(agent, this_value) {
-                // SAFETY: Only Functions can be constructors
-                let constructor = unsafe { Function::try_from(this_value).unwrap_unchecked() };
+                let constructor = Function::try_from(this_value).unwrap();
 
                 // i. Let A be ? Construct(C).
                 construct(agent, constructor, None, None)?
@@ -241,8 +242,9 @@ impl ArrayConstructor {
 
             // e. Repeat,
             loop {
+                // NOTE: The actual max size of an array is u32::MAX
                 // i. If k ≥ 2**53 - 1, then
-                if k >= 2usize.pow(53) - 1 {
+                if k >= u32::MAX as usize {
                     // 1. Let error be ThrowCompletion(a newly created TypeError object).
                     let error = agent.throw_exception(
                         ExceptionType::TypeError,
@@ -252,10 +254,12 @@ impl ArrayConstructor {
                     return iterator_close(agent, &iterator_record, Err(error));
                 }
 
+                let sk = SmallInteger::from(k as u32);
                 // 𝔽(k)
-                let fk: Value = Value::try_from(k as f64).unwrap();
+                let fk = Number::from(sk).into_value();
+
                 // ii. Let Pk be ! ToString(𝔽(k)).
-                let pk = to_string(agent, fk).unwrap().to_property_key();
+                let pk = PropertyKey::from(sk);
 
                 // iii. Let next be ? IteratorStepValue(iteratorRecord).
                 let Some(next) = iterator_step_value(agent, &iterator_record)? else {
@@ -309,20 +313,19 @@ impl ArrayConstructor {
         let array_like = to_object(agent, items).unwrap();
 
         // 8. Let len be ? LengthOfArrayLike(arrayLike).
-        let len = length_of_array_like(agent, array_like)? as usize;
-        let len_value = Value::try_from(len as f64).unwrap();
+        let len = length_of_array_like(agent, array_like)?;
+        let len_value = Value::try_from(len).unwrap();
 
         // 9. If IsConstructor(C) is true, then
         let a = if is_constructor(agent, this_value) {
-            // SAFETY: Only Functions can be constructors
-            let constructor = unsafe { Function::try_from(this_value).unwrap_unchecked() };
+            let constructor = Function::try_from(this_value).unwrap();
 
             // a. Let A be ? Construct(C, « 𝔽(len) »).
             construct(agent, constructor, Some(ArgumentsList(&[len_value])), None)?
         } else {
             // 10. Else,
             // a. Let A be ? ArrayCreate(len).
-            array_create(agent, len, len, None)?.into_object()
+            array_create(agent, len as usize, len as usize, None)?.into_object()
         };
 
         // 11. Let k be 0.
@@ -330,11 +333,12 @@ impl ArrayConstructor {
 
         // 12. Repeat, while k < len,
         while k < len {
+            let sk = SmallInteger::from(k as u32);
             // 𝔽(k)
-            let fk = Value::try_from(k as f64).unwrap();
+            let fk = Number::from(sk).into_value();
 
             // a. Let Pk be ! ToString(𝔽(k)).
-            let pk = to_string(agent, fk).unwrap().to_property_key();
+            let pk = PropertyKey::from(sk);
 
             // b. Let kValue be ? Get(arrayLike, Pk).
             let k_value = get(agent, array_like, pk)?;
@@ -361,7 +365,7 @@ impl ArrayConstructor {
             agent,
             a,
             PropertyKey::from(BUILTIN_STRING_MEMORY.length),
-            Value::try_from(len as f64).unwrap(),
+            Value::try_from(len).unwrap(),
             true,
         )?;
 
@@ -384,13 +388,12 @@ impl ArrayConstructor {
         let len = arguments.len();
 
         // 2. Let lenNumber be 𝔽(len).
-        let len_number = Value::try_from(len as f64).unwrap();
+        let len_number = Value::try_from(len as i64).unwrap();
 
         // 3. Let C be the this value.
         // 4. If IsConstructor(C) is true, then
         let a = if is_constructor(agent, this_value) {
-            // SAFETY: Only Functions can be constructors
-            let constructor = unsafe { Function::try_from(this_value).unwrap_unchecked() };
+            let constructor = Function::try_from(this_value).unwrap();
 
             // a. Let A be ? Construct(C, « lenNumber »).
             construct(agent, constructor, Some(ArgumentsList(&[len_number])), None)?
@@ -408,10 +411,9 @@ impl ArrayConstructor {
             // a. Let kValue be items[k].
             let k_value = arguments.get(k);
 
+            // NOTE: `array_create` guarantees that `len` and by extension `k` is less than `u32::MAX`
             // b. Let Pk be ! ToString(𝔽(k)).
-            let pk = to_string(agent, Value::try_from(k as f64).unwrap())
-                .unwrap()
-                .to_property_key();
+            let pk = PropertyKey::from(SmallInteger::from(k as u32));
 
             // c. Perform ? CreateDataPropertyOrThrow(A, Pk, kValue).
             create_data_property_or_throw(agent, a, pk, k_value)?;

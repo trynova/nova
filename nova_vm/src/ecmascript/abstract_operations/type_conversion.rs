@@ -618,7 +618,7 @@ pub(crate) fn canonical_numeric_index_string(
     argument: String,
 ) -> Option<Number> {
     // 1. If argument is "-0", return -0𝔽.
-    if argument == BUILTIN_STRING_MEMORY._0 {
+    if argument == BUILTIN_STRING_MEMORY.__0 {
         return Some((-0.0).into());
     }
 
