@@ -1159,6 +1159,44 @@ impl CompileEvaluation for ast::ThrowStatement<'_> {
     }
 }
 
+impl CompileEvaluation for ast::TryStatement<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        if self.finalizer.is_some() {
+            todo!();
+        }
+
+        let jump_to_catch = ctx
+            .exe
+            .add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget);
+        self.block.compile(ctx);
+        ctx.exe.add_instruction(Instruction::PopExceptionJumpTarget);
+        let jump_to_end = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+
+        let catch_clause = self.handler.as_ref().unwrap();
+        ctx.exe.set_jump_target_here(jump_to_catch);
+        if let Some(exception_param) = &catch_clause.param {
+            let ast::BindingPatternKind::BindingIdentifier(identifier) =
+                &exception_param.pattern.kind
+            else {
+                todo!("{:?}", exception_param.pattern.kind);
+            };
+            ctx.exe
+                .add_instruction(Instruction::EnterDeclarativeEnvironment);
+            let identifier_string = String::from_str(ctx.agent, identifier.name.as_str());
+            ctx.exe.add_instruction_with_identifier(
+                Instruction::CreateCatchBinding,
+                identifier_string,
+            );
+        }
+        catch_clause.body.compile(ctx);
+        if catch_clause.param.is_some() {
+            ctx.exe
+                .add_instruction(Instruction::ExitDeclarativeEnvironment);
+        }
+        ctx.exe.set_jump_target_here(jump_to_end);
+    }
+}
+
 impl CompileEvaluation for ast::Statement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
@@ -1170,6 +1208,7 @@ impl CompileEvaluation for ast::Statement<'_> {
             ast::Statement::EmptyStatement(_) => {}
             ast::Statement::ForStatement(x) => x.compile(ctx),
             ast::Statement::ThrowStatement(x) => x.compile(ctx),
+            ast::Statement::TryStatement(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }

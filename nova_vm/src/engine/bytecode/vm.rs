@@ -24,7 +24,26 @@ use crate::ecmascript::{
     },
 };
 
-use super::{Executable, Instruction, InstructionIter};
+use super::{instructions::Instr, Executable, Instruction, InstructionIter};
+
+/// Indicates how the execution of an instruction should affect the remainder of
+/// execution that contains it.
+#[must_use]
+enum ContinuationKind {
+    Normal,
+    Return,
+    Yield,
+    Await,
+}
+
+/// Indicates a place to jump after an exception is thrown.
+#[derive(Debug)]
+struct ExceptionJumpTarget {
+    /// Instruction pointer.
+    ip: usize,
+    /// The lexical environment which contains this exception jump target.
+    lexical_environment: EnvironmentIndex,
+}
 
 /// ## Notes
 ///
@@ -36,7 +55,7 @@ pub(crate) struct Vm {
     ip: usize,
     stack: Vec<Value>,
     reference_stack: Vec<Reference>,
-    exception_jump_target_stack: Vec<usize>,
+    exception_jump_target_stack: Vec<ExceptionJumpTarget>,
     result: Option<Value>,
     exception: Option<Value>,
     reference: Option<Reference>,
@@ -95,378 +114,432 @@ impl Vm {
         eprintln!();
 
         while let Some(instr) = executable.get_instruction(&mut vm.ip) {
-            eprintln!("Executing instruction {:?}", instr.kind);
-            match instr.kind {
-                Instruction::ArrayCreate => {
-                    vm.stack.push(
-                        array_create(agent, 0, instr.args[0].unwrap() as usize, None)?.into_value(),
-                    );
-                }
-                Instruction::ArrayPush => {
-                    let value = vm.result.take().unwrap();
-                    let array = *vm.stack.last().unwrap();
-                    let Ok(array) = Array::try_from(array) else {
-                        unreachable!();
-                    };
-                    let len = array.len(agent);
-                    let key = PropertyKey::Integer(len.into());
-                    create_data_property_or_throw(agent, array.into(), key, value)?
-                }
-                Instruction::BitwiseNot => {
-                    // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
-                    let old_value = to_numeric(agent, vm.result.take().unwrap())?;
-
-                    // 3. If oldValue is a Number, then
-                    if let Ok(old_value) = Number::try_from(old_value) {
-                        // a. Return Number::bitwiseNOT(oldValue).
-                        vm.result = Some(Number::bitwise_not(agent, old_value)?.into_value());
+            match Self::execute_instruction(agent, &mut vm, executable, &instr) {
+                Ok(ContinuationKind::Normal) => {}
+                Ok(ContinuationKind::Return) => return Ok(vm.result),
+                Ok(ContinuationKind::Yield) => todo!(),
+                Ok(ContinuationKind::Await) => todo!(),
+                Err(err) => {
+                    if let Some(ejt) = vm.exception_jump_target_stack.pop() {
+                        vm.ip = ejt.ip;
+                        agent
+                            .running_execution_context_mut()
+                            .ecmascript_code
+                            .as_mut()
+                            .unwrap()
+                            .lexical_environment = ejt.lexical_environment;
+                        vm.exception = Some(err.value());
                     } else {
-                        // 4. Else,
-                        // a. Assert: oldValue is a BigInt.
-                        let Ok(old_value) = BigInt::try_from(old_value) else {
-                            unreachable!();
-                        };
-
-                        // b. Return BigInt::bitwiseNOT(oldValue).
-                        vm.result = Some(BigInt::bitwise_not(agent, old_value).into_value());
+                        return Err(err);
                     }
                 }
-                Instruction::Debug => {
-                    eprintln!("Debug: {:#?}", vm);
-                }
-                Instruction::ResolveBinding => {
-                    let identifier =
-                        vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-
-                    let reference = resolve_binding(agent, identifier, None)?;
-
-                    vm.reference = Some(reference);
-                }
-                Instruction::LoadConstant => {
-                    let constant = vm.fetch_constant(executable, instr.args[0].unwrap() as usize);
-                    vm.stack.push(constant);
-                }
-                Instruction::Load => {
-                    vm.stack.push(vm.result.take().unwrap());
-                }
-                Instruction::Return => {
-                    return Ok(vm.result);
-                }
-                Instruction::Store => {
-                    vm.result = Some(vm.stack.pop().expect("Trying to pop from empty stack"));
-                }
-                Instruction::StoreConstant => {
-                    let constant = vm.fetch_constant(executable, instr.args[0].unwrap() as usize);
-                    vm.result = Some(constant);
-                }
-                Instruction::UnaryMinus => {
-                    let old_value = vm.result.unwrap();
-
-                    // 3. If oldValue is a Number, then
-                    if let Ok(old_value) = Number::try_from(old_value) {
-                        // a. Return Number::unaryMinus(oldValue).
-                        vm.result = Some(Number::unary_minus(agent, old_value).into());
-                    }
-                    // 4. Else,
-                    else {
-                        // a. Assert: oldValue is a BigInt.
-                        let old_value = BigInt::try_from(old_value).unwrap();
-
-                        // b. Return BigInt::unaryMinus(oldValue).
-                        vm.result = Some(BigInt::unary_minus(agent, old_value).into());
-                    }
-                }
-                Instruction::ToNumber => {
-                    vm.result =
-                        to_number(agent, vm.result.unwrap()).map(|number| Some(number.into()))?;
-                }
-                Instruction::ToNumeric => {
-                    vm.result = Some(
-                        to_numeric(agent, vm.result.unwrap()).map(|result| result.into_value())?,
-                    );
-                }
-                Instruction::ApplyStringOrNumericBinaryOperator(op_text) => {
-                    let lval = vm.stack.pop().unwrap();
-                    let rval = vm.stack.pop().unwrap();
-                    vm.result = Some(apply_string_or_numeric_binary_operator(
-                        agent, lval, op_text, rval,
-                    )?);
-                }
-                Instruction::ObjectSetProperty => {
-                    let value = vm.result.take().unwrap();
-                    let key = PropertyKey::try_from(vm.stack.pop().unwrap()).unwrap();
-                    let object = *vm.stack.last().unwrap();
-                    let object = Object::try_from(object).unwrap();
-                    create_data_property_or_throw(agent, object, key, value).unwrap()
-                }
-                Instruction::PushReference => {
-                    vm.reference_stack.push(vm.reference.take().unwrap());
-                }
-                Instruction::PopReference => {
-                    vm.reference = Some(vm.reference_stack.pop().unwrap());
-                }
-                Instruction::PutValue => {
-                    let value = vm.result.take().unwrap();
-                    let reference = vm.reference.take().unwrap();
-                    put_value(agent, &reference, value)?;
-                }
-                Instruction::GetValue => {
-                    // 1. If V is not a Reference Record, return V.
-                    let reference = vm.reference.take().unwrap();
-
-                    vm.result = Some(get_value(agent, &reference)?);
-                }
-                Instruction::GetValueKeepReference => {
-                    // 1. If V is not a Reference Record, return V.
-                    let reference = vm.reference.as_ref().unwrap();
-
-                    vm.result = Some(get_value(agent, reference)?);
-                }
-                Instruction::Typeof => {
-                    // 2. If val is a Reference Record, then
-                    let val = if let Some(reference) = vm.reference.take() {
-                        get_value(agent, &reference)?
-                    } else {
-                        vm.result.unwrap()
-                    };
-                    vm.result = Some(typeof_operator(agent, val).into())
-                }
-                Instruction::ObjectCreate => {
-                    let object = ordinary_object_create_with_intrinsics(
-                        agent,
-                        Some(ProtoIntrinsics::Object),
-                    );
-                    vm.stack.push(object.into())
-                }
-                Instruction::InstantiateOrdinaryFunctionExpression => {
-                    let function_expression = executable
-                        .function_expressions
-                        .get(instr.args[0].unwrap() as usize)
-                        .unwrap();
-                    let ECMAScriptCodeEvaluationState {
-                        lexical_environment,
-                        private_environment,
-                        ..
-                    } = *agent
-                        .running_execution_context()
-                        .ecmascript_code
-                        .as_ref()
-                        .unwrap();
-                    let params = OrdinaryFunctionCreateParams {
-                        function_prototype: None,
-                        source_text: function_expression.expression.span,
-                        parameters_list: &function_expression.expression.params,
-                        body: function_expression.expression.body.as_ref().unwrap(),
-                        this_mode: ThisMode::Lexical,
-                        env: lexical_environment,
-                        private_env: private_environment,
-                    };
-                    let function = ordinary_function_create(agent, params).into_value();
-                    vm.result = Some(function);
-                }
-                Instruction::EvaluateCall => {
-                    let arg_count = instr.args[0].unwrap() as usize;
-                    let args = vm.stack.split_off(vm.stack.len() - arg_count);
-                    let reference = vm.reference.take();
-                    // 1. If ref is a Reference Record, then
-                    let this_value = if let Some(reference) = reference {
-                        // a. If IsPropertyReference(ref) is true, then
-                        match reference.base {
-                            // i. Let thisValue be GetThisValue(ref).
-                            Base::Value(value) => value,
-                            // b. Else,
-                            Base::Environment(ref_env) => {
-                                // i. Let refEnv be ref.[[Base]].
-                                // iii. Let thisValue be refEnv.WithBaseObject().
-                                ref_env
-                                    .with_base_object(agent)
-                                    .map_or(Value::Undefined, |object| object.into_value())
-                            }
-                            // ii. Assert: refEnv is an Environment Record.
-                            Base::Unresolvable => unreachable!(),
-                        }
-                    } else {
-                        // 2. Else,
-                        // a. Let thisValue be undefined.
-                        Value::Undefined
-                    };
-                    // let this_arg = vm.stack.pop();
-                    let func = vm.stack.pop().unwrap();
-                    vm.result = Some(call(agent, func, this_value, Some(ArgumentsList(&args)))?);
-                }
-                Instruction::EvaluateNew => {
-                    let arg_count = instr.args[0].unwrap() as usize;
-                    let args = vm.stack.split_off(vm.stack.len() - arg_count);
-                    let constructor = vm.stack.pop().unwrap();
-                    if !is_constructor(agent, constructor) {
-                        return Err(
-                            agent.throw_exception(ExceptionType::TypeError, "Not a constructor")
-                        );
-                    }
-                    // SAFETY: Only Functions can be constructors
-                    let constructor = unsafe { Function::try_from(constructor).unwrap_unchecked() };
-                    vm.result = Some(
-                        construct(agent, constructor, Some(ArgumentsList(&args)), None)
-                            .map(|result| result.into_value())?,
-                    );
-                }
-                Instruction::EvaluatePropertyAccessWithExpressionKey => {
-                    let property_name_value = vm.result.take().unwrap();
-                    let base_value = vm.stack.pop().unwrap();
-
-                    let strict = true;
-
-                    let property_key = to_property_key(agent, property_name_value)?;
-
-                    vm.reference = Some(Reference {
-                        base: Base::Value(base_value),
-                        referenced_name: match property_key {
-                            PropertyKey::SmallString(s) => ReferencedName::SmallString(s),
-                            PropertyKey::String(s) => ReferencedName::String(s),
-                            PropertyKey::Symbol(s) => ReferencedName::Symbol(s.into()),
-                            _ => todo!("Index properties in ReferencedName"),
-                        },
-                        strict,
-                        this_value: None,
-                    });
-                }
-                Instruction::EvaluatePropertyAccessWithIdentifierKey => {
-                    let property_name_string =
-                        vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                    let base_value = vm.result.take().unwrap();
-                    let strict = true;
-
-                    vm.reference = Some(Reference {
-                        base: Base::Value(base_value),
-                        referenced_name: ReferencedName::from(property_name_string),
-                        strict,
-                        this_value: None,
-                    });
-                }
-                Instruction::Jump => {
-                    let ip = instr.args[0].unwrap() as usize;
-                    vm.ip = ip;
-                }
-                Instruction::JumpIfNot => {
-                    let result = vm.result.take().unwrap();
-                    let ip = instr.args[0].unwrap() as usize;
-                    if !to_boolean(agent, result) {
-                        vm.ip = ip;
-                    }
-                }
-                Instruction::Increment => {
-                    let lhs = vm.result.take().unwrap();
-                    let old_value = to_numeric(agent, lhs)?;
-                    let new_value = if let Ok(old_value) = Number::try_from(old_value) {
-                        Number::add(agent, old_value, 1.into())
-                    } else {
-                        todo!();
-                        // let old_value = BigInt::try_from(old_value).unwrap();
-                        // BigInt::add(agent, old_value, 1.into());
-                    };
-                    vm.result = Some(new_value.into_value());
-                }
-                Instruction::LessThan => {
-                    let lval = vm.stack.pop().unwrap();
-                    let rval = vm.result.take().unwrap();
-                    let result = is_less_than::<true>(agent, lval, rval)
-                        .unwrap()
-                        .unwrap_or_default();
-                    vm.result = Some(result.into());
-                }
-                Instruction::IsStrictlyEqual => {
-                    let lval = vm.stack.pop().unwrap();
-                    let rval = vm.result.take().unwrap();
-                    let result = is_strictly_equal(agent, lval, rval);
-                    vm.result = Some(result.into());
-                }
-                Instruction::LogicalNot => {
-                    // 2. Let oldValue be ToBoolean(? GetValue(expr)).
-                    let old_value = to_boolean(agent, vm.result.take().unwrap());
-
-                    // 3. If oldValue is true, return false.
-                    // 4. Return true.
-                    vm.result = Some((!old_value).into());
-                }
-                Instruction::InitializeReferencedBinding => {
-                    let v = vm.reference.take().unwrap();
-                    let w = vm.result.take().unwrap();
-                    // 1. Assert: IsUnresolvableReference(V) is false.
-                    debug_assert!(!is_unresolvable_reference(&v));
-                    // 2. Let base be V.[[Base]].
-                    let base = v.base;
-                    // 3. Assert: base is an Environment Record.
-                    let Base::Environment(base) = base else {
-                        unreachable!()
-                    };
-                    let referenced_name = match v.referenced_name {
-                        ReferencedName::String(data) => String::String(data),
-                        ReferencedName::SmallString(data) => String::SmallString(data),
-                        ReferencedName::Symbol(_) | ReferencedName::PrivateName => unreachable!(),
-                    };
-                    // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
-                    base.initialize_binding(agent, referenced_name, w).unwrap();
-                }
-                Instruction::EnterDeclarativeEnvironment => {
-                    let outer_env = agent
-                        .running_execution_context()
-                        .ecmascript_code
-                        .as_ref()
-                        .unwrap()
-                        .lexical_environment;
-                    let new_env = new_declarative_environment(agent, Some(outer_env));
-                    agent
-                        .running_execution_context_mut()
-                        .ecmascript_code
-                        .as_mut()
-                        .unwrap()
-                        .lexical_environment = EnvironmentIndex::Declarative(new_env);
-                }
-                Instruction::ExitDeclarativeEnvironment => {
-                    let old_env = agent
-                        .running_execution_context()
-                        .ecmascript_code
-                        .as_ref()
-                        .unwrap()
-                        .lexical_environment
-                        .get_outer_env(agent)
-                        .unwrap();
-                    agent
-                        .running_execution_context_mut()
-                        .ecmascript_code
-                        .as_mut()
-                        .unwrap()
-                        .lexical_environment = old_env;
-                }
-                Instruction::CreateMutableBinding => {
-                    let lex_env = agent
-                        .running_execution_context()
-                        .ecmascript_code
-                        .as_ref()
-                        .unwrap()
-                        .lexical_environment;
-                    let name = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                    lex_env.create_mutable_binding(agent, name, false).unwrap();
-                }
-                Instruction::CreateImmutableBinding => {
-                    let lex_env = agent
-                        .running_execution_context()
-                        .ecmascript_code
-                        .as_ref()
-                        .unwrap()
-                        .lexical_environment;
-                    let name = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                    lex_env.create_immutable_binding(agent, name, true).unwrap();
-                }
-                Instruction::Throw => {
-                    let result = vm.result.take().unwrap();
-                    return Err(JsError::new(result));
-                }
-                other => todo!("{other:?}"),
             }
         }
 
         Ok(vm.result)
+    }
+
+    fn execute_instruction(
+        agent: &mut Agent,
+        vm: &mut Vm,
+        executable: &Executable,
+        instr: &Instr,
+    ) -> JsResult<ContinuationKind> {
+        eprintln!("Executing instruction {:?}", instr.kind);
+        match instr.kind {
+            Instruction::ArrayCreate => {
+                vm.stack.push(
+                    array_create(agent, 0, instr.args[0].unwrap() as usize, None)?.into_value(),
+                );
+            }
+            Instruction::ArrayPush => {
+                let value = vm.result.take().unwrap();
+                let array = *vm.stack.last().unwrap();
+                let Ok(array) = Array::try_from(array) else {
+                    unreachable!();
+                };
+                let len = array.len(agent);
+                let key = PropertyKey::Integer(len.into());
+                create_data_property_or_throw(agent, array.into(), key, value)?
+            }
+            Instruction::BitwiseNot => {
+                // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
+                let old_value = to_numeric(agent, vm.result.take().unwrap())?;
+
+                // 3. If oldValue is a Number, then
+                if let Ok(old_value) = Number::try_from(old_value) {
+                    // a. Return Number::bitwiseNOT(oldValue).
+                    vm.result = Some(Number::bitwise_not(agent, old_value)?.into_value());
+                } else {
+                    // 4. Else,
+                    // a. Assert: oldValue is a BigInt.
+                    let Ok(old_value) = BigInt::try_from(old_value) else {
+                        unreachable!();
+                    };
+
+                    // b. Return BigInt::bitwiseNOT(oldValue).
+                    vm.result = Some(BigInt::bitwise_not(agent, old_value).into_value());
+                }
+            }
+            Instruction::Debug => {
+                eprintln!("Debug: {:#?}", vm);
+            }
+            Instruction::ResolveBinding => {
+                let identifier = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+
+                let reference = resolve_binding(agent, identifier, None)?;
+
+                vm.reference = Some(reference);
+            }
+            Instruction::LoadConstant => {
+                let constant = vm.fetch_constant(executable, instr.args[0].unwrap() as usize);
+                vm.stack.push(constant);
+            }
+            Instruction::Load => {
+                vm.stack.push(vm.result.take().unwrap());
+            }
+            Instruction::Return => {
+                return Ok(ContinuationKind::Return);
+            }
+            Instruction::Store => {
+                vm.result = Some(vm.stack.pop().expect("Trying to pop from empty stack"));
+            }
+            Instruction::StoreConstant => {
+                let constant = vm.fetch_constant(executable, instr.args[0].unwrap() as usize);
+                vm.result = Some(constant);
+            }
+            Instruction::UnaryMinus => {
+                let old_value = vm.result.unwrap();
+
+                // 3. If oldValue is a Number, then
+                if let Ok(old_value) = Number::try_from(old_value) {
+                    // a. Return Number::unaryMinus(oldValue).
+                    vm.result = Some(Number::unary_minus(agent, old_value).into());
+                }
+                // 4. Else,
+                else {
+                    // a. Assert: oldValue is a BigInt.
+                    let old_value = BigInt::try_from(old_value).unwrap();
+
+                    // b. Return BigInt::unaryMinus(oldValue).
+                    vm.result = Some(BigInt::unary_minus(agent, old_value).into());
+                }
+            }
+            Instruction::ToNumber => {
+                vm.result =
+                    to_number(agent, vm.result.unwrap()).map(|number| Some(number.into()))?;
+            }
+            Instruction::ToNumeric => {
+                vm.result =
+                    Some(to_numeric(agent, vm.result.unwrap()).map(|result| result.into_value())?);
+            }
+            Instruction::ApplyStringOrNumericBinaryOperator(op_text) => {
+                let lval = vm.stack.pop().unwrap();
+                let rval = vm.stack.pop().unwrap();
+                vm.result = Some(apply_string_or_numeric_binary_operator(
+                    agent, lval, op_text, rval,
+                )?);
+            }
+            Instruction::ObjectSetProperty => {
+                let value = vm.result.take().unwrap();
+                let key = PropertyKey::try_from(vm.stack.pop().unwrap()).unwrap();
+                let object = *vm.stack.last().unwrap();
+                let object = Object::try_from(object).unwrap();
+                create_data_property_or_throw(agent, object, key, value).unwrap()
+            }
+            Instruction::PushReference => {
+                vm.reference_stack.push(vm.reference.take().unwrap());
+            }
+            Instruction::PopReference => {
+                vm.reference = Some(vm.reference_stack.pop().unwrap());
+            }
+            Instruction::PutValue => {
+                let value = vm.result.take().unwrap();
+                let reference = vm.reference.take().unwrap();
+                put_value(agent, &reference, value)?;
+            }
+            Instruction::GetValue => {
+                // 1. If V is not a Reference Record, return V.
+                let reference = vm.reference.take().unwrap();
+
+                vm.result = Some(get_value(agent, &reference)?);
+            }
+            Instruction::GetValueKeepReference => {
+                // 1. If V is not a Reference Record, return V.
+                let reference = vm.reference.as_ref().unwrap();
+
+                vm.result = Some(get_value(agent, reference)?);
+            }
+            Instruction::Typeof => {
+                // 2. If val is a Reference Record, then
+                let val = if let Some(reference) = vm.reference.take() {
+                    get_value(agent, &reference)?
+                } else {
+                    vm.result.unwrap()
+                };
+                vm.result = Some(typeof_operator(agent, val).into())
+            }
+            Instruction::ObjectCreate => {
+                let object =
+                    ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object));
+                vm.stack.push(object.into())
+            }
+            Instruction::InstantiateOrdinaryFunctionExpression => {
+                let function_expression = executable
+                    .function_expressions
+                    .get(instr.args[0].unwrap() as usize)
+                    .unwrap();
+                let ECMAScriptCodeEvaluationState {
+                    lexical_environment,
+                    private_environment,
+                    ..
+                } = *agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap();
+                let params = OrdinaryFunctionCreateParams {
+                    function_prototype: None,
+                    source_text: function_expression.expression.span,
+                    parameters_list: &function_expression.expression.params,
+                    body: function_expression.expression.body.as_ref().unwrap(),
+                    this_mode: ThisMode::Lexical,
+                    env: lexical_environment,
+                    private_env: private_environment,
+                };
+                let function = ordinary_function_create(agent, params).into_value();
+                vm.result = Some(function);
+            }
+            Instruction::EvaluateCall => {
+                let arg_count = instr.args[0].unwrap() as usize;
+                let args = vm.stack.split_off(vm.stack.len() - arg_count);
+                let reference = vm.reference.take();
+                // 1. If ref is a Reference Record, then
+                let this_value = if let Some(reference) = reference {
+                    // a. If IsPropertyReference(ref) is true, then
+                    match reference.base {
+                        // i. Let thisValue be GetThisValue(ref).
+                        Base::Value(value) => value,
+                        // b. Else,
+                        Base::Environment(ref_env) => {
+                            // i. Let refEnv be ref.[[Base]].
+                            // iii. Let thisValue be refEnv.WithBaseObject().
+                            ref_env
+                                .with_base_object(agent)
+                                .map_or(Value::Undefined, |object| object.into_value())
+                        }
+                        // ii. Assert: refEnv is an Environment Record.
+                        Base::Unresolvable => unreachable!(),
+                    }
+                } else {
+                    // 2. Else,
+                    // a. Let thisValue be undefined.
+                    Value::Undefined
+                };
+                // let this_arg = vm.stack.pop();
+                let func = vm.stack.pop().unwrap();
+                vm.result = Some(call(agent, func, this_value, Some(ArgumentsList(&args)))?);
+            }
+            Instruction::EvaluateNew => {
+                let arg_count = instr.args[0].unwrap() as usize;
+                let args = vm.stack.split_off(vm.stack.len() - arg_count);
+                let constructor = vm.stack.pop().unwrap();
+                if !is_constructor(agent, constructor) {
+                    return Err(
+                        agent.throw_exception(ExceptionType::TypeError, "Not a constructor")
+                    );
+                }
+                // SAFETY: Only Functions can be constructors
+                let constructor = unsafe { Function::try_from(constructor).unwrap_unchecked() };
+                vm.result = Some(
+                    construct(agent, constructor, Some(ArgumentsList(&args)), None)
+                        .map(|result| result.into_value())?,
+                );
+            }
+            Instruction::EvaluatePropertyAccessWithExpressionKey => {
+                let property_name_value = vm.result.take().unwrap();
+                let base_value = vm.stack.pop().unwrap();
+
+                let strict = true;
+
+                let property_key = to_property_key(agent, property_name_value)?;
+
+                vm.reference = Some(Reference {
+                    base: Base::Value(base_value),
+                    referenced_name: match property_key {
+                        PropertyKey::SmallString(s) => ReferencedName::SmallString(s),
+                        PropertyKey::String(s) => ReferencedName::String(s),
+                        PropertyKey::Symbol(s) => ReferencedName::Symbol(s.into()),
+                        _ => todo!("Index properties in ReferencedName"),
+                    },
+                    strict,
+                    this_value: None,
+                });
+            }
+            Instruction::EvaluatePropertyAccessWithIdentifierKey => {
+                let property_name_string =
+                    vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                let base_value = vm.result.take().unwrap();
+                let strict = true;
+
+                vm.reference = Some(Reference {
+                    base: Base::Value(base_value),
+                    referenced_name: ReferencedName::from(property_name_string),
+                    strict,
+                    this_value: None,
+                });
+            }
+            Instruction::Jump => {
+                let ip = instr.args[0].unwrap() as usize;
+                vm.ip = ip;
+            }
+            Instruction::JumpIfNot => {
+                let result = vm.result.take().unwrap();
+                let ip = instr.args[0].unwrap() as usize;
+                if !to_boolean(agent, result) {
+                    vm.ip = ip;
+                }
+            }
+            Instruction::Increment => {
+                let lhs = vm.result.take().unwrap();
+                let old_value = to_numeric(agent, lhs)?;
+                let new_value = if let Ok(old_value) = Number::try_from(old_value) {
+                    Number::add(agent, old_value, 1.into())
+                } else {
+                    todo!();
+                    // let old_value = BigInt::try_from(old_value).unwrap();
+                    // BigInt::add(agent, old_value, 1.into());
+                };
+                vm.result = Some(new_value.into_value());
+            }
+            Instruction::LessThan => {
+                let lval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
+                let result = is_less_than::<true>(agent, lval, rval)
+                    .unwrap()
+                    .unwrap_or_default();
+                vm.result = Some(result.into());
+            }
+            Instruction::IsStrictlyEqual => {
+                let lval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
+                let result = is_strictly_equal(agent, lval, rval);
+                vm.result = Some(result.into());
+            }
+            Instruction::LogicalNot => {
+                // 2. Let oldValue be ToBoolean(? GetValue(expr)).
+                let old_value = to_boolean(agent, vm.result.take().unwrap());
+
+                // 3. If oldValue is true, return false.
+                // 4. Return true.
+                vm.result = Some((!old_value).into());
+            }
+            Instruction::InitializeReferencedBinding => {
+                let v = vm.reference.take().unwrap();
+                let w = vm.result.take().unwrap();
+                // 1. Assert: IsUnresolvableReference(V) is false.
+                debug_assert!(!is_unresolvable_reference(&v));
+                // 2. Let base be V.[[Base]].
+                let base = v.base;
+                // 3. Assert: base is an Environment Record.
+                let Base::Environment(base) = base else {
+                    unreachable!()
+                };
+                let referenced_name = match v.referenced_name {
+                    ReferencedName::String(data) => String::String(data),
+                    ReferencedName::SmallString(data) => String::SmallString(data),
+                    ReferencedName::Symbol(_) | ReferencedName::PrivateName => unreachable!(),
+                };
+                // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
+                base.initialize_binding(agent, referenced_name, w).unwrap();
+            }
+            Instruction::EnterDeclarativeEnvironment => {
+                let outer_env = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap()
+                    .lexical_environment;
+                let new_env = new_declarative_environment(agent, Some(outer_env));
+                agent
+                    .running_execution_context_mut()
+                    .ecmascript_code
+                    .as_mut()
+                    .unwrap()
+                    .lexical_environment = EnvironmentIndex::Declarative(new_env);
+            }
+            Instruction::ExitDeclarativeEnvironment => {
+                let old_env = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap()
+                    .lexical_environment
+                    .get_outer_env(agent)
+                    .unwrap();
+                agent
+                    .running_execution_context_mut()
+                    .ecmascript_code
+                    .as_mut()
+                    .unwrap()
+                    .lexical_environment = old_env;
+            }
+            Instruction::CreateMutableBinding => {
+                let lex_env = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap()
+                    .lexical_environment;
+                let name = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                lex_env.create_mutable_binding(agent, name, false).unwrap();
+            }
+            Instruction::CreateImmutableBinding => {
+                let lex_env = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap()
+                    .lexical_environment;
+                let name = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                lex_env.create_immutable_binding(agent, name, true).unwrap();
+            }
+            Instruction::CreateCatchBinding => {
+                let lex_env = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap()
+                    .lexical_environment;
+                let name = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                lex_env.create_mutable_binding(agent, name, false).unwrap();
+                lex_env
+                    .initialize_binding(agent, name, vm.exception.unwrap())
+                    .unwrap();
+                vm.exception = None;
+            }
+            Instruction::Throw => {
+                let result = vm.result.take().unwrap();
+                return Err(JsError::new(result));
+            }
+            Instruction::PushExceptionJumpTarget => {
+                vm.exception_jump_target_stack.push(ExceptionJumpTarget {
+                    ip: instr.args[0].unwrap() as usize,
+                    lexical_environment: agent
+                        .running_execution_context()
+                        .ecmascript_code
+                        .as_ref()
+                        .unwrap()
+                        .lexical_environment,
+                });
+            }
+            Instruction::PopExceptionJumpTarget => {
+                vm.exception_jump_target_stack.pop().unwrap();
+            }
+            other => todo!("{other:?}"),
+        }
+
+        Ok(ContinuationKind::Normal)
     }
 }
 

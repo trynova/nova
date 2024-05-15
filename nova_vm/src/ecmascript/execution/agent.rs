@@ -36,6 +36,10 @@ impl JsError {
         Self(value)
     }
 
+    pub fn value(self) -> Value {
+        self.0
+    }
+
     pub fn to_string(self, agent: &mut Agent) -> String {
         to_string(agent, self.0).unwrap()
     }

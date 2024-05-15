@@ -203,7 +203,10 @@ impl Instruction {
     }
 
     pub fn has_jump_slot(self) -> bool {
-        matches!(self, Self::Jump | Self::JumpIfNot)
+        matches!(
+            self,
+            Self::Jump | Self::JumpIfNot | Self::PushExceptionJumpTarget
+        )
     }
 
     pub fn as_u8(self) -> u8 {
