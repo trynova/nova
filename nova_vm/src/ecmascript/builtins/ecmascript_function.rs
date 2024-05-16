@@ -32,11 +32,14 @@ use crate::{
         },
         types::{
             initialize_referenced_binding, put_value, ECMAScriptFunctionHeapData, Function,
-            InternalMethods, IntoFunction, IntoObject, IntoValue, Object, PropertyDescriptor,
-            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            InternalMethods, IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{indexes::ECMAScriptFunctionIndex, CreateHeapData, Heap},
+    heap::{
+        indexes::{ECMAScriptFunctionIndex, ObjectIndex},
+        CreateHeapData, Heap, ObjectEntry, ObjectEntryPropertyDescriptor,
+    },
 };
 
 use super::{
@@ -201,77 +204,202 @@ impl IndexMut<ECMAScriptFunction> for Heap {
     }
 }
 
+impl ECMAScriptFunction {
+    fn create_ordinary_object(self, agent: &mut Agent) -> ObjectIndex {
+        assert_eq!(agent[self].object_index, None);
+        let prototype = agent.current_realm().intrinsics().function_prototype();
+        let length_entry = ObjectEntry {
+            key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+            value: ObjectEntryPropertyDescriptor::Data {
+                value: agent[self].length.into(),
+                writable: false,
+                enumerable: false,
+                configurable: true,
+            },
+        };
+        let name_entry = ObjectEntry {
+            key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+            value: ObjectEntryPropertyDescriptor::Data {
+                value: agent[self]
+                    .name
+                    .unwrap_or(String::EMPTY_STRING)
+                    .into_value(),
+                writable: false,
+                enumerable: false,
+                configurable: true,
+            },
+        };
+        let object_index = agent
+            .heap
+            .create_object_with_prototype(prototype.into_object(), &[length_entry, name_entry]);
+        agent[self].object_index = Some(object_index);
+        object_index
+    }
+}
+
 impl InternalMethods for ECMAScriptFunction {
-    fn internal_get_prototype_of(self, _agent: &mut Agent) -> JsResult<Option<Object>> {
-        todo!()
+    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
+        if let Some(object_index) = agent[self].object_index {
+            OrdinaryObject::from(object_index).internal_get_prototype_of(agent)
+        } else {
+            Ok(Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .function_prototype()
+                    .into_object(),
+            ))
+        }
     }
 
     fn internal_set_prototype_of(
         self,
-        _agent: &mut Agent,
-        _prototype: Option<Object>,
+        agent: &mut Agent,
+        prototype: Option<Object>,
     ) -> JsResult<bool> {
-        todo!()
+        let object_index = agent[self]
+            .object_index
+            .unwrap_or_else(|| self.create_ordinary_object(agent));
+        OrdinaryObject::from(object_index).internal_set_prototype_of(agent, prototype)
     }
 
-    fn internal_is_extensible(self, _agent: &mut Agent) -> JsResult<bool> {
-        todo!()
+    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
+        if let Some(object_index) = agent[self].object_index {
+            OrdinaryObject::from(object_index).internal_is_extensible(agent)
+        } else {
+            Ok(true)
+        }
     }
 
-    fn internal_prevent_extensions(self, _agent: &mut Agent) -> JsResult<bool> {
-        todo!()
+    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+        let object_index = agent[self]
+            .object_index
+            .unwrap_or_else(|| self.create_ordinary_object(agent));
+        OrdinaryObject::from(object_index).internal_prevent_extensions(agent)
     }
 
     fn internal_get_own_property(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
+        agent: &mut Agent,
+        property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
-        todo!()
+        if let Some(object_index) = agent[self].object_index {
+            OrdinaryObject::from(object_index).internal_get_own_property(agent, property_key)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
+            Ok(Some(PropertyDescriptor {
+                value: Some(agent[self].length.into()),
+                writable: Some(false),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            }))
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
+            Ok(Some(PropertyDescriptor {
+                value: Some(agent[self].name.unwrap_or(String::EMPTY_STRING).into()),
+                writable: Some(false),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     fn internal_define_own_property(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _property_descriptor: PropertyDescriptor,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
-        todo!()
+        let object_index = agent[self]
+            .object_index
+            .unwrap_or_else(|| self.create_ordinary_object(agent));
+        OrdinaryObject::from(object_index).internal_define_own_property(
+            agent,
+            property_key,
+            property_descriptor,
+        )
     }
 
-    fn internal_has_property(
-        self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-    ) -> JsResult<bool> {
-        todo!()
+    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+        if let Some(object_index) = agent[self].object_index {
+            OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
+            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
+        {
+            Ok(true)
+        } else {
+            let parent = self.internal_get_prototype_of(agent)?;
+            parent.map_or(Ok(false), |parent| {
+                parent.internal_has_property(agent, property_key)
+            })
+        }
     }
 
     fn internal_get(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _receiver: Value,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
     ) -> JsResult<Value> {
-        todo!()
+        if let Some(object_index) = agent[self].object_index {
+            OrdinaryObject::from(object_index).internal_get(agent, property_key, receiver)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
+            Ok(agent[self].length.into())
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
+            Ok(agent[self].name.unwrap_or(String::EMPTY_STRING).into())
+        } else {
+            let parent = self.internal_get_prototype_of(agent)?;
+            parent.map_or(Ok(Value::Undefined), |parent| {
+                parent.internal_get(agent, property_key, receiver)
+            })
+        }
     }
 
     fn internal_set(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _value: Value,
-        _receiver: Value,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        value: Value,
+        receiver: Value,
     ) -> JsResult<bool> {
-        todo!()
+        if let Some(object_index) = agent[self].object_index {
+            OrdinaryObject::from(object_index).internal_set(agent, property_key, value, receiver)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
+            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
+        {
+            // length and name are not writable
+            Ok(false)
+        } else {
+            let object_index = self.create_ordinary_object(agent);
+            OrdinaryObject::from(object_index).internal_set(agent, property_key, value, receiver)
+        }
     }
 
-    fn internal_delete(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
-        todo!()
+    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+        if let Some(object_index) = agent[self].object_index {
+            OrdinaryObject::from(object_index).internal_delete(agent, property_key)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
+            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
+        {
+            let object_index = self.create_ordinary_object(agent);
+            OrdinaryObject::from(object_index).internal_delete(agent, property_key)
+        } else {
+            // Non-existing property
+            Ok(true)
+        }
     }
 
-    fn internal_own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        todo!()
+    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+        if let Some(object_index) = agent[self].object_index {
+            OrdinaryObject::from(object_index).internal_own_property_keys(agent)
+        } else {
+            Ok(vec![
+                PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+                PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+            ])
+        }
     }
 
     /// ### [10.2.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-call)
