@@ -75,6 +75,9 @@ pub enum Instruction {
     IsLooselyEqual,
     /// Store IsStrictlyEqual() as the result value.
     IsStrictlyEqual,
+    /// Store true as the result value if the current result value is null or
+    /// undefined, false otherwise.
+    IsNullOrUndefined,
     /// Jump to another instruction by setting the instruction pointer.
     Jump,
     /// Jump to another instruction by setting the instruction pointer
@@ -86,6 +89,9 @@ pub enum Instruction {
     LessThanEquals,
     /// Load the result value and add it to the stack.
     Load,
+    /// Add the result value to the stack, without removing it as the result
+    /// value.
+    LoadCopy,
     /// Load a constant and add it to the stack.
     LoadConstant,
     /// Determine the this value for an upcoming evaluate_call instruction and
