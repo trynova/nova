@@ -190,7 +190,6 @@ impl String {
                         },
                         String::String(idx) => Status::ExistingString(*idx),
                     };
-                    continue;
                 }
                 Status::ExistingString(idx) => {
                     let mut result =
