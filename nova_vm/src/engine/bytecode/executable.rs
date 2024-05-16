@@ -471,69 +471,6 @@ impl CompileEvaluation for ast::UnaryExpression<'_> {
 
 impl CompileEvaluation for ast::BinaryExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        match self.operator {
-            BinaryOperator::LessThan => {
-                // 13.10.1 Runtime Semantics: Evaluation
-                // RelationalExpression : RelationalExpression < ShiftExpression
-
-                // 1. Let lref be ? Evaluation of RelationalExpression.
-                self.left.compile(ctx);
-
-                // 2. Let lval be ? GetValue(lref).
-                if is_reference(&self.left) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                }
-                ctx.exe.add_instruction(Instruction::Load);
-
-                // 3. Let rref be ? Evaluation of ShiftExpression.
-                self.right.compile(ctx);
-
-                // 4. Let rval be ? GetValue(rref).
-                if is_reference(&self.right) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                }
-
-                // 5. Let r be ? IsLessThan(lval, rval, true).
-                // 6. If r is undefined, return false. Otherwise, return r.
-                ctx.exe.add_instruction(Instruction::LessThan);
-                return;
-            }
-            BinaryOperator::StrictEquality => {
-                self.left.compile(ctx);
-                if is_reference(&self.left) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                }
-                ctx.exe.add_instruction(Instruction::Load);
-
-                self.right.compile(ctx);
-                if is_reference(&self.right) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                }
-
-                ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
-                return;
-            }
-            BinaryOperator::StrictInequality => {
-                self.left.compile(ctx);
-                if is_reference(&self.left) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                }
-                ctx.exe.add_instruction(Instruction::Load);
-
-                self.right.compile(ctx);
-                if is_reference(&self.right) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                }
-
-                ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
-                ctx.exe.add_instruction(Instruction::LogicalNot);
-                return;
-            }
-            _ => {
-                // TODO(@carter): Figure out if this fallthrough is correct?
-            }
-        }
-
         // 1. Let lref be ? Evaluation of leftOperand.
         self.left.compile(ctx);
 
@@ -551,13 +488,87 @@ impl CompileEvaluation for ast::BinaryExpression<'_> {
             ctx.exe.add_instruction(Instruction::GetValue);
         }
 
-        ctx.exe.add_instruction(Instruction::Load);
+        match self.operator {
+            BinaryOperator::LessThan => {
+                ctx.exe.add_instruction(Instruction::LessThan);
+            }
+            BinaryOperator::LessEqualThan => {
+                ctx.exe.add_instruction(Instruction::LessThanEquals);
+            }
+            BinaryOperator::GreaterThan => {
+                ctx.exe.add_instruction(Instruction::GreaterThan);
+            }
+            BinaryOperator::GreaterEqualThan => {
+                ctx.exe.add_instruction(Instruction::GreaterThanEquals);
+            }
+            BinaryOperator::StrictEquality => {
+                ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
+            }
+            BinaryOperator::StrictInequality => {
+                ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
+                ctx.exe.add_instruction(Instruction::LogicalNot);
+            }
+            BinaryOperator::Equality => {
+                ctx.exe.add_instruction(Instruction::IsLooselyEqual);
+            }
+            BinaryOperator::Inequality => {
+                ctx.exe.add_instruction(Instruction::IsLooselyEqual);
+                ctx.exe.add_instruction(Instruction::LogicalNot);
+            }
+            BinaryOperator::In => {
+                ctx.exe.add_instruction(Instruction::HasProperty);
+            }
+            BinaryOperator::Instanceof => {
+                ctx.exe.add_instruction(Instruction::InstanceofOperator);
+            }
+            _ => {
+                // 5. Return ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
+                ctx.exe
+                    .add_instruction(Instruction::ApplyStringOrNumericBinaryOperator(
+                        self.operator,
+                    ));
+            }
+        }
+    }
+}
 
-        // 5. Return ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
-        ctx.exe
-            .add_instruction(Instruction::ApplyStringOrNumericBinaryOperator(
-                self.operator,
-            ));
+impl CompileEvaluation for ast::LogicalExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        self.left.compile(ctx);
+        if is_reference(&self.left) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        // We store the left value on the stack, because we'll need to restore
+        // it later.
+        ctx.exe.add_instruction(Instruction::LoadCopy);
+
+        match self.operator {
+            oxc_syntax::operator::LogicalOperator::Or => {
+                ctx.exe.add_instruction(Instruction::LogicalNot);
+            }
+            oxc_syntax::operator::LogicalOperator::And => {}
+            oxc_syntax::operator::LogicalOperator::Coalesce => {
+                ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
+            }
+        }
+        let jump_to_return_left = ctx
+            .exe
+            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+
+        // We're returning the right expression, so we discard the left value
+        // at the top of the stack.
+        ctx.exe.add_instruction(Instruction::Store);
+
+        self.right.compile(ctx);
+        if is_reference(&self.right) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        let jump_to_end = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+
+        ctx.exe.set_jump_target_here(jump_to_return_left);
+        // Return the result of the left expression.
+        ctx.exe.add_instruction(Instruction::Store);
+        ctx.exe.set_jump_target_here(jump_to_end);
     }
 }
 
@@ -799,6 +810,7 @@ impl CompileEvaluation for ast::Expression<'_> {
             ast::Expression::BigintLiteral(x) => x.compile(ctx),
             ast::Expression::UnaryExpression(x) => x.compile(ctx),
             ast::Expression::BinaryExpression(x) => x.compile(ctx),
+            ast::Expression::LogicalExpression(x) => x.compile(ctx),
             ast::Expression::AssignmentExpression(x) => x.compile(ctx),
             ast::Expression::ParenthesizedExpression(x) => x.compile(ctx),
             ast::Expression::NullLiteral(x) => x.compile(ctx),

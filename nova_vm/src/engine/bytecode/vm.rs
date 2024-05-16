@@ -2,8 +2,10 @@ use oxc_syntax::operator::BinaryOperator;
 
 use crate::ecmascript::{
     abstract_operations::{
-        operations_on_objects::{call, construct, create_data_property_or_throw},
-        testing_and_comparison::{is_constructor, is_less_than, is_same_type, is_strictly_equal},
+        operations_on_objects::{call, construct, create_data_property_or_throw, has_property},
+        testing_and_comparison::{
+            is_constructor, is_less_than, is_loosely_equal, is_same_type, is_strictly_equal,
+        },
         type_conversion::{
             to_boolean, to_number, to_numeric, to_primitive, to_property_key, to_string,
         },
@@ -18,8 +20,8 @@ use crate::ecmascript::{
         JsResult, ProtoIntrinsics,
     },
     types::{
-        get_value, is_unresolvable_reference, put_value, Base, BigInt, Function, IntoValue, Number,
-        Numeric, Object, PropertyKey, Reference, ReferencedName, String, Value,
+        get_value, initialize_referenced_binding, put_value, Base, BigInt, Function, IntoValue,
+        Number, Numeric, Object, PropertyKey, Reference, ReferencedName, String, Value,
         BUILTIN_STRING_MEMORY,
     },
 };
@@ -198,6 +200,9 @@ impl Vm {
             Instruction::Load => {
                 vm.stack.push(vm.result.take().unwrap());
             }
+            Instruction::LoadCopy => {
+                vm.stack.push(vm.result.unwrap());
+            }
             Instruction::Return => {
                 return Ok(ContinuationKind::Return);
             }
@@ -235,7 +240,7 @@ impl Vm {
             }
             Instruction::ApplyStringOrNumericBinaryOperator(op_text) => {
                 let lval = vm.stack.pop().unwrap();
-                let rval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
                 vm.result = Some(apply_string_or_numeric_binary_operator(
                     agent, lval, op_text, rval,
                 )?);
@@ -415,15 +420,57 @@ impl Vm {
             Instruction::LessThan => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
-                let result = is_less_than::<true>(agent, lval, rval)
-                    .unwrap()
-                    .unwrap_or_default();
+                let result = is_less_than::<true>(agent, lval, rval)? == Some(true);
                 vm.result = Some(result.into());
+            }
+            Instruction::LessThanEquals => {
+                let lval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
+                let result = is_less_than::<false>(agent, rval, lval)? == Some(false);
+                vm.result = Some(result.into());
+            }
+            Instruction::GreaterThan => {
+                let lval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
+                let result = is_less_than::<false>(agent, rval, lval)? == Some(true);
+                vm.result = Some(result.into());
+            }
+            Instruction::GreaterThanEquals => {
+                let lval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
+                let result = is_less_than::<true>(agent, lval, rval)? == Some(false);
+                vm.result = Some(result.into());
+            }
+            Instruction::HasProperty => {
+                let lval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
+                // RelationalExpression : RelationalExpression in ShiftExpression
+                // 5. If rval is not an Object, throw a TypeError exception.
+                let Ok(rval) = Object::try_from(rval) else {
+                    return Err(agent.throw_exception(
+                        ExceptionType::TypeError,
+                        "The right-hand side of an `in` expression must be an object.",
+                    ));
+                };
+                // 6. Return ? HasProperty(rval, ? ToPropertyKey(lval)).
+                let property_key = to_property_key(agent, lval)?;
+                vm.result = Some(Value::Boolean(has_property(agent, rval, property_key)?));
             }
             Instruction::IsStrictlyEqual => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
                 let result = is_strictly_equal(agent, lval, rval);
+                vm.result = Some(result.into());
+            }
+            Instruction::IsLooselyEqual => {
+                let lval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
+                let result = is_loosely_equal(agent, lval, rval)?;
+                vm.result = Some(result.into());
+            }
+            Instruction::IsNullOrUndefined => {
+                let val = vm.result.take().unwrap();
+                let result = val.is_null() || val.is_undefined();
                 vm.result = Some(result.into());
             }
             Instruction::LogicalNot => {
@@ -437,21 +484,7 @@ impl Vm {
             Instruction::InitializeReferencedBinding => {
                 let v = vm.reference.take().unwrap();
                 let w = vm.result.take().unwrap();
-                // 1. Assert: IsUnresolvableReference(V) is false.
-                debug_assert!(!is_unresolvable_reference(&v));
-                // 2. Let base be V.[[Base]].
-                let base = v.base;
-                // 3. Assert: base is an Environment Record.
-                let Base::Environment(base) = base else {
-                    unreachable!()
-                };
-                let referenced_name = match v.referenced_name {
-                    ReferencedName::String(data) => String::String(data),
-                    ReferencedName::SmallString(data) => String::SmallString(data),
-                    ReferencedName::Symbol(_) | ReferencedName::PrivateName => unreachable!(),
-                };
-                // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
-                base.initialize_binding(agent, referenced_name, w).unwrap();
+                initialize_referenced_binding(agent, v, w)?;
             }
             Instruction::EnterDeclarativeEnvironment => {
                 let outer_env = agent
@@ -570,13 +603,13 @@ fn apply_string_or_numeric_binary_operator(
         // c. If lprim is a String or rprim is a String, then
         if lprim.is_string() || rprim.is_string() {
             // i. Let lstr be ? ToString(lprim).
-            let _lstr = to_string(agent, lprim)?;
+            let lstr = to_string(agent, lprim)?;
 
             // ii. Let rstr be ? ToString(rprim).
-            let _rstr = to_string(agent, rprim)?;
+            let rstr = to_string(agent, rprim)?;
 
             // iii. Return the string-concatenation of lstr and rstr.
-            todo!("Concatenate the strings.")
+            return Ok(String::concat(agent, [lstr, rstr]).into_value());
         }
 
         // d. Set lval to lprim.

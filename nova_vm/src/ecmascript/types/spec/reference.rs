@@ -259,6 +259,32 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
     // The object that may be created in step 3.a is not accessible outside of the above abstract operation and the ordinary object [[Set]] internal method. An implementation might choose to avoid the actual creation of that object.
 }
 
+/// ### {6.2.5.8 InitializeReferencedBinding ( V, W )}(https://tc39.es/ecma262/#sec-initializereferencedbinding)
+/// The abstract operation InitializeReferencedBinding takes arguments V (a Reference Record) and W
+/// (an ECMAScript language value) and returns either a normal completion containing unused or an
+/// abrupt completion.
+pub(crate) fn initialize_referenced_binding(
+    agent: &mut Agent,
+    v: Reference,
+    w: Value,
+) -> JsResult<()> {
+    // 1. Assert: IsUnresolvableReference(V) is false.
+    debug_assert!(!is_unresolvable_reference(&v));
+    // 2. Let base be V.[[Base]].
+    let base = v.base;
+    // 3. Assert: base is an Environment Record.
+    let Base::Environment(base) = base else {
+        unreachable!()
+    };
+    let referenced_name = match v.referenced_name {
+        ReferencedName::String(data) => String::String(data),
+        ReferencedName::SmallString(data) => String::SmallString(data),
+        ReferencedName::Symbol(_) | ReferencedName::PrivateName => unreachable!(),
+    };
+    // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
+    base.initialize_binding(agent, referenced_name, w)
+}
+
 /// ### {6.2.5.7 GetThisValue ( V )}(https://tc39.es/ecma262/#sec-getthisvalue)
 /// The abstract operation GetThisValue takes argument V (a Reference Record)
 /// and returns an ECMAScript language value.

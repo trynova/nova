@@ -161,6 +161,80 @@ impl String {
         String::SmallString(SmallString::from_str_unchecked(message))
     }
 
+    pub fn concat(agent: &mut Agent, strings: impl AsRef<[String]>) -> String {
+        // TODO: This function will need heavy changes once we support creating
+        // WTF-8 strings, since WTF-8 concatenation isn't byte concatenation.
+
+        // We use this status enum so we can reuse one of the heap string inputs
+        // if the output would be identical, and so we don't allocate at all
+        // until it's clear we need a new heap string.
+        enum Status {
+            Empty,
+            ExistingString(StringIndex),
+            SmallString { data: [u8; 7], len: usize },
+            String(std::string::String),
+        }
+        let mut status = Status::Empty;
+
+        for string in strings.as_ref() {
+            if string.is_empty_string() {
+                continue;
+            }
+
+            match &mut status {
+                Status::Empty => {
+                    status = match string {
+                        String::SmallString(smstr) => Status::SmallString {
+                            data: *smstr.data(),
+                            len: smstr.len(),
+                        },
+                        String::String(idx) => Status::ExistingString(*idx),
+                    };
+                }
+                Status::ExistingString(idx) => {
+                    let mut result =
+                        std::string::String::with_capacity(agent[*idx].len() + string.len(agent));
+                    result.push_str(agent[*idx].as_str());
+                    result.push_str(string.as_str(agent));
+                    status = Status::String(result)
+                }
+                Status::SmallString { data, len } => {
+                    let string_len = string.len(agent);
+                    if *len + string_len <= 7 {
+                        let String::SmallString(smstr) = string else {
+                            // TODO: This is reachable if `string` ends with a
+                            // null byte.
+                            todo!()
+                        };
+                        data[*len..(*len + string_len)]
+                            .copy_from_slice(&smstr.data()[..string_len]);
+                        *len += string_len;
+                    } else {
+                        let mut result = std::string::String::with_capacity(*len + string_len);
+                        // SAFETY: Since SmallStrings are guaranteed UTF-8, `&data[..len]` is the result
+                        // of concatenating UTF-8 strings, which is always valid UTF-8.
+                        result.push_str(unsafe { std::str::from_utf8_unchecked(&data[..*len]) });
+                        result.push_str(string.as_str(agent));
+                        status = Status::String(result);
+                    }
+                }
+                Status::String(buffer) => buffer.push_str(string.as_str(agent)),
+            }
+        }
+
+        match status {
+            Status::Empty => String::EMPTY_STRING,
+            Status::ExistingString(idx) => String::String(idx),
+            Status::SmallString { data, len } => {
+                // SAFETY: Since SmallStrings are guaranteed UTF-8, `&data[..len]` is the result of
+                // concatenating UTF-8 strings, which is always valid UTF-8.
+                let str_slice = unsafe { std::str::from_utf8_unchecked(&data[..len]) };
+                SmallString::from_str_unchecked(str_slice).into()
+            }
+            Status::String(string) => agent.heap.create(string),
+        }
+    }
+
     pub fn into_value(self) -> Value {
         self.into()
     }
