@@ -13,7 +13,7 @@ use crate::{
         },
         execution::{
             agent::{
-                get_active_script_or_module,
+                get_active_script_or_module, resolve_binding,
                 ExceptionType::{self, SyntaxError},
             },
             new_declarative_environment, new_function_environment, Agent,
@@ -31,9 +31,9 @@ use crate::{
             },
         },
         types::{
-            ECMAScriptFunctionHeapData, Function, InternalMethods, IntoFunction, IntoObject,
-            IntoValue, Object, PropertyDescriptor, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            initialize_referenced_binding, put_value, ECMAScriptFunctionHeapData, Function,
+            InternalMethods, IntoFunction, IntoObject, IntoValue, Object, PropertyDescriptor,
+            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{indexes::ECMAScriptFunctionIndex, CreateHeapData, Heap},
@@ -940,7 +940,9 @@ pub(crate) fn function_declaration_instantiation(
     }
 
     // 22. If argumentsObjectNeeded is true, then
-    let parameter_bindings = if arguments_object_needed {
+    // Note: parameter_names is a slice of parameter_bindings.
+    let parameter_bindings;
+    let parameter_names = if arguments_object_needed {
         // a. If strict is true or simpleParameterList is false, then
         let ao: Value = if strict || !simple_parameter_list {
             // i. Let ao be CreateUnmappedArgumentsObject(argumentsList).
@@ -969,11 +971,13 @@ pub(crate) fn function_declaration_instantiation(
             // f. Let parameterBindings be the list-concatenation of parameterNames and « "arguments" ».
         }
         parameter_names.push(arguments_name);
-        parameter_names
+        parameter_bindings = parameter_names;
+        &parameter_bindings[..(parameter_bindings.len() - 1)]
     } else {
         // 23. Else,
         // a. Let parameterBindings be parameterNames.
-        parameter_names
+        parameter_bindings = parameter_names;
+        &parameter_bindings[..]
     };
 
     // 24. Let iteratorRecord be CreateListIteratorRecord(argumentsList).
@@ -988,6 +992,36 @@ pub(crate) fn function_declaration_instantiation(
     // a. Perform ? IteratorBindingInitialization of formals with arguments iteratorRecord and env.
     // iterator_binding_initialization(agent, formals, iterator_record, env);
     // }
+    if simple_parameter_list {
+        for (i, param_name) in parameter_names.iter().enumerate() {
+            // Runtime Semantics: IteratorBindingInitialization
+            // SingleNameBinding : BindingIdentifier Initializer[opt]
+            // 1. Let bindingId be StringValue of BindingIdentifier.
+            // 2. Let lhs be ? ResolveBinding(bindingId, environment).
+            let lhs = if has_duplicates {
+                resolve_binding(agent, *param_name, None)?
+            } else {
+                resolve_binding(agent, *param_name, Some(env))?
+            };
+            // 3. Let v be undefined.
+            // 4. If iteratorRecord.[[Done]] is false, then
+            //   a. Let next be ? IteratorStepValue(iteratorRecord).
+            //   b. If next is not DONE, then
+            //     i. Set v to next.
+            let v = arguments_list.get(i);
+            // 5. If initializer is present and v is undefined, then ...
+            // TODO: Support function argument initializers.
+            // 6. If environment is undefined, return ? PutValue(lhs, v).
+            if has_duplicates {
+                put_value(agent, &lhs, v)?;
+            } else {
+                // 7. Return ? InitializeReferencedBinding(lhs, v).
+                initialize_referenced_binding(agent, lhs, v)?;
+            }
+        }
+    } else {
+        todo!()
+    }
 
     // 27. If hasParameterExpressions is false, then
     let var_env = if !has_parameter_expression {
