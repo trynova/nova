@@ -202,7 +202,9 @@ impl String {
                     let string_len = string.len(agent);
                     if *len + string_len <= 7 {
                         let String::SmallString(smstr) = string else {
-                            unreachable!()
+                            // TODO: This is reachable if `string` ends with a
+                            // null byte.
+                            todo!()
                         };
                         data[*len..(*len + string_len)]
                             .copy_from_slice(&smstr.data()[..string_len]);
