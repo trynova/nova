@@ -12,6 +12,69 @@ copyleft license or just MIT is still undecided. At the end of the day,
 bigger than just a hobby-engine. If that day comes, it'd be nice to get more
 than a warm handshake out of it. Hence the ongoing lack of license.
 
+## Pull Request Code of Conduct
+
+The following ground rules should be followed:
+
+1. Be courteous.
+1. Be respectful.
+1. Be your best self, and assume the best of everyone.
+
+Then more specific ones. Feel free to also assume Rust Code of Conduct, it's
+probably a good one.
+
+### Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
+
+The initial commit of a PR branch and the PR title should follow Conventional
+Commits. Consider also using the same logic in branch names. The commonly used
+prefixes here are `fix`, `feat`, and `chore`. Other recommended ones like
+`build`, `perf`, and `refactor` are of course good as well.
+
+Scoping is also recommended, but is not currently clearly defined. Some examples
+are:
+
+1. `feat(ecmascript)`: This is an added feature to the spec-completeness of the
+   engine, eg. a new abstract operation, heap data object or such.
+1. `fix(heap)`: This fixes something in the heap implementation, eg. maybe the
+   heap garbage collection.
+1. `feat(vm)`: This adds to the interpreter.
+1. `chore(cli)`: This might bump a dependency in the `nova_cli` crate.
+
+### Use [Conventional Comments](https://conventionalcomments.org/)
+
+When reviewing PRs, use conventional comments to plainly describe your
+intention. Prefixing a comment with `issue:` means that you do not think the PR
+can be merged as-is and needs fixing. `needs (nonblocking):` means that you
+think there is a problem in the code, but it can (possibly should) be fixed as a
+followup or at a later date, and does not block merging. `nitpick:` is your
+personal hobby-horse, `question:` is pure curiosity or not understanding the
+code, etc.
+
+Also: Whenever possible, give `praise:`! Praising the code and hard work of
+others makes you feel good, and probably makes them feel good as well. Even if
+it's a minor thing, like someone drive-by fixing that typo that bugged you the
+other day, or cleaning up a weird construct into something a bit nicer, or
+whatever: Even if it's not directly related to the focal point of the PR, praise
+the work others do.
+
+By all this it goes to say: When someone gives you `praise:`, they mean it. When
+someone marks down an `issue:` they do not mean that your code is bad, they just
+mean that there's something there to improve.
+
+### Tests in PRs
+
+Whenever adding a feature, it is always a good idea to add a test. That being
+said, our test harness is currently mostly nonexistential. As such, features can
+be merged without tests **within reason**. The expectation then is that either
+the feature will be tested well by test262 or tests will be added later.
+
+### Performance considerations
+
+The engine is not at the point where performance would really be a big
+consideration. That being said, if you can show great performance or conversely
+show that performance hasn't gotten worse, then that's great! No need to worry
+about it all too much, though.
+
 ## List of active development ideas
 
 Here are some good ideas on what you can contribute to.
