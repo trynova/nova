@@ -420,26 +420,25 @@ impl Vm {
             Instruction::LessThan => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
-                let result = matches!(is_less_than::<true>(agent, lval, rval)?, Some(true));
+                let result = is_less_than::<true>(agent, lval, rval)? == Some(true);
                 vm.result = Some(result.into());
             }
             Instruction::LessThanEquals => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
-                let result =
-                    !matches!(is_less_than::<false>(agent, rval, lval)?, Some(true) | None);
+                let result = is_less_than::<false>(agent, rval, lval)? == Some(false);
                 vm.result = Some(result.into());
             }
             Instruction::GreaterThan => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
-                let result = matches!(is_less_than::<false>(agent, rval, lval)?, Some(true));
+                let result = is_less_than::<false>(agent, rval, lval)? == Some(true);
                 vm.result = Some(result.into());
             }
             Instruction::GreaterThanEquals => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
-                let result = !matches!(is_less_than::<true>(agent, lval, rval)?, Some(true) | None);
+                let result = is_less_than::<true>(agent, lval, rval)? == Some(false);
                 vm.result = Some(result.into());
             }
             Instruction::HasProperty => {
