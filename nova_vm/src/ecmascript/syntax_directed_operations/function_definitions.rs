@@ -45,7 +45,7 @@ pub(crate) fn instantiate_ordinary_function_object(
         let f = ordinary_function_create(agent, params);
 
         // 4. Perform SetFunctionName(F, name).
-        let pk_name = PropertyKey::from_str(agent, &*name);
+        let pk_name = PropertyKey::from_str(agent, &name);
         set_function_name(agent, f, pk_name, None);
         // 5. Perform MakeConstructor(F).
         make_constructor(agent, f, None, None);
