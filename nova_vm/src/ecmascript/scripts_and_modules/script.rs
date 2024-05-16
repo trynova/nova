@@ -1334,5 +1334,13 @@ mod test {
         let script = parse_script(&allocator, "foo.bar = 42; foo.bar".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
+
+        let script = parse_script(&allocator, "foo.name".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_static_str(&mut agent, "foo"));
+
+        let script = parse_script(&allocator, "foo.prototype".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert!(result.is_object())
     }
 }
