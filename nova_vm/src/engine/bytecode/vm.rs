@@ -198,6 +198,9 @@ impl Vm {
             Instruction::Load => {
                 vm.stack.push(vm.result.take().unwrap());
             }
+            Instruction::LoadCopy => {
+                vm.stack.push(vm.result.unwrap());
+            }
             Instruction::Return => {
                 return Ok(ContinuationKind::Return);
             }
@@ -424,6 +427,11 @@ impl Vm {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
                 let result = is_strictly_equal(agent, lval, rval);
+                vm.result = Some(result.into());
+            }
+            Instruction::IsNullOrUndefined => {
+                let val = vm.result.take().unwrap();
+                let result = val.is_null() || val.is_undefined();
                 vm.result = Some(result.into());
             }
             Instruction::LogicalNot => {

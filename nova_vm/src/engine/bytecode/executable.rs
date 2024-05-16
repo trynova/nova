@@ -561,6 +561,46 @@ impl CompileEvaluation for ast::BinaryExpression<'_> {
     }
 }
 
+impl CompileEvaluation for ast::LogicalExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        self.left.compile(ctx);
+        if is_reference(&self.left) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        // We store the left value on the stack, because we'll need to restore
+        // it later.
+        ctx.exe.add_instruction(Instruction::LoadCopy);
+
+        match self.operator {
+            oxc_syntax::operator::LogicalOperator::Or => {
+                ctx.exe.add_instruction(Instruction::LogicalNot);
+            }
+            oxc_syntax::operator::LogicalOperator::And => {}
+            oxc_syntax::operator::LogicalOperator::Coalesce => {
+                ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
+            }
+        }
+        let jump_to_return_left = ctx
+            .exe
+            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+
+        // We're returning the right expression, so we discard the left value
+        // at the top of the stack.
+        ctx.exe.add_instruction(Instruction::Store);
+
+        self.right.compile(ctx);
+        if is_reference(&self.right) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        let jump_to_end = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+
+        ctx.exe.set_jump_target_here(jump_to_return_left);
+        // Return the result of the left expression.
+        ctx.exe.add_instruction(Instruction::Store);
+        ctx.exe.set_jump_target_here(jump_to_end);
+    }
+}
+
 impl CompileEvaluation for ast::AssignmentExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let ast::AssignmentTarget::SimpleAssignmentTarget(target) = &self.left else {
@@ -799,6 +839,7 @@ impl CompileEvaluation for ast::Expression<'_> {
             ast::Expression::BigintLiteral(x) => x.compile(ctx),
             ast::Expression::UnaryExpression(x) => x.compile(ctx),
             ast::Expression::BinaryExpression(x) => x.compile(ctx),
+            ast::Expression::LogicalExpression(x) => x.compile(ctx),
             ast::Expression::AssignmentExpression(x) => x.compile(ctx),
             ast::Expression::ParenthesizedExpression(x) => x.compile(ctx),
             ast::Expression::NullLiteral(x) => x.compile(ctx),
