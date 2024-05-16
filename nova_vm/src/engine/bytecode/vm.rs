@@ -2,8 +2,10 @@ use oxc_syntax::operator::BinaryOperator;
 
 use crate::ecmascript::{
     abstract_operations::{
-        operations_on_objects::{call, construct, create_data_property_or_throw},
-        testing_and_comparison::{is_constructor, is_less_than, is_same_type, is_strictly_equal},
+        operations_on_objects::{call, construct, create_data_property_or_throw, has_property},
+        testing_and_comparison::{
+            is_constructor, is_less_than, is_loosely_equal, is_same_type, is_strictly_equal,
+        },
         type_conversion::{
             to_boolean, to_number, to_numeric, to_primitive, to_property_key, to_string,
         },
@@ -238,7 +240,7 @@ impl Vm {
             }
             Instruction::ApplyStringOrNumericBinaryOperator(op_text) => {
                 let lval = vm.stack.pop().unwrap();
-                let rval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
                 vm.result = Some(apply_string_or_numeric_binary_operator(
                     agent, lval, op_text, rval,
                 )?);
@@ -418,15 +420,52 @@ impl Vm {
             Instruction::LessThan => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
-                let result = is_less_than::<true>(agent, lval, rval)
-                    .unwrap()
-                    .unwrap_or_default();
+                let result = is_less_than::<true>(agent, lval, rval)? == Some(true);
                 vm.result = Some(result.into());
+            }
+            Instruction::LessThanEquals => {
+                let lval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
+                let result = is_less_than::<false>(agent, rval, lval)? == Some(false);
+                vm.result = Some(result.into());
+            }
+            Instruction::GreaterThan => {
+                let lval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
+                let result = is_less_than::<false>(agent, rval, lval)? == Some(true);
+                vm.result = Some(result.into());
+            }
+            Instruction::GreaterThanEquals => {
+                let lval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
+                let result = is_less_than::<true>(agent, lval, rval)? == Some(false);
+                vm.result = Some(result.into());
+            }
+            Instruction::HasProperty => {
+                let lval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
+                // RelationalExpression : RelationalExpression in ShiftExpression
+                // 5. If rval is not an Object, throw a TypeError exception.
+                let Ok(rval) = Object::try_from(rval) else {
+                    return Err(agent.throw_exception(
+                        ExceptionType::TypeError,
+                        "The right-hand side of an `in` expression must be an object.",
+                    ));
+                };
+                // 6. Return ? HasProperty(rval, ? ToPropertyKey(lval)).
+                let property_key = to_property_key(agent, lval)?;
+                vm.result = Some(Value::Boolean(has_property(agent, rval, property_key)?));
             }
             Instruction::IsStrictlyEqual => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
                 let result = is_strictly_equal(agent, lval, rval);
+                vm.result = Some(result.into());
+            }
+            Instruction::IsLooselyEqual => {
+                let lval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
+                let result = is_loosely_equal(agent, lval, rval)?;
                 vm.result = Some(result.into());
             }
             Instruction::IsNullOrUndefined => {
