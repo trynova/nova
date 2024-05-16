@@ -1283,4 +1283,38 @@ mod test {
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Null);
     }
+
+    #[test]
+    fn string_concat() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(&allocator, "'foo' + '' + 'bar'".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_static_str(&mut agent, "foobar"));
+
+        let script =
+            parse_script(&allocator, "'foo' + ' a heap string'".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(
+            result,
+            Value::from_static_str(&mut agent, "foo a heap string")
+        );
+
+        let script = parse_script(
+            &allocator,
+            "'Concatenating ' + 'two heap strings'".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(
+            result,
+            Value::from_static_str(&mut agent, "Concatenating two heap strings")
+        );
+    }
 }

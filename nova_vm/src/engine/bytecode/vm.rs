@@ -603,13 +603,13 @@ fn apply_string_or_numeric_binary_operator(
         // c. If lprim is a String or rprim is a String, then
         if lprim.is_string() || rprim.is_string() {
             // i. Let lstr be ? ToString(lprim).
-            let _lstr = to_string(agent, lprim)?;
+            let lstr = to_string(agent, lprim)?;
 
             // ii. Let rstr be ? ToString(rprim).
-            let _rstr = to_string(agent, rprim)?;
+            let rstr = to_string(agent, rprim)?;
 
             // iii. Return the string-concatenation of lstr and rstr.
-            todo!("Concatenate the strings.")
+            return Ok(String::concat(agent, [lstr, rstr]).into_value());
         }
 
         // d. Set lval to lprim.
