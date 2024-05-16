@@ -18,8 +18,8 @@ use crate::ecmascript::{
         JsResult, ProtoIntrinsics,
     },
     types::{
-        get_value, is_unresolvable_reference, put_value, Base, BigInt, Function, IntoValue, Number,
-        Numeric, Object, PropertyKey, Reference, ReferencedName, String, Value,
+        get_value, initialize_referenced_binding, put_value, Base, BigInt, Function, IntoValue,
+        Number, Numeric, Object, PropertyKey, Reference, ReferencedName, String, Value,
         BUILTIN_STRING_MEMORY,
     },
 };
@@ -437,21 +437,7 @@ impl Vm {
             Instruction::InitializeReferencedBinding => {
                 let v = vm.reference.take().unwrap();
                 let w = vm.result.take().unwrap();
-                // 1. Assert: IsUnresolvableReference(V) is false.
-                debug_assert!(!is_unresolvable_reference(&v));
-                // 2. Let base be V.[[Base]].
-                let base = v.base;
-                // 3. Assert: base is an Environment Record.
-                let Base::Environment(base) = base else {
-                    unreachable!()
-                };
-                let referenced_name = match v.referenced_name {
-                    ReferencedName::String(data) => String::String(data),
-                    ReferencedName::SmallString(data) => String::SmallString(data),
-                    ReferencedName::Symbol(_) | ReferencedName::PrivateName => unreachable!(),
-                };
-                // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
-                base.initialize_binding(agent, referenced_name, w).unwrap();
+                initialize_referenced_binding(agent, v, w)?;
             }
             Instruction::EnterDeclarativeEnvironment => {
                 let outer_env = agent
