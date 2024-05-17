@@ -9,7 +9,7 @@ use crate::{
             Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult,
             PrivateEnvironmentIndex,
         },
-        types::{Function, PropertyKey, String, Value},
+        types::{Function, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     engine::{Executable, FunctionExpression, Vm},
 };
@@ -29,7 +29,7 @@ pub(crate) fn instantiate_ordinary_function_object(
     // FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
     if let Some(id) = &function.id {
         // 1. Let name be StringValue of BindingIdentifier.
-        let name = id.name.clone();
+        let name = &id.name;
         // 2. Let sourceText be the source text matched by FunctionDeclaration.
         let source_text = function.body.as_ref().unwrap().span;
         // 3. Let F be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
@@ -45,7 +45,7 @@ pub(crate) fn instantiate_ordinary_function_object(
         let f = ordinary_function_create(agent, params);
 
         // 4. Perform SetFunctionName(F, name).
-        let pk_name = PropertyKey::from_str(agent, &name);
+        let pk_name = PropertyKey::from_str(agent, name);
         set_function_name(agent, f, pk_name, None);
         // 5. Perform MakeConstructor(F).
         make_constructor(agent, f, None, None);
@@ -68,7 +68,7 @@ pub(crate) fn instantiate_ordinary_function_object(
         let f = ordinary_function_create(agent, params);
 
         // 3. Perform SetFunctionName(F, "default").
-        let pk_name = PropertyKey::from_static_str(agent, "default");
+        let pk_name = PropertyKey::from(BUILTIN_STRING_MEMORY.default);
         set_function_name(agent, f, pk_name, None);
         // 4. Perform MakeConstructor(F).
         make_constructor(agent, f, None, None);
