@@ -5,6 +5,7 @@ use crate::{
         execution::{Agent, Realm},
         types::{PropertyDescriptor, Value, BUILTIN_STRING_MEMORY},
     },
+    heap::element_array::ElementDescriptor,
     Heap,
 };
 
@@ -77,14 +78,10 @@ impl PropertyStorage {
                     .enumerate()
                     .find(|(_, element_key)| element_key.unwrap() == key)
                     .map(|res| res.0);
-                let values = agent.heap.elements.get(values);
-                result.map(|index| PropertyDescriptor {
-                    value: *values.get(index).unwrap(),
-                    configurable: Some(true),
-                    enumerable: Some(true),
-                    get: None,
-                    set: None,
-                    writable: Some(true),
+                result.map(|index| {
+                    let value = *agent.heap.elements.get(values).get(index).unwrap();
+                    let descriptor = agent.heap.elements.get_descriptor(values, index);
+                    ElementDescriptor::to_property_descriptor(descriptor, value)
                 })
             }
             _ => todo!(),
@@ -92,13 +89,14 @@ impl PropertyStorage {
     }
 
     pub fn set(self, agent: &mut Agent, property_key: PropertyKey, descriptor: PropertyDescriptor) {
-        if descriptor.value.is_none() {
-            todo!("Setters / getters");
-        }
         match self.0 {
             Object::Object(object) => {
                 let ObjectHeapData { keys, values, .. } = agent[object];
                 let property_key = property_key.into_value();
+
+                let (element_descriptor, value) =
+                    ElementDescriptor::from_property_descriptor(&descriptor.into());
+
                 let result = agent
                     .heap
                     .elements
@@ -111,7 +109,11 @@ impl PropertyStorage {
                     let key_entry = agent.heap.elements.get_mut(keys).get_mut(index).unwrap();
                     *key_entry = Some(property_key);
                     let value_entry = agent.heap.elements.get_mut(values).get_mut(index).unwrap();
-                    *value_entry = descriptor.value;
+                    *value_entry = value;
+                    agent
+                        .heap
+                        .elements
+                        .set_descriptor(values, index, element_descriptor);
                 } else {
                     let Heap {
                         elements, objects, ..
@@ -126,14 +128,16 @@ impl PropertyStorage {
                         .push(elements, Some(property_key), None);
                     object_heap_data
                         .values
-                        .push(elements, descriptor.value, None);
+                        .push(elements, value, element_descriptor);
                 };
             }
             _ => todo!(),
         }
     }
 
-    pub fn remove(self, _agent: &mut Agent, _property_key: PropertyKey) {}
+    pub fn remove(self, _agent: &mut Agent, _property_key: PropertyKey) {
+        todo!()
+    }
 
     pub fn entries(self, _agent: &Agent) -> Entries {
         todo!()

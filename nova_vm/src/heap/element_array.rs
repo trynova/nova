@@ -6,7 +6,7 @@ use super::{
 use crate::ecmascript::{
     builtins::SealableElementsVector,
     execution::Agent,
-    types::{Function, PropertyKey, Value},
+    types::{Function, PropertyDescriptor, PropertyKey, Value},
 };
 use core::panic;
 use std::{
@@ -290,8 +290,22 @@ impl ElementsVector {
                 .expect("Invalid ElementsVector: Length points beyond vector bounds"),
         };
         *next_over_end = value;
-        if let Some(_descriptor) = descriptor {
-            todo!("Descriptors");
+        if let Some(descriptor) = descriptor {
+            let descriptors_map = match self.cap {
+                ElementArrayKey::Empty => unreachable!(),
+                ElementArrayKey::E4 => &mut elements.e2pow4.descriptors,
+                ElementArrayKey::E6 => &mut elements.e2pow6.descriptors,
+                ElementArrayKey::E8 => &mut elements.e2pow8.descriptors,
+                ElementArrayKey::E10 => &mut elements.e2pow10.descriptors,
+                ElementArrayKey::E12 => &mut elements.e2pow12.descriptors,
+                ElementArrayKey::E16 => &mut elements.e2pow16.descriptors,
+                ElementArrayKey::E24 => &mut elements.e2pow24.descriptors,
+                ElementArrayKey::E32 => &mut elements.e2pow32.descriptors,
+            };
+            descriptors_map
+                .entry(self.elements_index)
+                .or_default()
+                .insert(self.len, descriptor);
         }
         self.len += 1;
     }
@@ -566,6 +580,200 @@ impl ElementDescriptor {
                     None,
                 ),
             },
+        }
+    }
+
+    pub fn to_property_descriptor(
+        descriptor: Option<Self>,
+        value: Option<Value>,
+    ) -> PropertyDescriptor {
+        let descriptor =
+            descriptor.unwrap_or(ElementDescriptor::WritableEnumerableConfigurableData);
+        match descriptor {
+            ElementDescriptor::WritableEnumerableConfigurableData => PropertyDescriptor {
+                value: value,
+                configurable: Some(true),
+                enumerable: Some(true),
+                get: None,
+                set: None,
+                writable: Some(true),
+            },
+            ElementDescriptor::WritableEnumerableUnconfigurableData => PropertyDescriptor {
+                value: value,
+                configurable: Some(false),
+                enumerable: Some(true),
+                get: None,
+                set: None,
+                writable: Some(true),
+            },
+            ElementDescriptor::WritableUnenumerableConfigurableData => PropertyDescriptor {
+                value: value,
+                configurable: Some(true),
+                enumerable: Some(false),
+                get: None,
+                set: None,
+                writable: Some(true),
+            },
+            ElementDescriptor::WritableUnenumerableUnconfigurableData => PropertyDescriptor {
+                value: value,
+                configurable: Some(false),
+                enumerable: Some(false),
+                get: None,
+                set: None,
+                writable: Some(true),
+            },
+            ElementDescriptor::ReadOnlyEnumerableConfigurableData => PropertyDescriptor {
+                value: value,
+                configurable: Some(true),
+                enumerable: Some(true),
+                get: None,
+                set: None,
+                writable: Some(false),
+            },
+            ElementDescriptor::ReadOnlyEnumerableUnconfigurableData => PropertyDescriptor {
+                value: value,
+                configurable: Some(false),
+                enumerable: Some(true),
+                get: None,
+                set: None,
+                writable: Some(false),
+            },
+            ElementDescriptor::ReadOnlyUnenumerableConfigurableData => PropertyDescriptor {
+                value: value,
+                configurable: Some(true),
+                enumerable: Some(false),
+                get: None,
+                set: None,
+                writable: Some(false),
+            },
+            ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData => PropertyDescriptor {
+                value: value,
+                configurable: Some(false),
+                enumerable: Some(false),
+                get: None,
+                set: None,
+                writable: Some(false),
+            },
+            ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(true),
+                    enumerable: Some(true),
+                    get: Some(get),
+                    set: None,
+                    writable: None,
+                }
+            }
+            ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(false),
+                    enumerable: Some(true),
+                    get: Some(get),
+                    set: None,
+                    writable: None,
+                }
+            }
+            ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(true),
+                    enumerable: Some(false),
+                    get: Some(get),
+                    set: None,
+                    writable: None,
+                }
+            }
+            ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { get } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(false),
+                    enumerable: Some(false),
+                    get: Some(get),
+                    set: None,
+                    writable: None,
+                }
+            }
+            ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(true),
+                    enumerable: Some(true),
+                    get: None,
+                    set: Some(set),
+                    writable: None,
+                }
+            }
+            ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(false),
+                    enumerable: Some(true),
+                    get: None,
+                    set: Some(set),
+                    writable: None,
+                }
+            }
+            ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(true),
+                    enumerable: Some(false),
+                    get: None,
+                    set: Some(set),
+                    writable: None,
+                }
+            }
+            ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor { set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(false),
+                    enumerable: Some(false),
+                    get: None,
+                    set: Some(set),
+                    writable: None,
+                }
+            }
+            ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { get, set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(true),
+                    enumerable: Some(true),
+                    get: Some(get),
+                    set: Some(set),
+                    writable: None,
+                }
+            }
+            ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { get, set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(false),
+                    enumerable: Some(true),
+                    get: Some(get),
+                    set: Some(set),
+                    writable: None,
+                }
+            }
+            ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { get, set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(true),
+                    enumerable: Some(false),
+                    get: Some(get),
+                    set: Some(set),
+                    writable: None,
+                }
+            }
+            ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { get, set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(false),
+                    enumerable: Some(false),
+                    get: Some(get),
+                    set: Some(set),
+                    writable: None,
+                }
+            }
         }
     }
 
@@ -1322,6 +1530,58 @@ impl ElementArrays {
                 .as_mut()
                 .unwrap()
                 .as_mut_slice()[0..vector.len as usize],
+        }
+    }
+
+    pub fn get_descriptor(
+        &self,
+        vector: ElementsVector,
+        index: usize,
+    ) -> Option<ElementDescriptor> {
+        let Ok(index) = u32::try_from(index) else {
+            return None;
+        };
+        let descriptors = match vector.cap {
+            ElementArrayKey::Empty => return None,
+            ElementArrayKey::E4 => &self.e2pow4.descriptors,
+            ElementArrayKey::E6 => &self.e2pow6.descriptors,
+            ElementArrayKey::E8 => &self.e2pow8.descriptors,
+            ElementArrayKey::E10 => &self.e2pow10.descriptors,
+            ElementArrayKey::E12 => &self.e2pow12.descriptors,
+            ElementArrayKey::E16 => &self.e2pow16.descriptors,
+            ElementArrayKey::E24 => &self.e2pow24.descriptors,
+            ElementArrayKey::E32 => &self.e2pow32.descriptors,
+        };
+        descriptors
+            .get(&vector.elements_index)?
+            .get(&index)
+            .copied()
+    }
+
+    pub fn set_descriptor(
+        &mut self,
+        vector: ElementsVector,
+        index: usize,
+        descriptor: Option<ElementDescriptor>,
+    ) {
+        let index: u32 = index.try_into().unwrap();
+        assert!(index < vector.len);
+        let descriptors = match vector.cap {
+            ElementArrayKey::Empty => unreachable!(),
+            ElementArrayKey::E4 => &mut self.e2pow4.descriptors,
+            ElementArrayKey::E6 => &mut self.e2pow6.descriptors,
+            ElementArrayKey::E8 => &mut self.e2pow8.descriptors,
+            ElementArrayKey::E10 => &mut self.e2pow10.descriptors,
+            ElementArrayKey::E12 => &mut self.e2pow12.descriptors,
+            ElementArrayKey::E16 => &mut self.e2pow16.descriptors,
+            ElementArrayKey::E24 => &mut self.e2pow24.descriptors,
+            ElementArrayKey::E32 => &mut self.e2pow32.descriptors,
+        };
+        let inner_map = descriptors.get_mut(&vector.elements_index).unwrap();
+        if let Some(descriptor) = descriptor {
+            inner_map.insert(index, descriptor);
+        } else {
+            inner_map.remove(&index);
         }
     }
 
