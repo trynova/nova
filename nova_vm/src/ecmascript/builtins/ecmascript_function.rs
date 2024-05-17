@@ -802,13 +802,13 @@ pub(crate) fn make_constructor(
     let key = PropertyKey::from(BUILTIN_STRING_MEMORY.prototype);
     define_property_or_throw(
         agent,
-        prototype,
+        function.into_object(),
         key,
         PropertyDescriptor {
             value: Some(prototype.into_value()),
             writable: Some(writable_prototype),
             enumerable: Some(false),
-            configurable: Some(true),
+            configurable: Some(false),
             ..Default::default()
         },
     )

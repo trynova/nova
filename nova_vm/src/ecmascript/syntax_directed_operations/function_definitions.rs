@@ -1,14 +1,15 @@
 use crate::{
     ecmascript::{
         builtins::{
-            function_declaration_instantiation, ordinary_function_create, set_function_name,
-            ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams, ThisMode,
+            function_declaration_instantiation, make_constructor, ordinary_function_create,
+            set_function_name, ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams,
+            ThisMode,
         },
         execution::{
             Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult,
             PrivateEnvironmentIndex,
         },
-        types::{Function, PropertyKey, String, Value},
+        types::{Function, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     engine::{Executable, FunctionExpression, Vm},
 };
@@ -28,7 +29,7 @@ pub(crate) fn instantiate_ordinary_function_object(
     // FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
     if let Some(id) = &function.id {
         // 1. Let name be StringValue of BindingIdentifier.
-        let _name = id.name.clone();
+        let name = &id.name;
         // 2. Let sourceText be the source text matched by FunctionDeclaration.
         let source_text = function.body.as_ref().unwrap().span;
         // 3. Let F be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
@@ -41,13 +42,15 @@ pub(crate) fn instantiate_ordinary_function_object(
             env,
             private_env,
         };
+        let f = ordinary_function_create(agent, params);
 
         // 4. Perform SetFunctionName(F, name).
-        // set_function_name(f, name);
+        let pk_name = PropertyKey::from_str(agent, name);
+        set_function_name(agent, f, pk_name, None);
         // 5. Perform MakeConstructor(F).
-        // make_constructor(f);
+        make_constructor(agent, f, None, None);
         // 6. Return F.
-        ordinary_function_create(agent, params)
+        f
     } else {
         // FunctionDeclaration : function ( FormalParameters ) { FunctionBody }
         // 1. Let sourceText be the source text matched by FunctionDeclaration.
@@ -62,13 +65,15 @@ pub(crate) fn instantiate_ordinary_function_object(
             env,
             private_env,
         };
+        let f = ordinary_function_create(agent, params);
 
         // 3. Perform SetFunctionName(F, "default").
-        // set_function_name(f, "default");
+        let pk_name = PropertyKey::from(BUILTIN_STRING_MEMORY.default);
+        set_function_name(agent, f, pk_name, None);
         // 4. Perform MakeConstructor(F).
-        // make_constructor(f);
+        make_constructor(agent, f, None, None);
         // 5. Return F.
-        ordinary_function_create(agent, params)
+        f
     }
     // NOTE
     // An anonymous FunctionDeclaration can only occur as part of an export default declaration, and its function code is therefore always strict mode code.
@@ -115,6 +120,7 @@ pub(crate) fn instantiate_ordinary_function_expression(
         let name = PropertyKey::from(name);
         set_function_name(agent, closure, name, None);
         // 7. Perform MakeConstructor(closure).
+        make_constructor(agent, closure, None, None);
         // 8. Return closure.
         closure
     }
