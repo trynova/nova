@@ -87,12 +87,23 @@ impl NativeErrorConstructors {
     #[inline(always)]
     fn behaviour(
         agent: &mut Agent,
-        intrinsics: ProtoIntrinsics,
+        error_kind: ExceptionType,
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
         let message = arguments.get(0);
         let options = arguments.get(1);
+
+        let intrinsic = match error_kind {
+            ExceptionType::Error => ProtoIntrinsics::Error,
+            ExceptionType::AggregateError => ProtoIntrinsics::AggregateError,
+            ExceptionType::EvalError => ProtoIntrinsics::EvalError,
+            ExceptionType::RangeError => ProtoIntrinsics::RangeError,
+            ExceptionType::ReferenceError => ProtoIntrinsics::ReferenceError,
+            ExceptionType::SyntaxError => ProtoIntrinsics::SyntaxError,
+            ExceptionType::TypeError => ProtoIntrinsics::TypeError,
+            ExceptionType::UriError => ProtoIntrinsics::UriError,
+        };
 
         let new_target = new_target.unwrap_or_else(|| {
             agent
@@ -104,7 +115,7 @@ impl NativeErrorConstructors {
         let o = ordinary_create_from_constructor(
             agent,
             Function::try_from(new_target).unwrap(),
-            intrinsics,
+            intrinsic,
             (),
         )?;
         let msg = if !message.is_undefined() {
@@ -116,7 +127,7 @@ impl NativeErrorConstructors {
         let o = Error::try_from(o).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
         let heap_data = &mut agent[o];
-        heap_data.kind = ExceptionType::Error;
+        heap_data.kind = error_kind;
         heap_data.message = msg;
         heap_data.cause = cause;
         Ok(o.into_value())
@@ -128,7 +139,7 @@ impl NativeErrorConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ProtoIntrinsics::EvalError, arguments, new_target)
+        Self::behaviour(agent, ExceptionType::EvalError, arguments, new_target)
     }
 
     fn range_behaviour(
@@ -137,7 +148,7 @@ impl NativeErrorConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ProtoIntrinsics::RangeError, arguments, new_target)
+        Self::behaviour(agent, ExceptionType::RangeError, arguments, new_target)
     }
 
     fn reference_behaviour(
@@ -146,12 +157,7 @@ impl NativeErrorConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
-        Self::behaviour(
-            agent,
-            ProtoIntrinsics::ReferenceError,
-            arguments,
-            new_target,
-        )
+        Self::behaviour(agent, ExceptionType::ReferenceError, arguments, new_target)
     }
 
     fn syntax_behaviour(
@@ -160,7 +166,7 @@ impl NativeErrorConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ProtoIntrinsics::SyntaxError, arguments, new_target)
+        Self::behaviour(agent, ExceptionType::SyntaxError, arguments, new_target)
     }
 
     fn type_behaviour(
@@ -169,7 +175,7 @@ impl NativeErrorConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ProtoIntrinsics::TypeError, arguments, new_target)
+        Self::behaviour(agent, ExceptionType::TypeError, arguments, new_target)
     }
 
     fn uri_behaviour(
@@ -178,7 +184,7 @@ impl NativeErrorConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ProtoIntrinsics::UriError, arguments, new_target)
+        Self::behaviour(agent, ExceptionType::UriError, arguments, new_target)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
