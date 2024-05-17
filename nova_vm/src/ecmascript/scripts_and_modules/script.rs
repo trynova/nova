@@ -849,6 +849,19 @@ mod test {
     }
 
     #[test]
+    fn empty_declared_function_call() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(&allocator, "function f() {}; f();".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert!(result.is_undefined());
+    }
+
+    #[test]
     fn non_empty_iife_function_call() {
         let allocator = Allocator::default();
 

@@ -362,17 +362,12 @@ fn validate_and_apply_property_descriptor(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            // try object.propertyStorage().set(property_key, PropertyDescriptor{
-            //     .value = descriptor.value orelse .undefined,
-            //     .writable = descriptor.writable orelse false,
-            //     .enumerable = descriptor.enumerable orelse false,
-            //     .configurable = descriptor.configurable orelse false,
-            // });
             object.property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
                     value: Some(descriptor.value.unwrap_or(Value::Undefined)),
+                    writable: Some(descriptor.writable.unwrap_or(false)),
                     enumerable: Some(descriptor.enumerable.unwrap_or(false)),
                     configurable: Some(descriptor.configurable.unwrap_or(false)),
                     ..Default::default()
@@ -401,10 +396,8 @@ fn validate_and_apply_property_descriptor(
 
         // b. If Desc has an [[Enumerable]] field and SameValue(Desc.[[Enumerable]], current.[[Enumerable]])
         //    is false, return false.
-        if let Some(true) = descriptor.enumerable {
-            if descriptor.enumerable != current.enumerable {
-                return Ok(false);
-            }
+        if descriptor.enumerable.is_some() && descriptor.enumerable != current.enumerable {
+            return Ok(false);
         }
 
         // c. If IsGenericDescriptor(Desc) is false and SameValue(IsAccessorDescriptor(Desc), IsAccessorDescriptor(current))
@@ -442,7 +435,7 @@ fn validate_and_apply_property_descriptor(
             }
         }
         // e. Else if current.[[Writable]] is false, then
-        else if let Some(true) = current.writable {
+        else if current.writable == Some(false) {
             // i. If Desc has a [[Writable]] field and Desc.[[Writable]] is true, return false.
             if let Some(true) = descriptor.writable {
                 return Ok(false);
@@ -541,7 +534,7 @@ fn validate_and_apply_property_descriptor(
                 property_key,
                 PropertyDescriptor {
                     value: descriptor.value.or(current.value),
-                    writable: Some(descriptor.writable.unwrap_or(false)),
+                    writable: descriptor.writable.or(current.writable),
                     get: descriptor.get.or(current.get),
                     set: descriptor.set.or(current.set),
                     enumerable: descriptor.enumerable.or(current.enumerable),
