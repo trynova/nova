@@ -435,7 +435,7 @@ fn validate_and_apply_property_descriptor(
             }
         }
         // e. Else if current.[[Writable]] is false, then
-        else if let Some(false) = current.writable {
+        else if current.writable == Some(false) {
             // i. If Desc has a [[Writable]] field and Desc.[[Writable]] is true, return false.
             if let Some(true) = descriptor.writable {
                 return Ok(false);
