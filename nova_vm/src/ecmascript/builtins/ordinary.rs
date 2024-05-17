@@ -711,7 +711,10 @@ pub(crate) fn ordinary_set_with_own_descriptor(
         // e. Else,
         else {
             // i. Assert: Receiver does not currently have a property P.
-            debug_assert!(!receiver.property_storage().has(agent, property_key));
+            debug_assert!(receiver
+                .internal_get_own_property(agent, property_key)
+                .unwrap()
+                .is_none());
 
             // ii. Return ? CreateDataProperty(Receiver, P, V).
             return create_data_property(agent, receiver, property_key, value);

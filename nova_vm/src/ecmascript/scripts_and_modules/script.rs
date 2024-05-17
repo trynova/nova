@@ -1317,4 +1317,22 @@ mod test {
             Value::from_static_str(&mut agent, "Concatenating two heap strings")
         );
     }
+
+    #[test]
+    fn property_access_on_functions() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script =
+            parse_script(&allocator, "function foo() {}; foo.bar".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Undefined);
+
+        let script = parse_script(&allocator, "foo.bar = 42; foo.bar".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(42)));
+    }
 }
