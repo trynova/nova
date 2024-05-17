@@ -591,7 +591,7 @@ impl ElementDescriptor {
             descriptor.unwrap_or(ElementDescriptor::WritableEnumerableConfigurableData);
         match descriptor {
             ElementDescriptor::WritableEnumerableConfigurableData => PropertyDescriptor {
-                value: value,
+                value,
                 configurable: Some(true),
                 enumerable: Some(true),
                 get: None,
@@ -599,7 +599,7 @@ impl ElementDescriptor {
                 writable: Some(true),
             },
             ElementDescriptor::WritableEnumerableUnconfigurableData => PropertyDescriptor {
-                value: value,
+                value,
                 configurable: Some(false),
                 enumerable: Some(true),
                 get: None,
@@ -607,7 +607,7 @@ impl ElementDescriptor {
                 writable: Some(true),
             },
             ElementDescriptor::WritableUnenumerableConfigurableData => PropertyDescriptor {
-                value: value,
+                value,
                 configurable: Some(true),
                 enumerable: Some(false),
                 get: None,
@@ -615,7 +615,7 @@ impl ElementDescriptor {
                 writable: Some(true),
             },
             ElementDescriptor::WritableUnenumerableUnconfigurableData => PropertyDescriptor {
-                value: value,
+                value,
                 configurable: Some(false),
                 enumerable: Some(false),
                 get: None,
@@ -623,7 +623,7 @@ impl ElementDescriptor {
                 writable: Some(true),
             },
             ElementDescriptor::ReadOnlyEnumerableConfigurableData => PropertyDescriptor {
-                value: value,
+                value,
                 configurable: Some(true),
                 enumerable: Some(true),
                 get: None,
@@ -631,7 +631,7 @@ impl ElementDescriptor {
                 writable: Some(false),
             },
             ElementDescriptor::ReadOnlyEnumerableUnconfigurableData => PropertyDescriptor {
-                value: value,
+                value,
                 configurable: Some(false),
                 enumerable: Some(true),
                 get: None,
@@ -639,7 +639,7 @@ impl ElementDescriptor {
                 writable: Some(false),
             },
             ElementDescriptor::ReadOnlyUnenumerableConfigurableData => PropertyDescriptor {
-                value: value,
+                value,
                 configurable: Some(true),
                 enumerable: Some(false),
                 get: None,
@@ -647,7 +647,7 @@ impl ElementDescriptor {
                 writable: Some(false),
             },
             ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData => PropertyDescriptor {
-                value: value,
+                value,
                 configurable: Some(false),
                 enumerable: Some(false),
                 get: None,
