@@ -1352,8 +1352,28 @@ mod test {
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "foo"));
 
+        let script = parse_script(&allocator, "foo.length".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::zero()));
+
         let script = parse_script(&allocator, "foo.prototype".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_object())
+    }
+
+    fn name_and_length_on_builtin_functions() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(&allocator, "TypeError.name".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_static_str(&mut agent, "TypeError"));
+
+        let script = parse_script(&allocator, "TypeError.length".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(1)));
     }
 }

@@ -274,16 +274,27 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, CreatorName, B, P
     }
 }
 
-impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties> {
+impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, NoProperties> {
     #[must_use]
     pub fn with_property_capacity(
         self,
         cap: usize,
-    ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
+    ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
             ObjectIndex::last(&self.agent.heap.objects)
         }));
+        let mut property_vector = Vec::with_capacity(cap + 2);
+        property_vector.push((
+            PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+            Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
+            Some(self.length.0.into()),
+        ));
+        property_vector.push((
+            PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+            Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
+            Some(self.name.0.into()),
+        ));
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
@@ -293,7 +304,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
             length: self.length,
             name: self.name,
             behaviour: self.behaviour,
-            properties: CreatorProperties(Vec::with_capacity(cap)),
+            properties: CreatorProperties(property_vector),
         }
     }
 
@@ -302,11 +313,24 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
         self,
         key: PropertyKey,
         value: Value,
-    ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
+    ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
             ObjectIndex::last(&self.agent.heap.objects)
         }));
+        let property_vector = vec![
+            (
+                PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+                Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
+                Some(self.length.0.into()),
+            ),
+            (
+                PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+                Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
+                Some(self.name.0.into()),
+            ),
+            (key, None, Some(value)),
+        ];
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
@@ -316,7 +340,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
             length: self.length,
             name: self.name,
             behaviour: self.behaviour,
-            properties: CreatorProperties(vec![(key, None, Some(value))]),
+            properties: CreatorProperties(property_vector),
         }
     }
 
@@ -326,7 +350,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
         creator: impl FnOnce(
             PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
         ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
-    ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
+    ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
             ObjectIndex::last(&self.agent.heap.objects)
@@ -335,6 +359,19 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
             let builder = PropertyBuilder::new(self.agent);
             creator(builder)
         };
+        let property_vector = vec![
+            (
+                PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+                Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
+                Some(self.length.0.into()),
+            ),
+            (
+                PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+                Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
+                Some(self.name.0.into()),
+            ),
+            property,
+        ];
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
@@ -344,7 +381,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
             length: self.length,
             name: self.name,
             behaviour: self.behaviour,
-            properties: CreatorProperties(vec![property]),
+            properties: CreatorProperties(property_vector),
         }
     }
 }
