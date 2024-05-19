@@ -1377,4 +1377,34 @@ mod test {
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(1)));
     }
+
+    #[test]
+    fn constructor() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "function foo() {}; foo.prototype".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        let foo_prototype = Object::try_from(result).unwrap();
+
+        let script = parse_script(&allocator, "new foo()".into(), realm, None).unwrap();
+        let result = match script_evaluation(&mut agent, script) {
+            Ok(result) => result,
+            Err(err) => panic!("{}", err.to_string(&mut agent).as_str(&agent)),
+        };
+        let instance = Object::try_from(result).unwrap();
+        assert_eq!(
+            instance.internal_get_prototype_of(&mut agent).unwrap(),
+            Some(foo_prototype)
+        );
+    }
 }

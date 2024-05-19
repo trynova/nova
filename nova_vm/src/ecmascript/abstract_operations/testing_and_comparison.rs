@@ -71,7 +71,10 @@ pub(crate) fn is_constructor(agent: &mut Agent, constructor: Value) -> bool {
             let behaviour = agent[idx].behaviour;
             matches!(behaviour, Behaviour::Constructor(_))
         }
-        Value::ECMAScriptFunction(idx) => agent[idx].ecmascript_function.is_class_constructor,
+        Value::ECMAScriptFunction(idx) => agent[idx]
+            .ecmascript_function
+            .constructor_status
+            .is_constructor(),
         // TODO: Proxy
         _ => false,
     }
