@@ -107,7 +107,7 @@ impl ArrayConstructor {
         // 4. If numberOfArgs = 0, then
         if number_of_args == 0 {
             // a. Return ! ArrayCreate(0, proto).
-            return Ok(array_create(agent, 0, 0, Some(proto)).unwrap().into_value());
+            return Ok(array_create(agent, 0, 0, proto).unwrap().into_value());
         }
 
         // 5. Else if numberOfArgs = 1, then
@@ -116,7 +116,7 @@ impl ArrayConstructor {
             let len = arguments.get(0);
 
             // b. Let array be ! ArrayCreate(0, proto).
-            let array = array_create(agent, 0, 0, Some(proto)).unwrap();
+            let array = array_create(agent, 0, 0, proto).unwrap();
 
             // c. If len is not a Number, then
             let int_len = if !len.is_number() {
@@ -162,7 +162,7 @@ impl ArrayConstructor {
         debug_assert!(number_of_args >= 2);
 
         // b. Let array be ? ArrayCreate(numberOfArgs, proto).
-        let array = array_create(agent, number_of_args, 0, Some(proto))?;
+        let array = array_create(agent, number_of_args, 0, proto)?;
         // NOTE: `array_create` guarantees that it is less than `u32::MAX`
         let number_of_args = number_of_args as u32;
 

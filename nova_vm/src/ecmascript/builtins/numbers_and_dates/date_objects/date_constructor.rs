@@ -110,7 +110,6 @@ impl DateConstructor {
             agent,
             Function::try_from(new_target).unwrap(),
             ProtoIntrinsics::Date,
-            (),
         )?;
         // 7. Set O.[[DateValue]] to dv.
         agent[Date::try_from(o).unwrap()].date = Some(dv);

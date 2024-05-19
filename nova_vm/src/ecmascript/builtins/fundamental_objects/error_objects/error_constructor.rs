@@ -63,7 +63,7 @@ impl ErrorConstructor {
             |new_target| Function::try_from(new_target).unwrap(),
         );
         // 2. Let O be ? OrdinaryCreateFromConstructor(newTarget, "%Error.prototype%", « [[ErrorData]] »).
-        let o = ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::Error, ())?;
+        let o = ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::Error)?;
         let o = Error::try_from(o).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
         let heap_data = &mut agent[o];

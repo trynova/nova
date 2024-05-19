@@ -42,7 +42,7 @@ impl BooleanConstructor {
             return Ok(b.into());
         };
         let new_target = Function::try_from(new_target).unwrap();
-        let _ = ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::Boolean, ())?;
+        let _ = ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::Boolean)?;
         todo!();
     }
 

@@ -266,13 +266,12 @@ impl ObjectConstructor {
                 // SAFETY: 'new_target' is checked to be is_some() above
                 unsafe { new_target.unwrap_unchecked() }.try_into().unwrap(),
                 ProtoIntrinsics::Object,
-                (),
             )
             .map(|value| value.into_value())
         } else if value == Value::Undefined || value == Value::Null {
             // 2. If value is either undefined or null, return OrdinaryObjectCreate(%Object.prototype%).
             Ok(
-                ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object))
+                ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None)
                     .into_value(),
             )
         } else {
