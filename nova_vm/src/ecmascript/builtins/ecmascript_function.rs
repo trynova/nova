@@ -532,7 +532,8 @@ impl InternalMethods for ECMAScriptFunction {
         let value = result?;
         // 10. If result is a return completion, then
         //   a. If result.[[Value]] is an Object, return result.[[Value]].
-        if value.is_object() {
+        if let Ok(value) = Object::try_from(value) {
+            return Ok(value);
             return Ok(Object::try_from(value).unwrap());
         }
         //   b. If kind is base, return thisArgument.
