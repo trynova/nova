@@ -1399,7 +1399,7 @@ mod test {
         let script = parse_script(&allocator, "new foo()".into(), realm, None).unwrap();
         let result = match script_evaluation(&mut agent, script) {
             Ok(result) => result,
-            Err(err) => panic!("{}", err.to_string(&mut agent).as_str(&mut agent)),
+            Err(err) => panic!("{}", err.to_string(&mut agent).as_str(&agent)),
         };
         let instance = Object::try_from(result).unwrap();
         assert_eq!(
