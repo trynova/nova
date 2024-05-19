@@ -534,7 +534,6 @@ impl InternalMethods for ECMAScriptFunction {
         //   a. If result.[[Value]] is an Object, return result.[[Value]].
         if let Ok(value) = Object::try_from(value) {
             return Ok(value);
-            return Ok(Object::try_from(value).unwrap());
         }
         //   b. If kind is base, return thisArgument.
         if is_base {
@@ -838,7 +837,7 @@ pub(crate) fn make_constructor(
         Function::ECMAScriptFunction(idx) => {
             let data = &mut agent[idx];
             // a. Assert: IsConstructor(F) is false.
-            assert!(!data.ecmascript_function.constructor_status.is_constructor());
+            debug_assert!(!data.ecmascript_function.constructor_status.is_constructor());
             // b. Assert: F is an extensible object that does not have a "prototype" own property.
             // TODO: Handle Some() object indexes?
             assert!(data.object_index.is_none());
