@@ -16,8 +16,8 @@ use crate::ecmascript::{
     },
     execution::{
         agent::{resolve_binding, ExceptionType, JsError},
-        new_declarative_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
-        JsResult, ProtoIntrinsics,
+        get_this_environment, new_declarative_environment, Agent, ECMAScriptCodeEvaluationState,
+        EnvironmentIndex, JsResult, ProtoIntrinsics,
     },
     types::{
         get_value, initialize_referenced_binding, put_value, Base, BigInt, Function, IntoValue,
@@ -193,6 +193,17 @@ impl Vm {
 
                 vm.reference = Some(reference);
             }
+            Instruction::ResolveThisBinding => {
+                // 1. Let envRec be GetThisEnvironment().
+                let env_rec = get_this_environment(agent);
+                // 2. Return ? envRec.GetThisBinding().
+                vm.result = Some(match env_rec {
+                    EnvironmentIndex::Declarative(_) => unreachable!(),
+                    EnvironmentIndex::Function(idx) => idx.get_this_binding(agent)?,
+                    EnvironmentIndex::Global(idx) => idx.get_this_binding(agent).into_value(),
+                    EnvironmentIndex::Object(_) => unreachable!(),
+                });
+            }
             Instruction::LoadConstant => {
                 let constant = vm.fetch_constant(executable, instr.args[0].unwrap() as usize);
                 vm.stack.push(constant);
@@ -311,7 +322,7 @@ impl Vm {
                     source_text: function_expression.expression.span,
                     parameters_list: &function_expression.expression.params,
                     body: function_expression.expression.body.as_ref().unwrap(),
-                    this_mode: ThisMode::Lexical,
+                    this_mode: ThisMode::Global,
                     env: lexical_environment,
                     private_env: private_environment,
                 };
