@@ -1361,6 +1361,7 @@ mod test {
         assert!(result.is_object())
     }
 
+    #[test]
     fn name_and_length_on_builtin_functions() {
         let allocator = Allocator::default();
 
