@@ -556,7 +556,7 @@ impl Environments {
     }
 }
 
-/// ### {9.4.3 GetThisEnvironment ( )}(https://tc39.es/ecma262/#sec-getthisenvironment)
+/// ### [9.4.3 GetThisEnvironment ( )](https://tc39.es/ecma262/#sec-getthisenvironment)
 /// The abstract operation GetThisEnvironment takes no arguments and returns an
 /// Environment Record. It finds the Environment Record that currently supplies
 /// the binding of the keyword this.
