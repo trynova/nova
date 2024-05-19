@@ -801,6 +801,12 @@ impl CompileEvaluation for ast::PrivateFieldExpression<'_> {
     }
 }
 
+impl CompileEvaluation for ast::ThisExpression {
+    fn compile(&self, ctx: &mut CompileContext) {
+        ctx.exe.add_instruction(Instruction::ResolveThisBinding);
+    }
+}
+
 impl CompileEvaluation for ast::Expression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
@@ -822,6 +828,7 @@ impl CompileEvaluation for ast::Expression<'_> {
             ast::Expression::UpdateExpression(x) => x.compile(ctx),
             ast::Expression::ArrayExpression(x) => x.compile(ctx),
             ast::Expression::NewExpression(x) => x.compile(ctx),
+            ast::Expression::ThisExpression(x) => x.compile(ctx),
             other => todo!("{other:?}"),
         }
     }

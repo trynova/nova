@@ -122,6 +122,25 @@ impl FunctionEnvironmentIndex {
         self.heap_data(agent).this_binding_status
     }
 
+    /// ### [9.1.1.3.4 GetThisBinding ( )](https://tc39.es/ecma262/#sec-function-environment-records-getthisbinding)
+    /// The GetThisBinding concrete method of a Function Environment Record
+    /// envRec takes no arguments and returns either a normal completion
+    /// containing an ECMAScript language value or a throw completion.
+    pub(crate) fn get_this_binding(self, agent: &mut Agent) -> JsResult<Value> {
+        // 1. Assert: envRec.[[ThisBindingStatus]] is not lexical.
+        // 2. If envRec.[[ThisBindingStatus]] is uninitialized, throw a ReferenceError exception.
+        // 3. Return envRec.[[ThisValue]].
+        let env_rec = self.heap_data(agent);
+        match env_rec.this_binding_status {
+            ThisBindingStatus::Lexical => unreachable!(),
+            ThisBindingStatus::Initialized => Ok(env_rec.this_value.unwrap()),
+            ThisBindingStatus::Uninitialized => {
+                Err(agent
+                    .throw_exception(ExceptionType::ReferenceError, "Uninitialized this binding"))
+            }
+        }
+    }
+
     /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
     pub(crate) fn has_binding(self, agent: &Agent, name: String) -> bool {
         let env_rec = self.heap_data(agent);

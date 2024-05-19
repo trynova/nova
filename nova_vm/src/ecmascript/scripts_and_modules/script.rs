@@ -1407,4 +1407,33 @@ mod test {
             Some(foo_prototype)
         );
     }
+
+    #[test]
+    fn this_expression() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "function foo() { this.bar = 42; }; new foo().bar".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(42)));
+
+        let script = parse_script(
+            &allocator,
+            "foo.prototype.baz = function() { return this.bar + 10; }; (new foo()).baz()".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(52)));
+    }
 }

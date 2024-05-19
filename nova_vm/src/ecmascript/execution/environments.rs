@@ -555,3 +555,29 @@ impl Environments {
             .expect("ObjectEnvironmentIndex pointed to a None")
     }
 }
+
+/// ### {9.4.3 GetThisEnvironment ( )}(https://tc39.es/ecma262/#sec-getthisenvironment)
+/// The abstract operation GetThisEnvironment takes no arguments and returns an
+/// Environment Record. It finds the Environment Record that currently supplies
+/// the binding of the keyword this.
+pub(crate) fn get_this_environment(agent: &mut Agent) -> EnvironmentIndex {
+    // 1. Let env be the running execution context's LexicalEnvironment.
+    let mut env = agent
+        .running_execution_context()
+        .ecmascript_code
+        .as_ref()
+        .unwrap()
+        .lexical_environment;
+    // 2. Repeat,
+    loop {
+        // a. Let exists be env.HasThisBinding().
+        // b. If exists is true, return env.
+        if env.has_this_binding(agent) {
+            return env;
+        }
+        // c. Let outer be env.[[OuterEnv]].
+        // d. Assert: outer is not null.
+        // e. Set env to outer.
+        env = env.get_outer_env(agent).unwrap();
+    }
+}
