@@ -285,8 +285,11 @@ impl Vm {
                 vm.result = Some(typeof_operator(agent, val).into())
             }
             Instruction::ObjectCreate => {
-                let object =
-                    ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object));
+                let object = ordinary_object_create_with_intrinsics(
+                    agent,
+                    Some(ProtoIntrinsics::Object),
+                    None,
+                );
                 vm.stack.push(object.into())
             }
             Instruction::InstantiateOrdinaryFunctionExpression => {

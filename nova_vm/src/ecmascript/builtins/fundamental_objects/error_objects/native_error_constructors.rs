@@ -116,7 +116,6 @@ impl NativeErrorConstructors {
             agent,
             Function::try_from(new_target).unwrap(),
             intrinsic,
-            (),
         )?;
         let msg = if !message.is_undefined() {
             Some(to_string(agent, message)?)

@@ -780,7 +780,7 @@ pub(crate) fn make_constructor(
     let prototype = prototype.unwrap_or_else(|| {
         // a. Set prototype to OrdinaryObjectCreate(%Object.prototype%).
         let prototype =
-            ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object));
+            ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
         // b. Perform ! DefinePropertyOrThrow(prototype, "constructor", PropertyDescriptor { [[Value]]: F, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: true }).
         let key = PropertyKey::from(BUILTIN_STRING_MEMORY.constructor);
         define_property_or_throw(
