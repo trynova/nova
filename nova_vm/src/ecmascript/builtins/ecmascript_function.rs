@@ -43,7 +43,8 @@ use crate::{
 };
 
 use super::{
-    create_unmapped_arguments_object, ordinary::ordinary_object_create_with_intrinsics,
+    create_unmapped_arguments_object,
+    ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
     ArgumentsList,
 };
 
@@ -98,10 +99,27 @@ impl From<ECMAScriptFunction> for Function {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum ConstructorKind {
-    Base,
-    Derived,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConstructorStatus {
+    NonConstructor,
+    ConstructorFunction,
+    BaseClass,
+    DerivedClass,
+}
+
+impl ConstructorStatus {
+    pub fn is_constructor(self) -> bool {
+        self != ConstructorStatus::NonConstructor
+    }
+    pub fn is_class_constructor(self) -> bool {
+        matches!(
+            self,
+            ConstructorStatus::BaseClass | ConstructorStatus::DerivedClass
+        )
+    }
+    pub fn is_derived_class(self) -> bool {
+        self == ConstructorStatus::DerivedClass
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -133,7 +151,8 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     pub ecmascript_code: &'static FunctionBody<'static>,
 
     /// \[\[ConstructorKind]]
-    pub constructor_kind: ConstructorKind,
+    /// \[\[IsClassConstructor]]
+    pub constructor_status: ConstructorStatus,
 
     /// \[\[Realm]]
     pub realm: RealmIdentifier,
@@ -152,10 +171,7 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
 
     ///  [[SourceText]]
     pub source_text: Span,
-
     // TODO: [[Fields]],  [[PrivateMethods]], [[ClassFieldInitializerName]]
-    /// \[\[IsClassConstructor]]
-    pub is_class_constructor: bool,
 }
 
 pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
@@ -429,7 +445,11 @@ impl InternalMethods for ECMAScriptFunction {
         // 3. Assert: calleeContext is now the running execution context.
         // assert!(std::ptr::eq(agent.running_execution_context(), callee_context));
         // 4. If F.[[IsClassConstructor]] is true, then
-        if agent[self].ecmascript_function.is_class_constructor {
+        if agent[self]
+            .ecmascript_function
+            .constructor_status
+            .is_class_constructor()
+        {
             // a. Let error be a newly created TypeError object.
             // b. NOTE: error is created in calleeContext with F's associated Realm Record.
             let error = agent.throw_exception(ExceptionType::TypeError, "fail");
@@ -454,11 +474,76 @@ impl InternalMethods for ECMAScriptFunction {
 
     fn internal_construct(
         self,
-        _agent: &mut Agent,
-        _arguments_list: ArgumentsList,
-        _new_target: Function,
+        agent: &mut Agent,
+        arguments_list: ArgumentsList,
+        new_target: Function,
     ) -> JsResult<Object> {
-        todo!()
+        // 2. Let kind be F.[[ConstructorKind]].
+        let is_base = !agent[self]
+            .ecmascript_function
+            .constructor_status
+            .is_derived_class();
+        // 3. If kind is BASE, then
+        let this_argument = if is_base {
+            // a. Let thisArgument be ? OrdinaryCreateFromConstructor(newTarget, "%Object.prototype%").
+            Some(ordinary_create_from_constructor(
+                agent,
+                new_target,
+                ProtoIntrinsics::Object,
+            )?)
+        } else {
+            None
+        };
+
+        // 4. Let calleeContext be PrepareForOrdinaryCall(F, newTarget).
+        let callee_context = prepare_for_ordinary_call(agent, self, Some(new_target.into_object()));
+        // 7. Let constructorEnv be the LexicalEnvironment of calleeContext.
+        let constructor_env = callee_context
+            .ecmascript_code
+            .as_ref()
+            .unwrap()
+            .lexical_environment;
+        // 5. Assert: calleeContext is now the running execution context.
+        // assert!(std::ptr::eq(agent.running_execution_context(), callee_context));
+
+        // 6. If kind is base, then
+        if is_base {
+            // a. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
+            ordinary_call_bind_this(
+                agent,
+                self,
+                constructor_env,
+                this_argument.unwrap().into_value(),
+            );
+            // b. Let initializeResult be Completion(InitializeInstanceElements(thisArgument, F)).
+            // c. If initializeResult is an abrupt completion, then
+            //    i. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
+            //    ii. Return ? initializeResult.
+            // TODO: Classes.
+        }
+
+        // 8. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
+        let result = ordinary_call_evaluate_body(agent, self, arguments_list);
+        // 9. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
+        agent.execution_context_stack.pop();
+        // 10. If result is a return completion, then
+        // 11. Else,
+        //   a. ReturnIfAbrupt(result).
+        let value = result?;
+        // 10. If result is a return completion, then
+        //   a. If result.[[Value]] is an Object, return result.[[Value]].
+        if value.is_object() {
+            return Ok(Object::try_from(value).unwrap());
+        }
+        //   b. If kind is base, return thisArgument.
+        if is_base {
+            return Ok(this_argument.unwrap());
+        }
+        todo!("Derived classes");
+        //   c. If result.[[Value]] is not undefined, throw a TypeError exception.
+        // 12. Let thisBinding be ? constructorEnv.GetThisBinding().
+        // 13. Assert: thisBinding is an Object.
+        // 14. Return thisBinding.
     }
 }
 
@@ -672,7 +757,8 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
                 params.body,
             )
         },
-        constructor_kind: ConstructorKind::Base,
+        // 12. Set F.[[IsClassConstructor]] to false.
+        constructor_status: ConstructorStatus::NonConstructor,
         // 16. Set F.[[Realm]] to the current Realm Record.
         realm: agent.current_realm_id(),
         // 15. Set F.[[ScriptOrModule]] to GetActiveScriptOrModule().
@@ -688,8 +774,6 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
         home_object: None,
         // 4. Set F.[[SourceText]] to sourceText.
         source_text: params.source_text,
-        // 12. Set F.[[IsClassConstructor]] to false.
-        is_class_constructor: false,
     };
 
     let mut function = ECMAScriptFunctionHeapData {
@@ -751,15 +835,15 @@ pub(crate) fn make_constructor(
         Function::BoundFunction(_) => unreachable!(),
         // 1. If F is an ECMAScript function object, then
         Function::ECMAScriptFunction(idx) => {
-            // a. Assert: IsConstructor(F) is false.
-            // TODO: How do we separate constructors and non-constructors?
             let data = &mut agent[idx];
+            // a. Assert: IsConstructor(F) is false.
+            assert!(!data.ecmascript_function.constructor_status.is_constructor());
             // b. Assert: F is an extensible object that does not have a "prototype" own property.
             // TODO: Handle Some() object indexes?
             assert!(data.object_index.is_none());
             // c. Set F.[[Construct]] to the definition specified in 10.2.2.
             // 3. Set F.[[ConstructorKind]] to BASE.
-            data.ecmascript_function.constructor_kind = ConstructorKind::Base;
+            data.ecmascript_function.constructor_status = ConstructorStatus::ConstructorFunction;
         }
         Function::BuiltinFunction(_) => {
             // 2. Else,
