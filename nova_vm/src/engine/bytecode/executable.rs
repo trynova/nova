@@ -294,7 +294,9 @@ pub(crate) trait CompileEvaluation {
 fn is_reference(expression: &ast::Expression) -> bool {
     match expression {
         ast::Expression::Identifier(_)
-        | ast::Expression::MemberExpression(_)
+        | ast::Expression::ComputedMemberExpression(_)
+        | ast::Expression::StaticMemberExpression(_)
+        | ast::Expression::PrivateFieldExpression(_)
         | ast::Expression::Super(_) => true,
         ast::Expression::ParenthesizedExpression(parenthesized) => {
             is_reference(&parenthesized.expression)
@@ -321,10 +323,10 @@ impl CompileEvaluation for ast::BooleanLiteral {
 impl CompileEvaluation for ast::BigIntLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let radix = match self.base {
-            oxc_syntax::BigintBase::Decimal => 10,
-            oxc_syntax::BigintBase::Binary => 2,
-            oxc_syntax::BigintBase::Octal => 8,
-            oxc_syntax::BigintBase::Hex => 16,
+            oxc_syntax::number::BigintBase::Decimal => 10,
+            oxc_syntax::number::BigintBase::Binary => 2,
+            oxc_syntax::number::BigintBase::Octal => 8,
+            oxc_syntax::number::BigintBase::Hex => 16,
         };
         // Drop out the trailing 'n' from BigInt literals.
         let last_index = self.raw.len() - 1;
@@ -574,18 +576,20 @@ impl CompileEvaluation for ast::LogicalExpression<'_> {
 
 impl CompileEvaluation for ast::AssignmentExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        let ast::AssignmentTarget::SimpleAssignmentTarget(target) = &self.left else {
-            todo!("{:?}", self.left);
-        };
-
-        match &target {
-            ast::SimpleAssignmentTarget::AssignmentTargetIdentifier(identifier) => {
-                identifier.compile(ctx);
+        match &self.left {
+            ast::AssignmentTarget::ArrayAssignmentTarget(_) => todo!(),
+            ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) => {
+                identifier.compile(ctx)
             }
-            ast::SimpleAssignmentTarget::MemberAssignmentTarget(expression) => {
-                expression.compile(ctx)
-            }
-            _ => todo!("{target:?}"),
+            ast::AssignmentTarget::ComputedMemberExpression(expression) => expression.compile(ctx),
+            ast::AssignmentTarget::ObjectAssignmentTarget(_) => todo!(),
+            ast::AssignmentTarget::PrivateFieldExpression(_) => todo!(),
+            ast::AssignmentTarget::StaticMemberExpression(expression) => expression.compile(ctx),
+            ast::AssignmentTarget::TSAsExpression(_)
+            | ast::AssignmentTarget::TSSatisfiesExpression(_)
+            | ast::AssignmentTarget::TSNonNullExpression(_)
+            | ast::AssignmentTarget::TSTypeAssertion(_)
+            | ast::AssignmentTarget::TSInstantiationExpression(_) => unreachable!(),
         }
 
         ctx.exe.add_instruction(Instruction::PushReference);
@@ -635,19 +639,78 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
             match property {
                 ast::ObjectPropertyKind::ObjectProperty(prop) => {
                     match &prop.key {
-                        ast::PropertyKey::Identifier(id) => {
-                            // TODO: If property key is __proto__ and it is not a shorthand ({ __proto__ })
-                            // then we should dispatch a SetPrototype instruction.
+                        ast::PropertyKey::ArrayExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::ArrowFunctionExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::AssignmentExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::AwaitExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::BigintLiteral(init) => init.compile(ctx),
+                        ast::PropertyKey::BinaryExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::BooleanLiteral(init) => init.compile(ctx),
+                        ast::PropertyKey::CallExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::ChainExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::ClassExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::ComputedMemberExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::ConditionalExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::FunctionExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::Identifier(init) => init.compile(ctx),
+                        ast::PropertyKey::ImportExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::LogicalExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::MetaProperty(init) => init.compile(ctx),
+                        ast::PropertyKey::NewExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::NullLiteral(init) => init.compile(ctx),
+                        ast::PropertyKey::NumericLiteral(init) => init.compile(ctx),
+                        ast::PropertyKey::ObjectExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::ParenthesizedExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::PrivateFieldExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::PrivateIdentifier(_init) => todo!(),
+                        ast::PropertyKey::PrivateInExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::RegExpLiteral(init) => init.compile(ctx),
+                        ast::PropertyKey::SequenceExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::StaticIdentifier(id) => {
+                            if id.name == "__proto__" {
+                                // TODO: If property key is "__proto__" then we
+                                // should dispatch a SetPrototype instruction.
+                                todo!();
+                            } else {
+                                let property_key = crate::ecmascript::types::PropertyKey::from_str(
+                                    ctx.agent, &id.name,
+                                );
+                                ctx.exe.add_instruction_with_constant(
+                                    Instruction::LoadConstant,
+                                    property_key,
+                                );
+                            }
+                        }
+                        ast::PropertyKey::StaticMemberExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::StringLiteral(init) => {
+                            // NOTE: No "__proto__" handling as this is a
+                            // computed property.
                             let property_key = crate::ecmascript::types::PropertyKey::from_str(
-                                ctx.agent, &id.name,
+                                ctx.agent,
+                                &init.value,
                             );
                             ctx.exe.add_instruction_with_constant(
                                 Instruction::LoadConstant,
                                 property_key,
                             );
                         }
-                        ast::PropertyKey::PrivateIdentifier(_) => todo!(),
-                        ast::PropertyKey::Expression(_) => todo!(),
+                        ast::PropertyKey::Super(init) => {
+                            init.compile(ctx);
+                            ctx.exe.add_instruction(Instruction::GetValue);
+                        }
+                        ast::PropertyKey::TaggedTemplateExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::TemplateLiteral(init) => init.compile(ctx),
+                        ast::PropertyKey::ThisExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::UnaryExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::UpdateExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::YieldExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::JSXElement(_)
+                        | ast::PropertyKey::JSXFragment(_)
+                        | ast::PropertyKey::TSAsExpression(_)
+                        | ast::PropertyKey::TSSatisfiesExpression(_)
+                        | ast::PropertyKey::TSTypeAssertion(_)
+                        | ast::PropertyKey::TSNonNullExpression(_)
+                        | ast::PropertyKey::TSInstantiationExpression(_) => unreachable!(),
                     }
                     prop.value.compile(ctx);
                     if is_reference(&prop.value) {
@@ -673,19 +736,156 @@ impl CompileEvaluation for ast::ArrayExpression<'_> {
             .add_instruction_with_immediate(Instruction::ArrayCreate, elements_min_count);
         for ele in &self.elements {
             match ele {
-                ast::ArrayExpressionElement::SpreadElement(_) => todo!(),
-                ast::ArrayExpressionElement::Expression(expr) => {
-                    expr.compile(ctx);
-                    if is_reference(expr) {
+                ast::ArrayExpressionElement::ArrayExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::ArrowFunctionExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::AssignmentExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::AwaitExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::BigintLiteral(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::BinaryExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::BooleanLiteral(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::CallExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::ChainExpression(init) => {
+                    init.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ast::ArrayExpressionElement::ClassExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::ComputedMemberExpression(init) => {
+                    init.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ast::ArrayExpressionElement::ConditionalExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::Elision(_) => todo!(),
+                ast::ArrayExpressionElement::FunctionExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::Identifier(init) => {
+                    init.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ast::ArrayExpressionElement::ImportExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::LogicalExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::MetaProperty(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::NewExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::NullLiteral(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::NumericLiteral(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::ObjectExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::ParenthesizedExpression(init) => {
+                    init.compile(ctx);
+                    if is_reference(&init.expression) {
                         ctx.exe.add_instruction(Instruction::GetValue);
                     }
-
-                    ctx.exe.add_instruction(Instruction::ArrayPush);
                 }
-                ast::ArrayExpressionElement::Elision(_) => todo!(),
+                ast::ArrayExpressionElement::PrivateFieldExpression(init) => {
+                    init.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ast::ArrayExpressionElement::PrivateInExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::RegExpLiteral(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::SequenceExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::SpreadElement(_) => todo!(),
+                ast::ArrayExpressionElement::StaticMemberExpression(init) => {
+                    init.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ast::ArrayExpressionElement::StringLiteral(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::Super(init) => {
+                    init.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ast::ArrayExpressionElement::TaggedTemplateExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::TemplateLiteral(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::ThisExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::UnaryExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::UpdateExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::YieldExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::JSXElement(_)
+                | ast::ArrayExpressionElement::JSXFragment(_)
+                | ast::ArrayExpressionElement::TSAsExpression(_)
+                | ast::ArrayExpressionElement::TSSatisfiesExpression(_)
+                | ast::ArrayExpressionElement::TSTypeAssertion(_)
+                | ast::ArrayExpressionElement::TSNonNullExpression(_)
+                | ast::ArrayExpressionElement::TSInstantiationExpression(_) => unreachable!(),
             }
+            ctx.exe.add_instruction(Instruction::ArrayPush);
         }
         ctx.exe.add_instruction(Instruction::Store);
+    }
+}
+
+impl CompileEvaluation for ast::Argument<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        match self {
+            ast::Argument::SpreadElement(_) => {
+                panic!("Cannot support SpreadElements currently")
+            }
+            _ => {
+                match self {
+                    ast::Argument::BooleanLiteral(x) => x.compile(ctx),
+                    ast::Argument::NullLiteral(x) => x.compile(ctx),
+                    ast::Argument::NumericLiteral(x) => x.compile(ctx),
+                    ast::Argument::BigintLiteral(x) => x.compile(ctx),
+                    ast::Argument::RegExpLiteral(x) => x.compile(ctx),
+                    ast::Argument::StringLiteral(x) => x.compile(ctx),
+                    ast::Argument::TemplateLiteral(x) => x.compile(ctx),
+                    ast::Argument::Identifier(x) => {
+                        x.compile(ctx);
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    ast::Argument::MetaProperty(x) => x.compile(ctx),
+                    ast::Argument::Super(_) => {
+                        todo!();
+                        // x.compile(ctx);
+                        // ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    ast::Argument::ArrayExpression(x) => x.compile(ctx),
+                    ast::Argument::ArrowFunctionExpression(x) => x.compile(ctx),
+                    ast::Argument::AssignmentExpression(x) => x.compile(ctx),
+                    ast::Argument::AwaitExpression(x) => x.compile(ctx),
+                    ast::Argument::BinaryExpression(x) => x.compile(ctx),
+                    ast::Argument::CallExpression(x) => x.compile(ctx),
+                    ast::Argument::ChainExpression(x) => x.compile(ctx),
+                    ast::Argument::ClassExpression(x) => x.compile(ctx),
+                    ast::Argument::ConditionalExpression(x) => x.compile(ctx),
+                    ast::Argument::FunctionExpression(x) => x.compile(ctx),
+                    ast::Argument::ImportExpression(x) => x.compile(ctx),
+                    ast::Argument::LogicalExpression(x) => x.compile(ctx),
+                    ast::Argument::NewExpression(x) => x.compile(ctx),
+                    ast::Argument::ObjectExpression(x) => x.compile(ctx),
+                    ast::Argument::ParenthesizedExpression(x) => {
+                        x.compile(ctx);
+                        if is_reference(&x.expression) {
+                            ctx.exe.add_instruction(Instruction::GetValue);
+                        }
+                    }
+                    ast::Argument::SequenceExpression(x) => x.compile(ctx),
+                    ast::Argument::TaggedTemplateExpression(x) => x.compile(ctx),
+                    ast::Argument::ThisExpression(x) => x.compile(ctx),
+                    ast::Argument::UnaryExpression(x) => x.compile(ctx),
+                    ast::Argument::UpdateExpression(x) => x.compile(ctx),
+                    ast::Argument::YieldExpression(x) => x.compile(ctx),
+                    ast::Argument::PrivateInExpression(x) => x.compile(ctx),
+                    ast::Argument::ComputedMemberExpression(x) => {
+                        x.compile(ctx);
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    ast::Argument::StaticMemberExpression(x) => {
+                        x.compile(ctx);
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    ast::Argument::PrivateFieldExpression(x) => {
+                        x.compile(ctx);
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    ast::Argument::SpreadElement(_)
+                    | ast::Argument::JSXElement(_)
+                    | ast::Argument::JSXFragment(_)
+                    | ast::Argument::TSAsExpression(_)
+                    | ast::Argument::TSSatisfiesExpression(_)
+                    | ast::Argument::TSTypeAssertion(_)
+                    | ast::Argument::TSNonNullExpression(_)
+                    | ast::Argument::TSInstantiationExpression(_) => unreachable!(),
+                }
+                ctx.exe.add_instruction(Instruction::Load);
+            }
+        }
     }
 }
 
@@ -697,18 +897,7 @@ impl CompileEvaluation for CallExpression<'_> {
         }
         ctx.exe.add_instruction(Instruction::Load);
         for ele in &self.arguments {
-            match ele {
-                ast::Argument::SpreadElement(_) => {
-                    panic!("Cannot support SpreadElements currently")
-                }
-                ast::Argument::Expression(expr) => {
-                    expr.compile(ctx);
-                    if is_reference(expr) {
-                        ctx.exe.add_instruction(Instruction::GetValue);
-                    }
-                    ctx.exe.add_instruction(Instruction::Load);
-                }
-            }
+            ele.compile(ctx);
         }
 
         ctx.exe
@@ -724,18 +913,7 @@ impl CompileEvaluation for NewExpression<'_> {
         }
         ctx.exe.add_instruction(Instruction::Load);
         for ele in &self.arguments {
-            match ele {
-                ast::Argument::SpreadElement(_) => {
-                    panic!("Cannot support SpreadElements currently")
-                }
-                ast::Argument::Expression(expr) => {
-                    expr.compile(ctx);
-                    if is_reference(expr) {
-                        ctx.exe.add_instruction(Instruction::GetValue);
-                    }
-                    ctx.exe.add_instruction(Instruction::Load);
-                }
-            }
+            ele.compile(ctx);
         }
 
         ctx.exe
@@ -801,35 +979,141 @@ impl CompileEvaluation for ast::PrivateFieldExpression<'_> {
     }
 }
 
+impl CompileEvaluation for ast::AwaitExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::ChainExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::Class<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::ConditionalExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::ImportExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::MetaProperty<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::PrivateInExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::RegExpLiteral<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::SequenceExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::Super {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::TaggedTemplateExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::TemplateLiteral<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
 impl CompileEvaluation for ast::ThisExpression {
     fn compile(&self, ctx: &mut CompileContext) {
         ctx.exe.add_instruction(Instruction::ResolveThisBinding);
     }
 }
 
+impl CompileEvaluation for ast::UsingDeclaration<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::YieldExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
 impl CompileEvaluation for ast::Expression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
-            ast::Expression::NumericLiteral(x) => x.compile(ctx),
-            ast::Expression::BooleanLiteral(x) => x.compile(ctx),
-            ast::Expression::Identifier(x) => x.compile(ctx),
-            ast::Expression::BigintLiteral(x) => x.compile(ctx),
-            ast::Expression::UnaryExpression(x) => x.compile(ctx),
-            ast::Expression::BinaryExpression(x) => x.compile(ctx),
-            ast::Expression::LogicalExpression(x) => x.compile(ctx),
-            ast::Expression::AssignmentExpression(x) => x.compile(ctx),
-            ast::Expression::ParenthesizedExpression(x) => x.compile(ctx),
-            ast::Expression::NullLiteral(x) => x.compile(ctx),
-            ast::Expression::StringLiteral(x) => x.compile(ctx),
-            ast::Expression::FunctionExpression(x) => x.compile(ctx),
-            ast::Expression::ObjectExpression(x) => x.compile(ctx),
-            ast::Expression::CallExpression(x) => x.compile(ctx),
-            ast::Expression::MemberExpression(x) => x.compile(ctx),
-            ast::Expression::UpdateExpression(x) => x.compile(ctx),
             ast::Expression::ArrayExpression(x) => x.compile(ctx),
+            ast::Expression::ArrowFunctionExpression(x) => x.compile(ctx),
+            ast::Expression::AssignmentExpression(x) => x.compile(ctx),
+            ast::Expression::AwaitExpression(x) => x.compile(ctx),
+            ast::Expression::BigintLiteral(x) => x.compile(ctx),
+            ast::Expression::BinaryExpression(x) => x.compile(ctx),
+            ast::Expression::BooleanLiteral(x) => x.compile(ctx),
+            ast::Expression::CallExpression(x) => x.compile(ctx),
+            ast::Expression::ChainExpression(x) => x.compile(ctx),
+            ast::Expression::ClassExpression(x) => x.compile(ctx),
+            ast::Expression::ComputedMemberExpression(x) => x.compile(ctx),
+            ast::Expression::ConditionalExpression(x) => x.compile(ctx),
+            ast::Expression::FunctionExpression(x) => x.compile(ctx),
+            ast::Expression::Identifier(x) => x.compile(ctx),
+            ast::Expression::ImportExpression(x) => x.compile(ctx),
+            ast::Expression::LogicalExpression(x) => x.compile(ctx),
+            ast::Expression::MetaProperty(x) => x.compile(ctx),
             ast::Expression::NewExpression(x) => x.compile(ctx),
+            ast::Expression::NullLiteral(x) => x.compile(ctx),
+            ast::Expression::NumericLiteral(x) => x.compile(ctx),
+            ast::Expression::ObjectExpression(x) => x.compile(ctx),
+            ast::Expression::ParenthesizedExpression(x) => x.compile(ctx),
+            ast::Expression::PrivateFieldExpression(x) => x.compile(ctx),
+            ast::Expression::PrivateInExpression(x) => x.compile(ctx),
+            ast::Expression::RegExpLiteral(x) => x.compile(ctx),
+            ast::Expression::SequenceExpression(x) => x.compile(ctx),
+            ast::Expression::StaticMemberExpression(x) => x.compile(ctx),
+            ast::Expression::StringLiteral(x) => x.compile(ctx),
+            ast::Expression::Super(x) => x.compile(ctx),
+            ast::Expression::TaggedTemplateExpression(x) => x.compile(ctx),
+            ast::Expression::TemplateLiteral(x) => x.compile(ctx),
             ast::Expression::ThisExpression(x) => x.compile(ctx),
-            other => todo!("{other:?}"),
+            ast::Expression::UnaryExpression(x) => x.compile(ctx),
+            ast::Expression::UpdateExpression(x) => x.compile(ctx),
+            ast::Expression::YieldExpression(x) => x.compile(ctx),
+            ast::Expression::JSXElement(_)
+            | ast::Expression::JSXFragment(_)
+            | ast::Expression::TSAsExpression(_)
+            | ast::Expression::TSSatisfiesExpression(_)
+            | ast::Expression::TSTypeAssertion(_)
+            | ast::Expression::TSNonNullExpression(_)
+            | ast::Expression::TSInstantiationExpression(_) => unreachable!(),
         }
     }
 }
@@ -838,10 +1122,13 @@ impl CompileEvaluation for ast::UpdateExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match &self.argument {
             ast::SimpleAssignmentTarget::AssignmentTargetIdentifier(x) => x.compile(ctx),
-            ast::SimpleAssignmentTarget::MemberAssignmentTarget(_) => todo!(),
+            ast::SimpleAssignmentTarget::ComputedMemberExpression(x) => x.compile(ctx),
+            ast::SimpleAssignmentTarget::PrivateFieldExpression(_) => todo!(),
+            ast::SimpleAssignmentTarget::StaticMemberExpression(x) => x.compile(ctx),
             ast::SimpleAssignmentTarget::TSAsExpression(_)
-            | ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
+            | ast::SimpleAssignmentTarget::TSInstantiationExpression(_)
             | ast::SimpleAssignmentTarget::TSNonNullExpression(_)
+            | ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
             | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         }
         ctx.exe.add_instruction(Instruction::GetValueKeepReference);
@@ -1141,9 +1428,50 @@ impl CompileEvaluation for ast::ForStatement<'_> {
                 todo!();
             }
             match init {
+                ast::ForStatementInit::ArrayExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::ArrowFunctionExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::AssignmentExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::AwaitExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::BigintLiteral(init) => init.compile(ctx),
+                ast::ForStatementInit::BinaryExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::BooleanLiteral(init) => init.compile(ctx),
+                ast::ForStatementInit::CallExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::ChainExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::ClassExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::ComputedMemberExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::ConditionalExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::FunctionExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::Identifier(init) => init.compile(ctx),
+                ast::ForStatementInit::ImportExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::LogicalExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::MetaProperty(init) => init.compile(ctx),
+                ast::ForStatementInit::NewExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::NullLiteral(init) => init.compile(ctx),
+                ast::ForStatementInit::NumericLiteral(init) => init.compile(ctx),
+                ast::ForStatementInit::ObjectExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::ParenthesizedExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::PrivateFieldExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::PrivateInExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::RegExpLiteral(init) => init.compile(ctx),
+                ast::ForStatementInit::SequenceExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::StaticMemberExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::StringLiteral(init) => init.compile(ctx),
+                ast::ForStatementInit::Super(init) => init.compile(ctx),
+                ast::ForStatementInit::TaggedTemplateExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::TemplateLiteral(init) => init.compile(ctx),
+                ast::ForStatementInit::ThisExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::UnaryExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::UpdateExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::UsingDeclaration(init) => init.compile(ctx),
                 ast::ForStatementInit::VariableDeclaration(init) => init.compile(ctx),
-                ast::ForStatementInit::Expression(init) => init.compile(ctx),
-                ast::ForStatementInit::UsingDeclaration(_) => todo!(),
+                ast::ForStatementInit::YieldExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::JSXElement(_)
+                | ast::ForStatementInit::JSXFragment(_)
+                | ast::ForStatementInit::TSAsExpression(_)
+                | ast::ForStatementInit::TSSatisfiesExpression(_)
+                | ast::ForStatementInit::TSTypeAssertion(_)
+                | ast::ForStatementInit::TSNonNullExpression(_)
+                | ast::ForStatementInit::TSInstantiationExpression(_) => unreachable!(),
             }
         }
         let loop_jump = ctx.exe.get_jump_index_to_here();
@@ -1222,7 +1550,8 @@ impl CompileEvaluation for ast::Statement<'_> {
             ast::Statement::ExpressionStatement(x) => x.compile(ctx),
             ast::Statement::ReturnStatement(x) => x.compile(ctx),
             ast::Statement::IfStatement(x) => x.compile(ctx),
-            ast::Statement::Declaration(x) => x.compile(ctx),
+            ast::Statement::VariableDeclaration(x) => x.compile(ctx),
+            ast::Statement::FunctionDeclaration(x) => x.compile(ctx),
             ast::Statement::BlockStatement(x) => x.compile(ctx),
             ast::Statement::EmptyStatement(_) => {}
             ast::Statement::ForStatement(x) => x.compile(ctx),
