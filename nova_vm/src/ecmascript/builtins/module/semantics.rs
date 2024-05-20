@@ -35,7 +35,7 @@ pub(crate) fn module_requests(agent: &mut Agent, program: &Program<'_>) -> Box<[
     let mut strings = vec![];
     // Module : [empty]
     // 1. Return a new empty List.
-    for statement in program.body {
+    for statement in &program.body {
         // ModuleItemList : ModuleItem
 
         // 1. Return ModuleRequests of ModuleItem.
@@ -99,13 +99,13 @@ pub fn import_entries(agent: &mut Agent, program: &Program<'_>) -> Box<[ImportEn
     // 1. Let entries1 be ImportEntries of ModuleItemList.
     // 2. Let entries2 be ImportEntries of ModuleItem.
     // 3. Return the list-concatenation of entries1 and entries2.
-    for statement in program.body {
+    for statement in &program.body {
         match statement {
             oxc_ast::ast::Statement::ModuleDeclaration(decl) => {
                 match decl.deref() {
                     oxc_ast::ast::ModuleDeclaration::ImportDeclaration(decl) => {
                         // ImportDeclaration : import ModuleSpecifier ;
-                        let Some(specifiers) = decl.specifiers else {
+                        let Some(specifiers) = &decl.specifiers else {
                             // 1. Return a new empty List.
                             continue;
                         };
@@ -118,10 +118,12 @@ pub fn import_entries(agent: &mut Agent, program: &Program<'_>) -> Box<[ImportEn
                         // ImportEntryRecords. The Program's internal data is not moved, so the
                         // Atom references are "safe".
                         let module = unsafe {
-                            std::mem::transmute::<Atom<'_>, Atom<'static>>(decl.source.value)
+                            std::mem::transmute::<Atom<'_>, Atom<'static>>(
+                                decl.source.value.clone(),
+                            )
                         };
                         // 2. Return ImportEntriesForModule of ImportClause with argument module.
-                        import_entries_for_module(agent, &specifiers, module, &mut |entry| {
+                        import_entries_for_module(agent, specifiers, module, &mut |entry| {
                             entries.push(entry)
                         });
                     }
@@ -182,7 +184,7 @@ fn import_entries_for_module(
                 // 2. Let entry be the ImportEntry Record {
                 let entry = ImportEntryRecord {
                     // [[ModuleRequest]]: module,
-                    module_request: specifier.local.name,
+                    module_request: module.clone(),
                     // [[ImportName]]: localName / importName,
                     import_name: BUILTIN_STRING_MEMORY.default.into(),
                     // [[LocalName]]: localName
@@ -199,7 +201,7 @@ fn import_entries_for_module(
                 // 2. Let defaultEntry be the ImportEntry Record {
                 let default_entry = ImportEntryRecord {
                     // [[ModuleRequest]]: module,
-                    module_request: specifier.local.name,
+                    module_request: module.clone(),
                     // [[ImportName]]: "default",
                     import_name: BUILTIN_STRING_MEMORY.default.into(),
                     // [[LocalName]]: localName
@@ -217,7 +219,7 @@ fn import_entries_for_module(
                 // 2. Let entry be the ImportEntry Record {
                 let entry = ImportEntryRecord {
                     // [[ModuleRequest]]: module,
-                    module_request: specifier.local.name,
+                    module_request: module.clone(),
                     // [[ImportName]]: namespace-object,
                     import_name: ImportName::NamespaceObject,
                     // [[LocalName]]: localName

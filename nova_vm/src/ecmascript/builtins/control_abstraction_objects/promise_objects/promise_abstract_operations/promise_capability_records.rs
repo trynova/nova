@@ -2,28 +2,35 @@
 
 use std::ops::{Index, IndexMut};
 
-use crate::{ecmascript::{abstract_operations::operations_on_objects::{call, call_function}, builtins::ArgumentsList, execution::{agent::JsError, Agent, JsResult}, types::{Function, IntoValue, Object, Value}}, heap::{indexes::BaseIndex, Heap}};
-
+use crate::{
+    ecmascript::{
+        abstract_operations::operations_on_objects::{call, call_function},
+        builtins::ArgumentsList,
+        execution::{agent::JsError, Agent, JsResult},
+        types::{Function, IntoValue, Object, Value},
+    },
+    heap::{indexes::BaseIndex, Heap},
+};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PromiseCapabilityRecord {
-    /// \[\[Promise\]\] 
-    /// 
-    /// an Object 
-    /// 
+    /// \[\[Promise\]\]
+    ///
+    /// an Object
+    ///
     /// An object that is usable as a promise.
     pub(crate) promise: Object,
-    /// \[\[Resolve\]\] 
-    /// 
-    /// a function object 
-    /// 
+    /// \[\[Resolve\]\]
+    ///
+    /// a function object
+    ///
     /// The function that is used to resolve the given promise.
     pub(crate) resolve: Function,
-    /// \[\[Reject\]\] 
-    /// 
-    /// a function object 
-    /// 
-    /// The function that is used to reject the given promise. 
+    /// \[\[Reject\]\]
+    ///
+    /// a function object
+    ///
+    /// The function that is used to reject the given promise.
     pub(crate) reject: Function,
 }
 
@@ -84,12 +91,23 @@ impl IndexMut<PromiseCapability> for Heap {
 ///     a. Set value to ! value.
 /// ```
 #[inline(always)]
-pub(crate) fn if_abrupt_reject_promise<T>(agent: &mut Agent, value: JsResult<T>, capability: PromiseCapability) -> JsResult<T> {
+pub(crate) fn if_abrupt_reject_promise<T>(
+    agent: &mut Agent,
+    value: JsResult<T>,
+    capability: PromiseCapability,
+) -> JsResult<T> {
     value.or_else(|err| {
         // If abrupt completion, call reject and make caller return the
         // capability promise
-        let PromiseCapabilityRecord { promise,  reject, .. } = agent[capability];
-        call_function(agent, reject, Value::Undefined, Some(ArgumentsList(&[err.0])))?;
+        let PromiseCapabilityRecord {
+            promise, reject, ..
+        } = agent[capability];
+        call_function(
+            agent,
+            reject,
+            Value::Undefined,
+            Some(ArgumentsList(&[err.0])),
+        )?;
         // Note: We return an error here so that caller gets to call this
         // function with the ? operator
         Err(JsError(promise.into_value()))

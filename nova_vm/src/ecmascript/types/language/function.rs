@@ -17,7 +17,10 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::BuiltinPromiseRejectFunctionIndex, ArgumentsList, BuiltinFunction, ECMAScriptFunction},
+        builtins::{
+            control_abstraction_objects::promise_objects::promise_abstract_operations::BuiltinPromiseRejectFunctionIndex,
+            ArgumentsList, BuiltinFunction, ECMAScriptFunction,
+        },
         execution::{Agent, JsResult},
         types::PropertyDescriptor,
     },
@@ -37,7 +40,8 @@ pub enum Function {
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction = BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
     BuiltinPromiseResolveFunction = BUILTIN_PROMISE_RESOLVE_FUNCTION_DISCRIMINANT,
-    BuiltinPromiseRejectFunction(BuiltinPromiseRejectFunctionIndex) = BUILTIN_PROMISE_REJECT_FUNCTION_DISCRIMINANT,
+    BuiltinPromiseRejectFunction(BuiltinPromiseRejectFunctionIndex) =
+        BUILTIN_PROMISE_REJECT_FUNCTION_DISCRIMINANT,
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
     ECMAScriptAsyncFunction = ECMASCRIPT_ASYNC_FUNCTION_DISCRIMINANT,
@@ -55,7 +59,9 @@ impl std::fmt::Debug for Function {
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
-            Function::BuiltinPromiseRejectFunction(BuiltinPromiseRejectFunction) => write!(f, "BuiltinPromiseRejectFunction({:?})", d),
+            Function::BuiltinPromiseRejectFunction(BuiltinPromiseRejectFunction) => {
+                write!(f, "BuiltinPromiseRejectFunction({:?})", d)
+            }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
             Function::ECMAScriptAsyncFunction => todo!(),
@@ -131,7 +137,9 @@ impl TryFrom<Value> for Function {
             Value::ECMAScriptFunction(d) => Ok(Function::from(d)),
             Value::BuiltinGeneratorFunction => Ok(Function::BuiltinGeneratorFunction),
             Value::BuiltinConstructorFunction => Ok(Function::BuiltinConstructorFunction),
-            Value::BuiltinPromiseResolveFunction(d) => Ok(Function::BuiltinPromiseResolveFunction(d)),
+            Value::BuiltinPromiseResolveFunction(d) => {
+                Ok(Function::BuiltinPromiseResolveFunction(d))
+            }
             Value::BuiltinPromiseRejectFunction(d) => Ok(Function::BuiltinPromiseRejectFunction(d)),
             Value::BuiltinPromiseCollectorFunction => Ok(Function::BuiltinPromiseCollectorFunction),
             Value::BuiltinProxyRevokerFunction => Ok(Function::BuiltinProxyRevokerFunction),

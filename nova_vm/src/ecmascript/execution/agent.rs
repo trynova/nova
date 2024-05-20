@@ -64,7 +64,7 @@ pub trait HostHooks: std::fmt::Debug {
     /// Record), specifier (a String), hostDefined (anything), and payload (a
     /// GraphLoadingState Record or a PromiseCapability Record) and returns
     /// unused.
-    /// 
+    ///
     /// #### Note
     ///
     /// An example of when referrer can be a Realm Record is in a web browser
@@ -105,7 +105,7 @@ pub trait HostHooks: std::fmt::Debug {
         &self,
         referrer: (),
         specifier: &str,
-        host_defined: Option<Box<dyn Any>>,
+        host_defined: Option<&dyn Any>,
         payload: (),
     );
     /// ### [27.2.1.9 HostPromiseRejectionTracker ( promise, operation )](https://tc39.es/ecma262/#sec-host-promise-rejection-tracker)
@@ -113,7 +113,7 @@ pub trait HostHooks: std::fmt::Debug {
     /// The host-defined abstract operation HostPromiseRejectionTracker takes
     /// arguments promise (a Promise) and operation ("reject" or "handle") and
     /// returns unused. It allows host environments to track promise rejections.
-    /// 
+    ///
     /// The default implementation of HostPromiseRejectionTracker is to return
     /// unused.
     ///
@@ -138,7 +138,11 @@ pub trait HostHooks: std::fmt::Debug {
     /// implementation may hold a reference to promise if operation is "reject",
     /// since it is expected that rejections will be rare and not on hot code
     /// paths.
-    fn host_promise_rejection_tracker(&self, promise: Promise, operation: PromiseRejectionOperation);
+    fn host_promise_rejection_tracker(
+        &self,
+        promise: Promise,
+        operation: PromiseRejectionOperation,
+    );
 }
 
 /// ### [9.7 Agents](https://tc39.es/ecma262/#sec-agents)

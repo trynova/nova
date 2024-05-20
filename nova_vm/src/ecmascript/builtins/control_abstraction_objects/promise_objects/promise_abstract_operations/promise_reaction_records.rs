@@ -1,13 +1,16 @@
 use std::ops::{Index, IndexMut};
 
-use crate::{ecmascript::execution::Agent, heap::{indexes::BaseIndex, Heap}};
+use crate::{
+    ecmascript::execution::Agent,
+    heap::{indexes::BaseIndex, Heap},
+};
 
 use super::promise_capability_records::PromiseCapability;
 
-/// \[\[Type\]\] 
-/// 
-/// fulfill or reject 
-/// 
+/// \[\[Type\]\]
+///
+/// fulfill or reject
+///
 /// The \[\[Type\]\] is used when \[\[Handler\]\] is empty to allow for
 /// behaviour specific to the settlement type.
 #[derive(Debug, Clone, Copy)]
@@ -16,14 +19,14 @@ pub(crate) enum PromiseReactionType {
     Reject,
 }
 
-/// \[\[Handler\]\] 
-/// 
-/// a JobCallback Record or empty 
-/// 
+/// \[\[Handler\]\]
+///
+/// a JobCallback Record or empty
+///
 /// The function that should be applied to the incoming value, and whose
 /// return value will govern what happens to the derived promise. If
 /// \[\[Handler\]\] is empty, a function that depends on the value of
-/// \[\[Type\]\] will be used instead. 
+/// \[\[Type\]\] will be used instead.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum PromiseReactionHandler {
     Empty(PromiseReactionType),
@@ -32,21 +35,21 @@ pub(crate) enum PromiseReactionHandler {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PromiseReactionRecord {
-    /// \[\[Capability\]\] 
-    /// 
-    /// a PromiseCapability Record or undefined 
-    /// 
+    /// \[\[Capability\]\]
+    ///
+    /// a PromiseCapability Record or undefined
+    ///
     /// The capabilities of the promise for which this record provides a
     /// reaction handler.
     pub(crate) capability: Option<PromiseCapability>,
-    /// \[\[Handler\]\] 
-    /// 
-    /// a JobCallback Record or empty 
-    /// 
+    /// \[\[Handler\]\]
+    ///
+    /// a JobCallback Record or empty
+    ///
     /// The function that should be applied to the incoming value, and whose
     /// return value will govern what happens to the derived promise. If
     /// \[\[Handler\]\] is empty, a function that depends on the value of
-    /// \[\[Type\]\] will be used instead. 
+    /// \[\[Type\]\] will be used instead.
     pub(crate) handler: PromiseReactionHandler,
 }
 

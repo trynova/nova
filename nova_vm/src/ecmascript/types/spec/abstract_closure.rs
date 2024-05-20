@@ -1,6 +1,13 @@
 use std::fmt::Debug;
 
-use crate::{ecmascript::{builtins::ArgumentsList, execution::{Agent, JsResult, RealmIdentifier}, types::Value}, heap::indexes::ObjectIndex};
+use crate::{
+    ecmascript::{
+        builtins::ArgumentsList,
+        execution::{Agent, JsResult, RealmIdentifier},
+        types::{String, Value},
+    },
+    heap::indexes::ObjectIndex,
+};
 
 pub struct AbstractClosureHeapData {
     pub(crate) object_index: Option<ObjectIndex>,
@@ -18,6 +25,12 @@ pub struct AbstractClosureHeapData {
 
 impl Debug for AbstractClosureHeapData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AbstractClosureHeapData").field("object_index", &self.object_index).field("length", &self.length).field("realm", &self.realm).field("initial_name", &self.initial_name).field("behaviour", &"some closure").finish()
+        f.debug_struct("AbstractClosureHeapData")
+            .field("object_index", &self.object_index)
+            .field("length", &self.length)
+            .field("realm", &self.realm)
+            .field("initial_name", &self.initial_name)
+            .field("behaviour", &"some closure")
+            .finish()
     }
 }

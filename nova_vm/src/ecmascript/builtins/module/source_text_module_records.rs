@@ -287,7 +287,6 @@ pub(crate) fn parse_module(
         .is_some();
     // 12. Return Source Text Module Record {
     Ok(ModuleHeapData {
-        
         object_index: None,
         r#abstract: ModuleRecord {
             // [[Realm]]: realm,
@@ -395,14 +394,13 @@ pub(crate) fn get_exported_names(
         // c. Let starNames be requestedModule.GetExportedNames(exportStarSet).
         let star_names = requested_module.get_exported_names(agent, export_start_set);
         // d. For each element n of starNames, do
-        for n in star_names.iter() {
+        for &n in star_names.iter() {
             // i. If n is not "default", then
-            if n != BUILTIN_STRING_MEMORY.default && 
             // 1. If exportedNames does not contain n, then
-                !exported_names.contains(n) {
-                    // a. Append n to exportedNames.
-                    exported_names.push(n);
-                }
+            if n != BUILTIN_STRING_MEMORY.default && !exported_names.contains(&n) {
+                // a. Append n to exportedNames.
+                exported_names.push(n);
+            }
         }
     }
     // 9. Return exportedNames.
@@ -591,27 +589,36 @@ pub(crate) fn execute_module(
     Ok(())
 }
 
-
 /// 16.2.1.7 GetImportedModule ( referrer, specifier )
 ///
 /// The abstract operation GetImportedModule takes arguments referrer (a Cyclic Module Record) and specifier (a String) and returns a Module Record. It performs the following steps when called:
-pub(super) fn get_imported_module(agent: &mut Agent, referrer: Module, specifier: Atom<'static>) -> Module {
+pub(super) fn get_imported_module(
+    agent: &Agent,
+    referrer: Module,
+    specifier: Atom<'static>,
+) -> Module {
     // 1. Assert: Exactly one element of referrer.[[LoadedModules]] is a Record
     // whose [[Specifier]] is specifier, since LoadRequestedModules has
     // completed successfully on referrer prior to invoking this abstract
     // operation.
     // 2. Let record be the Record in referrer.[[LoadedModules]] whose [[Specifier]] is specifier.
     let mut record: Option<Module> = None;
-    assert_eq!(agent[referrer].cyclic.loaded_modules.iter().filter(|loaded_module| {
-        if loaded_module.specifier == specifier {
-            record = Some(loaded_module.module);
-            true
-        } else {
-            false
-        }
-    }).count(), 1);
+    assert_eq!(
+        agent[referrer]
+            .cyclic
+            .loaded_modules
+            .iter()
+            .filter(|loaded_module| {
+                if loaded_module.specifier == specifier {
+                    record = Some(loaded_module.module);
+                    true
+                } else {
+                    false
+                }
+            })
+            .count(),
+        1
+    );
     // 3. Return record.[[Module]].
     record.unwrap()
 }
-
-

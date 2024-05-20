@@ -1,8 +1,21 @@
 use std::ops::{Index, IndexMut};
 
-use crate::{ecmascript::{abstract_operations::testing_and_comparison::is_constructor, builtins::{promise::Promise, ArgumentsList}, execution::{agent::ExceptionType, Agent, JsResult}, types::{AbstractClosureHeapData, Function, IntoValue, Object, String, Value}}, heap::{indexes::{BaseIndex, BoundFunctionIndex}, Heap}};
+use crate::{
+    ecmascript::{
+        abstract_operations::testing_and_comparison::is_constructor,
+        builtins::{promise::Promise, ArgumentsList},
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{AbstractClosureHeapData, Function, IntoValue, Object, String, Value},
+    },
+    heap::{
+        indexes::{BaseIndex, BoundFunctionIndex},
+        Heap,
+    },
+};
 
-use self::{promise_capability_records::PromiseCapability, promise_reaction_records::PromiseReaction};
+use self::{
+    promise_capability_records::PromiseCapability, promise_reaction_records::PromiseReaction,
+};
 
 pub(crate) mod promise_capability_records;
 pub(crate) mod promise_reaction_records;
@@ -17,7 +30,10 @@ pub(crate) struct PromiseResolvingFunctions {
 /// The abstract operation CreateResolvingFunctions takes argument promise (a
 /// Promise) and returns a Record with fields \[\[Resolve\]\] (a function
 /// object) and \[\[Reject\]\] (a function object).
-pub(crate) fn create_resolving_functions(agent: &mut Agent, promise: Promise) -> PromiseResolvingFunctions {
+pub(crate) fn create_resolving_functions(
+    agent: &mut Agent,
+    promise: Promise,
+) -> PromiseResolvingFunctions {
     // 1. Let alreadyResolved be the Record { [[Value]]: false }.
     let already_resolved = false;
     // 2. Let stepsResolve be the algorithm steps defined in Promise Resolve Functions.
@@ -38,7 +54,9 @@ pub(crate) fn create_resolving_functions(agent: &mut Agent, promise: Promise) ->
     // 10. Set reject.[[Promise]] to promise.
     // 11. Set reject.[[AlreadyResolved]] to alreadyResolved.
     agent.heap.promise_reject_functions.push(Some(reject));
-    let reject = BuiltinPromiseRejectFunction(BuiltinPromiseRejectFunctionIndex::last(&agent.heap.promise_reject_functions));
+    let reject = BuiltinPromiseRejectFunction(BuiltinPromiseRejectFunctionIndex::last(
+        &agent.heap.promise_reject_functions,
+    ));
     // 12. Return the Record { [[Resolve]]: resolve, [[Reject]]: reject }.
     PromiseResolvingFunctions { resolve, reject }
 }
@@ -47,7 +65,7 @@ pub(crate) fn create_resolving_functions(agent: &mut Agent, promise: Promise) ->
 ///
 /// A promise reject function is an anonymous built-in function that has
 /// \[\[Promise\]\] and \[\[AlreadyResolved\]\] internal slots.
-/// 
+///
 /// The "length" property of a promise reject function is 1𝔽.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PromiseRejectFunctionHeapData {
@@ -127,7 +145,6 @@ impl PromiseRejectFunctionHeapData {
     }
 }
 
-
 /// ### [27.2.1.3.2 Promise Resolve Functions]()
 ///
 /// A promise resolve function is an anonymous built-in function that has [[Promise]] and [[AlreadyResolved]] internal slots.
@@ -185,16 +202,23 @@ pub(crate) fn fulfill_promise(agent: &mut Agent, promise: Promise, value: Value)
 /// promise and extract its resolve and reject functions. The promise plus the
 /// resolve and reject functions are used to initialize a new PromiseCapability
 /// Record.
-pub(crate) fn new_promise_capability(agent: &mut Agent, c: Value) -> JsResult<PromiseCapability> {
+///
+/// NOTE: The argument `c` can take None to signify that the current realm's
+/// %Promise% intrinsic should be used as the constructor.
+pub(crate) fn new_promise_capability(
+    agent: &mut Agent,
+    c: Option<Value>,
+) -> JsResult<PromiseCapability> {
+    // 2. NOTE: C is assumed to be a constructor function that supports the parameter conventions of the Promise constructor (see 27.2.3.1).
+    let Some(c) = c else {
+        todo!("PromiseConstructor quick-route")
+    };
+
     // 1. If IsConstructor(C) is false, throw a TypeError exception.
     if !is_constructor(agent, c) {
         return Err(agent.throw_exception(ExceptionType::TypeError, "Not a constructor"));
     }
-    // 2. NOTE: C is assumed to be a constructor function that supports the parameter conventions of the Promise constructor (see 27.2.3.1).
-    if c == agent.current_realm().intrinsics().promise().into_value() {
-        todo!("PromiseConstructor quick-route")
-    }
-    
+
     // 3. Let resolvingFunctions be the Record { [[Resolve]]: undefined, [[Reject]]: undefined }.
     struct SettableResolvingFunction {
         resolve: Option<Function>,
@@ -206,21 +230,26 @@ pub(crate) fn new_promise_capability(agent: &mut Agent, c: Value) -> JsResult<Pr
     };
 
     // 4. Let executorClosure be a new Abstract Closure with parameters (resolve, reject) that captures resolvingFunctions and performs the following steps when called:
-    agent.heap.abstract_closures.push(Some(AbstractClosureHeapData {
-        object_index: None,
-        length: 2,
-        realm: agent.current_realm_id(),
-        initial_name: Some(String::EMPTY_STRING),
-        behaviour: Box::new(|agent: &mut Agent, this_value: Value, arguments: Option<ArgumentsList>| {
-            // a. If resolvingFunctions.[[Resolve]] is not undefined, throw a TypeError exception.
+    agent
+        .heap
+        .abstract_closures
+        .push(Some(AbstractClosureHeapData {
+            object_index: None,
+            length: 2,
+            realm: agent.current_realm_id(),
+            initial_name: Some(String::EMPTY_STRING),
+            behaviour: Box::new(
+                |agent: &mut Agent, this_value: Value, arguments: Option<ArgumentsList>| {
+                    // a. If resolvingFunctions.[[Resolve]] is not undefined, throw a TypeError exception.
 
-            // b. If resolvingFunctions.[[Reject]] is not undefined, throw a TypeError exception.
-            // c. Set resolvingFunctions.[[Resolve]] to resolve.
-            // d. Set resolvingFunctions.[[Reject]] to reject.
-            // e. Return undefined.
-            Ok(Value::Undefined)
-        }),
-    }));
+                    // b. If resolvingFunctions.[[Reject]] is not undefined, throw a TypeError exception.
+                    // c. Set resolvingFunctions.[[Resolve]] to resolve.
+                    // d. Set resolvingFunctions.[[Reject]] to reject.
+                    // e. Return undefined.
+                    Ok(Value::Undefined)
+                },
+            ),
+        }));
     // 5. Let executor be CreateBuiltinFunction(executorClosure, 2, "", « »).
     // 6. Let promise be ? Construct(C, « executor »).
     // 7. If IsCallable(resolvingFunctions.[[Resolve]]) is false, throw a TypeError exception.
@@ -228,7 +257,7 @@ pub(crate) fn new_promise_capability(agent: &mut Agent, c: Value) -> JsResult<Pr
     // 9. Return the PromiseCapability Record { [[Promise]]: promise, [[Resolve]]: resolvingFunctions.[[Resolve]], [[Reject]]: resolvingFunctions.[[Reject]] }.
     todo!();
     // Note
-    
+
     // This abstract operation supports Promise subclassing, as it is generic
     // on any constructor that calls a passed executor function argument in the
     // same way as the Promise constructor. It is used to generalize static
@@ -272,7 +301,11 @@ pub(crate) fn reject_promise(agent: &mut Agent, promise: Promise, reason: Value)
 /// the PromiseReaction Record, and if the \[\[Handler\]\] is not empty, calls
 /// it passing the given argument. If the \[\[Handler\]\] is empty, the
 /// behaviour is determined by the \[\[Type\]\].
-pub(crate) fn trigger_promise_reactions(agent: &mut Agent, reactions: &[PromiseReaction], argument: Value) {
+pub(crate) fn trigger_promise_reactions(
+    agent: &mut Agent,
+    reactions: &[PromiseReaction],
+    argument: Value,
+) {
     // 1. For each element reaction of reactions, do
     // a. Let job be NewPromiseReactionJob(reaction, argument).
     // b. Perform HostEnqueuePromiseJob(job.[[Job]], job.[[Realm]]).

@@ -33,7 +33,28 @@ use self::{
 };
 use crate::ecmascript::{
     builtins::{
-        control_abstraction_objects::promise_objects::promise_abstract_operations::{promise_capability_records::PromiseCapabilityRecord, promise_reaction_records::PromiseReactionRecord, PromiseRejectFunctionHeapData}, data_view::{data::DataViewHeapData, DataView}, date::{data::DateHeapData, Date}, embedder_object::data::EmbedderObjectHeapData, error::{Error, ErrorHeapData}, finalization_registry::{data::FinalizationRegistryHeapData, FinalizationRegistry}, map::{data::MapHeapData, Map}, module::data::ModuleHeapData, primitive_objects::PrimitiveObjectHeapData, promise::data::PromiseHeapData, proxy::data::ProxyHeapData, regexp::RegExpHeapData, set::{data::SetHeapData, Set}, shared_array_buffer::{data::SharedArrayBufferHeapData, SharedArrayBuffer}, typed_array::{data::TypedArrayHeapData, TypedArray}, weak_map::{data::WeakMapHeapData, WeakMap}, weak_ref::{data::WeakRefHeapData, WeakRef}, weak_set::{data::WeakSetHeapData, WeakSet}, Array, ArrayBuffer
+        control_abstraction_objects::promise_objects::promise_abstract_operations::{
+            promise_capability_records::PromiseCapabilityRecord,
+            promise_reaction_records::PromiseReactionRecord, PromiseRejectFunctionHeapData,
+        },
+        data_view::{data::DataViewHeapData, DataView},
+        date::{data::DateHeapData, Date},
+        embedder_object::data::EmbedderObjectHeapData,
+        error::{Error, ErrorHeapData},
+        finalization_registry::{data::FinalizationRegistryHeapData, FinalizationRegistry},
+        map::{data::MapHeapData, Map},
+        module::data::ModuleHeapData,
+        primitive_objects::PrimitiveObjectHeapData,
+        promise::data::PromiseHeapData,
+        proxy::data::ProxyHeapData,
+        regexp::RegExpHeapData,
+        set::{data::SetHeapData, Set},
+        shared_array_buffer::{data::SharedArrayBufferHeapData, SharedArrayBuffer},
+        typed_array::{data::TypedArrayHeapData, TypedArray},
+        weak_map::{data::WeakMapHeapData, WeakMap},
+        weak_ref::{data::WeakRefHeapData, WeakRef},
+        weak_set::{data::WeakSetHeapData, WeakSet},
+        Array, ArrayBuffer,
     },
     types::{AbstractClosureHeapData, BUILTIN_STRINGS_LIST},
 };

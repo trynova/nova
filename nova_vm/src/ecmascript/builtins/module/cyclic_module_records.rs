@@ -1,10 +1,19 @@
-use std::any::Any;
+use std::{any::Any, sync::atomic::AtomicU16};
 
 use oxc_span::Atom;
 
 use crate::ecmascript::{
     abstract_operations::operations_on_objects::call_function,
-    builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, create_builtin_function, error::Error, module::source_text_module_records::get_imported_module, promise::Promise, ArgumentsList},
+    builtins::{
+        control_abstraction_objects::promise_objects::promise_abstract_operations::{
+            new_promise_capability, promise_capability_records::PromiseCapability,
+        },
+        create_builtin_function,
+        error::Error,
+        module::source_text_module_records::get_imported_module,
+        promise::Promise,
+        ArgumentsList,
+    },
     execution::{agent::JsError, Agent, JsResult},
     types::{String, Value},
 };
@@ -89,7 +98,7 @@ pub(crate) struct LoadedModuleRecord {
     pub(super) module: Module,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct CyclicModuleRecord {
     /// [\[\[Status\]\]](CyclicModuleRecordStatus)
     pub(super) status: CyclicModuleRecordStatus,
@@ -154,7 +163,7 @@ pub(crate) struct CyclicModuleRecord {
     /// number of asynchronous dependency modules remaining to execute for this
     /// module. A module with asynchronous dependencies will be executed when
     /// this field reaches 0 and there are no execution errors.
-    pub(super) pending_async_dependencies: Option<u16>,
+    pub(super) pending_async_dependencies: Option<AtomicU16>,
 }
 
 impl CyclicModuleRecord {
@@ -223,7 +232,7 @@ impl Module {
     ) -> Promise {
         // 1. If hostDefined is not present, let hostDefined be empty.
         // TODO: 2. Let pc be ! NewPromiseCapability(%Promise%).
-        let pc = ();
+        let pc = new_promise_capability(agent, None).unwrap();
         // 3. Let state be the GraphLoadingState Record {
         let mut state = GraphLoadingStateRecord {
             // [[PromiseCapability]]: pc,
@@ -289,7 +298,9 @@ impl Module {
 
     fn initialize_environment(self, agent: &mut Agent) {}
 
-    fn execute_module(self, agent: &mut Agent, promise_capability: Option<()>) {}
+    fn execute_module(self, agent: &mut Agent, promise_capability: Option<()>) -> JsResult<()> {
+        todo!()
+    }
 }
 
 /// ### [16.2.1.5.1.1 InnerModuleLoading ( state, module )](https://tc39.es/ecma262/#sec-InnerModuleLoading)
@@ -310,7 +321,7 @@ fn inner_module_loading(agent: &mut Agent, state: &mut GraphLoadingStateRecord, 
         // c. Set state.[[PendingModulesCount]] to state.[[PendingModulesCount]] + requestedModulesCount.
         state.pending_modules_count += requested_modules_count as u16;
         // d. For each String required of module.[[RequestedModules]], do
-        for required in agent[module].cyclic.requested_modules.iter() {
+        for required in agent[module].cyclic.requested_modules.clone().iter() {
             // i. If module.[[LoadedModules]] contains a Record whose [[Specifier]] is required, then
             let record = agent[module]
                 .cyclic
@@ -328,7 +339,7 @@ fn inner_module_loading(agent: &mut Agent, state: &mut GraphLoadingStateRecord, 
                     // agent,
                     (), // module,
                     &required,
-                    state.host_defined,
+                    state.host_defined.as_ref().map(|boxed| boxed.as_ref()),
                     (), // state
                 );
                 // 2. NOTE: HostLoadImportedModule will call FinishLoadingImportedModule,
@@ -349,7 +360,7 @@ fn inner_module_loading(agent: &mut Agent, state: &mut GraphLoadingStateRecord, 
         // a. Set state.[[IsLoading]] to false.
         state.is_loading = false;
         // b. For each Cyclic Module Record loaded of state.[[Visited]], do
-        for _loaded in state.visited {
+        for _loaded in &state.visited {
             // TODO: i. If loaded.[[Status]] is new, set loaded.[[Status]] to unlinked.
         }
         // c. Perform ! Call(state.[[PromiseCapability]].[[Resolve]], undefined, « undefined »).
@@ -496,9 +507,9 @@ fn inner_module_linking(
     // 8. Append module to stack.
     stack.push(module);
     // 9. For each String required of module.[[RequestedModules]], do
-    for required in agent[module].cyclic.requested_modules.iter() {
+    for required in agent[module].cyclic.requested_modules.clone().iter() {
         // a. Let requiredModule be GetImportedModule(module, required).
-        let required_module = get_imported_module(agent, module, *required);
+        let required_module = get_imported_module(agent, module, required.clone());
         // b. Set index to ? InnerModuleLinking(requiredModule, stack, index).
         index = inner_module_linking(agent, required_module, stack, index)?;
         // c. If requiredModule is a Cyclic Module Record, then
@@ -540,13 +551,7 @@ fn inner_module_linking(
     // 10. Perform ? module.InitializeEnvironment().
     module.initialize_environment(agent);
     // 11. Assert: module occurs exactly once in stack.
-    assert_eq!(
-        stack
-            .iter()
-            .filter(|entry| **entry == module)
-            .count(),
-        1
-    );
+    assert_eq!(stack.iter().filter(|entry| **entry == module).count(), 1);
     // 12. Assert: module.[[DFSAncestorIndex]] ≤ module.[[DFSIndex]].
     match &mut agent[module].cyclic.status {
         CyclicModuleRecordStatus::Evaluating(index, ancestor_index) => {
@@ -615,8 +620,8 @@ pub(crate) fn evaluate(agent: &mut Agent, mut module: Module) -> Promise {
     // 5. Let stack be a new empty List.
     let mut stack = vec![];
     // 6. Let capability be ! NewPromiseCapability(%Promise%).
-    let capability = (); // new_promise_capability();
-                         // 7. Set module.[[TopLevelCapability]] to capability.
+    let capability = new_promise_capability(agent, None).unwrap();
+    // 7. Set module.[[TopLevelCapability]] to capability.
     agent[module].cyclic.top_level_capability = Some(capability);
     // 8. Let result be Completion(InnerModuleEvaluation(module, stack, 0)).
     let result = inner_module_evaluation(agent, module, &mut stack, 0);
@@ -698,9 +703,8 @@ pub(crate) fn inner_module_evaluation(
         // d. Return index.
         return Ok(index);
     }
-    let module_borrow = &agent[module];
     // 2. If module.[[Status]] is either evaluating-async or evaluated, then
-    match module_borrow.cyclic.status {
+    match agent[module].cyclic.status {
         // a. If module.[[EvaluationError]] is empty, return index.
         // b. Otherwise, return ? module.[[EvaluationError]].
         CyclicModuleRecordStatus::EvaluatingAsync => {
@@ -718,23 +722,26 @@ pub(crate) fn inner_module_evaluation(
             Ok(index)
         }
         CyclicModuleRecordStatus::Linked => {
-            // 5. Set module.[[Status]] to evaluating.
-            // 6. Set module.[[DFSIndex]] to index.
-            // 7. Set module.[[DFSAncestorIndex]] to index.
-            module_borrow.cyclic.status = CyclicModuleRecordStatus::Evaluating(
-                DFSIndex::new(index),
-                DFSAncestorIndex::new(index),
-            );
-            // 8. Set module.[[PendingAsyncDependencies]] to 0.
-            module_borrow.cyclic.pending_async_dependencies = Some(0);
+            {
+                let module_borrow = &mut agent[module];
+                // 5. Set module.[[Status]] to evaluating.
+                // 6. Set module.[[DFSIndex]] to index.
+                // 7. Set module.[[DFSAncestorIndex]] to index.
+                module_borrow.cyclic.status = CyclicModuleRecordStatus::Evaluating(
+                    DFSIndex::new(index),
+                    DFSAncestorIndex::new(index),
+                );
+                // 8. Set module.[[PendingAsyncDependencies]] to 0.
+                module_borrow.cyclic.pending_async_dependencies = Some(AtomicU16::new(0));
+            }
             // 9. Set index to index + 1.
             let mut index = index + 1;
             // 10. Append module to stack.
             stack.push(module);
             // 11. For each String required of module.[[RequestedModules]], do
-            for required in module_borrow.cyclic.requested_modules.iter() {
+            for required in agent[module].cyclic.requested_modules.clone().into_iter() {
                 // a. Let requiredModule be GetImportedModule(module, required).
-                let mut required_module = get_imported_module(agent, module, *required);
+                let mut required_module = get_imported_module(agent, module, required.clone());
                 // b. Set index to ? InnerModuleEvaluation(requiredModule, stack, index).
                 index = inner_module_evaluation(agent, required_module, stack, index)?;
                 // c. If requiredModule is a Cyclic Module Record, then
@@ -770,13 +777,14 @@ pub(crate) fn inner_module_evaluation(
                                     // v. If requiredModule.[[AsyncEvaluation]] is true, then
                                     if required_module_borrow.cyclic.async_evaluation {
                                         // 1. Set module.[[PendingAsyncDependencies]] to module.[[PendingAsyncDependencies]] + 1.
-                                        agent[module]
+                                        *agent[module]
                                             .cyclic
                                             .pending_async_dependencies
                                             .as_mut()
-                                            .map(|val| *val += 1);
+                                            .unwrap()
+                                            .get_mut() += 1;
                                         // 2. Append module to requiredModule.[[AsyncParentModules]].
-                                        required_module_borrow
+                                        agent[required_module]
                                             .cyclic
                                             .async_parent_modules
                                             .push(module);
@@ -791,13 +799,14 @@ pub(crate) fn inner_module_evaluation(
                                     // v. If requiredModule.[[AsyncEvaluation]] is true, then
                                     if required_module_borrow.cyclic.async_evaluation {
                                         // 1. Set module.[[PendingAsyncDependencies]] to module.[[PendingAsyncDependencies]] + 1.
-                                        agent[module]
+                                        *agent[module]
                                             .cyclic
                                             .pending_async_dependencies
                                             .as_mut()
-                                            .map(|val| *val += 1);
+                                            .unwrap()
+                                            .get_mut() += 1;
                                         // 2. Append module to requiredModule.[[AsyncParentModules]].
-                                        required_module_borrow
+                                        agent[required_module]
                                             .cyclic
                                             .async_parent_modules
                                             .push(module);
@@ -817,13 +826,14 @@ pub(crate) fn inner_module_evaluation(
                                     // v. If requiredModule.[[AsyncEvaluation]] is true, then
                                     if required_module_borrow.cyclic.async_evaluation {
                                         // 1. Set module.[[PendingAsyncDependencies]] to module.[[PendingAsyncDependencies]] + 1.
-                                        agent[module]
+                                        *agent[module]
                                             .cyclic
                                             .pending_async_dependencies
                                             .as_mut()
-                                            .map(|val| *val += 1);
+                                            .unwrap()
+                                            .get_mut() += 1;
                                         // 2. Append module to requiredModule.[[AsyncParentModules]].
-                                        required_module_borrow
+                                        agent[required_module]
                                             .cyclic
                                             .async_parent_modules
                                             .push(module);
@@ -838,13 +848,14 @@ pub(crate) fn inner_module_evaluation(
                                     // v. If requiredModule.[[AsyncEvaluation]] is true, then
                                     if required_module_borrow.cyclic.async_evaluation {
                                         // 1. Set module.[[PendingAsyncDependencies]] to module.[[PendingAsyncDependencies]] + 1.
-                                        agent[module]
+                                        *agent[module]
                                             .cyclic
                                             .pending_async_dependencies
                                             .as_mut()
-                                            .map(|val| *val += 1);
+                                            .unwrap()
+                                            .get_mut() += 1;
                                         // 2. Append module to requiredModule.[[AsyncParentModules]].
-                                        required_module_borrow
+                                        agent[required_module]
                                             .cyclic
                                             .async_parent_modules
                                             .push(module);
@@ -860,7 +871,13 @@ pub(crate) fn inner_module_evaluation(
                 }
             }
             // 12. If module.[[PendingAsyncDependencies]] > 0 or module.[[HasTLA]] is true, then
-            if agent[module].cyclic.pending_async_dependencies.unwrap() > 0
+            if *agent[module]
+                .cyclic
+                .pending_async_dependencies
+                .as_mut()
+                .unwrap()
+                .get_mut()
+                > 0
                 || agent[module].cyclic.has_top_level_await
             {
                 // a. Assert: module.[[AsyncEvaluation]] is false and was never previously set to true.
@@ -871,7 +888,14 @@ pub(crate) fn inner_module_evaluation(
                 // [[AsyncEvaluation]] fields transition to true is
                 // significant. (See 16.2.1.5.3.4.)
                 // d. If module.[[PendingAsyncDependencies]] = 0,
-                if agent[module].cyclic.pending_async_dependencies == Some(0) {
+                if *agent[module]
+                    .cyclic
+                    .pending_async_dependencies
+                    .as_mut()
+                    .unwrap()
+                    .get_mut()
+                    == 0
+                {
                     // perform ExecuteAsyncModule(module).
                     execute_async_module(agent, module);
                 }
@@ -881,13 +905,7 @@ pub(crate) fn inner_module_evaluation(
                 module.execute_module(agent, None);
             }
             // 14. Assert: module occurs exactly once in stack.
-            assert_eq!(
-                stack
-                    .iter()
-                    .filter(|entry| **entry == module)
-                    .count(),
-                1
-            );
+            assert_eq!(stack.iter().filter(|entry| **entry == module).count(), 1);
             let module_borrow = &agent[module];
             match module_borrow.cyclic.status {
                 CyclicModuleRecordStatus::Evaluating(index, ancestor_index) => {
@@ -980,8 +998,8 @@ pub(crate) fn execute_async_module(agent: &mut Agent, module: Module) {
 
 fn fulfilled_closure(
     agent: &mut Agent,
-    this_value: Value,
-    arguments: Option<ArgumentsList>,
+    _this_value: Value,
+    _arguments: Option<ArgumentsList>,
     module: Module,
 ) -> JsResult<Value> {
     // a. Perform AsyncModuleExecutionFulfilled(module).
@@ -992,7 +1010,7 @@ fn fulfilled_closure(
 
 fn rejected_closure(
     agent: &mut Agent,
-    this_value: Value,
+    _this_value: Value,
     arguments: Option<ArgumentsList>,
     module: Module,
 ) -> JsResult<Value> {
@@ -1006,12 +1024,12 @@ fn rejected_closure(
 /// Cyclic Module Record) and execList (a List of Cyclic Module Records) and
 /// returns unused.
 pub(crate) fn gather_available_ancestors(
-    agent: &mut Agent,
+    agent: &Agent,
     module: Module,
     exec_list: &mut Vec<Module>,
 ) {
     // 1. For each Cyclic Module Record m of module.[[AsyncParentModules]], do
-    for m in agent[module].cyclic.async_parent_modules {
+    for &m in &agent[module].cyclic.async_parent_modules {
         // a. If execList does not contain m and m.[[CycleRoot]].[[EvaluationError]] is empty, then
         if !exec_list.contains(&m)
             && !matches!(
@@ -1028,15 +1046,29 @@ pub(crate) fn gather_available_ancestors(
             // iii. Assert: m.[[AsyncEvaluation]] is true.
             assert!(agent[m].cyclic.async_evaluation);
             // iv. Assert: m.[[PendingAsyncDependencies]] > 0.
-            assert!(agent[m].cyclic.pending_async_dependencies.unwrap() > 0);
+
+            // NOTE: Load is done separately on purpose. A relaxed fetch_sub
+            // still requires a lock, which we do not need here.
+            let pending_async_dependencies = agent[m]
+                .cyclic
+                .pending_async_dependencies
+                .as_ref()
+                .unwrap()
+                .load(std::sync::atomic::Ordering::Relaxed);
+            assert!(pending_async_dependencies > 0);
             // v. Set m.[[PendingAsyncDependencies]] to m.[[PendingAsyncDependencies]] - 1.
+            let pending_async_dependencies = pending_async_dependencies - 1;
             agent[m]
                 .cyclic
                 .pending_async_dependencies
-                .as_mut()
-                .map(|val| *val -= 1);
+                .as_ref()
+                .unwrap()
+                .store(
+                    pending_async_dependencies,
+                    std::sync::atomic::Ordering::Relaxed,
+                );
             // vi. If m.[[PendingAsyncDependencies]] = 0, then
-            if agent[m].cyclic.pending_async_dependencies == Some(0) {
+            if pending_async_dependencies == 0 {
                 // 1. Append m to execList.
                 exec_list.push(m);
             }
@@ -1060,7 +1092,7 @@ pub(crate) fn gather_available_ancestors(
 /// The abstract operation AsyncModuleExecutionFulfilled takes argument module
 /// // (a Cyclic Module Record) and returns unused.
 pub(crate) fn async_module_execution_fulfilled(agent: &mut Agent, module: Module) {
-    let module_borrow = &agent[module].cyclic;
+    let module_borrow = &mut agent[module].cyclic;
     // 1. If module.[[Status]] is evaluated, then
     match module_borrow.status {
         CyclicModuleRecordStatus::Evaluated(maybe_evaluation_error) => {
@@ -1098,16 +1130,24 @@ pub(crate) fn async_module_execution_fulfilled(agent: &mut Agent, module: Module
     // 11. Assert: All elements of sortedExecList have their
     // [[AsyncEvaluation]] field set to true, [[PendingAsyncDependencies]]
     // field set to 0, and [[EvaluationError]] field set to empty.
-    for element in exec_list {
+    for &element in &exec_list {
         assert!(agent[element].cyclic.async_evaluation);
-        assert_eq!(agent[element].cyclic.pending_async_dependencies, Some(0));
+        assert_eq!(
+            *agent[element]
+                .cyclic
+                .pending_async_dependencies
+                .as_mut()
+                .unwrap()
+                .get_mut(),
+            0
+        );
         assert!(!matches!(
             agent[element].cyclic.status,
             CyclicModuleRecordStatus::Evaluated(Some(_))
         ));
     }
     // 12. For each Cyclic Module Record m of sortedExecList, do
-    for m in exec_list {
+    for &m in &exec_list {
         // a. If m.[[Status]] is evaluated, then
         if let CyclicModuleRecordStatus::Evaluated(maybe_evaluation_error) = agent[m].cyclic.status
         {
@@ -1125,7 +1165,7 @@ pub(crate) fn async_module_execution_fulfilled(agent: &mut Agent, module: Module
                 // ii. If result is an abrupt completion, then
                 Err(error) => {
                     // 1. Perform AsyncModuleExecutionRejected(m, result.[[Value]]).
-                    async_module_execution_rejected(agent, m, error);
+                    async_module_execution_rejected(agent, m, error.value());
                 }
                 // iii. Else,
                 Ok(_) => {
@@ -1172,9 +1212,19 @@ pub(crate) fn async_module_execution_rejected(agent: &mut Agent, module: Module,
     agent[module].cyclic.status =
         CyclicModuleRecordStatus::Evaluated(Some(EvaluationError(JsError(error))));
     // 7. For each Cyclic Module Record m of module.[[AsyncParentModules]], do
-    for m in agent[module].cyclic.async_parent_modules {
-        // a. Perform AsyncModuleExecutionRejected(m, error).
-        async_module_execution_rejected(agent, m, error);
+    {
+        // SAFETY: Calling into async_module_execution_rejected with parent
+        // modules will not move nor take a mutable borrow on
+        // async_parent_modules.
+        let async_parent_modules = unsafe {
+            std::mem::transmute::<&[Module], &'static [Module]>(
+                &agent[module].cyclic.async_parent_modules,
+            )
+        };
+        for m in async_parent_modules {
+            // a. Perform AsyncModuleExecutionRejected(m, error).
+            async_module_execution_rejected(agent, *m, error);
+        }
     }
     // 8. If module.[[TopLevelCapability]] is not empty, then
     if agent[module].cyclic.top_level_capability.is_some() {
