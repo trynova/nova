@@ -114,7 +114,7 @@ pub(crate) struct CyclicModuleRecord {
     /// record to request the importation of a module to the resolved Module
     /// Record. The list does not contain two different Records with the same
     /// \[\[Specifier\]\].
-    pub(super) loaded_modules: Box<[LoadedModuleRecord]>,
+    pub(super) loaded_modules: Vec<LoadedModuleRecord>,
     /// \[\[CycleRoot\]\]
     ///
     /// The first visited module of the cycle, the root DFS ancestor of the
@@ -263,7 +263,7 @@ impl Module {
     pub(crate) fn get_exported_names(
         self,
         agent: &mut Agent,
-        export_start_set: Option<()>,
+        export_start_set: &mut Vec<Module>,
     ) -> Box<[String]> {
         todo!()
     }
@@ -272,7 +272,7 @@ impl Module {
         self,
         agent: &mut Agent,
         export_name: String,
-        resolve_set: Option<()>,
+        resolve_set: Option<Vec<Module>>,
     ) -> Option<ResolvedBinding> {
         todo!()
     }

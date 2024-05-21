@@ -3,6 +3,7 @@ use crate::{
     ecmascript::{
         execution::{ModuleEnvironmentIndex, RealmIdentifier},
         scripts_and_modules::{module::ModuleIdentifier, script::HostDefined},
+        types::String,
     },
     heap::indexes::StringIndex,
 };
@@ -36,17 +37,36 @@ pub(crate) struct ModuleRecord {
     pub(super) host_defined: Option<HostDefined>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum ResolvedBindingName {
     String(StringIndex),
     SmallString(SmallString),
     Namespace,
 }
 
-#[derive(Debug, Clone, Copy)]
+impl Into<ResolvedBindingName> for String {
+    fn into(self) -> ResolvedBindingName {
+        match self {
+            String::String(d) => ResolvedBindingName::String(d),
+            String::SmallString(d) => ResolvedBindingName::SmallString(d),
+        }
+    }
+}
+
+impl ResolvedBindingName {
+    pub(crate) fn is_string(&self) -> bool {
+        match self {
+            ResolvedBindingName::String(_) => true,
+            ResolvedBindingName::SmallString(_) => true,
+            ResolvedBindingName::Namespace => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct ResolvedBinding {
     /// \[\[Module]]
-    pub(super) module: Option<ModuleIdentifier>,
+    pub(super) module: Option<Module>,
     /// \[\[BindingName]]
     pub(super) binding_name: ResolvedBindingName,
 }

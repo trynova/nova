@@ -2,14 +2,13 @@ use oxc_allocator::Allocator;
 use oxc_ast::ast::Program;
 use oxc_parser::{Parser, ParserReturn};
 use oxc_span::{Atom, SourceType};
-use oxc_syntax::module_record::RequestedModule;
 use small_string::SmallString;
 
 use super::{abstract_module_records::{ModuleRecord, ResolveExportResult}, cyclic_module_records::{CyclicModuleRecord, CyclicModuleRecordStatus}, data::ModuleHeapData, Module};
 use crate::{
     ecmascript::{
-        builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, module::semantics::{self, module_requests}},
-        execution::{Agent, ExecutionContext, JsResult, RealmIdentifier},
+        builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, module::{abstract_module_records::{ResolvedBinding, ResolvedBindingName}, semantics::{self, module_requests}}},
+        execution::{agent, Agent, DeclarativeEnvironmentIndex, ExecutionContext, JsResult, RealmIdentifier},
         scripts_and_modules::script::HostDefined,
         types::{
             Object, String, BUILTIN_STRING_MEMORY, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
@@ -128,6 +127,7 @@ pub(crate) struct SourceTextModuleRecord {
     /// The result of parsing the source text of this module using Module as
     /// the goal symbol.
     pub(crate) ecmascript_code: Program<'static>,
+    source_text: Box<str>,
     /// ### \[\[Context\]\]
     ///
     /// an ECMAScript code execution context or empty
@@ -182,10 +182,9 @@ pub type ModuleOrErrors = Result<ModuleHeapData, Vec<oxc_diagnostics::Error>>;
 /// returns a Source Text Module Record or a non-empty List of SyntaxError
 /// objects. It creates a Source Text Module Record based upon the result of
 /// parsing sourceText as a Module.
-pub(crate) fn parse_module(
+pub(crate) fn parse_module<'a>(
     agent: &mut Agent,
-    allocator: &Allocator,
-    module: Module,
+    allocator: &'static Allocator,
     source_text: Box<str>,
     realm: RealmIdentifier,
     host_defined: Option<HostDefined>,
@@ -193,7 +192,9 @@ pub(crate) fn parse_module(
     // 1. Let body be ParseText(sourceText, Module).
     let parser = Parser::new(
         allocator,
-        &source_text,
+        // SAFETY: We're moving the Parser result into the same heap object as
+        // source_text.
+        unsafe { std::mem::transmute::<&str, &'static str>(&source_text) },
         SourceType::default().with_module(true),
     );
     let ParserReturn {
@@ -249,7 +250,7 @@ pub(crate) fn parse_module(
                     // b. Append the ExportEntry Record {
                     indirect_export_entries.push(ExportEntryRecord {
                         // [[ModuleRequest]]: ie.[[ModuleRequest]],
-                        module_request: Some(ie.module_request),
+                        module_request: Some(ie.module_request.clone()),
                         // [[ImportName]]: ie.[[ImportName]],
                         import_name: Some(import_name.into()),
                         // [[LocalName]]: null,
@@ -285,6 +286,7 @@ pub(crate) fn parse_module(
             _ => false,
         })
         .is_some();
+    let requested_module_count = requested_modules.len();
     // 12. Return Source Text Module Record {
     Ok(ModuleHeapData {
         object_index: None,
@@ -319,11 +321,12 @@ pub(crate) fn parse_module(
             // [[RequestedModules]]: requestedModules,
             requested_modules,
             // [[LoadedModules]]: « »,
-            loaded_modules: vec![],
+            loaded_modules: Vec::with_capacity(requested_module_count),
         },
         source_text: SourceTextModuleRecord {
             // [[ECMAScriptCode]]: body,
             ecmascript_code: program,
+            source_text,
             // [[Context]]: empty,
             context: None,
             // [[ImportMeta]]: empty,
@@ -337,12 +340,16 @@ pub(crate) fn parse_module(
             // [[StarExportEntries]]: starExportEntries,
             star_export_entries: star_export_entries.into_boxed_slice(),
         },
-        exports: todo!(),
+        exports: vec![],
     })
     // }.
     // Note
 
-    // An implementation may parse module source text and analyse it for Early Error conditions prior to the evaluation of ParseModule for that module source text. However, the reporting of any errors must be deferred until the point where this specification actually performs ParseModule upon that source text.
+    // An implementation may parse module source text and analyse it for Early
+    // Error conditions prior to the evaluation of ParseModule for that module
+    // source text. However, the reporting of any errors must be deferred until
+    // the point where this specification actually performs ParseModule upon
+    // that source text.
 }
 
 /// ### [16.2.1.6.2 GetExportedNames ( [ exportStarSet ] )]()
@@ -386,13 +393,13 @@ pub(crate) fn get_exported_names(
         exported_names.push(e.export_name.unwrap());
     }
     // 8. For each ExportEntry Record e of module.[[StarExportEntries]], do
-    for e in agent[module].source_text.star_export_entries.iter() {
+    for e in agent[module].source_text.star_export_entries.clone().iter() {
         // a. Assert: e.[[ModuleRequest]] is not null.
-        let module_request = e.module_request.unwrap();
+        let module_request = e.module_request.clone().unwrap();
         // b. Let requestedModule be GetImportedModule(module, e.[[ModuleRequest]]).
         let requested_module = get_imported_module(agent, module, module_request);
         // c. Let starNames be requestedModule.GetExportedNames(exportStarSet).
-        let star_names = requested_module.get_exported_names(agent, export_start_set);
+        let star_names = requested_module.get_exported_names(agent, &mut export_start_set);
         // d. For each element n of starNames, do
         for &n in star_names.iter() {
             // i. If n is not "default", then
@@ -412,14 +419,21 @@ pub(crate) fn get_exported_names(
     // that have ambiguous star export bindings.
 }
 
+#[derive(Debug, Clone)]
+struct ResolveSetEntry {
+    /// \[\[Module\]\]
+    module: Module,
+    /// \[\[ExportName\]\]    
+    export_name: String,
+}
+
 /// ### [16.2.1.6.3 ResolveExport ( exportName [ , resolveSet ] )]()
 ///
 /// The ResolveExport concrete method of a Source Text Module Record module
 /// takes argument exportName (a String) and optional argument resolveSet (a
 /// List of Records with fields \[\[Module\]\] (a Module Record) and
-/// ### \[\[ExportName\]\] (a String)) and returns a ResolvedBinding Record, null,
-///
-/// or ambiguous.
+/// ### \[\[ExportName\]\] (a String)) and returns a ResolvedBinding Record,
+/// null, or ambiguous.
 ///
 ///
 /// ResolveExport attempts to resolve an imported binding to the actual
@@ -445,49 +459,161 @@ pub(crate) fn resolve_export(
     agent: &mut Agent,
     module: Module,
     export_name: String,
-    resolve_set: Option<()>,
-) -> ResolveExportResult {
+    resolve_set: Option<Vec<ResolveSetEntry>>,
+) -> Option<ResolveExportResult> {
     // 1. Assert: module.[[Status]] is not new.
+    assert!(agent[module].cyclic.status != CyclicModuleRecordStatus::New);
     // 2. If resolveSet is not present, set resolveSet to a new empty List.
+    let mut resolve_set = resolve_set.unwrap_or(vec![]);
     // 3. For each Record { [[Module]], [[ExportName]] } r of resolveSet, do
-    // a. If module and r.[[Module]] are the same Module Record and exportName is r.[[ExportName]], then
-    // i. Assert: This is a circular import request.
-    // ii. Return null.
+    for r in &resolve_set {
+        // a. If module and r.[[Module]] are the same Module Record and exportName is r.[[ExportName]], then
+        if module == r.module && export_name == r.export_name {
+            // i. Assert: This is a circular import request.
+            // TODO: debug_assert!(module.requires_module(module));
+            // ii. Return null.
+            return None;
+        }
+    }
     // 4. Append the Record { [[Module]]: module, [[ExportName]]: exportName } to resolveSet.
+    resolve_set.push(ResolveSetEntry {
+        module,
+        export_name,
+    });
     // 5. For each ExportEntry Record e of module.[[LocalExportEntries]], do
-    // a. If e.[[ExportName]] is exportName, then
-    // i. Assert: module provides the direct binding for this export.
-    // ii. Return ResolvedBinding Record { [[Module]]: module, [[BindingName]]: e.[[LocalName]] }.
+    for e in agent[module].source_text.local_export_entries.iter() {
+        // a. If e.[[ExportName]] is exportName, then
+        if e.export_name == Some(export_name) {
+            // i. Assert: module provides the direct binding for this export.
+            let module_declarative_index = agent[module].r#abstract.environment.unwrap();
+            let module_declarative_index =
+                DeclarativeEnvironmentIndex::from_u32(module_declarative_index.into_u32());
+            debug_assert!(agent
+                .heap
+                .environments
+                .get_declarative_environment(module_declarative_index)
+                .bindings
+                .contains_key(&export_name));
+            // ii. Return ResolvedBinding Record { [[Module]]: module, [[BindingName]]: e.[[LocalName]] }.
+            return Some(ResolveExportResult::Resolved(ResolvedBinding {
+                module: Some(module),
+                binding_name: e.local_name.unwrap().into(),
+            }));
+        }
+    }
     // 6. For each ExportEntry Record e of module.[[IndirectExportEntries]], do
-    // a. If e.[[ExportName]] is exportName, then
-    // i. Assert: e.[[ModuleRequest]] is not null.
-    // ii. Let importedModule be GetImportedModule(module, e.[[ModuleRequest]]).
-    // iii. If e.[[ImportName]] is all, then
-    // 1. Assert: module does not provide the direct binding for this export.
-    // 2. Return ResolvedBinding Record { [[Module]]: importedModule, [[BindingName]]: namespace }.
-    // iv. Else,
-    // 1. Assert: module imports a specific binding for this export.
-    // 2. Return importedModule.ResolveExport(e.[[ImportName]], resolveSet).
+    for e in agent[module].source_text.indirect_export_entries.iter() {
+        // a. If e.[[ExportName]] is exportName, then
+        if e.export_name == Some(export_name) {
+            // i. Assert: e.[[ModuleRequest]] is not null.
+            let module_request = e.module_request.as_ref().unwrap().clone();
+            // ii. Let importedModule be GetImportedModule(module, e.[[ModuleRequest]]).
+            let imported_module = get_imported_module(agent, module, module_request);
+            // iii. If e.[[ImportName]] is all, then
+            if e.import_name == Some(ExportImportName::All) {
+                // 1. Assert: module does not provide the direct binding for this export.
+                let module_declarative_index = agent[module].r#abstract.environment.unwrap();
+                let module_declarative_index =
+                    DeclarativeEnvironmentIndex::from_u32(module_declarative_index.into_u32());
+                debug_assert!(!agent
+                    .heap
+                    .environments
+                    .get_declarative_environment(module_declarative_index)
+                    .bindings
+                    .contains_key(&export_name));
+                // 2. Return ResolvedBinding Record { [[Module]]: importedModule, [[BindingName]]: namespace }.
+                return Some(ResolveExportResult::Resolved(ResolvedBinding {
+                    module: Some(imported_module),
+                    binding_name: ResolvedBindingName::Namespace,
+                }));
+            } else {
+                // iv. Else,
+                // 1. Assert: module imports a specific binding for this export.
+                // 2. Return importedModule.ResolveExport(e.[[ImportName]], resolveSet).
+                let import_name = match e.import_name.unwrap() {
+                    ExportImportName::String(d) => String::from(d),
+                    ExportImportName::SmallString(d) => String::from(d),
+                    _ => unreachable!(),
+                };
+                return resolve_export(agent, imported_module, import_name, Some(resolve_set));
+            }
+        }
+    }
     // 7. If exportName is "default", then
-    // a. Assert: A default export was not explicitly defined by this module.
-    // b. Return null.
-    // c. NOTE: A default export cannot be provided by an export * from "mod" declaration.
+    if export_name == BUILTIN_STRING_MEMORY.default {
+        // a. Assert: A default export was not explicitly defined by this module.
+        // TODO: Figure out what this meant again
+        // b. Return null.
+        return None;
+        // c. NOTE: A default export cannot be provided by an export * from "mod" declaration.
+    }
     // 8. Let starResolution be null.
+    let mut star_resolution = None;
     // 9. For each ExportEntry Record e of module.[[StarExportEntries]], do
-    // a. Assert: e.[[ModuleRequest]] is not null.
-    // b. Let importedModule be GetImportedModule(module, e.[[ModuleRequest]]).
-    // c. Let resolution be importedModule.ResolveExport(exportName, resolveSet).
-    // d. If resolution is ambiguous, return ambiguous.
-    // e. If resolution is not null, then
-    // i. Assert: resolution is a ResolvedBinding Record.
-    // ii. If starResolution is null, then
-    // 1. Set starResolution to resolution.
-    // iii. Else,
-    // 1. Assert: There is more than one * import that includes the requested name.
-    // 2. If resolution.[[Module]] and starResolution.[[Module]] are not the same Module Record, return ambiguous.
-    // 3. If resolution.[[BindingName]] is not starResolution.[[BindingName]] and either resolution.[[BindingName]] or starResolution.[[BindingName]] is namespace, return ambiguous.
-    // 4. If resolution.[[BindingName]] is a String, starResolution.[[BindingName]] is a String, and resolution.[[BindingName]] is not starResolution.[[BindingName]], return ambiguous.
+    for e in agent[module].source_text.star_export_entries.clone().iter() {
+        // a. Assert: e.[[ModuleRequest]] is not null.
+        let module_request = e.module_request.as_ref().unwrap().clone();
+        // b. Let importedModule be GetImportedModule(module, e.[[ModuleRequest]]).
+        let imported_module = get_imported_module(agent, module, module_request);
+        // c. Let resolution be importedModule.ResolveExport(exportName, resolveSet).
+        let resolution = resolve_export(
+            agent,
+            imported_module,
+            export_name,
+            Some(resolve_set.clone()),
+        );
+        match resolution {
+            Some(resolution) => {
+                match resolution {
+                    ResolveExportResult::Ambiguous => {
+                        // d. If resolution is ambiguous, return ambiguous.
+                        return Some(ResolveExportResult::Ambiguous);
+                    }
+                    ResolveExportResult::Resolved(resolution) => {
+                        // e. If resolution is not null, then
+                        // i. Assert: resolution is a ResolvedBinding Record.
+                        // ii. If starResolution is null, then
+                        if star_resolution.is_none() {
+                            // 1. Set starResolution to resolution.
+                            star_resolution = Some(resolution);
+                        } else {
+                            let star_resolution = star_resolution.unwrap();
+                            // iii. Else,
+                            // 1. Assert: There is more than one * import that
+                            // includes the requested name.
+                            // 2. If resolution.[[Module]] and starResolution.[[Module]]
+                            // are not the same Module Record, return ambiguous.
+                            if resolution.module != star_resolution.module {
+                                return Some(ResolveExportResult::Ambiguous);
+                            }
+                            // 3. If resolution.[[BindingName]] is not starResolution.[[BindingName]]
+                            // and either resolution.[[BindingName]] or starResolution.[[BindingName]]
+                            // is namespace, return ambiguous.
+                            if resolution.binding_name != star_resolution.binding_name
+                                && (resolution.binding_name == ResolvedBindingName::Namespace
+                                    || star_resolution.binding_name
+                                        == ResolvedBindingName::Namespace)
+                            {
+                                return Some(ResolveExportResult::Ambiguous);
+                            }
+                            // 4. If resolution.[[BindingName]] is a String, starResolution.[[BindingName]]
+                            // is a String, and resolution.[[BindingName]] is not starResolution.[[BindingName]],
+                            // return ambiguous.
+                            if resolution.binding_name.is_string()
+                                && star_resolution.binding_name.is_string()
+                                && resolution.binding_name != star_resolution.binding_name
+                            {
+                                return Some(ResolveExportResult::Ambiguous);
+                            }
+                        }
+                    }
+                }
+            }
+            None => {}
+        }
+    }
     // 10. Return starResolution.
+    star_resolution.map(|resolved_binding| ResolveExportResult::Resolved(resolved_binding))
 }
 
 /// ### [16.2.1.6.4 InitializeEnvironment ( )]()

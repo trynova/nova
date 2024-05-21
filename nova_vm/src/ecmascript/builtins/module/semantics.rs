@@ -31,7 +31,7 @@ pub(crate) fn imported_local_names(import_entries: &[ImportEntryRecord]) -> Box<
 /// ###[16.2.1.3 Static Semantics: ModuleRequests](https://tc39.es/ecma262/#sec-static-semantics-modulerequests)
 ///
 /// The syntax-directed operation ModuleRequests takes no arguments and returns a List of Strings.
-pub(crate) fn module_requests(agent: &mut Agent, program: &Program<'_>) -> Box<[String]> {
+pub(crate) fn module_requests(agent: &mut Agent, program: &Program<'_>) -> Box<[Atom<'static>]> {
     let mut strings = vec![];
     // Module : [empty]
     // 1. Return a new empty List.
@@ -54,16 +54,28 @@ pub(crate) fn module_requests(agent: &mut Agent, program: &Program<'_>) -> Box<[
                     // 1. Return ModuleRequests of FromClause.
                     // ModuleSpecifier : StringLiteral
                     // 1. Return a List whose sole element is the SV of StringLiteral.
-                    strings.push(String::from_str(agent, &decl.source.value));
+                    // SAFETY: This is a self-referential reference. The
+                    // strings are kept in the same object as Program is.
+                    strings.push(unsafe {
+                        std::mem::transmute::<Atom<'_>, Atom<'static>>(decl.source.value.clone())
+                    });
                 }
                 oxc_ast::ast::ModuleDeclaration::ExportAllDeclaration(decl) => {
-                    strings.push(String::from_str(agent, &decl.source.value));
+                    // SAFETY: This is a self-referential reference. The
+                    // strings are kept in the same object as Program is.
+                    strings.push(unsafe {
+                        std::mem::transmute::<Atom<'_>, Atom<'static>>(decl.source.value.clone())
+                    });
                 }
                 oxc_ast::ast::ModuleDeclaration::ExportNamedDeclaration(decl) => {
                     // ExportDeclaration : export ExportFromClause FromClause ;
                     if let Some(source) = &decl.source {
                         // 1. Return the ModuleRequests of FromClause.
-                        strings.push(String::from_str(agent, &source.value));
+                        // SAFETY: This is a self-referential reference. The
+                        // strings are kept in the same object as Program is.
+                        strings.push(unsafe {
+                            std::mem::transmute::<Atom<'_>, Atom<'static>>(source.value.clone())
+                        });
                     }
                 }
 

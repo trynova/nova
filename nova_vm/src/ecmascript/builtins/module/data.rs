@@ -20,5 +20,5 @@ pub struct ModuleHeapData {
     pub(crate) r#abstract: ModuleRecord,
     pub(crate) cyclic: CyclicModuleRecord,
     pub(crate) source_text: SourceTextModuleRecord,
-    pub(crate) exports: Box<[String]>,
+    pub(crate) exports: Vec<String>,
 }
