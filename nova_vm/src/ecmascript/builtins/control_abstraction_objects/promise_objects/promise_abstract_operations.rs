@@ -3,18 +3,25 @@ use std::ops::{Index, IndexMut};
 use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::is_constructor,
-        builtins::{promise::Promise, ArgumentsList},
+        builtins::{
+            promise::{data::PromiseHeapData, Promise},
+            ArgumentsList,
+        },
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{AbstractClosureHeapData, Function, IntoValue, Object, String, Value},
+        types::{
+            AbstractClosureHeapData, Function, IntoFunction, IntoObject, IntoValue, Object, String,
+            Value,
+        },
     },
     heap::{
-        indexes::{BaseIndex, BoundFunctionIndex},
-        Heap,
+        indexes::{BaseIndex, BoundFunctionIndex, ObjectIndex},
+        CreateHeapData, Heap,
     },
 };
 
 use self::{
-    promise_capability_records::PromiseCapability, promise_reaction_records::PromiseReaction,
+    promise_capability_records::{PromiseCapability, PromiseCapabilityRecord},
+    promise_reaction_records::PromiseReaction,
 };
 
 pub(crate) mod promise_capability_records;
@@ -22,7 +29,7 @@ pub(crate) mod promise_reaction_records;
 
 pub(crate) struct PromiseResolvingFunctions {
     pub(crate) resolve: Function,
-    pub(crate) reject: BuiltinPromiseRejectFunction,
+    pub(crate) reject: Function,
 }
 
 /// ### [27.2.1.3 CreateResolvingFunctions ( promise )]()
@@ -56,7 +63,8 @@ pub(crate) fn create_resolving_functions(
     agent.heap.promise_reject_functions.push(Some(reject));
     let reject = BuiltinPromiseRejectFunction(BuiltinPromiseRejectFunctionIndex::last(
         &agent.heap.promise_reject_functions,
-    ));
+    ))
+    .into_function();
     // 12. Return the Record { [[Resolve]]: resolve, [[Reject]]: reject }.
     PromiseResolvingFunctions { resolve, reject }
 }
@@ -73,7 +81,7 @@ pub(crate) struct PromiseRejectFunctionHeapData {
     pub(crate) promise: Promise,
     /// \[\[AlreadyResolved\]\]
     pub(crate) already_resolved: bool,
-    pub(crate) object_index: Option<Object>,
+    pub(crate) object_index: Option<ObjectIndex>,
 }
 
 pub(crate) type BuiltinPromiseRejectFunctionIndex = BaseIndex<PromiseRejectFunctionHeapData>;
@@ -95,22 +103,86 @@ impl IndexMut<BuiltinPromiseRejectFunction> for Agent {
     }
 }
 
+impl Index<BuiltinPromiseRejectFunctionIndex> for Agent {
+    type Output = PromiseRejectFunctionHeapData;
+
+    fn index(&self, index: BuiltinPromiseRejectFunctionIndex) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<BuiltinPromiseRejectFunctionIndex> for Agent {
+    fn index_mut(&mut self, index: BuiltinPromiseRejectFunctionIndex) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl From<BuiltinPromiseRejectFunction> for Function {
+    fn from(value: BuiltinPromiseRejectFunction) -> Self {
+        Self::BuiltinPromiseRejectFunction(value.0)
+    }
+}
+
+impl IntoFunction for BuiltinPromiseRejectFunction {
+    fn into_function(self) -> Function {
+        self.into()
+    }
+}
+
+impl From<BuiltinPromiseRejectFunction> for Object {
+    fn from(value: BuiltinPromiseRejectFunction) -> Self {
+        Self::BuiltinPromiseRejectFunction(value.0)
+    }
+}
+
+impl IntoObject for BuiltinPromiseRejectFunction {
+    fn into_object(self) -> Object {
+        self.into()
+    }
+}
+
+impl From<BuiltinPromiseRejectFunction> for Value {
+    fn from(value: BuiltinPromiseRejectFunction) -> Self {
+        Self::BuiltinPromiseRejectFunction(value.0)
+    }
+}
+
+impl IntoValue for BuiltinPromiseRejectFunction {
+    fn into_value(self) -> Value {
+        self.into()
+    }
+}
+
 impl Index<BuiltinPromiseRejectFunction> for Heap {
     type Output = PromiseRejectFunctionHeapData;
 
     fn index(&self, index: BuiltinPromiseRejectFunction) -> &Self::Output {
+        &self[index.0]
+    }
+}
+
+impl IndexMut<BuiltinPromiseRejectFunction> for Heap {
+    fn index_mut(&mut self, index: BuiltinPromiseRejectFunction) -> &mut Self::Output {
+        &mut self[index.0]
+    }
+}
+
+impl Index<BuiltinPromiseRejectFunctionIndex> for Heap {
+    type Output = PromiseRejectFunctionHeapData;
+
+    fn index(&self, index: BuiltinPromiseRejectFunctionIndex) -> &Self::Output {
         self.promise_reject_functions
-            .get(index.0.into_index())
+            .get(index.into_index())
             .expect("BuiltinPromiseRejectFunction out of bounds")
             .as_ref()
             .expect("BuiltinPromiseRejectFunction slot empty")
     }
 }
 
-impl IndexMut<BuiltinPromiseRejectFunction> for Heap {
-    fn index_mut(&mut self, index: BuiltinPromiseRejectFunction) -> &mut Self::Output {
+impl IndexMut<BuiltinPromiseRejectFunctionIndex> for Heap {
+    fn index_mut(&mut self, index: BuiltinPromiseRejectFunctionIndex) -> &mut Self::Output {
         self.promise_reject_functions
-            .get_mut(index.0.into_index())
+            .get_mut(index.into_index())
             .expect("BuiltinPromiseRejectFunction out of bounds")
             .as_mut()
             .expect("BuiltinPromiseRejectFunction slot empty")
@@ -193,6 +265,27 @@ pub(crate) fn fulfill_promise(agent: &mut Agent, promise: Promise, value: Value)
     // 8. Return unused.
 }
 
+pub(crate) fn new_intrinsic_promise_capability(agent: &mut Agent) -> PromiseCapability {
+    // 5. Let executor be CreateBuiltinFunction(executorClosure, 2, "", « »).
+    // 6. Let promise be ? Construct(C, « executor »).
+    // From Promise Constructor: OrdinaryCreateFromConstructor
+    let promise = agent.heap.create(PromiseHeapData::default());
+    // From Promise Constructor: Let resolvingFunctions be CreateResolvingFunctions(promise).
+    let resolving_functions =
+        create_resolving_functions(agent, Promise::try_from(promise).unwrap());
+    // From Promise Constructor: Call(executor, undefined, « resolvingFunctions.[[Resolve]], resolvingFunctions.[[Reject]] »).
+
+    // 7. If IsCallable(resolvingFunctions.[[Resolve]]) is false, throw a TypeError exception.
+    // 8. If IsCallable(resolvingFunctions.[[Reject]]) is false, throw a TypeError exception.
+    // 9. Return the PromiseCapability Record { [[Promise]]: promise, [[Resolve]]: resolvingFunctions.[[Resolve]], [[Reject]]: resolvingFunctions.[[Reject]] }.
+    let record = PromiseCapabilityRecord {
+        promise,
+        resolve: resolving_functions.resolve,
+        reject: resolving_functions.reject,
+    };
+    agent.heap.create(record)
+}
+
 /// ### [27.2.1.5 NewPromiseCapability ( C )]()
 ///
 /// The abstract operation NewPromiseCapability takes argument C (an ECMAScript
@@ -205,14 +298,11 @@ pub(crate) fn fulfill_promise(agent: &mut Agent, promise: Promise, value: Value)
 ///
 /// NOTE: The argument `c` can take None to signify that the current realm's
 /// %Promise% intrinsic should be used as the constructor.
-pub(crate) fn new_promise_capability(
-    agent: &mut Agent,
-    c: Option<Value>,
-) -> JsResult<PromiseCapability> {
+pub(crate) fn new_promise_capability(agent: &mut Agent, c: Value) -> JsResult<PromiseCapability> {
     // 2. NOTE: C is assumed to be a constructor function that supports the parameter conventions of the Promise constructor (see 27.2.3.1).
-    let Some(c) = c else {
-        todo!("PromiseConstructor quick-route")
-    };
+    if c == agent.current_realm().intrinsics().promise().into_value() {
+        return Ok(new_intrinsic_promise_capability(agent));
+    }
 
     // 1. If IsConstructor(C) is false, throw a TypeError exception.
     if !is_constructor(agent, c) {

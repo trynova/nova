@@ -1,12 +1,23 @@
 use crate::{
     ecmascript::{
+        abstract_operations::{
+            operations_on_objects::call_function, testing_and_comparison::is_callable,
+        },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoObject, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        builtins::{
+            ordinary::ordinary_create_from_constructor, promise::Promise, ArgumentsList, Behaviour,
+            Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
+        types::{
+            Function, IntoObject, IntoValue, Object, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
+
+use super::promise_abstract_operations::create_resolving_functions;
 
 pub(crate) struct PromiseConstructor;
 impl Builtin for PromiseConstructor {
@@ -73,12 +84,98 @@ impl BuiltinGetter for PromiseGetSpecies {
 
 impl PromiseConstructor {
     fn behaviour(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
+        arguments: ArgumentsList,
+        new_target: Option<Object>,
     ) -> JsResult<Value> {
-        todo!()
+        // 1. If NewTarget is undefined, throw a TypeError exception.
+        let Some(new_target) = new_target else {
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                "Promise constructor cannot be called as a function",
+            ));
+        };
+        // 2. If IsCallable(executor) is false, throw a TypeError exception.
+        let executor = arguments.get(0);
+        if !is_callable(executor) {
+            return Err(
+                agent.throw_exception(ExceptionType::TypeError, "Executor is not a constructor")
+            );
+        }
+        let executor = Function::try_from(executor).unwrap();
+        let new_target = Function::try_from(new_target).unwrap();
+        // 3. Let promise be ? OrdinaryCreateFromConstructor(NewTarget, "%Promise.prototype%", « [[PromiseState]], [[PromiseResult]], [[PromiseFulfillReactions]], [[PromiseRejectReactions]], [[PromiseIsHandled]] »).
+        let promise = Promise::try_from(ordinary_create_from_constructor(
+            agent,
+            new_target,
+            ProtoIntrinsics::Promise,
+        )?)
+        .unwrap();
+
+        // All of these steps are done by the heap data default builder.
+        // 4. Set promise.[[PromiseState]] to pending.
+        // 5. Set promise.[[PromiseFulfillReactions]] to a new empty List.
+        // 6. Set promise.[[PromiseRejectReactions]] to a new empty List.
+        // 7. Set promise.[[PromiseIsHandled]] to false.
+
+        // 8. Let resolvingFunctions be CreateResolvingFunctions(promise).
+        let resolving_functions = create_resolving_functions(agent, promise);
+        // 9. Let completion be Completion(Call(executor, undefined, « resolvingFunctions.[[Resolve]], resolvingFunctions.[[Reject]] »)).
+        let completion = call_function(
+            agent,
+            executor,
+            Value::Undefined,
+            Some(ArgumentsList(&[
+                resolving_functions.resolve.into_value(),
+                resolving_functions.reject.into_value(),
+            ])),
+        );
+        // 10. If completion is an abrupt completion, then
+        match completion {
+            Ok(_) => {
+                // 11. Return promise.
+                Ok(promise.into_value())
+            }
+            Err(err) => {
+                // a. Perform ? Call(resolvingFunctions.[[Reject]], undefined, « completion.[[Value]] »).
+                call_function(
+                    agent,
+                    resolving_functions.reject,
+                    Value::Undefined,
+                    Some(ArgumentsList(&[err.value()])),
+                )
+            }
+        }
+
+        // Note
+        // The executor argument must be a function object. It is called for
+        // initiating and reporting completion of the possibly deferred action
+        // represented by this Promise. The executor is called with two
+        // arguments: resolve and reject. These are functions that may be used
+        // by the executor function to report eventual completion or failure of
+        // the deferred computation. Returning from the executor function does
+        // not mean that the deferred action has been completed but only that
+        // the request to eventually perform the deferred action has been
+        // accepted.
+        // The resolve function that is passed to an executor function accepts
+        // a single argument. The executor code may eventually call the resolve
+        // function to indicate that it wishes to resolve the associated
+        // Promise. The argument passed to the resolve function represents the
+        // eventual value of the deferred action and can be either the actual
+        // fulfillment value or another promise which will provide the value if
+        // it is fulfilled.
+        // The reject function that is passed to an executor function accepts a
+        // single argument. The executor code may eventually call the reject
+        // function to indicate that the associated Promise is rejected and
+        // will never be fulfilled. The argument passed to the reject function
+        // is used as the rejection value of the promise. Typically it will be
+        // an Error object.
+        // The resolve and reject functions passed to an executor function by
+        // the Promise constructor have the capability to actually resolve and
+        // reject the associated promise. Subclasses may have different
+        // constructor behaviour that passes in customized values for resolve
+        // and reject.
     }
 
     fn all(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {

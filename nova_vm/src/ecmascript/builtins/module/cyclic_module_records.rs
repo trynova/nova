@@ -6,7 +6,8 @@ use crate::ecmascript::{
     abstract_operations::operations_on_objects::call_function,
     builtins::{
         control_abstraction_objects::promise_objects::promise_abstract_operations::{
-            new_promise_capability, promise_capability_records::PromiseCapability,
+            new_intrinsic_promise_capability, new_promise_capability,
+            promise_capability_records::PromiseCapability,
         },
         create_builtin_function,
         error::Error,
@@ -232,7 +233,7 @@ impl Module {
     ) -> Promise {
         // 1. If hostDefined is not present, let hostDefined be empty.
         // TODO: 2. Let pc be ! NewPromiseCapability(%Promise%).
-        let pc = new_promise_capability(agent, None).unwrap();
+        let pc = new_intrinsic_promise_capability(agent);
         // 3. Let state be the GraphLoadingState Record {
         let mut state = GraphLoadingStateRecord {
             // [[PromiseCapability]]: pc,
@@ -620,7 +621,7 @@ pub(crate) fn evaluate(agent: &mut Agent, mut module: Module) -> Promise {
     // 5. Let stack be a new empty List.
     let mut stack = vec![];
     // 6. Let capability be ! NewPromiseCapability(%Promise%).
-    let capability = new_promise_capability(agent, None).unwrap();
+    let capability = new_intrinsic_promise_capability(agent);
     // 7. Set module.[[TopLevelCapability]] to capability.
     agent[module].cyclic.top_level_capability = Some(capability);
     // 8. Let result be Completion(InnerModuleEvaluation(module, stack, 0)).

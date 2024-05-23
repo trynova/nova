@@ -14,7 +14,11 @@ use crate::{
     Heap,
 };
 
-use self::data::ModuleHeapData;
+use self::{
+    abstract_module_records::{ResolveExportResult, ResolvedBindingName},
+    data::ModuleHeapData,
+    source_text_module_records::resolve_export,
+};
 
 use super::ordinary::{
     ordinary_define_own_property, ordinary_delete, ordinary_get, ordinary_has_property,
@@ -313,9 +317,9 @@ impl InternalMethods for Module {
                     // 4. Let m be O.[[Module]].
                     let m = &agent[self].cyclic;
                     // 5. Let binding be m.ResolveExport(P).
-                    let binding = m.resolve_export(property_key);
+                    let binding = resolve_export(agent, self, key, None);
                     // 6. Assert: binding is a ResolvedBinding Record.
-                    let Some(data::ResolveExportResult::Resolved(binding)) = binding else {
+                    let Some(ResolveExportResult::Resolved(binding)) = binding else {
                         unreachable!();
                     };
                     // 7. Let targetModule be binding.[[Module]].
@@ -323,24 +327,24 @@ impl InternalMethods for Module {
                     let target_module = binding.module.unwrap();
                     // 9. If binding.[[BindingName]] is NAMESPACE, then
                     let _binding_name = match binding.binding_name {
-                        data::ResolvedBindingName::Namespace => {
+                        ResolvedBindingName::Namespace => {
                             // a. Return GetModuleNamespace(targetModule).
                             todo!();
                         }
-                        data::ResolvedBindingName::String(data) => String::String(data),
-                        data::ResolvedBindingName::SmallString(data) => String::SmallString(data),
+                        ResolvedBindingName::String(data) => String::String(data),
+                        ResolvedBindingName::SmallString(data) => String::SmallString(data),
                     };
                     // 10. Let targetEnv be targetModule.[[Environment]].
-                    let target_env = agent[target_module].module.environment;
+                    let target_env = agent[target_module].r#abstract.environment;
                     // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
                     match target_env {
                         None => Err(agent.throw_exception(
                             ExceptionType::ReferenceError,
                             "Could not resolve module",
                         )),
-                        Some(_target_env) => {
+                        Some(target_env) => {
                             // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
-                            todo!()
+                            target_env.get_
                         }
                     }
                 }

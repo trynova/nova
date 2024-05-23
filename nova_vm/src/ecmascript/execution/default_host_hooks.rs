@@ -23,7 +23,7 @@ impl HostHooks for DefaultHostHooks {
         &self,
         referrer: (),
         specifier: &str,
-        host_defined: Option<Box<dyn std::any::Any>>,
+        host_defined: Option<&dyn std::any::Any>,
         payload: (),
     ) {
         unreachable!("HostLoadImportedModule does not have a default implementation");

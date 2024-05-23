@@ -34,8 +34,9 @@ use self::{
 use crate::ecmascript::{
     builtins::{
         control_abstraction_objects::promise_objects::promise_abstract_operations::{
-            promise_capability_records::PromiseCapabilityRecord,
-            promise_reaction_records::PromiseReactionRecord, PromiseRejectFunctionHeapData,
+            promise_capability_records::{PromiseCapability, PromiseCapabilityRecord},
+            promise_reaction_records::PromiseReactionRecord,
+            PromiseRejectFunctionHeapData,
         },
         data_view::{data::DataViewHeapData, DataView},
         date::{data::DateHeapData, Date},
@@ -256,6 +257,13 @@ impl CreateHeapData<PromiseHeapData, Object> for Heap {
     fn create(&mut self, data: PromiseHeapData) -> Object {
         self.promises.push(Some(data));
         Object::Promise(PromiseIndex::last(&self.promises))
+    }
+}
+
+impl CreateHeapData<PromiseCapabilityRecord, PromiseCapability> for Heap {
+    fn create(&mut self, data: PromiseCapabilityRecord) -> PromiseCapability {
+        self.promise_capability_records.push(Some(data));
+        PromiseCapability::last(&self.promise_capability_records)
     }
 }
 
