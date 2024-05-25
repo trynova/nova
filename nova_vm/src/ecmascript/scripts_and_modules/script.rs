@@ -23,6 +23,7 @@ use oxc_ast::{
     ast::{BindingIdentifier, Program, VariableDeclarationKind},
     syntax_directed_operations::BoundNames,
 };
+use oxc_diagnostics::OxcDiagnostic;
 use oxc_parser::{Parser, ParserReturn};
 use oxc_span::SourceType;
 use std::{
@@ -140,7 +141,7 @@ pub struct Script {
 
 unsafe impl Send for Script {}
 
-pub type ScriptOrErrors = Result<Script, Vec<oxc_diagnostics::Error>>;
+pub type ScriptOrErrors = Result<Script, Vec<OxcDiagnostic>>;
 
 /// ### [16.1.5 ParseScript ( sourceText, realm, hostDefined )](https://tc39.es/ecma262/#sec-parse-script)
 ///
