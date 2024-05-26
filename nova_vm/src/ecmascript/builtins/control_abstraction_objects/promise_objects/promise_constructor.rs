@@ -5,10 +5,17 @@ use crate::{
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            ordinary::ordinary_create_from_constructor, promise::Promise, ArgumentsList, Behaviour,
-            Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+            ordinary::ordinary_create_from_constructor,
+            promise::{
+                data::{PromiseReactions, PromiseState},
+                Promise,
+            },
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
+        execution::{
+            agent::{ExceptionType, PromiseRejectionOperation},
+            Agent, JsResult, ProtoIntrinsics, RealmIdentifier,
+        },
         types::{
             Function, IntoObject, IntoValue, Object, PropertyKey, String, Value,
             BUILTIN_STRING_MEMORY,
@@ -17,7 +24,13 @@ use crate::{
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
 
-use super::promise_abstract_operations::create_resolving_functions;
+use super::promise_abstract_operations::{
+    create_resolving_functions, new_promise_reaction_job,
+    promise_capability_records::PromiseCapability,
+    promise_reaction_records::{
+        PromiseReactionHandler, PromiseReactionRecord, PromiseReactionType,
+    },
+};
 
 pub(crate) struct PromiseConstructor;
 impl Builtin for PromiseConstructor {
@@ -242,4 +255,138 @@ impl PromiseConstructor {
             .with_builtin_function_getter_property::<PromiseGetSpecies>()
             .build();
     }
+}
+
+/// ### [27.2.5.4.1 PerformPromiseThen ( promise, onFulfilled, onRejected \[ , resultCapability \] )](https://tc39.es/ecma262/#sec-performpromisethen)
+///
+/// The abstract operation PerformPromiseThen takes arguments promise (a
+/// Promise), onFulfilled (an ECMAScript language value), and onRejected (an
+/// ECMAScript language value) and optional argument resultCapability (a
+/// PromiseCapability Record) and returns an ECMAScript language value. It
+/// performs the “then” operation on promise using onFulfilled and onRejected
+/// as its settlement actions. If resultCapability is passed, the result is
+/// stored by updating resultCapability's promise. If it is not passed, then
+/// PerformPromiseThen is being called by a specification-internal operation
+/// where the result does not matter.
+pub(crate) fn perform_promise_then(
+    agent: &mut Agent,
+    promise: Promise,
+    on_fulfilled: Value,
+    on_rejected: Value,
+    result_capability: Option<PromiseCapability>,
+) -> Option<Object> {
+    // 1. Assert: IsPromise(promise) is true.
+    // Already asserted by type.
+
+    // 2. If resultCapability is not present, then
+    // a. Set resultCapability to undefined.
+    // 3. If IsCallable(onFulfilled) is false, then
+    let on_fulfilled_job_callback = if !is_callable(on_fulfilled) {
+        // a. Let onFulfilledJobCallback be empty.
+        None
+    } else {
+        // 4. Else,
+        // a. Let onFulfilledJobCallback be HostMakeJobCallback(onFulfilled).
+        // host_make_job_callback(on_fulfilled);
+        Some(())
+    };
+    let on_rejected_job_callback = if !is_callable(on_rejected) {
+        // 5. If IsCallable(onRejected) is false, then
+        // a. Let onRejectedJobCallback be empty.
+        None
+    } else {
+        // 6. Else,
+        // a. Let onRejectedJobCallback be HostMakeJobCallback(onRejected).
+        // host_make_job_callback(on_rejected);
+        Some(())
+    };
+    // 7. Let fulfillReaction be the PromiseReaction Record { [[Capability]]: resultCapability, [[Type]]: fulfill, [[Handler]]: onFulfilledJobCallback }.
+    let fulfill_reaction = PromiseReactionRecord {
+        capability: result_capability,
+        handler: on_fulfilled_job_callback.map_or_else(
+            || PromiseReactionHandler::Empty(PromiseReactionType::Fulfill),
+            |job| PromiseReactionHandler::JobCallback(job),
+        ),
+    };
+    // 8. Let rejectReaction be the PromiseReaction Record { [[Capability]]: resultCapability, [[Type]]: reject, [[Handler]]: onRejectedJobCallback }.
+    let reject_reaction = PromiseReactionRecord {
+        capability: result_capability,
+        handler: on_rejected_job_callback.map_or_else(
+            || PromiseReactionHandler::Empty(PromiseReactionType::Reject),
+            |job| PromiseReactionHandler::JobCallback(job),
+        ),
+    };
+    // 9. If promise.[[PromiseState]] is pending, then
+    match agent[promise].promise_state {
+        PromiseState::Pending => {
+            // a. Append fulfillReaction to promise.[[PromiseFulfillReactions]].
+            let existing_fulfill_reactions = &mut agent[promise].promise_fulfill_reactions;
+            match existing_fulfill_reactions {
+                Some(existing) => match existing {
+                    PromiseReactions::One(previous) => {
+                        *existing = PromiseReactions::Many(vec![*previous, fulfill_reaction]);
+                    }
+                    PromiseReactions::Many(multiple) => {
+                        multiple.push(fulfill_reaction);
+                    }
+                },
+                None => {
+                    *existing_fulfill_reactions = Some(PromiseReactions::One(fulfill_reaction));
+                }
+            }
+            // b. Append rejectReaction to promise.[[PromiseRejectReactions]].
+            let existing_reject_reactions = &mut agent[promise].promise_reject_reactions;
+            match existing_reject_reactions {
+                Some(existing) => match existing {
+                    PromiseReactions::One(previous) => {
+                        *existing = PromiseReactions::Many(vec![*previous, reject_reaction]);
+                    }
+                    PromiseReactions::Many(multiple) => {
+                        multiple.push(reject_reaction);
+                    }
+                },
+                None => {
+                    *existing_reject_reactions = Some(PromiseReactions::One(reject_reaction));
+                }
+            }
+        }
+        // 10. Else if promise.[[PromiseState]] is fulfilled, then
+        PromiseState::Fulfilled {
+            promise_result: value,
+        } => {
+            // a. Let value be promise.[[PromiseResult]].
+            // b. Let fulfillJob be NewPromiseReactionJob(fulfillReaction, value).
+            let fulfill_job = new_promise_reaction_job(agent, fulfill_reaction, value);
+            // c. Perform HostEnqueuePromiseJob(fulfillJob.[[Job]], fulfillJob.[[Realm]]).
+            agent
+                .host_hooks
+                .host_enqueue_promise_job(fulfill_job.job, fulfill_job.realm);
+        }
+        // 11. Else,
+        PromiseState::Rejected {
+            promise_result: reason,
+        } => {
+            // a. Assert: The value of promise.[[PromiseState]] is rejected.
+            // b. Let reason be promise.[[PromiseResult]].
+            // c. If promise.[[PromiseIsHandled]] is false, perform HostPromiseRejectionTracker(promise, "handle").
+            if !agent[promise].promise_is_handled {
+                agent
+                    .host_hooks
+                    .host_promise_rejection_tracker(promise, PromiseRejectionOperation::Handle);
+            }
+            // d. Let rejectJob be NewPromiseReactionJob(rejectReaction, reason).
+            let reject_job = new_promise_reaction_job(agent, reject_reaction, reason);
+            // e. Perform HostEnqueuePromiseJob(rejectJob.[[Job]], rejectJob.[[Realm]]).
+            agent
+                .host_hooks
+                .host_enqueue_promise_job(reject_job.job, reject_job.realm);
+        }
+    }
+    // 12. Set promise.[[PromiseIsHandled]] to true.
+    agent[promise].promise_is_handled = true;
+    // 13. If resultCapability is undefined, then
+    //     a. Return undefined.
+    // 14. Else,
+    //     a. Return resultCapability.[[Promise]].
+    result_capability.map(|result_capability| agent[result_capability].promise)
 }

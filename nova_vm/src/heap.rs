@@ -72,6 +72,7 @@ use crate::ecmascript::{
         String, StringHeapData, SymbolHeapData, Value,
     },
 };
+pub(crate) use heap_bits::HeapMarkAndSweep;
 
 #[derive(Debug)]
 pub struct Heap {

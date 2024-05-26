@@ -6,8 +6,17 @@ use crate::{
         execution::{Agent, JsResult, RealmIdentifier},
         types::{String, Value},
     },
-    heap::indexes::ObjectIndex,
+    heap::{indexes::ObjectIndex, HeapMarkAndSweep},
 };
+
+trait AbstractClosureBehaviour: HeapMarkAndSweep {
+    fn call(
+        &self,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: Option<ArgumentsList>,
+    ) -> JsResult<Value>;
+}
 
 pub struct AbstractClosureHeapData {
     pub(crate) object_index: Option<ObjectIndex>,
@@ -20,7 +29,7 @@ pub struct AbstractClosureHeapData {
     /// A String that is the initial name of the function. It is used by
     /// 20.2.3.5 (`Function.prototype.toString()`).
     pub(crate) initial_name: Option<String>,
-    pub(crate) behaviour: Box<dyn Fn(&mut Agent, Value, Option<ArgumentsList>) -> JsResult<Value>>,
+    pub(crate) behaviour: Box<dyn AbstractClosureBehaviour>,
 }
 
 impl Debug for AbstractClosureHeapData {

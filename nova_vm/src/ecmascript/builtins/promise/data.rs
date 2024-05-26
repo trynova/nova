@@ -1,4 +1,4 @@
-use crate::{ecmascript::{builtins::control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, types::Value}, heap::indexes::ObjectIndex};
+use crate::{ecmascript::{builtins::control_abstraction_objects::promise_objects::promise_abstract_operations::promise_reaction_records::PromiseReactionRecord, types::Value}, heap::indexes::ObjectIndex};
 
 #[derive(Debug, Clone, Default)]
 pub struct PromiseHeapData {
@@ -25,17 +25,4 @@ pub(crate) enum PromiseState {
 pub(crate) enum PromiseReactions {
     One(PromiseReactionRecord),
     Many(Vec<PromiseReactionRecord>),
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct PromiseReactionRecord {
-    capability: PromiseCapability,
-    r#type: PromiseReactionType,
-    handler: (),
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum PromiseReactionType {
-    Fulfill,
-    Reject,
 }

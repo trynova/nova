@@ -6,6 +6,7 @@ use super::{
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
+        scripts_and_modules::script::HostDefined,
         types::{
             IntoValue, Number, Object, PropertyDescriptor, PropertyKey, Value,
             BUILTIN_STRING_MEMORY,
@@ -16,7 +17,6 @@ use crate::{
 pub(crate) use intrinsics::Intrinsics;
 pub(crate) use intrinsics::ProtoIntrinsics;
 use std::{
-    any::Any,
     marker::PhantomData,
     ops::{Index, IndexMut},
 };
@@ -139,7 +139,7 @@ pub struct Realm {
     ///
     /// Field reserved for use by hosts that need to associate additional
     /// information with a Realm Record.
-    pub(crate) host_defined: Option<&'static dyn Any>,
+    pub(crate) host_defined: Option<HostDefined>,
 }
 
 unsafe impl Send for Realm {}

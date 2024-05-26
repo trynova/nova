@@ -1,17 +1,8 @@
-use small_string::SmallString;
-
-use crate::{
-    ecmascript::{
-        execution::{ModuleEnvironmentIndex, RealmIdentifier},
-        scripts_and_modules::module::ModuleIdentifier,
-        types::{PropertyKey, String},
-    },
-    heap::indexes::{ObjectIndex, StringIndex},
-};
+use crate::{ecmascript::types::String, heap::indexes::ObjectIndex};
 
 use super::{
     abstract_module_records::ModuleRecord, cyclic_module_records::CyclicModuleRecord,
-    source_text_module_records::SourceTextModuleRecord, Module,
+    source_text_module_records::SourceTextModuleRecord,
 };
 
 #[derive(Debug)]
@@ -20,5 +11,5 @@ pub struct ModuleHeapData {
     pub(crate) r#abstract: ModuleRecord,
     pub(crate) cyclic: CyclicModuleRecord,
     pub(crate) source_text: SourceTextModuleRecord,
-    pub(crate) exports: Vec<String>,
+    pub(crate) exports: Box<[String]>,
 }

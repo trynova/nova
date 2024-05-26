@@ -1,4 +1,6 @@
-use self::{module::ModuleIdentifier, script::ScriptIdentifier};
+use self::script::ScriptIdentifier;
+
+use super::builtins::module::Module;
 
 pub mod module;
 pub mod script;
@@ -6,5 +8,5 @@ pub mod script;
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ScriptOrModule {
     Script(ScriptIdentifier),
-    Module(ModuleIdentifier),
+    Module(Module),
 }

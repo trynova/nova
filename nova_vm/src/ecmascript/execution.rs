@@ -10,8 +10,8 @@ pub(crate) use environments::{
     get_this_environment, new_declarative_environment, new_function_environment,
     DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, Environments,
     FunctionEnvironment, FunctionEnvironmentIndex, GlobalEnvironment, GlobalEnvironmentIndex,
-    ModuleEnvironmentIndex, ObjectEnvironment, ObjectEnvironmentIndex, PrivateEnvironment,
-    PrivateEnvironmentIndex, ThisBindingStatus,
+    ModuleBinding, ModuleEnvironment, ModuleEnvironmentIndex, ObjectEnvironment,
+    ObjectEnvironmentIndex, PrivateEnvironment, PrivateEnvironmentIndex, ThisBindingStatus,
 };
 pub(crate) use execution_context::*;
 pub use realm::{

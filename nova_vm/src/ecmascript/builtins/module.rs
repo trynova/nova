@@ -17,7 +17,7 @@ use crate::{
 use self::{
     abstract_module_records::{ResolveExportResult, ResolvedBindingName},
     data::ModuleHeapData,
-    source_text_module_records::resolve_export,
+    source_text_module_records::{get_module_namespace, resolve_export},
 };
 
 use super::ordinary::{
@@ -326,10 +326,10 @@ impl InternalMethods for Module {
                     // 8. Assert: targetModule is not undefined.
                     let target_module = binding.module.unwrap();
                     // 9. If binding.[[BindingName]] is NAMESPACE, then
-                    let _binding_name = match binding.binding_name {
+                    let binding_name = match binding.binding_name {
                         ResolvedBindingName::Namespace => {
                             // a. Return GetModuleNamespace(targetModule).
-                            todo!();
+                            return Ok(get_module_namespace(agent, target_module).into_value());
                         }
                         ResolvedBindingName::String(data) => String::String(data),
                         ResolvedBindingName::SmallString(data) => String::SmallString(data),
@@ -344,7 +344,7 @@ impl InternalMethods for Module {
                         )),
                         Some(target_env) => {
                             // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
-                            target_env.get_
+                            target_env.get_binding_value(agent, binding_name, true)
                         }
                     }
                 }
@@ -414,4 +414,33 @@ impl InternalMethods for Module {
             .for_each(|symbol_key| own_property_keys.push(*symbol_key));
         Ok(own_property_keys)
     }
+}
+
+/// ### [10.4.6.12 ModuleNamespaceCreate ( module, exports )](https://tc39.es/ecma262/#sec-modulenamespacecreate)
+///
+/// The abstract operation ModuleNamespaceCreate takes arguments module (a
+/// Module Record) and exports (a List of Strings) and returns a module
+/// namespace exotic object. It is used to specify the creation of new module
+/// namespace exotic objects.
+pub(crate) fn module_namespace_create(
+    agent: &mut Agent,
+    module: Module,
+    mut exports: Box<[String]>,
+) {
+    // 1. Assert: module.[[Namespace]] is empty.
+    debug_assert!(!agent[module].r#abstract.namespace);
+    // NOTE: All of the following steps are already done by default.
+    // 2. Let internalSlotsList be the internal slots listed in Table 33.
+    // 3. Let M be MakeBasicObject(internalSlotsList).
+    // 4. Set M's essential internal methods to the definitions specified in 10.4.6.
+    // 5. Set M.[[Module]] to module.
+    // 6. Let sortedExports be a List whose elements are the elements of exports, sorted according to lexicographic code unit order.
+    exports.sort_by(|a, b| a.as_str(agent).cmp(&b.as_str(agent)));
+    // 7. Set M.[[Exports]] to sortedExports.
+    let module_data = &mut agent[module];
+    module_data.exports = exports;
+    // 8. Create own properties of M corresponding to the definitions in 28.3.
+    // 9. Set module.[[Namespace]] to M.
+    module_data.r#abstract.namespace = true;
+    // 10. Return M.
 }

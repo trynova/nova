@@ -4,17 +4,16 @@ use oxc_parser::{Parser, ParserReturn};
 use oxc_span::{Atom, SourceType};
 use small_string::SmallString;
 
-use super::{abstract_module_records::{ModuleRecord, ResolveExportResult}, cyclic_module_records::{CyclicModuleRecord, CyclicModuleRecordStatus}, data::ModuleHeapData, Module};
+use super::{abstract_module_records::{ModuleRecord, ResolveExportResult}, cyclic_module_records::{continue_module_loading, CyclicModuleRecord, CyclicModuleRecordStatus, LoadedModuleRecord}, data::ModuleHeapData, Module};
 use crate::{
     ecmascript::{
-        builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, module::{abstract_module_records::{ResolvedBinding, ResolvedBindingName}, semantics::{self, module_requests}}},
-        execution::{agent, Agent, DeclarativeEnvironmentIndex, ExecutionContext, JsResult, RealmIdentifier},
-        scripts_and_modules::script::HostDefined,
+        builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, module::{abstract_module_records::{ResolvedBinding, ResolvedBindingName}, cyclic_module_records::evaluate, semantics::{self, module_requests}}},
+        execution::{Agent, DeclarativeEnvironmentIndex, ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult, RealmIdentifier},
+        scripts_and_modules::{script::{HostDefined, ScriptIdentifier}, ScriptOrModule},
         types::{
             Object, String, BUILTIN_STRING_MEMORY, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
         },
-    },
-    heap::indexes::StringIndex,
+    }, engine::{Executable, Vm}, heap::indexes::StringIndex
 };
 
 /// a String or NAMESPACE-OBJECT
@@ -173,6 +172,8 @@ pub(crate) struct SourceTextModuleRecord {
     star_export_entries: Box<[ExportEntryRecord]>,
 }
 
+unsafe impl Send for SourceTextModuleRecord {}
+
 pub type ModuleOrErrors = Result<ModuleHeapData, Vec<oxc_diagnostics::Error>>;
 
 /// ### [16.2.1.6.1 ParseModule ( sourceText, realm, hostDefined )]()
@@ -296,7 +297,7 @@ pub(crate) fn parse_module<'a>(
             // [[Environment]]: empty,
             environment: None,
             // [[Namespace]]: empty,
-            namespace: None,
+            namespace: false,
             // [[HostDefined]]: hostDefined,
             host_defined: host_defined,
         },
@@ -340,7 +341,7 @@ pub(crate) fn parse_module<'a>(
             // [[StarExportEntries]]: starExportEntries,
             star_export_entries: star_export_entries.into_boxed_slice(),
         },
-        exports: vec![],
+        exports: Default::default(),
     })
     // }.
     // Note
@@ -432,7 +433,7 @@ struct ResolveSetEntry {
 /// The ResolveExport concrete method of a Source Text Module Record module
 /// takes argument exportName (a String) and optional argument resolveSet (a
 /// List of Records with fields \[\[Module\]\] (a Module Record) and
-/// ### \[\[ExportName\]\] (a String)) and returns a ResolvedBinding Record,
+/// \[\[ExportName\]\] (a String)) and returns a ResolvedBinding Record,
 /// null, or ambiguous.
 ///
 ///
@@ -448,9 +449,7 @@ struct ResolveSetEntry {
 ///
 /// If a defining module is found, a ResolvedBinding Record { \[\[Module\]\],
 /// ### \[\[BindingName\]\] } is returned. This record identifies the resolved
-///
 /// binding of the originally requested export, unless this is the export of a
-///
 /// namespace with no local binding. In this case, \[\[BindingName\]\] will be
 /// set to namespace. If no definition was found or the request is found to be
 /// circular, null is returned. If the request is found to be ambiguous,
@@ -693,24 +692,50 @@ pub(crate) fn execute_module(
     capability: Option<PromiseCapability>,
 ) -> JsResult<()> {
     // 1. Let moduleContext be a new ECMAScript code execution context.
-    // 2. Set the Function of moduleContext to null.
-    // 3. Set the Realm of moduleContext to module.[[Realm]].
-    // 4. Set the ScriptOrModule of moduleContext to module.
     // 5. Assert: module has been linked and declarations in its module environment have been instantiated.
-    // 6. Set the VariableEnvironment of moduleContext to module.[[Environment]].
-    // 7. Set the LexicalEnvironment of moduleContext to module.[[Environment]].
+    // TODO: What else does this need to assert?
+    let module_env = agent[module].r#abstract.environment.unwrap();
+    let module_context = ExecutionContext {
+        ecmascript_code: Some(ECMAScriptCodeEvaluationState {
+            // 6. Set the VariableEnvironment of moduleContext to module.[[Environment]].
+            // 7. Set the LexicalEnvironment of moduleContext to module.[[Environment]].
+            lexical_environment: EnvironmentIndex::Module(module_env),
+            variable_environment: EnvironmentIndex::Module(module_env),
+            private_environment: None,
+        }),
+        // 2. Set the Function of moduleContext to null.
+        function: None,
+        // 3. Set the Realm of moduleContext to module.[[Realm]].
+        realm: agent[module].r#abstract.realm,
+        // 4. Set the ScriptOrModule of moduleContext to module.
+        script_or_module: Some(ScriptOrModule::Module(module)),
+    };
     // 8. Suspend the running execution context.
+    // TODO: What does suspending mean again?
+
     // 9. If module.[[HasTLA]] is false, then
-    // a. Assert: capability is not present.
-    // b. Push moduleContext onto the execution context stack; moduleContext is now the running execution context.
-    // c. Let result be Completion(Evaluation of module.[[ECMAScriptCode]]).
-    // d. Suspend moduleContext and remove it from the execution context stack.
-    // e. Resume the context that is now on the top of the execution context stack as the running execution context.
-    // f. If result is an abrupt completion, then
-    // i. Return ? result.
-    // 10. Else,
-    // a. Assert: capability is a PromiseCapability Record.
-    // b. Perform AsyncBlockStart(capability, module.[[ECMAScriptCode]], moduleContext).
+    if !agent[module].cyclic.has_top_level_await {
+        // a. Assert: capability is not present.
+        debug_assert!(capability.is_none());
+        // b. Push moduleContext onto the execution context stack; moduleContext is now the running execution context.
+        agent.execution_context_stack.push(module_context);
+        // c. Let result be Completion(Evaluation of module.[[ECMAScriptCode]]).
+        let exe = Executable::compile_module(agent, module);
+        let result = Vm::execute(agent, &exe);
+        // d. Suspend moduleContext and remove it from the execution context stack.
+        agent.execution_context_stack.pop();
+        // e. Resume the context that is now on the top of the execution context stack as the running execution context.
+        // f. If result is an abrupt completion, then
+        // i. Return ? result.
+        result?;
+    } else {
+        // 10. Else,
+        // a. Assert: capability is a PromiseCapability Record.
+        let _capability = capability.unwrap();
+        // b. Perform AsyncBlockStart(capability, module.[[ECMAScriptCode]], moduleContext).
+        // async_block_start(agent, capability, agent[module].source_text.ecmascript_code, module_context);
+        todo!("AsyncBlockStart");
+    }
     // 11. Return unused.
     Ok(())
 }
@@ -747,4 +772,121 @@ pub(super) fn get_imported_module(
     );
     // 3. Return record.[[Module]].
     record.unwrap()
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ModuleReferrer {
+    Script(ScriptIdentifier),
+    Module(Module),
+    Realm(RealmIdentifier),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ModuleImportPayload {
+    GraphLoadingState(Module),
+    PromiseCapabilityRecord(PromiseCapability),
+}
+
+/// ### [16.2.1.9 FinishLoadingImportedModule ( referrer, specifier, payload, result )](https://tc39.es/ecma262/#sec-FinishLoadingImportedModule)
+///
+/// The abstract operation FinishLoadingImportedModule takes arguments referrer
+/// (a Script Record, a Cyclic Module Record, or a Realm Record), specifier (a
+/// String), payload (a GraphLoadingState Record or a PromiseCapability
+/// Record), and result (either a normal completion containing a Module Record
+/// or a throw completion) and returns unused.
+pub(crate) fn finish_loading_imported_module(
+    agent: &mut Agent,
+    referrer: ModuleReferrer,
+    specifier: Atom<'static>,
+    payload: ModuleImportPayload,
+    result: JsResult<Module>,
+) {
+    // 1. If result is a normal completion, then
+    if let Ok(result) = result {
+        let ModuleReferrer::Module(referrer) = referrer else {
+            unreachable!("The spec seems to suggest that referrer can only be a Module?");
+        };
+        // a. If referrer.[[LoadedModules]] contains a Record whose [[Specifier]] is specifier, then
+        if let Some(matching_module) = agent[referrer]
+            .cyclic
+            .loaded_modules
+            .iter()
+            .find(|loaded_module| loaded_module.specifier == Some(specifier))
+        {
+            // i. Assert: That Record's [[Module]] is result.[[Value]].
+            assert_eq!(matching_module.module, result);
+        } else {
+            // b. Else,
+            // i. Append the Record { [[Specifier]]: specifier, [[Module]]: result.[[Value]] } to referrer.[[LoadedModules]].
+            agent[referrer]
+                .cyclic
+                .loaded_modules
+                .push(LoadedModuleRecord {
+                    specifier,
+                    module: result,
+                });
+        }
+    }
+    // 2. If payload is a GraphLoadingState Record, then
+    match payload {
+        // a. Perform ContinueModuleLoading(payload, result).
+        ModuleImportPayload::GraphLoadingState(payload) => {
+            continue_module_loading(agent, payload, result)
+        }
+        // 3. Else,
+        ModuleImportPayload::PromiseCapabilityRecord(payload) => {
+            continue_dynamic_import(agent, payload, result)
+        }
+    }
+    // a. Perform ContinueDynamicImport(payload, result).
+    // 4. Return unused.
+}
+
+/// ### [16.2.1.10 GetModuleNamespace ( module )](https://tc39.es/ecma262/#sec-getmodulenamespace)
+///
+/// The abstract operation GetModuleNamespace takes argument module (an
+/// instance of a concrete subclass of Module Record) and returns a Module
+/// Namespace Object or empty. It retrieves the Module Namespace Object
+/// representing module's exports, lazily creating it the first time it was
+/// requested, and storing it in module.[[Namespace]] for future retrieval.
+///
+/// #### Note
+///
+/// GetModuleNamespace never throws. Instead, unresolvable names are simply
+/// excluded from the namespace at this point. They will lead to a real
+/// linking error later unless they are all ambiguous star exports that are
+/// not explicitly requested anywhere.
+pub(crate) fn get_module_namespace(agent: &mut Agent, module: Module) -> Module {
+    // 1. Assert: If module is a Cyclic Module Record, then module.[[Status]] is not new or unlinked.
+    debug_assert!({
+        if true {
+            !matches!(
+                agent[module].cyclic.status,
+                CyclicModuleRecordStatus::New | CyclicModuleRecordStatus::Unlinked
+            )
+        } else {
+            true
+        }
+    });
+    // 2. Let namespace be module.[[Namespace]].
+    let namespace = agent[module].r#abstract.namespace;
+    // 3. If namespace is empty, then
+    if !namespace {
+        // a. Let exportedNames be module.GetExportedNames().
+        let exported_names = get_exported_names(agent, module, None);
+        // b. Let unambiguousNames be a new empty List.
+        let mut unamibigious_names = Vec::with_capacity(exported_names.len());
+        // c. For each element name of exportedNames, do
+        for name in exported_names {
+            // i. Let resolution be module.ResolveExport(name).
+            let resolution = resolve_export(agent, module, name, None);
+            // ii. If resolution is a ResolvedBinding Record, append name to unambiguousNames.
+            if let Some(ResolveExportResult::Resolved(_)) = resolution {
+                unamibigious_names.push(name);
+            }
+        }
+        // d. Set namespace to ModuleNamespaceCreate(module, unambiguousNames).
+    }
+    // 4. Return namespace.
+    module
 }

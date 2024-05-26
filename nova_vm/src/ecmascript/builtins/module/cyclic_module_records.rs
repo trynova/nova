@@ -5,23 +5,23 @@ use oxc_span::Atom;
 use crate::ecmascript::{
     abstract_operations::operations_on_objects::call_function,
     builtins::{
-        control_abstraction_objects::promise_objects::promise_abstract_operations::{
-            new_intrinsic_promise_capability, new_promise_capability,
-            promise_capability_records::PromiseCapability,
+        control_abstraction_objects::promise_objects::{
+            promise_abstract_operations::{
+                new_intrinsic_promise_capability, promise_capability_records::PromiseCapability,
+            },
+            promise_constructor::perform_promise_then,
         },
-        create_builtin_function,
-        error::Error,
         module::source_text_module_records::get_imported_module,
         promise::Promise,
         ArgumentsList,
     },
     execution::{agent::JsError, Agent, JsResult},
+    scripts_and_modules::script::HostDefined,
     types::{String, Value},
 };
 
 use super::{
-    abstract_module_records::{ModuleRecord, NotLoadedErr, ResolvedBinding},
-    Module,
+    abstract_module_records::ResolvedBinding, source_text_module_records::execute_module, Module,
 };
 
 /// ### [CyclicModuleRecord] \[\[EvaluationError\]\]
@@ -209,7 +209,7 @@ pub(crate) struct GraphLoadingStateRecord {
     ///
     /// It contains host-defined data to pass from the LoadRequestedModules
     /// caller to HostLoadImportedModule.
-    host_defined: Option<Box<dyn Any>>,
+    host_defined: Option<HostDefined>,
 }
 
 impl Module {
@@ -229,7 +229,7 @@ impl Module {
     fn load_requested_modules(
         self,
         agent: &mut Agent,
-        host_defined: Option<Box<dyn Any>>,
+        host_defined: Option<HostDefined>,
     ) -> Promise {
         // 1. If hostDefined is not present, let hostDefined be empty.
         // TODO: 2. Let pc be ! NewPromiseCapability(%Promise%).
@@ -251,6 +251,7 @@ impl Module {
         // 4. Perform InnerModuleLoading(state, module).
         inner_module_loading(agent, &mut state, self);
         // 5. Return pc.[[Promise]].
+        Promise::try_from(agent[pc].promise).unwrap()
 
         // Note
         // The hostDefined parameter can be used to pass additional information
@@ -258,7 +259,6 @@ impl Module {
         // HTML to set the correct fetch destination for
         // `<link rel="preload" as="...">` tags. `import()` expressions never
         // set the hostDefined parameter.
-        todo!();
     }
 
     pub(crate) fn get_exported_names(
@@ -299,8 +299,12 @@ impl Module {
 
     fn initialize_environment(self, agent: &mut Agent) {}
 
-    fn execute_module(self, agent: &mut Agent, promise_capability: Option<()>) -> JsResult<()> {
-        todo!()
+    fn execute_module(
+        self,
+        agent: &mut Agent,
+        promise_capability: Option<PromiseCapability>,
+    ) -> JsResult<()> {
+        execute_module(agent, self, promise_capability)
     }
 }
 
@@ -339,9 +343,9 @@ fn inner_module_loading(agent: &mut Agent, state: &mut GraphLoadingStateRecord, 
                 agent.host_hooks.host_load_imported_module(
                     // agent,
                     (), // module,
-                    &required,
+                    required.clone(),
                     state.host_defined.as_ref().map(|boxed| boxed.as_ref()),
-                    (), // state
+                    state,
                 );
                 // 2. NOTE: HostLoadImportedModule will call FinishLoadingImportedModule,
                 // which re-enters the graph loading process through ContinueModuleLoading.
@@ -361,11 +365,20 @@ fn inner_module_loading(agent: &mut Agent, state: &mut GraphLoadingStateRecord, 
         // a. Set state.[[IsLoading]] to false.
         state.is_loading = false;
         // b. For each Cyclic Module Record loaded of state.[[Visited]], do
-        for _loaded in &state.visited {
-            // TODO: i. If loaded.[[Status]] is new, set loaded.[[Status]] to unlinked.
+        for loaded in &state.visited {
+            // i. If loaded.[[Status]] is new, set loaded.[[Status]] to unlinked.
+            if agent[*loaded].cyclic.status == CyclicModuleRecordStatus::New {
+                agent[*loaded].cyclic.status = CyclicModuleRecordStatus::Unlinked;
+            }
         }
         // c. Perform ! Call(state.[[PromiseCapability]].[[Resolve]], undefined, « undefined »).
-        // call_function(agent, state.promise_capability.resolve, Value::Undefined, Some(ArgumentsList(&[Value::Undefined])));
+        let resolve = agent[state.promise_capability].resolve;
+        call_function(
+            agent,
+            resolve,
+            Value::Undefined,
+            Some(ArgumentsList(&[Value::Undefined])),
+        );
     }
     // 6. Return unused.
 }
@@ -377,7 +390,7 @@ fn inner_module_loading(agent: &mut Agent, state: &mut GraphLoadingStateRecord, 
 /// containing a Module Record or a throw completion) and returns unused. It is
 /// used to re-enter the loading process after a call to
 /// HostLoadImportedModule.
-fn continue_module_loading(
+pub(super) fn continue_module_loading(
     agent: &mut Agent,
     state: &mut GraphLoadingStateRecord,
     module_completion: JsResult<Module>,
@@ -979,11 +992,11 @@ pub(crate) fn execute_async_module(agent: &mut Agent, module: Module) {
     // 2. Assert: module.[[HasTLA]] is true.
     assert!(module_borrow.cyclic.has_top_level_await);
     // 3. Let capability be ! NewPromiseCapability(%Promise%).
-    let capability = (); // new_promise_capability(agent, ProtoIntrinsics::Promise);
-                         // 4. Let fulfilledClosure be a new Abstract Closure with no parameters that captures module and performs the following steps when called:
-                         // a. Perform AsyncModuleExecutionFulfilled(module).
-                         // b. Return undefined.
-                         // 5. Let onFulfilled be CreateBuiltinFunction(fulfilledClosure, 0, "", « »).
+    let capability = new_intrinsic_promise_capability(agent);
+    // 4. Let fulfilledClosure be a new Abstract Closure with no parameters that captures module and performs the following steps when called:
+    // a. Perform AsyncModuleExecutionFulfilled(module).
+    // b. Return undefined.
+    // 5. Let onFulfilled be CreateBuiltinFunction(fulfilledClosure, 0, "", « »).
     let on_fulfilled = ();
     // 6. Let rejectedClosure be a new Abstract Closure with parameters (error) that captures module and performs the following steps when called:
     // a. Perform AsyncModuleExecutionRejected(module, error).
@@ -991,7 +1004,13 @@ pub(crate) fn execute_async_module(agent: &mut Agent, module: Module) {
     // 7. Let onRejected be CreateBuiltinFunction(rejectedClosure, 0, "", « »).
     let on_rejected = ();
     // 8. Perform PerformPromiseThen(capability.[[Promise]], onFulfilled, onRejected).
-    perform_promise_then(capability.promise, on_fulfilled, on_rejected);
+    perform_promise_then(
+        agent,
+        Promise::try_from(agent[capability].promise).unwrap(),
+        on_fulfilled,
+        on_rejected,
+        None,
+    );
     // 9. Perform ! module.ExecuteModule(capability).
     module.execute_module(agent, Some(capability));
     // 10. Return unused.

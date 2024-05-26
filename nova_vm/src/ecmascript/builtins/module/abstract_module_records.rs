@@ -24,12 +24,16 @@ pub(crate) struct ModuleRecord {
     ///
     /// The Environment Record containing the top level bindings for this
     /// module. This field is set when the module is linked.
-    pub(super) environment: Option<ModuleEnvironmentIndex>,
+    pub(crate) environment: Option<ModuleEnvironmentIndex>,
     /// \[\[Namespace]]
     ///
     /// The Module Namespace Object (28.3) if one has been created for this
     /// module.
-    pub(super) namespace: Option<Module>,
+    ///
+    /// NOTE: The ModuleRecord is contained in the Module Namespace Exotic
+    /// Object's heap data; this boolean then just tells if the object has
+    /// been created.
+    pub(super) namespace: bool,
     /// \[\[HostDefined]]
     ///
     /// Field reserved for use by host environments that need to associate

@@ -34,7 +34,7 @@ pub(crate) use function_environment::{
     new_function_environment, FunctionEnvironment, ThisBindingStatus,
 };
 pub(crate) use global_environment::GlobalEnvironment;
-pub(crate) use module_environment::{ModuleEnvironment, ModuleEnvironmentIndex};
+pub(crate) use module_environment::{ModuleBinding, ModuleEnvironment};
 pub(crate) use object_environment::ObjectEnvironment;
 pub(crate) use private_environment::PrivateEnvironment;
 
@@ -97,6 +97,7 @@ macro_rules! create_environment_index {
 create_environment_index!(DeclarativeEnvironment, DeclarativeEnvironmentIndex);
 create_environment_index!(FunctionEnvironment, FunctionEnvironmentIndex);
 create_environment_index!(GlobalEnvironment, GlobalEnvironmentIndex);
+create_environment_index!(ModuleEnvironment, ModuleEnvironmentIndex);
 create_environment_index!(ObjectEnvironment, ObjectEnvironmentIndex);
 create_environment_index!(PrivateEnvironment, PrivateEnvironmentIndex);
 
@@ -131,6 +132,7 @@ impl EnvironmentIndex {
                     .outer_env
             }
             EnvironmentIndex::Global(_) => None,
+            EnvironmentIndex::Module(_) => None,
             EnvironmentIndex::Object(index) => index.heap_data(agent).outer_env,
         }
     }
@@ -144,6 +146,7 @@ impl EnvironmentIndex {
             EnvironmentIndex::Declarative(idx) => Ok(idx.has_binding(agent, name)),
             EnvironmentIndex::Function(idx) => Ok(idx.has_binding(agent, name)),
             EnvironmentIndex::Global(idx) => idx.has_binding(agent, name),
+            EnvironmentIndex::Module(idx) => Ok(idx.has_binding(agent, name)),
             EnvironmentIndex::Object(idx) => idx.has_binding(agent, name),
         }
     }
@@ -169,6 +172,10 @@ impl EnvironmentIndex {
                 Ok(())
             }
             EnvironmentIndex::Global(idx) => idx.create_mutable_binding(agent, name, is_deletable),
+            EnvironmentIndex::Module(idx) => {
+                idx.create_mutable_binding(agent, name, is_deletable);
+                Ok(())
+            }
             EnvironmentIndex::Object(idx) => idx.create_mutable_binding(agent, name, is_deletable),
         }
     }
@@ -196,6 +203,10 @@ impl EnvironmentIndex {
                 Ok(())
             }
             EnvironmentIndex::Global(idx) => idx.create_immutable_binding(agent, name, is_strict),
+            EnvironmentIndex::Module(idx) => {
+                idx.create_immutable_binding(agent, name, is_strict);
+                Ok(())
+            }
             EnvironmentIndex::Object(idx) => {
                 idx.create_immutable_binding(agent, name, is_strict);
                 Ok(())
@@ -225,6 +236,10 @@ impl EnvironmentIndex {
                 Ok(())
             }
             EnvironmentIndex::Global(idx) => idx.initialize_binding(agent, name, value),
+            EnvironmentIndex::Module(idx) => {
+                idx.initialize_binding(agent, name, value);
+                Ok(())
+            }
             EnvironmentIndex::Object(idx) => idx.initialize_binding(agent, name, value),
         }
     }
@@ -251,6 +266,10 @@ impl EnvironmentIndex {
                 idx.set_mutable_binding(agent, name, value, is_strict)
             }
             EnvironmentIndex::Global(idx) => idx.set_mutable_binding(agent, name, value, is_strict),
+            EnvironmentIndex::Module(idx) => {
+                idx.initialize_binding(agent, name, value);
+                Ok(())
+            }
             EnvironmentIndex::Object(idx) => idx.set_mutable_binding(agent, name, value, is_strict),
         }
     }
@@ -274,6 +293,7 @@ impl EnvironmentIndex {
             EnvironmentIndex::Declarative(idx) => idx.get_binding_value(agent, name, is_strict),
             EnvironmentIndex::Function(idx) => idx.get_binding_value(agent, name, is_strict),
             EnvironmentIndex::Global(idx) => idx.get_binding_value(agent, name, is_strict),
+            EnvironmentIndex::Module(idx) => idx.get_binding_value(agent, name, is_strict),
             EnvironmentIndex::Object(idx) => idx.get_binding_value(agent, name, is_strict),
         }
     }
@@ -289,6 +309,7 @@ impl EnvironmentIndex {
             EnvironmentIndex::Declarative(idx) => Ok(idx.delete_binding(agent, name)),
             EnvironmentIndex::Function(idx) => Ok(idx.delete_binding(agent, name)),
             EnvironmentIndex::Global(idx) => idx.delete_binding(agent, name),
+            EnvironmentIndex::Module(idx) => Ok(idx.delete_binding(agent, name)),
             EnvironmentIndex::Object(idx) => idx.delete_binding(agent, name),
         }
     }
@@ -302,6 +323,7 @@ impl EnvironmentIndex {
             EnvironmentIndex::Declarative(idx) => idx.has_this_binding(),
             EnvironmentIndex::Function(idx) => idx.has_this_binding(agent),
             EnvironmentIndex::Global(idx) => idx.has_this_binding(),
+            EnvironmentIndex::Module(idx) => idx.has_this_binding(),
             EnvironmentIndex::Object(idx) => idx.has_this_binding(),
         }
     }
@@ -315,6 +337,7 @@ impl EnvironmentIndex {
             EnvironmentIndex::Declarative(idx) => idx.has_super_binding(),
             EnvironmentIndex::Function(idx) => idx.has_super_binding(agent),
             EnvironmentIndex::Global(idx) => idx.has_super_binding(),
+            EnvironmentIndex::Module(idx) => idx.has_super_binding(),
             EnvironmentIndex::Object(idx) => idx.has_super_binding(),
         }
     }
@@ -328,6 +351,7 @@ impl EnvironmentIndex {
             EnvironmentIndex::Declarative(idx) => idx.with_base_object(),
             EnvironmentIndex::Function(idx) => idx.with_base_object(),
             EnvironmentIndex::Global(idx) => idx.with_base_object(),
+            EnvironmentIndex::Module(idx) => idx.with_base_object(),
             EnvironmentIndex::Object(idx) => idx.with_base_object(agent),
         }
     }
@@ -338,6 +362,7 @@ pub struct Environments {
     pub(crate) declarative: Vec<Option<DeclarativeEnvironment>>,
     pub(crate) function: Vec<Option<FunctionEnvironment>>,
     pub(crate) global: Vec<Option<GlobalEnvironment>>,
+    pub(crate) module: Vec<Option<ModuleEnvironment>>,
     pub(crate) object: Vec<Option<ObjectEnvironment>>,
 }
 
@@ -347,6 +372,7 @@ impl Default for Environments {
             declarative: Vec::with_capacity(256),
             function: Vec::with_capacity(1024),
             global: Vec::with_capacity(1),
+            module: Vec::with_capacity(64),
             object: Vec::with_capacity(1024),
         }
     }
@@ -505,6 +531,28 @@ impl Environments {
             .expect("GlobalEnvironmentIndex did not match to any vector index")
             .as_mut()
             .expect("GlobalEnvironmentIndex pointed to a None")
+    }
+
+    pub(crate) fn get_module_environment(
+        &self,
+        index: ModuleEnvironmentIndex,
+    ) -> &ModuleEnvironment {
+        self.module
+            .get(index.into_index())
+            .expect("ModuleEnvironmentIndex did not match to any vector index")
+            .as_ref()
+            .expect("ModuleEnvironmentIndex pointed to a None")
+    }
+
+    pub(crate) fn get_module_environment_mut(
+        &mut self,
+        index: ModuleEnvironmentIndex,
+    ) -> &mut ModuleEnvironment {
+        self.module
+            .get_mut(index.into_index())
+            .expect("ModuleEnvironmentIndex did not match to any vector index")
+            .as_mut()
+            .expect("ModuleEnvironmentIndex pointed to a None")
     }
 
     pub(crate) fn get_object_environment(

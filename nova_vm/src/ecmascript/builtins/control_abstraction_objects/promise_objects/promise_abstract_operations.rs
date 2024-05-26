@@ -7,7 +7,10 @@ use crate::{
             promise::{data::PromiseHeapData, Promise},
             ArgumentsList,
         },
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{
+            agent::{ExceptionType, JobCallbackRecord},
+            Agent, JsResult,
+        },
         types::{
             AbstractClosureHeapData, Function, IntoFunction, IntoObject, IntoValue, Object, String,
             Value,
@@ -400,4 +403,79 @@ pub(crate) fn trigger_promise_reactions(
     // a. Let job be NewPromiseReactionJob(reaction, argument).
     // b. Perform HostEnqueuePromiseJob(job.[[Job]], job.[[Realm]]).
     // 2. Return unused.
+}
+
+/// ### [27.2.2.1 NewPromiseReactionJob ( reaction, argument )](https://tc39.es/ecma262/#sec-newpromisereactionjob)
+///
+/// The abstract operation NewPromiseReactionJob takes arguments reaction (a
+/// PromiseReaction Record) and argument (an ECMAScript language value) and
+/// returns a Record with fields \[\[Job\]\] (a Job Abstract Closure) and
+/// \[\[Realm\]\] (a Realm Record or null). It returns a new Job Abstract
+/// Closure that applies the appropriate handler to the incoming value, and
+/// uses the handler's return value to resolve or reject the derived promise
+/// associated with that handler.
+pub(crate) fn new_promise_reaction_job(
+    agent: &mut Agent,
+    reaction: PromiseReaction,
+    argument: Value,
+) {
+    // 1. Let job be a new Job Abstract Closure with no parameters that captures reaction and argument and performs the following steps when called:
+    //     a. Let promiseCapability be reaction.[[Capability]].
+    //     b. Let type be reaction.[[Type]].
+    //     c. Let handler be reaction.[[Handler]].
+    //     d. If handler is empty, then
+    //         i. If type is fulfill, then
+    //             1. Let handlerResult be NormalCompletion(argument).
+    //         ii. Else,
+    //             1. Assert: type is reject.
+    //             2. Let handlerResult be ThrowCompletion(argument).
+    //     e. Else,
+    //         i. Let handlerResult be Completion(HostCallJobCallback(handler, undefined, « argument »)).
+    //     f. If promiseCapability is undefined, then
+    //         i. Assert: handlerResult is not an abrupt completion.
+    //         ii. Return empty.
+    //     g. Assert: promiseCapability is a PromiseCapability Record.
+    //     h. If handlerResult is an abrupt completion, then
+    //         i. Return ? Call(promiseCapability.[[Reject]], undefined, « handlerResult.[[Value]] »).
+    //     i. Else,
+    //         i. Return ? Call(promiseCapability.[[Resolve]], undefined, « handlerResult.[[Value]] »).
+    // 2. Let handlerRealm be null.
+    // 3. If reaction.[[Handler]] is not empty, then
+    //     a. Let getHandlerRealmResult be Completion(GetFunctionRealm(reaction.[[Handler]].[[Callback]])).
+    //     b. If getHandlerRealmResult is a normal completion, set handlerRealm to getHandlerRealmResult.[[Value]].
+    //     c. Else, set handlerRealm to the current Realm Record.
+    //     d. NOTE: handlerRealm is never null unless the handler is undefined. When the handler is a revoked Proxy and no ECMAScript code runs, handlerRealm is used to create error objects.
+    // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.
+}
+
+/// 27.2.2.2 NewPromiseResolveThenableJob ( promiseToResolve, thenable, then )
+///
+/// The abstract operation NewPromiseResolveThenableJob takes arguments
+/// promiseToResolve (a Promise), thenable (an Object), and then (a JobCallback
+/// Record) and returns a Record with fields \[\[Job\]\] (a Job Abstract
+/// Closure) and \[\[Realm\]\] (a Realm Record).
+///
+/// #### Note
+///
+/// This Job uses the supplied thenable and its then method to resolve the
+/// given promise. This process must take place as a Job to ensure that the
+/// evaluation of the then method occurs after evaluation of any surrounding
+/// code has completed.
+pub(crate) fn new_promise_resolve_thenable_job(
+    agent: &mut Agent,
+    promise_to_resolve: Promise,
+    thenable: Object,
+    then: JobCallbackRecord,
+) {
+    // 1. Let job be a new Job Abstract Closure with no parameters that captures promiseToResolve, thenable, and then and performs the following steps when called:
+    //     a. Let resolvingFunctions be CreateResolvingFunctions(promiseToResolve).
+    //     b. Let thenCallResult be Completion(HostCallJobCallback(then, thenable, « resolvingFunctions.[[Resolve]], resolvingFunctions.[[Reject]] »)).
+    //     c. If thenCallResult is an abrupt completion, then
+    //         i. Return ? Call(resolvingFunctions.[[Reject]], undefined, « thenCallResult.[[Value]] »).
+    //     d. Return ? thenCallResult.
+    // 2. Let getThenRealmResult be Completion(GetFunctionRealm(then.[[Callback]])).
+    // 3. If getThenRealmResult is a normal completion, let thenRealm be getThenRealmResult.[[Value]].
+    // 4. Else, let thenRealm be the current Realm Record.
+    // 5. NOTE: thenRealm is never null. When then.[[Callback]] is a revoked Proxy and no code runs, thenRealm is used to create error objects.
+    // 6. Return the Record { [[Job]]: job, [[Realm]]: thenRealm }.
 }

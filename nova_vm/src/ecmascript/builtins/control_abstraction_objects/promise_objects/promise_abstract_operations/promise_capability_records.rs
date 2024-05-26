@@ -4,10 +4,10 @@ use std::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::{call, call_function},
+        abstract_operations::operations_on_objects::call_function,
         builtins::ArgumentsList,
         execution::{agent::JsError, Agent, JsResult},
-        types::{Function, IntoValue, Object, Value},
+        types::{Function, Object, Value},
     },
     heap::{indexes::BaseIndex, Heap},
 };

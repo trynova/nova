@@ -201,6 +201,7 @@ impl Vm {
                     EnvironmentIndex::Declarative(_) => unreachable!(),
                     EnvironmentIndex::Function(idx) => idx.get_this_binding(agent)?,
                     EnvironmentIndex::Global(idx) => idx.get_this_binding(agent).into_value(),
+                    EnvironmentIndex::Module(idx) => idx.get_this_binding(),
                     EnvironmentIndex::Object(_) => unreachable!(),
                 });
             }
