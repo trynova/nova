@@ -25,6 +25,9 @@ enum Command {
 
     /// Evaluates a file
     Eval {
+        #[arg(short, long)]
+        verbose: bool,
+
         /// The file to evaluate
         path: String,
     },
@@ -43,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             println!("{:?}", result.program);
         }
-        Command::Eval { path } => {
+        Command::Eval { verbose, path } => {
             let file = std::fs::read_to_string(path)?;
             let allocator = Default::default();
 
@@ -54,7 +57,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let script = parse_script(&allocator, file.into(), realm, None).unwrap();
             let result = script_evaluation(&mut agent, script).unwrap();
 
-            println!("{:?}", result);
+            if verbose {
+                println!("{:?}", result);
+            }
         }
     }
 

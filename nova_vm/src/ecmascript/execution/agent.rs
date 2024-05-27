@@ -22,8 +22,7 @@ use std::collections::HashMap;
 #[derive(Debug, Default)]
 pub struct Options {
     pub disable_gc: bool,
-    pub print_ast: bool,
-    pub print_bytecode: bool,
+    pub print_internals: bool,
 }
 
 pub type JsResult<T> = std::result::Result<T, JsError>;
