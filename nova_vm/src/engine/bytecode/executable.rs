@@ -1,6 +1,7 @@
 use super::{instructions::Instr, Instruction};
 use crate::{
     ecmascript::{
+        builtins::module::Module,
         execution::Agent,
         scripts_and_modules::script::ScriptIdentifier,
         syntax_directed_operations::scope_analysis::{
@@ -87,6 +88,19 @@ impl Executable {
             return Some(*ele);
         }
         None
+    }
+
+    pub(crate) fn compile_module(agent: &mut Agent, module: Module) -> Executable {
+        eprintln!();
+        eprintln!("=== Compiling Module ===");
+        eprintln!();
+        // SAFETY: Module uniquely owns the Program and the body buffer does
+        // not move under any circumstances during heap operations.
+        let body: &[Statement] = unsafe {
+            std::mem::transmute(agent[module].source_text.ecmascript_code.body.as_slice())
+        };
+
+        Self::_compile_statements(agent, body)
     }
 
     pub(crate) fn compile_script(agent: &mut Agent, script: ScriptIdentifier) -> Executable {

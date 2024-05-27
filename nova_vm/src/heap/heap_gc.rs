@@ -3,9 +3,9 @@ use std::thread;
 use super::{
     element_array::ElementArrays,
     heap_bits::{
-        sweep_heap_u16_elements_vector_values, sweep_heap_u32_elements_vector_values,
-        sweep_heap_u8_elements_vector_values, sweep_heap_vector_values, CompactionLists, HeapBits,
-        HeapMarkAndSweep, WorkQueues,
+        mark_array_with_u32_length, sweep_heap_u16_elements_vector_values,
+        sweep_heap_u32_elements_vector_values, sweep_heap_u8_elements_vector_values,
+        sweep_heap_vector_values, CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
     },
     indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
@@ -44,6 +44,7 @@ pub fn heap_gc(heap: &mut Heap) {
 
     while !queues.is_empty() {
         let Heap {
+            abstract_closures,
             array_buffers,
             arrays,
             bigints,
@@ -63,6 +64,9 @@ pub fn heap_gc(heap: &mut Heap) {
             numbers,
             objects,
             primitive_objects,
+            promise_capability_records,
+            promise_reaction_records,
+            promise_reject_functions,
             promises,
             proxys,
             realms,
@@ -81,6 +85,7 @@ pub fn heap_gc(heap: &mut Heap) {
             declarative: declarative_environments,
             function: function_environments,
             global: global_environments,
+            module: module_environments,
             object: object_environments,
         } = environments;
         let ElementArrays {
@@ -103,7 +108,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                modules.get(index).mark_values(&mut queues, ());
+                modules.get(index).mark_values(&mut queues);
             }
         });
         let mut script_marks: Box<[ScriptIdentifier]> = queues.scripts.drain(..).collect();
@@ -116,7 +121,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                scripts.get(index).mark_values(&mut queues, ());
+                scripts.get(index).mark_values(&mut queues);
             }
         });
         let mut realm_marks: Box<[RealmIdentifier]> = queues.realms.drain(..).collect();
@@ -129,7 +134,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                realms.get(index).mark_values(&mut queues, ());
+                realms.get(index).mark_values(&mut queues);
             }
         });
 
@@ -144,9 +149,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                declarative_environments
-                    .get(index)
-                    .mark_values(&mut queues, ());
+                declarative_environments.get(index).mark_values(&mut queues);
             }
         });
         let mut function_environment_marks: Box<[FunctionEnvironmentIndex]> =
@@ -160,9 +163,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                function_environments
-                    .get(index)
-                    .mark_values(&mut queues, ());
+                function_environments.get(index).mark_values(&mut queues);
             }
         });
         let mut global_environment_marks: Box<[GlobalEnvironmentIndex]> =
@@ -176,7 +177,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                global_environments.get(index).mark_values(&mut queues, ());
+                global_environments.get(index).mark_values(&mut queues);
             }
         });
         let mut object_environment_marks: Box<[ObjectEnvironmentIndex]> =
@@ -190,7 +191,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                object_environments.get(index).mark_values(&mut queues, ());
+                object_environments.get(index).mark_values(&mut queues);
             }
         });
 
@@ -204,7 +205,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                arrays.get(index).mark_values(&mut queues, ());
+                arrays.get(index).mark_values(&mut queues);
             }
         });
         let mut array_buffer_marks: Box<[ArrayBufferIndex]> =
@@ -218,7 +219,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                array_buffers.get(index).mark_values(&mut queues, ());
+                array_buffers.get(index).mark_values(&mut queues);
             }
         });
         let mut bigint_marks: Box<[BigIntIndex]> = queues.bigints.drain(..).collect();
@@ -231,7 +232,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                bigints.get(index).mark_values(&mut queues, ());
+                bigints.get(index).mark_values(&mut queues);
             }
         });
         let mut bound_function_marks: Box<[BoundFunctionIndex]> =
@@ -245,7 +246,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                bound_functions.get(index).mark_values(&mut queues, ());
+                bound_functions.get(index).mark_values(&mut queues);
             }
         });
         let mut error_marks: Box<[ErrorIndex]> = queues.errors.drain(..).collect();
@@ -260,7 +261,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                ecmascript_functions.get(index).mark_values(&mut queues, ());
+                ecmascript_functions.get(index).mark_values(&mut queues);
             }
         });
         error_marks.sort();
@@ -272,7 +273,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                errors.get(index).mark_values(&mut queues, ());
+                errors.get(index).mark_values(&mut queues);
             }
         });
         let mut builtin_functions_marks: Box<[BuiltinFunctionIndex]> =
@@ -286,7 +287,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                builtin_functions.get(index).mark_values(&mut queues, ());
+                builtin_functions.get(index).mark_values(&mut queues);
             }
         });
         let mut data_view_marks: Box<[DataViewIndex]> = queues.data_views.drain(..).collect();
@@ -299,7 +300,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                data_views.get(index).mark_values(&mut queues, ());
+                data_views.get(index).mark_values(&mut queues);
             }
         });
         let mut date_marks: Box<[DateIndex]> = queues.dates.drain(..).collect();
@@ -312,7 +313,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                dates.get(index).mark_values(&mut queues, ());
+                dates.get(index).mark_values(&mut queues);
             }
         });
         let mut embedder_object_marks: Box<[EmbedderObjectIndex]> =
@@ -326,7 +327,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                embedder_objects.get(index).mark_values(&mut queues, ());
+                embedder_objects.get(index).mark_values(&mut queues);
             }
         });
         let mut finalization_registry_marks: Box<[FinalizationRegistryIndex]> =
@@ -340,9 +341,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                finalization_registrys
-                    .get(index)
-                    .mark_values(&mut queues, ());
+                finalization_registrys.get(index).mark_values(&mut queues);
             }
         });
         let mut object_marks: Box<[ObjectIndex]> = queues.objects.drain(..).collect();
@@ -355,7 +354,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                objects.get(index).mark_values(&mut queues, ());
+                objects.get(index).mark_values(&mut queues);
             }
         });
         let mut promise_marks: Box<[PromiseIndex]> = queues.promises.drain(..).collect();
@@ -368,7 +367,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                promises.get(index).mark_values(&mut queues, ());
+                promises.get(index).mark_values(&mut queues);
             }
         });
         let mut proxy_marks: Box<[ProxyIndex]> = queues.proxys.drain(..).collect();
@@ -381,7 +380,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                proxys.get(index).mark_values(&mut queues, ());
+                proxys.get(index).mark_values(&mut queues);
             }
         });
         let mut map_marks: Box<[MapIndex]> = queues.maps.drain(..).collect();
@@ -394,7 +393,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                maps.get(index).mark_values(&mut queues, ());
+                maps.get(index).mark_values(&mut queues);
             }
         });
         let mut number_marks: Box<[NumberIndex]> = queues.numbers.drain(..).collect();
@@ -407,7 +406,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                numbers.get(index).mark_values(&mut queues, ());
+                numbers.get(index).mark_values(&mut queues);
             }
         });
         let mut primitive_object_marks: Box<[PrimitiveObjectIndex]> =
@@ -421,7 +420,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                primitive_objects.get(index).mark_values(&mut queues, ());
+                primitive_objects.get(index).mark_values(&mut queues);
             }
         });
         let mut regexp_marks: Box<[RegExpIndex]> = queues.regexps.drain(..).collect();
@@ -434,7 +433,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                regexps.get(index).mark_values(&mut queues, ());
+                regexps.get(index).mark_values(&mut queues);
             }
         });
         let mut set_marks: Box<[SetIndex]> = queues.sets.drain(..).collect();
@@ -447,7 +446,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                sets.get(index).mark_values(&mut queues, ());
+                sets.get(index).mark_values(&mut queues);
             }
         });
         let mut shared_array_buffer_marks: Box<[SharedArrayBufferIndex]> =
@@ -461,7 +460,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                shared_array_buffers.get(index).mark_values(&mut queues, ());
+                shared_array_buffers.get(index).mark_values(&mut queues);
             }
         });
         let mut string_marks: Box<[StringIndex]> = queues.strings.drain(..).collect();
@@ -474,7 +473,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                strings.get(index).mark_values(&mut queues, ());
+                strings.get(index).mark_values(&mut queues);
             }
         });
         let mut symbol_marks: Box<[SymbolIndex]> = queues.symbols.drain(..).collect();
@@ -487,7 +486,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                symbols.get(index).mark_values(&mut queues, ());
+                symbols.get(index).mark_values(&mut queues);
             }
         });
         let mut typed_arrays_marks: Box<[TypedArrayIndex]> =
@@ -501,7 +500,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                typed_arrays.get(index).mark_values(&mut queues, ());
+                typed_arrays.get(index).mark_values(&mut queues);
             }
         });
         let mut weak_map_marks: Box<[WeakMapIndex]> = queues.weak_maps.drain(..).collect();
@@ -514,7 +513,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                weak_maps.get(index).mark_values(&mut queues, ());
+                weak_maps.get(index).mark_values(&mut queues);
             }
         });
         let mut weak_ref_marks: Box<[WeakRefIndex]> = queues.weak_refs.drain(..).collect();
@@ -527,7 +526,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                weak_refs.get(index).mark_values(&mut queues, ());
+                weak_refs.get(index).mark_values(&mut queues);
             }
         });
         let mut weak_set_marks: Box<[WeakSetIndex]> = queues.weak_sets.drain(..).collect();
@@ -540,7 +539,7 @@ pub fn heap_gc(heap: &mut Heap) {
                     return;
                 }
                 *marked = true;
-                weak_sets.get(index).mark_values(&mut queues, ());
+                weak_sets.get(index).mark_values(&mut queues);
             }
         });
         let mut e_2_4_marks: Box<[(ElementIndex, u32)]> = queues.e_2_4.drain(..).collect();
@@ -556,7 +555,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len as u8;
-                e2pow4.values.get(index).mark_values(&mut queues, len);
+                if let Some(array) = e2pow4.values.get(index) {
+                    mark_array_with_u32_length(array, &mut queues, len);
+                }
             }
         });
         let mut e_2_6_marks: Box<[(ElementIndex, u32)]> = queues.e_2_6.drain(..).collect();
@@ -572,7 +573,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len as u8;
-                e2pow6.values.get(index).mark_values(&mut queues, len);
+                if let Some(array) = e2pow6.values.get(index) {
+                    mark_array_with_u32_length(array, &mut queues, len);
+                }
             }
         });
         let mut e_2_8_marks: Box<[(ElementIndex, u32)]> = queues.e_2_8.drain(..).collect();
@@ -588,7 +591,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len as u8;
-                e2pow8.values.get(index).mark_values(&mut queues, len);
+                if let Some(array) = e2pow8.values.get(index) {
+                    mark_array_with_u32_length(array, &mut queues, len);
+                }
             }
         });
         let mut e_2_10_marks: Box<[(ElementIndex, u32)]> = queues.e_2_10.drain(..).collect();
@@ -604,7 +609,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len as u16;
-                e2pow10.values.get(index).mark_values(&mut queues, len);
+                if let Some(array) = e2pow10.values.get(index) {
+                    mark_array_with_u32_length(array, &mut queues, len);
+                }
             }
         });
         let mut e_2_12_marks: Box<[(ElementIndex, u32)]> = queues.e_2_12.drain(..).collect();
@@ -620,7 +627,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len as u16;
-                e2pow12.values.get(index).mark_values(&mut queues, len);
+                if let Some(array) = e2pow12.values.get(index) {
+                    mark_array_with_u32_length(array, &mut queues, len);
+                }
             }
         });
         let mut e_2_16_marks: Box<[(ElementIndex, u32)]> = queues.e_2_16.drain(..).collect();
@@ -636,7 +645,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len as u16;
-                e2pow16.values.get(index).mark_values(&mut queues, len);
+                if let Some(array) = e2pow16.values.get(index) {
+                    mark_array_with_u32_length(array, &mut queues, len);
+                }
             }
         });
         let mut e_2_24_marks: Box<[(ElementIndex, u32)]> = queues.e_2_24.drain(..).collect();
@@ -652,7 +663,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len;
-                e2pow24.values.get(index).mark_values(&mut queues, len);
+                if let Some(array) = e2pow24.values.get(index) {
+                    mark_array_with_u32_length(array, &mut queues, len);
+                }
             }
         });
         let mut e_2_32_marks: Box<[(ElementIndex, u32)]> = queues.e_2_32.drain(..).collect();
@@ -668,7 +681,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len;
-                e2pow32.values.get(index).mark_values(&mut queues, len);
+                if let Some(array) = e2pow32.values.get(index) {
+                    mark_array_with_u32_length(array, &mut queues, len);
+                }
             }
         });
     }
@@ -680,6 +695,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
     let compactions = CompactionLists::create_from_bits(bits);
 
     let Heap {
+        abstract_closures,
         array_buffers,
         arrays,
         bigints,
@@ -699,6 +715,9 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
         numbers,
         objects,
         primitive_objects,
+        promise_capability_records,
+        promise_reaction_records,
+        promise_reject_functions,
         promises,
         proxys,
         realms,
@@ -717,6 +736,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
         declarative,
         function,
         global,
+        module,
         object,
     } = environments;
     let ElementArrays {
@@ -733,7 +753,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
     thread::scope(|s| {
         s.spawn(|| {
             for value in globals {
-                value.sweep_values(&compactions, ());
+                value.sweep_values(&compactions);
             }
         });
         s.spawn(|| {
@@ -812,6 +832,9 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
         });
         s.spawn(|| {
             sweep_heap_vector_values(maps, &compactions, &bits.maps);
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(module, &compactions, &bits.module_environments);
         });
         s.spawn(|| {
             sweep_heap_vector_values(modules, &compactions, &bits.modules);

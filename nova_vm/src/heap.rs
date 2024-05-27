@@ -33,6 +33,11 @@ use self::{
 };
 use crate::ecmascript::{
     builtins::{
+        control_abstraction_objects::promise_objects::promise_abstract_operations::{
+            promise_capability_records::{PromiseCapability, PromiseCapabilityRecord},
+            promise_reaction_records::PromiseReactionRecord,
+            PromiseRejectFunctionHeapData,
+        },
         data_view::{data::DataViewHeapData, DataView},
         date::{data::DateHeapData, Date},
         embedder_object::data::EmbedderObjectHeapData,
@@ -52,7 +57,7 @@ use crate::ecmascript::{
         weak_set::{data::WeakSetHeapData, WeakSet},
         Array, ArrayBuffer,
     },
-    types::BUILTIN_STRINGS_LIST,
+    types::{AbstractClosureHeapData, BUILTIN_STRINGS_LIST},
 };
 use crate::ecmascript::{
     builtins::{ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
@@ -67,6 +72,7 @@ use crate::ecmascript::{
         String, StringHeapData, SymbolHeapData, Value,
     },
 };
+pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 #[derive(Debug)]
 pub struct Heap {
@@ -74,6 +80,7 @@ pub struct Heap {
     pub arrays: Vec<Option<ArrayHeapData>>,
     pub bigints: Vec<Option<BigIntHeapData>>,
     pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
+    pub abstract_closures: Vec<Option<AbstractClosureHeapData>>,
     pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
     pub data_views: Vec<Option<DataViewHeapData>>,
     pub dates: Vec<Option<DateHeapData>>,
@@ -92,6 +99,9 @@ pub struct Heap {
     pub numbers: Vec<Option<NumberHeapData>>,
     pub objects: Vec<Option<ObjectHeapData>>,
     pub primitive_objects: Vec<Option<PrimitiveObjectHeapData>>,
+    pub promise_capability_records: Vec<Option<PromiseCapabilityRecord>>,
+    pub promise_reaction_records: Vec<Option<PromiseReactionRecord>>,
+    pub promise_reject_functions: Vec<Option<PromiseRejectFunctionHeapData>>,
     pub promises: Vec<Option<PromiseHeapData>>,
     pub proxys: Vec<Option<ProxyHeapData>>,
     pub realms: Vec<Option<Realm>>,
@@ -251,6 +261,13 @@ impl CreateHeapData<PromiseHeapData, Object> for Heap {
     }
 }
 
+impl CreateHeapData<PromiseCapabilityRecord, PromiseCapability> for Heap {
+    fn create(&mut self, data: PromiseCapabilityRecord) -> PromiseCapability {
+        self.promise_capability_records.push(Some(data));
+        PromiseCapability::last(&self.promise_capability_records)
+    }
+}
+
 impl CreateHeapData<RegExpHeapData, Object> for Heap {
     fn create(&mut self, data: RegExpHeapData) -> Object {
         self.regexps.push(Some(data));
@@ -307,6 +324,7 @@ impl CreateHeapData<WeakSetHeapData, WeakSet> for Heap {
 impl Heap {
     pub fn new() -> Heap {
         let mut heap = Heap {
+            abstract_closures: Vec::with_capacity(0),
             array_buffers: Vec::with_capacity(1024),
             arrays: Vec::with_capacity(1024),
             bigints: Vec::with_capacity(1024),
@@ -335,6 +353,9 @@ impl Heap {
             numbers: Vec::with_capacity(1024),
             objects: Vec::with_capacity(1024),
             primitive_objects: Vec::with_capacity(0),
+            promise_capability_records: Vec::with_capacity(0),
+            promise_reaction_records: Vec::with_capacity(0),
+            promise_reject_functions: Vec::with_capacity(0),
             promises: Vec::with_capacity(0),
             proxys: Vec::with_capacity(0),
             realms: Vec::with_capacity(1),

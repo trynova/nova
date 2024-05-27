@@ -3,21 +3,29 @@
 //! - This is inspired by and/or copied from Kiesel engine:
 //!   Copyright (c) 2023-2024 Linus Groh
 
+use oxc_span::Atom;
+
 use super::{
     environments::get_identifier_reference, EnvironmentIndex, ExecutionContext, Realm,
     RealmIdentifier,
 };
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_string,
-        builtins::error::ErrorHeapData,
-        scripts_and_modules::ScriptOrModule,
-        types::{Function, Reference, String, Symbol, Value},
+        abstract_operations::{
+            operations_on_objects::call_function, testing_and_comparison::is_callable,
+            type_conversion::to_string,
+        },
+        builtins::{
+            error::ErrorHeapData, module::cyclic_module_records::GraphLoadingStateRecord,
+            promise::Promise, ArgumentsList,
+        },
+        scripts_and_modules::{script::HostDefined, ScriptOrModule},
+        types::{Function, IntoValue, Reference, String, Symbol, Value},
     },
     heap::indexes::ErrorIndex,
     Heap,
 };
-use std::collections::HashMap;
+use std::{any::Any, collections::HashMap};
 
 #[derive(Debug, Default)]
 pub struct Options {
@@ -27,8 +35,8 @@ pub struct Options {
 
 pub type JsResult<T> = std::result::Result<T, JsError>;
 
-#[derive(Debug, Default, Clone, Copy)]
-pub struct JsError(Value);
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct JsError(pub(crate) Value);
 
 impl JsError {
     pub(crate) fn new(value: Value) -> Self {
@@ -44,12 +52,246 @@ impl JsError {
     }
 }
 
-// #[derive(Debug)]
-// pub struct PreAllocated;
+pub struct JobCallbackRecord {
+    /// \[\[Callback\]\]
+    callback: Function,
+    /// \[\[HostDefined\]\]
+    host_defined: Option<HostDefined>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PromiseRejectionOperation {
+    Reject,
+    Handle,
+}
 
 pub trait HostHooks: std::fmt::Debug {
     fn host_ensure_can_compile_strings(&self, callee_realm: &mut Realm) -> JsResult<()>;
     fn host_has_source_text_available(&self, func: Function) -> bool;
+
+    /// ### [9.5.2 HostMakeJobCallback ( callback )](https://tc39.es/ecma262/#sec-hostcalljobcallback)
+    ///
+    /// The host-defined abstract operation HostMakeJobCallback takes argument
+    /// callback (a function object) and returns a JobCallback Record.
+    ///
+    /// An implementation of HostMakeJobCallback must conform to the following
+    /// requirements:
+    ///
+    /// * It must return a JobCallback Record whose \[\[Callback\]\] field is
+    /// callback.
+    ///
+    /// The default implementation of HostMakeJobCallback performs the
+    /// following steps when called:
+    ///
+    /// 1. Return the `JobCallback Record { [[Callback]]: callback,
+    /// [[HostDefined]]: empty }`.
+    ///
+    /// ECMAScript hosts that are not web browsers must use the default
+    /// implementation of HostMakeJobCallback.
+    ///
+    /// #### Note
+    ///
+    /// This is called at the time that the callback is passed to the function
+    /// that is responsible for its being eventually scheduled and run. For
+    /// example, `promise.then(thenAction)` calls MakeJobCallback on
+    /// **thenAction** at the time of invoking `Promise.prototype.then`, not at
+    /// the time of scheduling the reaction Job.
+    fn host_make_job_callback(&self, callback: Function) -> JobCallbackRecord {
+        JobCallbackRecord {
+            callback,
+            host_defined: None,
+        }
+    }
+    /// ### [9.5.3 HostCallJobCallback ( jobCallback, V, argumentsList )](https://tc39.es/ecma262/#sec-hostcalljobcallback)
+    ///
+    /// The host-defined abstract operation HostCallJobCallback takes arguments
+    /// jobCallback (a JobCallback Record), V (an ECMAScript language value),
+    /// and argumentsList (a List of ECMAScript language values) and returns
+    /// either a normal completion containing an ECMAScript language value or a
+    /// throw completion.
+    ///
+    /// An implementation of HostCallJobCallback must conform to the following
+    /// requirements:
+    ///
+    /// * It must perform and return the result of
+    /// Call(jobCallback.\[\[Callback\]\], V, argumentsList).
+    ///
+    /// #### Note
+    ///
+    /// This requirement means that hosts cannot change the \[\[Call\]\]
+    /// behaviour of function objects defined in this specification.
+    ///
+    /// The default implementation of HostCallJobCallback performs the
+    /// following steps when called:
+    ///
+    /// 1. Assert: IsCallable(jobCallback.\[\[Callback\]\]) is true.
+    /// 2. Return ? Call(jobCallback.\[\[Callback\]\], V, argumentsList).
+    ///
+    /// ECMAScript hosts that are not web browsers must use the default
+    /// implementation of HostCallJobCallback.
+    fn host_call_job_callback(
+        &self,
+        agent: &mut Agent,
+        job_callback: JobCallbackRecord,
+        v: Value,
+        arguments_list: ArgumentsList,
+    ) -> JsResult<Value> {
+        debug_assert!(is_callable(job_callback.callback.into_value()));
+        call_function(agent, job_callback.callback, v, Some(arguments_list))
+    }
+
+    /// ### [9.5.4 HostEnqueueGenericJob ( job, realm )](https://tc39.es/ecma262/#sec-hostenqueuegenericjob)
+    ///
+    /// The host-defined abstract operation HostEnqueueGenericJob takes
+    /// arguments job (a Job Abstract Closure) and realm (a Realm Record)
+    /// and returns unused. It schedules job in the realm realm in the agent
+    /// signified by realm.[[AgentSignifier]] to be performed at some future
+    /// time. The Abstract Closures used with this algorithm are intended to be
+    /// scheduled without additional constraints, such as priority and
+    /// ordering.
+    ///
+    /// An implementation of HostEnqueueGenericJob must conform to the
+    /// requirements in 9.5.
+    fn host_enqueue_generic_job(&self, job: (), realm: Realm);
+
+    /// ### [9.5.5 HostEnqueuePromiseJob ( job, realm )](https://tc39.es/ecma262/#sec-hostenqueuepromisejob)
+    ///
+    /// The host-defined abstract operation HostEnqueuePromiseJob takes
+    /// arguments job (a Job Abstract Closure) and realm (a Realm Record or
+    /// null) and returns unused. It schedules job to be performed at some
+    /// future time. The Abstract Closures used with this algorithm are
+    /// intended to be related to the handling of Promises, or otherwise, to be
+    /// scheduled with equal priority to Promise handling operations.
+    ///
+    /// An implementation of HostEnqueuePromiseJob must conform to the
+    /// requirements in 9.5 as well as the following:
+    ///
+    /// * If realm is not null, each time job is invoked the implementation
+    /// must perform implementation-defined steps such that execution is
+    /// prepared to evaluate ECMAScript code at the time of job's invocation.
+    /// * Let scriptOrModule be GetActiveScriptOrModule() at the time
+    /// HostEnqueuePromiseJob is invoked. If realm is not null, each time job
+    /// is invoked the implementation must perform implementation-defined steps
+    /// such that scriptOrModule is the active script or module at the time of
+    /// job's invocation.
+    /// * Jobs must run in the same order as the HostEnqueuePromiseJob
+    /// invocations that scheduled them.
+    ///
+    /// #### Note
+    ///
+    /// The realm for Jobs returned by NewPromiseResolveThenableJob is usually
+    /// the result of calling GetFunctionRealm on the then function object. The
+    /// realm for Jobs returned by NewPromiseReactionJob is usually the result
+    /// of calling GetFunctionRealm on the handler if the handler is not
+    /// undefined. If the handler is undefined, realm is null. For both kinds
+    /// of Jobs, when GetFunctionRealm completes abnormally (i.e. called on a
+    /// revoked Proxy), realm is the current Realm Record at the time of the
+    /// GetFunctionRealm call. When the realm is null, no user ECMAScript code
+    /// will be evaluated and no new ECMAScript objects (e.g. Error objects)
+    /// will be created. The WHATWG HTML specification
+    /// (https://html.spec.whatwg.org/), for example, uses realm to check for
+    /// the ability to run script and for the entry concept.
+    fn host_enqueue_promise_job(&self, job: (), realm: Realm);
+
+    /// ### [9.5.6 HostEnqueueTimeoutJob ( timeoutJob, realm, milliseconds )](https://tc39.es/ecma262/#sec-hostenqueuetimeoutjob)
+    ///
+    /// The host-defined abstract operation HostEnqueueTimeoutJob takes
+    /// arguments timeoutJob (a Job Abstract Closure), realm (a Realm Record),
+    /// and milliseconds (a non-negative finite Number) and returns unused. It
+    /// schedules timeoutJob in the realm realm in the agent signified by
+    /// `realm.[[AgentSignifier]]` to be performed after at least milliseconds
+    /// milliseconds.
+    ///
+    /// An implementation of HostEnqueueTimeoutJob must conform to the
+    /// requirements in 9.5.
+    fn host_enqueue_timeout_job(&self, job: (), realm: Realm);
+
+    /// ### [16.2.1.8 HostLoadImportedModule ( referrer, specifier, hostDefined, payload )](https://tc39.es/ecma262/#sec-HostLoadImportedModule)
+    ///
+    /// The host-defined abstract operation HostLoadImportedModule takes
+    /// arguments referrer (a Script Record, a Cyclic Module Record, or a Realm
+    /// Record), specifier (a String), hostDefined (anything), and payload (a
+    /// GraphLoadingState Record or a PromiseCapability Record) and returns
+    /// unused.
+    ///
+    /// #### Note
+    ///
+    /// An example of when referrer can be a Realm Record is in a web browser
+    /// host. There, if a user clicks on a control given by
+    /// ```html
+    /// <button type="button" onclick="import('./foo.mjs')">Click me</button>
+    /// ```
+    /// there will be no active script or module at the time the `import()`
+    /// expression runs. More generally, this can happen in any situation where
+    /// the host pushes execution contexts with null ScriptOrModule components
+    /// onto the execution context stack.
+    ///
+    /// An implementation of HostLoadImportedModule must conform to the
+    /// following requirements:
+    ///
+    /// * The host environment must perform
+    /// `FinishLoadingImportedModule(referrer, specifier, payload, result)`,
+    /// where result is either a normal completion containing the loaded Module
+    /// Record or a throw completion, either synchronously or asynchronously.
+    /// * If this operation is called multiple times with the same (referrer,
+    /// specifier) pair and it performs
+    /// `FinishLoadingImportedModule(referrer, specifier, payload, result)`
+    /// where result is a normal completion, then it must perform
+    /// `FinishLoadingImportedModule(referrer, specifier, payload, result)`
+    /// with the same result each time.
+    /// * The operation must treat payload as an opaque value to be passed
+    /// through to FinishLoadingImportedModule.
+    ///
+    /// The actual process performed is host-defined, but typically consists of
+    /// performing whatever I/O operations are necessary to load the
+    /// appropriate Module Record. Multiple different (referrer, specifier)
+    /// pairs may map to the same Module Record instance. The actual mapping
+    /// semantics is host-defined but typically a normalization process is
+    /// applied to specifier as part of the mapping process. A typical
+    /// normalization process would include actions such as expansion of
+    /// relative and abbreviated path specifiers.
+    fn host_load_imported_module(
+        &self,
+        referrer: (),
+        specifier: Atom<'static>,
+        host_defined: Option<&dyn Any>,
+        payload: &mut GraphLoadingStateRecord,
+    );
+    /// ### [27.2.1.9 HostPromiseRejectionTracker ( promise, operation )](https://tc39.es/ecma262/#sec-host-promise-rejection-tracker)
+    ///
+    /// The host-defined abstract operation HostPromiseRejectionTracker takes
+    /// arguments promise (a Promise) and operation ("reject" or "handle") and
+    /// returns unused. It allows host environments to track promise rejections.
+    ///
+    /// The default implementation of HostPromiseRejectionTracker is to return
+    /// unused.
+    ///
+    /// #### Note 1
+    ///
+    /// HostPromiseRejectionTracker is called in two scenarios:
+    ///
+    /// When a promise is rejected without any handlers, it is called with its
+    /// operation argument set to "reject".
+    /// When a handler is added to a rejected promise for the first time, it is
+    /// called with its operation argument set to "handle".
+    ///
+    /// A typical implementation of HostPromiseRejectionTracker might try to
+    /// notify developers of unhandled rejections, while also being careful to
+    /// notify them if such previous notifications are later invalidated by new
+    /// handlers being attached.
+    ///
+    /// #### Note 2
+    ///
+    /// If operation is "handle", an implementation should not hold a reference
+    /// to promise in a way that would interfere with garbage collection. An
+    /// implementation may hold a reference to promise if operation is "reject",
+    /// since it is expected that rejections will be rare and not on hot code
+    /// paths.
+    fn host_promise_rejection_tracker(
+        &self,
+        promise: Promise,
+        operation: PromiseRejectionOperation,
+    );
 }
 
 /// ### [9.7 Agents](https://tc39.es/ecma262/#sec-agents)

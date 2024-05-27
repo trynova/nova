@@ -56,6 +56,28 @@ impl From<Promise> for Object {
     }
 }
 
+impl TryFrom<Value> for Promise {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::Promise(d) => Ok(Promise::from(d)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Object> for Promise {
+    type Error = ();
+
+    fn try_from(value: Object) -> Result<Self, Self::Error> {
+        match value {
+            Object::Promise(d) => Ok(Promise::from(d)),
+            _ => Err(()),
+        }
+    }
+}
+
 impl Index<Promise> for Agent {
     type Output = PromiseHeapData;
 

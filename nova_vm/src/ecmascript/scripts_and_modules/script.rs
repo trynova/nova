@@ -33,7 +33,7 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-pub type HostDefined = &'static mut dyn Any;
+pub type HostDefined = Box<dyn Any + Send>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct ScriptIdentifier(u32, PhantomData<Script>);
