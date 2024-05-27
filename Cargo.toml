@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["nova_cli", "nova_vm", "common", "small_string"]
+members = ["nova_cli", "nova_vm", "common", "small_string", "tests"]
 
 [workspace.dependencies]
 num-bigint = "0.4.4"

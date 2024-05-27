@@ -16,7 +16,7 @@ jobs:
     name: Build
     # TODO: Run CI on all three platforms.
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust toolchain
@@ -32,5 +32,8 @@ jobs:
       - name: Test
         run: cargo test
         timeout-minutes: 20
+      - name: Test262
+        run: cargo run --bin test262
+        timeout-minutes: 15
       - name: Build binaries and examples
         run: cargo build --bins --examples
