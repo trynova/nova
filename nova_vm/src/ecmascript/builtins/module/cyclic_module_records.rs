@@ -226,7 +226,7 @@ impl Module {
     /// the auxiliary function InnerModuleLoading). It takes an optional
     /// hostDefined parameter that is passed to the HostLoadImportedModule
     /// hook.
-    fn load_requested_modules(
+    pub(super) fn load_requested_modules(
         self,
         agent: &mut Agent,
         host_defined: Option<HostDefined>,

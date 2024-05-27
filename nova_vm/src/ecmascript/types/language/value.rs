@@ -8,6 +8,7 @@ use crate::{
         builtins::control_abstraction_objects::promise_objects::promise_abstract_operations::BuiltinPromiseRejectFunctionIndex,
         execution::{Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
+        types::AbstractClosure,
     },
     heap::indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
@@ -60,6 +61,7 @@ pub enum Value {
     ECMAScriptFunction(ECMAScriptFunctionIndex),
     // TODO: Figure out if all the special function types are wanted or if we'd
     // prefer to just keep them as internal variants of the three above ones.
+    BuiltinAbstractClosure(AbstractClosure),
     BuiltinGeneratorFunction,
     BuiltinConstructorFunction,
     BuiltinPromiseResolveFunction,
@@ -180,6 +182,8 @@ pub(crate) const BOUND_FUNCTION_DISCRIMINANT: u8 =
 pub(crate) const REGEXP_DISCRIMINANT: u8 =
     value_discriminant(Value::RegExp(RegExpIndex::from_u32_index(0)));
 
+pub(crate) const BUILTIN_ABSTRACT_CLOSURE_DISCRIMINANT: u8 =
+    value_discriminant(Value::BuiltinAbstractClosure(AbstractClosure::_def()));
 pub(crate) const BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinGeneratorFunction);
 pub(crate) const BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT: u8 =

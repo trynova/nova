@@ -4,16 +4,46 @@ use oxc_parser::{Parser, ParserReturn};
 use oxc_span::{Atom, SourceType};
 use small_string::SmallString;
 
-use super::{abstract_module_records::{ModuleRecord, ResolveExportResult}, cyclic_module_records::{continue_module_loading, CyclicModuleRecord, CyclicModuleRecordStatus, LoadedModuleRecord}, data::ModuleHeapData, Module};
+use super::{
+    abstract_module_records::{ModuleRecord, ResolveExportResult},
+    cyclic_module_records::{
+        continue_module_loading, CyclicModuleRecord, CyclicModuleRecordStatus, LoadedModuleRecord,
+    },
+    data::ModuleHeapData,
+    Module,
+};
 use crate::{
     ecmascript::{
-        builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, module::{abstract_module_records::{ResolvedBinding, ResolvedBindingName}, cyclic_module_records::evaluate, semantics::{self, module_requests}}},
-        execution::{Agent, DeclarativeEnvironmentIndex, ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult, RealmIdentifier},
-        scripts_and_modules::{script::{HostDefined, ScriptIdentifier}, ScriptOrModule},
-        types::{
-            Object, String, BUILTIN_STRING_MEMORY, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
+        abstract_operations::operations_on_objects::call_function,
+        builtins::{
+            builtin_function::create_abstract_closure_function,
+            control_abstraction_objects::promise_objects::{
+                promise_abstract_operations::promise_capability_records::PromiseCapability,
+                promise_constructor::perform_promise_then,
+            },
+            module::{
+                abstract_module_records::{ResolvedBinding, ResolvedBindingName},
+                cyclic_module_records::evaluate,
+                semantics::{self, module_requests},
+            },
+            promise::Promise,
+            ArgumentsList, Behaviour, BuiltinFunctionArgs,
         },
-    }, engine::{Executable, Vm}, heap::indexes::StringIndex
+        execution::{
+            Agent, DeclarativeEnvironmentIndex, ECMAScriptCodeEvaluationState, EnvironmentIndex,
+            ExecutionContext, JsResult, RealmIdentifier,
+        },
+        scripts_and_modules::{
+            script::{HostDefined, ScriptIdentifier},
+            ScriptOrModule,
+        },
+        types::{
+            AbstractClosure, AbstractClosureBehaviour, IntoValue, Object, String, Value,
+            BUILTIN_STRING_MEMORY, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
+        },
+    },
+    engine::{Executable, Vm},
+    heap::{indexes::StringIndex, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 /// a String or NAMESPACE-OBJECT
@@ -811,7 +841,7 @@ pub(crate) fn finish_loading_imported_module(
             .cyclic
             .loaded_modules
             .iter()
-            .find(|loaded_module| loaded_module.specifier == Some(specifier))
+            .find(|loaded_module| loaded_module.specifier == specifier)
         {
             // i. Assert: That Record's [[Module]] is result.[[Value]].
             assert_eq!(matching_module.module, result);
@@ -827,18 +857,18 @@ pub(crate) fn finish_loading_imported_module(
                 });
         }
     }
-    // 2. If payload is a GraphLoadingState Record, then
     match payload {
-        // a. Perform ContinueModuleLoading(payload, result).
+        // 2. If payload is a GraphLoadingState Record, then
         ModuleImportPayload::GraphLoadingState(payload) => {
+            // a. Perform ContinueModuleLoading(payload, result).
             continue_module_loading(agent, payload, result)
         }
         // 3. Else,
         ModuleImportPayload::PromiseCapabilityRecord(payload) => {
+            // a. Perform ContinueDynamicImport(payload, result).
             continue_dynamic_import(agent, payload, result)
         }
     }
-    // a. Perform ContinueDynamicImport(payload, result).
     // 4. Return unused.
 }
 
@@ -889,4 +919,157 @@ pub(crate) fn get_module_namespace(agent: &mut Agent, module: Module) -> Module 
     }
     // 4. Return namespace.
     module
+}
+
+/// ### [13.3.10.1.1 ContinueDynamicImport ( promiseCapability, moduleCompletion )](https://tc39.es/ecma262/#sec-ContinueDynamicImport)
+///
+/// The abstract operation ContinueDynamicImport takes arguments
+/// promiseCapability (a PromiseCapability Record) and moduleCompletion (either
+/// a normal completion containing a Module Record or a throw completion) and
+/// returns unused. It completes the process of a dynamic import originally
+/// started by an `import()` call, resolving or rejecting the promise returned
+/// by that call as appropriate.
+fn continue_dynamic_import(
+    agent: &mut Agent,
+    promise_capability: PromiseCapability,
+    module_completion: JsResult<Module>,
+) {
+    // 1. If moduleCompletion is an abrupt completion, then
+    let module = match module_completion {
+        Err(error) => {
+            // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « moduleCompletion.[[Value]] »).
+            let reject = agent[promise_capability].reject;
+            call_function(
+                agent,
+                reject,
+                Value::Undefined,
+                Some(ArgumentsList(&[error.value()])),
+            );
+            // b. Return unused.
+            return;
+        }
+        // 2. Let module be moduleCompletion.[[Value]].
+        Ok(module) => module,
+    };
+    // 3. Let loadPromise be module.LoadRequestedModules().
+    let load_promise = module.load_requested_modules(agent, None);
+
+    // 4. Let rejectedClosure be a new Abstract Closure with parameters
+    // (reason) that captures promiseCapability...
+
+    struct ContinueDynamicImportRejectedClosure {
+        promise_capability: PromiseCapability,
+    }
+
+    impl HeapMarkAndSweep for ContinueDynamicImportRejectedClosure {
+        fn mark_values(&self, queues: &mut WorkQueues) {
+            self.promise_capability.mark_values(queues);
+        }
+
+        fn sweep_values(&mut self, compactions: &CompactionLists) {
+            self.promise_capability.sweep_values(compactions);
+        }
+    }
+    // ... and performs the following steps when called:
+    impl AbstractClosureBehaviour for ContinueDynamicImportRejectedClosure {
+        fn call(
+            self,
+            agent: &mut Agent,
+            _this_value: Value,
+            arguments: Option<ArgumentsList>,
+        ) -> JsResult<Value> {
+            // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « reason »).
+            let reject = agent[self.promise_capability].reject;
+            call_function(
+                agent,
+                reject,
+                Value::Undefined,
+                Some(ArgumentsList(&[arguments.unwrap().get(0)])),
+            )
+            .unwrap();
+            // b. Return unused.
+            Ok(Value::Undefined)
+        }
+    }
+
+    // 5. Let onRejected be CreateBuiltinFunction(rejectedClosure, 1, "", « »).
+    let on_rejected = create_abstract_closure_function(
+        agent,
+        Box::new(ContinueDynamicImportRejectedClosure { promise_capability }),
+        BuiltinFunctionArgs {
+            length: 1,
+            name: "",
+            realm: None,
+            prototype: None,
+            prefix: None,
+        },
+    );
+    // 6. Let linkAndEvaluateClosure be a new Abstract Closure with no
+    // parameters that captures module, promiseCapability, and onRejected...
+    struct ContinueDynamicImportLinkAndEvaluateClosure {
+        module: Module,
+        promise_capability: PromiseCapability,
+        on_rejected: AbstractClosure,
+    }
+    impl HeapMarkAndSweep for ContinueDynamicImportLinkAndEvaluateClosure {
+        fn mark_values(&self, queues: &mut WorkQueues) {
+            self.module.mark_values(queues);
+            self.promise_capability.mark_values(queues);
+            self.on_rejected.mark_values(queues);
+        }
+
+        fn sweep_values(&mut self, compactions: &CompactionLists) {
+            self.module.sweep_values(compactions);
+            self.promise_capability.sweep_values(compactions);
+            self.on_rejected.sweep_values(compactions);
+        }
+    }
+    // ... and performs the following steps when called:
+    impl AbstractClosureBehaviour for ContinueDynamicImportLinkAndEvaluateClosure {
+        fn call(
+            self,
+            agent: &mut Agent,
+            this_value: Value,
+            arguments: Option<ArgumentsList>,
+        ) -> JsResult<Value> {
+            // a. Let link be Completion(module.Link()).
+            todo!();
+            // b. If link is an abrupt completion, then
+            //     i. Perform ! Call(promiseCapability.[[Reject]], undefined, « link.[[Value]] »).
+            //     ii. Return unused.
+            // c. Let evaluatePromise be module.Evaluate().
+            // d. Let fulfilledClosure be a new Abstract Closure with no parameters that captures module and promiseCapability and performs the following steps when called:
+            //     i. Let namespace be GetModuleNamespace(module).
+            //     ii. Perform ! Call(promiseCapability.[[Resolve]], undefined, « namespace »).
+            //     iii. Return unused.
+            // e. Let onFulfilled be CreateBuiltinFunction(fulfilledClosure, 0, "", « »).
+            // f. Perform PerformPromiseThen(evaluatePromise, onFulfilled, onRejected).
+            // g. Return unused.
+        }
+    }
+    // 7. Let linkAndEvaluate be CreateBuiltinFunction(linkAndEvaluateClosure, 0, "", « »).
+    let link_and_evaluate = create_abstract_closure_function(
+        agent,
+        Box::new(ContinueDynamicImportLinkAndEvaluateClosure {
+            module,
+            promise_capability,
+            on_rejected,
+        }),
+        BuiltinFunctionArgs {
+            length: 0,
+            name: "",
+            realm: None,
+            prototype: None,
+            prefix: None,
+        },
+    );
+    // 8. Perform PerformPromiseThen(loadPromise, linkAndEvaluate, onRejected).
+    perform_promise_then(
+        agent,
+        load_promise,
+        link_and_evaluate.into_value(),
+        on_rejected.into_value(),
+        None,
+    );
+    // 9. Return unused.
 }

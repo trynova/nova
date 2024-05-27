@@ -4,6 +4,7 @@ use crate::{
     ecmascript::{
         execution::{agent::ExceptionType, Agent, ExecutionContext, JsResult, RealmIdentifier},
         types::{
+            AbstractClosure, AbstractClosureBehaviour, AbstractClosureHeapData,
             BuiltinFunctionHeapData, Function, InternalMethods, IntoFunction, IntoObject,
             IntoValue, Object, OrdinaryObject, OrdinaryObjectInternalSlots, PropertyDescriptor,
             PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
@@ -695,6 +696,35 @@ pub fn create_builtin_function(
         // 8. Set func.[[Realm]] to realm.
         realm,
         object_index,
+    })
+}
+
+pub fn create_abstract_closure_function(
+    agent: &mut Agent,
+    behaviour: Box<dyn AbstractClosureBehaviour>,
+    args: BuiltinFunctionArgs,
+) -> AbstractClosure {
+    // 1. If realm is not present, set realm to the current Realm Record.
+    let realm = args.realm.unwrap_or(agent.current_realm_id());
+
+    // 9. Set func.[[InitialName]] to null.
+    // Note: SetFunctionName inlined here: We know name is a string
+    let initial_name = if let Some(prefix) = args.prefix {
+        // 12. Else,
+        // a. Perform SetFunctionName(func, name, prefix).
+        String::from_string(agent, format!("{} {}", args.name, prefix))
+    } else {
+        // 11. If prefix is not present, then
+        // a. Perform SetFunctionName(func, name).
+        String::from_str(agent, args.name)
+    };
+
+    agent.heap.create(AbstractClosureHeapData {
+        object_index: None,
+        length: args.length as u8,
+        realm,
+        initial_name: Some(initial_name),
+        behaviour,
     })
 }
 

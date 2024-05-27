@@ -9,7 +9,7 @@ use crate::{
         execution::{agent::JsError, Agent, JsResult},
         types::{Function, Object, Value},
     },
-    heap::{indexes::BaseIndex, Heap},
+    heap::{indexes::BaseIndex, CompactionLists, Heap, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -35,6 +35,36 @@ pub(crate) struct PromiseCapabilityRecord {
 }
 
 pub(crate) type PromiseCapability = BaseIndex<PromiseCapabilityRecord>;
+
+impl HeapMarkAndSweep for PromiseCapability {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.promise_capabilities.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(
+            self_index
+                - compactions
+                    .promise_capabilities
+                    .get_shift_for_index(self_index),
+        );
+    }
+}
+
+impl HeapMarkAndSweep for PromiseCapabilityRecord {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.promise.mark_values(queues);
+        self.reject.mark_values(queues);
+        self.resolve.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.promise.sweep_values(compactions);
+        self.reject.sweep_values(compactions);
+        self.resolve.sweep_values(compactions);
+    }
+}
 
 impl Index<PromiseCapability> for Agent {
     type Output = PromiseCapabilityRecord;

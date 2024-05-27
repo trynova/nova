@@ -14,24 +14,7 @@ use super::{
 };
 use crate::ecmascript::{
     builtins::{
-        data_view::data::DataViewHeapData,
-        date::data::DateHeapData,
-        embedder_object::data::EmbedderObjectHeapData,
-        error::ErrorHeapData,
-        finalization_registry::data::FinalizationRegistryHeapData,
-        map::{data::MapHeapData, Map},
-        module::{data::ModuleHeapData, Module},
-        primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
-        promise::data::PromiseHeapData,
-        proxy::data::ProxyHeapData,
-        regexp::RegExpHeapData,
-        set::{data::SetHeapData, Set},
-        shared_array_buffer::data::SharedArrayBufferHeapData,
-        typed_array::data::TypedArrayHeapData,
-        weak_map::data::WeakMapHeapData,
-        weak_ref::data::WeakRefHeapData,
-        weak_set::data::WeakSetHeapData,
-        ArrayBufferHeapData, BuiltinFunction, SealableElementsVector,
+        control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, data_view::data::DataViewHeapData, date::data::DateHeapData, embedder_object::data::EmbedderObjectHeapData, error::ErrorHeapData, finalization_registry::data::FinalizationRegistryHeapData, map::{data::MapHeapData, Map}, module::{data::ModuleHeapData, Module}, primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData}, promise::data::PromiseHeapData, proxy::data::ProxyHeapData, regexp::RegExpHeapData, set::{data::SetHeapData, Set}, shared_array_buffer::data::SharedArrayBufferHeapData, typed_array::data::TypedArrayHeapData, weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData, weak_set::data::WeakSetHeapData, ArrayBufferHeapData, BuiltinFunction, SealableElementsVector
     },
     execution::{
         DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironment,
@@ -83,6 +66,7 @@ pub struct HeapBits {
     pub objects: Box<[bool]>,
     pub primitive_objects: Box<[bool]>,
     pub promises: Box<[bool]>,
+    pub promise_capabilities: Box<[bool]>,
     pub proxys: Box<[bool]>,
     pub realms: Box<[bool]>,
     pub regexps: Box<[bool]>,
@@ -129,6 +113,7 @@ pub(crate) struct WorkQueues {
     pub objects: Vec<ObjectIndex>,
     pub primitive_objects: Vec<PrimitiveObjectIndex>,
     pub promises: Vec<PromiseIndex>,
+    pub promise_capabilities: Vec<PromiseCapability>,
     pub proxys: Vec<ProxyIndex>,
     pub realms: Vec<RealmIdentifier>,
     pub regexps: Vec<RegExpIndex>,
@@ -175,6 +160,7 @@ impl HeapBits {
         let objects = vec![false; heap.objects.len()];
         let primitive_objects = vec![false; heap.primitive_objects.len()];
         let promises = vec![false; heap.promises.len()];
+        let promise_capabilities = vec![false; heap.promise_capability_records.len()];
         let proxys = vec![false; heap.proxys.len()];
         let realms = vec![false; heap.realms.len()];
         let regexps = vec![false; heap.regexps.len()];
@@ -218,6 +204,7 @@ impl HeapBits {
             objects: objects.into_boxed_slice(),
             primitive_objects: primitive_objects.into_boxed_slice(),
             promises: promises.into_boxed_slice(),
+            promise_capabilities: promise_capabilities.into_boxed_slice(),
             proxys: proxys.into_boxed_slice(),
             realms: realms.into_boxed_slice(),
             regexps: regexps.into_boxed_slice(),
@@ -239,6 +226,7 @@ impl WorkQueues {
         Self {
             array_buffers: Vec::with_capacity(heap.array_buffers.len() / 4),
             arrays: Vec::with_capacity(heap.arrays.len() / 4),
+            abstract_closures: Vec::with_capacity(heap.abstract_closures.len() / 4),
             bigints: Vec::with_capacity(heap.bigints.len() / 4),
             bound_functions: Vec::with_capacity(heap.bound_functions.len() / 4),
             builtin_functions: Vec::with_capacity(heap.builtin_functions.len() / 4),
@@ -267,6 +255,7 @@ impl WorkQueues {
             objects: Vec::with_capacity(heap.objects.len() / 4),
             primitive_objects: Vec::with_capacity(heap.primitive_objects.len() / 4),
             promises: Vec::with_capacity(heap.promises.len() / 4),
+            promise_capabilities: Vec::with_capacity(heap.promise_capability_records.len() / 4),
             proxys: Vec::with_capacity(heap.proxys.len() / 4),
             realms: Vec::with_capacity(heap.realms.len() / 4),
             regexps: Vec::with_capacity(heap.regexps.len() / 4),
@@ -562,6 +551,8 @@ pub(crate) struct CompactionLists {
     pub numbers: CompactionList,
     pub objects: CompactionList,
     pub primitive_objects: CompactionList,
+    pub promises: CompactionList,
+    pub promise_capabilities: CompactionList,
     pub regexps: CompactionList,
     pub sets: CompactionList,
     pub strings: CompactionList,
@@ -609,6 +600,8 @@ impl CompactionLists {
             maps: CompactionList::from_mark_bits(&bits.maps),
             numbers: CompactionList::from_mark_bits(&bits.numbers),
             objects: CompactionList::from_mark_bits(&bits.objects),
+            promises: CompactionList::from_mark_bits(&bits.promises),
+            promise_capabilities: CompactionList::from_mark_bits(&bits.promise_capabilities),
             primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),
             regexps: CompactionList::from_mark_bits(&bits.regexps),
             sets: CompactionList::from_mark_bits(&bits.sets),

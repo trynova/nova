@@ -3,9 +3,9 @@ pub mod into_function;
 
 use super::{
     value::{
-        BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
-        BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
-        BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
+        BOUND_FUNCTION_DISCRIMINANT, BUILTIN_ABSTRACT_CLOSURE_DISCRIMINANT,
+        BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
+        BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT, BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_REJECT_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_RESOLVE_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
         ECMASCRIPT_ASYNC_FUNCTION_DISCRIMINANT, ECMASCRIPT_ASYNC_GENERATOR_FUNCTION_DISCRIMINANT,
@@ -22,7 +22,7 @@ use crate::{
             ArgumentsList, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
-        types::PropertyDescriptor,
+        types::{AbstractClosure, PropertyDescriptor},
     },
     heap::indexes::{BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex},
 };
@@ -37,6 +37,7 @@ pub enum Function {
     BoundFunction(BoundFunctionIndex) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunctionIndex) = BUILTIN_FUNCTION_DISCRIMINANT,
     ECMAScriptFunction(ECMAScriptFunctionIndex) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
+    BuiltinAbstractClosure(AbstractClosure) = BUILTIN_ABSTRACT_CLOSURE_DISCRIMINANT,
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction = BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
     BuiltinPromiseResolveFunction = BUILTIN_PROMISE_RESOLVE_FUNCTION_DISCRIMINANT,
@@ -56,6 +57,8 @@ impl std::fmt::Debug for Function {
             Function::BoundFunction(d) => write!(f, "BoundFunction({:?})", d),
             Function::BuiltinFunction(d) => write!(f, "BuiltinFunction({:?})", d),
             Function::ECMAScriptFunction(d) => write!(f, "ECMAScriptFunction({:?})", d),
+            Function::BuiltinAbstractClosure(d) => write!(f, "ECMAScriptFunction({:?})", d),
+            Function::BuiltinAbstractClosure(d) => write!(f, "BuiltinAbstractClosure({:?})", d),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -136,6 +139,7 @@ impl TryFrom<Value> for Function {
             Value::BuiltinFunction(d) => Ok(Function::from(d)),
             Value::ECMAScriptFunction(d) => Ok(Function::from(d)),
             Value::BuiltinGeneratorFunction => Ok(Function::BuiltinGeneratorFunction),
+            Value::BuiltinAbstractClosure(d) => Ok(Function::BuiltinAbstractClosure(d)),
             Value::BuiltinConstructorFunction => Ok(Function::BuiltinConstructorFunction),
             Value::BuiltinPromiseResolveFunction => Ok(Function::BuiltinPromiseResolveFunction),
             Value::BuiltinPromiseRejectFunction(d) => Ok(Function::BuiltinPromiseRejectFunction(d)),
@@ -158,6 +162,7 @@ impl From<Function> for Object {
             Function::BoundFunction(d) => Object::from(d),
             Function::BuiltinFunction(d) => Object::from(d),
             Function::ECMAScriptFunction(d) => Object::from(d),
+            Function::BuiltinAbstractClosure(d) => Object::from(d),
             Function::BuiltinGeneratorFunction => Object::BuiltinGeneratorFunction,
             Function::BuiltinConstructorFunction => Object::BuiltinConstructorFunction,
             Function::BuiltinPromiseResolveFunction => Object::BuiltinPromiseResolveFunction,
@@ -178,6 +183,7 @@ impl From<Function> for Value {
             Function::BoundFunction(d) => Value::BoundFunction(d),
             Function::BuiltinFunction(d) => Value::BuiltinFunction(d),
             Function::ECMAScriptFunction(d) => Value::ECMAScriptFunction(d),
+            Function::BuiltinAbstractClosure(d) => Value::BuiltinAbstractClosure(d),
             Function::BuiltinGeneratorFunction => Value::BuiltinGeneratorFunction,
             Function::BuiltinConstructorFunction => Value::BuiltinConstructorFunction,
             Function::BuiltinPromiseResolveFunction => Value::BuiltinPromiseResolveFunction,
@@ -204,6 +210,7 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::BoundFunction(d) => agent[d].object_index,
             Function::BuiltinFunction(d) => agent[d].object_index,
             Function::ECMAScriptFunction(d) => agent[d].object_index,
+            Function::BuiltinAbstractClosure(d) => agent[d].object_index,
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -226,6 +233,7 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::BoundFunction(d) => agent[d].object_index,
             Function::BuiltinFunction(d) => agent[d].object_index,
             Function::ECMAScriptFunction(d) => agent[d].object_index,
+            Function::BuiltinAbstractClosure(d) => agent[d].object_index,
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -249,6 +257,7 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::BoundFunction(d) => agent[d].object_index,
             Function::BuiltinFunction(d) => agent[d].object_index,
             Function::ECMAScriptFunction(d) => agent[d].object_index,
+            Function::BuiltinAbstractClosure(d) => agent[d].object_index,
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -277,6 +286,7 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::BoundFunction(d) => agent[d].object_index,
             Function::BuiltinFunction(d) => agent[d].object_index,
             Function::ECMAScriptFunction(d) => agent[d].object_index,
+            Function::BuiltinAbstractClosure(d) => agent[d].object_index,
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -314,6 +324,7 @@ impl InternalMethods for Function {
             Function::ECMAScriptFunction(x) => {
                 ECMAScriptFunction::from(x).internal_get_prototype_of(agent)
             }
+            Function::BuiltinAbstractClosure(x) => x.internal_get_prototype_of(agent),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -340,6 +351,7 @@ impl InternalMethods for Function {
             Function::ECMAScriptFunction(x) => {
                 ECMAScriptFunction::from(x).internal_set_prototype_of(agent, prototype)
             }
+            Function::BuiltinAbstractClosure(x) => x.internal_set_prototype_of(agent, prototype),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -360,6 +372,7 @@ impl InternalMethods for Function {
             Function::ECMAScriptFunction(x) => {
                 ECMAScriptFunction::from(x).internal_is_extensible(agent)
             }
+            Function::BuiltinAbstractClosure(x) => x.internal_is_extensible(agent),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -382,6 +395,7 @@ impl InternalMethods for Function {
             Function::ECMAScriptFunction(x) => {
                 ECMAScriptFunction::from(x).internal_prevent_extensions(agent)
             }
+            Function::BuiltinAbstractClosure(x) => x.internal_prevent_extensions(agent),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -408,6 +422,7 @@ impl InternalMethods for Function {
             Function::ECMAScriptFunction(x) => {
                 ECMAScriptFunction::from(x).internal_get_own_property(agent, property_key)
             }
+            Function::BuiltinAbstractClosure(x) => x.internal_get_own_property(agent, property_key),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -436,6 +451,9 @@ impl InternalMethods for Function {
             ),
             Function::ECMAScriptFunction(x) => ECMAScriptFunction::from(x)
                 .internal_define_own_property(agent, property_key, property_descriptor),
+            Function::BuiltinAbstractClosure(x) => {
+                x.internal_define_own_property(agent, property_key, property_descriptor)
+            }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -458,6 +476,7 @@ impl InternalMethods for Function {
             Function::ECMAScriptFunction(x) => {
                 ECMAScriptFunction::from(x).internal_has_property(agent, property_key)
             }
+            Function::BuiltinAbstractClosure(x) => x.internal_has_property(agent, property_key),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -485,6 +504,7 @@ impl InternalMethods for Function {
             Function::ECMAScriptFunction(x) => {
                 ECMAScriptFunction::from(x).internal_get(agent, property_key, receiver)
             }
+            Function::BuiltinAbstractClosure(x) => x.internal_get(agent, property_key, receiver),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -513,6 +533,9 @@ impl InternalMethods for Function {
             Function::ECMAScriptFunction(x) => {
                 ECMAScriptFunction::from(x).internal_set(agent, property_key, value, receiver)
             }
+            Function::BuiltinAbstractClosure(x) => {
+                x.internal_set(agent, property_key, value, receiver)
+            }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -535,6 +558,7 @@ impl InternalMethods for Function {
             Function::ECMAScriptFunction(x) => {
                 ECMAScriptFunction::from(x).internal_delete(agent, property_key)
             }
+            Function::BuiltinAbstractClosure(x) => x.internal_delete(agent, property_key),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -557,6 +581,7 @@ impl InternalMethods for Function {
             Function::ECMAScriptFunction(x) => {
                 ECMAScriptFunction::from(x).internal_own_property_keys(agent)
             }
+            Function::BuiltinAbstractClosure(x) => x.internal_own_property_keys(agent),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -584,6 +609,9 @@ impl InternalMethods for Function {
             Function::ECMAScriptFunction(idx) => {
                 ECMAScriptFunction::from(idx).internal_call(agent, this_argument, arguments_list)
             }
+            Function::BuiltinAbstractClosure(closure) => {
+                closure.internal_call(agent, this_argument, arguments_list)
+            }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -610,6 +638,9 @@ impl InternalMethods for Function {
             }
             Function::ECMAScriptFunction(idx) => {
                 ECMAScriptFunction::from(idx).internal_construct(agent, arguments_list, new_target)
+            }
+            Function::BuiltinAbstractClosure(closure) => {
+                closure.internal_construct(agent, arguments_list, new_target)
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),

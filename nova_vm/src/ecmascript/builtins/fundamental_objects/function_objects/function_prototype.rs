@@ -189,6 +189,7 @@ impl FunctionPrototype {
             Function::ECMAScriptAsyncGeneratorFunction => todo!(),
             Function::ECMAScriptConstructorFunction => todo!(),
             Function::ECMAScriptGeneratorFunction => todo!(),
+            Function::BuiltinAbstractClosure(_) => todo!(),
         }
 
         // NOTE: NativeFunction means the following string:

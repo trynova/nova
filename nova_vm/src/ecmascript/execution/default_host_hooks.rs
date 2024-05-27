@@ -1,8 +1,15 @@
+use std::any::Any;
+
+use oxc_span::Atom;
+
 use super::{
     agent::{HostHooks, PromiseRejectionOperation},
     JsResult, Realm,
 };
-use crate::ecmascript::{builtins::promise::Promise, types::Function};
+use crate::ecmascript::{
+    builtins::{module::cyclic_module_records::GraphLoadingStateRecord, promise::Promise},
+    types::Function,
+};
 
 #[derive(Debug)]
 pub struct DefaultHostHooks;
@@ -22,9 +29,9 @@ impl HostHooks for DefaultHostHooks {
     fn host_load_imported_module(
         &self,
         referrer: (),
-        specifier: &str,
-        host_defined: Option<&dyn std::any::Any>,
-        payload: (),
+        specifier: Atom<'static>,
+        host_defined: Option<&dyn Any>,
+        payload: &mut GraphLoadingStateRecord,
     ) {
         unreachable!("HostLoadImportedModule does not have a default implementation");
     }
@@ -34,5 +41,17 @@ impl HostHooks for DefaultHostHooks {
         promise: Promise,
         operation: PromiseRejectionOperation,
     ) {
+    }
+
+    fn host_enqueue_generic_job(&self, job: (), realm: Realm) {
+        unreachable!("HostEnqueueGenericJob does not have a default implementation");
+    }
+
+    fn host_enqueue_promise_job(&self, job: (), realm: Realm) {
+        unreachable!("HostEnqueuePromiseJob does not have a default implementation");
+    }
+
+    fn host_enqueue_timeout_job(&self, job: (), realm: Realm) {
+        unreachable!("HostEnqueueTimeoutJob does not have a default implementation");
     }
 }
