@@ -88,32 +88,34 @@ impl Vm {
     pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> JsResult<Option<Value>> {
         let mut vm = Vm::new();
 
-        eprintln!();
-        eprintln!("=== Executing Executable ===");
-        eprintln!("Constants: {:?}", executable.constants);
-        eprintln!("Identifiers: {:?}", executable.identifiers);
-        eprintln!();
+        if agent.options.print_internals {
+            eprintln!();
+            eprintln!("=== Executing Executable ===");
+            eprintln!("Constants: {:?}", executable.constants);
+            eprintln!("Identifiers: {:?}", executable.identifiers);
+            eprintln!();
 
-        eprintln!("Instructions:");
-        let iter = InstructionIter::new(&executable.instructions);
-        for (ip, instr) in iter {
-            match instr.kind.argument_count() {
-                0 => {
-                    eprintln!("  {}: {:?}()", ip, instr.kind);
+            eprintln!("Instructions:");
+            let iter = InstructionIter::new(&executable.instructions);
+            for (ip, instr) in iter {
+                match instr.kind.argument_count() {
+                    0 => {
+                        eprintln!("  {}: {:?}()", ip, instr.kind);
+                    }
+                    1 => {
+                        let arg0 = instr.args.first().unwrap().unwrap();
+                        eprintln!("  {}: {:?}({})", ip, instr.kind, arg0);
+                    }
+                    2 => {
+                        let arg0 = instr.args.first().unwrap().unwrap();
+                        let arg1 = instr.args.last().unwrap();
+                        eprintln!("  {}: {:?}({}, {:?})", ip, instr.kind, arg0, arg1);
+                    }
+                    _ => unreachable!(),
                 }
-                1 => {
-                    let arg0 = instr.args.first().unwrap().unwrap();
-                    eprintln!("  {}: {:?}({})", ip, instr.kind, arg0);
-                }
-                2 => {
-                    let arg0 = instr.args.first().unwrap().unwrap();
-                    let arg1 = instr.args.last().unwrap();
-                    eprintln!("  {}: {:?}({}, {:?})", ip, instr.kind, arg0, arg1);
-                }
-                _ => unreachable!(),
             }
+            eprintln!();
         }
-        eprintln!();
 
         while let Some(instr) = executable.get_instruction(&mut vm.ip) {
             match Self::execute_instruction(agent, &mut vm, executable, &instr) {
@@ -147,7 +149,9 @@ impl Vm {
         executable: &Executable,
         instr: &Instr,
     ) -> JsResult<ContinuationKind> {
-        eprintln!("Executing instruction {:?}", instr.kind);
+        if agent.options.print_internals {
+            eprintln!("Executing instruction {:?}", instr.kind);
+        }
         match instr.kind {
             Instruction::ArrayCreate => {
                 vm.stack.push(
@@ -184,7 +188,9 @@ impl Vm {
                 }
             }
             Instruction::Debug => {
-                eprintln!("Debug: {:#?}", vm);
+                if agent.options.print_internals {
+                    eprintln!("Debug: {:#?}", vm);
+                }
             }
             Instruction::ResolveBinding => {
                 let identifier = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);

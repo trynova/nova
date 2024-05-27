@@ -90,9 +90,11 @@ impl Executable {
     }
 
     pub(crate) fn compile_script(agent: &mut Agent, script: ScriptIdentifier) -> Executable {
-        eprintln!();
-        eprintln!("=== Compiling Script ===");
-        eprintln!();
+        if agent.options.print_internals {
+            eprintln!();
+            eprintln!("=== Compiling Script ===");
+            eprintln!();
+        }
         // SAFETY: Script uniquely owns the Program and the body buffer does
         // not move under any circumstances during heap operations.
         let body: &[Statement] =
@@ -102,9 +104,11 @@ impl Executable {
     }
 
     pub(crate) fn compile_function_body(agent: &mut Agent, body: &FunctionBody<'_>) -> Executable {
-        eprintln!();
-        eprintln!("=== Compiling Function ===");
-        eprintln!();
+        if agent.options.print_internals {
+            eprintln!();
+            eprintln!("=== Compiling Function ===");
+            eprintln!();
+        }
         // SAFETY: Script referred by the Function uniquely owns the Program
         // and the body buffer does not move under any circumstances during
         // heap operations.
