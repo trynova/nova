@@ -3,7 +3,7 @@ use std::mem::size_of;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{
-            to_big_int, to_int32, to_number, to_numeric, to_uint32,
+            to_big_int, to_int32, to_number, to_numeric, to_string, to_uint32,
         },
         execution::{Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
@@ -400,6 +400,10 @@ impl Value {
 
     pub fn to_uint32(self, agent: &mut Agent) -> JsResult<u32> {
         to_uint32(agent, self)
+    }
+
+    pub fn to_string(self, agent: &mut Agent) -> JsResult<String> {
+        to_string(agent, self)
     }
 
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
