@@ -51,7 +51,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let file = std::fs::read_to_string(path)?;
             let allocator = Default::default();
 
-            let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+            let mut agent = Agent::new(
+                Options {
+                    disable_gc: false,
+                    print_internals: verbose,
+                },
+                &DefaultHostHooks,
+            );
             {
                 let create_global_object: Option<fn(&mut Realm) -> Object> = None;
                 let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
