@@ -50,7 +50,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let file = std::fs::read_to_string(path)?;
             let allocator = Default::default();
 
-            let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+            let mut agent = Agent::new(
+                Options {
+                    disable_gc: false,
+                    print_internals: verbose,
+                },
+                &DefaultHostHooks,
+            );
             initialize_default_realm(&mut agent);
             let realm = agent.current_realm_id();
 
