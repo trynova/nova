@@ -1,7 +1,8 @@
 use clap::{Parser as ClapParser, Subcommand};
 use nova_vm::ecmascript::{
-    execution::{agent::Options, initialize_default_realm, Agent, DefaultHostHooks},
+    execution::{agent::Options, initialize_host_defined_realm, Agent, DefaultHostHooks, Realm},
     scripts_and_modules::script::{parse_script, script_evaluation},
+    types::Object,
 };
 use oxc_parser::Parser;
 use oxc_span::SourceType;
@@ -57,7 +58,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
                 &DefaultHostHooks,
             );
-            initialize_default_realm(&mut agent);
+            {
+                let create_global_object: Option<fn(&mut Realm) -> Object> = None;
+                let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
+                initialize_host_defined_realm(
+                    &mut agent,
+                    create_global_object,
+                    create_global_this_value,
+                    Some(initialize_global_object),
+                );
+            }
             let realm = agent.current_realm_id();
 
             let script = parse_script(&allocator, file.into(), realm, None).unwrap();
@@ -70,4 +80,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn initialize_global_object(agent: &mut Agent, global: Object) {
+    use nova_vm::ecmascript::{
+        builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
+        execution::JsResult,
+        types::{InternalMethods, IntoValue, PropertyDescriptor, PropertyKey, Value},
+    };
+
+    // `print` function
+    fn print(agent: &mut Agent, _this: Value, args: ArgumentsList) -> JsResult<Value> {
+        if args.len() == 0 || args[0].is_undefined() {
+            println!();
+        } else {
+            println!("{}", args[0].to_string(agent)?.as_str(agent));
+        }
+        Ok(Value::Undefined)
+    }
+    let function = create_builtin_function(
+        agent,
+        Behaviour::Regular(print),
+        BuiltinFunctionArgs::new(1, "print", agent.current_realm_id()),
+    );
+    let property_key = PropertyKey::from_static_str(agent, "print");
+    global
+        .internal_define_own_property(
+            agent,
+            property_key,
+            PropertyDescriptor {
+                value: Some(function.into_value()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 }
