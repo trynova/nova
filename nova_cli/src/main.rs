@@ -2,7 +2,7 @@ use clap::{Parser as ClapParser, Subcommand};
 use nova_vm::ecmascript::{
     execution::{agent::Options, initialize_host_defined_realm, Agent, DefaultHostHooks, Realm},
     scripts_and_modules::script::{parse_script, script_evaluation},
-    types::Object,
+    types::{Object, Value},
 };
 use oxc_parser::Parser;
 use oxc_span::SourceType;
@@ -29,8 +29,9 @@ enum Command {
         #[arg(short, long)]
         verbose: bool,
 
-        /// The file to evaluate
-        path: String,
+        /// The files to evaluate
+        #[arg(required = true)]
+        paths: Vec<String>,
     },
 }
 
@@ -47,8 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             println!("{:?}", result.program);
         }
-        Command::Eval { verbose, path } => {
-            let file = std::fs::read_to_string(path)?;
+        Command::Eval { verbose, paths } => {
             let allocator = Default::default();
 
             let mut agent = Agent::new(
@@ -70,8 +70,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             let realm = agent.current_realm_id();
 
-            let script = parse_script(&allocator, file.into(), realm, None).unwrap();
-            match script_evaluation(&mut agent, script) {
+            // `final_result` will always be overwritten in the paths loop, but
+            // we populate it with a dummy value here so rustc won't complain.
+            let mut final_result = Ok(Value::Undefined);
+
+            assert!(!paths.is_empty());
+            for path in paths {
+                let file = std::fs::read_to_string(path)?;
+                let script = parse_script(&allocator, file.into(), realm, None).unwrap();
+                final_result = script_evaluation(&mut agent, script);
+                if final_result.is_err() {
+                    break;
+                }
+            }
+
+            match final_result {
                 Ok(result) => {
                     if verbose {
                         println!("{:?}", result);
@@ -95,7 +108,7 @@ fn initialize_global_object(agent: &mut Agent, global: Object) {
     use nova_vm::ecmascript::{
         builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
         execution::JsResult,
-        types::{InternalMethods, IntoValue, PropertyDescriptor, PropertyKey, Value},
+        types::{InternalMethods, IntoValue, PropertyDescriptor, PropertyKey},
     };
 
     // `print` function
