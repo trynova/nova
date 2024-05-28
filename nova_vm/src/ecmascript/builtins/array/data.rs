@@ -2,7 +2,7 @@ use crate::{
     ecmascript::types::OrdinaryObject,
     heap::{
         element_array::{ElementArrayKey, ElementsVector},
-        indexes::{ElementIndex},
+        indexes::ElementIndex,
         CompactionLists, HeapMarkAndSweep, WorkQueues,
     },
 };

@@ -11,7 +11,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{Heap},
+    heap::Heap,
 };
 pub(crate) use intrinsics::Intrinsics;
 pub(crate) use intrinsics::ProtoIntrinsics;

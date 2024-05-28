@@ -15,9 +15,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object,
-            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
-            BUILTIN_STRING_MEMORY,
+            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
+            PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{indexes::ArrayIndex, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},

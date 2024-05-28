@@ -37,8 +37,8 @@ use crate::{
         },
     },
     heap::{
-        indexes::{ECMAScriptFunctionIndex},
-        CreateHeapData, Heap, ObjectEntry, ObjectEntryPropertyDescriptor,
+        indexes::ECMAScriptFunctionIndex, CreateHeapData, Heap, ObjectEntry,
+        ObjectEntryPropertyDescriptor,
     },
 };
 

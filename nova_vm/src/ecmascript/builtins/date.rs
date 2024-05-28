@@ -6,8 +6,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object,
-            OrdinaryObjectInternalSlots, PropertyKey, Value,
+            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
+            PropertyKey, Value,
         },
     },
     heap::{indexes::DateIndex, Heap},

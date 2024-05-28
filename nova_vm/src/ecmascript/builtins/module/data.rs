@@ -6,7 +6,7 @@ use crate::{
         scripts_and_modules::module::ModuleIdentifier,
         types::{OrdinaryObject, PropertyKey, String},
     },
-    heap::indexes::{StringIndex},
+    heap::indexes::StringIndex,
 };
 
 use super::Module;

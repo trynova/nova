@@ -4,8 +4,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object,
-            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
+            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
+            PropertyDescriptor, PropertyKey, Value,
         },
     },
     heap::{indexes::FinalizationRegistryIndex, Heap, ObjectEntry, ObjectEntryPropertyDescriptor},

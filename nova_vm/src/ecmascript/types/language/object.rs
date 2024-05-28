@@ -39,12 +39,15 @@ use crate::{
         scripts_and_modules::module::ModuleIdentifier,
         types::PropertyDescriptor,
     },
-    heap::indexes::{
-        ArrayBufferIndex, ArrayIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
-        DateIndex, ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex,
-        FinalizationRegistryIndex, MapIndex, ObjectIndex, PrimitiveObjectIndex, PromiseIndex,
-        ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, TypedArrayIndex, WeakMapIndex,
-        WeakRefIndex, WeakSetIndex,
+    heap::{
+        indexes::{
+            ArrayBufferIndex, ArrayIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
+            DateIndex, ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex,
+            FinalizationRegistryIndex, MapIndex, ObjectIndex, PrimitiveObjectIndex, PromiseIndex,
+            ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, TypedArrayIndex,
+            WeakMapIndex, WeakRefIndex, WeakSetIndex,
+        },
+        CompactionLists, HeapMarkAndSweep, WorkQueues,
     },
 };
 
@@ -527,9 +530,7 @@ impl OrdinaryObjectInternalSlots for Object {
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         match self {
-            Object::Object(idx) => {
-                idx.internal_set_prototype(agent, prototype)
-            }
+            Object::Object(idx) => idx.internal_set_prototype(agent, prototype),
             Object::Array(idx) => idx.internal_set_prototype(agent, prototype),
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).internal_set_prototype(agent, prototype)
@@ -647,9 +648,7 @@ impl InternalMethods for Object {
         prototype: Option<Object>,
     ) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => {
-                idx.internal_set_prototype_of(agent, prototype)
-            }
+            Object::Object(idx) => idx.internal_set_prototype_of(agent, prototype),
             Object::Array(idx) => idx.internal_set_prototype_of(agent, prototype),
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).internal_set_prototype_of(agent, prototype)
@@ -819,9 +818,7 @@ impl InternalMethods for Object {
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         match self {
-            Object::Object(idx) => {
-                idx.internal_get_own_property(agent, property_key)
-            }
+            Object::Object(idx) => idx.internal_get_own_property(agent, property_key),
             Object::Array(idx) => idx.internal_get_own_property(agent, property_key),
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).internal_get_own_property(agent, property_key)
@@ -886,11 +883,9 @@ impl InternalMethods for Object {
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => idx.internal_define_own_property(
-                agent,
-                property_key,
-                property_descriptor,
-            ),
+            Object::Object(idx) => {
+                idx.internal_define_own_property(agent, property_key, property_descriptor)
+            }
             Object::Array(idx) => {
                 idx.internal_define_own_property(agent, property_key, property_descriptor)
             }
@@ -976,9 +971,7 @@ impl InternalMethods for Object {
 
     fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => {
-                idx.internal_has_property(agent, property_key)
-            }
+            Object::Object(idx) => idx.internal_has_property(agent, property_key),
             Object::Array(idx) => idx.internal_has_property(agent, property_key),
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).internal_has_property(agent, property_key)
@@ -1043,9 +1036,7 @@ impl InternalMethods for Object {
         receiver: Value,
     ) -> JsResult<Value> {
         match self {
-            Object::Object(idx) => {
-                idx.internal_get(agent, property_key, receiver)
-            }
+            Object::Object(idx) => idx.internal_get(agent, property_key, receiver),
             Object::Array(idx) => idx.internal_get(agent, property_key, receiver),
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).internal_get(agent, property_key, receiver)
@@ -1111,9 +1102,7 @@ impl InternalMethods for Object {
         receiver: Value,
     ) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => {
-                idx.internal_set(agent, property_key, value, receiver)
-            }
+            Object::Object(idx) => idx.internal_set(agent, property_key, value, receiver),
             Object::Array(idx) => idx.internal_set(agent, property_key, value, receiver),
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).internal_set(agent, property_key, value, receiver)
@@ -1321,6 +1310,69 @@ impl InternalMethods for Object {
                 Function::from(idx).internal_construct(agent, arguments_list, new_target)
             }
             _ => unreachable!(),
+        }
+    }
+}
+
+impl HeapMarkAndSweep for Object {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            Object::Object(idx) => idx.mark_values(queues),
+            Object::Array(idx) => idx.mark_values(queues),
+            Object::ArrayBuffer(idx) => idx.mark_values(queues),
+            Object::Date(idx) => idx.mark_values(queues),
+            Object::Error(idx) => idx.mark_values(queues),
+            Object::BoundFunction(d) => d.mark_values(queues),
+            Object::BuiltinFunction(d) => d.mark_values(queues),
+            Object::ECMAScriptFunction(d) => d.mark_values(queues),
+            Object::BuiltinGeneratorFunction => todo!(),
+            Object::BuiltinConstructorFunction => todo!(),
+            Object::ECMAScriptAsyncFunction => todo!(),
+            Object::ECMAScriptAsyncGeneratorFunction => todo!(),
+            Object::ECMAScriptConstructorFunction => todo!(),
+            Object::ECMAScriptGeneratorFunction => todo!(),
+            Object::BuiltinPromiseResolveFunction => todo!(),
+            Object::BuiltinPromiseRejectFunction => todo!(),
+            Object::BuiltinPromiseCollectorFunction => todo!(),
+            Object::BuiltinProxyRevokerFunction => todo!(),
+            Object::PrimitiveObject(idx) => idx.mark_values(queues),
+            Object::Arguments => todo!(),
+            Object::DataView(_) => todo!(),
+            Object::FinalizationRegistry(_) => todo!(),
+            Object::Map(_) => todo!(),
+            Object::Promise(_) => todo!(),
+            Object::Proxy(_) => todo!(),
+            Object::RegExp(_) => todo!(),
+            Object::Set(_) => todo!(),
+            Object::SharedArrayBuffer(_) => todo!(),
+            Object::WeakMap(_) => todo!(),
+            Object::WeakRef(_) => todo!(),
+            Object::WeakSet(_) => todo!(),
+            Object::Int8Array(_) => todo!(),
+            Object::Uint8Array(_) => todo!(),
+            Object::Uint8ClampedArray(_) => todo!(),
+            Object::Int16Array(_) => todo!(),
+            Object::Uint16Array(_) => todo!(),
+            Object::Int32Array(_) => todo!(),
+            Object::Uint32Array(_) => todo!(),
+            Object::BigInt64Array(_) => todo!(),
+            Object::BigUint64Array(_) => todo!(),
+            Object::Float32Array(_) => todo!(),
+            Object::Float64Array(_) => todo!(),
+            Object::AsyncFromSyncIterator => todo!(),
+            Object::AsyncIterator => todo!(),
+            Object::Iterator => todo!(),
+            Object::Module(_) => todo!(),
+            Object::EmbedderObject(_) => todo!(),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            Self::Object(idx) => idx.sweep_values(compactions),
+            Self::Array(idx) => idx.sweep_values(compactions),
+            Self::Error(idx) => idx.sweep_values(compactions),
+            _ => todo!(),
         }
     }
 }

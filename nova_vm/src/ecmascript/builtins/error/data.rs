@@ -1,8 +1,6 @@
-use crate::{
-    ecmascript::{
-        execution::agent::ExceptionType,
-        types::{OrdinaryObject, String, Value},
-    },
+use crate::ecmascript::{
+    execution::agent::ExceptionType,
+    types::{OrdinaryObject, String, Value},
 };
 
 #[derive(Debug, Clone, Copy)]

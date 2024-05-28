@@ -5,8 +5,8 @@ use crate::{
         execution::{agent::ExceptionType, Agent, ExecutionContext, JsResult, RealmIdentifier},
         types::{
             BuiltinFunctionHeapData, Function, InternalMethods, IntoFunction, IntoObject,
-            IntoValue, Object, OrdinaryObjectInternalSlots, PropertyDescriptor,
-            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            IntoValue, Object, OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey,
+            String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{

@@ -5,9 +5,9 @@ use super::{
     indexes::{
         ArrayBufferIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
         DateIndex, ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
-        FinalizationRegistryIndex, MapIndex, NumberIndex, PrimitiveObjectIndex,
-        PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex,
-        SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
+        FinalizationRegistryIndex, MapIndex, NumberIndex, PrimitiveObjectIndex, PromiseIndex,
+        ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex, SymbolIndex,
+        TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
     Heap, NumberHeapData, StringHeapData, SymbolHeapData,
 };
@@ -45,7 +45,7 @@ use crate::ecmascript::{
     },
     types::{
         BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-        Function, Number, Object, OrdinaryObject, String, Value,
+        Function, Number, OrdinaryObject, String, Value,
     },
 };
 
@@ -1162,69 +1162,6 @@ impl HeapMarkAndSweep for Number {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         if let Self::Number(idx) = self {
             idx.sweep_values(compactions);
-        }
-    }
-}
-
-impl HeapMarkAndSweep for Object {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        match self {
-            Object::Object(idx) => idx.mark_values(queues),
-            Object::Array(idx) => idx.mark_values(queues),
-            Object::ArrayBuffer(idx) => idx.mark_values(queues),
-            Object::Date(idx) => idx.mark_values(queues),
-            Object::Error(idx) => idx.mark_values(queues),
-            Object::BoundFunction(d) => d.mark_values(queues),
-            Object::BuiltinFunction(d) => d.mark_values(queues),
-            Object::ECMAScriptFunction(d) => d.mark_values(queues),
-            Object::BuiltinGeneratorFunction => todo!(),
-            Object::BuiltinConstructorFunction => todo!(),
-            Object::ECMAScriptAsyncFunction => todo!(),
-            Object::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Object::ECMAScriptConstructorFunction => todo!(),
-            Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction => todo!(),
-            Object::BuiltinPromiseCollectorFunction => todo!(),
-            Object::BuiltinProxyRevokerFunction => todo!(),
-            Object::PrimitiveObject(idx) => idx.mark_values(queues),
-            Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(_) => todo!(),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
-            Object::Set(_) => todo!(),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
-            Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
-            Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
-        }
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        match self {
-            Self::Object(idx) => idx.sweep_values(compactions),
-            Self::Array(idx) => idx.sweep_values(compactions),
-            Self::Error(idx) => idx.sweep_values(compactions),
-            _ => todo!(),
         }
     }
 }

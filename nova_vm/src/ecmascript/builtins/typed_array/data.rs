@@ -1,4 +1,4 @@
-use crate::{ecmascript::types::OrdinaryObject};
+use crate::ecmascript::types::OrdinaryObject;
 
 #[derive(Debug, Clone, Default)]
 pub struct TypedArrayHeapData {

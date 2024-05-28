@@ -1,8 +1,6 @@
 use std::mem::ManuallyDrop;
 
-use crate::{
-    ecmascript::types::{DataBlock, OrdinaryObject},
-};
+use crate::ecmascript::types::{DataBlock, OrdinaryObject};
 
 #[derive(Debug)]
 pub(crate) enum InternalBuffer {

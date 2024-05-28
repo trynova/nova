@@ -10,9 +10,9 @@ use super::{
     indexes::{
         ArrayBufferIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
         DateIndex, ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
-        FinalizationRegistryIndex, MapIndex, NumberIndex, PrimitiveObjectIndex,
-        PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex,
-        SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
+        FinalizationRegistryIndex, MapIndex, NumberIndex, PrimitiveObjectIndex, PromiseIndex,
+        ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex, SymbolIndex,
+        TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
     Heap,
 };

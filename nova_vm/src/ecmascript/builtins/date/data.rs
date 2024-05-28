@@ -1,4 +1,4 @@
-use crate::{ecmascript::types::OrdinaryObject};
+use crate::ecmascript::types::OrdinaryObject;
 use std::time::SystemTime;
 
 #[derive(Debug, Clone, Copy)]

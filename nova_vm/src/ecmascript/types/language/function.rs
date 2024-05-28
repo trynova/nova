@@ -12,8 +12,8 @@ use super::{
         ECMASCRIPT_CONSTRUCTOR_FUNCTION_DISCRIMINANT, ECMASCRIPT_FUNCTION_DISCRIMINANT,
         ECMASCRIPT_GENERATOR_FUNCTION_DISCRIMINANT,
     },
-    InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
-    PropertyKey, Value,
+    InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots, PropertyKey,
+    Value,
 };
 use crate::{
     ecmascript::{

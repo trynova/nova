@@ -1,6 +1,4 @@
-use crate::{
-    ecmascript::types::{OrdinaryObject, Value},
-};
+use crate::ecmascript::types::{OrdinaryObject, Value};
 
 #[derive(Debug, Clone, Default)]
 pub struct MapHeapData {
