@@ -849,6 +849,7 @@ pub(crate) fn make_constructor(
             // 2. Else,
             // a. Set F.[[Construct]] to the definition specified in 10.3.2.
         }
+        Function::BuiltinAbstractClosure(_) => todo!(),
         Function::BuiltinGeneratorFunction => todo!(),
         Function::BuiltinConstructorFunction => todo!(),
         Function::BuiltinPromiseResolveFunction => todo!(),
@@ -947,6 +948,7 @@ pub(crate) fn set_function_name(
             function.name = Some(name);
             // 7. Return UNUSED.
         }
+        Function::BuiltinAbstractClosure(_) => todo!(),
         Function::BuiltinGeneratorFunction => todo!(),
         Function::BuiltinConstructorFunction => todo!(),
         Function::BuiltinPromiseResolveFunction => todo!(),

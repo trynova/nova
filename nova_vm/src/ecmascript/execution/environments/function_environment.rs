@@ -328,6 +328,7 @@ impl FunctionEnvironmentIndex {
                     .unwrap();
                 data.ecmascript_function.home_object.is_some()
             }
+            Function::BuiltinAbstractClosure(_) => unreachable!(),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -363,6 +364,7 @@ impl FunctionEnvironmentIndex {
                     .unwrap();
                 data.ecmascript_function.home_object
             }
+            Function::BuiltinAbstractClosure(_) => unreachable!(),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),

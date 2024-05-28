@@ -769,6 +769,7 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         // 13. If val has a [[Call]] internal slot, return "function".
         Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) |
         Value::BuiltinGeneratorFunction |
+        Value::BuiltinAbstractClosure(_) |
         Value::BuiltinConstructorFunction |
         Value::BuiltinPromiseResolveFunction |
         Value::BuiltinPromiseRejectFunction(_) |

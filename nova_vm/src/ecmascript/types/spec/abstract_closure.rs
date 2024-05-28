@@ -275,11 +275,15 @@ impl HeapMarkAndSweep for AbstractClosureHeapData {
 
 impl HeapMarkAndSweep for AbstractClosure {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
-        todo!()
+        queues.abstract_closures.push(*self);
     }
 
     fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
-        todo!()
+        let idx = &mut self.0;
+        let value = idx.into_u32();
+        *idx = AbstractClosureIndex::from_u32(
+            value - compactions.abstract_closures.get_shift_for_index(value),
+        );
     }
 }
 

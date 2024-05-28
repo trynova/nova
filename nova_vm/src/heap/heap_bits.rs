@@ -29,13 +29,13 @@ use crate::ecmascript::{
         ScriptOrModule,
     },
     types::{
-        BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-        Function, Number, Object, OrdinaryObject, String, Value,
+        AbstractClosure, BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData, Function, Number, Object, OrdinaryObject, String, Value
     },
 };
 
 #[derive(Debug)]
 pub struct HeapBits {
+    pub abstract_closures: Box<[bool]>,
     pub array_buffers: Box<[bool]>,
     pub arrays: Box<[bool]>,
     pub bigints: Box<[bool]>,
@@ -88,6 +88,7 @@ pub(crate) struct WorkQueues {
     pub bigints: Vec<BigIntIndex>,
     pub bound_functions: Vec<BoundFunctionIndex>,
     pub builtin_functions: Vec<BuiltinFunctionIndex>,
+    pub abstract_closures: Vec<AbstractClosure>,
     pub data_views: Vec<DataViewIndex>,
     pub dates: Vec<DateIndex>,
     pub declarative_environments: Vec<DeclarativeEnvironmentIndex>,
@@ -130,6 +131,7 @@ pub(crate) struct WorkQueues {
 
 impl HeapBits {
     pub fn new(heap: &Heap) -> Self {
+        let abstract_closures = vec![false; heap.abstract_closures.len()];
         let array_buffers = vec![false; heap.array_buffers.len()];
         let arrays = vec![false; heap.arrays.len()];
         let bigints = vec![false; heap.bigints.len()];
@@ -174,6 +176,7 @@ impl HeapBits {
         let weak_refs = vec![false; heap.weak_refs.len()];
         let weak_sets = vec![false; heap.weak_sets.len()];
         Self {
+            abstract_closures: abstract_closures.into_boxed_slice(),
             array_buffers: array_buffers.into_boxed_slice(),
             arrays: arrays.into_boxed_slice(),
             bigints: bigints.into_boxed_slice(),
@@ -278,9 +281,10 @@ impl WorkQueues {
             Value::Boolean(_) => {}
             Value::Date(idx) => self.dates.push(idx),
             Value::Error(idx) => self.errors.push(idx),
-            Value::BoundFunction(_idx) => todo!(),
-            Value::BuiltinFunction(_idx) => todo!(),
-            Value::ECMAScriptFunction(_idx) => todo!(),
+            Value::BoundFunction(idx) => self.bound_functions.push(idx),
+            Value::BuiltinFunction(idx) => self.builtin_functions.push(idx),
+            Value::ECMAScriptFunction(idx) => self.ecmascript_functions.push(idx),
+            Value::BuiltinAbstractClosure(d) => self.abstract_closures.push(d),
             Value::BigInt(idx) => self.bigints.push(idx),
             Value::Number(idx) => self.numbers.push(idx),
             Value::String(idx) => self.strings.push(idx),
@@ -329,7 +333,7 @@ impl WorkQueues {
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
-            Value::Module(_) => todo!(),
+            Value::Module(idx) => self.modules.push(idx),
             Value::EmbedderObject(_) => todo!(),
         }
     }
@@ -545,6 +549,7 @@ pub(crate) struct CompactionLists {
     pub bound_functions: CompactionList,
     pub builtin_functions: CompactionList,
     pub ecmascript_functions: CompactionList,
+    pub abstract_closures: CompactionList,
     pub dates: CompactionList,
     pub errors: CompactionList,
     pub maps: CompactionList,
@@ -595,6 +600,7 @@ impl CompactionLists {
             bound_functions: CompactionList::from_mark_bits(&bits.bound_functions),
             builtin_functions: CompactionList::from_mark_bits(&bits.builtin_functions),
             ecmascript_functions: CompactionList::from_mark_bits(&bits.ecmascript_functions),
+            abstract_closures: CompactionList::from_mark_bits(&bits.abstract_closures),
             dates: CompactionList::from_mark_bits(&bits.dates),
             errors: CompactionList::from_mark_bits(&bits.errors),
             maps: CompactionList::from_mark_bits(&bits.maps),
@@ -1009,6 +1015,7 @@ impl HeapMarkAndSweep for Value {
             Value::BoundFunction(idx) => idx.mark_values(queues),
             Value::BuiltinFunction(idx) => idx.mark_values(queues),
             Value::ECMAScriptFunction(idx) => idx.mark_values(queues),
+            Value::BuiltinAbstractClosure(d) => d.mark_values(queues),
             Value::RegExp(idx) => idx.mark_values(queues),
             Value::PrimitiveObject(idx) => idx.mark_values(queues),
             Value::Arguments => todo!(),
@@ -1073,6 +1080,7 @@ impl HeapMarkAndSweep for Value {
             Value::Error(idx) => idx.sweep_values(compactions),
             Value::BoundFunction(idx) => idx.sweep_values(compactions),
             Value::BuiltinFunction(idx) => idx.sweep_values(compactions),
+            Value::BuiltinAbstractClosure(d) => d.sweep_values(compactions),
             Value::ECMAScriptFunction(idx) => idx.sweep_values(compactions),
             Value::RegExp(idx) => idx.sweep_values(compactions),
             Value::PrimitiveObject(idx) => idx.sweep_values(compactions),
@@ -1123,6 +1131,7 @@ impl HeapMarkAndSweep for Function {
             Function::BoundFunction(idx) => idx.mark_values(queues),
             Function::BuiltinFunction(idx) => idx.mark_values(queues),
             Function::ECMAScriptFunction(idx) => idx.mark_values(queues),
+            Function::BuiltinAbstractClosure(d) => d.mark_values(queues),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -1141,6 +1150,7 @@ impl HeapMarkAndSweep for Function {
             Function::BoundFunction(idx) => idx.sweep_values(compactions),
             Function::BuiltinFunction(idx) => idx.sweep_values(compactions),
             Function::ECMAScriptFunction(idx) => idx.sweep_values(compactions),
+            Function::BuiltinAbstractClosure(d) => d.sweep_values(compactions),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
@@ -1197,9 +1207,10 @@ impl HeapMarkAndSweep for Object {
             Object::ArrayBuffer(idx) => idx.mark_values(queues),
             Object::Date(idx) => idx.mark_values(queues),
             Object::Error(idx) => idx.mark_values(queues),
-            Object::BoundFunction(_) => todo!(),
-            Object::BuiltinFunction(_) => todo!(),
-            Object::ECMAScriptFunction(_) => todo!(),
+            Object::BoundFunction(d) => d.mark_values(queues),
+            Object::BuiltinFunction(d) => d.mark_values(queues),
+            Object::ECMAScriptFunction(d) => d.mark_values(queues),
+            Object::BuiltinAbstractClosure(closure) => closure.mark_values(queues),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),

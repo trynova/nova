@@ -2,22 +2,26 @@ use std::{any::Any, sync::atomic::AtomicU16};
 
 use oxc_span::Atom;
 
-use crate::ecmascript::{
-    abstract_operations::operations_on_objects::call_function,
-    builtins::{
-        control_abstraction_objects::promise_objects::{
-            promise_abstract_operations::{
-                new_intrinsic_promise_capability, promise_capability_records::PromiseCapability,
+use crate::{
+    ecmascript::{
+        abstract_operations::operations_on_objects::call_function,
+        builtins::{
+            builtin_function::create_abstract_closure_function,
+            control_abstraction_objects::promise_objects::{
+                promise_abstract_operations::{
+                    new_intrinsic_promise_capability, promise_capability_records::PromiseCapability,
+                },
+                promise_constructor::perform_promise_then,
             },
-            promise_constructor::perform_promise_then,
+            module::source_text_module_records::get_imported_module,
+            promise::Promise,
+            ArgumentsList, BuiltinFunctionArgs,
         },
-        module::source_text_module_records::get_imported_module,
-        promise::Promise,
-        ArgumentsList,
+        execution::{agent::JsError, Agent, JsResult},
+        scripts_and_modules::script::HostDefined,
+        types::{AbstractClosureBehaviour, IntoValue, String, Value},
     },
-    execution::{agent::JsError, Agent, JsResult},
-    scripts_and_modules::script::HostDefined,
-    types::{String, Value},
+    heap::HeapMarkAndSweep,
 };
 
 use super::{
@@ -993,25 +997,95 @@ pub(crate) fn execute_async_module(agent: &mut Agent, module: Module) {
     assert!(module_borrow.cyclic.has_top_level_await);
     // 3. Let capability be ! NewPromiseCapability(%Promise%).
     let capability = new_intrinsic_promise_capability(agent);
-    // 4. Let fulfilledClosure be a new Abstract Closure with no parameters that captures module and performs the following steps when called:
-    // a. Perform AsyncModuleExecutionFulfilled(module).
-    // b. Return undefined.
+    // 4. Let fulfilledClosure be a new Abstract Closure with no parameters
+    // that captures module...
+    struct ExecuteAsyncModuleFulfilledClosure {
+        module: Module,
+    }
+    impl HeapMarkAndSweep for ExecuteAsyncModuleFulfilledClosure {
+        fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+            self.module.mark_values(queues);
+        }
+
+        fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+            self.module.sweep_values(compactions);
+        }
+    }
+    // ... and performs the following steps when called:
+    impl AbstractClosureBehaviour for ExecuteAsyncModuleFulfilledClosure {
+        fn call(
+            self,
+            agent: &mut Agent,
+            this_value: Value,
+            arguments: Option<ArgumentsList>,
+        ) -> JsResult<Value> {
+            // a. Perform AsyncModuleExecutionFulfilled(module).
+            async_module_execution_fulfilled(agent, self.module);
+            // b. Return undefined.
+            Ok(Value::Undefined)
+        }
+    }
     // 5. Let onFulfilled be CreateBuiltinFunction(fulfilledClosure, 0, "", « »).
-    let on_fulfilled = ();
-    // 6. Let rejectedClosure be a new Abstract Closure with parameters (error) that captures module and performs the following steps when called:
-    // a. Perform AsyncModuleExecutionRejected(module, error).
-    // b. Return undefined.
+    let on_fulfilled = create_abstract_closure_function(
+        agent,
+        Box::new(ExecuteAsyncModuleFulfilledClosure { module }),
+        BuiltinFunctionArgs {
+            length: 0,
+            name: "",
+            realm: None,
+            prototype: None,
+            prefix: None,
+        },
+    );
+    // 6. Let rejectedClosure be a new Abstract Closure with parameters (error)
+    // that captures module...
+    struct ExecuteAsyncModuleRejectedClosure {
+        module: Module,
+    }
+    impl HeapMarkAndSweep for ExecuteAsyncModuleRejectedClosure {
+        fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+            self.module.mark_values(queues);
+        }
+
+        fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+            self.module.sweep_values(compactions);
+        }
+    }
+    // ... and performs the following steps when called:
+    impl AbstractClosureBehaviour for ExecuteAsyncModuleRejectedClosure {
+        fn call(
+            self,
+            agent: &mut Agent,
+            this_value: Value,
+            arguments: Option<ArgumentsList>,
+        ) -> JsResult<Value> {
+            // a. Perform AsyncModuleExecutionRejected(module, error).
+            async_module_execution_rejected(agent, self.module, arguments.unwrap().get(0));
+            // b. Return undefined.
+            Ok(Value::Undefined)
+        }
+    }
     // 7. Let onRejected be CreateBuiltinFunction(rejectedClosure, 0, "", « »).
-    let on_rejected = ();
+    let on_rejected = create_abstract_closure_function(
+        agent,
+        Box::new(ExecuteAsyncModuleRejectedClosure { module }),
+        BuiltinFunctionArgs {
+            length: 0,
+            name: "",
+            realm: None,
+            prototype: None,
+            prefix: None,
+        },
+    );
     // 8. Perform PerformPromiseThen(capability.[[Promise]], onFulfilled, onRejected).
     perform_promise_then(
         agent,
         Promise::try_from(agent[capability].promise).unwrap(),
-        on_fulfilled,
-        on_rejected,
+        on_fulfilled.into_value(),
+        on_rejected.into_value(),
         None,
     );
-    // 9. Perform ! module.ExecuteModule(capability).
+    // 9. Perform ! module.ExecuteModule.into_value()(capability).
     module.execute_module(agent, Some(capability));
     // 10. Return unused.
 }
