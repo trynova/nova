@@ -2,16 +2,16 @@ use crate::{
     ecmascript::{
         builtins::{Behaviour, ECMAScriptFunctionObjectHeapData},
         execution::RealmIdentifier,
-        types::String,
+        types::{OrdinaryObject, String},
     },
-    heap::{element_array::ElementsVector, indexes::ObjectIndex},
+    heap::element_array::ElementsVector,
 };
 
 use super::Function;
 
 #[derive(Debug, Clone)]
 pub struct BoundFunctionHeapData {
-    pub(crate) object_index: Option<ObjectIndex>,
+    pub(crate) object_index: Option<OrdinaryObject>,
     pub(crate) length: u8,
     pub(crate) function: Function,
     pub(crate) bound_values: ElementsVector,
@@ -20,7 +20,7 @@ pub struct BoundFunctionHeapData {
 
 #[derive(Debug, Clone)]
 pub struct BuiltinFunctionHeapData {
-    pub(crate) object_index: Option<ObjectIndex>,
+    pub(crate) object_index: Option<OrdinaryObject>,
     pub(crate) length: u8,
     /// #### \[\[Realm]]
     /// A Realm Record that represents the realm in which the function was
@@ -35,7 +35,7 @@ pub struct BuiltinFunctionHeapData {
 
 #[derive(Debug)]
 pub struct ECMAScriptFunctionHeapData {
-    pub(crate) object_index: Option<ObjectIndex>,
+    pub(crate) object_index: Option<OrdinaryObject>,
     pub(crate) length: u8,
     pub(crate) ecmascript_function: ECMAScriptFunctionObjectHeapData,
     pub(crate) name: Option<String>,

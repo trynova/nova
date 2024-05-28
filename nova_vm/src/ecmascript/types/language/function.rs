@@ -12,8 +12,8 @@ use super::{
         ECMASCRIPT_CONSTRUCTOR_FUNCTION_DISCRIMINANT, ECMASCRIPT_FUNCTION_DISCRIMINANT,
         ECMASCRIPT_GENERATOR_FUNCTION_DISCRIMINANT,
     },
-    InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, OrdinaryObjectInternalSlots,
-    PropertyKey, Value,
+    InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots, PropertyKey,
+    Value,
 };
 use crate::{
     ecmascript::{
@@ -209,7 +209,7 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::ECMAScriptConstructorFunction => todo!(),
             Function::ECMAScriptGeneratorFunction => todo!(),
         } {
-            OrdinaryObject::from(object_index).internal_extensible(agent)
+            object_index.internal_extensible(agent)
         } else {
             true
         }
@@ -231,7 +231,7 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::ECMAScriptConstructorFunction => todo!(),
             Function::ECMAScriptGeneratorFunction => todo!(),
         } {
-            OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
+            object_index.internal_set_extensible(agent, value)
         } else if !value {
             // Create function base object and set inextensible
             todo!()
@@ -254,7 +254,7 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::ECMAScriptConstructorFunction => todo!(),
             Function::ECMAScriptGeneratorFunction => todo!(),
         } {
-            OrdinaryObject::from(object_index).internal_prototype(agent)
+            object_index.internal_prototype(agent)
         } else {
             Some(
                 agent
@@ -282,7 +282,7 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::ECMAScriptConstructorFunction => todo!(),
             Function::ECMAScriptGeneratorFunction => todo!(),
         } {
-            OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
+            object_index.internal_set_prototype(agent, prototype)
         } else if prototype
             != Some(
                 agent

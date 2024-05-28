@@ -37,8 +37,8 @@ use crate::{
         },
     },
     heap::{
-        indexes::{ECMAScriptFunctionIndex, ObjectIndex},
-        CreateHeapData, Heap, ObjectEntry, ObjectEntryPropertyDescriptor,
+        indexes::ECMAScriptFunctionIndex, CreateHeapData, Heap, ObjectEntry,
+        ObjectEntryPropertyDescriptor,
     },
 };
 
@@ -221,7 +221,7 @@ impl IndexMut<ECMAScriptFunction> for Heap {
 }
 
 impl ECMAScriptFunction {
-    fn create_ordinary_object(self, agent: &mut Agent) -> ObjectIndex {
+    fn create_ordinary_object(self, agent: &mut Agent) -> OrdinaryObject {
         assert_eq!(agent[self].object_index, None);
         let prototype = agent.current_realm().intrinsics().function_prototype();
         let length_entry = ObjectEntry {
@@ -256,7 +256,7 @@ impl ECMAScriptFunction {
 impl InternalMethods for ECMAScriptFunction {
     fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_get_prototype_of(agent)
+            object_index.internal_get_prototype_of(agent)
         } else {
             Ok(Some(
                 agent
@@ -276,12 +276,12 @@ impl InternalMethods for ECMAScriptFunction {
         let object_index = agent[self]
             .object_index
             .unwrap_or_else(|| self.create_ordinary_object(agent));
-        OrdinaryObject::from(object_index).internal_set_prototype_of(agent, prototype)
+        object_index.internal_set_prototype_of(agent, prototype)
     }
 
     fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_is_extensible(agent)
+            object_index.internal_is_extensible(agent)
         } else {
             Ok(true)
         }
@@ -291,7 +291,7 @@ impl InternalMethods for ECMAScriptFunction {
         let object_index = agent[self]
             .object_index
             .unwrap_or_else(|| self.create_ordinary_object(agent));
-        OrdinaryObject::from(object_index).internal_prevent_extensions(agent)
+        object_index.internal_prevent_extensions(agent)
     }
 
     fn internal_get_own_property(
@@ -300,7 +300,7 @@ impl InternalMethods for ECMAScriptFunction {
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_get_own_property(agent, property_key)
+            object_index.internal_get_own_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(Some(PropertyDescriptor {
                 value: Some(agent[self].length.into()),
@@ -331,16 +331,12 @@ impl InternalMethods for ECMAScriptFunction {
         let object_index = agent[self]
             .object_index
             .unwrap_or_else(|| self.create_ordinary_object(agent));
-        OrdinaryObject::from(object_index).internal_define_own_property(
-            agent,
-            property_key,
-            property_descriptor,
-        )
+        object_index.internal_define_own_property(agent, property_key, property_descriptor)
     }
 
     fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
+            object_index.internal_has_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
@@ -360,7 +356,7 @@ impl InternalMethods for ECMAScriptFunction {
         receiver: Value,
     ) -> JsResult<Value> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_get(agent, property_key, receiver)
+            object_index.internal_get(agent, property_key, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(agent[self].length.into())
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
@@ -381,7 +377,7 @@ impl InternalMethods for ECMAScriptFunction {
         receiver: Value,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set(agent, property_key, value, receiver)
+            object_index.internal_set(agent, property_key, value, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
@@ -389,18 +385,18 @@ impl InternalMethods for ECMAScriptFunction {
             Ok(false)
         } else {
             let object_index = self.create_ordinary_object(agent);
-            OrdinaryObject::from(object_index).internal_set(agent, property_key, value, receiver)
+            object_index.internal_set(agent, property_key, value, receiver)
         }
     }
 
     fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_delete(agent, property_key)
+            object_index.internal_delete(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
             let object_index = self.create_ordinary_object(agent);
-            OrdinaryObject::from(object_index).internal_delete(agent, property_key)
+            object_index.internal_delete(agent, property_key)
         } else {
             // Non-existing property
             Ok(true)
@@ -409,7 +405,7 @@ impl InternalMethods for ECMAScriptFunction {
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_own_property_keys(agent)
+            object_index.internal_own_property_keys(agent)
         } else {
             Ok(vec![
                 PropertyKey::from(BUILTIN_STRING_MEMORY.length),

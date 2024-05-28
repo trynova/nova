@@ -16,8 +16,8 @@ pub(crate) use self::heap_constants::{
     LAST_WELL_KNOWN_SYMBOL_INDEX,
 };
 use self::indexes::{
-    ArrayBufferIndex, ArrayIndex, DataViewIndex, DateIndex, ErrorIndex, FinalizationRegistryIndex,
-    MapIndex, PrimitiveObjectIndex, PromiseIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex,
+    ArrayBufferIndex, DataViewIndex, DateIndex, ErrorIndex, FinalizationRegistryIndex, MapIndex,
+    PrimitiveObjectIndex, PromiseIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex,
     TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
 };
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
@@ -50,9 +50,9 @@ use crate::ecmascript::{
         weak_map::{data::WeakMapHeapData, WeakMap},
         weak_ref::{data::WeakRefHeapData, WeakRef},
         weak_set::{data::WeakSetHeapData, WeakSet},
-        Array, ArrayBuffer,
+        ArrayBuffer,
     },
-    types::BUILTIN_STRINGS_LIST,
+    types::{OrdinaryObject, BUILTIN_STRINGS_LIST},
 };
 use crate::ecmascript::{
     builtins::{ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
@@ -67,6 +67,7 @@ use crate::ecmascript::{
         String, StringHeapData, SymbolHeapData, Value,
     },
 };
+pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 #[derive(Debug)]
 pub struct Heap {
@@ -151,13 +152,6 @@ impl CreateHeapData<std::string::String, String> for Heap {
     }
 }
 
-impl CreateHeapData<ArrayHeapData, Array> for Heap {
-    fn create(&mut self, data: ArrayHeapData) -> Array {
-        self.arrays.push(Some(data));
-        Array::from(ArrayIndex::last(&self.arrays))
-    }
-}
-
 impl CreateHeapData<ArrayBufferHeapData, ArrayBuffer> for Heap {
     fn create(&mut self, data: ArrayBufferHeapData) -> ArrayBuffer {
         self.array_buffers.push(Some(data));
@@ -233,7 +227,7 @@ impl CreateHeapData<MapHeapData, Map> for Heap {
 impl CreateHeapData<ObjectHeapData, Object> for Heap {
     fn create(&mut self, data: ObjectHeapData) -> Object {
         self.objects.push(Some(data));
-        Object::Object(ObjectIndex::last(&self.objects))
+        Object::Object(ObjectIndex::last(&self.objects).into())
     }
 }
 
@@ -460,7 +454,7 @@ impl Heap {
         NumberIndex::last(&self.numbers)
     }
 
-    pub(crate) fn create_null_object(&mut self, entries: &[ObjectEntry]) -> ObjectIndex {
+    pub(crate) fn create_null_object(&mut self, entries: &[ObjectEntry]) -> OrdinaryObject {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -469,14 +463,14 @@ impl Heap {
             prototype: None,
         };
         self.objects.push(Some(object_data));
-        ObjectIndex::last(&self.objects)
+        ObjectIndex::last(&self.objects).into()
     }
 
     pub(crate) fn create_object_with_prototype(
         &mut self,
         prototype: Object,
         entries: &[ObjectEntry],
-    ) -> ObjectIndex {
+    ) -> OrdinaryObject {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -485,7 +479,7 @@ impl Heap {
             prototype: Some(prototype),
         };
         self.objects.push(Some(object_data));
-        ObjectIndex::last(&self.objects)
+        ObjectIndex::last(&self.objects).into()
     }
 }
 

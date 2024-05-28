@@ -1,15 +1,7 @@
-use crate::heap::indexes::ObjectIndex;
+use crate::ecmascript::types::OrdinaryObject;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct RegExpHeapData {
-    pub(crate) object_index: ObjectIndex,
+    pub(crate) object_index: Option<OrdinaryObject>,
     // _regex: RegExp,
-}
-
-impl Default for RegExpHeapData {
-    fn default() -> Self {
-        Self {
-            object_index: ObjectIndex::from_u32_index(0),
-        }
-    }
 }

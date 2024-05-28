@@ -5,8 +5,8 @@ use crate::{
         execution::{agent::ExceptionType, Agent, ExecutionContext, JsResult, RealmIdentifier},
         types::{
             BuiltinFunctionHeapData, Function, InternalMethods, IntoFunction, IntoObject,
-            IntoValue, Object, OrdinaryObject, OrdinaryObjectInternalSlots, PropertyDescriptor,
-            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            IntoValue, Object, OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey,
+            String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -200,7 +200,7 @@ impl IndexMut<BuiltinFunction> for Heap {
 impl OrdinaryObjectInternalSlots for BuiltinFunction {
     fn internal_extensible(self, agent: &Agent) -> bool {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_extensible(agent)
+            object_index.internal_extensible(agent)
         } else {
             true
         }
@@ -208,7 +208,7 @@ impl OrdinaryObjectInternalSlots for BuiltinFunction {
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
+            object_index.internal_set_extensible(agent, value)
         } else {
             // Create function base object and set inextensible
             todo!()
@@ -217,7 +217,7 @@ impl OrdinaryObjectInternalSlots for BuiltinFunction {
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_prototype(agent)
+            object_index.internal_prototype(agent)
         } else {
             Some(
                 agent
@@ -231,7 +231,7 @@ impl OrdinaryObjectInternalSlots for BuiltinFunction {
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
+            object_index.internal_set_prototype(agent, prototype)
         } else {
             // Create function base object and set inextensible
             todo!()
@@ -250,7 +250,7 @@ impl InternalMethods for BuiltinFunction {
         prototype: Option<Object>,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set_prototype_of(agent, prototype)
+            object_index.internal_set_prototype_of(agent, prototype)
         } else {
             // If we're setting %ArrayBuffer.prototype% then we can still avoid creating the ObjectHeapData.
             let current = agent.current_realm().intrinsics().function_prototype();
@@ -281,7 +281,7 @@ impl InternalMethods for BuiltinFunction {
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_get_own_property(agent, property_key)
+            object_index.internal_get_own_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(Some(PropertyDescriptor {
                 value: Some(agent[self].length.into()),
@@ -310,7 +310,7 @@ impl InternalMethods for BuiltinFunction {
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
+            object_index.internal_has_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             let prototype = agent.current_realm().intrinsics().array_prototype();
             let length_entry = ObjectEntry {
@@ -386,7 +386,7 @@ impl InternalMethods for BuiltinFunction {
 
     fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
+            object_index.internal_has_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
@@ -406,7 +406,7 @@ impl InternalMethods for BuiltinFunction {
         receiver: Value,
     ) -> JsResult<Value> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_get(agent, property_key, receiver)
+            object_index.internal_get(agent, property_key, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(agent[self].length.into())
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
@@ -427,7 +427,7 @@ impl InternalMethods for BuiltinFunction {
         receiver: Value,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set(agent, property_key, value, receiver)
+            object_index.internal_set(agent, property_key, value, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
@@ -441,7 +441,7 @@ impl InternalMethods for BuiltinFunction {
 
     fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_delete(agent, property_key)
+            object_index.internal_delete(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
@@ -480,7 +480,7 @@ impl InternalMethods for BuiltinFunction {
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_own_property_keys(agent)
+            object_index.internal_own_property_keys(agent)
         } else {
             Ok(vec![
                 PropertyKey::from(BUILTIN_STRING_MEMORY.length),

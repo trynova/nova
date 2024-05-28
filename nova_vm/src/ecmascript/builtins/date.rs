@@ -6,8 +6,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
-            OrdinaryObjectInternalSlots, PropertyKey, Value,
+            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
+            PropertyKey, Value,
         },
     },
     heap::{indexes::DateIndex, Heap},
@@ -191,7 +191,7 @@ impl InternalMethods for Date {
         receiver: Value,
     ) -> JsResult<Value> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_get(agent, property_key, receiver)
+            object_index.internal_get(agent, property_key, receiver)
         } else {
             agent
                 .current_realm()

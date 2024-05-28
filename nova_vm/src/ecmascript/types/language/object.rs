@@ -4,7 +4,6 @@ mod internal_slots;
 mod into_object;
 mod property_key;
 mod property_storage;
-use std::ops::Deref;
 
 use super::{
     value::{
@@ -40,12 +39,15 @@ use crate::{
         scripts_and_modules::module::ModuleIdentifier,
         types::PropertyDescriptor,
     },
-    heap::indexes::{
-        ArrayBufferIndex, ArrayIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
-        DateIndex, ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex,
-        FinalizationRegistryIndex, MapIndex, ObjectIndex, PrimitiveObjectIndex, PromiseIndex,
-        ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, TypedArrayIndex, WeakMapIndex,
-        WeakRefIndex, WeakSetIndex,
+    heap::{
+        indexes::{
+            ArrayBufferIndex, ArrayIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
+            DateIndex, ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex,
+            FinalizationRegistryIndex, MapIndex, ObjectIndex, PrimitiveObjectIndex, PromiseIndex,
+            ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, TypedArrayIndex,
+            WeakMapIndex, WeakRefIndex, WeakSetIndex,
+        },
+        CompactionLists, HeapMarkAndSweep, WorkQueues,
     },
 };
 
@@ -62,7 +64,7 @@ pub use property_storage::PropertyStorage;
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Object {
-    Object(ObjectIndex) = OBJECT_DISCRIMINANT,
+    Object(OrdinaryObject) = OBJECT_DISCRIMINANT,
     BoundFunction(BoundFunctionIndex) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunctionIndex) = BUILTIN_FUNCTION_DISCRIMINANT,
     ECMAScriptFunction(ECMAScriptFunctionIndex) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
@@ -78,7 +80,7 @@ pub enum Object {
     ECMAScriptGeneratorFunction = ECMASCRIPT_GENERATOR_FUNCTION_DISCRIMINANT,
     PrimitiveObject(PrimitiveObjectIndex) = PRIMITIVE_OBJECT_DISCRIMINANT,
     Arguments = ARGUMENTS_DISCRIMINANT,
-    Array(ArrayIndex) = ARRAY_DISCRIMINANT,
+    Array(Array) = ARRAY_DISCRIMINANT,
     ArrayBuffer(ArrayBufferIndex) = ARRAY_BUFFER_DISCRIMINANT,
     DataView(DataViewIndex) = DATA_VIEW_DISCRIMINANT,
     Date(DateIndex) = DATE_DISCRIMINANT,
@@ -111,7 +113,7 @@ pub enum Object {
     EmbedderObject(EmbedderObjectIndex) = EMBEDDER_OBJECT_DISCRIMINANT,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OrdinaryObject(pub(crate) ObjectIndex);
 
 impl IntoObject for OrdinaryObject {
@@ -128,7 +130,7 @@ impl IntoValue for OrdinaryObject {
 
 impl From<OrdinaryObject> for Object {
     fn from(value: OrdinaryObject) -> Self {
-        Self::Object(value.0)
+        Self::Object(value)
     }
 }
 
@@ -140,7 +142,7 @@ impl From<ObjectIndex> for OrdinaryObject {
 
 impl From<OrdinaryObject> for Value {
     fn from(value: OrdinaryObject) -> Self {
-        Self::Object(value.0)
+        Self::Object(value)
     }
 }
 
@@ -149,7 +151,7 @@ impl TryFrom<Value> for OrdinaryObject {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Object(data) => Ok(OrdinaryObject(data)),
+            Value::Object(data) => Ok(data),
             _ => Err(()),
         }
     }
@@ -160,17 +162,9 @@ impl TryFrom<Object> for OrdinaryObject {
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
         match value {
-            Object::Object(data) => Ok(OrdinaryObject(data)),
+            Object::Object(data) => Ok(data),
             _ => Err(()),
         }
-    }
-}
-
-impl Deref for OrdinaryObject {
-    type Target = ObjectIndex;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 
@@ -193,20 +187,27 @@ impl OrdinaryObjectInternalSlots for OrdinaryObject {
 }
 
 impl OrdinaryObject {
+    pub(crate) const fn _def() -> Self {
+        Self(ObjectIndex::from_u32_index(0))
+    }
     pub(crate) const fn new(value: ObjectIndex) -> Self {
         Self(value)
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
     }
 }
 
 impl From<ObjectIndex> for Object {
     fn from(value: ObjectIndex) -> Self {
-        Object::Object(value)
+        Object::Object(value.into())
     }
 }
 
 impl From<ArrayIndex> for Object {
     fn from(value: ArrayIndex) -> Self {
-        Object::Array(value)
+        Object::Array(value.into())
     }
 }
 
@@ -367,8 +368,8 @@ impl Object {
 impl OrdinaryObjectInternalSlots for Object {
     fn internal_extensible(self, agent: &Agent) -> bool {
         match self {
-            Object::Object(idx) => OrdinaryObject::from(idx).internal_extensible(agent),
-            Object::Array(idx) => Array::from(idx).internal_extensible(agent),
+            Object::Object(idx) => idx.internal_extensible(agent),
+            Object::Array(idx) => idx.internal_extensible(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_extensible(agent),
             Object::Date(idx) => Date::from(idx).internal_extensible(agent),
             Object::Error(idx) => Error::from(idx).internal_extensible(agent),
@@ -419,8 +420,8 @@ impl OrdinaryObjectInternalSlots for Object {
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
         match self {
-            Object::Object(idx) => OrdinaryObject::from(idx).internal_set_extensible(agent, value),
-            Object::Array(idx) => Array::from(idx).internal_set_extensible(agent, value),
+            Object::Object(idx) => idx.internal_set_extensible(agent, value),
+            Object::Array(idx) => idx.internal_set_extensible(agent, value),
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).internal_set_extensible(agent, value)
             }
@@ -477,8 +478,8 @@ impl OrdinaryObjectInternalSlots for Object {
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
         match self {
-            Object::Object(idx) => OrdinaryObject::from(idx).internal_prototype(agent),
-            Object::Array(idx) => Array::from(idx).internal_prototype(agent),
+            Object::Object(idx) => idx.internal_prototype(agent),
+            Object::Array(idx) => idx.internal_prototype(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_prototype(agent),
             Object::Date(idx) => Date::from(idx).internal_prototype(agent),
             Object::Error(idx) => Error::from(idx).internal_prototype(agent),
@@ -529,10 +530,8 @@ impl OrdinaryObjectInternalSlots for Object {
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         match self {
-            Object::Object(idx) => {
-                OrdinaryObject::from(idx).internal_set_prototype(agent, prototype)
-            }
-            Object::Array(idx) => Array::from(idx).internal_set_prototype(agent, prototype),
+            Object::Object(idx) => idx.internal_set_prototype(agent, prototype),
+            Object::Array(idx) => idx.internal_set_prototype(agent, prototype),
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).internal_set_prototype(agent, prototype)
             }
@@ -593,8 +592,8 @@ impl OrdinaryObjectInternalSlots for Object {
 impl InternalMethods for Object {
     fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
         match self {
-            Object::Object(idx) => OrdinaryObject::from(idx).internal_get_prototype_of(agent),
-            Object::Array(idx) => Array::from(idx).internal_get_prototype_of(agent),
+            Object::Object(idx) => idx.internal_get_prototype_of(agent),
+            Object::Array(idx) => idx.internal_get_prototype_of(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_get_prototype_of(agent),
             Object::Date(idx) => Date::from(idx).internal_get_prototype_of(agent),
             Object::Error(idx) => Error::from(idx).internal_get_prototype_of(agent),
@@ -649,10 +648,8 @@ impl InternalMethods for Object {
         prototype: Option<Object>,
     ) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => {
-                OrdinaryObject::from(idx).internal_set_prototype_of(agent, prototype)
-            }
-            Object::Array(idx) => Array::from(idx).internal_set_prototype_of(agent, prototype),
+            Object::Object(idx) => idx.internal_set_prototype_of(agent, prototype),
+            Object::Array(idx) => idx.internal_set_prototype_of(agent, prototype),
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).internal_set_prototype_of(agent, prototype)
             }
@@ -711,8 +708,8 @@ impl InternalMethods for Object {
 
     fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => OrdinaryObject::from(idx).internal_is_extensible(agent),
-            Object::Array(idx) => Array::from(idx).internal_is_extensible(agent),
+            Object::Object(idx) => idx.internal_is_extensible(agent),
+            Object::Array(idx) => idx.internal_is_extensible(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_is_extensible(agent),
             Object::Date(idx) => Date::from(idx).internal_is_extensible(agent),
             Object::Error(idx) => Error::from(idx).internal_is_extensible(agent),
@@ -763,8 +760,8 @@ impl InternalMethods for Object {
 
     fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => OrdinaryObject::from(idx).internal_prevent_extensions(agent),
-            Object::Array(idx) => Array::from(idx).internal_prevent_extensions(agent),
+            Object::Object(idx) => idx.internal_prevent_extensions(agent),
+            Object::Array(idx) => idx.internal_prevent_extensions(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_prevent_extensions(agent),
             Object::Date(idx) => Date::from(idx).internal_prevent_extensions(agent),
             Object::Error(idx) => Error::from(idx).internal_prevent_extensions(agent),
@@ -821,10 +818,8 @@ impl InternalMethods for Object {
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         match self {
-            Object::Object(idx) => {
-                OrdinaryObject::from(idx).internal_get_own_property(agent, property_key)
-            }
-            Object::Array(idx) => Array::from(idx).internal_get_own_property(agent, property_key),
+            Object::Object(idx) => idx.internal_get_own_property(agent, property_key),
+            Object::Array(idx) => idx.internal_get_own_property(agent, property_key),
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).internal_get_own_property(agent, property_key)
             }
@@ -888,16 +883,12 @@ impl InternalMethods for Object {
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => OrdinaryObject::from(idx).internal_define_own_property(
-                agent,
-                property_key,
-                property_descriptor,
-            ),
-            Object::Array(idx) => Array::from(idx).internal_define_own_property(
-                agent,
-                property_key,
-                property_descriptor,
-            ),
+            Object::Object(idx) => {
+                idx.internal_define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::Array(idx) => {
+                idx.internal_define_own_property(agent, property_key, property_descriptor)
+            }
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_define_own_property(
                 agent,
                 property_key,
@@ -980,10 +971,8 @@ impl InternalMethods for Object {
 
     fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => {
-                OrdinaryObject::from(idx).internal_has_property(agent, property_key)
-            }
-            Object::Array(idx) => Array::from(idx).internal_has_property(agent, property_key),
+            Object::Object(idx) => idx.internal_has_property(agent, property_key),
+            Object::Array(idx) => idx.internal_has_property(agent, property_key),
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).internal_has_property(agent, property_key)
             }
@@ -1047,10 +1036,8 @@ impl InternalMethods for Object {
         receiver: Value,
     ) -> JsResult<Value> {
         match self {
-            Object::Object(idx) => {
-                OrdinaryObject::from(idx).internal_get(agent, property_key, receiver)
-            }
-            Object::Array(idx) => Array::from(idx).internal_get(agent, property_key, receiver),
+            Object::Object(idx) => idx.internal_get(agent, property_key, receiver),
+            Object::Array(idx) => idx.internal_get(agent, property_key, receiver),
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).internal_get(agent, property_key, receiver)
             }
@@ -1115,12 +1102,8 @@ impl InternalMethods for Object {
         receiver: Value,
     ) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => {
-                OrdinaryObject::from(idx).internal_set(agent, property_key, value, receiver)
-            }
-            Object::Array(idx) => {
-                Array::from(idx).internal_set(agent, property_key, value, receiver)
-            }
+            Object::Object(idx) => idx.internal_set(agent, property_key, value, receiver),
+            Object::Array(idx) => idx.internal_set(agent, property_key, value, receiver),
             Object::ArrayBuffer(idx) => {
                 ArrayBuffer::from(idx).internal_set(agent, property_key, value, receiver)
             }
@@ -1181,8 +1164,8 @@ impl InternalMethods for Object {
 
     fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => OrdinaryObject::from(idx).internal_delete(agent, property_key),
-            Object::Array(idx) => Array::from(idx).internal_delete(agent, property_key),
+            Object::Object(idx) => idx.internal_delete(agent, property_key),
+            Object::Array(idx) => idx.internal_delete(agent, property_key),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_delete(agent, property_key),
             Object::Date(idx) => Date::from(idx).internal_delete(agent, property_key),
             Object::Error(idx) => Error::from(idx).internal_delete(agent, property_key),
@@ -1237,8 +1220,8 @@ impl InternalMethods for Object {
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         match self {
-            Object::Object(idx) => OrdinaryObject::from(idx).internal_own_property_keys(agent),
-            Object::Array(idx) => Array::from(idx).internal_own_property_keys(agent),
+            Object::Object(idx) => idx.internal_own_property_keys(agent),
+            Object::Array(idx) => idx.internal_own_property_keys(agent),
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_own_property_keys(agent),
             Object::Date(idx) => Date::from(idx).internal_own_property_keys(agent),
             Object::Error(idx) => Error::from(idx).internal_own_property_keys(agent),
@@ -1327,6 +1310,69 @@ impl InternalMethods for Object {
                 Function::from(idx).internal_construct(agent, arguments_list, new_target)
             }
             _ => unreachable!(),
+        }
+    }
+}
+
+impl HeapMarkAndSweep for Object {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            Object::Object(idx) => idx.mark_values(queues),
+            Object::Array(idx) => idx.mark_values(queues),
+            Object::ArrayBuffer(idx) => idx.mark_values(queues),
+            Object::Date(idx) => idx.mark_values(queues),
+            Object::Error(idx) => idx.mark_values(queues),
+            Object::BoundFunction(d) => d.mark_values(queues),
+            Object::BuiltinFunction(d) => d.mark_values(queues),
+            Object::ECMAScriptFunction(d) => d.mark_values(queues),
+            Object::BuiltinGeneratorFunction => todo!(),
+            Object::BuiltinConstructorFunction => todo!(),
+            Object::ECMAScriptAsyncFunction => todo!(),
+            Object::ECMAScriptAsyncGeneratorFunction => todo!(),
+            Object::ECMAScriptConstructorFunction => todo!(),
+            Object::ECMAScriptGeneratorFunction => todo!(),
+            Object::BuiltinPromiseResolveFunction => todo!(),
+            Object::BuiltinPromiseRejectFunction => todo!(),
+            Object::BuiltinPromiseCollectorFunction => todo!(),
+            Object::BuiltinProxyRevokerFunction => todo!(),
+            Object::PrimitiveObject(idx) => idx.mark_values(queues),
+            Object::Arguments => todo!(),
+            Object::DataView(_) => todo!(),
+            Object::FinalizationRegistry(_) => todo!(),
+            Object::Map(_) => todo!(),
+            Object::Promise(_) => todo!(),
+            Object::Proxy(_) => todo!(),
+            Object::RegExp(_) => todo!(),
+            Object::Set(_) => todo!(),
+            Object::SharedArrayBuffer(_) => todo!(),
+            Object::WeakMap(_) => todo!(),
+            Object::WeakRef(_) => todo!(),
+            Object::WeakSet(_) => todo!(),
+            Object::Int8Array(_) => todo!(),
+            Object::Uint8Array(_) => todo!(),
+            Object::Uint8ClampedArray(_) => todo!(),
+            Object::Int16Array(_) => todo!(),
+            Object::Uint16Array(_) => todo!(),
+            Object::Int32Array(_) => todo!(),
+            Object::Uint32Array(_) => todo!(),
+            Object::BigInt64Array(_) => todo!(),
+            Object::BigUint64Array(_) => todo!(),
+            Object::Float32Array(_) => todo!(),
+            Object::Float64Array(_) => todo!(),
+            Object::AsyncFromSyncIterator => todo!(),
+            Object::AsyncIterator => todo!(),
+            Object::Iterator => todo!(),
+            Object::Module(_) => todo!(),
+            Object::EmbedderObject(_) => todo!(),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            Self::Object(idx) => idx.sweep_values(compactions),
+            Self::Array(idx) => idx.sweep_values(compactions),
+            Self::Error(idx) => idx.sweep_values(compactions),
+            _ => todo!(),
         }
     }
 }

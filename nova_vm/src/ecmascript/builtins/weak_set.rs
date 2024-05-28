@@ -108,13 +108,13 @@ fn create_weak_set_base_object(
         .heap
         .create_object_with_prototype(prototype.into(), entries);
     agent.heap[weak_set].object_index = Some(object_index);
-    OrdinaryObject::from(object_index)
+    object_index
 }
 
 impl OrdinaryObjectInternalSlots for WeakSet {
     fn internal_extensible(self, agent: &Agent) -> bool {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_extensible(agent)
+            object_index.internal_extensible(agent)
         } else {
             true
         }
@@ -122,7 +122,7 @@ impl OrdinaryObjectInternalSlots for WeakSet {
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
+            object_index.internal_set_extensible(agent, value)
         } else if !value {
             // Create base object and weak_set inextensible
             let base = create_weak_set_base_object(agent, self, &[]);
@@ -132,7 +132,7 @@ impl OrdinaryObjectInternalSlots for WeakSet {
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_prototype(agent)
+            object_index.internal_prototype(agent)
         } else {
             Some(
                 agent
@@ -146,7 +146,7 @@ impl OrdinaryObjectInternalSlots for WeakSet {
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
+            object_index.internal_set_prototype(agent, prototype)
         } else {
             // Create base object and weak_set prototype
             let base = create_weak_set_base_object(agent, self, &[]);
@@ -166,7 +166,7 @@ impl InternalMethods for WeakSet {
         prototype: Option<Object>,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set_prototype_of(agent, prototype)
+            object_index.internal_set_prototype_of(agent, prototype)
         } else {
             // If we're weak_setting %WeakSet.prototype% then we can still avoid creating the ObjectHeapData.
             let current = agent.current_realm().intrinsics().weak_set_prototype();
@@ -197,7 +197,7 @@ impl InternalMethods for WeakSet {
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_get_own_property(agent, property_key)
+            object_index.internal_get_own_property(agent, property_key)
         } else {
             Ok(None)
         }
@@ -210,7 +210,7 @@ impl InternalMethods for WeakSet {
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
+            object_index.internal_has_property(agent, property_key)
         } else {
             let new_entry = ObjectEntry {
                 key: property_key,
@@ -223,7 +223,7 @@ impl InternalMethods for WeakSet {
 
     fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
+            object_index.internal_has_property(agent, property_key)
         } else {
             let parent = agent.current_realm().intrinsics().weak_set_prototype();
             parent.internal_has_property(agent, property_key)
@@ -237,7 +237,7 @@ impl InternalMethods for WeakSet {
         receiver: Value,
     ) -> JsResult<Value> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_get(agent, property_key, receiver)
+            object_index.internal_get(agent, property_key, receiver)
         } else {
             let parent = agent.current_realm().intrinsics().weak_set_prototype();
             parent.internal_get(agent, property_key, receiver)
@@ -252,7 +252,7 @@ impl InternalMethods for WeakSet {
         receiver: Value,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set(agent, property_key, value, receiver)
+            object_index.internal_set(agent, property_key, value, receiver)
         } else {
             let prototype = agent.current_realm().intrinsics().weak_set_prototype();
             prototype.internal_set(agent, property_key, value, receiver)
@@ -261,7 +261,7 @@ impl InternalMethods for WeakSet {
 
     fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_delete(agent, property_key)
+            object_index.internal_delete(agent, property_key)
         } else {
             // Non-existing property
             Ok(true)
@@ -270,7 +270,7 @@ impl InternalMethods for WeakSet {
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_own_property_keys(agent)
+            object_index.internal_own_property_keys(agent)
         } else {
             Ok(vec![])
         }

@@ -4,8 +4,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
-            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
+            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
+            PropertyDescriptor, PropertyKey, Value,
         },
     },
     heap::{indexes::PromiseIndex, Heap, ObjectEntry, ObjectEntryPropertyDescriptor},
@@ -95,7 +95,7 @@ impl IndexMut<Promise> for Heap {
 impl OrdinaryObjectInternalSlots for Promise {
     fn internal_extensible(self, agent: &Agent) -> bool {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_extensible(agent)
+            object_index.internal_extensible(agent)
         } else {
             true
         }
@@ -103,7 +103,7 @@ impl OrdinaryObjectInternalSlots for Promise {
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
+            object_index.internal_set_extensible(agent, value)
         } else {
             // Create base object and set inextensible
             todo!()
@@ -112,7 +112,7 @@ impl OrdinaryObjectInternalSlots for Promise {
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_prototype(agent)
+            object_index.internal_prototype(agent)
         } else {
             Some(
                 agent
@@ -126,7 +126,7 @@ impl OrdinaryObjectInternalSlots for Promise {
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
+            object_index.internal_set_prototype(agent, prototype)
         } else {
             // Create base object and set inextensible
             todo!()
@@ -145,7 +145,7 @@ impl InternalMethods for Promise {
         prototype: Option<Object>,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set_prototype_of(agent, prototype)
+            object_index.internal_set_prototype_of(agent, prototype)
         } else {
             // If we're setting %Promise.prototype% then we can still avoid creating the ObjectHeapData.
             let current = agent.current_realm().intrinsics().promise_prototype();
@@ -176,7 +176,7 @@ impl InternalMethods for Promise {
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_get_own_property(agent, property_key)
+            object_index.internal_get_own_property(agent, property_key)
         } else {
             Ok(None)
         }
@@ -189,7 +189,7 @@ impl InternalMethods for Promise {
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
+            object_index.internal_has_property(agent, property_key)
         } else {
             let prototype = agent.current_realm().intrinsics().promise_prototype();
             let new_entry = ObjectEntry {
@@ -206,7 +206,7 @@ impl InternalMethods for Promise {
 
     fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
+            object_index.internal_has_property(agent, property_key)
         } else {
             let parent = self.internal_get_prototype_of(agent)?;
             parent.map_or(Ok(false), |parent| {
@@ -222,7 +222,7 @@ impl InternalMethods for Promise {
         receiver: Value,
     ) -> JsResult<Value> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_get(agent, property_key, receiver)
+            object_index.internal_get(agent, property_key, receiver)
         } else {
             let parent = self.internal_get_prototype_of(agent)?;
             parent.map_or(Ok(Value::Undefined), |parent| {
@@ -239,7 +239,7 @@ impl InternalMethods for Promise {
         receiver: Value,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set(agent, property_key, value, receiver)
+            object_index.internal_set(agent, property_key, value, receiver)
         } else {
             let prototype = agent.current_realm().intrinsics().promise_prototype();
             prototype.internal_set(agent, property_key, value, receiver)
@@ -248,7 +248,7 @@ impl InternalMethods for Promise {
 
     fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_delete(agent, property_key)
+            object_index.internal_delete(agent, property_key)
         } else {
             // Non-existing property
             Ok(true)
@@ -257,7 +257,7 @@ impl InternalMethods for Promise {
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_own_property_keys(agent)
+            object_index.internal_own_property_keys(agent)
         } else {
             Ok(vec![])
         }

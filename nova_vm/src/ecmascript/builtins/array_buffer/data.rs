@@ -1,6 +1,6 @@
 use std::mem::ManuallyDrop;
 
-use crate::{ecmascript::types::DataBlock, heap::indexes::ObjectIndex};
+use crate::ecmascript::types::{DataBlock, OrdinaryObject};
 
 #[derive(Debug)]
 pub(crate) enum InternalBuffer {
@@ -14,7 +14,7 @@ pub(crate) enum InternalBuffer {
 
 #[derive(Debug)]
 pub struct ArrayBufferHeapData {
-    pub(crate) object_index: Option<ObjectIndex>,
+    pub(crate) object_index: Option<OrdinaryObject>,
     pub(super) buffer: InternalBuffer,
     // detach_key
 }
