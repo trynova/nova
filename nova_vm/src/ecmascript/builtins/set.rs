@@ -104,13 +104,13 @@ fn create_set_base_object(agent: &mut Agent, set: Set, entries: &[ObjectEntry]) 
         .heap
         .create_object_with_prototype(prototype.into(), entries);
     agent.heap[set].object_index = Some(object_index);
-    OrdinaryObject::from(object_index)
+    object_index
 }
 
 impl OrdinaryObjectInternalSlots for Set {
     fn internal_extensible(self, agent: &Agent) -> bool {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_extensible(agent)
+            object_index.internal_extensible(agent)
         } else {
             true
         }
@@ -118,7 +118,7 @@ impl OrdinaryObjectInternalSlots for Set {
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
+            object_index.internal_set_extensible(agent, value)
         } else if !value {
             // Create base object and set inextensible
             let base = create_set_base_object(agent, self, &[]);
@@ -128,7 +128,7 @@ impl OrdinaryObjectInternalSlots for Set {
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_prototype(agent)
+            object_index.internal_prototype(agent)
         } else {
             Some(
                 agent
@@ -142,7 +142,7 @@ impl OrdinaryObjectInternalSlots for Set {
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
+            object_index.internal_set_prototype(agent, prototype)
         } else {
             // Create base object and set prototype
             let base = create_set_base_object(agent, self, &[]);
@@ -162,7 +162,7 @@ impl InternalMethods for Set {
         prototype: Option<Object>,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set_prototype_of(agent, prototype)
+            object_index.internal_set_prototype_of(agent, prototype)
         } else {
             // If we're setting %Set.prototype% then we can still avoid creating the ObjectHeapData.
             let current = agent.current_realm().intrinsics().set_prototype();
@@ -193,7 +193,7 @@ impl InternalMethods for Set {
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_get_own_property(agent, property_key)
+            object_index.internal_get_own_property(agent, property_key)
         } else {
             Ok(None)
         }
@@ -206,7 +206,7 @@ impl InternalMethods for Set {
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
+            object_index.internal_has_property(agent, property_key)
         } else {
             let new_entry = ObjectEntry {
                 key: property_key,
@@ -219,7 +219,7 @@ impl InternalMethods for Set {
 
     fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_has_property(agent, property_key)
+            object_index.internal_has_property(agent, property_key)
         } else {
             let parent = agent.current_realm().intrinsics().set_prototype();
             parent.internal_has_property(agent, property_key)
@@ -233,7 +233,7 @@ impl InternalMethods for Set {
         receiver: Value,
     ) -> JsResult<Value> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_get(agent, property_key, receiver)
+            object_index.internal_get(agent, property_key, receiver)
         } else {
             let parent = agent.current_realm().intrinsics().set_prototype();
             parent.internal_get(agent, property_key, receiver)
@@ -248,7 +248,7 @@ impl InternalMethods for Set {
         receiver: Value,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set(agent, property_key, value, receiver)
+            object_index.internal_set(agent, property_key, value, receiver)
         } else {
             let prototype = agent.current_realm().intrinsics().set_prototype();
             prototype.internal_set(agent, property_key, value, receiver)
@@ -257,7 +257,7 @@ impl InternalMethods for Set {
 
     fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_delete(agent, property_key)
+            object_index.internal_delete(agent, property_key)
         } else {
             // Non-existing property
             Ok(true)
@@ -266,7 +266,7 @@ impl InternalMethods for Set {
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_own_property_keys(agent)
+            object_index.internal_own_property_keys(agent)
         } else {
             Ok(vec![])
         }

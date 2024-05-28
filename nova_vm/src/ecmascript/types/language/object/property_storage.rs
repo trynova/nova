@@ -119,7 +119,7 @@ impl PropertyStorage {
                         elements, objects, ..
                     } = &mut agent.heap;
                     let object_heap_data = objects
-                        .get_mut(object.into_index())
+                        .get_mut(object.get_index())
                         .expect("Invalid ObjectIndex")
                         .as_mut()
                         .expect("Invalid ObjectIndex");

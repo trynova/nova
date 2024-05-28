@@ -1,8 +1,10 @@
-use crate::{ecmascript::types::Value, heap::indexes::ObjectIndex};
+use crate::{
+    ecmascript::types::{OrdinaryObject, Value},
+};
 
 #[derive(Debug, Clone)]
 pub struct WeakRefHeapData {
-    pub(crate) object_index: Option<ObjectIndex>,
+    pub(crate) object_index: Option<OrdinaryObject>,
     pub(crate) value: Value,
     pub(crate) is_strong: bool,
 }

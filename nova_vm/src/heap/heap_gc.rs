@@ -10,7 +10,7 @@ use super::{
     indexes::{
         ArrayBufferIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
         DateIndex, ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
-        FinalizationRegistryIndex, MapIndex, NumberIndex, ObjectIndex, PrimitiveObjectIndex,
+        FinalizationRegistryIndex, MapIndex, NumberIndex, PrimitiveObjectIndex,
         PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex,
         SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
@@ -23,7 +23,7 @@ use crate::ecmascript::{
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
     },
     scripts_and_modules::{module::ModuleIdentifier, script::ScriptIdentifier},
-    types::Value,
+    types::{OrdinaryObject, Value},
 };
 
 fn collect_values(queues: &mut WorkQueues, values: &[Option<Value>]) {
@@ -339,10 +339,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 finalization_registrys.get(index).mark_values(&mut queues);
             }
         });
-        let mut object_marks: Box<[ObjectIndex]> = queues.objects.drain(..).collect();
+        let mut object_marks: Box<[OrdinaryObject]> = queues.objects.drain(..).collect();
         object_marks.sort();
         object_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.objects.get_mut(index) {
                 if *marked {
                     // Already marked, ignore

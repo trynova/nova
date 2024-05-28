@@ -14,7 +14,10 @@ use crate::{
             Symbol, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{CreateHeapData, Heap, WellKnownSymbolIndexes},
+    heap::{
+        indexes::ObjectIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        WellKnownSymbolIndexes, WorkQueues,
+    },
 };
 
 use super::{
@@ -1138,4 +1141,17 @@ pub(crate) fn set_immutable_prototype(
     // 2. If SameValue(V, current) is true, return true.
     // 3. Return false.
     Ok(same_value(agent, v, current))
+}
+
+impl HeapMarkAndSweep for OrdinaryObject {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.objects.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 = ObjectIndex::from_u32_index(
+            self_index - compactions.objects.get_shift_for_index(self_index),
+        );
+    }
 }

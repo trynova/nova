@@ -1,8 +1,10 @@
-use crate::{ecmascript::types::Value, heap::indexes::ObjectIndex};
+use crate::{
+    ecmascript::types::{OrdinaryObject, Value},
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct SetHeapData {
-    pub(crate) object_index: Option<ObjectIndex>,
+    pub(crate) object_index: Option<OrdinaryObject>,
     // TODO: This isn't even close to a hashmap; HashSet won't allow inserting
     // Value as key; f32 isn't hashable. And our f64s are found on the Heap and
     // require fetching; What we actually should do is more like:

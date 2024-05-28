@@ -1,14 +1,13 @@
 use crate::{
     ecmascript::{
         execution::agent::ExceptionType,
-        types::{String, Value},
+        types::{OrdinaryObject, String, Value},
     },
-    heap::indexes::ObjectIndex,
 };
 
 #[derive(Debug, Clone, Copy)]
 pub struct ErrorHeapData {
-    pub(crate) object_index: Option<ObjectIndex>,
+    pub(crate) object_index: Option<OrdinaryObject>,
     pub(crate) kind: ExceptionType,
     pub(crate) message: Option<String>,
     pub(crate) cause: Option<Value>,

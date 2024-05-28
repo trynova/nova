@@ -1,7 +1,10 @@
-use crate::heap::{
-    element_array::{ElementArrayKey, ElementsVector},
-    indexes::{ElementIndex, ObjectIndex},
-    CompactionLists, HeapMarkAndSweep, WorkQueues,
+use crate::{
+    ecmascript::types::OrdinaryObject,
+    heap::{
+        element_array::{ElementArrayKey, ElementsVector},
+        indexes::{ElementIndex},
+        CompactionLists, HeapMarkAndSweep, WorkQueues,
+    },
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -61,7 +64,7 @@ impl From<SealableElementsVector> for ElementsVector {
 /// mathematical value is strictly less than 2**32.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ArrayHeapData {
-    pub object_index: Option<ObjectIndex>,
+    pub object_index: Option<OrdinaryObject>,
     // TODO: Use enum { ElementsVector, SmallVec<[Value; 3]> }
     // to get some inline benefit together with a 32 byte size
     // for ArrayHeapData to fit two in one cache line.

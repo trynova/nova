@@ -52,7 +52,7 @@ use crate::ecmascript::{
         weak_set::{data::WeakSetHeapData, WeakSet},
         ArrayBuffer,
     },
-    types::BUILTIN_STRINGS_LIST,
+    types::{OrdinaryObject, BUILTIN_STRINGS_LIST},
 };
 use crate::ecmascript::{
     builtins::{ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
@@ -227,7 +227,7 @@ impl CreateHeapData<MapHeapData, Map> for Heap {
 impl CreateHeapData<ObjectHeapData, Object> for Heap {
     fn create(&mut self, data: ObjectHeapData) -> Object {
         self.objects.push(Some(data));
-        Object::Object(ObjectIndex::last(&self.objects))
+        Object::Object(ObjectIndex::last(&self.objects).into())
     }
 }
 
@@ -454,7 +454,7 @@ impl Heap {
         NumberIndex::last(&self.numbers)
     }
 
-    pub(crate) fn create_null_object(&mut self, entries: &[ObjectEntry]) -> ObjectIndex {
+    pub(crate) fn create_null_object(&mut self, entries: &[ObjectEntry]) -> OrdinaryObject {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -463,14 +463,14 @@ impl Heap {
             prototype: None,
         };
         self.objects.push(Some(object_data));
-        ObjectIndex::last(&self.objects)
+        ObjectIndex::last(&self.objects).into()
     }
 
     pub(crate) fn create_object_with_prototype(
         &mut self,
         prototype: Object,
         entries: &[ObjectEntry],
-    ) -> ObjectIndex {
+    ) -> OrdinaryObject {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -479,7 +479,7 @@ impl Heap {
             prototype: Some(prototype),
         };
         self.objects.push(Some(object_data));
-        ObjectIndex::last(&self.objects)
+        ObjectIndex::last(&self.objects).into()
     }
 }
 

@@ -7,11 +7,11 @@ use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
         types::{
-            IntoValue, Number, Object, PropertyDescriptor, PropertyKey, Value,
+            IntoValue, Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{indexes::ObjectIndex, Heap},
+    heap::{Heap},
 };
 pub(crate) use intrinsics::Intrinsics;
 pub(crate) use intrinsics::ProtoIntrinsics;
@@ -168,7 +168,7 @@ pub fn create_realm(agent: &mut Agent) -> RealmIdentifier {
         agent_signifier: PhantomData,
 
         // 4. Set realmRec.[[GlobalObject]] to undefined.
-        global_object: Object::Object(ObjectIndex::from_index(0)),
+        global_object: Object::Object(OrdinaryObject::_def()),
 
         // 5. Set realmRec.[[GlobalEnv]] to undefined.
         global_env: None,

@@ -4,16 +4,16 @@ use crate::{
     ecmascript::{
         execution::{ModuleEnvironmentIndex, RealmIdentifier},
         scripts_and_modules::module::ModuleIdentifier,
-        types::{PropertyKey, String},
+        types::{OrdinaryObject, PropertyKey, String},
     },
-    heap::indexes::{ObjectIndex, StringIndex},
+    heap::indexes::{StringIndex},
 };
 
 use super::Module;
 
 #[derive(Debug, Clone)]
 pub struct ModuleHeapData {
-    pub(crate) object_index: Option<ObjectIndex>,
+    pub(crate) object_index: Option<OrdinaryObject>,
     pub(crate) module: ModuleRecord,
     pub(crate) exports: Box<[String]>,
 }

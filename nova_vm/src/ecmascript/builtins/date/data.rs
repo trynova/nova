@@ -1,9 +1,9 @@
-use crate::heap::indexes::ObjectIndex;
+use crate::{ecmascript::types::OrdinaryObject};
 use std::time::SystemTime;
 
 #[derive(Debug, Clone, Copy)]
 pub struct DateHeapData {
-    pub(crate) object_index: Option<ObjectIndex>,
+    pub(crate) object_index: Option<OrdinaryObject>,
     pub(crate) date: Option<SystemTime>,
 }
 

@@ -7,7 +7,7 @@ use crate::{
         execution::{Agent, RealmIdentifier},
         types::{
             BuiltinFunctionHeapData, IntoFunction, IntoObject, IntoValue, Object, ObjectHeapData,
-            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            OrdinaryObject, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -51,7 +51,7 @@ pub struct CreatorProperties(Vec<(PropertyKey, Option<ElementDescriptor>, Option
 pub struct BuiltinFunctionBuilder<'agent, P, L, N, B, Pr> {
     pub(crate) agent: &'agent mut Agent,
     this: BuiltinFunction,
-    object_index: Option<ObjectIndex>,
+    object_index: Option<OrdinaryObject>,
     realm: RealmIdentifier,
     prototype: P,
     length: L,
@@ -105,7 +105,9 @@ impl<'agent>
     > {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let this = intrinsics.intrinsic_constructor_index_to_builtin_function(T::INDEX);
-        let object_index = Some(intrinsics.intrinsic_constructor_index_to_object_index(T::INDEX));
+        let object_index = Some(OrdinaryObject(
+            intrinsics.intrinsic_constructor_index_to_object_index(T::INDEX),
+        ));
         let name = T::NAME;
         BuiltinFunctionBuilder {
             agent,
@@ -187,7 +189,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
             && self.object_index.is_none()
         {
             self.agent.heap.objects.push(None);
-            Some(ObjectIndex::last(&self.agent.heap.objects))
+            Some(ObjectIndex::last(&self.agent.heap.objects).into())
         } else {
             self.object_index
         };
@@ -210,7 +212,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
     ) -> BuiltinFunctionBuilder<'agent, CreatorPrototype, L, N, B, Pr> {
         let object_index = if self.object_index.is_none() {
             self.agent.heap.objects.push(None);
-            Some(ObjectIndex::last(&self.agent.heap.objects))
+            Some(ObjectIndex::last(&self.agent.heap.objects).into())
         } else {
             self.object_index
         };
@@ -282,7 +284,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
-            ObjectIndex::last(&self.agent.heap.objects)
+            ObjectIndex::last(&self.agent.heap.objects).into()
         }));
         let mut property_vector = Vec::with_capacity(cap + 2);
         property_vector.push((
@@ -316,7 +318,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
-            ObjectIndex::last(&self.agent.heap.objects)
+            ObjectIndex::last(&self.agent.heap.objects).into()
         }));
         let property_vector = vec![
             (
@@ -353,7 +355,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
-            ObjectIndex::last(&self.agent.heap.objects)
+            ObjectIndex::last(&self.agent.heap.objects).into()
         }));
         let property = {
             let builder = PropertyBuilder::new(self.agent);
@@ -586,7 +588,7 @@ impl<'agent>
         let slot = agent
             .heap
             .objects
-            .get_mut(object_index.unwrap().into_index())
+            .get_mut(object_index.unwrap().get_index())
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(ObjectHeapData {
@@ -656,7 +658,7 @@ impl<'agent>
         let slot = agent
             .heap
             .objects
-            .get_mut(object_index.unwrap().into_index())
+            .get_mut(object_index.unwrap().get_index())
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(ObjectHeapData {

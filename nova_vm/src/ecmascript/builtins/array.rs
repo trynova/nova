@@ -15,7 +15,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
+            InternalMethods, IntoObject, IntoValue, Object,
             OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
             BUILTIN_STRING_MEMORY,
         },
@@ -102,7 +102,7 @@ impl Deref for Array {
 impl OrdinaryObjectInternalSlots for Array {
     fn internal_extensible(self, agent: &Agent) -> bool {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_extensible(agent)
+            object_index.internal_extensible(agent)
         } else {
             true
         }
@@ -110,7 +110,7 @@ impl OrdinaryObjectInternalSlots for Array {
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set_extensible(agent, value)
+            object_index.internal_set_extensible(agent, value)
         } else if !value {
             // Create array base object and set inextensible
             todo!()
@@ -119,7 +119,7 @@ impl OrdinaryObjectInternalSlots for Array {
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_prototype(agent)
+            object_index.internal_prototype(agent)
         } else {
             Some(
                 agent
@@ -133,7 +133,7 @@ impl OrdinaryObjectInternalSlots for Array {
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set_prototype(agent, prototype)
+            object_index.internal_set_prototype(agent, prototype)
         } else {
             // Create array base object with custom prototype
             todo!()
@@ -144,7 +144,7 @@ impl OrdinaryObjectInternalSlots for Array {
 impl InternalMethods for Array {
     fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_get_prototype_of(agent)
+            object_index.internal_get_prototype_of(agent)
         } else {
             Ok(Some(
                 agent
@@ -162,7 +162,7 @@ impl InternalMethods for Array {
         prototype: Option<Object>,
     ) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_set_prototype_of(agent, prototype)
+            object_index.internal_set_prototype_of(agent, prototype)
         } else {
             // 1. Let current be O.[[Prototype]].
             let current = agent.current_realm().intrinsics().array_prototype();
@@ -183,7 +183,7 @@ impl InternalMethods for Array {
 
     fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_is_extensible(agent)
+            object_index.internal_is_extensible(agent)
         } else {
             Ok(true)
         }
@@ -191,7 +191,7 @@ impl InternalMethods for Array {
 
     fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
         if let Some(object_index) = agent[self].object_index {
-            OrdinaryObject::from(object_index).internal_prevent_extensions(agent)
+            object_index.internal_prevent_extensions(agent)
         } else {
             // TODO: Create base array object and call prevent extensions on it.
             Ok(true)
@@ -323,11 +323,7 @@ impl InternalMethods for Array {
                 let Some(object_index) = agent[self].object_index else {
                     return Ok(Value::Undefined);
                 };
-                return OrdinaryObject::new(object_index).internal_get(
-                    agent,
-                    property_key,
-                    receiver,
-                );
+                return object_index.internal_get(agent, property_key, receiver);
             }
             if index >= i64::pow(2, 32) {
                 return Ok(Value::Undefined);
@@ -347,7 +343,7 @@ impl InternalMethods for Array {
             let Some(object_index) = agent[self].object_index else {
                 return Ok(Value::Undefined);
             };
-            OrdinaryObject::new(object_index).internal_get(agent, property_key, receiver)
+            object_index.internal_get(agent, property_key, receiver)
         }
     }
 
@@ -368,7 +364,7 @@ impl InternalMethods for Array {
             let index = index.into_i64();
             if index < 0 {
                 return agent[self].object_index.map_or(Ok(true), |object_index| {
-                    OrdinaryObject::new(object_index).internal_delete(agent, property_key)
+                    object_index.internal_delete(agent, property_key)
                 });
             } else if index >= i64::pow(2, 32) {
                 return Ok(true);
@@ -384,7 +380,7 @@ impl InternalMethods for Array {
             Ok(true)
         } else {
             agent[self].object_index.map_or(Ok(true), |object_index| {
-                OrdinaryObject::new(object_index).internal_delete(agent, property_key)
+                object_index.internal_delete(agent, property_key)
             })
         }
     }

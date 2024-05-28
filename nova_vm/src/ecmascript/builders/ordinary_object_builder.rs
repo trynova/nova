@@ -253,7 +253,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
             .agent
             .heap
             .objects
-            .get_mut(self.this.into_index())
+            .get_mut(self.this.get_index())
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(ObjectHeapData {
@@ -273,7 +273,7 @@ impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, N
             .agent
             .heap
             .objects
-            .get_mut(self.this.into_index())
+            .get_mut(self.this.get_index())
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(ObjectHeapData {
@@ -309,7 +309,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, CreatorProperties> {
             .agent
             .heap
             .objects
-            .get_mut(self.this.into_index())
+            .get_mut(self.this.get_index())
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(ObjectHeapData {
@@ -345,7 +345,7 @@ impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, C
             .agent
             .heap
             .objects
-            .get_mut(self.this.into_index())
+            .get_mut(self.this.get_index())
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(ObjectHeapData {
