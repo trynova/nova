@@ -3,14 +3,13 @@ use std::borrow::Borrow;
 use super::{
     element_array::{ElementArrayKey, ElementsVector},
     indexes::{
-        ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
-        DataViewIndex, DateIndex, ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex,
-        ErrorIndex, FinalizationRegistryIndex, MapIndex, NumberIndex, ObjectIndex,
-        PrimitiveObjectIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex,
-        SharedArrayBufferIndex, StringIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
-        WeakRefIndex, WeakSetIndex,
+        ArrayBufferIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
+        DateIndex, ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
+        FinalizationRegistryIndex, MapIndex, NumberIndex, ObjectIndex, PrimitiveObjectIndex,
+        PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex,
+        SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
-    ArrayHeapData, Heap, NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
+    Heap, NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
 };
 use crate::ecmascript::{
     builtins::{
@@ -31,7 +30,7 @@ use crate::ecmascript::{
         weak_map::data::WeakMapHeapData,
         weak_ref::data::WeakRefHeapData,
         weak_set::data::WeakSetHeapData,
-        ArrayBufferHeapData, BuiltinFunction, SealableElementsVector,
+        Array, ArrayBufferHeapData, BuiltinFunction,
     },
     execution::{
         DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironment,
@@ -98,7 +97,7 @@ pub struct HeapBits {
 #[derive(Debug)]
 pub(crate) struct WorkQueues {
     pub array_buffers: Vec<ArrayBufferIndex>,
-    pub arrays: Vec<ArrayIndex>,
+    pub arrays: Vec<Array>,
     pub bigints: Vec<BigIntIndex>,
     pub bound_functions: Vec<BoundFunctionIndex>,
     pub builtin_functions: Vec<BuiltinFunctionIndex>,
@@ -791,17 +790,6 @@ pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
     });
 }
 
-impl HeapMarkAndSweep for ArrayIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.arrays.push(*self);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(self_index - compactions.arrays.get_shift_for_index(self_index));
-    }
-}
-
 impl HeapMarkAndSweep for ArrayBufferIndex {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.array_buffers.push(*self);
@@ -1317,33 +1305,6 @@ impl HeapMarkAndSweep for ElementsVector {
             ElementArrayKey::E32 => compactions.e_2_32.get_shift_for_index(self_index),
         };
         self.elements_index = ElementIndex::from_u32(self_index - shift);
-    }
-}
-
-impl HeapMarkAndSweep for SealableElementsVector {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        let item = *self;
-        let elements: ElementsVector = item.into();
-        elements.mark_values(queues)
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let item = *self;
-        let mut elements: ElementsVector = item.into();
-        elements.sweep_values(compactions);
-        self.elements_index = elements.elements_index;
-    }
-}
-
-impl HeapMarkAndSweep for ArrayHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        self.elements.mark_values(queues);
-        self.object_index.mark_values(queues);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.elements.sweep_values(compactions);
-        self.object_index.sweep_values(compactions);
     }
 }
 

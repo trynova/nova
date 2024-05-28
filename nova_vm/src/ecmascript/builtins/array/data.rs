@@ -1,6 +1,7 @@
 use crate::heap::{
     element_array::{ElementArrayKey, ElementsVector},
     indexes::{ElementIndex, ObjectIndex},
+    CompactionLists, HeapMarkAndSweep, WorkQueues,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -65,4 +66,31 @@ pub struct ArrayHeapData {
     // to get some inline benefit together with a 32 byte size
     // for ArrayHeapData to fit two in one cache line.
     pub elements: SealableElementsVector,
+}
+
+impl HeapMarkAndSweep for SealableElementsVector {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let item = *self;
+        let elements: ElementsVector = item.into();
+        elements.mark_values(queues)
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let item = *self;
+        let mut elements: ElementsVector = item.into();
+        elements.sweep_values(compactions);
+        self.elements_index = elements.elements_index;
+    }
+}
+
+impl HeapMarkAndSweep for ArrayHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.object_index.mark_values(queues);
+        self.elements.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.object_index.sweep_values(compactions);
+        self.elements.sweep_values(compactions);
+    }
 }

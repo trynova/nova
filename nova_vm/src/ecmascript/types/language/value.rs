@@ -5,13 +5,14 @@ use crate::{
         abstract_operations::type_conversion::{
             to_big_int, to_int32, to_number, to_numeric, to_string, to_uint32,
         },
+        builtins::Array,
         execution::{Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
         types::BUILTIN_STRING_MEMORY,
     },
     heap::indexes::{
-        ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
-        DataViewIndex, DateIndex, ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex,
+        ArrayBufferIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
+        DateIndex, ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex,
         FinalizationRegistryIndex, MapIndex, NumberIndex, ObjectIndex, PrimitiveObjectIndex,
         PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex,
         SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
@@ -80,7 +81,7 @@ pub enum Value {
     // and 18 ECMAScript Standard Built-in Objects
     // https://tc39.es/ecma262/#sec-ecmascript-standard-built-in-objects
     Arguments,
-    Array(ArrayIndex),
+    Array(Array),
     ArrayBuffer(ArrayBufferIndex),
     DataView(DataViewIndex),
     Date(DateIndex),
@@ -161,8 +162,7 @@ pub(crate) const SMALL_BIGINT_DISCRIMINANT: u8 =
     value_discriminant(Value::SmallBigInt(SmallInteger::zero()));
 pub(crate) const OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::Object(ObjectIndex::from_u32_index(0)));
-pub(crate) const ARRAY_DISCRIMINANT: u8 =
-    value_discriminant(Value::Array(ArrayIndex::from_u32_index(0)));
+pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array::_def()));
 pub(crate) const ARRAY_BUFFER_DISCRIMINANT: u8 =
     value_discriminant(Value::ArrayBuffer(ArrayBufferIndex::from_u32_index(0)));
 pub(crate) const DATE_DISCRIMINANT: u8 =

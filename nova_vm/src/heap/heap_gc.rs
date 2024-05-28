@@ -8,16 +8,16 @@ use super::{
         sweep_heap_vector_values, CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
     },
     indexes::{
-        ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
-        DataViewIndex, DateIndex, ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex,
-        ErrorIndex, FinalizationRegistryIndex, MapIndex, NumberIndex, ObjectIndex,
-        PrimitiveObjectIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex,
-        SharedArrayBufferIndex, StringIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
-        WeakRefIndex, WeakSetIndex,
+        ArrayBufferIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
+        DateIndex, ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
+        FinalizationRegistryIndex, MapIndex, NumberIndex, ObjectIndex, PrimitiveObjectIndex,
+        PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex,
+        SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
     Heap,
 };
 use crate::ecmascript::{
+    builtins::Array,
     execution::{
         DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
@@ -190,7 +190,7 @@ pub fn heap_gc(heap: &mut Heap) {
             }
         });
 
-        let mut array_marks: Box<[ArrayIndex]> = queues.arrays.drain(..).collect();
+        let mut array_marks: Box<[Array]> = queues.arrays.drain(..).collect();
         array_marks.sort();
         array_marks.iter().for_each(|&idx| {
             let index = idx.into_index();

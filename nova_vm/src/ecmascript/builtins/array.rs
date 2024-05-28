@@ -20,27 +20,20 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{indexes::ArrayIndex, Heap},
+    heap::{indexes::ArrayIndex, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
 };
-
-impl IntoValue for ArrayIndex {
-    fn into_value(self) -> Value {
-        Value::Array(self)
-    }
-}
-
-impl IntoObject for ArrayIndex {
-    fn into_object(self) -> Object {
-        Object::Array(self)
-    }
-}
 
 pub use data::{ArrayHeapData, SealableElementsVector};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Array(ArrayIndex);
 
 impl Array {
+    /// # Do not use this
+    /// This is only for Value discriminant creation.
+    pub(crate) const fn _def() -> Self {
+        Self(ArrayIndex::from_u32_index(0))
+    }
     pub fn len(&self, agent: &Agent) -> u32 {
         agent[*self].elements.len()
     }
@@ -48,13 +41,13 @@ impl Array {
 
 impl IntoValue for Array {
     fn into_value(self) -> Value {
-        Value::Array(self.0)
+        self.into()
     }
 }
 
 impl IntoObject for Array {
     fn into_object(self) -> Object {
-        Object::Array(self.0)
+        self.into()
     }
 }
 
@@ -66,7 +59,13 @@ impl From<ArrayIndex> for Array {
 
 impl From<Array> for Object {
     fn from(value: Array) -> Self {
-        Self::Array(value.0)
+        Self::Array(value)
+    }
+}
+
+impl From<Array> for Value {
+    fn from(value: Array) -> Self {
+        Self::Array(value)
     }
 }
 
@@ -75,7 +74,7 @@ impl TryFrom<Value> for Array {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Array(data) => Ok(Array(data)),
+            Value::Array(data) => Ok(data),
             _ => Err(()),
         }
     }
@@ -86,7 +85,7 @@ impl TryFrom<Object> for Array {
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
         match value {
-            Object::Array(data) => Ok(Array(data)),
+            Object::Array(data) => Ok(data),
             _ => Err(()),
         }
     }
@@ -97,42 +96,6 @@ impl Deref for Array {
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-impl Index<Array> for Agent {
-    type Output = ArrayHeapData;
-
-    fn index(&self, index: Array) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<Array> for Agent {
-    fn index_mut(&mut self, index: Array) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<Array> for Heap {
-    type Output = ArrayHeapData;
-
-    fn index(&self, index: Array) -> &Self::Output {
-        self.arrays
-            .get(index.0.into_index())
-            .expect("Array out of bounds")
-            .as_ref()
-            .expect("Array slot empty")
-    }
-}
-
-impl IndexMut<Array> for Heap {
-    fn index_mut(&mut self, index: Array) -> &mut Self::Output {
-        self.arrays
-            .get_mut(index.0.into_index())
-            .expect("Array out of bounds")
-            .as_mut()
-            .expect("Array slot empty")
     }
 }
 
@@ -440,5 +403,47 @@ impl InternalMethods for Array {
         }
 
         Ok(keys)
+    }
+}
+
+impl Index<Array> for Agent {
+    type Output = ArrayHeapData;
+
+    fn index(&self, index: Array) -> &Self::Output {
+        self.heap
+            .arrays
+            .get(index.0.into_index())
+            .expect("Array out of bounds")
+            .as_ref()
+            .expect("Array slot empty")
+    }
+}
+
+impl IndexMut<Array> for Agent {
+    fn index_mut(&mut self, index: Array) -> &mut Self::Output {
+        self.heap
+            .arrays
+            .get_mut(index.0.into_index())
+            .expect("Array out of bounds")
+            .as_mut()
+            .expect("Array slot empty")
+    }
+}
+
+impl CreateHeapData<ArrayHeapData, Array> for Heap {
+    fn create(&mut self, data: ArrayHeapData) -> Array {
+        self.arrays.push(Some(data));
+        Array::from(ArrayIndex::last(&self.arrays))
+    }
+}
+
+impl HeapMarkAndSweep for Array {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.arrays.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+        let idx = self.0.into_u32_index();
+        self.0 = ArrayIndex::from_u32_index(idx - compactions.arrays.get_shift_for_index(idx));
     }
 }
