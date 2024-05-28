@@ -62,11 +62,10 @@ impl StringConstructor {
         } else {
             // 2. Else,
             // a. If NewTarget is undefined and value is a Symbol, return SymbolDescriptiveString(value).
-            if new_target.is_none() && value.is_symbol() {
-                return Ok(Symbol::try_from(value)
-                    .unwrap()
-                    .descriptive_string(agent)
-                    .into_value());
+            if new_target.is_none() {
+                if let Value::Symbol(value) = value {
+                    return Ok(Symbol::from(value).descriptive_string(agent).into_value());
+                }
             }
             // b. Let s be ? ToString(value).
             to_string(agent, value)?
