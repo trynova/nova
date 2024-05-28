@@ -13,6 +13,7 @@ use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::String;
+use crate::ecmascript::types::Symbol;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::heap::IntrinsicConstructorIndexes;
@@ -62,7 +63,10 @@ impl StringConstructor {
             // 2. Else,
             // a. If NewTarget is undefined and value is a Symbol, return SymbolDescriptiveString(value).
             if new_target.is_none() && value.is_symbol() {
-                todo!("return SymbolDescriptiveString(value);");
+                return Ok(Symbol::try_from(value)
+                    .unwrap()
+                    .descriptive_string(agent)
+                    .into_value());
             }
             // b. Let s be ? ToString(value).
             to_string(agent, value)?

@@ -5,7 +5,7 @@ use std::ops::{Index, IndexMut};
 pub use data::SymbolHeapData;
 
 use crate::{
-    ecmascript::execution::Agent,
+    ecmascript::{execution::Agent, types::String},
     heap::{indexes::SymbolIndex, Heap},
 };
 
@@ -111,5 +111,24 @@ impl IndexMut<Symbol> for Heap {
             .expect("Symbol out of bounds")
             .as_mut()
             .expect("Symbol slot empty")
+    }
+}
+
+impl Symbol {
+    /// [20.4.3.3.1 SymbolDescriptiveString ( sym )](https://tc39.es/ecma262/#sec-symboldescriptivestring)
+    pub fn descriptive_string(self, agent: &mut Agent) -> String {
+        if let Some(descriptor) = agent[self].descriptor {
+            String::concat(
+                agent,
+                &[
+                    String::from_small_string("Symbol("),
+                    descriptor,
+                    String::from_small_string(")"),
+                ],
+            )
+        } else {
+            // TODO: Add to builtin_strings
+            String::from_static_str(agent, "Symbol()")
+        }
     }
 }
