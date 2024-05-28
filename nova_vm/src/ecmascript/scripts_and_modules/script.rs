@@ -141,7 +141,7 @@ pub struct Script {
 
 unsafe impl Send for Script {}
 
-pub type ScriptOrErrors = Result<Script, Vec<OxcDiagnostic>>;
+pub type ScriptOrErrors = Result<Script, (Box<str>, Vec<OxcDiagnostic>)>;
 
 /// ### [16.1.5 ParseScript ( sourceText, realm, hostDefined )](https://tc39.es/ecma262/#sec-parse-script)
 ///
@@ -150,6 +150,9 @@ pub type ScriptOrErrors = Result<Script, Vec<OxcDiagnostic>>;
 /// (anything) and returns a Script Record or a non-empty List of SyntaxError
 /// objects. It creates a Script Record based upon the result of parsing
 /// sourceText as a Script.
+///
+/// NOTE: If parsing fails, the `source_text` is returned so it can be used for
+/// diagnostics.
 pub fn parse_script(
     allocator: &Allocator,
     source_text: Box<str>,
@@ -164,7 +167,9 @@ pub fn parse_script(
 
     // 2. If script is a List of errors, return script.
     if !errors.is_empty() {
-        return Err(errors);
+        // Make sure `program` can't borrow `source_text` so we can return it.
+        drop(program);
+        return Err((source_text, errors));
     }
 
     // 3. Return Script Record {
