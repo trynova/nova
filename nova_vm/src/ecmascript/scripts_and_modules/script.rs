@@ -1437,4 +1437,27 @@ mod test {
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(52)));
     }
+
+    #[test]
+    fn symbol_stringification() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(&allocator, "+Symbol()".into(), realm, None).unwrap();
+        assert!(script_evaluation(&mut agent, script).is_err());
+
+        let script = parse_script(&allocator, "+Symbol('foo')".into(), realm, None).unwrap();
+        assert!(script_evaluation(&mut agent, script).is_err());
+
+        let script = parse_script(&allocator, "String(Symbol())".into(), realm, None).unwrap();
+        let value = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(value, Value::from_static_str(&mut agent, "Symbol()"));
+
+        let script = parse_script(&allocator, "String(Symbol('foo'))".into(), realm, None).unwrap();
+        let value = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(value, Value::from_static_str(&mut agent, "Symbol(foo)"));
+    }
 }
