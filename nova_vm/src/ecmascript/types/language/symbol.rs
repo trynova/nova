@@ -120,7 +120,7 @@ impl Symbol {
         if let Some(descriptor) = agent[self].descriptor {
             String::concat(
                 agent,
-                &[
+                [
                     String::from_small_string("Symbol("),
                     descriptor,
                     String::from_small_string(")"),
