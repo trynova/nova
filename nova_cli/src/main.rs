@@ -80,7 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Err(error) => {
                     eprintln!(
                         "Uncaught exception: {}",
-                        error.value().string_repr(&mut agent).as_str(&mut agent)
+                        error.value().string_repr(&mut agent).as_str(&agent)
                     );
                     std::process::exit(1);
                 }
