@@ -4,6 +4,7 @@ use nova_vm::ecmascript::{
     scripts_and_modules::script::{parse_script, script_evaluation},
     types::{Object, Value},
 };
+use oxc_diagnostics::OxcDiagnostic;
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 
@@ -40,12 +41,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match args.command {
         Command::Parse { path } => {
-            let file = std::fs::read_to_string(path)?;
+            let file = std::fs::read_to_string(&path)?;
             let allocator = Default::default();
             let source_type: SourceType = Default::default();
             let parser = Parser::new(&allocator, &file, source_type.with_typescript(false));
             let result = parser.parse();
 
+            if !result.errors.is_empty() {
+                exit_with_parse_errors(result.errors, &path, &file);
+            }
             println!("{:?}", result.program);
         }
         Command::Eval { verbose, paths } => {
@@ -76,8 +80,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             assert!(!paths.is_empty());
             for path in paths {
-                let file = std::fs::read_to_string(path)?;
-                let script = parse_script(&allocator, file.into(), realm, None).unwrap();
+                let file = std::fs::read_to_string(&path)?;
+                let script = match parse_script(&allocator, file.into(), realm, None) {
+                    Ok(script) => script,
+                    Err((file, errors)) => exit_with_parse_errors(errors, &path, &file),
+                };
                 final_result = script_evaluation(&mut agent, script);
                 if final_result.is_err() {
                     break;
@@ -102,6 +109,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn exit_with_parse_errors(errors: Vec<OxcDiagnostic>, source_path: &str, source: &str) -> ! {
+    assert!(!errors.is_empty());
+
+    // This seems to be needed for color and Unicode output.
+    miette::set_hook(Box::new(|_| {
+        Box::new(oxc_diagnostics::GraphicalReportHandler::new())
+    }))
+    .unwrap();
+
+    eprintln!("Parse errors:");
+
+    // SAFETY: This function never returns, so `source`'s lifetime must last for
+    // the duration of the program.
+    let source: &'static str = unsafe { std::mem::transmute(source) };
+    let named_source = miette::NamedSource::new(source_path, source);
+
+    for error in errors {
+        let report = error.with_source_code(named_source.clone());
+        eprint!("{:?}", report);
+    }
+    eprintln!();
+
+    std::process::exit(1);
 }
 
 fn initialize_global_object(agent: &mut Agent, global: Object) {
