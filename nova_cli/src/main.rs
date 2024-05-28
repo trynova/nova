@@ -71,10 +71,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let realm = agent.current_realm_id();
 
             let script = parse_script(&allocator, file.into(), realm, None).unwrap();
-            let result = script_evaluation(&mut agent, script).unwrap();
-
-            if verbose {
-                println!("{:?}", result);
+            match script_evaluation(&mut agent, script) {
+                Ok(result) => {
+                    if verbose {
+                        println!("{:?}", result);
+                    }
+                }
+                Err(error) => {
+                    eprintln!(
+                        "Uncaught exception: {}",
+                        error.value().string_repr(&mut agent).as_str(&agent)
+                    );
+                    std::process::exit(1);
+                }
             }
         }
     }

@@ -7,6 +7,7 @@ use crate::{
         },
         execution::{Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
+        types::BUILTIN_STRING_MEMORY,
     },
     heap::indexes::{
         ArrayBufferIndex, ArrayIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex,
@@ -18,7 +19,7 @@ use crate::{
     SmallInteger, SmallString,
 };
 
-use super::{BigInt, IntoValue, Number, Numeric, String};
+use super::{BigInt, IntoValue, Number, Numeric, String, Symbol};
 
 /// ### [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -404,6 +405,23 @@ impl Value {
 
     pub fn to_string(self, agent: &mut Agent) -> JsResult<String> {
         to_string(agent, self)
+    }
+
+    /// A string conversion that will never throw, meant for things like
+    /// displaying exceptions.
+    pub fn string_repr(self, agent: &mut Agent) -> String {
+        if let Value::Symbol(symbol_idx) = self {
+            // ToString of a symbol always throws. We use the descriptive
+            // string instead (the result of `String(symbol)`).
+            return Symbol::from(symbol_idx).descriptive_string(agent);
+        };
+        match self.to_string(agent) {
+            Ok(result) => result,
+            Err(_) => {
+                debug_assert!(self.is_object());
+                BUILTIN_STRING_MEMORY.Object
+            }
+        }
     }
 
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
