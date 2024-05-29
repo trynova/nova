@@ -7,6 +7,7 @@
 pub(crate) mod arguments;
 mod array;
 mod array_buffer;
+pub mod bound_function;
 mod builtin_function;
 pub(crate) mod control_abstraction_objects;
 pub(crate) mod data_view;

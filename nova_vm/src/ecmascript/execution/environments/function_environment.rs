@@ -322,7 +322,7 @@ impl FunctionEnvironmentIndex {
                 let data = agent
                     .heap
                     .ecmascript_functions
-                    .get(idx.into_index())
+                    .get(idx.get_index())
                     .unwrap()
                     .as_ref()
                     .unwrap();
@@ -357,7 +357,7 @@ impl FunctionEnvironmentIndex {
                 let data = agent
                     .heap
                     .ecmascript_functions
-                    .get(idx.into_index())
+                    .get(idx.get_index())
                     .unwrap()
                     .as_ref()
                     .unwrap();

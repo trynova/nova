@@ -3,8 +3,7 @@ use std::borrow::Borrow;
 use super::{
     element_array::{ElementArrayKey, ElementsVector},
     indexes::{
-        ArrayBufferIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex, DateIndex,
-        ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
+        ArrayBufferIndex, DataViewIndex, DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
         FinalizationRegistryIndex, MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex,
         RegExpIndex, SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
         WeakRefIndex, WeakSetIndex,
@@ -13,6 +12,7 @@ use super::{
 };
 use crate::ecmascript::{
     builtins::{
+        bound_function::BoundFunction,
         data_view::data::DataViewHeapData,
         date::data::DateHeapData,
         embedder_object::data::EmbedderObjectHeapData,
@@ -30,7 +30,7 @@ use crate::ecmascript::{
         weak_map::data::WeakMapHeapData,
         weak_ref::data::WeakRefHeapData,
         weak_set::data::WeakSetHeapData,
-        Array, ArrayBufferHeapData, BuiltinFunction,
+        Array, ArrayBufferHeapData, BuiltinFunction, ECMAScriptFunction,
     },
     execution::{
         DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironment,
@@ -43,10 +43,7 @@ use crate::ecmascript::{
         script::{Script, ScriptIdentifier},
         ScriptOrModule,
     },
-    types::{
-        bigint::HeapBigInt, BoundFunctionHeapData, BuiltinFunctionHeapData,
-        ECMAScriptFunctionHeapData, Function, HeapNumber, HeapString, OrdinaryObject, Value,
-    },
+    types::{bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Value},
 };
 
 #[derive(Debug)]
@@ -99,8 +96,8 @@ pub(crate) struct WorkQueues {
     pub array_buffers: Vec<ArrayBufferIndex>,
     pub arrays: Vec<Array>,
     pub bigints: Vec<HeapBigInt>,
-    pub bound_functions: Vec<BoundFunctionIndex>,
-    pub builtin_functions: Vec<BuiltinFunctionIndex>,
+    pub bound_functions: Vec<BoundFunction>,
+    pub builtin_functions: Vec<BuiltinFunction>,
     pub data_views: Vec<DataViewIndex>,
     pub dates: Vec<DateIndex>,
     pub declarative_environments: Vec<DeclarativeEnvironmentIndex>,
@@ -112,7 +109,7 @@ pub(crate) struct WorkQueues {
     pub e_2_4: Vec<(ElementIndex, u32)>,
     pub e_2_6: Vec<(ElementIndex, u32)>,
     pub e_2_8: Vec<(ElementIndex, u32)>,
-    pub ecmascript_functions: Vec<ECMAScriptFunctionIndex>,
+    pub ecmascript_functions: Vec<ECMAScriptFunction>,
     pub embedder_objects: Vec<EmbedderObjectIndex>,
     pub errors: Vec<ErrorIndex>,
     pub finalization_registrys: Vec<FinalizationRegistryIndex>,
@@ -802,35 +799,6 @@ impl HeapMarkAndSweep for ArrayBufferIndex {
     }
 }
 
-impl HeapMarkAndSweep for BoundFunctionIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.bound_functions.push(*self);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(
-            self_index - compactions.bound_functions.get_shift_for_index(self_index),
-        );
-    }
-}
-
-impl HeapMarkAndSweep for BuiltinFunctionIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.builtin_functions.push(*self);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(
-            self_index
-                - compactions
-                    .builtin_functions
-                    .get_shift_for_index(self_index),
-        );
-    }
-}
-
 impl HeapMarkAndSweep for DateIndex {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.dates.push(*self);
@@ -839,22 +807,6 @@ impl HeapMarkAndSweep for DateIndex {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let self_index = self.into_u32();
         *self = Self::from_u32(self_index - compactions.dates.get_shift_for_index(self_index));
-    }
-}
-
-impl HeapMarkAndSweep for ECMAScriptFunctionIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.ecmascript_functions.push(*self);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(
-            self_index
-                - compactions
-                    .ecmascript_functions
-                    .get_shift_for_index(self_index),
-        );
     }
 }
 
@@ -1061,54 +1013,6 @@ impl HeapMarkAndSweep for Value {
     }
 }
 
-impl HeapMarkAndSweep for Function {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        match self {
-            Function::BoundFunction(idx) => idx.mark_values(queues),
-            Function::BuiltinFunction(idx) => idx.mark_values(queues),
-            Function::ECMAScriptFunction(idx) => idx.mark_values(queues),
-            Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction => todo!(),
-            Function::BuiltinPromiseResolveFunction => todo!(),
-            Function::BuiltinPromiseRejectFunction => todo!(),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
-            Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
-        }
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        match self {
-            Function::BoundFunction(idx) => idx.sweep_values(compactions),
-            Function::BuiltinFunction(idx) => idx.sweep_values(compactions),
-            Function::ECMAScriptFunction(idx) => idx.sweep_values(compactions),
-            Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction => todo!(),
-            Function::BuiltinPromiseResolveFunction => todo!(),
-            Function::BuiltinPromiseRejectFunction => todo!(),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
-            Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
-        }
-    }
-}
-
-impl HeapMarkAndSweep for BuiltinFunction {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        self.0.mark_values(queues)
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.0.sweep_values(compactions)
-    }
-}
-
 impl HeapMarkAndSweep for Map {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.0.mark_values(queues);
@@ -1170,55 +1074,6 @@ impl HeapMarkAndSweep for ArrayBufferHeapData {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.object_index.sweep_values(compactions);
-    }
-}
-
-impl HeapMarkAndSweep for BoundFunctionHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        self.name.mark_values(queues);
-        self.function.mark_values(queues);
-        self.object_index.mark_values(queues);
-        self.bound_values.mark_values(queues);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.name.sweep_values(compactions);
-        self.function.sweep_values(compactions);
-        self.object_index.sweep_values(compactions);
-        self.bound_values.sweep_values(compactions);
-    }
-}
-
-impl HeapMarkAndSweep for BuiltinFunctionHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        self.initial_name.mark_values(queues);
-        self.object_index.mark_values(queues);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.initial_name.sweep_values(compactions);
-        self.object_index.sweep_values(compactions);
-    }
-}
-
-impl HeapMarkAndSweep for ECMAScriptFunctionHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        self.name.mark_values(queues);
-        self.object_index.mark_values(queues);
-
-        self.ecmascript_function.environment.mark_values(queues);
-        self.ecmascript_function
-            .private_environment
-            .mark_values(queues);
-        self.ecmascript_function.realm.mark_values(queues);
-        self.ecmascript_function
-            .script_or_module
-            .mark_values(queues);
-        self.ecmascript_function.home_object.mark_values(queues);
-    }
-
-    fn sweep_values(&mut self, _compactions: &CompactionLists) {
-        todo!()
     }
 }
 
@@ -1584,7 +1439,7 @@ impl HeapMarkAndSweep for Intrinsics {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         OrdinaryObject(self.object_index_base).sweep_values(compactions);
-        self.builtin_function_index_base.sweep_values(compactions);
+        BuiltinFunction(self.builtin_function_index_base).sweep_values(compactions);
     }
 }
 

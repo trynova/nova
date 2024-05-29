@@ -33,12 +33,13 @@ use crate::{
         types::{
             initialize_referenced_binding, put_value, ECMAScriptFunctionHeapData, Function,
             InternalMethods, IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
-        indexes::ECMAScriptFunctionIndex, CreateHeapData, Heap, ObjectEntry,
-        ObjectEntryPropertyDescriptor,
+        indexes::ECMAScriptFunctionIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
     },
 };
 
@@ -48,7 +49,7 @@ use super::{
     ArgumentsList,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ECMAScriptFunction(ECMAScriptFunctionIndex);
 
 impl From<ECMAScriptFunction> for ECMAScriptFunctionIndex {
@@ -83,19 +84,19 @@ impl IntoFunction for ECMAScriptFunction {
 
 impl From<ECMAScriptFunction> for Value {
     fn from(val: ECMAScriptFunction) -> Self {
-        Value::ECMAScriptFunction(val.0)
+        Value::ECMAScriptFunction(val)
     }
 }
 
 impl From<ECMAScriptFunction> for Object {
     fn from(val: ECMAScriptFunction) -> Self {
-        Object::ECMAScriptFunction(val.0)
+        Object::ECMAScriptFunction(val)
     }
 }
 
 impl From<ECMAScriptFunction> for Function {
     fn from(val: ECMAScriptFunction) -> Self {
-        Function::ECMAScriptFunction(val.0)
+        Function::ECMAScriptFunction(val)
     }
 }
 
@@ -221,6 +222,14 @@ impl IndexMut<ECMAScriptFunction> for Heap {
 }
 
 impl ECMAScriptFunction {
+    pub(crate) const fn _def() -> Self {
+        ECMAScriptFunction(ECMAScriptFunctionIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+
     fn create_ordinary_object(self, agent: &mut Agent) -> OrdinaryObject {
         assert_eq!(agent[self].object_index, None);
         let prototype = agent.current_realm().intrinsics().function_prototype();
@@ -250,6 +259,24 @@ impl ECMAScriptFunction {
             .create_object_with_prototype(prototype.into_object(), &[length_entry, name_entry]);
         agent[self].object_index = Some(object_index);
         object_index
+    }
+}
+
+impl OrdinaryObjectInternalSlots for ECMAScriptFunction {
+    fn internal_extensible(self, agent: &Agent) -> bool {
+        todo!()
+    }
+
+    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
+        todo!()
+    }
+
+    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+        todo!()
+    }
+
+    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+        todo!()
     }
 }
 
@@ -811,7 +838,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
     )
     .unwrap();
     // 23. Return F.
-    agent.heap.create(function)
+    agent.heap.create(function).into_function()
 }
 
 /// ### [10.2.5 MakeConstructor ( F \[ , writablePrototype \[ , prototype \] \] )](https://tc39.es/ecma262/#sec-makeconstructor)
@@ -1385,4 +1412,62 @@ pub(crate) fn function_declaration_instantiation(
 
     // B.3.2 provides an extension to the above algorithm that is necessary for backwards
     // compatibility with web browser implementations of ECMAScript that predate ECMAScript 2015.
+}
+
+impl HeapMarkAndSweep for ECMAScriptFunction {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.ecmascript_functions.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 = ECMAScriptFunctionIndex::from_u32(
+            self_index
+                - compactions
+                    .ecmascript_functions
+                    .get_shift_for_index(self_index),
+        );
+    }
+}
+
+impl CreateHeapData<ECMAScriptFunctionHeapData, ECMAScriptFunction> for Heap {
+    fn create(&mut self, data: ECMAScriptFunctionHeapData) -> ECMAScriptFunction {
+        self.ecmascript_functions.push(Some(data));
+        ECMAScriptFunction(ECMAScriptFunctionIndex::last(&self.ecmascript_functions))
+    }
+}
+
+impl HeapMarkAndSweep for ECMAScriptFunctionHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.name.mark_values(queues);
+        self.object_index.mark_values(queues);
+
+        self.ecmascript_function.environment.mark_values(queues);
+        self.ecmascript_function
+            .private_environment
+            .mark_values(queues);
+        self.ecmascript_function.realm.mark_values(queues);
+        self.ecmascript_function
+            .script_or_module
+            .mark_values(queues);
+        self.ecmascript_function.home_object.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.name.sweep_values(compactions);
+        self.object_index.sweep_values(compactions);
+        self.ecmascript_function
+            .environment
+            .sweep_values(compactions);
+        self.ecmascript_function
+            .private_environment
+            .sweep_values(compactions);
+        self.ecmascript_function.realm.sweep_values(compactions);
+        self.ecmascript_function
+            .script_or_module
+            .sweep_values(compactions);
+        self.ecmascript_function
+            .home_object
+            .sweep_values(compactions);
+    }
 }

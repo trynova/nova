@@ -26,10 +26,7 @@ use self::{
         ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16, ElementArray2Pow24,
         ElementArray2Pow32, ElementArray2Pow4, ElementArray2Pow6, ElementArray2Pow8, ElementArrays,
     },
-    indexes::{
-        BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex, NumberIndex,
-        ObjectIndex, StringIndex,
-    },
+    indexes::{NumberIndex, ObjectIndex, StringIndex},
 };
 use crate::ecmascript::{
     builtins::{
@@ -55,7 +52,7 @@ use crate::ecmascript::{
     types::{HeapNumber, HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
 };
 use crate::ecmascript::{
-    builtins::{ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
+    builtins::{ArrayBufferHeapData, ArrayHeapData},
     execution::{Environments, Realm, RealmIdentifier},
     scripts_and_modules::{
         module::ModuleIdentifier,
@@ -63,8 +60,7 @@ use crate::ecmascript::{
     },
     types::{
         BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-        Function, NumberHeapData, Object, ObjectHeapData, String, StringHeapData, SymbolHeapData,
-        Value,
+        NumberHeapData, Object, ObjectHeapData, String, StringHeapData, SymbolHeapData, Value,
     },
 };
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
@@ -170,27 +166,6 @@ impl CreateHeapData<FinalizationRegistryHeapData, FinalizationRegistry> for Heap
         FinalizationRegistry(FinalizationRegistryIndex::last(
             &self.finalization_registrys,
         ))
-    }
-}
-
-impl CreateHeapData<BoundFunctionHeapData, Function> for Heap {
-    fn create(&mut self, data: BoundFunctionHeapData) -> Function {
-        self.bound_functions.push(Some(data));
-        Function::from(BoundFunctionIndex::last(&self.bound_functions))
-    }
-}
-
-impl CreateHeapData<BuiltinFunctionHeapData, BuiltinFunction> for Heap {
-    fn create(&mut self, data: BuiltinFunctionHeapData) -> BuiltinFunction {
-        self.builtin_functions.push(Some(data));
-        BuiltinFunctionIndex::last(&self.builtin_functions).into()
-    }
-}
-
-impl CreateHeapData<ECMAScriptFunctionHeapData, Function> for Heap {
-    fn create(&mut self, data: ECMAScriptFunctionHeapData) -> Function {
-        self.ecmascript_functions.push(Some(data));
-        Function::from(ECMAScriptFunctionIndex::last(&self.ecmascript_functions))
     }
 }
 

@@ -313,42 +313,6 @@ impl IndexMut<BoundFunctionIndex> for Heap {
     }
 }
 
-impl Index<BuiltinFunctionIndex> for Agent {
-    type Output = BuiltinFunctionHeapData;
-
-    fn index(&self, index: BuiltinFunctionIndex) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<BuiltinFunctionIndex> for Agent {
-    fn index_mut(&mut self, index: BuiltinFunctionIndex) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<BuiltinFunctionIndex> for Heap {
-    type Output = BuiltinFunctionHeapData;
-
-    fn index(&self, index: BuiltinFunctionIndex) -> &Self::Output {
-        self.builtin_functions
-            .get(index.into_index())
-            .expect("BuiltinFunctionIndex out of bounds")
-            .as_ref()
-            .expect("BuiltinFunctionIndex slot empty")
-    }
-}
-
-impl IndexMut<BuiltinFunctionIndex> for Heap {
-    fn index_mut(&mut self, index: BuiltinFunctionIndex) -> &mut Self::Output {
-        self.builtin_functions
-            .get_mut(index.into_index())
-            .expect("BuiltinFunctionIndex out of bounds")
-            .as_mut()
-            .expect("BuiltinFunctionIndex slot empty")
-    }
-}
-
 impl Index<DataViewIndex> for Agent {
     type Output = DataViewHeapData;
 

@@ -8,8 +8,7 @@ use super::{
         sweep_heap_vector_values, CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
     },
     indexes::{
-        ArrayBufferIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex, DateIndex,
-        ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
+        ArrayBufferIndex, DataViewIndex, DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
         FinalizationRegistryIndex, MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex,
         RegExpIndex, SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
         WeakRefIndex, WeakSetIndex,
@@ -17,7 +16,7 @@ use super::{
     Heap,
 };
 use crate::ecmascript::{
-    builtins::Array,
+    builtins::{bound_function::BoundFunction, Array, BuiltinFunction, ECMAScriptFunction},
     execution::{
         DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
@@ -230,11 +229,11 @@ pub fn heap_gc(heap: &mut Heap) {
                 bigints.get(index).mark_values(&mut queues);
             }
         });
-        let mut bound_function_marks: Box<[BoundFunctionIndex]> =
+        let mut bound_function_marks: Box<[BoundFunction]> =
             queues.bound_functions.drain(..).collect();
         bound_function_marks.sort();
         bound_function_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.bound_functions.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -245,11 +244,11 @@ pub fn heap_gc(heap: &mut Heap) {
             }
         });
         let mut error_marks: Box<[ErrorIndex]> = queues.errors.drain(..).collect();
-        let mut ecmascript_function_marks: Box<[ECMAScriptFunctionIndex]> =
+        let mut ecmascript_function_marks: Box<[ECMAScriptFunction]> =
             queues.ecmascript_functions.drain(..).collect();
         ecmascript_function_marks.sort();
         ecmascript_function_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.ecmascript_functions.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -271,11 +270,11 @@ pub fn heap_gc(heap: &mut Heap) {
                 errors.get(index).mark_values(&mut queues);
             }
         });
-        let mut builtin_functions_marks: Box<[BuiltinFunctionIndex]> =
+        let mut builtin_functions_marks: Box<[BuiltinFunction]> =
             queues.builtin_functions.drain(..).collect();
         builtin_functions_marks.sort();
         builtin_functions_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.builtin_functions.get_mut(index) {
                 if *marked {
                     // Already marked, ignore

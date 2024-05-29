@@ -5,17 +5,16 @@ use crate::{
         abstract_operations::type_conversion::{
             to_big_int, to_int32, to_number, to_numeric, to_string, to_uint32,
         },
-        builtins::Array,
+        builtins::{bound_function::BoundFunction, Array, BuiltinFunction, ECMAScriptFunction},
         execution::{Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
         types::BUILTIN_STRING_MEMORY,
     },
     heap::indexes::{
-        ArrayBufferIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex, DateIndex,
-        ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex,
-        MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex,
-        SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
-        WeakSetIndex,
+        ArrayBufferIndex, DataViewIndex, DateIndex, EmbedderObjectIndex, ErrorIndex,
+        FinalizationRegistryIndex, MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex,
+        RegExpIndex, SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
+        WeakRefIndex, WeakSetIndex,
     },
     SmallInteger, SmallString,
 };
@@ -61,9 +60,9 @@ pub enum Value {
     Object(OrdinaryObject),
 
     // Functions
-    BoundFunction(BoundFunctionIndex),
-    BuiltinFunction(BuiltinFunctionIndex),
-    ECMAScriptFunction(ECMAScriptFunctionIndex),
+    BoundFunction(BoundFunction),
+    BuiltinFunction(BuiltinFunction),
+    ECMAScriptFunction(ECMAScriptFunction),
     // TODO: Figure out if all the special function types are wanted or if we'd
     // prefer to just keep them as internal variants of the three above ones.
     BuiltinGeneratorFunction,
@@ -171,14 +170,12 @@ pub(crate) const DATE_DISCRIMINANT: u8 =
     value_discriminant(Value::Date(DateIndex::from_u32_index(0)));
 pub(crate) const ERROR_DISCRIMINANT: u8 =
     value_discriminant(Value::Error(ErrorIndex::from_u32_index(0)));
-pub(crate) const BUILTIN_FUNCTION_DISCRIMINANT: u8 = value_discriminant(Value::BuiltinFunction(
-    BuiltinFunctionIndex::from_u32_index(0),
-));
-pub(crate) const ECMASCRIPT_FUNCTION_DISCRIMINANT: u8 = value_discriminant(
-    Value::ECMAScriptFunction(ECMAScriptFunctionIndex::from_u32_index(0)),
-);
+pub(crate) const BUILTIN_FUNCTION_DISCRIMINANT: u8 =
+    value_discriminant(Value::BuiltinFunction(BuiltinFunction::_def()));
+pub(crate) const ECMASCRIPT_FUNCTION_DISCRIMINANT: u8 =
+    value_discriminant(Value::ECMAScriptFunction(ECMAScriptFunction::_def()));
 pub(crate) const BOUND_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::BoundFunction(BoundFunctionIndex::from_u32_index(0)));
+    value_discriminant(Value::BoundFunction(BoundFunction::_def()));
 pub(crate) const REGEXP_DISCRIMINANT: u8 =
     value_discriminant(Value::RegExp(RegExpIndex::from_u32_index(0)));
 

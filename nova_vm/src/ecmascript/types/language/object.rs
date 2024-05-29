@@ -32,8 +32,8 @@ use super::{
 use crate::{
     ecmascript::{
         builtins::{
-            date::Date, error::Error, map::Map, set::Set, ArgumentsList, Array, ArrayBuffer,
-            BuiltinFunction, ECMAScriptFunction,
+            bound_function::BoundFunction, date::Date, error::Error, map::Map, set::Set,
+            ArgumentsList, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
@@ -41,11 +41,10 @@ use crate::{
     },
     heap::{
         indexes::{
-            ArrayBufferIndex, ArrayIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
-            DateIndex, ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex,
-            FinalizationRegistryIndex, MapIndex, ObjectIndex, PrimitiveObjectIndex, PromiseIndex,
-            ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, TypedArrayIndex,
-            WeakMapIndex, WeakRefIndex, WeakSetIndex,
+            ArrayBufferIndex, ArrayIndex, DataViewIndex, DateIndex, EmbedderObjectIndex,
+            ErrorIndex, FinalizationRegistryIndex, MapIndex, ObjectIndex, PrimitiveObjectIndex,
+            PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex,
+            TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
         },
         CompactionLists, HeapMarkAndSweep, WorkQueues,
     },
@@ -65,9 +64,9 @@ pub use property_storage::PropertyStorage;
 #[repr(u8)]
 pub enum Object {
     Object(OrdinaryObject) = OBJECT_DISCRIMINANT,
-    BoundFunction(BoundFunctionIndex) = BOUND_FUNCTION_DISCRIMINANT,
-    BuiltinFunction(BuiltinFunctionIndex) = BUILTIN_FUNCTION_DISCRIMINANT,
-    ECMAScriptFunction(ECMAScriptFunctionIndex) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
+    BoundFunction(BoundFunction) = BOUND_FUNCTION_DISCRIMINANT,
+    BuiltinFunction(BuiltinFunction) = BUILTIN_FUNCTION_DISCRIMINANT,
+    ECMAScriptFunction(ECMAScriptFunction) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction = BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
     BuiltinPromiseResolveFunction = BUILTIN_PROMISE_RESOLVE_FUNCTION_DISCRIMINANT,
@@ -211,21 +210,9 @@ impl From<ArrayIndex> for Object {
     }
 }
 
-impl From<BoundFunctionIndex> for Object {
-    fn from(value: BoundFunctionIndex) -> Self {
+impl From<BoundFunction> for Object {
+    fn from(value: BoundFunction) -> Self {
         Object::BoundFunction(value)
-    }
-}
-
-impl From<BuiltinFunctionIndex> for Object {
-    fn from(value: BuiltinFunctionIndex) -> Self {
-        Object::BuiltinFunction(value)
-    }
-}
-
-impl From<ECMAScriptFunctionIndex> for Object {
-    fn from(value: ECMAScriptFunctionIndex) -> Self {
-        Object::ECMAScriptFunction(value)
     }
 }
 
@@ -373,9 +360,9 @@ impl OrdinaryObjectInternalSlots for Object {
             Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_extensible(agent),
             Object::Date(idx) => Date::from(idx).internal_extensible(agent),
             Object::Error(idx) => Error::from(idx).internal_extensible(agent),
-            Object::BoundFunction(idx) => Function::from(idx).internal_extensible(agent),
-            Object::BuiltinFunction(idx) => Function::from(idx).internal_extensible(agent),
-            Object::ECMAScriptFunction(idx) => Function::from(idx).internal_extensible(agent),
+            Object::BoundFunction(idx) => idx.internal_extensible(agent),
+            Object::BuiltinFunction(idx) => idx.internal_extensible(agent),
+            Object::ECMAScriptFunction(idx) => idx.internal_extensible(agent),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
@@ -1046,12 +1033,8 @@ impl InternalMethods for Object {
             Object::BoundFunction(idx) => {
                 Function::from(idx).internal_get(agent, property_key, receiver)
             }
-            Object::BuiltinFunction(idx) => {
-                BuiltinFunction::from(idx).internal_get(agent, property_key, receiver)
-            }
-            Object::ECMAScriptFunction(idx) => {
-                ECMAScriptFunction::from(idx).internal_get(agent, property_key, receiver)
-            }
+            Object::BuiltinFunction(idx) => idx.internal_get(agent, property_key, receiver),
+            Object::ECMAScriptFunction(idx) => idx.internal_get(agent, property_key, receiver),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
