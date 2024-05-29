@@ -6,10 +6,10 @@ use super::{
         ArrayBufferIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex, DateIndex,
         ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
         FinalizationRegistryIndex, MapIndex, NumberIndex, PrimitiveObjectIndex, PromiseIndex,
-        ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex, SymbolIndex,
-        TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
+        ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex,
+        WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
-    Heap, NumberHeapData, StringHeapData, SymbolHeapData,
+    Heap, NumberHeapData, SymbolHeapData,
 };
 use crate::ecmascript::{
     builtins::{
@@ -45,7 +45,7 @@ use crate::ecmascript::{
     },
     types::{
         bigint::HeapBigInt, BoundFunctionHeapData, BuiltinFunctionHeapData,
-        ECMAScriptFunctionHeapData, Function, Number, OrdinaryObject, String, Value,
+        ECMAScriptFunctionHeapData, Function, HeapString, Number, OrdinaryObject, Value,
     },
 };
 
@@ -131,7 +131,7 @@ pub(crate) struct WorkQueues {
     pub scripts: Vec<ScriptIdentifier>,
     pub sets: Vec<SetIndex>,
     pub shared_array_buffers: Vec<SharedArrayBufferIndex>,
-    pub strings: Vec<StringIndex>,
+    pub strings: Vec<HeapString>,
     pub symbols: Vec<SymbolIndex>,
     pub typed_arrays: Vec<TypedArrayIndex>,
     pub weak_maps: Vec<WeakMapIndex>,
@@ -929,17 +929,6 @@ impl HeapMarkAndSweep for SetIndex {
     }
 }
 
-impl HeapMarkAndSweep for StringIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.strings.push(*self);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(self_index - compactions.strings.get_shift_for_index(self_index));
-    }
-}
-
 impl HeapMarkAndSweep for SymbolIndex {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.symbols.push(*self);
@@ -1165,20 +1154,6 @@ impl HeapMarkAndSweep for Set {
     }
 }
 
-impl HeapMarkAndSweep for String {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        if let Self::String(idx) = self {
-            idx.mark_values(queues);
-        }
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        if let Self::String(idx) = self {
-            idx.sweep_values(compactions);
-        }
-    }
-}
-
 impl HeapMarkAndSweep for ElementsVector {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self.cap {
@@ -1400,12 +1375,6 @@ impl HeapMarkAndSweep for SharedArrayBufferHeapData {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.object_index.sweep_values(compactions);
     }
-}
-
-impl HeapMarkAndSweep for StringHeapData {
-    fn mark_values(&self, _queues: &mut WorkQueues) {}
-
-    fn sweep_values(&mut self, _compactions: &CompactionLists) {}
 }
 
 impl HeapMarkAndSweep for SymbolHeapData {

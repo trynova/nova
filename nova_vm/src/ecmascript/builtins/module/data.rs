@@ -1,12 +1,9 @@
 use small_string::SmallString;
 
-use crate::{
-    ecmascript::{
-        execution::{ModuleEnvironmentIndex, RealmIdentifier},
-        scripts_and_modules::module::ModuleIdentifier,
-        types::{OrdinaryObject, PropertyKey, String},
-    },
-    heap::indexes::StringIndex,
+use crate::ecmascript::{
+    execution::{ModuleEnvironmentIndex, RealmIdentifier},
+    scripts_and_modules::module::ModuleIdentifier,
+    types::{HeapString, OrdinaryObject, PropertyKey, String},
 };
 
 use super::Module;
@@ -43,7 +40,7 @@ pub(crate) struct ModuleRecord {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ResolvedBindingName {
-    String(StringIndex),
+    String(HeapString),
     SmallString(SmallString),
     Namespace,
 }

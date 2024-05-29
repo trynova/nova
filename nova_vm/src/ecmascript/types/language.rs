@@ -26,7 +26,7 @@ pub use object::{
     OrdinaryObjectInternalSlots, PropertyKey,
 };
 pub use primitive::Primitive;
-pub use string::{String, StringHeapData, BUILTIN_STRINGS_LIST, BUILTIN_STRING_MEMORY};
+pub use string::{HeapString, String, StringHeapData, BUILTIN_STRINGS_LIST, BUILTIN_STRING_MEMORY};
 pub use symbol::{Symbol, SymbolHeapData};
 pub use value::Value;
 pub(crate) use value::{

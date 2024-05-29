@@ -893,42 +893,6 @@ impl IndexMut<SharedArrayBufferIndex> for Heap {
     }
 }
 
-impl Index<StringIndex> for Agent {
-    type Output = StringHeapData;
-
-    fn index(&self, index: StringIndex) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<StringIndex> for Agent {
-    fn index_mut(&mut self, index: StringIndex) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<StringIndex> for Heap {
-    type Output = StringHeapData;
-
-    fn index(&self, index: StringIndex) -> &Self::Output {
-        self.strings
-            .get(index.into_index())
-            .expect("StringIndex out of bounds")
-            .as_ref()
-            .expect("StringIndex slot empty")
-    }
-}
-
-impl IndexMut<StringIndex> for Heap {
-    fn index_mut(&mut self, index: StringIndex) -> &mut Self::Output {
-        self.strings
-            .get_mut(index.into_index())
-            .expect("StringIndex out of bounds")
-            .as_mut()
-            .expect("StringIndex slot empty")
-    }
-}
-
 impl Index<SymbolIndex> for Agent {
     type Output = SymbolHeapData;
 

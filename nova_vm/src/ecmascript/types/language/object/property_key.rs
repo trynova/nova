@@ -2,14 +2,17 @@ use crate::{
     ecmascript::{
         execution::Agent,
         types::{
-            language::value::{
-                INTEGER_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
-                SYMBOL_DISCRIMINANT,
+            language::{
+                string::HeapString,
+                value::{
+                    INTEGER_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
+                    SYMBOL_DISCRIMINANT,
+                },
             },
             String, Symbol, Value,
         },
     },
-    heap::indexes::{StringIndex, SymbolIndex},
+    heap::indexes::SymbolIndex,
     SmallInteger, SmallString,
 };
 
@@ -18,7 +21,7 @@ use crate::{
 pub enum PropertyKey {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
-    String(StringIndex) = STRING_DISCRIMINANT,
+    String(HeapString) = STRING_DISCRIMINANT,
     Symbol(SymbolIndex) = SYMBOL_DISCRIMINANT,
     // TODO: PrivateKey
 }
@@ -87,8 +90,8 @@ impl From<SmallString> for PropertyKey {
     }
 }
 
-impl From<StringIndex> for PropertyKey {
-    fn from(value: StringIndex) -> Self {
+impl From<HeapString> for PropertyKey {
+    fn from(value: HeapString) -> Self {
         PropertyKey::String(value)
     }
 }

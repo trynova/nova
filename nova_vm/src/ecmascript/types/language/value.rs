@@ -14,14 +14,15 @@ use crate::{
         ArrayBufferIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex, DateIndex,
         ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex,
         MapIndex, NumberIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex, RegExpIndex,
-        SetIndex, SharedArrayBufferIndex, StringIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
-        WeakRefIndex, WeakSetIndex,
+        SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
+        WeakSetIndex,
     },
     SmallInteger, SmallString,
 };
 
 use super::{
     bigint::{HeapBigInt, SmallBigInt},
+    string::HeapString,
     BigInt, IntoValue, Number, Numeric, OrdinaryObject, String, Symbol,
 };
 
@@ -40,7 +41,7 @@ pub enum Value {
     Boolean(bool),
 
     /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
-    String(StringIndex),
+    String(HeapString),
     SmallString(SmallString),
 
     /// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
@@ -148,8 +149,7 @@ const fn value_discriminant(value: Value) -> u8 {
 pub(crate) const UNDEFINED_DISCRIMINANT: u8 = value_discriminant(Value::Undefined);
 pub(crate) const NULL_DISCRIMINANT: u8 = value_discriminant(Value::Null);
 pub(crate) const BOOLEAN_DISCRIMINANT: u8 = value_discriminant(Value::Boolean(true));
-pub(crate) const STRING_DISCRIMINANT: u8 =
-    value_discriminant(Value::String(StringIndex::from_u32_index(0)));
+pub(crate) const STRING_DISCRIMINANT: u8 = value_discriminant(Value::String(HeapString::_def()));
 pub(crate) const SMALL_STRING_DISCRIMINANT: u8 =
     value_discriminant(Value::SmallString(SmallString::EMPTY));
 pub(crate) const SYMBOL_DISCRIMINANT: u8 =

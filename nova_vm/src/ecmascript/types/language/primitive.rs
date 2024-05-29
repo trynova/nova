@@ -1,12 +1,13 @@
 use small_string::SmallString;
 
 use crate::{
-    heap::indexes::{NumberIndex, StringIndex, SymbolIndex},
+    heap::indexes::{NumberIndex, SymbolIndex},
     SmallInteger,
 };
 
 use super::{
     bigint::{HeapBigInt, SmallBigInt},
+    string::HeapString,
     value::{
         BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT,
         NULL_DISCRIMINANT, NUMBER_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT,
@@ -22,7 +23,7 @@ pub enum Primitive {
     Undefined = UNDEFINED_DISCRIMINANT,
     Null = NULL_DISCRIMINANT,
     Boolean(bool) = BOOLEAN_DISCRIMINANT,
-    String(StringIndex) = STRING_DISCRIMINANT,
+    String(HeapString) = STRING_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
     Symbol(SymbolIndex) = SYMBOL_DISCRIMINANT,
     Number(NumberIndex) = NUMBER_DISCRIMINANT,

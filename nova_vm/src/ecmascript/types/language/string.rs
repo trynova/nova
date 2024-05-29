@@ -1,24 +1,66 @@
 include!(concat!(env!("OUT_DIR"), "/builtin_strings.rs"));
 mod data;
 
+use std::ops::{Index, IndexMut};
+
 use super::{IntoPrimitive, IntoValue, Primitive, PropertyKey, Value};
 use crate::{
     ecmascript::execution::Agent,
-    heap::{indexes::StringIndex, CreateHeapData},
+    heap::{
+        indexes::StringIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+    },
     SmallString,
 };
 
 pub use data::StringHeapData;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct HeapString(pub(crate) StringIndex);
+
+impl HeapString {
+    pub(crate) const fn _def() -> Self {
+        HeapString(StringIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
+
+impl Index<HeapString> for Agent {
+    type Output = StringHeapData;
+
+    fn index(&self, index: HeapString) -> &Self::Output {
+        self.heap
+            .strings
+            .get(index.0.into_index())
+            .expect("HeapString out of bounds")
+            .as_ref()
+            .expect("HeapString slot empty")
+    }
+}
+
+impl IndexMut<HeapString> for Agent {
+    fn index_mut(&mut self, index: HeapString) -> &mut Self::Output {
+        self.heap
+            .strings
+            .get_mut(index.0.into_index())
+            .expect("HeapString out of bounds")
+            .as_mut()
+            .expect("HeapString slot empty")
+    }
+}
+
 /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum String {
-    String(StringIndex),
+    String(HeapString),
     SmallString(SmallString),
 }
 
-impl IntoValue for StringIndex {
+impl IntoValue for HeapString {
     fn into_value(self) -> Value {
         Value::String(self)
     }
@@ -42,14 +84,14 @@ impl IntoPrimitive for String {
     }
 }
 
-impl From<StringIndex> for String {
-    fn from(value: StringIndex) -> Self {
+impl From<HeapString> for String {
+    fn from(value: HeapString) -> Self {
         String::String(value)
     }
 }
 
-impl From<StringIndex> for Primitive {
-    fn from(value: StringIndex) -> Self {
+impl From<HeapString> for Primitive {
+    fn from(value: HeapString) -> Self {
         Self::String(value)
     }
 }
@@ -170,7 +212,7 @@ impl String {
         // until it's clear we need a new heap string.
         enum Status {
             Empty,
-            ExistingString(StringIndex),
+            ExistingString(HeapString),
             SmallString { data: [u8; 7], len: usize },
             String(std::string::String),
         }
@@ -300,5 +342,40 @@ impl String {
 
         // 5. Return -1.
         -1
+    }
+}
+
+impl CreateHeapData<StringHeapData, String> for Heap {
+    fn create(&mut self, data: StringHeapData) -> String {
+        self.strings.push(Some(data));
+        String::String(HeapString(StringIndex::last(&self.strings)))
+    }
+}
+
+impl HeapMarkAndSweep for String {
+    #[inline(always)]
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        if let Self::String(idx) = self {
+            idx.mark_values(queues);
+        }
+    }
+
+    #[inline(always)]
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        if let Self::String(idx) = self {
+            idx.sweep_values(compactions);
+        }
+    }
+}
+
+impl HeapMarkAndSweep for HeapString {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.strings.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 =
+            StringIndex::from_u32(self_index - compactions.strings.get_shift_for_index(self_index));
     }
 }

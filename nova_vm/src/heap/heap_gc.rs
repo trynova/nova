@@ -11,8 +11,8 @@ use super::{
         ArrayBufferIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex, DateIndex,
         ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
         FinalizationRegistryIndex, MapIndex, NumberIndex, PrimitiveObjectIndex, PromiseIndex,
-        ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex, SymbolIndex,
-        TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
+        ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex,
+        WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
     Heap,
 };
@@ -23,7 +23,7 @@ use crate::ecmascript::{
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
     },
     scripts_and_modules::{module::ModuleIdentifier, script::ScriptIdentifier},
-    types::{bigint::HeapBigInt, OrdinaryObject, Value},
+    types::{bigint::HeapBigInt, HeapString, OrdinaryObject, Value},
 };
 
 fn collect_values(queues: &mut WorkQueues, values: &[Option<Value>]) {
@@ -458,10 +458,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 shared_array_buffers.get(index).mark_values(&mut queues);
             }
         });
-        let mut string_marks: Box<[StringIndex]> = queues.strings.drain(..).collect();
+        let mut string_marks: Box<[HeapString]> = queues.strings.drain(..).collect();
         string_marks.sort();
         string_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.strings.get_mut(index) {
                 if *marked {
                     // Already marked, ignore

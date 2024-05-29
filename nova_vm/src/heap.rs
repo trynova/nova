@@ -52,7 +52,7 @@ use crate::ecmascript::{
         weak_set::{data::WeakSetHeapData, WeakSet},
         ArrayBuffer,
     },
-    types::{OrdinaryObject, BUILTIN_STRINGS_LIST},
+    types::{HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
 };
 use crate::ecmascript::{
     builtins::{ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
@@ -363,7 +363,7 @@ impl Heap {
     /// Allocate a string onto the Agent heap
     ///
     /// This method will currently iterate through all heap strings to look for
-    /// a possible matching string and if found will return its StringIndex
+    /// a possible matching string and if found will return its HeapString
     /// instead of allocating a copy.
     ///
     /// # Safety
@@ -378,14 +378,13 @@ impl Heap {
             return idx;
         }
         let data = StringHeapData::from_str(message);
-        self.strings.push(Some(data));
-        StringIndex::last(&self.strings).into()
+        self.create(data)
     }
 
     /// Allocate a static string onto the Agent heap
     ///
     /// This method will currently iterate through all heap strings to look for
-    /// a possible matching string and if found will return its StringIndex
+    /// a possible matching string and if found will return its HeapString
     /// instead of allocating a copy.
     ///
     /// # Safety
@@ -400,14 +399,13 @@ impl Heap {
             return idx;
         }
         let data = StringHeapData::from_string(message);
-        self.strings.push(Some(data));
-        StringIndex::last(&self.strings).into()
+        self.create(data)
     }
 
     /// Allocate a static string onto the Agent heap
     ///
     /// This method will currently iterate through all heap strings to look for
-    /// a possible matching string and if found will return its StringIndex
+    /// a possible matching string and if found will return its HeapString
     /// instead of allocating a copy.
     ///
     /// # Safety
@@ -422,8 +420,7 @@ impl Heap {
             return idx;
         }
         let data = StringHeapData::from_static_str(message);
-        self.strings.push(Some(data));
-        StringIndex::last(&self.strings).into()
+        self.create(data)
     }
 
     fn find_equal_string(&self, message: &str) -> Option<String> {
@@ -431,7 +428,7 @@ impl Heap {
         self.strings
             .iter()
             .position(|opt| opt.as_ref().map_or(false, |data| data.as_str() == message))
-            .map(|found_index| StringIndex::from_index(found_index).into())
+            .map(|found_index| HeapString(StringIndex::from_index(found_index)).into())
     }
 
     /// Allocate a 64-bit floating point number onto the Agent heap
