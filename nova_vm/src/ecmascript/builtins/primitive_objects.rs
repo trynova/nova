@@ -1,10 +1,11 @@
 use crate::{
     ecmascript::types::{
+        bigint::{HeapBigInt, SmallBigInt},
         BigInt, Number, OrdinaryObject, String, Symbol, BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT,
         FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT,
         SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
     },
-    heap::indexes::{BigIntIndex, NumberIndex, StringIndex, SymbolIndex},
+    heap::indexes::{NumberIndex, StringIndex, SymbolIndex},
     SmallInteger,
 };
 use small_string::SmallString;
@@ -19,8 +20,8 @@ pub(crate) enum PrimitiveObjectData {
     Number(NumberIndex) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     Float(f32) = FLOAT_DISCRIMINANT,
-    BigInt(BigIntIndex) = BIGINT_DISCRIMINANT,
-    SmallBigInt(SmallInteger) = SMALL_BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -11,16 +11,19 @@ use crate::{
         types::BUILTIN_STRING_MEMORY,
     },
     heap::indexes::{
-        ArrayBufferIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
-        DateIndex, ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex,
-        FinalizationRegistryIndex, MapIndex, NumberIndex, PrimitiveObjectIndex, PromiseIndex,
-        ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex, SymbolIndex,
-        TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
+        ArrayBufferIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex, DateIndex,
+        ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex,
+        MapIndex, NumberIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex, RegExpIndex,
+        SetIndex, SharedArrayBufferIndex, StringIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
+        WeakRefIndex, WeakSetIndex,
     },
     SmallInteger, SmallString,
 };
 
-use super::{BigInt, IntoValue, Number, Numeric, OrdinaryObject, String, Symbol};
+use super::{
+    bigint::{HeapBigInt, SmallBigInt},
+    BigInt, IntoValue, Number, Numeric, OrdinaryObject, String, Symbol,
+};
 
 /// ### [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -49,8 +52,8 @@ pub enum Value {
     Float(f32),
 
     /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
-    BigInt(BigIntIndex),
-    SmallBigInt(SmallInteger),
+    BigInt(HeapBigInt),
+    SmallBigInt(SmallBigInt),
 
     /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
     Object(OrdinaryObject),
@@ -156,10 +159,9 @@ pub(crate) const NUMBER_DISCRIMINANT: u8 =
 pub(crate) const INTEGER_DISCRIMINANT: u8 =
     value_discriminant(Value::Integer(SmallInteger::zero()));
 pub(crate) const FLOAT_DISCRIMINANT: u8 = value_discriminant(Value::Float(0f32));
-pub(crate) const BIGINT_DISCRIMINANT: u8 =
-    value_discriminant(Value::BigInt(BigIntIndex::from_u32_index(0)));
+pub(crate) const BIGINT_DISCRIMINANT: u8 = value_discriminant(Value::BigInt(HeapBigInt::_def()));
 pub(crate) const SMALL_BIGINT_DISCRIMINANT: u8 =
-    value_discriminant(Value::SmallBigInt(SmallInteger::zero()));
+    value_discriminant(Value::SmallBigInt(SmallBigInt::zero()));
 pub(crate) const OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::Object(OrdinaryObject::_def()));
 pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array::_def()));

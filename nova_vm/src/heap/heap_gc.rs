@@ -8,8 +8,8 @@ use super::{
         sweep_heap_vector_values, CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
     },
     indexes::{
-        ArrayBufferIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
-        DateIndex, ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
+        ArrayBufferIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex, DateIndex,
+        ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
         FinalizationRegistryIndex, MapIndex, NumberIndex, PrimitiveObjectIndex, PromiseIndex,
         ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex, SymbolIndex,
         TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
@@ -23,7 +23,7 @@ use crate::ecmascript::{
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
     },
     scripts_and_modules::{module::ModuleIdentifier, script::ScriptIdentifier},
-    types::{OrdinaryObject, Value},
+    types::{bigint::HeapBigInt, OrdinaryObject, Value},
 };
 
 fn collect_values(queues: &mut WorkQueues, values: &[Option<Value>]) {
@@ -217,10 +217,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 array_buffers.get(index).mark_values(&mut queues);
             }
         });
-        let mut bigint_marks: Box<[BigIntIndex]> = queues.bigints.drain(..).collect();
+        let mut bigint_marks: Box<[HeapBigInt]> = queues.bigints.drain(..).collect();
         bigint_marks.sort();
         bigint_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.bigints.get_mut(index) {
                 if *marked {
                     // Already marked, ignore

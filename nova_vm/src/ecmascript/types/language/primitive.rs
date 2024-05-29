@@ -1,11 +1,12 @@
 use small_string::SmallString;
 
 use crate::{
-    heap::indexes::{BigIntIndex, NumberIndex, StringIndex, SymbolIndex},
+    heap::indexes::{NumberIndex, StringIndex, SymbolIndex},
     SmallInteger,
 };
 
 use super::{
+    bigint::{HeapBigInt, SmallBigInt},
     value::{
         BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT,
         NULL_DISCRIMINANT, NUMBER_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT,
@@ -27,8 +28,8 @@ pub enum Primitive {
     Number(NumberIndex) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     Float(f32) = FLOAT_DISCRIMINANT,
-    BigInt(BigIntIndex) = BIGINT_DISCRIMINANT,
-    SmallBigInt(SmallInteger) = SMALL_BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
 impl IntoValue for Primitive {

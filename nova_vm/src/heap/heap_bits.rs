@@ -3,8 +3,8 @@ use std::borrow::Borrow;
 use super::{
     element_array::{ElementArrayKey, ElementsVector},
     indexes::{
-        ArrayBufferIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
-        DateIndex, ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
+        ArrayBufferIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex, DateIndex,
+        ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
         FinalizationRegistryIndex, MapIndex, NumberIndex, PrimitiveObjectIndex, PromiseIndex,
         ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex, SymbolIndex,
         TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
@@ -44,8 +44,8 @@ use crate::ecmascript::{
         ScriptOrModule,
     },
     types::{
-        BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-        Function, Number, OrdinaryObject, String, Value,
+        bigint::HeapBigInt, BoundFunctionHeapData, BuiltinFunctionHeapData,
+        ECMAScriptFunctionHeapData, Function, Number, OrdinaryObject, String, Value,
     },
 };
 
@@ -98,7 +98,7 @@ pub struct HeapBits {
 pub(crate) struct WorkQueues {
     pub array_buffers: Vec<ArrayBufferIndex>,
     pub arrays: Vec<Array>,
-    pub bigints: Vec<BigIntIndex>,
+    pub bigints: Vec<HeapBigInt>,
     pub bound_functions: Vec<BoundFunctionIndex>,
     pub builtin_functions: Vec<BuiltinFunctionIndex>,
     pub data_views: Vec<DataViewIndex>,
@@ -802,17 +802,6 @@ impl HeapMarkAndSweep for ArrayBufferIndex {
     }
 }
 
-impl HeapMarkAndSweep for BigIntIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.bigints.push(*self);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(self_index - compactions.bigints.get_shift_for_index(self_index));
-    }
-}
-
 impl HeapMarkAndSweep for BoundFunctionIndex {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.bound_functions.push(*self);
@@ -1232,12 +1221,6 @@ impl HeapMarkAndSweep for ArrayBufferHeapData {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.object_index.sweep_values(compactions);
     }
-}
-
-impl HeapMarkAndSweep for BigIntHeapData {
-    fn mark_values(&self, _queues: &mut WorkQueues) {}
-
-    fn sweep_values(&mut self, _compactions: &CompactionLists) {}
 }
 
 impl HeapMarkAndSweep for BoundFunctionHeapData {

@@ -27,8 +27,8 @@ use self::{
         ElementArray2Pow32, ElementArray2Pow4, ElementArray2Pow6, ElementArray2Pow8, ElementArrays,
     },
     indexes::{
-        BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex,
-        NumberIndex, ObjectIndex, StringIndex,
+        BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex, NumberIndex,
+        ObjectIndex, StringIndex,
     },
 };
 use crate::ecmascript::{
@@ -62,9 +62,9 @@ use crate::ecmascript::{
         script::{Script, ScriptIdentifier},
     },
     types::{
-        BigInt, BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData,
-        ECMAScriptFunctionHeapData, Function, Number, NumberHeapData, Object, ObjectHeapData,
-        String, StringHeapData, SymbolHeapData, Value,
+        BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
+        Function, Number, NumberHeapData, Object, ObjectHeapData, String, StringHeapData,
+        SymbolHeapData, Value,
     },
 };
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
@@ -156,13 +156,6 @@ impl CreateHeapData<ArrayBufferHeapData, ArrayBuffer> for Heap {
     fn create(&mut self, data: ArrayBufferHeapData) -> ArrayBuffer {
         self.array_buffers.push(Some(data));
         ArrayBuffer::from(ArrayBufferIndex::last(&self.array_buffers))
-    }
-}
-
-impl CreateHeapData<BigIntHeapData, BigInt> for Heap {
-    fn create(&mut self, data: BigIntHeapData) -> BigInt {
-        self.bigints.push(Some(data));
-        BigInt::BigInt(BigIntIndex::last(&self.bigints))
     }
 }
 

@@ -150,7 +150,7 @@ impl TryFrom<Value> for PropertyKey {
                 if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER)
                     .contains(&x.into_i64()) =>
             {
-                Ok(PropertyKey::Integer(x))
+                Ok(PropertyKey::Integer(x.into_inner()))
             }
             _ => Err(()),
         }

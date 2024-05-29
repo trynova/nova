@@ -570,7 +570,7 @@ pub(crate) fn to_property_key(agent: &mut Agent, argument: Value) -> JsResult<Pr
         Primitive::SmallBigInt(x)
             if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&x.into_i64()) =>
         {
-            Ok(PropertyKey::Integer(x))
+            Ok(PropertyKey::Integer(x.into_inner()))
         }
         Primitive::Undefined => Ok(PropertyKey::from(BUILTIN_STRING_MEMORY.undefined)),
         Primitive::Null => Ok(PropertyKey::from(BUILTIN_STRING_MEMORY.null)),
