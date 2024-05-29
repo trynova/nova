@@ -19,7 +19,7 @@ pub use function::{Function, IntoFunction};
 pub use into_numeric::IntoNumeric;
 pub use into_primitive::IntoPrimitive;
 pub use into_value::IntoValue;
-pub use number::{Number, NumberHeapData};
+pub use number::{HeapNumber, Number, NumberHeapData};
 pub use numeric::Numeric;
 pub use object::{
     InternalMethods, IntoObject, Object, ObjectHeapData, OrdinaryObject,

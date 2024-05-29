@@ -601,46 +601,6 @@ impl IndexMut<MapIndex> for Heap {
     }
 }
 
-impl Index<NumberIndex> for Agent {
-    type Output = f64;
-
-    fn index(&self, index: NumberIndex) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<NumberIndex> for Agent {
-    fn index_mut(&mut self, index: NumberIndex) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<NumberIndex> for Heap {
-    type Output = f64;
-
-    fn index(&self, index: NumberIndex) -> &Self::Output {
-        &self
-            .numbers
-            .get(index.into_index())
-            .expect("NumberIndex out of bounds")
-            .as_ref()
-            .expect("NumberIndex slot empty")
-            .data
-    }
-}
-
-impl IndexMut<NumberIndex> for Heap {
-    fn index_mut(&mut self, index: NumberIndex) -> &mut Self::Output {
-        &mut self
-            .numbers
-            .get_mut(index.into_index())
-            .expect("NumberIndex out of bounds")
-            .as_mut()
-            .expect("NumberIndex slot empty")
-            .data
-    }
-}
-
 impl Index<ObjectIndex> for Agent {
     type Output = ObjectHeapData;
 

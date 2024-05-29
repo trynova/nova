@@ -3,12 +3,12 @@ use crate::{
         abstract_operations::type_conversion::to_number,
         execution::{Agent, JsResult},
     },
-    heap::indexes::NumberIndex,
     SmallInteger,
 };
 
 use super::{
     bigint::{HeapBigInt, SmallBigInt},
+    number::HeapNumber,
     value::{
         BIGINT_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT,
         SMALL_BIGINT_DISCRIMINANT,
@@ -19,7 +19,7 @@ use super::{
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Numeric {
-    Number(NumberIndex) = NUMBER_DISCRIMINANT,
+    Number(HeapNumber) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     Float(f32) = FLOAT_DISCRIMINANT,
     BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,

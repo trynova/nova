@@ -52,7 +52,7 @@ use crate::ecmascript::{
         weak_set::{data::WeakSetHeapData, WeakSet},
         ArrayBuffer,
     },
-    types::{HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
+    types::{HeapNumber, HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
 };
 use crate::ecmascript::{
     builtins::{ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
@@ -63,8 +63,8 @@ use crate::ecmascript::{
     },
     types::{
         BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-        Function, Number, NumberHeapData, Object, ObjectHeapData, String, StringHeapData,
-        SymbolHeapData, Value,
+        Function, NumberHeapData, Object, ObjectHeapData, String, StringHeapData, SymbolHeapData,
+        Value,
     },
 };
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
@@ -112,22 +112,6 @@ pub trait CreateHeapData<T, F> {
     /// Creates a [`Value`] from the given data. Allocating the data is **not**
     /// guaranteed.
     fn create(&mut self, data: T) -> F;
-}
-
-impl CreateHeapData<f64, Number> for Heap {
-    fn create(&mut self, data: f64) -> Number {
-        // NOTE: This function cannot currently be implemented
-        // directly using `Number::from_f64` as it takes an Agent
-        // parameter that we do not have access to here.
-        if let Ok(value) = Number::try_from(data) {
-            value
-        } else {
-            // SAFETY: Number was not representable as a
-            // stack-allocated Number.
-            let id = unsafe { self.alloc_number(data) };
-            Number::Number(id)
-        }
-    }
 }
 
 impl CreateHeapData<&str, String> for Heap {
@@ -438,10 +422,10 @@ impl Heap {
     /// The number being allocated must not be representable
     /// as a SmallInteger or f32. All stack-allocated numbers must be
     /// inequal to any heap-allocated number.
-    pub unsafe fn alloc_number(&mut self, number: f64) -> NumberIndex {
+    pub unsafe fn alloc_number(&mut self, number: f64) -> HeapNumber {
         debug_assert!(number.fract() != 0.0 || number as f32 as f64 != number);
         self.numbers.push(Some(number.into()));
-        NumberIndex::last(&self.numbers)
+        HeapNumber(NumberIndex::last(&self.numbers))
     }
 
     pub(crate) fn create_null_object(&mut self, entries: &[ObjectEntry]) -> OrdinaryObject {

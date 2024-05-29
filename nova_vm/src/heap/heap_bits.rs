@@ -5,11 +5,11 @@ use super::{
     indexes::{
         ArrayBufferIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex, DateIndex,
         ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
-        FinalizationRegistryIndex, MapIndex, NumberIndex, PrimitiveObjectIndex, PromiseIndex,
-        ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex,
-        WeakMapIndex, WeakRefIndex, WeakSetIndex,
+        FinalizationRegistryIndex, MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex,
+        RegExpIndex, SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
+        WeakRefIndex, WeakSetIndex,
     },
-    Heap, NumberHeapData, SymbolHeapData,
+    Heap, SymbolHeapData,
 };
 use crate::ecmascript::{
     builtins::{
@@ -45,7 +45,7 @@ use crate::ecmascript::{
     },
     types::{
         bigint::HeapBigInt, BoundFunctionHeapData, BuiltinFunctionHeapData,
-        ECMAScriptFunctionHeapData, Function, HeapString, Number, OrdinaryObject, Value,
+        ECMAScriptFunctionHeapData, Function, HeapNumber, HeapString, OrdinaryObject, Value,
     },
 };
 
@@ -120,7 +120,7 @@ pub(crate) struct WorkQueues {
     pub global_environments: Vec<GlobalEnvironmentIndex>,
     pub maps: Vec<MapIndex>,
     pub modules: Vec<ModuleIdentifier>,
-    pub numbers: Vec<NumberIndex>,
+    pub numbers: Vec<HeapNumber>,
     pub object_environments: Vec<ObjectEnvironmentIndex>,
     pub objects: Vec<OrdinaryObject>,
     pub primitive_objects: Vec<PrimitiveObjectIndex>,
@@ -880,17 +880,6 @@ impl HeapMarkAndSweep for MapIndex {
     }
 }
 
-impl HeapMarkAndSweep for NumberIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.numbers.push(*self);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(self_index - compactions.numbers.get_shift_for_index(self_index));
-    }
-}
-
 impl HeapMarkAndSweep for PrimitiveObjectIndex {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.primitive_objects.push(*self);
@@ -1130,20 +1119,6 @@ impl HeapMarkAndSweep for Map {
     }
 }
 
-impl HeapMarkAndSweep for Number {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        if let Self::Number(idx) = self {
-            idx.mark_values(queues);
-        }
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        if let Self::Number(idx) = self {
-            idx.sweep_values(compactions);
-        }
-    }
-}
-
 impl HeapMarkAndSweep for Set {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.0.mark_values(queues);
@@ -1315,12 +1290,6 @@ impl HeapMarkAndSweep for MapHeapData {
             .iter_mut()
             .for_each(|value| value.sweep_values(compactions));
     }
-}
-
-impl HeapMarkAndSweep for NumberHeapData {
-    fn mark_values(&self, _queues: &mut WorkQueues) {}
-
-    fn sweep_values(&mut self, _compactions: &CompactionLists) {}
 }
 
 impl HeapMarkAndSweep for PromiseHeapData {

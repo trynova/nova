@@ -10,9 +10,9 @@ use super::{
     indexes::{
         ArrayBufferIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex, DateIndex,
         ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
-        FinalizationRegistryIndex, MapIndex, NumberIndex, PrimitiveObjectIndex, PromiseIndex,
-        ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex,
-        WeakMapIndex, WeakRefIndex, WeakSetIndex,
+        FinalizationRegistryIndex, MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex,
+        RegExpIndex, SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
+        WeakRefIndex, WeakSetIndex,
     },
     Heap,
 };
@@ -23,7 +23,7 @@ use crate::ecmascript::{
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
     },
     scripts_and_modules::{module::ModuleIdentifier, script::ScriptIdentifier},
-    types::{bigint::HeapBigInt, HeapString, OrdinaryObject, Value},
+    types::{bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Value},
 };
 
 fn collect_values(queues: &mut WorkQueues, values: &[Option<Value>]) {
@@ -391,10 +391,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 maps.get(index).mark_values(&mut queues);
             }
         });
-        let mut number_marks: Box<[NumberIndex]> = queues.numbers.drain(..).collect();
+        let mut number_marks: Box<[HeapNumber]> = queues.numbers.drain(..).collect();
         number_marks.sort();
         number_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.numbers.get_mut(index) {
                 if *marked {
                     // Already marked, ignore

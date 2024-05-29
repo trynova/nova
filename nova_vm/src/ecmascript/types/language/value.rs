@@ -13,8 +13,8 @@ use crate::{
     heap::indexes::{
         ArrayBufferIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex, DateIndex,
         ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex,
-        MapIndex, NumberIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex, RegExpIndex,
-        SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
+        MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex,
+        SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
         WeakSetIndex,
     },
     SmallInteger, SmallString,
@@ -22,6 +22,7 @@ use crate::{
 
 use super::{
     bigint::{HeapBigInt, SmallBigInt},
+    number::HeapNumber,
     string::HeapString,
     BigInt, IntoValue, Number, Numeric, OrdinaryObject, String, Symbol,
 };
@@ -48,7 +49,7 @@ pub enum Value {
     Symbol(SymbolIndex),
 
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
-    Number(NumberIndex),
+    Number(HeapNumber),
     Integer(SmallInteger), // 56-bit signed integer.
     Float(f32),
 
@@ -154,8 +155,7 @@ pub(crate) const SMALL_STRING_DISCRIMINANT: u8 =
     value_discriminant(Value::SmallString(SmallString::EMPTY));
 pub(crate) const SYMBOL_DISCRIMINANT: u8 =
     value_discriminant(Value::Symbol(SymbolIndex::from_u32_index(0)));
-pub(crate) const NUMBER_DISCRIMINANT: u8 =
-    value_discriminant(Value::Number(NumberIndex::from_u32_index(0)));
+pub(crate) const NUMBER_DISCRIMINANT: u8 = value_discriminant(Value::Number(HeapNumber::_def()));
 pub(crate) const INTEGER_DISCRIMINANT: u8 =
     value_discriminant(Value::Integer(SmallInteger::zero()));
 pub(crate) const FLOAT_DISCRIMINANT: u8 = value_discriminant(Value::Float(0f32));
