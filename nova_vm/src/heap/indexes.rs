@@ -169,42 +169,6 @@ pub type WeakMapIndex = BaseIndex<WeakMapHeapData>;
 pub type WeakRefIndex = BaseIndex<WeakRefHeapData>;
 pub type WeakSetIndex = BaseIndex<WeakSetHeapData>;
 
-impl Index<DateIndex> for Agent {
-    type Output = DateHeapData;
-
-    fn index(&self, index: DateIndex) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<DateIndex> for Agent {
-    fn index_mut(&mut self, index: DateIndex) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<DateIndex> for Heap {
-    type Output = DateHeapData;
-
-    fn index(&self, index: DateIndex) -> &Self::Output {
-        self.dates
-            .get(index.into_index())
-            .expect("DateIndex out of bounds")
-            .as_ref()
-            .expect("DateIndex slot empty")
-    }
-}
-
-impl IndexMut<DateIndex> for Heap {
-    fn index_mut(&mut self, index: DateIndex) -> &mut Self::Output {
-        self.dates
-            .get_mut(index.into_index())
-            .expect("DateIndex out of bounds")
-            .as_mut()
-            .expect("DateIndex slot empty")
-    }
-}
-
 impl Index<EmbedderObjectIndex> for Agent {
     type Output = EmbedderObjectHeapData;
 

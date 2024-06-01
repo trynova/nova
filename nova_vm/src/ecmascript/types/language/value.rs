@@ -6,18 +6,18 @@ use crate::{
             to_big_int, to_int32, to_number, to_numeric, to_string, to_uint32,
         },
         builtins::{
-            bound_function::BoundFunction, data_view::DataView, primitive_objects::PrimitiveObject,
-            shared_array_buffer::SharedArrayBuffer, Array, ArrayBuffer, BuiltinFunction,
-            ECMAScriptFunction,
+            bound_function::BoundFunction, data_view::DataView, date::Date,
+            primitive_objects::PrimitiveObject, shared_array_buffer::SharedArrayBuffer, Array,
+            ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
         types::BUILTIN_STRING_MEMORY,
     },
     heap::indexes::{
-        DateIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex, MapIndex,
-        PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex,
-        WeakMapIndex, WeakRefIndex, WeakSetIndex,
+        EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex, MapIndex, PromiseIndex,
+        ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
+        WeakRefIndex, WeakSetIndex,
     },
     SmallInteger, SmallString,
 };
@@ -91,7 +91,7 @@ pub enum Value {
     Array(Array),
     ArrayBuffer(ArrayBuffer),
     DataView(DataView),
-    Date(DateIndex),
+    Date(Date),
     Error(ErrorIndex),
     FinalizationRegistry(FinalizationRegistryIndex),
     Map(MapIndex),
@@ -169,8 +169,7 @@ pub(crate) const OBJECT_DISCRIMINANT: u8 =
 pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array::_def()));
 pub(crate) const ARRAY_BUFFER_DISCRIMINANT: u8 =
     value_discriminant(Value::ArrayBuffer(ArrayBuffer::_def()));
-pub(crate) const DATE_DISCRIMINANT: u8 =
-    value_discriminant(Value::Date(DateIndex::from_u32_index(0)));
+pub(crate) const DATE_DISCRIMINANT: u8 = value_discriminant(Value::Date(Date::_def()));
 pub(crate) const ERROR_DISCRIMINANT: u8 =
     value_discriminant(Value::Error(ErrorIndex::from_u32_index(0)));
 pub(crate) const BUILTIN_FUNCTION_DISCRIMINANT: u8 =

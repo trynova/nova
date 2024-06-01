@@ -3,8 +3,8 @@ use std::borrow::Borrow;
 use super::{
     element_array::{ElementArrayKey, ElementsVector},
     indexes::{
-        DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex,
-        MapIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex,
+        ElementIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex, MapIndex,
+        PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex,
         WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
     Heap, SymbolHeapData,
@@ -13,7 +13,7 @@ use crate::ecmascript::{
     builtins::{
         bound_function::BoundFunction,
         data_view::DataView,
-        date::data::DateHeapData,
+        date::{data::DateHeapData, Date},
         embedder_object::data::EmbedderObjectHeapData,
         error::ErrorHeapData,
         finalization_registry::data::FinalizationRegistryHeapData,
@@ -98,7 +98,7 @@ pub(crate) struct WorkQueues {
     pub bound_functions: Vec<BoundFunction>,
     pub builtin_functions: Vec<BuiltinFunction>,
     pub data_views: Vec<DataView>,
-    pub dates: Vec<DateIndex>,
+    pub dates: Vec<Date>,
     pub declarative_environments: Vec<DeclarativeEnvironmentIndex>,
     pub e_2_10: Vec<(ElementIndex, u32)>,
     pub e_2_12: Vec<(ElementIndex, u32)>,
@@ -786,17 +786,6 @@ pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
             false
         }
     });
-}
-
-impl HeapMarkAndSweep for DateIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.dates.push(*self);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(self_index - compactions.dates.get_shift_for_index(self_index));
-    }
 }
 
 impl HeapMarkAndSweep for ErrorIndex {

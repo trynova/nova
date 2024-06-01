@@ -1,6 +1,6 @@
 pub(crate) mod data;
 
-use std::ops::{Deref, Index, IndexMut};
+use std::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -10,31 +10,24 @@ use crate::{
             PropertyKey, Value,
         },
     },
-    heap::{indexes::DateIndex, Heap},
+    heap::{
+        indexes::DateIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+    },
 };
 
 use self::data::DateHeapData;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct Date(pub(crate) DateIndex);
 
-impl Deref for Date {
-    type Target = DateIndex;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl Date {
+    pub(crate) const fn _def() -> Self {
+        Self(DateIndex::from_u32_index(0))
     }
-}
 
-impl From<DateIndex> for Date {
-    fn from(value: DateIndex) -> Self {
-        Self(value)
-    }
-}
-
-impl From<DateIndex> for Value {
-    fn from(value: DateIndex) -> Self {
-        Self::Date(value)
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
     }
 }
 
@@ -46,7 +39,7 @@ impl IntoValue for Date {
 
 impl From<Date> for Value {
     fn from(value: Date) -> Self {
-        Value::Date(value.0)
+        Value::Date(value)
     }
 }
 
@@ -58,7 +51,7 @@ impl IntoObject for Date {
 
 impl From<Date> for Object {
     fn from(value: Date) -> Self {
-        Object::Date(value.0)
+        Object::Date(value)
     }
 }
 
@@ -67,7 +60,7 @@ impl TryFrom<Value> for Date {
 
     fn try_from(value: Value) -> Result<Self, ()> {
         match value {
-            Value::Date(idx) => Ok(idx.into()),
+            Value::Date(idx) => Ok(idx),
             _ => Err(()),
         }
     }
@@ -78,45 +71,9 @@ impl TryFrom<Object> for Date {
 
     fn try_from(value: Object) -> Result<Self, ()> {
         match value {
-            Object::Date(idx) => Ok(idx.into()),
+            Object::Date(idx) => Ok(idx),
             _ => Err(()),
         }
-    }
-}
-
-impl Index<Date> for Agent {
-    type Output = DateHeapData;
-
-    fn index(&self, index: Date) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<Date> for Agent {
-    fn index_mut(&mut self, index: Date) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<Date> for Heap {
-    type Output = DateHeapData;
-
-    fn index(&self, index: Date) -> &Self::Output {
-        self.dates
-            .get(index.0.into_index())
-            .expect("Date out of bounds")
-            .as_ref()
-            .expect("Date slot empty")
-    }
-}
-
-impl IndexMut<Date> for Heap {
-    fn index_mut(&mut self, index: Date) -> &mut Self::Output {
-        self.dates
-            .get_mut(index.0.into_index())
-            .expect("Date out of bounds")
-            .as_mut()
-            .expect("Date slot empty")
     }
 }
 
@@ -217,5 +174,48 @@ impl InternalMethods for Date {
 
     fn internal_own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         todo!()
+    }
+}
+
+impl Index<Date> for Agent {
+    type Output = DateHeapData;
+
+    fn index(&self, index: Date) -> &Self::Output {
+        self.heap
+            .dates
+            .get(index.get_index())
+            .expect("Date out of bounds")
+            .as_ref()
+            .expect("Date slot empty")
+    }
+}
+
+impl IndexMut<Date> for Agent {
+    fn index_mut(&mut self, index: Date) -> &mut Self::Output {
+        self.heap
+            .dates
+            .get_mut(index.get_index())
+            .expect("Date out of bounds")
+            .as_mut()
+            .expect("Date slot empty")
+    }
+}
+
+impl HeapMarkAndSweep for Date {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.dates.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 =
+            DateIndex::from_u32(self_index - compactions.dates.get_shift_for_index(self_index));
+    }
+}
+
+impl CreateHeapData<DateHeapData, Date> for Heap {
+    fn create(&mut self, data: DateHeapData) -> Date {
+        self.dates.push(Some(data));
+        Date(DateIndex::last(&self.dates))
     }
 }

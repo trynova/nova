@@ -8,17 +8,17 @@ use super::{
         sweep_heap_vector_values, CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
     },
     indexes::{
-        DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex,
-        MapIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex,
+        ElementIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex, MapIndex,
+        PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex,
         WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
     Heap,
 };
 use crate::ecmascript::{
     builtins::{
-        bound_function::BoundFunction, data_view::DataView, primitive_objects::PrimitiveObject,
-        shared_array_buffer::SharedArrayBuffer, Array, ArrayBuffer, BuiltinFunction,
-        ECMAScriptFunction,
+        bound_function::BoundFunction, data_view::DataView, date::Date,
+        primitive_objects::PrimitiveObject, shared_array_buffer::SharedArrayBuffer, Array,
+        ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
     },
     execution::{
         DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
@@ -299,10 +299,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 data_views.get(index).mark_values(&mut queues);
             }
         });
-        let mut date_marks: Box<[DateIndex]> = queues.dates.drain(..).collect();
+        let mut date_marks: Box<[Date]> = queues.dates.drain(..).collect();
         date_marks.sort();
         date_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.dates.get_mut(index) {
                 if *marked {
                     // Already marked, ignore

@@ -644,7 +644,7 @@ impl DatePrototype {
 #[inline(always)]
 fn check_date_object(agent: &mut Agent, this_value: Value) -> JsResult<Date> {
     match this_value {
-        Value::Date(idx) => Ok(Date(idx)),
+        Value::Date(date) => Ok(date),
         _ => Err(agent.throw_exception(ExceptionType::TypeError, "this is not a Date object.")),
     }
 }

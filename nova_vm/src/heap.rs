@@ -16,8 +16,8 @@ pub(crate) use self::heap_constants::{
     LAST_WELL_KNOWN_SYMBOL_INDEX,
 };
 use self::indexes::{
-    DateIndex, ErrorIndex, FinalizationRegistryIndex, MapIndex, PromiseIndex, RegExpIndex,
-    SetIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
+    ErrorIndex, FinalizationRegistryIndex, MapIndex, PromiseIndex, RegExpIndex, SetIndex,
+    TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
 };
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
@@ -30,7 +30,7 @@ use self::{
 use crate::ecmascript::{
     builtins::{
         data_view::data::DataViewHeapData,
-        date::{data::DateHeapData, Date},
+        date::data::DateHeapData,
         embedder_object::data::EmbedderObjectHeapData,
         error::{Error, ErrorHeapData},
         finalization_registry::{data::FinalizationRegistryHeapData, FinalizationRegistry},
@@ -127,13 +127,6 @@ impl CreateHeapData<std::string::String, String> for Heap {
             // SAFETY: String couldn't be represented as a SmallString.
             unsafe { self.alloc_string(data) }
         }
-    }
-}
-
-impl CreateHeapData<DateHeapData, Date> for Heap {
-    fn create(&mut self, data: DateHeapData) -> Date {
-        self.dates.push(Some(data));
-        Date::from(DateIndex::last(&self.dates))
     }
 }
 
