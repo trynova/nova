@@ -493,42 +493,6 @@ impl IndexMut<SetIndex> for Heap {
     }
 }
 
-impl Index<SymbolIndex> for Agent {
-    type Output = SymbolHeapData;
-
-    fn index(&self, index: SymbolIndex) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<SymbolIndex> for Agent {
-    fn index_mut(&mut self, index: SymbolIndex) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<SymbolIndex> for Heap {
-    type Output = SymbolHeapData;
-
-    fn index(&self, index: SymbolIndex) -> &Self::Output {
-        self.symbols
-            .get(index.into_index())
-            .expect("SymbolIndex out of bounds")
-            .as_ref()
-            .expect("SymbolIndex slot empty")
-    }
-}
-
-impl IndexMut<SymbolIndex> for Heap {
-    fn index_mut(&mut self, index: SymbolIndex) -> &mut Self::Output {
-        self.symbols
-            .get_mut(index.into_index())
-            .expect("SymbolIndex out of bounds")
-            .as_mut()
-            .expect("SymbolIndex slot empty")
-    }
-}
-
 impl Index<TypedArrayIndex> for Agent {
     type Output = TypedArrayHeapData;
 

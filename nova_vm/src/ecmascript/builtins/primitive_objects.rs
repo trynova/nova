@@ -13,8 +13,8 @@ use crate::{
         },
     },
     heap::{
-        indexes::{PrimitiveObjectIndex, SymbolIndex},
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::PrimitiveObjectIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        WorkQueues,
     },
     SmallInteger,
 };
@@ -204,7 +204,7 @@ pub(crate) enum PrimitiveObjectData {
     Boolean(bool) = BOOLEAN_DISCRIMINANT,
     String(HeapString) = STRING_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
-    Symbol(SymbolIndex) = SYMBOL_DISCRIMINANT,
+    Symbol(Symbol) = SYMBOL_DISCRIMINANT,
     Number(HeapNumber) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     Float(f32) = FLOAT_DISCRIMINANT,
@@ -263,7 +263,7 @@ impl PrimitiveObjectHeapData {
     pub(crate) fn new_symbol_object(symbol: Symbol) -> Self {
         Self {
             object_index: None,
-            data: PrimitiveObjectData::Symbol(symbol.0),
+            data: PrimitiveObjectData::Symbol(symbol),
         }
     }
 }

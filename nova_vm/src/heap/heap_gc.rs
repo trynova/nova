@@ -9,8 +9,8 @@ use super::{
     },
     indexes::{
         ElementIndex, EmbedderObjectIndex, FinalizationRegistryIndex, MapIndex, PromiseIndex,
-        ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
-        WeakRefIndex, WeakSetIndex,
+        ProxyIndex, RegExpIndex, SetIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
+        WeakSetIndex,
     },
     Heap,
 };
@@ -25,7 +25,7 @@ use crate::ecmascript::{
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
     },
     scripts_and_modules::{module::ModuleIdentifier, script::ScriptIdentifier},
-    types::{bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Value},
+    types::{bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value},
 };
 
 fn collect_values(queues: &mut WorkQueues, values: &[Option<Value>]) {
@@ -472,10 +472,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 strings.get(index).mark_values(&mut queues);
             }
         });
-        let mut symbol_marks: Box<[SymbolIndex]> = queues.symbols.drain(..).collect();
+        let mut symbol_marks: Box<[Symbol]> = queues.symbols.drain(..).collect();
         symbol_marks.sort();
         symbol_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.symbols.get_mut(index) {
                 if *marked {
                     // Already marked, ignore

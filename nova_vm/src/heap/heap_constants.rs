@@ -284,7 +284,7 @@ pub(crate) enum WellKnownSymbolIndexes {
 
 impl WellKnownSymbolIndexes {
     pub const fn to_property_key(self) -> PropertyKey {
-        PropertyKey::Symbol(SymbolIndex::from_u32_index(self as u32))
+        PropertyKey::Symbol(Symbol(SymbolIndex::from_u32_index(self as u32)))
     }
 }
 

@@ -394,7 +394,7 @@ impl Vm {
                     referenced_name: match property_key {
                         PropertyKey::SmallString(s) => ReferencedName::SmallString(s),
                         PropertyKey::String(s) => ReferencedName::String(s),
-                        PropertyKey::Symbol(s) => ReferencedName::Symbol(s.into()),
+                        PropertyKey::Symbol(s) => ReferencedName::Symbol(s),
                         _ => todo!("Index properties in ReferencedName"),
                     },
                     strict,

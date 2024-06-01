@@ -12,7 +12,6 @@ use crate::{
             String, Symbol, Value,
         },
     },
-    heap::indexes::SymbolIndex,
     SmallInteger, SmallString,
 };
 
@@ -22,7 +21,7 @@ pub enum PropertyKey {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
     String(HeapString) = STRING_DISCRIMINANT,
-    Symbol(SymbolIndex) = SYMBOL_DISCRIMINANT,
+    Symbol(Symbol) = SYMBOL_DISCRIMINANT,
     // TODO: PrivateKey
 }
 
@@ -96,15 +95,9 @@ impl From<HeapString> for PropertyKey {
     }
 }
 
-impl From<SymbolIndex> for PropertyKey {
-    fn from(value: SymbolIndex) -> Self {
-        PropertyKey::Symbol(value)
-    }
-}
-
 impl From<Symbol> for PropertyKey {
     fn from(value: Symbol) -> Self {
-        PropertyKey::Symbol(value.0)
+        PropertyKey::Symbol(value)
     }
 }
 

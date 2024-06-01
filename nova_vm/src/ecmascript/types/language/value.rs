@@ -16,8 +16,7 @@ use crate::{
     },
     heap::indexes::{
         EmbedderObjectIndex, FinalizationRegistryIndex, MapIndex, PromiseIndex, ProxyIndex,
-        RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
-        WeakSetIndex,
+        RegExpIndex, SetIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
     SmallInteger, SmallString,
 };
@@ -48,7 +47,7 @@ pub enum Value {
     SmallString(SmallString),
 
     /// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
-    Symbol(SymbolIndex),
+    Symbol(Symbol),
 
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     Number(HeapNumber),
@@ -155,8 +154,7 @@ pub(crate) const BOOLEAN_DISCRIMINANT: u8 = value_discriminant(Value::Boolean(tr
 pub(crate) const STRING_DISCRIMINANT: u8 = value_discriminant(Value::String(HeapString::_def()));
 pub(crate) const SMALL_STRING_DISCRIMINANT: u8 =
     value_discriminant(Value::SmallString(SmallString::EMPTY));
-pub(crate) const SYMBOL_DISCRIMINANT: u8 =
-    value_discriminant(Value::Symbol(SymbolIndex::from_u32_index(0)));
+pub(crate) const SYMBOL_DISCRIMINANT: u8 = value_discriminant(Value::Symbol(Symbol::_def()));
 pub(crate) const NUMBER_DISCRIMINANT: u8 = value_discriminant(Value::Number(HeapNumber::_def()));
 pub(crate) const INTEGER_DISCRIMINANT: u8 =
     value_discriminant(Value::Integer(SmallInteger::zero()));
@@ -410,7 +408,7 @@ impl Value {
         if let Value::Symbol(symbol_idx) = self {
             // ToString of a symbol always throws. We use the descriptive
             // string instead (the result of `String(symbol)`).
-            return Symbol::from(symbol_idx).descriptive_string(agent);
+            return symbol_idx.descriptive_string(agent);
         };
         match self.to_string(agent) {
             Ok(result) => result,

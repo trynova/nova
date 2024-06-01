@@ -4,8 +4,8 @@ use super::{
     element_array::{ElementArrayKey, ElementsVector},
     indexes::{
         ElementIndex, EmbedderObjectIndex, FinalizationRegistryIndex, MapIndex, PromiseIndex,
-        ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
-        WeakRefIndex, WeakSetIndex,
+        ProxyIndex, RegExpIndex, SetIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
+        WeakSetIndex,
     },
     Heap, SymbolHeapData,
 };
@@ -42,7 +42,7 @@ use crate::ecmascript::{
         script::{Script, ScriptIdentifier},
         ScriptOrModule,
     },
-    types::{bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Value},
+    types::{bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value},
 };
 
 #[derive(Debug)]
@@ -128,7 +128,7 @@ pub(crate) struct WorkQueues {
     pub sets: Vec<SetIndex>,
     pub shared_array_buffers: Vec<SharedArrayBuffer>,
     pub strings: Vec<HeapString>,
-    pub symbols: Vec<SymbolIndex>,
+    pub symbols: Vec<Symbol>,
     pub typed_arrays: Vec<TypedArrayIndex>,
     pub weak_maps: Vec<WeakMapIndex>,
     pub weak_refs: Vec<WeakRefIndex>,
@@ -818,17 +818,6 @@ impl HeapMarkAndSweep for SetIndex {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let self_index = self.into_u32();
         *self = Self::from_u32(self_index - compactions.sets.get_shift_for_index(self_index));
-    }
-}
-
-impl HeapMarkAndSweep for SymbolIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.symbols.push(*self);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(self_index - compactions.symbols.get_shift_for_index(self_index));
     }
 }
 
