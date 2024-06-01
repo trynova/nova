@@ -12,7 +12,9 @@ use crate::{
             UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
         },
     },
-    heap::{indexes::TypedArrayIndex, Heap, ObjectEntry, ObjectEntryPropertyDescriptor},
+    heap::{
+        indexes::TypedArrayIndex, CreateHeapData, Heap, ObjectEntry, ObjectEntryPropertyDescriptor,
+    },
 };
 
 use self::data::TypedArrayHeapData;
@@ -311,5 +313,37 @@ impl InternalMethods for TypedArray {
         } else {
             Ok(vec![])
         }
+    }
+}
+
+impl Index<TypedArrayIndex> for Agent {
+    type Output = TypedArrayHeapData;
+
+    fn index(&self, index: TypedArrayIndex) -> &Self::Output {
+        self.heap
+            .typed_arrays
+            .get(index.into_index())
+            .expect("TypedArrayIndex out of bounds")
+            .as_ref()
+            .expect("TypedArrayIndex slot empty")
+    }
+}
+
+impl IndexMut<TypedArrayIndex> for Agent {
+    fn index_mut(&mut self, index: TypedArrayIndex) -> &mut Self::Output {
+        self.heap
+            .typed_arrays
+            .get_mut(index.into_index())
+            .expect("TypedArrayIndex out of bounds")
+            .as_mut()
+            .expect("TypedArrayIndex slot empty")
+    }
+}
+
+impl CreateHeapData<TypedArrayHeapData, TypedArray> for Heap {
+    fn create(&mut self, data: TypedArrayHeapData) -> TypedArray {
+        self.typed_arrays.push(Some(data));
+        // TODO: The type should be checked based on data or something equally stupid
+        TypedArray::Uint8Array(TypedArrayIndex::last(&self.typed_arrays))
     }
 }

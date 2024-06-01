@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut};
+
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
@@ -8,6 +10,8 @@ use crate::{
     },
     heap::indexes::{BaseIndex, EmbedderObjectIndex},
 };
+
+use self::data::EmbedderObjectHeapData;
 
 pub mod data;
 
@@ -151,5 +155,29 @@ impl InternalMethods for EmbedderObject {
 
     fn internal_own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         todo!();
+    }
+}
+
+impl Index<EmbedderObjectIndex> for Agent {
+    type Output = EmbedderObjectHeapData;
+
+    fn index(&self, index: EmbedderObjectIndex) -> &Self::Output {
+        self.heap
+            .embedder_objects
+            .get(index.into_index())
+            .expect("EmbedderObjectIndex out of bounds")
+            .as_ref()
+            .expect("EmbedderObjectIndex slot empty")
+    }
+}
+
+impl IndexMut<EmbedderObjectIndex> for Agent {
+    fn index_mut(&mut self, index: EmbedderObjectIndex) -> &mut Self::Output {
+        self.heap
+            .embedder_objects
+            .get_mut(index.into_index())
+            .expect("EmbedderObjectIndex out of bounds")
+            .as_mut()
+            .expect("EmbedderObjectIndex slot empty")
     }
 }

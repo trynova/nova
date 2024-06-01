@@ -77,42 +77,6 @@ impl TryFrom<Object> for Error {
     }
 }
 
-impl Index<Error> for Agent {
-    type Output = ErrorHeapData;
-
-    fn index(&self, index: Error) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<Error> for Agent {
-    fn index_mut(&mut self, index: Error) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<Error> for Heap {
-    type Output = ErrorHeapData;
-
-    fn index(&self, index: Error) -> &Self::Output {
-        self.errors
-            .get(index.0.into_index())
-            .expect("Error out of bounds")
-            .as_ref()
-            .expect("Error slot empty")
-    }
-}
-
-impl IndexMut<Error> for Heap {
-    fn index_mut(&mut self, index: Error) -> &mut Self::Output {
-        self.errors
-            .get_mut(index.0.into_index())
-            .expect("Error out of bounds")
-            .as_mut()
-            .expect("Error slot empty")
-    }
-}
-
 impl OrdinaryObjectInternalSlots for Error {
     fn internal_extensible(self, _agent: &Agent) -> bool {
         false
@@ -250,5 +214,29 @@ impl CreateHeapData<ErrorHeapData, Error> for Heap {
     fn create(&mut self, data: ErrorHeapData) -> Error {
         self.errors.push(Some(data));
         Error(ErrorIndex::last(&self.errors))
+    }
+}
+
+impl Index<Error> for Agent {
+    type Output = ErrorHeapData;
+
+    fn index(&self, index: Error) -> &Self::Output {
+        self.heap
+            .errors
+            .get(index.get_index())
+            .expect("Error out of bounds")
+            .as_ref()
+            .expect("Error slot empty")
+    }
+}
+
+impl IndexMut<Error> for Agent {
+    fn index_mut(&mut self, index: Error) -> &mut Self::Output {
+        self.heap
+            .errors
+            .get_mut(index.get_index())
+            .expect("Error out of bounds")
+            .as_mut()
+            .expect("Error slot empty")
     }
 }

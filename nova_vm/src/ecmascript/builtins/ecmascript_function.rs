@@ -263,19 +263,19 @@ impl ECMAScriptFunction {
 }
 
 impl OrdinaryObjectInternalSlots for ECMAScriptFunction {
-    fn internal_extensible(self, agent: &Agent) -> bool {
+    fn internal_extensible(self, _agent: &Agent) -> bool {
         todo!()
     }
 
-    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
+    fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {
         todo!()
     }
 
-    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, _agent: &Agent) -> Option<Object> {
         todo!()
     }
 
-    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+    fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
         todo!()
     }
 }

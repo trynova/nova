@@ -70,42 +70,6 @@ impl From<Promise> for Object {
     }
 }
 
-impl Index<Promise> for Agent {
-    type Output = PromiseHeapData;
-
-    fn index(&self, index: Promise) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<Promise> for Agent {
-    fn index_mut(&mut self, index: Promise) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<Promise> for Heap {
-    type Output = PromiseHeapData;
-
-    fn index(&self, index: Promise) -> &Self::Output {
-        self.promises
-            .get(index.0.into_index())
-            .expect("Promise out of bounds")
-            .as_ref()
-            .expect("Promise slot empty")
-    }
-}
-
-impl IndexMut<Promise> for Heap {
-    fn index_mut(&mut self, index: Promise) -> &mut Self::Output {
-        self.promises
-            .get_mut(index.0.into_index())
-            .expect("Promise out of bounds")
-            .as_mut()
-            .expect("Promise slot empty")
-    }
-}
-
 impl OrdinaryObjectInternalSlots for Promise {
     fn internal_extensible(self, agent: &Agent) -> bool {
         if let Some(object_index) = agent[self].object_index {
@@ -282,5 +246,29 @@ impl CreateHeapData<PromiseHeapData, Promise> for Heap {
     fn create(&mut self, data: PromiseHeapData) -> Promise {
         self.promises.push(Some(data));
         Promise(PromiseIndex::last(&self.promises))
+    }
+}
+
+impl Index<Promise> for Agent {
+    type Output = PromiseHeapData;
+
+    fn index(&self, index: Promise) -> &Self::Output {
+        self.heap
+            .promises
+            .get(index.get_index())
+            .expect("Promise out of bounds")
+            .as_ref()
+            .expect("Promise slot empty")
+    }
+}
+
+impl IndexMut<Promise> for Agent {
+    fn index_mut(&mut self, index: Promise) -> &mut Self::Output {
+        self.heap
+            .promises
+            .get_mut(index.get_index())
+            .expect("Promise out of bounds")
+            .as_mut()
+            .expect("Promise slot empty")
     }
 }

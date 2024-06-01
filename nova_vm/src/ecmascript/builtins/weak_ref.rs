@@ -10,7 +10,7 @@ use crate::{
     },
     heap::{
         indexes::{BaseIndex, WeakRefIndex},
-        Heap, ObjectEntry, ObjectEntryPropertyDescriptor,
+        CreateHeapData, Heap, ObjectEntry, ObjectEntryPropertyDescriptor,
     },
 };
 
@@ -67,42 +67,6 @@ impl From<WeakRef> for Value {
 impl From<WeakRef> for Object {
     fn from(val: WeakRef) -> Self {
         Object::WeakRef(val)
-    }
-}
-
-impl Index<WeakRef> for Agent {
-    type Output = WeakRefHeapData;
-
-    fn index(&self, index: WeakRef) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<WeakRef> for Agent {
-    fn index_mut(&mut self, index: WeakRef) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<WeakRef> for Heap {
-    type Output = WeakRefHeapData;
-
-    fn index(&self, index: WeakRef) -> &Self::Output {
-        self.weak_refs
-            .get(index.0.into_index())
-            .expect("WeakRef out of bounds")
-            .as_ref()
-            .expect("WeakRef slot empty")
-    }
-}
-
-impl IndexMut<WeakRef> for Heap {
-    fn index_mut(&mut self, index: WeakRef) -> &mut Self::Output {
-        self.weak_refs
-            .get_mut(index.0.into_index())
-            .expect("WeakRef out of bounds")
-            .as_mut()
-            .expect("WeakRef slot empty")
     }
 }
 
@@ -275,5 +239,37 @@ impl InternalMethods for WeakRef {
         } else {
             Ok(vec![])
         }
+    }
+}
+
+impl Index<WeakRef> for Agent {
+    type Output = WeakRefHeapData;
+
+    fn index(&self, index: WeakRef) -> &Self::Output {
+        self.heap
+            .weak_refs
+            .get(index.get_index())
+            .expect("WeakRef out of bounds")
+            .as_ref()
+            .expect("WeakRef slot empty")
+    }
+}
+
+impl IndexMut<WeakRef> for Agent {
+    fn index_mut(&mut self, index: WeakRef) -> &mut Self::Output {
+        self.heap
+            .weak_refs
+            .get_mut(index.get_index())
+            .expect("WeakRef out of bounds")
+            .as_mut()
+            .expect("WeakRef slot empty")
+    }
+}
+
+impl CreateHeapData<WeakRefHeapData, WeakRef> for Heap {
+    fn create(&mut self, data: WeakRefHeapData) -> WeakRef {
+        self.weak_refs.push(Some(data));
+        // TODO: The type should be checked based on data or something equally stupid
+        WeakRef(WeakRefIndex::last(&self.weak_refs))
     }
 }

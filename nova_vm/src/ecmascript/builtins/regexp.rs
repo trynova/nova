@@ -1,5 +1,10 @@
+use std::ops::{Index, IndexMut};
+
 use crate::{
-    ecmascript::types::{IntoObject, IntoValue, Object, OrdinaryObject, Value},
+    ecmascript::{
+        execution::Agent,
+        types::{IntoObject, IntoValue, Object, OrdinaryObject, Value},
+    },
     heap::{
         indexes::{BaseIndex, RegExpIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
@@ -50,13 +55,6 @@ impl IntoObject for RegExp {
     }
 }
 
-impl CreateHeapData<RegExpHeapData, RegExp> for Heap {
-    fn create(&mut self, data: RegExpHeapData) -> RegExp {
-        self.regexps.push(Some(data));
-        RegExp(RegExpIndex::last(&self.regexps))
-    }
-}
-
 impl HeapMarkAndSweep for RegExp {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.regexps.push(*self);
@@ -76,5 +74,36 @@ impl HeapMarkAndSweep for RegExpHeapData {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.object_index.sweep_values(compactions);
+    }
+}
+
+impl Index<RegExp> for Agent {
+    type Output = RegExpHeapData;
+
+    fn index(&self, index: RegExp) -> &Self::Output {
+        self.heap
+            .regexps
+            .get(index.get_index())
+            .expect("RegExp out of bounds")
+            .as_ref()
+            .expect("RegExp slot empty")
+    }
+}
+
+impl IndexMut<RegExp> for Agent {
+    fn index_mut(&mut self, index: RegExp) -> &mut Self::Output {
+        self.heap
+            .regexps
+            .get_mut(index.get_index())
+            .expect("RegExp out of bounds")
+            .as_mut()
+            .expect("RegExp slot empty")
+    }
+}
+
+impl CreateHeapData<RegExpHeapData, RegExp> for Heap {
+    fn create(&mut self, data: RegExpHeapData) -> RegExp {
+        self.regexps.push(Some(data));
+        RegExp(RegExpIndex::last(&self.regexps))
     }
 }

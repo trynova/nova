@@ -15,10 +15,6 @@ pub(crate) use self::heap_constants::{
     LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX, LAST_INTRINSIC_OBJECT_INDEX,
     LAST_WELL_KNOWN_SYMBOL_INDEX,
 };
-use self::indexes::{
-    FinalizationRegistryIndex, MapIndex, SetIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
-    WeakSetIndex,
-};
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
     element_array::{
@@ -29,23 +25,14 @@ use self::{
 };
 use crate::ecmascript::{
     builtins::{
-        data_view::data::DataViewHeapData,
-        date::data::DateHeapData,
-        embedder_object::data::EmbedderObjectHeapData,
-        error::ErrorHeapData,
-        finalization_registry::{data::FinalizationRegistryHeapData, FinalizationRegistry},
-        map::{data::MapHeapData, Map},
-        module::data::ModuleHeapData,
-        primitive_objects::PrimitiveObjectHeapData,
-        promise::data::PromiseHeapData,
-        proxy::data::ProxyHeapData,
-        regexp::RegExpHeapData,
-        set::{data::SetHeapData, Set},
-        shared_array_buffer::data::SharedArrayBufferHeapData,
-        typed_array::{data::TypedArrayHeapData, TypedArray},
-        weak_map::{data::WeakMapHeapData, WeakMap},
-        weak_ref::{data::WeakRefHeapData, WeakRef},
-        weak_set::{data::WeakSetHeapData, WeakSet},
+        data_view::data::DataViewHeapData, date::data::DateHeapData,
+        embedder_object::data::EmbedderObjectHeapData, error::ErrorHeapData,
+        finalization_registry::data::FinalizationRegistryHeapData, map::data::MapHeapData,
+        module::data::ModuleHeapData, primitive_objects::PrimitiveObjectHeapData,
+        promise::data::PromiseHeapData, proxy::data::ProxyHeapData, regexp::RegExpHeapData,
+        set::data::SetHeapData, shared_array_buffer::data::SharedArrayBufferHeapData,
+        typed_array::data::TypedArrayHeapData, weak_map::data::WeakMapHeapData,
+        weak_ref::data::WeakRefHeapData, weak_set::data::WeakSetHeapData,
     },
     types::{HeapNumber, HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
 };
@@ -127,68 +114,6 @@ impl CreateHeapData<std::string::String, String> for Heap {
             // SAFETY: String couldn't be represented as a SmallString.
             unsafe { self.alloc_string(data) }
         }
-    }
-}
-
-impl CreateHeapData<FinalizationRegistryHeapData, FinalizationRegistry> for Heap {
-    fn create(&mut self, data: FinalizationRegistryHeapData) -> FinalizationRegistry {
-        self.finalization_registrys.push(Some(data));
-        FinalizationRegistry(FinalizationRegistryIndex::last(
-            &self.finalization_registrys,
-        ))
-    }
-}
-
-impl CreateHeapData<MapHeapData, Map> for Heap {
-    fn create(&mut self, data: MapHeapData) -> Map {
-        self.maps.push(Some(data));
-        Map(MapIndex::last(&self.maps))
-    }
-}
-
-impl CreateHeapData<ObjectHeapData, Object> for Heap {
-    fn create(&mut self, data: ObjectHeapData) -> Object {
-        self.objects.push(Some(data));
-        Object::Object(ObjectIndex::last(&self.objects).into())
-    }
-}
-
-impl CreateHeapData<SetHeapData, Set> for Heap {
-    fn create(&mut self, data: SetHeapData) -> Set {
-        self.sets.push(Some(data));
-        Set(SetIndex::last(&self.sets))
-    }
-}
-
-impl CreateHeapData<TypedArrayHeapData, TypedArray> for Heap {
-    fn create(&mut self, data: TypedArrayHeapData) -> TypedArray {
-        self.typed_arrays.push(Some(data));
-        // TODO: The type should be checked based on data or something equally stupid
-        TypedArray::Uint8Array(TypedArrayIndex::last(&self.typed_arrays))
-    }
-}
-
-impl CreateHeapData<WeakMapHeapData, WeakMap> for Heap {
-    fn create(&mut self, data: WeakMapHeapData) -> WeakMap {
-        self.weak_maps.push(Some(data));
-        // TODO: The type should be checked based on data or something equally stupid
-        WeakMap(WeakMapIndex::last(&self.weak_maps))
-    }
-}
-
-impl CreateHeapData<WeakRefHeapData, WeakRef> for Heap {
-    fn create(&mut self, data: WeakRefHeapData) -> WeakRef {
-        self.weak_refs.push(Some(data));
-        // TODO: The type should be checked based on data or something equally stupid
-        WeakRef(WeakRefIndex::last(&self.weak_refs))
-    }
-}
-
-impl CreateHeapData<WeakSetHeapData, WeakSet> for Heap {
-    fn create(&mut self, data: WeakSetHeapData) -> WeakSet {
-        self.weak_sets.push(Some(data));
-        // TODO: The type should be checked based on data or something equally stupid
-        WeakSet(WeakSetIndex::last(&self.weak_sets))
     }
 }
 

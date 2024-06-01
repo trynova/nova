@@ -45,7 +45,7 @@ use crate::{
     },
     heap::{
         indexes::{ArrayIndex, ObjectIndex, TypedArrayIndex},
-        CompactionLists, HeapMarkAndSweep, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
 };
 
@@ -1324,5 +1324,12 @@ impl HeapMarkAndSweep for Object {
             Self::Error(idx) => idx.sweep_values(compactions),
             _ => todo!(),
         }
+    }
+}
+
+impl CreateHeapData<ObjectHeapData, Object> for Heap {
+    fn create(&mut self, data: ObjectHeapData) -> Object {
+        self.objects.push(Some(data));
+        Object::Object(ObjectIndex::last(&self.objects).into())
     }
 }

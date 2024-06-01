@@ -10,7 +10,8 @@ use crate::{
     },
     heap::{
         indexes::{BaseIndex, WeakSetIndex},
-        CompactionLists, HeapMarkAndSweep, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        CompactionLists, CreateHeapData, HeapMarkAndSweep, ObjectEntry,
+        ObjectEntryPropertyDescriptor, WorkQueues,
     },
     Heap,
 };
@@ -71,42 +72,6 @@ impl From<WeakSet> for Object {
     }
 }
 
-impl Index<WeakSet> for Agent {
-    type Output = WeakSetHeapData;
-
-    fn index(&self, index: WeakSet) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<WeakSet> for Agent {
-    fn index_mut(&mut self, index: WeakSet) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<WeakSet> for Heap {
-    type Output = WeakSetHeapData;
-
-    fn index(&self, index: WeakSet) -> &Self::Output {
-        self.weak_sets
-            .get(index.0.into_index())
-            .expect("WeakSet out of bounds")
-            .as_ref()
-            .expect("WeakSet slot empty")
-    }
-}
-
-impl IndexMut<WeakSet> for Heap {
-    fn index_mut(&mut self, index: WeakSet) -> &mut Self::Output {
-        self.weak_sets
-            .get_mut(index.0.into_index())
-            .expect("WeakSet out of bounds")
-            .as_mut()
-            .expect("WeakSet slot empty")
-    }
-}
-
 fn create_weak_set_base_object(
     agent: &mut Agent,
     weak_set: WeakSet,
@@ -121,7 +86,7 @@ fn create_weak_set_base_object(
     let object_index = agent
         .heap
         .create_object_with_prototype(prototype.into(), entries);
-    agent.heap[weak_set].object_index = Some(object_index);
+    agent[weak_set].object_index = Some(object_index);
     object_index
 }
 
@@ -298,5 +263,37 @@ impl HeapMarkAndSweep for WeakSetHeapData {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.object_index.sweep_values(compactions);
+    }
+}
+
+impl Index<WeakSet> for Agent {
+    type Output = WeakSetHeapData;
+
+    fn index(&self, index: WeakSet) -> &Self::Output {
+        self.heap
+            .weak_sets
+            .get(index.get_index())
+            .expect("WeakSet out of bounds")
+            .as_ref()
+            .expect("WeakSet slot empty")
+    }
+}
+
+impl IndexMut<WeakSet> for Agent {
+    fn index_mut(&mut self, index: WeakSet) -> &mut Self::Output {
+        self.heap
+            .weak_sets
+            .get_mut(index.get_index())
+            .expect("WeakSet out of bounds")
+            .as_mut()
+            .expect("WeakSet slot empty")
+    }
+}
+
+impl CreateHeapData<WeakSetHeapData, WeakSet> for Heap {
+    fn create(&mut self, data: WeakSetHeapData) -> WeakSet {
+        self.weak_sets.push(Some(data));
+        // TODO: The type should be checked based on data or something equally stupid
+        WeakSet(WeakSetIndex::last(&self.weak_sets))
     }
 }

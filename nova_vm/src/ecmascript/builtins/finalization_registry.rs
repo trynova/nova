@@ -10,7 +10,7 @@ use crate::{
     },
     heap::{
         indexes::{BaseIndex, FinalizationRegistryIndex},
-        Heap, ObjectEntry, ObjectEntryPropertyDescriptor,
+        CreateHeapData, Heap, ObjectEntry, ObjectEntryPropertyDescriptor,
     },
 };
 
@@ -67,42 +67,6 @@ impl From<FinalizationRegistry> for Value {
 impl From<FinalizationRegistry> for Object {
     fn from(val: FinalizationRegistry) -> Self {
         Object::FinalizationRegistry(val)
-    }
-}
-
-impl Index<FinalizationRegistry> for Agent {
-    type Output = FinalizationRegistryHeapData;
-
-    fn index(&self, index: FinalizationRegistry) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<FinalizationRegistry> for Agent {
-    fn index_mut(&mut self, index: FinalizationRegistry) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<FinalizationRegistry> for Heap {
-    type Output = FinalizationRegistryHeapData;
-
-    fn index(&self, index: FinalizationRegistry) -> &Self::Output {
-        self.finalization_registrys
-            .get(index.0.into_index())
-            .expect("FinalizationRegistry out of bounds")
-            .as_ref()
-            .expect("FinalizationRegistry slot empty")
-    }
-}
-
-impl IndexMut<FinalizationRegistry> for Heap {
-    fn index_mut(&mut self, index: FinalizationRegistry) -> &mut Self::Output {
-        self.finalization_registrys
-            .get_mut(index.0.into_index())
-            .expect("FinalizationRegistry out of bounds")
-            .as_mut()
-            .expect("FinalizationRegistry slot empty")
     }
 }
 
@@ -284,5 +248,38 @@ impl InternalMethods for FinalizationRegistry {
         } else {
             Ok(vec![])
         }
+    }
+}
+
+impl Index<FinalizationRegistry> for Agent {
+    type Output = FinalizationRegistryHeapData;
+
+    fn index(&self, index: FinalizationRegistry) -> &Self::Output {
+        self.heap
+            .finalization_registrys
+            .get(index.get_index())
+            .expect("FinalizationRegistry out of bounds")
+            .as_ref()
+            .expect("FinalizationRegistry slot empty")
+    }
+}
+
+impl IndexMut<FinalizationRegistry> for Agent {
+    fn index_mut(&mut self, index: FinalizationRegistry) -> &mut Self::Output {
+        self.heap
+            .finalization_registrys
+            .get_mut(index.get_index())
+            .expect("FinalizationRegistry out of bounds")
+            .as_mut()
+            .expect("FinalizationRegistry slot empty")
+    }
+}
+
+impl CreateHeapData<FinalizationRegistryHeapData, FinalizationRegistry> for Heap {
+    fn create(&mut self, data: FinalizationRegistryHeapData) -> FinalizationRegistry {
+        self.finalization_registrys.push(Some(data));
+        FinalizationRegistry(FinalizationRegistryIndex::last(
+            &self.finalization_registrys,
+        ))
     }
 }

@@ -10,7 +10,7 @@ use crate::{
     },
     heap::{
         indexes::{BaseIndex, ProxyIndex},
-        Heap,
+        CreateHeapData, Heap,
     },
 };
 
@@ -65,42 +65,6 @@ impl From<Proxy> for Value {
 impl From<Proxy> for Object {
     fn from(val: Proxy) -> Self {
         Object::Proxy(val)
-    }
-}
-
-impl Index<Proxy> for Agent {
-    type Output = ProxyHeapData;
-
-    fn index(&self, index: Proxy) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<Proxy> for Agent {
-    fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<Proxy> for Heap {
-    type Output = ProxyHeapData;
-
-    fn index(&self, index: Proxy) -> &Self::Output {
-        self.proxys
-            .get(index.0.into_index())
-            .expect("Proxy out of bounds")
-            .as_ref()
-            .expect("Proxy slot empty")
-    }
-}
-
-impl IndexMut<Proxy> for Heap {
-    fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
-        self.proxys
-            .get_mut(index.0.into_index())
-            .expect("Proxy out of bounds")
-            .as_mut()
-            .expect("Proxy slot empty")
     }
 }
 
@@ -194,5 +158,36 @@ impl InternalMethods for Proxy {
 
     fn internal_own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         todo!();
+    }
+}
+
+impl Index<Proxy> for Agent {
+    type Output = ProxyHeapData;
+
+    fn index(&self, index: Proxy) -> &Self::Output {
+        self.heap
+            .proxys
+            .get(index.get_index())
+            .expect("Proxy out of bounds")
+            .as_ref()
+            .expect("Proxy slot empty")
+    }
+}
+
+impl IndexMut<Proxy> for Agent {
+    fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
+        self.heap
+            .proxys
+            .get_mut(index.get_index())
+            .expect("Proxy out of bounds")
+            .as_mut()
+            .expect("Proxy slot empty")
+    }
+}
+
+impl CreateHeapData<ProxyHeapData, Proxy> for Heap {
+    fn create(&mut self, data: ProxyHeapData) -> Proxy {
+        self.proxys.push(Some(data));
+        Proxy(ProxyIndex::last(&self.proxys))
     }
 }

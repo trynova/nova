@@ -10,7 +10,8 @@ use crate::{
     },
     heap::{
         indexes::{BaseIndex, MapIndex},
-        CompactionLists, HeapMarkAndSweep, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        CompactionLists, CreateHeapData, HeapMarkAndSweep, ObjectEntry,
+        ObjectEntryPropertyDescriptor, WorkQueues,
     },
     Heap,
 };
@@ -67,42 +68,6 @@ impl From<Map> for Value {
 impl From<Map> for Object {
     fn from(val: Map) -> Self {
         Object::Map(val)
-    }
-}
-
-impl Index<Map> for Agent {
-    type Output = MapHeapData;
-
-    fn index(&self, index: Map) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<Map> for Agent {
-    fn index_mut(&mut self, index: Map) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<Map> for Heap {
-    type Output = MapHeapData;
-
-    fn index(&self, index: Map) -> &Self::Output {
-        self.maps
-            .get(index.0.into_index())
-            .expect("Map out of bounds")
-            .as_ref()
-            .expect("Map slot empty")
-    }
-}
-
-impl IndexMut<Map> for Heap {
-    fn index_mut(&mut self, index: Map) -> &mut Self::Output {
-        self.maps
-            .get_mut(index.0.into_index())
-            .expect("Map out of bounds")
-            .as_mut()
-            .expect("Map slot empty")
     }
 }
 
@@ -294,5 +259,36 @@ impl HeapMarkAndSweep for Map {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let self_index = self.0.into_u32();
         self.0 = MapIndex::from_u32(self_index - compactions.maps.get_shift_for_index(self_index));
+    }
+}
+
+impl Index<Map> for Agent {
+    type Output = MapHeapData;
+
+    fn index(&self, index: Map) -> &Self::Output {
+        self.heap
+            .maps
+            .get(index.get_index())
+            .expect("Map out of bounds")
+            .as_ref()
+            .expect("Map slot empty")
+    }
+}
+
+impl IndexMut<Map> for Agent {
+    fn index_mut(&mut self, index: Map) -> &mut Self::Output {
+        self.heap
+            .maps
+            .get_mut(index.get_index())
+            .expect("Map out of bounds")
+            .as_mut()
+            .expect("Map slot empty")
+    }
+}
+
+impl CreateHeapData<MapHeapData, Map> for Heap {
+    fn create(&mut self, data: MapHeapData) -> Map {
+        self.maps.push(Some(data));
+        Map(MapIndex::last(&self.maps))
     }
 }

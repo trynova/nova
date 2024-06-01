@@ -26,22 +26,22 @@ impl BoundFunction {
 }
 
 impl OrdinaryObjectInternalSlots for BoundFunction {
-    fn internal_extensible(self, agent: &Agent) -> bool {
+    fn internal_extensible(self, _agent: &Agent) -> bool {
         todo!()
     }
 
-    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
+    fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {
         todo!()
     }
 
-    fn internal_prototype(self, agent: &Agent) -> Option<crate::ecmascript::types::Object> {
+    fn internal_prototype(self, _agent: &Agent) -> Option<crate::ecmascript::types::Object> {
         todo!()
     }
 
     fn internal_set_prototype(
         self,
-        agent: &mut Agent,
-        prototype: Option<crate::ecmascript::types::Object>,
+        _agent: &mut Agent,
+        _prototype: Option<crate::ecmascript::types::Object>,
     ) {
         todo!()
     }
@@ -50,37 +50,37 @@ impl OrdinaryObjectInternalSlots for BoundFunction {
 impl InternalMethods for BoundFunction {
     fn internal_get_prototype_of(
         self,
-        agent: &mut Agent,
+        _agent: &mut Agent,
     ) -> crate::ecmascript::execution::JsResult<Option<crate::ecmascript::types::Object>> {
         todo!()
     }
 
     fn internal_set_prototype_of(
         self,
-        agent: &mut Agent,
-        prototype: Option<crate::ecmascript::types::Object>,
+        _agent: &mut Agent,
+        _prototype: Option<crate::ecmascript::types::Object>,
     ) -> crate::ecmascript::execution::JsResult<bool> {
         todo!()
     }
 
     fn internal_is_extensible(
         self,
-        agent: &mut Agent,
+        _agent: &mut Agent,
     ) -> crate::ecmascript::execution::JsResult<bool> {
         todo!()
     }
 
     fn internal_prevent_extensions(
         self,
-        agent: &mut Agent,
+        _agent: &mut Agent,
     ) -> crate::ecmascript::execution::JsResult<bool> {
         todo!()
     }
 
     fn internal_get_own_property(
         self,
-        agent: &mut Agent,
-        property_key: crate::ecmascript::types::PropertyKey,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
     ) -> crate::ecmascript::execution::JsResult<Option<crate::ecmascript::types::PropertyDescriptor>>
     {
         todo!()
@@ -88,51 +88,51 @@ impl InternalMethods for BoundFunction {
 
     fn internal_define_own_property(
         self,
-        agent: &mut Agent,
-        property_key: crate::ecmascript::types::PropertyKey,
-        property_descriptor: crate::ecmascript::types::PropertyDescriptor,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
+        _property_descriptor: crate::ecmascript::types::PropertyDescriptor,
     ) -> crate::ecmascript::execution::JsResult<bool> {
         todo!()
     }
 
     fn internal_has_property(
         self,
-        agent: &mut Agent,
-        property_key: crate::ecmascript::types::PropertyKey,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
     ) -> crate::ecmascript::execution::JsResult<bool> {
         todo!()
     }
 
     fn internal_get(
         self,
-        agent: &mut Agent,
-        property_key: crate::ecmascript::types::PropertyKey,
-        receiver: crate::ecmascript::types::Value,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
+        _receiver: crate::ecmascript::types::Value,
     ) -> crate::ecmascript::execution::JsResult<crate::ecmascript::types::Value> {
         todo!()
     }
 
     fn internal_set(
         self,
-        agent: &mut Agent,
-        property_key: crate::ecmascript::types::PropertyKey,
-        value: crate::ecmascript::types::Value,
-        receiver: crate::ecmascript::types::Value,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
+        _value: crate::ecmascript::types::Value,
+        _receiver: crate::ecmascript::types::Value,
     ) -> crate::ecmascript::execution::JsResult<bool> {
         todo!()
     }
 
     fn internal_delete(
         self,
-        agent: &mut Agent,
-        property_key: crate::ecmascript::types::PropertyKey,
+        _agent: &mut Agent,
+        _property_key: crate::ecmascript::types::PropertyKey,
     ) -> crate::ecmascript::execution::JsResult<bool> {
         todo!()
     }
 
     fn internal_own_property_keys(
         self,
-        agent: &mut Agent,
+        _agent: &mut Agent,
     ) -> crate::ecmascript::execution::JsResult<Vec<crate::ecmascript::types::PropertyKey>> {
         todo!()
     }
