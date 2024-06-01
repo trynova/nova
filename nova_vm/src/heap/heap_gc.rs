@@ -8,15 +8,15 @@ use super::{
         sweep_heap_vector_values, CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
     },
     indexes::{
-        DataViewIndex, DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
-        FinalizationRegistryIndex, MapIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex,
-        SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
+        DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex,
+        MapIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex,
+        WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
     Heap,
 };
 use crate::ecmascript::{
     builtins::{
-        bound_function::BoundFunction, primitive_objects::PrimitiveObject,
+        bound_function::BoundFunction, data_view::DataView, primitive_objects::PrimitiveObject,
         shared_array_buffer::SharedArrayBuffer, Array, ArrayBuffer, BuiltinFunction,
         ECMAScriptFunction,
     },
@@ -286,10 +286,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 builtin_functions.get(index).mark_values(&mut queues);
             }
         });
-        let mut data_view_marks: Box<[DataViewIndex]> = queues.data_views.drain(..).collect();
+        let mut data_view_marks: Box<[DataView]> = queues.data_views.drain(..).collect();
         data_view_marks.sort();
         data_view_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.data_views.get_mut(index) {
                 if *marked {
                     // Already marked, ignore

@@ -3,16 +3,16 @@ use std::borrow::Borrow;
 use super::{
     element_array::{ElementArrayKey, ElementsVector},
     indexes::{
-        DataViewIndex, DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
-        FinalizationRegistryIndex, MapIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex,
-        SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
+        DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex,
+        MapIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex,
+        WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
     Heap, SymbolHeapData,
 };
 use crate::ecmascript::{
     builtins::{
         bound_function::BoundFunction,
-        data_view::data::DataViewHeapData,
+        data_view::DataView,
         date::data::DateHeapData,
         embedder_object::data::EmbedderObjectHeapData,
         error::ErrorHeapData,
@@ -97,7 +97,7 @@ pub(crate) struct WorkQueues {
     pub bigints: Vec<HeapBigInt>,
     pub bound_functions: Vec<BoundFunction>,
     pub builtin_functions: Vec<BuiltinFunction>,
-    pub data_views: Vec<DataViewIndex>,
+    pub data_views: Vec<DataView>,
     pub dates: Vec<DateIndex>,
     pub declarative_environments: Vec<DeclarativeEnvironmentIndex>,
     pub e_2_10: Vec<(ElementIndex, u32)>,
@@ -1037,16 +1037,6 @@ impl HeapMarkAndSweep for ElementsVector {
             ElementArrayKey::E32 => compactions.e_2_32.get_shift_for_index(self_index),
         };
         self.elements_index = ElementIndex::from_u32(self_index - shift);
-    }
-}
-
-impl HeapMarkAndSweep for DataViewHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
     }
 }
 

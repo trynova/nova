@@ -6,7 +6,7 @@ use crate::{
             to_big_int, to_int32, to_number, to_numeric, to_string, to_uint32,
         },
         builtins::{
-            bound_function::BoundFunction, primitive_objects::PrimitiveObject,
+            bound_function::BoundFunction, data_view::DataView, primitive_objects::PrimitiveObject,
             shared_array_buffer::SharedArrayBuffer, Array, ArrayBuffer, BuiltinFunction,
             ECMAScriptFunction,
         },
@@ -15,8 +15,8 @@ use crate::{
         types::BUILTIN_STRING_MEMORY,
     },
     heap::indexes::{
-        DataViewIndex, DateIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex,
-        MapIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex,
+        DateIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex, MapIndex,
+        PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex,
         WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
     SmallInteger, SmallString,
@@ -90,7 +90,7 @@ pub enum Value {
     Arguments,
     Array(Array),
     ArrayBuffer(ArrayBuffer),
-    DataView(DataViewIndex),
+    DataView(DataView),
     Date(DateIndex),
     Error(ErrorIndex),
     FinalizationRegistry(FinalizationRegistryIndex),
@@ -205,8 +205,7 @@ pub(crate) const ECMASCRIPT_GENERATOR_FUNCTION_DISCRIMINANT: u8 =
 pub(crate) const PRIMITIVE_OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::PrimitiveObject(PrimitiveObject::_def()));
 pub(crate) const ARGUMENTS_DISCRIMINANT: u8 = value_discriminant(Value::Arguments);
-pub(crate) const DATA_VIEW_DISCRIMINANT: u8 =
-    value_discriminant(Value::DataView(DataViewIndex::from_u32_index(0)));
+pub(crate) const DATA_VIEW_DISCRIMINANT: u8 = value_discriminant(Value::DataView(DataView::_def()));
 pub(crate) const FINALIZATION_REGISTRY_DISCRIMINANT: u8 = value_discriminant(
     Value::FinalizationRegistry(FinalizationRegistryIndex::from_u32_index(0)),
 );

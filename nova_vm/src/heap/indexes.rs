@@ -169,42 +169,6 @@ pub type WeakMapIndex = BaseIndex<WeakMapHeapData>;
 pub type WeakRefIndex = BaseIndex<WeakRefHeapData>;
 pub type WeakSetIndex = BaseIndex<WeakSetHeapData>;
 
-impl Index<DataViewIndex> for Agent {
-    type Output = DataViewHeapData;
-
-    fn index(&self, index: DataViewIndex) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<DataViewIndex> for Agent {
-    fn index_mut(&mut self, index: DataViewIndex) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<DataViewIndex> for Heap {
-    type Output = DataViewHeapData;
-
-    fn index(&self, index: DataViewIndex) -> &Self::Output {
-        self.data_views
-            .get(index.into_index())
-            .expect("DataViewIndex out of bounds")
-            .as_ref()
-            .expect("DataViewIndex slot empty")
-    }
-}
-
-impl IndexMut<DataViewIndex> for Heap {
-    fn index_mut(&mut self, index: DataViewIndex) -> &mut Self::Output {
-        self.data_views
-            .get_mut(index.into_index())
-            .expect("DataViewIndex out of bounds")
-            .as_mut()
-            .expect("DataViewIndex slot empty")
-    }
-}
-
 impl Index<DateIndex> for Agent {
     type Output = DateHeapData;
 

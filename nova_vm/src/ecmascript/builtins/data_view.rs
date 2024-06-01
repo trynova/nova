@@ -8,7 +8,9 @@ use crate::{
             PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::DataViewIndex, Heap, ObjectEntry, ObjectEntryPropertyDescriptor},
+    heap::{
+        indexes::DataViewIndex, CreateHeapData, Heap, ObjectEntry, ObjectEntryPropertyDescriptor,
+    },
 };
 
 use self::data::DataViewHeapData;
@@ -17,12 +19,17 @@ use super::ordinary::ordinary_set_prototype_of_check_loop;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct DataView(pub(crate) DataViewIndex);
 
-impl From<DataView> for DataViewIndex {
-    fn from(val: DataView) -> Self {
-        val.0
+impl DataView {
+    pub(crate) const fn _def() -> Self {
+        Self(DataViewIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
     }
 }
 
@@ -46,13 +53,13 @@ impl IntoObject for DataView {
 
 impl From<DataView> for Value {
     fn from(val: DataView) -> Self {
-        Value::DataView(val.0)
+        Value::DataView(val)
     }
 }
 
 impl From<DataView> for Object {
     fn from(val: DataView) -> Self {
-        Object::DataView(val.0)
+        Object::DataView(val)
     }
 }
 
@@ -261,5 +268,36 @@ impl InternalMethods for DataView {
         } else {
             Ok(vec![])
         }
+    }
+}
+
+impl Index<DataViewIndex> for Agent {
+    type Output = DataViewHeapData;
+
+    fn index(&self, index: DataViewIndex) -> &Self::Output {
+        self.heap
+            .data_views
+            .get(index.into_index())
+            .expect("DataViewIndex out of bounds")
+            .as_ref()
+            .expect("DataViewIndex slot empty")
+    }
+}
+
+impl IndexMut<DataViewIndex> for Agent {
+    fn index_mut(&mut self, index: DataViewIndex) -> &mut Self::Output {
+        self.heap
+            .data_views
+            .get_mut(index.into_index())
+            .expect("DataViewIndex out of bounds")
+            .as_mut()
+            .expect("DataViewIndex slot empty")
+    }
+}
+
+impl CreateHeapData<DataViewHeapData, DataView> for Heap {
+    fn create(&mut self, data: DataViewHeapData) -> DataView {
+        self.data_views.push(Some(data));
+        DataView::from(DataViewIndex::last(&self.data_views))
     }
 }

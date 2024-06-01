@@ -32,7 +32,7 @@ use super::{
 use crate::{
     ecmascript::{
         builtins::{
-            bound_function::BoundFunction, date::Date, error::Error, map::Map,
+            bound_function::BoundFunction, data_view::DataView, date::Date, error::Error, map::Map,
             primitive_objects::PrimitiveObject, set::Set, shared_array_buffer::SharedArrayBuffer,
             ArgumentsList, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
         },
@@ -42,9 +42,9 @@ use crate::{
     },
     heap::{
         indexes::{
-            ArrayIndex, DataViewIndex, DateIndex, EmbedderObjectIndex, ErrorIndex,
-            FinalizationRegistryIndex, MapIndex, ObjectIndex, PromiseIndex, ProxyIndex,
-            RegExpIndex, SetIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
+            ArrayIndex, DateIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex,
+            MapIndex, ObjectIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex,
+            TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
         },
         CompactionLists, HeapMarkAndSweep, WorkQueues,
     },
@@ -81,7 +81,7 @@ pub enum Object {
     Arguments = ARGUMENTS_DISCRIMINANT,
     Array(Array) = ARRAY_DISCRIMINANT,
     ArrayBuffer(ArrayBuffer) = ARRAY_BUFFER_DISCRIMINANT,
-    DataView(DataViewIndex) = DATA_VIEW_DISCRIMINANT,
+    DataView(DataView) = DATA_VIEW_DISCRIMINANT,
     Date(DateIndex) = DATE_DISCRIMINANT,
     Error(ErrorIndex) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistryIndex) = FINALIZATION_REGISTRY_DISCRIMINANT,
