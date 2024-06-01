@@ -8,7 +8,10 @@ use crate::{
             PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::FinalizationRegistryIndex, Heap, ObjectEntry, ObjectEntryPropertyDescriptor},
+    heap::{
+        indexes::{BaseIndex, FinalizationRegistryIndex},
+        Heap, ObjectEntry, ObjectEntryPropertyDescriptor,
+    },
 };
 
 use self::data::FinalizationRegistryHeapData;
@@ -17,8 +20,19 @@ use super::ordinary::ordinary_set_prototype_of_check_loop;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct FinalizationRegistry(pub(crate) FinalizationRegistryIndex);
+
+impl FinalizationRegistry {
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
 
 impl From<FinalizationRegistry> for FinalizationRegistryIndex {
     fn from(val: FinalizationRegistry) -> Self {
@@ -46,13 +60,13 @@ impl IntoObject for FinalizationRegistry {
 
 impl From<FinalizationRegistry> for Value {
     fn from(val: FinalizationRegistry) -> Self {
-        Value::FinalizationRegistry(val.0)
+        Value::FinalizationRegistry(val)
     }
 }
 
 impl From<FinalizationRegistry> for Object {
     fn from(val: FinalizationRegistry) -> Self {
-        Object::FinalizationRegistry(val.0)
+        Object::FinalizationRegistry(val)
     }
 }
 

@@ -8,7 +8,10 @@ use crate::{
             PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::PromiseIndex, Heap, ObjectEntry, ObjectEntryPropertyDescriptor},
+    heap::{
+        indexes::{BaseIndex, PromiseIndex},
+        CreateHeapData, Heap, ObjectEntry, ObjectEntryPropertyDescriptor,
+    },
 };
 
 use self::data::PromiseHeapData;
@@ -17,8 +20,19 @@ use super::ordinary::ordinary_set_prototype_of_check_loop;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct Promise(pub(crate) PromiseIndex);
+
+impl Promise {
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
 
 impl From<Promise> for PromiseIndex {
     fn from(val: Promise) -> Self {
@@ -46,13 +60,13 @@ impl IntoObject for Promise {
 
 impl From<Promise> for Value {
     fn from(val: Promise) -> Self {
-        Value::Promise(val.0)
+        Value::Promise(val)
     }
 }
 
 impl From<Promise> for Object {
     fn from(val: Promise) -> Self {
-        Object::Promise(val.0)
+        Object::Promise(val)
     }
 }
 
@@ -261,5 +275,12 @@ impl InternalMethods for Promise {
         } else {
             Ok(vec![])
         }
+    }
+}
+
+impl CreateHeapData<PromiseHeapData, Promise> for Heap {
+    fn create(&mut self, data: PromiseHeapData) -> Promise {
+        self.promises.push(Some(data));
+        Promise(PromiseIndex::last(&self.promises))
     }
 }

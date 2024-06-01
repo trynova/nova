@@ -16,8 +16,8 @@ pub(crate) use self::heap_constants::{
     LAST_WELL_KNOWN_SYMBOL_INDEX,
 };
 use self::indexes::{
-    FinalizationRegistryIndex, MapIndex, PromiseIndex, RegExpIndex, SetIndex, TypedArrayIndex,
-    WeakMapIndex, WeakRefIndex, WeakSetIndex,
+    FinalizationRegistryIndex, MapIndex, SetIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
+    WeakSetIndex,
 };
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
@@ -150,20 +150,6 @@ impl CreateHeapData<ObjectHeapData, Object> for Heap {
     fn create(&mut self, data: ObjectHeapData) -> Object {
         self.objects.push(Some(data));
         Object::Object(ObjectIndex::last(&self.objects).into())
-    }
-}
-
-impl CreateHeapData<PromiseHeapData, Object> for Heap {
-    fn create(&mut self, data: PromiseHeapData) -> Object {
-        self.promises.push(Some(data));
-        Object::Promise(PromiseIndex::last(&self.promises))
-    }
-}
-
-impl CreateHeapData<RegExpHeapData, Object> for Heap {
-    fn create(&mut self, data: RegExpHeapData) -> Object {
-        self.regexps.push(Some(data));
-        Object::RegExp(RegExpIndex::last(&self.regexps))
     }
 }
 

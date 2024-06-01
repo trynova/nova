@@ -1,9 +1,12 @@
 use small_string::SmallString;
 
-use crate::ecmascript::{
-    execution::{ModuleEnvironmentIndex, RealmIdentifier},
-    scripts_and_modules::module::ModuleIdentifier,
-    types::{HeapString, OrdinaryObject, PropertyKey, String},
+use crate::{
+    ecmascript::{
+        execution::{ModuleEnvironmentIndex, RealmIdentifier},
+        scripts_and_modules::module::ModuleIdentifier,
+        types::{HeapString, OrdinaryObject, PropertyKey, String},
+    },
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::Module;
@@ -75,4 +78,10 @@ impl ModuleRecord {
     pub(crate) fn resolve_export(&self, _property_key: PropertyKey) -> Option<ResolveExportResult> {
         todo!()
     }
+}
+
+impl HeapMarkAndSweep for ModuleHeapData {
+    fn mark_values(&self, _queues: &mut WorkQueues) {}
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists) {}
 }

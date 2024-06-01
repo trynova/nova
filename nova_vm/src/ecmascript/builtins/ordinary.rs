@@ -955,8 +955,8 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .create(TypedArrayHeapData::default())
             .into_object(),
         ProtoIntrinsics::Map => agent.heap.create(MapHeapData::default()).into_object(),
-        ProtoIntrinsics::Promise => agent.heap.create(PromiseHeapData::default()),
-        ProtoIntrinsics::RegExp => agent.heap.create(RegExpHeapData::default()),
+        ProtoIntrinsics::Promise => agent.heap.create(PromiseHeapData::default()).into_object(),
+        ProtoIntrinsics::RegExp => agent.heap.create(RegExpHeapData::default()).into_object(),
         ProtoIntrinsics::Set => agent.heap.create(SetHeapData::default()).into_object(),
         ProtoIntrinsics::SharedArrayBuffer => agent
             .heap

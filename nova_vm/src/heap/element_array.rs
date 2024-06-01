@@ -1,7 +1,7 @@
 use super::{
     indexes::ElementIndex,
     object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor},
-    Heap,
+    CompactionLists, Heap, HeapMarkAndSweep, WorkQueues,
 };
 use crate::ecmascript::{
     builtins::SealableElementsVector,
@@ -308,6 +308,40 @@ impl ElementsVector {
                 .insert(self.len, descriptor);
         }
         self.len += 1;
+    }
+}
+
+impl HeapMarkAndSweep for ElementsVector {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self.cap {
+            ElementArrayKey::Empty => {}
+            ElementArrayKey::E4 => queues.e_2_4.push((self.elements_index, self.len)),
+            ElementArrayKey::E6 => queues.e_2_6.push((self.elements_index, self.len)),
+            ElementArrayKey::E8 => queues.e_2_8.push((self.elements_index, self.len)),
+            ElementArrayKey::E10 => queues.e_2_10.push((self.elements_index, self.len)),
+            ElementArrayKey::E12 => queues.e_2_12.push((self.elements_index, self.len)),
+            ElementArrayKey::E16 => queues.e_2_16.push((self.elements_index, self.len)),
+            ElementArrayKey::E24 => queues.e_2_24.push((self.elements_index, self.len)),
+            ElementArrayKey::E32 => queues.e_2_32.push((self.elements_index, self.len)),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.elements_index.into_u32();
+        let shift = match self.cap {
+            ElementArrayKey::Empty => {
+                return;
+            }
+            ElementArrayKey::E4 => compactions.e_2_4.get_shift_for_index(self_index),
+            ElementArrayKey::E6 => compactions.e_2_6.get_shift_for_index(self_index),
+            ElementArrayKey::E8 => compactions.e_2_8.get_shift_for_index(self_index),
+            ElementArrayKey::E10 => compactions.e_2_10.get_shift_for_index(self_index),
+            ElementArrayKey::E12 => compactions.e_2_12.get_shift_for_index(self_index),
+            ElementArrayKey::E16 => compactions.e_2_16.get_shift_for_index(self_index),
+            ElementArrayKey::E24 => compactions.e_2_24.get_shift_for_index(self_index),
+            ElementArrayKey::E32 => compactions.e_2_32.get_shift_for_index(self_index),
+        };
+        self.elements_index = ElementIndex::from_u32(self_index - shift);
     }
 }
 

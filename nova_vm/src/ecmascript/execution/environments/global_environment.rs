@@ -6,6 +6,7 @@ use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::types::{Object, PropertyDescriptor, PropertyKey, String, Value};
 use crate::ecmascript::{execution::Agent, types::InternalMethods};
+use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 use std::collections::HashSet;
 
 use super::{
@@ -89,6 +90,23 @@ impl GlobalEnvironment {
             // NOTE: We do not expose an outer environment, so this is implicit.
         }
         // 9. Return env.
+    }
+}
+
+impl HeapMarkAndSweep for GlobalEnvironment {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.declarative_record.mark_values(queues);
+        self.global_this_value.mark_values(queues);
+        self.object_record.mark_values(queues);
+        for ele in &self.var_names {
+            ele.mark_values(queues);
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.declarative_record.sweep_values(compactions);
+        self.global_this_value.sweep_values(compactions);
+        self.object_record.sweep_values(compactions);
     }
 }
 
@@ -585,5 +603,21 @@ impl GlobalEnvironmentIndex {
         // Step 7 is equivalent to what calling the InitializeBinding concrete
         // method would do and if globalObject is a Proxy will produce the same
         // sequence of Proxy trap calls.
+    }
+}
+
+impl HeapMarkAndSweep for GlobalEnvironmentIndex {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.global_environments.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(
+            self_index
+                - compactions
+                    .global_environments
+                    .get_shift_for_index(self_index),
+        );
     }
 }

@@ -8,7 +8,10 @@ use crate::{
             OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::WeakMapIndex, ObjectEntry, ObjectEntryPropertyDescriptor},
+    heap::{
+        indexes::{BaseIndex, WeakMapIndex},
+        ObjectEntry, ObjectEntryPropertyDescriptor,
+    },
     Heap,
 };
 
@@ -18,8 +21,19 @@ use super::ordinary::ordinary_set_prototype_of_check_loop;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct WeakMap(pub(crate) WeakMapIndex);
+
+impl WeakMap {
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
 
 impl From<WeakMap> for WeakMapIndex {
     fn from(val: WeakMap) -> Self {
@@ -47,13 +61,13 @@ impl IntoObject for WeakMap {
 
 impl From<WeakMap> for Value {
     fn from(val: WeakMap) -> Self {
-        Value::WeakMap(val.0)
+        Value::WeakMap(val)
     }
 }
 
 impl From<WeakMap> for Object {
     fn from(val: WeakMap) -> Self {
-        Object::WeakMap(val.0)
+        Object::WeakMap(val)
     }
 }
 

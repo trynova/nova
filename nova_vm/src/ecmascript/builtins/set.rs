@@ -8,7 +8,10 @@ use crate::{
             OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::SetIndex, ObjectEntry, ObjectEntryPropertyDescriptor},
+    heap::{
+        indexes::{BaseIndex, SetIndex},
+        CompactionLists, HeapMarkAndSweep, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+    },
     Heap,
 };
 
@@ -18,8 +21,19 @@ use super::ordinary::ordinary_set_prototype_of_check_loop;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct Set(pub(crate) SetIndex);
+
+impl Set {
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
 
 impl From<Set> for SetIndex {
     fn from(val: Set) -> Self {
@@ -47,13 +61,13 @@ impl IntoObject for Set {
 
 impl From<Set> for Value {
     fn from(val: Set) -> Self {
-        Value::Set(val.0)
+        Value::Set(val)
     }
 }
 
 impl From<Set> for Object {
     fn from(val: Set) -> Self {
-        Object::Set(val.0)
+        Object::Set(val)
     }
 }
 
@@ -270,5 +284,16 @@ impl InternalMethods for Set {
         } else {
             Ok(vec![])
         }
+    }
+}
+
+impl HeapMarkAndSweep for Set {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.sets.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 = SetIndex::from_u32(self_index - compactions.sets.get_shift_for_index(self_index));
     }
 }

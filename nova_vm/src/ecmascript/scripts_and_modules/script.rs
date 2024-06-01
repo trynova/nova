@@ -16,7 +16,7 @@ use crate::{
         types::{IntoValue, String, Value},
     },
     engine::{Executable, Vm},
-    heap::Heap,
+    heap::{CompactionLists, Heap, HeapMarkAndSweep, WorkQueues},
 };
 use oxc_allocator::Allocator;
 use oxc_ast::{
@@ -103,6 +103,17 @@ impl IndexMut<ScriptIdentifier> for Heap {
     }
 }
 
+impl HeapMarkAndSweep for ScriptIdentifier {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.scripts.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.scripts.get_shift_for_index(self_index));
+    }
+}
+
 /// ### [16.1.4 Script Records](https://tc39.es/ecma262/#sec-script-records)
 ///
 /// A Script Record encapsulates information about a script being evaluated.
@@ -142,6 +153,16 @@ pub struct Script {
 unsafe impl Send for Script {}
 
 pub type ScriptOrErrors = Result<Script, (Box<str>, Vec<OxcDiagnostic>)>;
+
+impl HeapMarkAndSweep for Script {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.realm.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.realm.sweep_values(compactions);
+    }
+}
 
 /// ### [16.1.5 ParseScript ( sourceText, realm, hostDefined )](https://tc39.es/ecma262/#sec-parse-script)
 ///

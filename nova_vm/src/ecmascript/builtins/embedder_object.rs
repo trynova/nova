@@ -6,13 +6,24 @@ use crate::{
             PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::indexes::EmbedderObjectIndex,
+    heap::indexes::{BaseIndex, EmbedderObjectIndex},
 };
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct EmbedderObject(pub(crate) EmbedderObjectIndex);
+
+impl EmbedderObject {
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
 
 impl From<EmbedderObject> for EmbedderObjectIndex {
     fn from(val: EmbedderObject) -> Self {
@@ -40,13 +51,13 @@ impl IntoObject for EmbedderObject {
 
 impl From<EmbedderObject> for Value {
     fn from(val: EmbedderObject) -> Self {
-        Value::EmbedderObject(val.0)
+        Value::EmbedderObject(val)
     }
 }
 
 impl From<EmbedderObject> for Object {
     fn from(val: EmbedderObject) -> Self {
-        Object::EmbedderObject(val.0)
+        Object::EmbedderObject(val)
     }
 }
 

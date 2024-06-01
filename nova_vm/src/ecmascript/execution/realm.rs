@@ -11,7 +11,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::Heap,
+    heap::{CompactionLists, Heap, HeapMarkAndSweep, WorkQueues},
 };
 pub(crate) use intrinsics::Intrinsics;
 pub(crate) use intrinsics::ProtoIntrinsics;
@@ -89,6 +89,17 @@ impl IndexMut<RealmIdentifier> for Heap {
     }
 }
 
+impl HeapMarkAndSweep for RealmIdentifier {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.realms.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.realms.get_shift_for_index(self_index));
+    }
+}
+
 /// ### [9.3 Realms](https://tc39.es/ecma262/#sec-code-realms)
 ///
 /// Before it is evaluated, all ECMAScript code must be associated with a
@@ -151,6 +162,20 @@ impl Realm {
 
     pub(crate) fn intrinsics_mut(&mut self) -> &mut Intrinsics {
         &mut self.intrinsics
+    }
+}
+
+impl HeapMarkAndSweep for Realm {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.intrinsics().mark_values(queues);
+        self.global_env.mark_values(queues);
+        self.global_object.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.intrinsics_mut().sweep_values(compactions);
+        self.global_env.sweep_values(compactions);
+        self.global_object.sweep_values(compactions);
     }
 }
 

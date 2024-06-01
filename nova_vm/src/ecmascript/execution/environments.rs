@@ -37,7 +37,10 @@ pub(crate) use global_environment::GlobalEnvironment;
 pub(crate) use object_environment::ObjectEnvironment;
 pub(crate) use private_environment::PrivateEnvironment;
 
-use crate::ecmascript::types::{Base, Object, Reference, ReferencedName, String, Value};
+use crate::{
+    ecmascript::types::{Base, Object, Reference, ReferencedName, String, Value},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+};
 
 use super::{Agent, JsResult};
 
@@ -355,6 +358,26 @@ impl EnvironmentIndex {
             EnvironmentIndex::Function(idx) => idx.with_base_object(),
             EnvironmentIndex::Global(idx) => idx.with_base_object(),
             EnvironmentIndex::Object(idx) => idx.with_base_object(agent),
+        }
+    }
+}
+
+impl HeapMarkAndSweep for EnvironmentIndex {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            EnvironmentIndex::Declarative(idx) => idx.mark_values(queues),
+            EnvironmentIndex::Function(idx) => idx.mark_values(queues),
+            EnvironmentIndex::Global(idx) => idx.mark_values(queues),
+            EnvironmentIndex::Object(idx) => idx.mark_values(queues),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            EnvironmentIndex::Declarative(idx) => idx.sweep_values(compactions),
+            EnvironmentIndex::Function(idx) => idx.sweep_values(compactions),
+            EnvironmentIndex::Global(idx) => idx.sweep_values(compactions),
+            EnvironmentIndex::Object(idx) => idx.sweep_values(compactions),
         }
     }
 }

@@ -1,6 +1,9 @@
-use crate::ecmascript::{
-    execution::agent::ExceptionType,
-    types::{OrdinaryObject, String, Value},
+use crate::{
+    ecmascript::{
+        execution::agent::ExceptionType,
+        types::{OrdinaryObject, String, Value},
+    },
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -20,5 +23,19 @@ impl ErrorHeapData {
             message,
             cause,
         }
+    }
+}
+
+impl HeapMarkAndSweep for ErrorHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.object_index.mark_values(queues);
+        self.message.mark_values(queues);
+        self.cause.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.object_index.sweep_values(compactions);
+        self.message.sweep_values(compactions);
+        self.cause.sweep_values(compactions);
     }
 }

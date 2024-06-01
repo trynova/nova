@@ -8,15 +8,29 @@ use crate::{
             PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::ProxyIndex, Heap},
+    heap::{
+        indexes::{BaseIndex, ProxyIndex},
+        Heap,
+    },
 };
 
 use self::data::ProxyHeapData;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct Proxy(pub(crate) ProxyIndex);
+
+impl Proxy {
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
 
 impl From<Proxy> for ProxyIndex {
     fn from(val: Proxy) -> Self {
@@ -44,13 +58,13 @@ impl IntoObject for Proxy {
 
 impl From<Proxy> for Value {
     fn from(val: Proxy) -> Self {
-        Value::Proxy(val.0)
+        Value::Proxy(val)
     }
 }
 
 impl From<Proxy> for Object {
     fn from(val: Proxy) -> Self {
-        Object::Proxy(val.0)
+        Object::Proxy(val)
     }
 }
 

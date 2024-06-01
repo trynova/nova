@@ -8,7 +8,10 @@ use crate::{
             PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::WeakRefIndex, Heap, ObjectEntry, ObjectEntryPropertyDescriptor},
+    heap::{
+        indexes::{BaseIndex, WeakRefIndex},
+        Heap, ObjectEntry, ObjectEntryPropertyDescriptor,
+    },
 };
 
 use self::data::WeakRefHeapData;
@@ -17,8 +20,19 @@ use super::ordinary::ordinary_set_prototype_of_check_loop;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct WeakRef(pub(crate) WeakRefIndex);
+
+impl WeakRef {
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
 
 impl From<WeakRef> for WeakRefIndex {
     fn from(val: WeakRef) -> Self {
@@ -46,13 +60,13 @@ impl IntoObject for WeakRef {
 
 impl From<WeakRef> for Value {
     fn from(val: WeakRef) -> Self {
-        Value::WeakRef(val.0)
+        Value::WeakRef(val)
     }
 }
 
 impl From<WeakRef> for Object {
     fn from(val: WeakRef) -> Self {
-        Object::WeakRef(val.0)
+        Object::WeakRef(val)
     }
 }
 

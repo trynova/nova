@@ -1,8 +1,11 @@
 use super::{DeclarativeEnvironment, DeclarativeEnvironmentIndex, FunctionEnvironmentIndex};
-use crate::ecmascript::{
-    builtins::{ECMAScriptFunction, ThisMode},
-    execution::{agent::ExceptionType, Agent, JsResult},
-    types::{Function, InternalMethods, IntoFunction, Object, String, Value},
+use crate::{
+    ecmascript::{
+        builtins::{ECMAScriptFunction, ThisMode},
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{Function, InternalMethods, IntoFunction, Object, String, Value},
+    },
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -57,6 +60,22 @@ pub(crate) struct FunctionEnvironment {
     /// TODO: Use Struct of Arrays to keep the DeclarativeEnvironment alignside
     /// FunctionEnvironment
     pub(crate) declarative_environment: DeclarativeEnvironmentIndex,
+}
+
+impl HeapMarkAndSweep for FunctionEnvironment {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.declarative_environment.mark_values(queues);
+        self.function_object.mark_values(queues);
+        self.new_target.mark_values(queues);
+        self.this_value.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.declarative_environment.sweep_values(compactions);
+        self.function_object.sweep_values(compactions);
+        self.new_target.sweep_values(compactions);
+        self.this_value.sweep_values(compactions);
+    }
 }
 
 impl std::ops::Deref for FunctionEnvironment {
@@ -383,5 +402,21 @@ impl FunctionEnvironmentIndex {
         // 4. Return ? home.[[GetPrototypeOf]]().
         home.internal_get_prototype_of(agent)
             .map(|proto| proto.map_or_else(|| Value::Null, |proto| proto.into_value()))
+    }
+}
+
+impl HeapMarkAndSweep for FunctionEnvironmentIndex {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.function_environments.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(
+            self_index
+                - compactions
+                    .function_environments
+                    .get_shift_for_index(self_index),
+        );
     }
 }
