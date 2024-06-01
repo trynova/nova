@@ -8,7 +8,7 @@ use super::{
         sweep_heap_vector_values, CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
     },
     indexes::{
-        ArrayBufferIndex, DataViewIndex, DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
+        DataViewIndex, DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
         FinalizationRegistryIndex, MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex,
         RegExpIndex, SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
         WeakRefIndex, WeakSetIndex,
@@ -16,7 +16,9 @@ use super::{
     Heap,
 };
 use crate::ecmascript::{
-    builtins::{bound_function::BoundFunction, Array, BuiltinFunction, ECMAScriptFunction},
+    builtins::{
+        bound_function::BoundFunction, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
+    },
     execution::{
         DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
@@ -202,11 +204,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 arrays.get(index).mark_values(&mut queues);
             }
         });
-        let mut array_buffer_marks: Box<[ArrayBufferIndex]> =
-            queues.array_buffers.drain(..).collect();
+        let mut array_buffer_marks: Box<[ArrayBuffer]> = queues.array_buffers.drain(..).collect();
         array_buffer_marks.sort();
         array_buffer_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.array_buffers.get_mut(index) {
                 if *marked {
                     // Already marked, ignore

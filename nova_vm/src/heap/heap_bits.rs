@@ -3,7 +3,7 @@ use std::borrow::Borrow;
 use super::{
     element_array::{ElementArrayKey, ElementsVector},
     indexes::{
-        ArrayBufferIndex, DataViewIndex, DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
+        DataViewIndex, DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
         FinalizationRegistryIndex, MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex,
         RegExpIndex, SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
         WeakRefIndex, WeakSetIndex,
@@ -30,7 +30,7 @@ use crate::ecmascript::{
         weak_map::data::WeakMapHeapData,
         weak_ref::data::WeakRefHeapData,
         weak_set::data::WeakSetHeapData,
-        Array, ArrayBufferHeapData, BuiltinFunction, ECMAScriptFunction,
+        Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
     },
     execution::{
         DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironment,
@@ -93,7 +93,7 @@ pub struct HeapBits {
 
 #[derive(Debug)]
 pub(crate) struct WorkQueues {
-    pub array_buffers: Vec<ArrayBufferIndex>,
+    pub array_buffers: Vec<ArrayBuffer>,
     pub arrays: Vec<Array>,
     pub bigints: Vec<HeapBigInt>,
     pub bound_functions: Vec<BoundFunction>,
@@ -787,18 +787,6 @@ pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
     });
 }
 
-impl HeapMarkAndSweep for ArrayBufferIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.array_buffers.push(*self);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self =
-            Self::from_u32(self_index - compactions.array_buffers.get_shift_for_index(self_index));
-    }
-}
-
 impl HeapMarkAndSweep for DateIndex {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.dates.push(*self);
@@ -1064,16 +1052,6 @@ impl HeapMarkAndSweep for ElementsVector {
             ElementArrayKey::E32 => compactions.e_2_32.get_shift_for_index(self_index),
         };
         self.elements_index = ElementIndex::from_u32(self_index - shift);
-    }
-}
-
-impl HeapMarkAndSweep for ArrayBufferHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
     }
 }
 

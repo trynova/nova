@@ -41,10 +41,10 @@ use crate::{
     },
     heap::{
         indexes::{
-            ArrayBufferIndex, ArrayIndex, DataViewIndex, DateIndex, EmbedderObjectIndex,
-            ErrorIndex, FinalizationRegistryIndex, MapIndex, ObjectIndex, PrimitiveObjectIndex,
-            PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex,
-            TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
+            ArrayIndex, DataViewIndex, DateIndex, EmbedderObjectIndex, ErrorIndex,
+            FinalizationRegistryIndex, MapIndex, ObjectIndex, PrimitiveObjectIndex, PromiseIndex,
+            ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, TypedArrayIndex,
+            WeakMapIndex, WeakRefIndex, WeakSetIndex,
         },
         CompactionLists, HeapMarkAndSweep, WorkQueues,
     },
@@ -80,7 +80,7 @@ pub enum Object {
     PrimitiveObject(PrimitiveObjectIndex) = PRIMITIVE_OBJECT_DISCRIMINANT,
     Arguments = ARGUMENTS_DISCRIMINANT,
     Array(Array) = ARRAY_DISCRIMINANT,
-    ArrayBuffer(ArrayBufferIndex) = ARRAY_BUFFER_DISCRIMINANT,
+    ArrayBuffer(ArrayBuffer) = ARRAY_BUFFER_DISCRIMINANT,
     DataView(DataViewIndex) = DATA_VIEW_DISCRIMINANT,
     Date(DateIndex) = DATE_DISCRIMINANT,
     Error(ErrorIndex) = ERROR_DISCRIMINANT,
@@ -357,7 +357,7 @@ impl OrdinaryObjectInternalSlots for Object {
         match self {
             Object::Object(idx) => idx.internal_extensible(agent),
             Object::Array(idx) => idx.internal_extensible(agent),
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_extensible(agent),
+            Object::ArrayBuffer(idx) => idx.internal_extensible(agent),
             Object::Date(idx) => Date::from(idx).internal_extensible(agent),
             Object::Error(idx) => Error::from(idx).internal_extensible(agent),
             Object::BoundFunction(idx) => idx.internal_extensible(agent),
@@ -409,9 +409,7 @@ impl OrdinaryObjectInternalSlots for Object {
         match self {
             Object::Object(idx) => idx.internal_set_extensible(agent, value),
             Object::Array(idx) => idx.internal_set_extensible(agent, value),
-            Object::ArrayBuffer(idx) => {
-                ArrayBuffer::from(idx).internal_set_extensible(agent, value)
-            }
+            Object::ArrayBuffer(idx) => idx.internal_set_extensible(agent, value),
             Object::Date(idx) => Date::from(idx).internal_set_extensible(agent, value),
             Object::Error(idx) => Error::from(idx).internal_set_extensible(agent, value),
             Object::BoundFunction(idx) => Function::from(idx).internal_set_extensible(agent, value),
@@ -467,7 +465,7 @@ impl OrdinaryObjectInternalSlots for Object {
         match self {
             Object::Object(idx) => idx.internal_prototype(agent),
             Object::Array(idx) => idx.internal_prototype(agent),
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_prototype(agent),
+            Object::ArrayBuffer(idx) => idx.internal_prototype(agent),
             Object::Date(idx) => Date::from(idx).internal_prototype(agent),
             Object::Error(idx) => Error::from(idx).internal_prototype(agent),
             Object::BoundFunction(idx) => Function::from(idx).internal_prototype(agent),
@@ -519,9 +517,7 @@ impl OrdinaryObjectInternalSlots for Object {
         match self {
             Object::Object(idx) => idx.internal_set_prototype(agent, prototype),
             Object::Array(idx) => idx.internal_set_prototype(agent, prototype),
-            Object::ArrayBuffer(idx) => {
-                ArrayBuffer::from(idx).internal_set_prototype(agent, prototype)
-            }
+            Object::ArrayBuffer(idx) => idx.internal_set_prototype(agent, prototype),
             Object::Date(idx) => Date::from(idx).internal_set_prototype(agent, prototype),
             Object::Error(idx) => Error::from(idx).internal_set_prototype(agent, prototype),
             Object::BoundFunction(idx) => {
@@ -581,7 +577,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_get_prototype_of(agent),
             Object::Array(idx) => idx.internal_get_prototype_of(agent),
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_get_prototype_of(agent),
+            Object::ArrayBuffer(idx) => idx.internal_get_prototype_of(agent),
             Object::Date(idx) => Date::from(idx).internal_get_prototype_of(agent),
             Object::Error(idx) => Error::from(idx).internal_get_prototype_of(agent),
             Object::BoundFunction(idx) => Function::from(idx).internal_get_prototype_of(agent),
@@ -637,9 +633,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_set_prototype_of(agent, prototype),
             Object::Array(idx) => idx.internal_set_prototype_of(agent, prototype),
-            Object::ArrayBuffer(idx) => {
-                ArrayBuffer::from(idx).internal_set_prototype_of(agent, prototype)
-            }
+            Object::ArrayBuffer(idx) => idx.internal_set_prototype_of(agent, prototype),
             Object::Date(idx) => Date::from(idx).internal_set_prototype_of(agent, prototype),
             Object::Error(idx) => Error::from(idx).internal_set_prototype_of(agent, prototype),
             Object::BoundFunction(idx) => {
@@ -697,7 +691,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_is_extensible(agent),
             Object::Array(idx) => idx.internal_is_extensible(agent),
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_is_extensible(agent),
+            Object::ArrayBuffer(idx) => idx.internal_is_extensible(agent),
             Object::Date(idx) => Date::from(idx).internal_is_extensible(agent),
             Object::Error(idx) => Error::from(idx).internal_is_extensible(agent),
             Object::BoundFunction(idx) => Function::from(idx).internal_is_extensible(agent),
@@ -749,7 +743,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_prevent_extensions(agent),
             Object::Array(idx) => idx.internal_prevent_extensions(agent),
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_prevent_extensions(agent),
+            Object::ArrayBuffer(idx) => idx.internal_prevent_extensions(agent),
             Object::Date(idx) => Date::from(idx).internal_prevent_extensions(agent),
             Object::Error(idx) => Error::from(idx).internal_prevent_extensions(agent),
             Object::BoundFunction(idx) => Function::from(idx).internal_prevent_extensions(agent),
@@ -807,9 +801,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_get_own_property(agent, property_key),
             Object::Array(idx) => idx.internal_get_own_property(agent, property_key),
-            Object::ArrayBuffer(idx) => {
-                ArrayBuffer::from(idx).internal_get_own_property(agent, property_key)
-            }
+            Object::ArrayBuffer(idx) => idx.internal_get_own_property(agent, property_key),
             Object::Date(idx) => Date::from(idx).internal_get_own_property(agent, property_key),
             Object::Error(idx) => Error::from(idx).internal_get_own_property(agent, property_key),
             Object::BoundFunction(idx) => {
@@ -876,11 +868,9 @@ impl InternalMethods for Object {
             Object::Array(idx) => {
                 idx.internal_define_own_property(agent, property_key, property_descriptor)
             }
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_define_own_property(
-                agent,
-                property_key,
-                property_descriptor,
-            ),
+            Object::ArrayBuffer(idx) => {
+                idx.internal_define_own_property(agent, property_key, property_descriptor)
+            }
             Object::Date(idx) => Date::from(idx).internal_define_own_property(
                 agent,
                 property_key,
@@ -960,9 +950,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_has_property(agent, property_key),
             Object::Array(idx) => idx.internal_has_property(agent, property_key),
-            Object::ArrayBuffer(idx) => {
-                ArrayBuffer::from(idx).internal_has_property(agent, property_key)
-            }
+            Object::ArrayBuffer(idx) => idx.internal_has_property(agent, property_key),
             Object::Date(idx) => Date::from(idx).internal_has_property(agent, property_key),
             Object::Error(idx) => Error::from(idx).internal_has_property(agent, property_key),
             Object::BoundFunction(idx) => {
@@ -1025,9 +1013,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_get(agent, property_key, receiver),
             Object::Array(idx) => idx.internal_get(agent, property_key, receiver),
-            Object::ArrayBuffer(idx) => {
-                ArrayBuffer::from(idx).internal_get(agent, property_key, receiver)
-            }
+            Object::ArrayBuffer(idx) => idx.internal_get(agent, property_key, receiver),
             Object::Date(idx) => Date::from(idx).internal_get(agent, property_key, receiver),
             Object::Error(idx) => Error::from(idx).internal_get(agent, property_key, receiver),
             Object::BoundFunction(idx) => {
@@ -1087,9 +1073,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_set(agent, property_key, value, receiver),
             Object::Array(idx) => idx.internal_set(agent, property_key, value, receiver),
-            Object::ArrayBuffer(idx) => {
-                ArrayBuffer::from(idx).internal_set(agent, property_key, value, receiver)
-            }
+            Object::ArrayBuffer(idx) => idx.internal_set(agent, property_key, value, receiver),
             Object::Date(idx) => Date::from(idx).internal_set(agent, property_key, value, receiver),
             Object::Error(idx) => {
                 Error::from(idx).internal_set(agent, property_key, value, receiver)
@@ -1149,7 +1133,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_delete(agent, property_key),
             Object::Array(idx) => idx.internal_delete(agent, property_key),
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_delete(agent, property_key),
+            Object::ArrayBuffer(idx) => idx.internal_delete(agent, property_key),
             Object::Date(idx) => Date::from(idx).internal_delete(agent, property_key),
             Object::Error(idx) => Error::from(idx).internal_delete(agent, property_key),
             Object::BoundFunction(idx) => Function::from(idx).internal_delete(agent, property_key),
@@ -1205,7 +1189,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_own_property_keys(agent),
             Object::Array(idx) => idx.internal_own_property_keys(agent),
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_own_property_keys(agent),
+            Object::ArrayBuffer(idx) => idx.internal_own_property_keys(agent),
             Object::Date(idx) => Date::from(idx).internal_own_property_keys(agent),
             Object::Error(idx) => Error::from(idx).internal_own_property_keys(agent),
             Object::BoundFunction(idx) => Function::from(idx).internal_own_property_keys(agent),

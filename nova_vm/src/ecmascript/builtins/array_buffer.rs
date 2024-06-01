@@ -12,14 +12,24 @@ use crate::{
             PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::ArrayBufferIndex, Heap},
+    heap::{indexes::ArrayBufferIndex, CompactionLists, Heap, HeapMarkAndSweep, WorkQueues},
 };
 
 pub use data::ArrayBufferHeapData;
-use std::ops::{Deref, Index, IndexMut};
+use std::ops::{Index, IndexMut};
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct ArrayBuffer(ArrayBufferIndex);
+
+impl ArrayBuffer {
+    pub(crate) const fn _def() -> Self {
+        Self(ArrayBufferIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
 
 impl From<ArrayBufferIndex> for ArrayBuffer {
     fn from(value: ArrayBufferIndex) -> Self {
@@ -29,21 +39,13 @@ impl From<ArrayBufferIndex> for ArrayBuffer {
 
 impl From<ArrayBuffer> for Object {
     fn from(value: ArrayBuffer) -> Self {
-        Self::ArrayBuffer(value.0)
+        Self::ArrayBuffer(value)
     }
 }
 
 impl From<ArrayBuffer> for Value {
     fn from(value: ArrayBuffer) -> Self {
-        Self::ArrayBuffer(value.0)
-    }
-}
-
-impl Deref for ArrayBuffer {
-    type Target = ArrayBufferIndex;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+        Self::ArrayBuffer(value)
     }
 }
 
@@ -274,5 +276,18 @@ impl InternalMethods for ArrayBuffer {
             // We know properties didn't exist in this branch.
             Ok(vec![])
         }
+    }
+}
+
+impl HeapMarkAndSweep for ArrayBuffer {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.array_buffers.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 = ArrayBufferIndex::from_u32(
+            self_index - compactions.array_buffers.get_shift_for_index(self_index),
+        );
     }
 }

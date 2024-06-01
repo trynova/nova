@@ -5,16 +5,18 @@ use crate::{
         abstract_operations::type_conversion::{
             to_big_int, to_int32, to_number, to_numeric, to_string, to_uint32,
         },
-        builtins::{bound_function::BoundFunction, Array, BuiltinFunction, ECMAScriptFunction},
+        builtins::{
+            bound_function::BoundFunction, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
+        },
         execution::{Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
         types::BUILTIN_STRING_MEMORY,
     },
     heap::indexes::{
-        ArrayBufferIndex, DataViewIndex, DateIndex, EmbedderObjectIndex, ErrorIndex,
-        FinalizationRegistryIndex, MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex,
-        RegExpIndex, SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
-        WeakRefIndex, WeakSetIndex,
+        DataViewIndex, DateIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex,
+        MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex,
+        SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
+        WeakSetIndex,
     },
     SmallInteger, SmallString,
 };
@@ -86,7 +88,7 @@ pub enum Value {
     // https://tc39.es/ecma262/#sec-ecmascript-standard-built-in-objects
     Arguments,
     Array(Array),
-    ArrayBuffer(ArrayBufferIndex),
+    ArrayBuffer(ArrayBuffer),
     DataView(DataViewIndex),
     Date(DateIndex),
     Error(ErrorIndex),
@@ -165,7 +167,7 @@ pub(crate) const OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::Object(OrdinaryObject::_def()));
 pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array::_def()));
 pub(crate) const ARRAY_BUFFER_DISCRIMINANT: u8 =
-    value_discriminant(Value::ArrayBuffer(ArrayBufferIndex::from_u32_index(0)));
+    value_discriminant(Value::ArrayBuffer(ArrayBuffer::_def()));
 pub(crate) const DATE_DISCRIMINANT: u8 =
     value_discriminant(Value::Date(DateIndex::from_u32_index(0)));
 pub(crate) const ERROR_DISCRIMINANT: u8 =
