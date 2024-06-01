@@ -33,7 +33,8 @@ use crate::{
     ecmascript::{
         builtins::{
             bound_function::BoundFunction, date::Date, error::Error, map::Map, set::Set,
-            ArgumentsList, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
+            shared_array_buffer::SharedArrayBuffer, ArgumentsList, Array, ArrayBuffer,
+            BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
@@ -43,8 +44,8 @@ use crate::{
         indexes::{
             ArrayIndex, DataViewIndex, DateIndex, EmbedderObjectIndex, ErrorIndex,
             FinalizationRegistryIndex, MapIndex, ObjectIndex, PrimitiveObjectIndex, PromiseIndex,
-            ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, TypedArrayIndex,
-            WeakMapIndex, WeakRefIndex, WeakSetIndex,
+            ProxyIndex, RegExpIndex, SetIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
+            WeakSetIndex,
         },
         CompactionLists, HeapMarkAndSweep, WorkQueues,
     },
@@ -90,7 +91,7 @@ pub enum Object {
     Proxy(ProxyIndex) = PROXY_DISCRIMINANT,
     RegExp(RegExpIndex) = REGEXP_DISCRIMINANT,
     Set(SetIndex) = SET_DISCRIMINANT,
-    SharedArrayBuffer(SharedArrayBufferIndex) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
+    SharedArrayBuffer(SharedArrayBuffer) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
     WeakMap(WeakMapIndex) = WEAK_MAP_DISCRIMINANT,
     WeakRef(WeakRefIndex) = WEAK_REF_DISCRIMINANT,
     WeakSet(WeakSetIndex) = WEAK_SET_DISCRIMINANT,

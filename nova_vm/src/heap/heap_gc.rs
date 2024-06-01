@@ -10,14 +10,15 @@ use super::{
     indexes::{
         DataViewIndex, DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
         FinalizationRegistryIndex, MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex,
-        RegExpIndex, SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
-        WeakRefIndex, WeakSetIndex,
+        RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
+        WeakSetIndex,
     },
     Heap,
 };
 use crate::ecmascript::{
     builtins::{
-        bound_function::BoundFunction, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
+        bound_function::BoundFunction, shared_array_buffer::SharedArrayBuffer, Array, ArrayBuffer,
+        BuiltinFunction, ECMAScriptFunction,
     },
     execution::{
         DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
@@ -444,11 +445,11 @@ pub fn heap_gc(heap: &mut Heap) {
                 sets.get(index).mark_values(&mut queues);
             }
         });
-        let mut shared_array_buffer_marks: Box<[SharedArrayBufferIndex]> =
+        let mut shared_array_buffer_marks: Box<[SharedArrayBuffer]> =
             queues.shared_array_buffers.drain(..).collect();
         shared_array_buffer_marks.sort();
         shared_array_buffer_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.shared_array_buffers.get_mut(index) {
                 if *marked {
                     // Already marked, ignore

@@ -6,7 +6,8 @@ use crate::{
             to_big_int, to_int32, to_number, to_numeric, to_string, to_uint32,
         },
         builtins::{
-            bound_function::BoundFunction, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
+            bound_function::BoundFunction, shared_array_buffer::SharedArrayBuffer, Array,
+            ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
@@ -15,8 +16,7 @@ use crate::{
     heap::indexes::{
         DataViewIndex, DateIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex,
         MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex,
-        SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
-        WeakSetIndex,
+        SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
     SmallInteger, SmallString,
 };
@@ -98,7 +98,7 @@ pub enum Value {
     Proxy(ProxyIndex),
     RegExp(RegExpIndex),
     Set(SetIndex),
-    SharedArrayBuffer(SharedArrayBufferIndex),
+    SharedArrayBuffer(SharedArrayBuffer),
     WeakMap(WeakMapIndex),
     WeakRef(WeakRefIndex),
     WeakSet(WeakSetIndex),
@@ -216,9 +216,8 @@ pub(crate) const PROMISE_DISCRIMINANT: u8 =
 pub(crate) const PROXY_DISCRIMINANT: u8 =
     value_discriminant(Value::Proxy(ProxyIndex::from_u32_index(0)));
 pub(crate) const SET_DISCRIMINANT: u8 = value_discriminant(Value::Set(SetIndex::from_u32_index(0)));
-pub(crate) const SHARED_ARRAY_BUFFER_DISCRIMINANT: u8 = value_discriminant(
-    Value::SharedArrayBuffer(SharedArrayBufferIndex::from_u32_index(0)),
-);
+pub(crate) const SHARED_ARRAY_BUFFER_DISCRIMINANT: u8 =
+    value_discriminant(Value::SharedArrayBuffer(SharedArrayBuffer::_def()));
 pub(crate) const WEAK_MAP_DISCRIMINANT: u8 =
     value_discriminant(Value::WeakMap(WeakMapIndex::from_u32_index(0)));
 pub(crate) const WEAK_REF_DISCRIMINANT: u8 =

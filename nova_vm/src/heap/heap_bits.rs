@@ -5,8 +5,8 @@ use super::{
     indexes::{
         DataViewIndex, DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
         FinalizationRegistryIndex, MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex,
-        RegExpIndex, SetIndex, SharedArrayBufferIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
-        WeakRefIndex, WeakSetIndex,
+        RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
+        WeakSetIndex,
     },
     Heap, SymbolHeapData,
 };
@@ -25,7 +25,7 @@ use crate::ecmascript::{
         proxy::data::ProxyHeapData,
         regexp::RegExpHeapData,
         set::{data::SetHeapData, Set},
-        shared_array_buffer::data::SharedArrayBufferHeapData,
+        shared_array_buffer::SharedArrayBuffer,
         typed_array::data::TypedArrayHeapData,
         weak_map::data::WeakMapHeapData,
         weak_ref::data::WeakRefHeapData,
@@ -127,7 +127,7 @@ pub(crate) struct WorkQueues {
     pub regexps: Vec<RegExpIndex>,
     pub scripts: Vec<ScriptIdentifier>,
     pub sets: Vec<SetIndex>,
-    pub shared_array_buffers: Vec<SharedArrayBufferIndex>,
+    pub shared_array_buffers: Vec<SharedArrayBuffer>,
     pub strings: Vec<HeapString>,
     pub symbols: Vec<SymbolIndex>,
     pub typed_arrays: Vec<TypedArrayIndex>,
@@ -554,6 +554,7 @@ pub(crate) struct CompactionLists {
     pub regexps: CompactionList,
     pub sets: CompactionList,
     pub strings: CompactionList,
+    pub shared_array_buffers: CompactionList,
     pub symbols: CompactionList,
 }
 
@@ -602,6 +603,7 @@ impl CompactionLists {
             regexps: CompactionList::from_mark_bits(&bits.regexps),
             sets: CompactionList::from_mark_bits(&bits.sets),
             strings: CompactionList::from_mark_bits(&bits.strings),
+            shared_array_buffers: CompactionList::from_mark_bits(&bits.shared_array_buffers),
             symbols: CompactionList::from_mark_bits(&bits.symbols),
         }
     }
@@ -1166,16 +1168,6 @@ impl HeapMarkAndSweep for SetHeapData {
         self.set
             .iter_mut()
             .for_each(|value| value.sweep_values(compactions));
-    }
-}
-
-impl HeapMarkAndSweep for SharedArrayBufferHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
     }
 }
 
