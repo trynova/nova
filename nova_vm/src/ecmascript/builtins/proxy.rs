@@ -8,15 +8,29 @@ use crate::{
             PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::ProxyIndex, Heap},
+    heap::{
+        indexes::{BaseIndex, ProxyIndex},
+        CreateHeapData, Heap,
+    },
 };
 
 use self::data::ProxyHeapData;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct Proxy(pub(crate) ProxyIndex);
+
+impl Proxy {
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
 
 impl From<Proxy> for ProxyIndex {
     fn from(val: Proxy) -> Self {
@@ -44,49 +58,13 @@ impl IntoObject for Proxy {
 
 impl From<Proxy> for Value {
     fn from(val: Proxy) -> Self {
-        Value::Proxy(val.0)
+        Value::Proxy(val)
     }
 }
 
 impl From<Proxy> for Object {
     fn from(val: Proxy) -> Self {
-        Object::Proxy(val.0)
-    }
-}
-
-impl Index<Proxy> for Agent {
-    type Output = ProxyHeapData;
-
-    fn index(&self, index: Proxy) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<Proxy> for Agent {
-    fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<Proxy> for Heap {
-    type Output = ProxyHeapData;
-
-    fn index(&self, index: Proxy) -> &Self::Output {
-        self.proxys
-            .get(index.0.into_index())
-            .expect("Proxy out of bounds")
-            .as_ref()
-            .expect("Proxy slot empty")
-    }
-}
-
-impl IndexMut<Proxy> for Heap {
-    fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
-        self.proxys
-            .get_mut(index.0.into_index())
-            .expect("Proxy out of bounds")
-            .as_mut()
-            .expect("Proxy slot empty")
+        Object::Proxy(val)
     }
 }
 
@@ -180,5 +158,36 @@ impl InternalMethods for Proxy {
 
     fn internal_own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         todo!();
+    }
+}
+
+impl Index<Proxy> for Agent {
+    type Output = ProxyHeapData;
+
+    fn index(&self, index: Proxy) -> &Self::Output {
+        self.heap
+            .proxys
+            .get(index.get_index())
+            .expect("Proxy out of bounds")
+            .as_ref()
+            .expect("Proxy slot empty")
+    }
+}
+
+impl IndexMut<Proxy> for Agent {
+    fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
+        self.heap
+            .proxys
+            .get_mut(index.get_index())
+            .expect("Proxy out of bounds")
+            .as_mut()
+            .expect("Proxy slot empty")
+    }
+}
+
+impl CreateHeapData<ProxyHeapData, Proxy> for Heap {
+    fn create(&mut self, data: ProxyHeapData) -> Proxy {
+        self.proxys.push(Some(data));
+        Proxy(ProxyIndex::last(&self.proxys))
     }
 }

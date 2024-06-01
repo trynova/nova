@@ -5,7 +5,7 @@ use super::{
     type_conversion::{to_length, to_object},
 };
 use crate::ecmascript::{
-    builtins::{ArgumentsList, Array, BuiltinFunction, ECMAScriptFunction},
+    builtins::{ArgumentsList, Array},
     execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
     types::{
         Function, InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey, Value,
@@ -256,12 +256,8 @@ pub(crate) fn call(
             Value::BoundFunction(idx) => {
                 Function::from(idx).internal_call(agent, v, arguments_list)
             }
-            Value::BuiltinFunction(idx) => {
-                BuiltinFunction::from(idx).internal_call(agent, v, arguments_list)
-            }
-            Value::ECMAScriptFunction(idx) => {
-                ECMAScriptFunction::from(idx).internal_call(agent, v, arguments_list)
-            }
+            Value::BuiltinFunction(idx) => idx.internal_call(agent, v, arguments_list),
+            Value::ECMAScriptFunction(idx) => idx.internal_call(agent, v, arguments_list),
             _ => unreachable!(),
         }
     }

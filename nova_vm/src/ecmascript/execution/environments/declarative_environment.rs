@@ -1,7 +1,10 @@
 use super::{DeclarativeEnvironmentIndex, OuterEnv};
-use crate::ecmascript::{
-    execution::{agent::ExceptionType, Agent, JsResult},
-    types::{Object, String, Value},
+use crate::{
+    ecmascript::{
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{Object, String, Value},
+    },
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 use std::collections::HashMap;
 
@@ -139,6 +142,22 @@ impl DeclarativeEnvironment {
 
         // 4. Return true.
         true
+    }
+}
+
+impl HeapMarkAndSweep for DeclarativeEnvironment {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.outer_env.mark_values(queues);
+        for binding in self.bindings.values() {
+            binding.value.mark_values(queues);
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.outer_env.sweep_values(compactions);
+        for binding in self.bindings.values_mut() {
+            binding.value.sweep_values(compactions);
+        }
     }
 }
 
@@ -343,6 +362,22 @@ impl DeclarativeEnvironmentIndex {
     pub(crate) fn with_base_object(self) -> Option<Object> {
         // 1. Return undefined.
         None
+    }
+}
+
+impl HeapMarkAndSweep for DeclarativeEnvironmentIndex {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.declarative_environments.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(
+            self_index
+                - compactions
+                    .declarative_environments
+                    .get_shift_for_index(self_index),
+        );
     }
 }
 

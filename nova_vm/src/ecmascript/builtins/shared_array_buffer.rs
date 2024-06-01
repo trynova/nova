@@ -8,7 +8,10 @@ use crate::{
             PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::SharedArrayBufferIndex, Heap, ObjectEntry, ObjectEntryPropertyDescriptor},
+    heap::{
+        indexes::SharedArrayBufferIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+    },
 };
 
 use self::data::SharedArrayBufferHeapData;
@@ -17,8 +20,19 @@ use super::ordinary::ordinary_set_prototype_of_check_loop;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct SharedArrayBuffer(pub(crate) SharedArrayBufferIndex);
+
+impl SharedArrayBuffer {
+    pub(crate) const fn _def() -> Self {
+        SharedArrayBuffer(SharedArrayBufferIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
 
 impl From<SharedArrayBuffer> for SharedArrayBufferIndex {
     fn from(val: SharedArrayBuffer) -> Self {
@@ -46,13 +60,13 @@ impl IntoObject for SharedArrayBuffer {
 
 impl From<SharedArrayBuffer> for Value {
     fn from(val: SharedArrayBuffer) -> Self {
-        Value::SharedArrayBuffer(val.0)
+        Value::SharedArrayBuffer(val)
     }
 }
 
 impl From<SharedArrayBuffer> for Object {
     fn from(val: SharedArrayBuffer) -> Self {
-        Object::SharedArrayBuffer(val.0)
+        Object::SharedArrayBuffer(val)
     }
 }
 
@@ -270,5 +284,28 @@ impl InternalMethods for SharedArrayBuffer {
         } else {
             Ok(vec![])
         }
+    }
+}
+
+impl HeapMarkAndSweep for SharedArrayBuffer {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.shared_array_buffers.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 = SharedArrayBufferIndex::from_u32(
+            self_index
+                - compactions
+                    .shared_array_buffers
+                    .get_shift_for_index(self_index),
+        );
+    }
+}
+
+impl CreateHeapData<SharedArrayBufferHeapData, SharedArrayBuffer> for Heap {
+    fn create(&mut self, data: SharedArrayBufferHeapData) -> SharedArrayBuffer {
+        self.shared_array_buffers.push(Some(data));
+        SharedArrayBuffer(SharedArrayBufferIndex::last(&self.shared_array_buffers))
     }
 }

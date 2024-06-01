@@ -8,7 +8,11 @@ use crate::{
             OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::MapIndex, ObjectEntry, ObjectEntryPropertyDescriptor},
+    heap::{
+        indexes::{BaseIndex, MapIndex},
+        CompactionLists, CreateHeapData, HeapMarkAndSweep, ObjectEntry,
+        ObjectEntryPropertyDescriptor, WorkQueues,
+    },
     Heap,
 };
 
@@ -18,8 +22,18 @@ use super::ordinary::ordinary_set_prototype_of_check_loop;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Map(pub(crate) MapIndex);
+
+impl Map {
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
 
 impl From<Map> for MapIndex {
     fn from(val: Map) -> Self {
@@ -47,49 +61,13 @@ impl IntoObject for Map {
 
 impl From<Map> for Value {
     fn from(val: Map) -> Self {
-        Value::Map(val.0)
+        Value::Map(val)
     }
 }
 
 impl From<Map> for Object {
     fn from(val: Map) -> Self {
-        Object::Map(val.0)
-    }
-}
-
-impl Index<Map> for Agent {
-    type Output = MapHeapData;
-
-    fn index(&self, index: Map) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<Map> for Agent {
-    fn index_mut(&mut self, index: Map) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<Map> for Heap {
-    type Output = MapHeapData;
-
-    fn index(&self, index: Map) -> &Self::Output {
-        self.maps
-            .get(index.0.into_index())
-            .expect("Map out of bounds")
-            .as_ref()
-            .expect("Map slot empty")
-    }
-}
-
-impl IndexMut<Map> for Heap {
-    fn index_mut(&mut self, index: Map) -> &mut Self::Output {
-        self.maps
-            .get_mut(index.0.into_index())
-            .expect("Map out of bounds")
-            .as_mut()
-            .expect("Map slot empty")
+        Object::Map(val)
     }
 }
 
@@ -270,5 +248,47 @@ impl InternalMethods for Map {
         } else {
             Ok(vec![])
         }
+    }
+}
+
+impl HeapMarkAndSweep for Map {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.maps.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 = MapIndex::from_u32(self_index - compactions.maps.get_shift_for_index(self_index));
+    }
+}
+
+impl Index<Map> for Agent {
+    type Output = MapHeapData;
+
+    fn index(&self, index: Map) -> &Self::Output {
+        self.heap
+            .maps
+            .get(index.get_index())
+            .expect("Map out of bounds")
+            .as_ref()
+            .expect("Map slot empty")
+    }
+}
+
+impl IndexMut<Map> for Agent {
+    fn index_mut(&mut self, index: Map) -> &mut Self::Output {
+        self.heap
+            .maps
+            .get_mut(index.get_index())
+            .expect("Map out of bounds")
+            .as_mut()
+            .expect("Map slot empty")
+    }
+}
+
+impl CreateHeapData<MapHeapData, Map> for Heap {
+    fn create(&mut self, data: MapHeapData) -> Map {
+        self.maps.push(Some(data));
+        Map(MapIndex::last(&self.maps))
     }
 }

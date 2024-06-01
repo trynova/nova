@@ -10,12 +10,13 @@ use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::RealmIdentifier;
 use crate::ecmascript::types::IntoObject;
 
+use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::SymbolHeapData;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::heap::indexes::SymbolIndex;
+use crate::heap::CreateHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::WellKnownSymbolIndexes;
 
@@ -70,10 +71,13 @@ impl SymbolConstructor {
         } else {
             Some(to_string(agent, description)?)
         };
-        agent.heap.symbols.push(Some(SymbolHeapData {
-            descriptor: desc_string,
-        }));
-        Ok(Value::Symbol(SymbolIndex::last(&agent.heap.symbols)))
+
+        Ok(agent
+            .heap
+            .create(SymbolHeapData {
+                descriptor: desc_string,
+            })
+            .into_value())
     }
 
     fn r#for(_agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {

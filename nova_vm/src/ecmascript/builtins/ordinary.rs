@@ -836,14 +836,19 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
     };
 
     let object = match proto_intrinsics {
-        ProtoIntrinsics::Array => agent.heap.create(ArrayHeapData::default()).into(),
-        ProtoIntrinsics::ArrayBuffer => agent.heap.create(ArrayBufferHeapData::default()).into(),
+        ProtoIntrinsics::Array => agent.heap.create(ArrayHeapData::default()).into_object(),
+        ProtoIntrinsics::ArrayBuffer => agent
+            .heap
+            .create(ArrayBufferHeapData::default())
+            .into_object(),
         ProtoIntrinsics::BigInt => agent
             .heap
-            .create(PrimitiveObjectHeapData::new_big_int_object(0.into())),
+            .create(PrimitiveObjectHeapData::new_big_int_object(0.into()))
+            .into_object(),
         ProtoIntrinsics::Boolean => agent
             .heap
-            .create(PrimitiveObjectHeapData::new_boolean_object(false)),
+            .create(PrimitiveObjectHeapData::new_boolean_object(false))
+            .into_object(),
         ProtoIntrinsics::Error => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::Error, None, None))
@@ -856,7 +861,8 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
         ProtoIntrinsics::Function => todo!(),
         ProtoIntrinsics::Number => agent
             .heap
-            .create(PrimitiveObjectHeapData::new_number_object(0.into())),
+            .create(PrimitiveObjectHeapData::new_number_object(0.into()))
+            .into_object(),
         ProtoIntrinsics::Object => agent
             .heap
             .create_object_with_prototype(
@@ -884,12 +890,14 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .heap
             .create(PrimitiveObjectHeapData::new_string_object(
                 String::EMPTY_STRING,
-            )),
+            ))
+            .into_object(),
         ProtoIntrinsics::Symbol => agent
             .heap
             .create(PrimitiveObjectHeapData::new_symbol_object(Symbol::from(
                 WellKnownSymbolIndexes::AsyncIterator,
-            ))),
+            )))
+            .into_object(),
         ProtoIntrinsics::SyntaxError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::SyntaxError, None, None))
@@ -947,8 +955,8 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .create(TypedArrayHeapData::default())
             .into_object(),
         ProtoIntrinsics::Map => agent.heap.create(MapHeapData::default()).into_object(),
-        ProtoIntrinsics::Promise => agent.heap.create(PromiseHeapData::default()),
-        ProtoIntrinsics::RegExp => agent.heap.create(RegExpHeapData::default()),
+        ProtoIntrinsics::Promise => agent.heap.create(PromiseHeapData::default()).into_object(),
+        ProtoIntrinsics::RegExp => agent.heap.create(RegExpHeapData::default()).into_object(),
         ProtoIntrinsics::Set => agent.heap.create(SetHeapData::default()).into_object(),
         ProtoIntrinsics::SharedArrayBuffer => agent
             .heap

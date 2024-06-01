@@ -11,6 +11,7 @@ use crate::{
             PropertyDescriptor, PropertyKey, String, Value,
         },
     },
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     Heap,
 };
 
@@ -23,7 +24,7 @@ use super::ordinary::{
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Module(pub(crate) ModuleIdentifier);
 
 impl From<Module> for ModuleIdentifier {
@@ -52,13 +53,13 @@ impl IntoObject for Module {
 
 impl From<Module> for Value {
     fn from(val: Module) -> Self {
-        Value::Module(val.0)
+        Value::Module(val)
     }
 }
 
 impl From<Module> for Object {
     fn from(val: Module) -> Self {
-        Object::Module(val.0)
+        Object::Module(val)
     }
 }
 
@@ -99,6 +100,14 @@ impl IndexMut<Module> for Heap {
 }
 
 impl Module {
+    pub(crate) const fn _def() -> Self {
+        Self(ModuleIdentifier::from_u32(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+
     fn get_backing_object(self, agent: &Agent) -> Option<Object> {
         agent[self].object_index.map(|idx| idx.into())
     }
@@ -405,5 +414,18 @@ impl InternalMethods for Module {
             .iter()
             .for_each(|symbol_key| own_property_keys.push(*symbol_key));
         Ok(own_property_keys)
+    }
+}
+
+impl HeapMarkAndSweep for Module {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.modules.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 = ModuleIdentifier::from_u32(
+            self_index - compactions.modules.get_shift_for_index(self_index),
+        );
     }
 }

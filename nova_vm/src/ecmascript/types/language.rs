@@ -19,14 +19,14 @@ pub use function::{Function, IntoFunction};
 pub use into_numeric::IntoNumeric;
 pub use into_primitive::IntoPrimitive;
 pub use into_value::IntoValue;
-pub use number::{Number, NumberHeapData};
+pub use number::{HeapNumber, Number, NumberHeapData};
 pub use numeric::Numeric;
 pub use object::{
     InternalMethods, IntoObject, Object, ObjectHeapData, OrdinaryObject,
     OrdinaryObjectInternalSlots, PropertyKey,
 };
 pub use primitive::Primitive;
-pub use string::{String, StringHeapData, BUILTIN_STRINGS_LIST, BUILTIN_STRING_MEMORY};
+pub use string::{HeapString, String, StringHeapData, BUILTIN_STRINGS_LIST, BUILTIN_STRING_MEMORY};
 pub use symbol::{Symbol, SymbolHeapData};
 pub use value::Value;
 pub(crate) use value::{

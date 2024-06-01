@@ -1,5 +1,7 @@
 mod data;
 
+use std::ops::{Index, IndexMut};
+
 use super::{
     value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
     IntoNumeric, IntoPrimitive, IntoValue, Numeric, Primitive, String, Value,
@@ -9,29 +11,45 @@ use crate::{
         abstract_operations::type_conversion::to_int32,
         execution::{Agent, JsResult},
     },
-    heap::{indexes::NumberIndex, CreateHeapData},
+    heap::{
+        indexes::NumberIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+    },
     SmallInteger,
 };
 
 pub use data::NumberHeapData;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
+pub struct HeapNumber(pub(crate) NumberIndex);
+
+impl HeapNumber {
+    pub(crate) const fn _def() -> Self {
+        HeapNumber(NumberIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
+
 /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
 #[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum Number {
-    Number(NumberIndex) = NUMBER_DISCRIMINANT,
+    Number(HeapNumber) = NUMBER_DISCRIMINANT,
     // 56-bit signed integer.
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     Float(f32) = FLOAT_DISCRIMINANT,
 }
 
-impl IntoValue for NumberIndex {
+impl IntoValue for HeapNumber {
     fn into_value(self) -> Value {
         Value::Number(self)
     }
 }
 
-impl IntoPrimitive for NumberIndex {
+impl IntoPrimitive for HeapNumber {
     fn into_primitive(self) -> Primitive {
         Primitive::Number(self)
     }
@@ -47,7 +65,7 @@ impl IntoValue for Number {
     }
 }
 
-impl IntoNumeric for NumberIndex {
+impl IntoNumeric for HeapNumber {
     fn into_numeric(self) -> Numeric {
         Numeric::Number(self)
     }
@@ -83,8 +101,8 @@ impl std::fmt::Debug for Number {
     }
 }
 
-impl From<NumberIndex> for Number {
-    fn from(value: NumberIndex) -> Self {
+impl From<HeapNumber> for Number {
+    fn from(value: HeapNumber) -> Self {
         Number::Number(value)
     }
 }
@@ -819,3 +837,73 @@ impl_value_from_n!(u16);
 impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
+
+impl Index<HeapNumber> for Agent {
+    type Output = f64;
+
+    fn index(&self, index: HeapNumber) -> &Self::Output {
+        &self
+            .heap
+            .numbers
+            .get(index.0.into_index())
+            .expect("HeapNumber out of bounds")
+            .as_ref()
+            .expect("HeapNumber slot empty")
+            .data
+    }
+}
+
+impl IndexMut<HeapNumber> for Agent {
+    fn index_mut(&mut self, index: HeapNumber) -> &mut Self::Output {
+        &mut self
+            .heap
+            .numbers
+            .get_mut(index.0.into_index())
+            .expect("HeapNumber out of bounds")
+            .as_mut()
+            .expect("HeapNumber slot empty")
+            .data
+    }
+}
+
+impl CreateHeapData<f64, Number> for Heap {
+    fn create(&mut self, data: f64) -> Number {
+        // NOTE: This function cannot currently be implemented
+        // directly using `Number::from_f64` as it takes an Agent
+        // parameter that we do not have access to here.
+        if let Ok(value) = Number::try_from(data) {
+            value
+        } else {
+            // SAFETY: Number was not representable as a
+            // stack-allocated Number.
+            let heap_number = unsafe { self.alloc_number(data) };
+            Number::Number(heap_number)
+        }
+    }
+}
+
+impl HeapMarkAndSweep for Number {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        if let Self::Number(idx) = self {
+            idx.mark_values(queues);
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        if let Self::Number(idx) = self {
+            idx.sweep_values(compactions);
+        }
+    }
+}
+
+impl HeapMarkAndSweep for HeapNumber {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.numbers.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 =
+            NumberIndex::from_u32(self_index - compactions.numbers.get_shift_for_index(self_index));
+    }
+}

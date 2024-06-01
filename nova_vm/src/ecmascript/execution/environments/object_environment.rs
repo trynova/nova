@@ -8,7 +8,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{InternalMethods, Object, PropertyDescriptor, PropertyKey, String, Value},
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
 /// ### [9.1.1.2 Object Environment Records](https://tc39.es/ecma262/#sec-object-environment-records)
@@ -66,6 +66,18 @@ impl ObjectEnvironment {
             outer_env,
         }
         // 5. Return env.
+    }
+}
+
+impl HeapMarkAndSweep for ObjectEnvironment {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.outer_env.mark_values(queues);
+        self.binding_object.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.outer_env.sweep_values(compactions);
+        self.binding_object.sweep_values(compactions);
     }
 }
 
@@ -298,5 +310,21 @@ impl ObjectEnvironmentIndex {
             // 2. Otherwise, return undefined.
             None
         }
+    }
+}
+
+impl HeapMarkAndSweep for ObjectEnvironmentIndex {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.object_environments.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(
+            self_index
+                - compactions
+                    .object_environments
+                    .get_shift_for_index(self_index),
+        );
     }
 }

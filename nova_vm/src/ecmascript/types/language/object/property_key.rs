@@ -2,14 +2,16 @@ use crate::{
     ecmascript::{
         execution::Agent,
         types::{
-            language::value::{
-                INTEGER_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
-                SYMBOL_DISCRIMINANT,
+            language::{
+                string::HeapString,
+                value::{
+                    INTEGER_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
+                    SYMBOL_DISCRIMINANT,
+                },
             },
             String, Symbol, Value,
         },
     },
-    heap::indexes::{StringIndex, SymbolIndex},
     SmallInteger, SmallString,
 };
 
@@ -18,8 +20,8 @@ use crate::{
 pub enum PropertyKey {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
-    String(StringIndex) = STRING_DISCRIMINANT,
-    Symbol(SymbolIndex) = SYMBOL_DISCRIMINANT,
+    String(HeapString) = STRING_DISCRIMINANT,
+    Symbol(Symbol) = SYMBOL_DISCRIMINANT,
     // TODO: PrivateKey
 }
 
@@ -87,21 +89,15 @@ impl From<SmallString> for PropertyKey {
     }
 }
 
-impl From<StringIndex> for PropertyKey {
-    fn from(value: StringIndex) -> Self {
+impl From<HeapString> for PropertyKey {
+    fn from(value: HeapString) -> Self {
         PropertyKey::String(value)
-    }
-}
-
-impl From<SymbolIndex> for PropertyKey {
-    fn from(value: SymbolIndex) -> Self {
-        PropertyKey::Symbol(value)
     }
 }
 
 impl From<Symbol> for PropertyKey {
     fn from(value: Symbol) -> Self {
-        PropertyKey::Symbol(value.0)
+        PropertyKey::Symbol(value)
     }
 }
 
@@ -150,7 +146,7 @@ impl TryFrom<Value> for PropertyKey {
                 if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER)
                     .contains(&x.into_i64()) =>
             {
-                Ok(PropertyKey::Integer(x))
+                Ok(PropertyKey::Integer(x.into_inner()))
             }
             _ => Err(()),
         }

@@ -10,8 +10,9 @@ use crate::{
         },
     },
     heap::{
-        indexes::BuiltinFunctionIndex, CreateHeapData, Heap, IntrinsicConstructorIndexes,
-        IntrinsicFunctionIndexes, ObjectEntry, ObjectEntryPropertyDescriptor,
+        indexes::BuiltinFunctionIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
+        ObjectEntryPropertyDescriptor, WorkQueues,
     },
 };
 
@@ -32,24 +33,6 @@ impl ArgumentsList<'_> {
     #[inline]
     pub fn get(&self, index: usize) -> Value {
         *self.0.get(index).unwrap_or(&Value::Undefined)
-    }
-}
-
-impl IntoValue for BuiltinFunctionIndex {
-    fn into_value(self) -> Value {
-        Value::BuiltinFunction(self)
-    }
-}
-
-impl IntoObject for BuiltinFunctionIndex {
-    fn into_object(self) -> Object {
-        Object::BuiltinFunction(self)
-    }
-}
-
-impl IntoFunction for BuiltinFunctionIndex {
-    fn into_function(self) -> Function {
-        Function::BuiltinFunction(self)
     }
 }
 
@@ -110,12 +93,16 @@ impl BuiltinFunctionArgs {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BuiltinFunction(pub(crate) BuiltinFunctionIndex);
 
 impl BuiltinFunction {
-    pub(crate) const fn from_index(index: BuiltinFunctionIndex) -> Self {
-        Self(index)
+    pub(crate) const fn _def() -> Self {
+        Self(BuiltinFunctionIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
     }
 }
 
@@ -145,19 +132,19 @@ impl IntoFunction for BuiltinFunction {
 
 impl From<BuiltinFunction> for Value {
     fn from(value: BuiltinFunction) -> Self {
-        Value::BuiltinFunction(value.0)
+        Value::BuiltinFunction(value)
     }
 }
 
 impl From<BuiltinFunction> for Object {
     fn from(value: BuiltinFunction) -> Self {
-        Object::BuiltinFunction(value.0)
+        Object::BuiltinFunction(value)
     }
 }
 
 impl From<BuiltinFunction> for Function {
     fn from(value: BuiltinFunction) -> Self {
-        Function::BuiltinFunction(value.0)
+        Function::BuiltinFunction(value)
     }
 }
 
@@ -729,4 +716,39 @@ pub fn todo_builtin(agent: &mut Agent, _: Value, _: ArgumentsList) -> JsResult<V
         "TODO: Builtin not implemented.",
     );
     Err(Default::default())
+}
+
+impl CreateHeapData<BuiltinFunctionHeapData, BuiltinFunction> for Heap {
+    fn create(&mut self, data: BuiltinFunctionHeapData) -> BuiltinFunction {
+        self.builtin_functions.push(Some(data));
+        BuiltinFunctionIndex::last(&self.builtin_functions).into()
+    }
+}
+
+impl HeapMarkAndSweep for BuiltinFunction {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.builtin_functions.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 = BuiltinFunctionIndex::from_u32(
+            self_index
+                - compactions
+                    .builtin_functions
+                    .get_shift_for_index(self_index),
+        );
+    }
+}
+
+impl HeapMarkAndSweep for BuiltinFunctionHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.initial_name.mark_values(queues);
+        self.object_index.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.initial_name.sweep_values(compactions);
+        self.object_index.sweep_values(compactions);
+    }
 }

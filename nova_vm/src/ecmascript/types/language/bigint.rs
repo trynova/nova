@@ -1,5 +1,7 @@
 mod data;
 
+use std::ops::{Index, IndexMut};
+
 use super::{
     into_numeric::IntoNumeric,
     numeric::Numeric,
@@ -8,34 +10,18 @@ use super::{
 };
 use crate::{
     ecmascript::execution::{agent::ExceptionType, Agent, JsResult},
-    heap::{indexes::BigIntIndex, CreateHeapData},
+    heap::{
+        indexes::BigIntIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+    },
     SmallInteger,
 };
 
 pub use data::BigIntHeapData;
 
-impl IntoValue for BigIntIndex {
-    fn into_value(self) -> Value {
-        Value::BigInt(self)
-    }
-}
-
-impl IntoPrimitive for BigIntIndex {
-    fn into_primitive(self) -> Primitive {
-        self.into()
-    }
-}
-
-impl IntoNumeric for BigIntIndex {
-    fn into_numeric(self) -> Numeric {
-        self.into()
-    }
-}
-
 impl IntoValue for BigInt {
     fn into_value(self) -> Value {
         match self {
-            BigInt::BigInt(idx) => Value::BigInt(idx),
+            BigInt::BigInt(data) => Value::BigInt(data),
             BigInt::SmallBigInt(data) => Value::SmallBigInt(data),
         }
     }
@@ -53,6 +39,95 @@ impl IntoNumeric for BigInt {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
+pub struct HeapBigInt(BigIntIndex);
+
+impl HeapBigInt {
+    pub(crate) const fn _def() -> Self {
+        Self(BigIntIndex::from_u32_index(0))
+    }
+
+    pub(crate) fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(transparent)]
+pub struct SmallBigInt(SmallInteger);
+
+impl SmallBigInt {
+    #[inline(always)]
+    pub(crate) const fn zero() -> Self {
+        Self(SmallInteger::zero())
+    }
+
+    #[inline(always)]
+    pub(crate) fn into_i64(self) -> i64 {
+        self.0.into_i64()
+    }
+
+    pub(crate) const fn into_inner(self) -> SmallInteger {
+        self.0
+    }
+}
+
+impl std::ops::Not for SmallBigInt {
+    type Output = Self;
+    #[inline(always)]
+    fn not(self) -> Self::Output {
+        Self(!self.0)
+    }
+}
+
+impl std::ops::Neg for SmallBigInt {
+    type Output = Self;
+    #[inline(always)]
+    fn neg(self) -> Self::Output {
+        Self(-self.0)
+    }
+}
+
+impl From<HeapBigInt> for BigInt {
+    fn from(value: HeapBigInt) -> Self {
+        Self::BigInt(value)
+    }
+}
+
+impl From<SmallBigInt> for BigInt {
+    fn from(value: SmallBigInt) -> Self {
+        Self::SmallBigInt(value)
+    }
+}
+
+impl From<HeapBigInt> for Value {
+    fn from(value: HeapBigInt) -> Self {
+        Self::BigInt(value)
+    }
+}
+
+impl From<SmallBigInt> for Value {
+    fn from(value: SmallBigInt) -> Self {
+        Self::SmallBigInt(value)
+    }
+}
+
+impl From<SmallInteger> for SmallBigInt {
+    fn from(value: SmallInteger) -> Self {
+        SmallBigInt(value)
+    }
+}
+
+impl TryFrom<i64> for SmallBigInt {
+    type Error = ();
+
+    #[inline(always)]
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        Ok(Self(value.try_into()?))
+    }
+}
+
 /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
 ///
 /// The BigInt type represents an integer value. The value may be any size and
@@ -64,8 +139,8 @@ impl IntoNumeric for BigInt {
 #[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum BigInt {
-    BigInt(BigIntIndex) = BIGINT_DISCRIMINANT,
-    SmallBigInt(SmallInteger) = SMALL_BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
 impl BigInt {
@@ -156,7 +231,7 @@ impl BigInt {
                 let result = x * y;
 
                 if let Ok(result) = SmallInteger::try_from(result) {
-                    BigInt::SmallBigInt(result)
+                    BigInt::SmallBigInt(SmallBigInt(result))
                 } else {
                     agent.heap.create(BigIntHeapData {
                         data: result.into(),
@@ -212,37 +287,13 @@ impl BigInt {
     }
 }
 
-impl From<BigIntIndex> for BigInt {
-    fn from(value: BigIntIndex) -> Self {
-        BigInt::BigInt(value)
-    }
-}
-
-impl From<BigIntIndex> for Primitive {
-    fn from(value: BigIntIndex) -> Self {
-        Primitive::BigInt(value)
-    }
-}
-
-impl From<BigIntIndex> for Numeric {
-    fn from(value: BigIntIndex) -> Self {
-        Numeric::BigInt(value)
-    }
-}
-
-impl From<BigIntIndex> for Value {
-    fn from(value: BigIntIndex) -> Self {
-        Value::BigInt(value)
-    }
-}
-
 // Note: SmallInteger can be a number or BigInt.
 // Hence there are no further impls here.
-impl From<SmallInteger> for BigInt {
-    fn from(value: SmallInteger) -> Self {
-        BigInt::SmallBigInt(value)
-    }
-}
+// impl From<SmallInteger> for BigInt {
+//     fn from(value: SmallInteger) -> Self {
+//         BigInt::SmallBigInt(value)
+//     }
+// }
 
 impl TryFrom<Value> for BigInt {
     type Error = ();
@@ -308,7 +359,7 @@ macro_rules! impl_value_from_n {
     ($size: ty) => {
         impl From<$size> for BigInt {
             fn from(value: $size) -> Self {
-                BigInt::SmallBigInt(SmallInteger::from(value))
+                BigInt::SmallBigInt(SmallBigInt(SmallInteger::from(value)))
             }
         }
     };
@@ -320,3 +371,46 @@ impl_value_from_n!(u16);
 impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
+
+impl Index<HeapBigInt> for Agent {
+    type Output = BigIntHeapData;
+
+    fn index(&self, index: HeapBigInt) -> &Self::Output {
+        self.heap
+            .bigints
+            .get(index.0.into_index())
+            .expect("BigInt out of bounds")
+            .as_ref()
+            .expect("BigInt slot empty")
+    }
+}
+
+impl IndexMut<HeapBigInt> for Agent {
+    fn index_mut(&mut self, index: HeapBigInt) -> &mut Self::Output {
+        self.heap
+            .bigints
+            .get_mut(index.0.into_index())
+            .expect("BigInt out of bounds")
+            .as_mut()
+            .expect("BigInt slot empty")
+    }
+}
+
+impl CreateHeapData<BigIntHeapData, BigInt> for Heap {
+    fn create(&mut self, data: BigIntHeapData) -> BigInt {
+        self.bigints.push(Some(data));
+        BigInt::BigInt(HeapBigInt(BigIntIndex::last(&self.bigints)))
+    }
+}
+
+impl HeapMarkAndSweep for HeapBigInt {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.bigints.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 =
+            BigIntIndex::from_u32(self_index - compactions.bigints.get_shift_for_index(self_index));
+    }
+}

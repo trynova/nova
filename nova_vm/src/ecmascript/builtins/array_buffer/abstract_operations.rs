@@ -175,7 +175,7 @@ pub(crate) fn clone_array_buffer(
     let (target_buffer_data, array_buffers) = array_buffers.split_last_mut().unwrap();
     let target_buffer_data = target_buffer_data.as_mut().unwrap();
     let src_buffer = array_buffers
-        .get((*src_buffer).into_index())
+        .get(src_buffer.get_index())
         .unwrap()
         .as_ref()
         .unwrap();

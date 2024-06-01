@@ -8,7 +8,11 @@ use crate::{
             OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::SetIndex, ObjectEntry, ObjectEntryPropertyDescriptor},
+    heap::{
+        indexes::{BaseIndex, SetIndex},
+        CompactionLists, CreateHeapData, HeapMarkAndSweep, ObjectEntry,
+        ObjectEntryPropertyDescriptor, WorkQueues,
+    },
     Heap,
 };
 
@@ -18,8 +22,19 @@ use super::ordinary::ordinary_set_prototype_of_check_loop;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct Set(pub(crate) SetIndex);
+
+impl Set {
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
 
 impl From<Set> for SetIndex {
     fn from(val: Set) -> Self {
@@ -47,49 +62,13 @@ impl IntoObject for Set {
 
 impl From<Set> for Value {
     fn from(val: Set) -> Self {
-        Value::Set(val.0)
+        Value::Set(val)
     }
 }
 
 impl From<Set> for Object {
     fn from(val: Set) -> Self {
-        Object::Set(val.0)
-    }
-}
-
-impl Index<Set> for Agent {
-    type Output = SetHeapData;
-
-    fn index(&self, index: Set) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<Set> for Agent {
-    fn index_mut(&mut self, index: Set) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<Set> for Heap {
-    type Output = SetHeapData;
-
-    fn index(&self, index: Set) -> &Self::Output {
-        self.sets
-            .get(index.0.into_index())
-            .expect("Set out of bounds")
-            .as_ref()
-            .expect("Set slot empty")
-    }
-}
-
-impl IndexMut<Set> for Heap {
-    fn index_mut(&mut self, index: Set) -> &mut Self::Output {
-        self.sets
-            .get_mut(index.0.into_index())
-            .expect("Set out of bounds")
-            .as_mut()
-            .expect("Set slot empty")
+        Object::Set(val)
     }
 }
 
@@ -103,7 +82,7 @@ fn create_set_base_object(agent: &mut Agent, set: Set, entries: &[ObjectEntry]) 
     let object_index = agent
         .heap
         .create_object_with_prototype(prototype.into(), entries);
-    agent.heap[set].object_index = Some(object_index);
+    agent[set].object_index = Some(object_index);
     object_index
 }
 
@@ -270,5 +249,47 @@ impl InternalMethods for Set {
         } else {
             Ok(vec![])
         }
+    }
+}
+
+impl HeapMarkAndSweep for Set {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.sets.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 = SetIndex::from_u32(self_index - compactions.sets.get_shift_for_index(self_index));
+    }
+}
+
+impl Index<Set> for Agent {
+    type Output = SetHeapData;
+
+    fn index(&self, index: Set) -> &Self::Output {
+        self.heap
+            .sets
+            .get(index.get_index())
+            .expect("Set out of bounds")
+            .as_ref()
+            .expect("Set slot empty")
+    }
+}
+
+impl IndexMut<Set> for Agent {
+    fn index_mut(&mut self, index: Set) -> &mut Self::Output {
+        self.heap
+            .sets
+            .get_mut(index.get_index())
+            .expect("Set out of bounds")
+            .as_mut()
+            .expect("Set slot empty")
+    }
+}
+
+impl CreateHeapData<SetHeapData, Set> for Heap {
+    fn create(&mut self, data: SetHeapData) -> Set {
+        self.sets.push(Some(data));
+        Set(SetIndex::last(&self.sets))
     }
 }

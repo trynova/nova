@@ -8,7 +8,10 @@ use crate::{
             PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::PromiseIndex, Heap, ObjectEntry, ObjectEntryPropertyDescriptor},
+    heap::{
+        indexes::{BaseIndex, PromiseIndex},
+        CreateHeapData, Heap, ObjectEntry, ObjectEntryPropertyDescriptor,
+    },
 };
 
 use self::data::PromiseHeapData;
@@ -17,8 +20,19 @@ use super::ordinary::ordinary_set_prototype_of_check_loop;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct Promise(pub(crate) PromiseIndex);
+
+impl Promise {
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
 
 impl From<Promise> for PromiseIndex {
     fn from(val: Promise) -> Self {
@@ -46,49 +60,13 @@ impl IntoObject for Promise {
 
 impl From<Promise> for Value {
     fn from(val: Promise) -> Self {
-        Value::Promise(val.0)
+        Value::Promise(val)
     }
 }
 
 impl From<Promise> for Object {
     fn from(val: Promise) -> Self {
-        Object::Promise(val.0)
-    }
-}
-
-impl Index<Promise> for Agent {
-    type Output = PromiseHeapData;
-
-    fn index(&self, index: Promise) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<Promise> for Agent {
-    fn index_mut(&mut self, index: Promise) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<Promise> for Heap {
-    type Output = PromiseHeapData;
-
-    fn index(&self, index: Promise) -> &Self::Output {
-        self.promises
-            .get(index.0.into_index())
-            .expect("Promise out of bounds")
-            .as_ref()
-            .expect("Promise slot empty")
-    }
-}
-
-impl IndexMut<Promise> for Heap {
-    fn index_mut(&mut self, index: Promise) -> &mut Self::Output {
-        self.promises
-            .get_mut(index.0.into_index())
-            .expect("Promise out of bounds")
-            .as_mut()
-            .expect("Promise slot empty")
+        Object::Promise(val)
     }
 }
 
@@ -261,5 +239,36 @@ impl InternalMethods for Promise {
         } else {
             Ok(vec![])
         }
+    }
+}
+
+impl CreateHeapData<PromiseHeapData, Promise> for Heap {
+    fn create(&mut self, data: PromiseHeapData) -> Promise {
+        self.promises.push(Some(data));
+        Promise(PromiseIndex::last(&self.promises))
+    }
+}
+
+impl Index<Promise> for Agent {
+    type Output = PromiseHeapData;
+
+    fn index(&self, index: Promise) -> &Self::Output {
+        self.heap
+            .promises
+            .get(index.get_index())
+            .expect("Promise out of bounds")
+            .as_ref()
+            .expect("Promise slot empty")
+    }
+}
+
+impl IndexMut<Promise> for Agent {
+    fn index_mut(&mut self, index: Promise) -> &mut Self::Output {
+        self.heap
+            .promises
+            .get_mut(index.get_index())
+            .expect("Promise out of bounds")
+            .as_mut()
+            .expect("Promise slot empty")
     }
 }

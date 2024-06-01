@@ -32,22 +32,20 @@ use super::{
 use crate::{
     ecmascript::{
         builtins::{
-            date::Date, error::Error, map::Map, set::Set, ArgumentsList, Array, ArrayBuffer,
-            BuiltinFunction, ECMAScriptFunction,
+            bound_function::BoundFunction, data_view::DataView, date::Date,
+            embedder_object::EmbedderObject, error::Error,
+            finalization_registry::FinalizationRegistry, map::Map, module::Module,
+            primitive_objects::PrimitiveObject, promise::Promise, proxy::Proxy, regexp::RegExp,
+            set::Set, shared_array_buffer::SharedArrayBuffer, weak_map::WeakMap, weak_ref::WeakRef,
+            weak_set::WeakSet, ArgumentsList, Array, ArrayBuffer, BuiltinFunction,
+            ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
-        scripts_and_modules::module::ModuleIdentifier,
         types::PropertyDescriptor,
     },
     heap::{
-        indexes::{
-            ArrayBufferIndex, ArrayIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
-            DateIndex, ECMAScriptFunctionIndex, EmbedderObjectIndex, ErrorIndex,
-            FinalizationRegistryIndex, MapIndex, ObjectIndex, PrimitiveObjectIndex, PromiseIndex,
-            ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, TypedArrayIndex,
-            WeakMapIndex, WeakRefIndex, WeakSetIndex,
-        },
-        CompactionLists, HeapMarkAndSweep, WorkQueues,
+        indexes::{ArrayIndex, ObjectIndex, TypedArrayIndex},
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
 };
 
@@ -65,9 +63,9 @@ pub use property_storage::PropertyStorage;
 #[repr(u8)]
 pub enum Object {
     Object(OrdinaryObject) = OBJECT_DISCRIMINANT,
-    BoundFunction(BoundFunctionIndex) = BOUND_FUNCTION_DISCRIMINANT,
-    BuiltinFunction(BuiltinFunctionIndex) = BUILTIN_FUNCTION_DISCRIMINANT,
-    ECMAScriptFunction(ECMAScriptFunctionIndex) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
+    BoundFunction(BoundFunction) = BOUND_FUNCTION_DISCRIMINANT,
+    BuiltinFunction(BuiltinFunction) = BUILTIN_FUNCTION_DISCRIMINANT,
+    ECMAScriptFunction(ECMAScriptFunction) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction = BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
     BuiltinPromiseResolveFunction = BUILTIN_PROMISE_RESOLVE_FUNCTION_DISCRIMINANT,
@@ -78,23 +76,23 @@ pub enum Object {
     ECMAScriptAsyncGeneratorFunction = ECMASCRIPT_ASYNC_GENERATOR_FUNCTION_DISCRIMINANT,
     ECMAScriptConstructorFunction = ECMASCRIPT_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
     ECMAScriptGeneratorFunction = ECMASCRIPT_GENERATOR_FUNCTION_DISCRIMINANT,
-    PrimitiveObject(PrimitiveObjectIndex) = PRIMITIVE_OBJECT_DISCRIMINANT,
+    PrimitiveObject(PrimitiveObject) = PRIMITIVE_OBJECT_DISCRIMINANT,
     Arguments = ARGUMENTS_DISCRIMINANT,
     Array(Array) = ARRAY_DISCRIMINANT,
-    ArrayBuffer(ArrayBufferIndex) = ARRAY_BUFFER_DISCRIMINANT,
-    DataView(DataViewIndex) = DATA_VIEW_DISCRIMINANT,
-    Date(DateIndex) = DATE_DISCRIMINANT,
-    Error(ErrorIndex) = ERROR_DISCRIMINANT,
-    FinalizationRegistry(FinalizationRegistryIndex) = FINALIZATION_REGISTRY_DISCRIMINANT,
-    Map(MapIndex) = MAP_DISCRIMINANT,
-    Promise(PromiseIndex) = PROMISE_DISCRIMINANT,
-    Proxy(ProxyIndex) = PROXY_DISCRIMINANT,
-    RegExp(RegExpIndex) = REGEXP_DISCRIMINANT,
-    Set(SetIndex) = SET_DISCRIMINANT,
-    SharedArrayBuffer(SharedArrayBufferIndex) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
-    WeakMap(WeakMapIndex) = WEAK_MAP_DISCRIMINANT,
-    WeakRef(WeakRefIndex) = WEAK_REF_DISCRIMINANT,
-    WeakSet(WeakSetIndex) = WEAK_SET_DISCRIMINANT,
+    ArrayBuffer(ArrayBuffer) = ARRAY_BUFFER_DISCRIMINANT,
+    DataView(DataView) = DATA_VIEW_DISCRIMINANT,
+    Date(Date) = DATE_DISCRIMINANT,
+    Error(Error) = ERROR_DISCRIMINANT,
+    FinalizationRegistry(FinalizationRegistry) = FINALIZATION_REGISTRY_DISCRIMINANT,
+    Map(Map) = MAP_DISCRIMINANT,
+    Promise(Promise) = PROMISE_DISCRIMINANT,
+    Proxy(Proxy) = PROXY_DISCRIMINANT,
+    RegExp(RegExp) = REGEXP_DISCRIMINANT,
+    Set(Set) = SET_DISCRIMINANT,
+    SharedArrayBuffer(SharedArrayBuffer) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
+    WeakMap(WeakMap) = WEAK_MAP_DISCRIMINANT,
+    WeakRef(WeakRef) = WEAK_REF_DISCRIMINANT,
+    WeakSet(WeakSet) = WEAK_SET_DISCRIMINANT,
     Int8Array(TypedArrayIndex) = INT_8_ARRAY_DISCRIMINANT,
     Uint8Array(TypedArrayIndex) = UINT_8_ARRAY_DISCRIMINANT,
     Uint8ClampedArray(TypedArrayIndex) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
@@ -109,8 +107,8 @@ pub enum Object {
     AsyncFromSyncIterator = ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
     AsyncIterator = ASYNC_ITERATOR_DISCRIMINANT,
     Iterator = ITERATOR_DISCRIMINANT,
-    Module(ModuleIdentifier) = MODULE_DISCRIMINANT,
-    EmbedderObject(EmbedderObjectIndex) = EMBEDDER_OBJECT_DISCRIMINANT,
+    Module(Module) = MODULE_DISCRIMINANT,
+    EmbedderObject(EmbedderObject) = EMBEDDER_OBJECT_DISCRIMINANT,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -211,27 +209,9 @@ impl From<ArrayIndex> for Object {
     }
 }
 
-impl From<BoundFunctionIndex> for Object {
-    fn from(value: BoundFunctionIndex) -> Self {
+impl From<BoundFunction> for Object {
+    fn from(value: BoundFunction) -> Self {
         Object::BoundFunction(value)
-    }
-}
-
-impl From<BuiltinFunctionIndex> for Object {
-    fn from(value: BuiltinFunctionIndex) -> Self {
-        Object::BuiltinFunction(value)
-    }
-}
-
-impl From<ECMAScriptFunctionIndex> for Object {
-    fn from(value: ECMAScriptFunctionIndex) -> Self {
-        Object::ECMAScriptFunction(value)
-    }
-}
-
-impl From<ErrorIndex> for Object {
-    fn from(value: ErrorIndex) -> Self {
-        Object::Error(value)
     }
 }
 
@@ -370,12 +350,12 @@ impl OrdinaryObjectInternalSlots for Object {
         match self {
             Object::Object(idx) => idx.internal_extensible(agent),
             Object::Array(idx) => idx.internal_extensible(agent),
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_extensible(agent),
-            Object::Date(idx) => Date::from(idx).internal_extensible(agent),
-            Object::Error(idx) => Error::from(idx).internal_extensible(agent),
-            Object::BoundFunction(idx) => Function::from(idx).internal_extensible(agent),
-            Object::BuiltinFunction(idx) => Function::from(idx).internal_extensible(agent),
-            Object::ECMAScriptFunction(idx) => Function::from(idx).internal_extensible(agent),
+            Object::ArrayBuffer(idx) => idx.internal_extensible(agent),
+            Object::Date(idx) => idx.internal_extensible(agent),
+            Object::Error(idx) => idx.internal_extensible(agent),
+            Object::BoundFunction(idx) => idx.internal_extensible(agent),
+            Object::BuiltinFunction(idx) => idx.internal_extensible(agent),
+            Object::ECMAScriptFunction(idx) => idx.internal_extensible(agent),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
@@ -390,11 +370,11 @@ impl OrdinaryObjectInternalSlots for Object {
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(data) => Map::from(data).internal_extensible(agent),
+            Object::Map(data) => data.internal_extensible(agent),
             Object::Promise(_) => todo!(),
             Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set(data) => Set::from(data).internal_extensible(agent),
+            Object::Set(data) => data.internal_extensible(agent),
             Object::SharedArrayBuffer(_) => todo!(),
             Object::WeakMap(_) => todo!(),
             Object::WeakRef(_) => todo!(),
@@ -422,11 +402,9 @@ impl OrdinaryObjectInternalSlots for Object {
         match self {
             Object::Object(idx) => idx.internal_set_extensible(agent, value),
             Object::Array(idx) => idx.internal_set_extensible(agent, value),
-            Object::ArrayBuffer(idx) => {
-                ArrayBuffer::from(idx).internal_set_extensible(agent, value)
-            }
-            Object::Date(idx) => Date::from(idx).internal_set_extensible(agent, value),
-            Object::Error(idx) => Error::from(idx).internal_set_extensible(agent, value),
+            Object::ArrayBuffer(idx) => idx.internal_set_extensible(agent, value),
+            Object::Date(idx) => idx.internal_set_extensible(agent, value),
+            Object::Error(idx) => idx.internal_set_extensible(agent, value),
             Object::BoundFunction(idx) => Function::from(idx).internal_set_extensible(agent, value),
             Object::BuiltinFunction(idx) => {
                 Function::from(idx).internal_set_extensible(agent, value)
@@ -448,11 +426,11 @@ impl OrdinaryObjectInternalSlots for Object {
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(data) => Map::from(data).internal_set_extensible(agent, value),
+            Object::Map(data) => data.internal_set_extensible(agent, value),
             Object::Promise(_) => todo!(),
             Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set(data) => Set::from(data).internal_set_extensible(agent, value),
+            Object::Set(data) => data.internal_set_extensible(agent, value),
             Object::SharedArrayBuffer(_) => todo!(),
             Object::WeakMap(_) => todo!(),
             Object::WeakRef(_) => todo!(),
@@ -480,9 +458,9 @@ impl OrdinaryObjectInternalSlots for Object {
         match self {
             Object::Object(idx) => idx.internal_prototype(agent),
             Object::Array(idx) => idx.internal_prototype(agent),
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_prototype(agent),
-            Object::Date(idx) => Date::from(idx).internal_prototype(agent),
-            Object::Error(idx) => Error::from(idx).internal_prototype(agent),
+            Object::ArrayBuffer(idx) => idx.internal_prototype(agent),
+            Object::Date(idx) => idx.internal_prototype(agent),
+            Object::Error(idx) => idx.internal_prototype(agent),
             Object::BoundFunction(idx) => Function::from(idx).internal_prototype(agent),
             Object::BuiltinFunction(idx) => Function::from(idx).internal_prototype(agent),
             Object::ECMAScriptFunction(idx) => Function::from(idx).internal_prototype(agent),
@@ -500,11 +478,11 @@ impl OrdinaryObjectInternalSlots for Object {
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(data) => Map::from(data).internal_prototype(agent),
+            Object::Map(data) => data.internal_prototype(agent),
             Object::Promise(_) => todo!(),
             Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set(data) => Set::from(data).internal_prototype(agent),
+            Object::Set(data) => data.internal_prototype(agent),
             Object::SharedArrayBuffer(_) => todo!(),
             Object::WeakMap(_) => todo!(),
             Object::WeakRef(_) => todo!(),
@@ -532,11 +510,9 @@ impl OrdinaryObjectInternalSlots for Object {
         match self {
             Object::Object(idx) => idx.internal_set_prototype(agent, prototype),
             Object::Array(idx) => idx.internal_set_prototype(agent, prototype),
-            Object::ArrayBuffer(idx) => {
-                ArrayBuffer::from(idx).internal_set_prototype(agent, prototype)
-            }
-            Object::Date(idx) => Date::from(idx).internal_set_prototype(agent, prototype),
-            Object::Error(idx) => Error::from(idx).internal_set_prototype(agent, prototype),
+            Object::ArrayBuffer(idx) => idx.internal_set_prototype(agent, prototype),
+            Object::Date(idx) => idx.internal_set_prototype(agent, prototype),
+            Object::Error(idx) => idx.internal_set_prototype(agent, prototype),
             Object::BoundFunction(idx) => {
                 Function::from(idx).internal_set_prototype(agent, prototype)
             }
@@ -560,11 +536,11 @@ impl OrdinaryObjectInternalSlots for Object {
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(data) => Map::from(data).internal_set_prototype(agent, prototype),
+            Object::Map(data) => data.internal_set_prototype(agent, prototype),
             Object::Promise(_) => todo!(),
             Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set(data) => Set::from(data).internal_set_prototype(agent, prototype),
+            Object::Set(data) => data.internal_set_prototype(agent, prototype),
             Object::SharedArrayBuffer(_) => todo!(),
             Object::WeakMap(_) => todo!(),
             Object::WeakRef(_) => todo!(),
@@ -594,9 +570,9 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_get_prototype_of(agent),
             Object::Array(idx) => idx.internal_get_prototype_of(agent),
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_get_prototype_of(agent),
-            Object::Date(idx) => Date::from(idx).internal_get_prototype_of(agent),
-            Object::Error(idx) => Error::from(idx).internal_get_prototype_of(agent),
+            Object::ArrayBuffer(idx) => idx.internal_get_prototype_of(agent),
+            Object::Date(idx) => idx.internal_get_prototype_of(agent),
+            Object::Error(idx) => idx.internal_get_prototype_of(agent),
             Object::BoundFunction(idx) => Function::from(idx).internal_get_prototype_of(agent),
             Object::BuiltinFunction(idx) => Function::from(idx).internal_get_prototype_of(agent),
             Object::ECMAScriptFunction(idx) => Function::from(idx).internal_get_prototype_of(agent),
@@ -614,11 +590,11 @@ impl InternalMethods for Object {
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(data) => Map::from(data).internal_get_prototype_of(agent),
+            Object::Map(data) => data.internal_get_prototype_of(agent),
             Object::Promise(_) => todo!(),
             Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set(data) => Set::from(data).internal_get_prototype_of(agent),
+            Object::Set(data) => data.internal_get_prototype_of(agent),
             Object::SharedArrayBuffer(_) => todo!(),
             Object::WeakMap(_) => todo!(),
             Object::WeakRef(_) => todo!(),
@@ -650,11 +626,9 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_set_prototype_of(agent, prototype),
             Object::Array(idx) => idx.internal_set_prototype_of(agent, prototype),
-            Object::ArrayBuffer(idx) => {
-                ArrayBuffer::from(idx).internal_set_prototype_of(agent, prototype)
-            }
-            Object::Date(idx) => Date::from(idx).internal_set_prototype_of(agent, prototype),
-            Object::Error(idx) => Error::from(idx).internal_set_prototype_of(agent, prototype),
+            Object::ArrayBuffer(idx) => idx.internal_set_prototype_of(agent, prototype),
+            Object::Date(idx) => idx.internal_set_prototype_of(agent, prototype),
+            Object::Error(idx) => idx.internal_set_prototype_of(agent, prototype),
             Object::BoundFunction(idx) => {
                 Function::from(idx).internal_set_prototype_of(agent, prototype)
             }
@@ -678,11 +652,11 @@ impl InternalMethods for Object {
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(data) => Map::from(data).internal_set_prototype_of(agent, prototype),
+            Object::Map(data) => data.internal_set_prototype_of(agent, prototype),
             Object::Promise(_) => todo!(),
             Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set(data) => Set::from(data).internal_set_prototype_of(agent, prototype),
+            Object::Set(data) => data.internal_set_prototype_of(agent, prototype),
             Object::SharedArrayBuffer(_) => todo!(),
             Object::WeakMap(_) => todo!(),
             Object::WeakRef(_) => todo!(),
@@ -710,9 +684,9 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_is_extensible(agent),
             Object::Array(idx) => idx.internal_is_extensible(agent),
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_is_extensible(agent),
-            Object::Date(idx) => Date::from(idx).internal_is_extensible(agent),
-            Object::Error(idx) => Error::from(idx).internal_is_extensible(agent),
+            Object::ArrayBuffer(idx) => idx.internal_is_extensible(agent),
+            Object::Date(idx) => idx.internal_is_extensible(agent),
+            Object::Error(idx) => idx.internal_is_extensible(agent),
             Object::BoundFunction(idx) => Function::from(idx).internal_is_extensible(agent),
             Object::BuiltinFunction(idx) => Function::from(idx).internal_is_extensible(agent),
             Object::ECMAScriptFunction(idx) => Function::from(idx).internal_is_extensible(agent),
@@ -730,11 +704,11 @@ impl InternalMethods for Object {
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(data) => Map::from(data).internal_is_extensible(agent),
+            Object::Map(data) => data.internal_is_extensible(agent),
             Object::Promise(_) => todo!(),
             Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set(data) => Set::from(data).internal_is_extensible(agent),
+            Object::Set(data) => data.internal_is_extensible(agent),
             Object::SharedArrayBuffer(_) => todo!(),
             Object::WeakMap(_) => todo!(),
             Object::WeakRef(_) => todo!(),
@@ -762,9 +736,9 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_prevent_extensions(agent),
             Object::Array(idx) => idx.internal_prevent_extensions(agent),
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_prevent_extensions(agent),
-            Object::Date(idx) => Date::from(idx).internal_prevent_extensions(agent),
-            Object::Error(idx) => Error::from(idx).internal_prevent_extensions(agent),
+            Object::ArrayBuffer(idx) => idx.internal_prevent_extensions(agent),
+            Object::Date(idx) => idx.internal_prevent_extensions(agent),
+            Object::Error(idx) => idx.internal_prevent_extensions(agent),
             Object::BoundFunction(idx) => Function::from(idx).internal_prevent_extensions(agent),
             Object::BuiltinFunction(idx) => Function::from(idx).internal_prevent_extensions(agent),
             Object::ECMAScriptFunction(idx) => {
@@ -784,11 +758,11 @@ impl InternalMethods for Object {
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(data) => Map::from(data).internal_prevent_extensions(agent),
+            Object::Map(data) => data.internal_prevent_extensions(agent),
             Object::Promise(_) => todo!(),
             Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set(data) => Set::from(data).internal_prevent_extensions(agent),
+            Object::Set(data) => data.internal_prevent_extensions(agent),
             Object::SharedArrayBuffer(_) => todo!(),
             Object::WeakMap(_) => todo!(),
             Object::WeakRef(_) => todo!(),
@@ -820,11 +794,9 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_get_own_property(agent, property_key),
             Object::Array(idx) => idx.internal_get_own_property(agent, property_key),
-            Object::ArrayBuffer(idx) => {
-                ArrayBuffer::from(idx).internal_get_own_property(agent, property_key)
-            }
-            Object::Date(idx) => Date::from(idx).internal_get_own_property(agent, property_key),
-            Object::Error(idx) => Error::from(idx).internal_get_own_property(agent, property_key),
+            Object::ArrayBuffer(idx) => idx.internal_get_own_property(agent, property_key),
+            Object::Date(idx) => idx.internal_get_own_property(agent, property_key),
+            Object::Error(idx) => idx.internal_get_own_property(agent, property_key),
             Object::BoundFunction(idx) => {
                 Function::from(idx).internal_get_own_property(agent, property_key)
             }
@@ -848,11 +820,11 @@ impl InternalMethods for Object {
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(data) => Map::from(data).internal_get_own_property(agent, property_key),
+            Object::Map(data) => data.internal_get_own_property(agent, property_key),
             Object::Promise(_) => todo!(),
             Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set(data) => Set::from(data).internal_get_own_property(agent, property_key),
+            Object::Set(data) => data.internal_get_own_property(agent, property_key),
             Object::SharedArrayBuffer(_) => todo!(),
             Object::WeakMap(_) => todo!(),
             Object::WeakRef(_) => todo!(),
@@ -889,21 +861,15 @@ impl InternalMethods for Object {
             Object::Array(idx) => {
                 idx.internal_define_own_property(agent, property_key, property_descriptor)
             }
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_define_own_property(
-                agent,
-                property_key,
-                property_descriptor,
-            ),
-            Object::Date(idx) => Date::from(idx).internal_define_own_property(
-                agent,
-                property_key,
-                property_descriptor,
-            ),
-            Object::Error(idx) => Error::from(idx).internal_define_own_property(
-                agent,
-                property_key,
-                property_descriptor,
-            ),
+            Object::ArrayBuffer(idx) => {
+                idx.internal_define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::Date(idx) => {
+                idx.internal_define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::Error(idx) => {
+                idx.internal_define_own_property(agent, property_key, property_descriptor)
+            }
             Object::BoundFunction(idx) => Function::from(idx).internal_define_own_property(
                 agent,
                 property_key,
@@ -933,19 +899,15 @@ impl InternalMethods for Object {
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(data) => Map::from(data).internal_define_own_property(
-                agent,
-                property_key,
-                property_descriptor,
-            ),
+            Object::Map(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
             Object::Promise(_) => todo!(),
             Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set(data) => Set::from(data).internal_define_own_property(
-                agent,
-                property_key,
-                property_descriptor,
-            ),
+            Object::Set(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
             Object::SharedArrayBuffer(_) => todo!(),
             Object::WeakMap(_) => todo!(),
             Object::WeakRef(_) => todo!(),
@@ -973,11 +935,9 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_has_property(agent, property_key),
             Object::Array(idx) => idx.internal_has_property(agent, property_key),
-            Object::ArrayBuffer(idx) => {
-                ArrayBuffer::from(idx).internal_has_property(agent, property_key)
-            }
-            Object::Date(idx) => Date::from(idx).internal_has_property(agent, property_key),
-            Object::Error(idx) => Error::from(idx).internal_has_property(agent, property_key),
+            Object::ArrayBuffer(idx) => idx.internal_has_property(agent, property_key),
+            Object::Date(idx) => idx.internal_has_property(agent, property_key),
+            Object::Error(idx) => idx.internal_has_property(agent, property_key),
             Object::BoundFunction(idx) => {
                 Function::from(idx).internal_has_property(agent, property_key)
             }
@@ -1001,11 +961,11 @@ impl InternalMethods for Object {
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(data) => Map::from(data).internal_has_property(agent, property_key),
+            Object::Map(data) => data.internal_has_property(agent, property_key),
             Object::Promise(_) => todo!(),
             Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set(data) => Set::from(data).internal_has_property(agent, property_key),
+            Object::Set(data) => data.internal_has_property(agent, property_key),
             Object::SharedArrayBuffer(_) => todo!(),
             Object::WeakMap(_) => todo!(),
             Object::WeakRef(_) => todo!(),
@@ -1038,20 +998,14 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_get(agent, property_key, receiver),
             Object::Array(idx) => idx.internal_get(agent, property_key, receiver),
-            Object::ArrayBuffer(idx) => {
-                ArrayBuffer::from(idx).internal_get(agent, property_key, receiver)
-            }
-            Object::Date(idx) => Date::from(idx).internal_get(agent, property_key, receiver),
-            Object::Error(idx) => Error::from(idx).internal_get(agent, property_key, receiver),
+            Object::ArrayBuffer(idx) => idx.internal_get(agent, property_key, receiver),
+            Object::Date(idx) => idx.internal_get(agent, property_key, receiver),
+            Object::Error(idx) => idx.internal_get(agent, property_key, receiver),
             Object::BoundFunction(idx) => {
                 Function::from(idx).internal_get(agent, property_key, receiver)
             }
-            Object::BuiltinFunction(idx) => {
-                BuiltinFunction::from(idx).internal_get(agent, property_key, receiver)
-            }
-            Object::ECMAScriptFunction(idx) => {
-                ECMAScriptFunction::from(idx).internal_get(agent, property_key, receiver)
-            }
+            Object::BuiltinFunction(idx) => idx.internal_get(agent, property_key, receiver),
+            Object::ECMAScriptFunction(idx) => idx.internal_get(agent, property_key, receiver),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
@@ -1066,11 +1020,11 @@ impl InternalMethods for Object {
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(data) => Map::from(data).internal_get(agent, property_key, receiver),
+            Object::Map(data) => data.internal_get(agent, property_key, receiver),
             Object::Promise(_) => todo!(),
             Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set(data) => Set::from(data).internal_get(agent, property_key, receiver),
+            Object::Set(data) => data.internal_get(agent, property_key, receiver),
             Object::SharedArrayBuffer(_) => todo!(),
             Object::WeakMap(_) => todo!(),
             Object::WeakRef(_) => todo!(),
@@ -1104,13 +1058,9 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_set(agent, property_key, value, receiver),
             Object::Array(idx) => idx.internal_set(agent, property_key, value, receiver),
-            Object::ArrayBuffer(idx) => {
-                ArrayBuffer::from(idx).internal_set(agent, property_key, value, receiver)
-            }
-            Object::Date(idx) => Date::from(idx).internal_set(agent, property_key, value, receiver),
-            Object::Error(idx) => {
-                Error::from(idx).internal_set(agent, property_key, value, receiver)
-            }
+            Object::ArrayBuffer(idx) => idx.internal_set(agent, property_key, value, receiver),
+            Object::Date(idx) => idx.internal_set(agent, property_key, value, receiver),
+            Object::Error(idx) => idx.internal_set(agent, property_key, value, receiver),
             Object::BoundFunction(idx) => {
                 Function::from(idx).internal_set(agent, property_key, value, receiver)
             }
@@ -1134,11 +1084,11 @@ impl InternalMethods for Object {
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(data) => Map::from(data).internal_set(agent, property_key, value, receiver),
+            Object::Map(data) => data.internal_set(agent, property_key, value, receiver),
             Object::Promise(_) => todo!(),
             Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set(data) => Set::from(data).internal_set(agent, property_key, value, receiver),
+            Object::Set(data) => data.internal_set(agent, property_key, value, receiver),
             Object::SharedArrayBuffer(_) => todo!(),
             Object::WeakMap(_) => todo!(),
             Object::WeakRef(_) => todo!(),
@@ -1166,9 +1116,9 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_delete(agent, property_key),
             Object::Array(idx) => idx.internal_delete(agent, property_key),
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_delete(agent, property_key),
-            Object::Date(idx) => Date::from(idx).internal_delete(agent, property_key),
-            Object::Error(idx) => Error::from(idx).internal_delete(agent, property_key),
+            Object::ArrayBuffer(idx) => idx.internal_delete(agent, property_key),
+            Object::Date(idx) => idx.internal_delete(agent, property_key),
+            Object::Error(idx) => idx.internal_delete(agent, property_key),
             Object::BoundFunction(idx) => Function::from(idx).internal_delete(agent, property_key),
             Object::BuiltinFunction(idx) => {
                 Function::from(idx).internal_delete(agent, property_key)
@@ -1190,11 +1140,11 @@ impl InternalMethods for Object {
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(data) => Map::from(data).internal_delete(agent, property_key),
+            Object::Map(data) => data.internal_delete(agent, property_key),
             Object::Promise(_) => todo!(),
             Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set(data) => Set::from(data).internal_delete(agent, property_key),
+            Object::Set(data) => data.internal_delete(agent, property_key),
             Object::SharedArrayBuffer(_) => todo!(),
             Object::WeakMap(_) => todo!(),
             Object::WeakRef(_) => todo!(),
@@ -1222,9 +1172,9 @@ impl InternalMethods for Object {
         match self {
             Object::Object(idx) => idx.internal_own_property_keys(agent),
             Object::Array(idx) => idx.internal_own_property_keys(agent),
-            Object::ArrayBuffer(idx) => ArrayBuffer::from(idx).internal_own_property_keys(agent),
-            Object::Date(idx) => Date::from(idx).internal_own_property_keys(agent),
-            Object::Error(idx) => Error::from(idx).internal_own_property_keys(agent),
+            Object::ArrayBuffer(idx) => idx.internal_own_property_keys(agent),
+            Object::Date(idx) => idx.internal_own_property_keys(agent),
+            Object::Error(idx) => idx.internal_own_property_keys(agent),
             Object::BoundFunction(idx) => Function::from(idx).internal_own_property_keys(agent),
             Object::BuiltinFunction(idx) => Function::from(idx).internal_own_property_keys(agent),
             Object::ECMAScriptFunction(idx) => {
@@ -1244,11 +1194,11 @@ impl InternalMethods for Object {
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(data) => Map::from(data).internal_own_property_keys(agent),
+            Object::Map(data) => data.internal_own_property_keys(agent),
             Object::Promise(_) => todo!(),
             Object::Proxy(_) => todo!(),
             Object::RegExp(_) => todo!(),
-            Object::Set(data) => Set::from(data).internal_own_property_keys(agent),
+            Object::Set(data) => data.internal_own_property_keys(agent),
             Object::SharedArrayBuffer(_) => todo!(),
             Object::WeakMap(_) => todo!(),
             Object::WeakRef(_) => todo!(),
@@ -1374,5 +1324,12 @@ impl HeapMarkAndSweep for Object {
             Self::Error(idx) => idx.sweep_values(compactions),
             _ => todo!(),
         }
+    }
+}
+
+impl CreateHeapData<ObjectHeapData, Object> for Heap {
+    fn create(&mut self, data: ObjectHeapData) -> Object {
+        self.objects.push(Some(data));
+        Object::Object(ObjectIndex::last(&self.objects).into())
     }
 }

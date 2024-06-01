@@ -8,7 +8,10 @@ use crate::{
             OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::WeakMapIndex, ObjectEntry, ObjectEntryPropertyDescriptor},
+    heap::{
+        indexes::{BaseIndex, WeakMapIndex},
+        CreateHeapData, ObjectEntry, ObjectEntryPropertyDescriptor,
+    },
     Heap,
 };
 
@@ -18,8 +21,19 @@ use super::ordinary::ordinary_set_prototype_of_check_loop;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct WeakMap(pub(crate) WeakMapIndex);
+
+impl WeakMap {
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
 
 impl From<WeakMap> for WeakMapIndex {
     fn from(val: WeakMap) -> Self {
@@ -47,49 +61,13 @@ impl IntoObject for WeakMap {
 
 impl From<WeakMap> for Value {
     fn from(val: WeakMap) -> Self {
-        Value::WeakMap(val.0)
+        Value::WeakMap(val)
     }
 }
 
 impl From<WeakMap> for Object {
     fn from(val: WeakMap) -> Self {
-        Object::WeakMap(val.0)
-    }
-}
-
-impl Index<WeakMap> for Agent {
-    type Output = WeakMapHeapData;
-
-    fn index(&self, index: WeakMap) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<WeakMap> for Agent {
-    fn index_mut(&mut self, index: WeakMap) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<WeakMap> for Heap {
-    type Output = WeakMapHeapData;
-
-    fn index(&self, index: WeakMap) -> &Self::Output {
-        self.weak_maps
-            .get(index.0.into_index())
-            .expect("WeakMap out of bounds")
-            .as_ref()
-            .expect("WeakMap slot empty")
-    }
-}
-
-impl IndexMut<WeakMap> for Heap {
-    fn index_mut(&mut self, index: WeakMap) -> &mut Self::Output {
-        self.weak_maps
-            .get_mut(index.0.into_index())
-            .expect("WeakMap out of bounds")
-            .as_mut()
-            .expect("WeakMap slot empty")
+        Object::WeakMap(val)
     }
 }
 
@@ -107,7 +85,7 @@ fn create_weak_map_base_object(
     let object_index = agent
         .heap
         .create_object_with_prototype(prototype.into(), entries);
-    agent.heap[weak_map].object_index = Some(object_index);
+    agent[weak_map].object_index = Some(object_index);
     object_index
 }
 
@@ -274,5 +252,37 @@ impl InternalMethods for WeakMap {
         } else {
             Ok(vec![])
         }
+    }
+}
+
+impl Index<WeakMap> for Agent {
+    type Output = WeakMapHeapData;
+
+    fn index(&self, index: WeakMap) -> &Self::Output {
+        self.heap
+            .weak_maps
+            .get(index.get_index())
+            .expect("WeakMap out of bounds")
+            .as_ref()
+            .expect("WeakMap slot empty")
+    }
+}
+
+impl IndexMut<WeakMap> for Agent {
+    fn index_mut(&mut self, index: WeakMap) -> &mut Self::Output {
+        self.heap
+            .weak_maps
+            .get_mut(index.get_index())
+            .expect("WeakMap out of bounds")
+            .as_mut()
+            .expect("WeakMap slot empty")
+    }
+}
+
+impl CreateHeapData<WeakMapHeapData, WeakMap> for Heap {
+    fn create(&mut self, data: WeakMapHeapData) -> WeakMap {
+        self.weak_maps.push(Some(data));
+        // TODO: The type should be checked based on data or something equally stupid
+        WeakMap(WeakMapIndex::last(&self.weak_maps))
     }
 }

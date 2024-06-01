@@ -1,18 +1,18 @@
 use small_string::SmallString;
 
-use crate::{
-    heap::indexes::{BigIntIndex, NumberIndex, StringIndex, SymbolIndex},
-    SmallInteger,
-};
+use crate::SmallInteger;
 
 use super::{
+    bigint::{HeapBigInt, SmallBigInt},
+    number::HeapNumber,
+    string::HeapString,
     value::{
         BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT,
         NULL_DISCRIMINANT, NUMBER_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT,
         SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
         UNDEFINED_DISCRIMINANT,
     },
-    IntoValue, Value,
+    IntoValue, Symbol, Value,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -21,14 +21,14 @@ pub enum Primitive {
     Undefined = UNDEFINED_DISCRIMINANT,
     Null = NULL_DISCRIMINANT,
     Boolean(bool) = BOOLEAN_DISCRIMINANT,
-    String(StringIndex) = STRING_DISCRIMINANT,
+    String(HeapString) = STRING_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
-    Symbol(SymbolIndex) = SYMBOL_DISCRIMINANT,
-    Number(NumberIndex) = NUMBER_DISCRIMINANT,
+    Symbol(Symbol) = SYMBOL_DISCRIMINANT,
+    Number(HeapNumber) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     Float(f32) = FLOAT_DISCRIMINANT,
-    BigInt(BigIntIndex) = BIGINT_DISCRIMINANT,
-    SmallBigInt(SmallInteger) = SMALL_BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
 impl IntoValue for Primitive {

@@ -1,13 +1,10 @@
-use crate::{
-    ecmascript::{
-        abstract_operations::{operations_on_objects::set, type_conversion::to_object},
-        execution::{
-            agent::{self, ExceptionType},
-            get_global_object, EnvironmentIndex,
-        },
-        types::{InternalMethods, Object, PropertyKey, String, Symbol, Value},
+use crate::ecmascript::{
+    abstract_operations::{operations_on_objects::set, type_conversion::to_object},
+    execution::{
+        agent::{self, ExceptionType},
+        get_global_object, EnvironmentIndex,
     },
-    heap::indexes::StringIndex,
+    types::{HeapString, InternalMethods, Object, PropertyKey, String, Symbol, Value},
 };
 use agent::{Agent, JsResult};
 use small_string::SmallString;
@@ -309,7 +306,7 @@ pub(crate) enum Base {
 
 #[derive(Debug)]
 pub enum ReferencedName {
-    String(StringIndex),
+    String(HeapString),
     SmallString(SmallString),
     Symbol(Symbol),
     // TODO: implement private names

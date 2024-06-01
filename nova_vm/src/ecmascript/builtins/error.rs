@@ -12,21 +12,22 @@ use crate::{
             PropertyKey, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{indexes::ErrorIndex, Heap},
+    heap::{
+        indexes::ErrorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+    },
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct Error(pub(crate) ErrorIndex);
 
-impl From<ErrorIndex> for Error {
-    fn from(value: ErrorIndex) -> Self {
-        Self(value)
+impl Error {
+    pub(crate) const fn _def() -> Self {
+        Self(ErrorIndex::from_u32_index(0))
     }
-}
 
-impl From<ErrorIndex> for Value {
-    fn from(value: ErrorIndex) -> Self {
-        Self::Error(value)
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
     }
 }
 
@@ -38,7 +39,7 @@ impl IntoValue for Error {
 
 impl From<Error> for Value {
     fn from(value: Error) -> Self {
-        Value::Error(value.0)
+        Value::Error(value)
     }
 }
 
@@ -50,7 +51,7 @@ impl IntoObject for Error {
 
 impl From<Error> for Object {
     fn from(value: Error) -> Self {
-        Object::Error(value.0)
+        Object::Error(value)
     }
 }
 
@@ -59,7 +60,7 @@ impl TryFrom<Value> for Error {
 
     fn try_from(value: Value) -> Result<Self, ()> {
         match value {
-            Value::Error(idx) => Ok(idx.into()),
+            Value::Error(idx) => Ok(idx),
             _ => Err(()),
         }
     }
@@ -70,45 +71,9 @@ impl TryFrom<Object> for Error {
 
     fn try_from(value: Object) -> Result<Self, ()> {
         match value {
-            Object::Error(idx) => Ok(idx.into()),
+            Object::Error(idx) => Ok(idx),
             _ => Err(()),
         }
-    }
-}
-
-impl Index<Error> for Agent {
-    type Output = ErrorHeapData;
-
-    fn index(&self, index: Error) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<Error> for Agent {
-    fn index_mut(&mut self, index: Error) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<Error> for Heap {
-    type Output = ErrorHeapData;
-
-    fn index(&self, index: Error) -> &Self::Output {
-        self.errors
-            .get(index.0.into_index())
-            .expect("Error out of bounds")
-            .as_ref()
-            .expect("Error slot empty")
-    }
-}
-
-impl IndexMut<Error> for Heap {
-    fn index_mut(&mut self, index: Error) -> &mut Self::Output {
-        self.errors
-            .get_mut(index.0.into_index())
-            .expect("Error out of bounds")
-            .as_mut()
-            .expect("Error slot empty")
     }
 }
 
@@ -230,5 +195,48 @@ impl InternalMethods for Error {
 
     fn internal_own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         todo!()
+    }
+}
+
+impl HeapMarkAndSweep for Error {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.errors.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 =
+            ErrorIndex::from_u32(self_index - compactions.errors.get_shift_for_index(self_index));
+    }
+}
+
+impl CreateHeapData<ErrorHeapData, Error> for Heap {
+    fn create(&mut self, data: ErrorHeapData) -> Error {
+        self.errors.push(Some(data));
+        Error(ErrorIndex::last(&self.errors))
+    }
+}
+
+impl Index<Error> for Agent {
+    type Output = ErrorHeapData;
+
+    fn index(&self, index: Error) -> &Self::Output {
+        self.heap
+            .errors
+            .get(index.get_index())
+            .expect("Error out of bounds")
+            .as_ref()
+            .expect("Error slot empty")
+    }
+}
+
+impl IndexMut<Error> for Agent {
+    fn index_mut(&mut self, index: Error) -> &mut Self::Output {
+        self.heap
+            .errors
+            .get_mut(index.get_index())
+            .expect("Error out of bounds")
+            .as_mut()
+            .expect("Error slot empty")
     }
 }

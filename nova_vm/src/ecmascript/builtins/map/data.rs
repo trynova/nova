@@ -1,4 +1,7 @@
-use crate::ecmascript::types::{OrdinaryObject, Value};
+use crate::{
+    ecmascript::types::{OrdinaryObject, Value},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct MapHeapData {
@@ -16,4 +19,24 @@ pub struct MapHeapData {
     // TODO: When an non-terminal (start or end) iterator exists for the Map,
     // the items in the map cannot be compacted.
     // pub(crate) observed: bool;
+}
+
+impl HeapMarkAndSweep for MapHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.object_index.mark_values(queues);
+        self.keys.iter().for_each(|value| value.mark_values(queues));
+        self.values
+            .iter()
+            .for_each(|value| value.mark_values(queues));
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.object_index.sweep_values(compactions);
+        self.keys
+            .iter_mut()
+            .for_each(|value| value.sweep_values(compactions));
+        self.values
+            .iter_mut()
+            .for_each(|value| value.sweep_values(compactions));
+    }
 }

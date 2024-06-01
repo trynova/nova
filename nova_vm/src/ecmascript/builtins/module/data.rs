@@ -4,9 +4,9 @@ use crate::{
     ecmascript::{
         execution::{ModuleEnvironmentIndex, RealmIdentifier},
         scripts_and_modules::module::ModuleIdentifier,
-        types::{OrdinaryObject, PropertyKey, String},
+        types::{HeapString, OrdinaryObject, PropertyKey, String},
     },
-    heap::indexes::StringIndex,
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::Module;
@@ -43,7 +43,7 @@ pub(crate) struct ModuleRecord {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ResolvedBindingName {
-    String(StringIndex),
+    String(HeapString),
     SmallString(SmallString),
     Namespace,
 }
@@ -78,4 +78,10 @@ impl ModuleRecord {
     pub(crate) fn resolve_export(&self, _property_key: PropertyKey) -> Option<ResolveExportResult> {
         todo!()
     }
+}
+
+impl HeapMarkAndSweep for ModuleHeapData {
+    fn mark_values(&self, _queues: &mut WorkQueues) {}
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists) {}
 }

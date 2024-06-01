@@ -12,9 +12,9 @@ use crate::{
         abstract_operations::type_conversion::to_string,
         builtins::error::ErrorHeapData,
         scripts_and_modules::ScriptOrModule,
-        types::{Function, Reference, String, Symbol, Value},
+        types::{Function, IntoValue, Reference, String, Symbol, Value},
     },
-    heap::indexes::ErrorIndex,
+    heap::CreateHeapData,
     Heap,
 };
 use std::collections::HashMap;
@@ -101,11 +101,11 @@ impl Agent {
     /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
     pub fn throw_exception(&mut self, kind: ExceptionType, message: &'static str) -> JsError {
         let message = String::from_str(self, message);
-        self.heap
-            .errors
-            .push(Some(ErrorHeapData::new(kind, Some(message), None)));
-        let index = ErrorIndex::last(&self.heap.errors);
-        JsError(Value::Error(index))
+        JsError(
+            self.heap
+                .create(ErrorHeapData::new(kind, Some(message), None))
+                .into_value(),
+        )
     }
 
     pub(crate) fn running_execution_context(&self) -> &ExecutionContext {

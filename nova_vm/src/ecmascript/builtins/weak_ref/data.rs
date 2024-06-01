@@ -1,4 +1,7 @@
-use crate::ecmascript::types::{OrdinaryObject, Value};
+use crate::{
+    ecmascript::types::{OrdinaryObject, Value},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+};
 
 #[derive(Debug, Clone)]
 pub struct WeakRefHeapData {
@@ -14,5 +17,15 @@ impl Default for WeakRefHeapData {
             value: Value::Undefined,
             is_strong: false,
         }
+    }
+}
+
+impl HeapMarkAndSweep for WeakRefHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.object_index.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.object_index.sweep_values(compactions);
     }
 }

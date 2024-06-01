@@ -7,23 +7,24 @@ use super::{
         sweep_heap_u32_elements_vector_values, sweep_heap_u8_elements_vector_values,
         sweep_heap_vector_values, CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
     },
-    indexes::{
-        ArrayBufferIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, DataViewIndex,
-        DateIndex, ECMAScriptFunctionIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
-        FinalizationRegistryIndex, MapIndex, NumberIndex, PrimitiveObjectIndex, PromiseIndex,
-        ProxyIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex, StringIndex, SymbolIndex,
-        TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
-    },
+    indexes::{ElementIndex, TypedArrayIndex},
     Heap,
 };
 use crate::ecmascript::{
-    builtins::Array,
+    builtins::{
+        bound_function::BoundFunction, data_view::DataView, date::Date,
+        embedder_object::EmbedderObject, error::Error, finalization_registry::FinalizationRegistry,
+        map::Map, module::Module, primitive_objects::PrimitiveObject, promise::Promise,
+        proxy::Proxy, regexp::RegExp, set::Set, shared_array_buffer::SharedArrayBuffer,
+        weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet, Array, ArrayBuffer,
+        BuiltinFunction, ECMAScriptFunction,
+    },
     execution::{
         DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
     },
-    scripts_and_modules::{module::ModuleIdentifier, script::ScriptIdentifier},
-    types::{OrdinaryObject, Value},
+    scripts_and_modules::script::ScriptIdentifier,
+    types::{bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value},
 };
 
 fn collect_values(queues: &mut WorkQueues, values: &[Option<Value>]) {
@@ -93,10 +94,10 @@ pub fn heap_gc(heap: &mut Heap) {
             e2pow24,
             e2pow32,
         } = elements;
-        let mut module_marks: Box<[ModuleIdentifier]> = queues.modules.drain(..).collect();
+        let mut module_marks: Box<[Module]> = queues.modules.drain(..).collect();
         module_marks.sort();
         module_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.modules.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -203,11 +204,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 arrays.get(index).mark_values(&mut queues);
             }
         });
-        let mut array_buffer_marks: Box<[ArrayBufferIndex]> =
-            queues.array_buffers.drain(..).collect();
+        let mut array_buffer_marks: Box<[ArrayBuffer]> = queues.array_buffers.drain(..).collect();
         array_buffer_marks.sort();
         array_buffer_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.array_buffers.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -217,10 +217,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 array_buffers.get(index).mark_values(&mut queues);
             }
         });
-        let mut bigint_marks: Box<[BigIntIndex]> = queues.bigints.drain(..).collect();
+        let mut bigint_marks: Box<[HeapBigInt]> = queues.bigints.drain(..).collect();
         bigint_marks.sort();
         bigint_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.bigints.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -230,11 +230,11 @@ pub fn heap_gc(heap: &mut Heap) {
                 bigints.get(index).mark_values(&mut queues);
             }
         });
-        let mut bound_function_marks: Box<[BoundFunctionIndex]> =
+        let mut bound_function_marks: Box<[BoundFunction]> =
             queues.bound_functions.drain(..).collect();
         bound_function_marks.sort();
         bound_function_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.bound_functions.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -244,12 +244,11 @@ pub fn heap_gc(heap: &mut Heap) {
                 bound_functions.get(index).mark_values(&mut queues);
             }
         });
-        let mut error_marks: Box<[ErrorIndex]> = queues.errors.drain(..).collect();
-        let mut ecmascript_function_marks: Box<[ECMAScriptFunctionIndex]> =
+        let mut ecmascript_function_marks: Box<[ECMAScriptFunction]> =
             queues.ecmascript_functions.drain(..).collect();
         ecmascript_function_marks.sort();
         ecmascript_function_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.ecmascript_functions.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -259,9 +258,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 ecmascript_functions.get(index).mark_values(&mut queues);
             }
         });
+        let mut error_marks: Box<[Error]> = queues.errors.drain(..).collect();
         error_marks.sort();
         error_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.errors.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -271,11 +271,11 @@ pub fn heap_gc(heap: &mut Heap) {
                 errors.get(index).mark_values(&mut queues);
             }
         });
-        let mut builtin_functions_marks: Box<[BuiltinFunctionIndex]> =
+        let mut builtin_functions_marks: Box<[BuiltinFunction]> =
             queues.builtin_functions.drain(..).collect();
         builtin_functions_marks.sort();
         builtin_functions_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.builtin_functions.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -285,10 +285,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 builtin_functions.get(index).mark_values(&mut queues);
             }
         });
-        let mut data_view_marks: Box<[DataViewIndex]> = queues.data_views.drain(..).collect();
+        let mut data_view_marks: Box<[DataView]> = queues.data_views.drain(..).collect();
         data_view_marks.sort();
         data_view_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.data_views.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -298,10 +298,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 data_views.get(index).mark_values(&mut queues);
             }
         });
-        let mut date_marks: Box<[DateIndex]> = queues.dates.drain(..).collect();
+        let mut date_marks: Box<[Date]> = queues.dates.drain(..).collect();
         date_marks.sort();
         date_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.dates.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -311,11 +311,11 @@ pub fn heap_gc(heap: &mut Heap) {
                 dates.get(index).mark_values(&mut queues);
             }
         });
-        let mut embedder_object_marks: Box<[EmbedderObjectIndex]> =
+        let mut embedder_object_marks: Box<[EmbedderObject]> =
             queues.embedder_objects.drain(..).collect();
         embedder_object_marks.sort();
         embedder_object_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.embedder_objects.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -325,11 +325,11 @@ pub fn heap_gc(heap: &mut Heap) {
                 embedder_objects.get(index).mark_values(&mut queues);
             }
         });
-        let mut finalization_registry_marks: Box<[FinalizationRegistryIndex]> =
+        let mut finalization_registry_marks: Box<[FinalizationRegistry]> =
             queues.finalization_registrys.drain(..).collect();
         finalization_registry_marks.sort();
         finalization_registry_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.finalization_registrys.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -352,10 +352,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 objects.get(index).mark_values(&mut queues);
             }
         });
-        let mut promise_marks: Box<[PromiseIndex]> = queues.promises.drain(..).collect();
+        let mut promise_marks: Box<[Promise]> = queues.promises.drain(..).collect();
         promise_marks.sort();
         promise_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.promises.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -365,10 +365,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 promises.get(index).mark_values(&mut queues);
             }
         });
-        let mut proxy_marks: Box<[ProxyIndex]> = queues.proxys.drain(..).collect();
+        let mut proxy_marks: Box<[Proxy]> = queues.proxys.drain(..).collect();
         proxy_marks.sort();
         proxy_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.proxys.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -378,10 +378,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 proxys.get(index).mark_values(&mut queues);
             }
         });
-        let mut map_marks: Box<[MapIndex]> = queues.maps.drain(..).collect();
+        let mut map_marks: Box<[Map]> = queues.maps.drain(..).collect();
         map_marks.sort();
         map_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.maps.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -391,10 +391,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 maps.get(index).mark_values(&mut queues);
             }
         });
-        let mut number_marks: Box<[NumberIndex]> = queues.numbers.drain(..).collect();
+        let mut number_marks: Box<[HeapNumber]> = queues.numbers.drain(..).collect();
         number_marks.sort();
         number_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.numbers.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -404,11 +404,11 @@ pub fn heap_gc(heap: &mut Heap) {
                 numbers.get(index).mark_values(&mut queues);
             }
         });
-        let mut primitive_object_marks: Box<[PrimitiveObjectIndex]> =
+        let mut primitive_object_marks: Box<[PrimitiveObject]> =
             queues.primitive_objects.drain(..).collect();
         primitive_object_marks.sort();
         primitive_object_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.primitive_objects.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -418,10 +418,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 primitive_objects.get(index).mark_values(&mut queues);
             }
         });
-        let mut regexp_marks: Box<[RegExpIndex]> = queues.regexps.drain(..).collect();
+        let mut regexp_marks: Box<[RegExp]> = queues.regexps.drain(..).collect();
         regexp_marks.sort();
         regexp_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.regexps.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -431,10 +431,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 regexps.get(index).mark_values(&mut queues);
             }
         });
-        let mut set_marks: Box<[SetIndex]> = queues.sets.drain(..).collect();
+        let mut set_marks: Box<[Set]> = queues.sets.drain(..).collect();
         set_marks.sort();
         set_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.sets.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -444,11 +444,11 @@ pub fn heap_gc(heap: &mut Heap) {
                 sets.get(index).mark_values(&mut queues);
             }
         });
-        let mut shared_array_buffer_marks: Box<[SharedArrayBufferIndex]> =
+        let mut shared_array_buffer_marks: Box<[SharedArrayBuffer]> =
             queues.shared_array_buffers.drain(..).collect();
         shared_array_buffer_marks.sort();
         shared_array_buffer_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.shared_array_buffers.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -458,10 +458,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 shared_array_buffers.get(index).mark_values(&mut queues);
             }
         });
-        let mut string_marks: Box<[StringIndex]> = queues.strings.drain(..).collect();
+        let mut string_marks: Box<[HeapString]> = queues.strings.drain(..).collect();
         string_marks.sort();
         string_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.strings.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -471,10 +471,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 strings.get(index).mark_values(&mut queues);
             }
         });
-        let mut symbol_marks: Box<[SymbolIndex]> = queues.symbols.drain(..).collect();
+        let mut symbol_marks: Box<[Symbol]> = queues.symbols.drain(..).collect();
         symbol_marks.sort();
         symbol_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.symbols.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -498,10 +498,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 typed_arrays.get(index).mark_values(&mut queues);
             }
         });
-        let mut weak_map_marks: Box<[WeakMapIndex]> = queues.weak_maps.drain(..).collect();
+        let mut weak_map_marks: Box<[WeakMap]> = queues.weak_maps.drain(..).collect();
         weak_map_marks.sort();
         weak_map_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.weak_maps.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -511,10 +511,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 weak_maps.get(index).mark_values(&mut queues);
             }
         });
-        let mut weak_ref_marks: Box<[WeakRefIndex]> = queues.weak_refs.drain(..).collect();
+        let mut weak_ref_marks: Box<[WeakRef]> = queues.weak_refs.drain(..).collect();
         weak_ref_marks.sort();
         weak_ref_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.weak_refs.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -524,10 +524,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 weak_refs.get(index).mark_values(&mut queues);
             }
         });
-        let mut weak_set_marks: Box<[WeakSetIndex]> = queues.weak_sets.drain(..).collect();
+        let mut weak_set_marks: Box<[WeakSet]> = queues.weak_sets.drain(..).collect();
         weak_set_marks.sort();
         weak_set_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.weak_sets.get_mut(index) {
                 if *marked {
                     // Already marked, ignore

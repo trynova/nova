@@ -6,23 +6,53 @@ pub use data::SymbolHeapData;
 
 use crate::{
     ecmascript::{execution::Agent, types::String},
-    heap::{indexes::SymbolIndex, Heap},
+    heap::{
+        indexes::SymbolIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+    },
 };
 
 use super::{IntoPrimitive, IntoValue, Primitive, Value};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct Symbol(pub(crate) SymbolIndex);
+
+impl Symbol {
+    pub(crate) const fn _def() -> Self {
+        Self(SymbolIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+
+    /// ### [20.4.3.3.1 SymbolDescriptiveString ( sym )](https://tc39.es/ecma262/#sec-symboldescriptivestring)
+    pub fn descriptive_string(self, agent: &mut Agent) -> String {
+        if let Some(descriptor) = agent[self].descriptor {
+            String::concat(
+                agent,
+                [
+                    String::from_small_string("Symbol("),
+                    descriptor,
+                    String::from_small_string(")"),
+                ],
+            )
+        } else {
+            // TODO: Add to builtin_strings
+            String::from_static_str(agent, "Symbol()")
+        }
+    }
+}
 
 impl IntoValue for Symbol {
     fn into_value(self) -> Value {
-        Value::Symbol(self.0)
+        Value::Symbol(self)
     }
 }
 
 impl IntoPrimitive for Symbol {
     fn into_primitive(self) -> Primitive {
-        Primitive::Symbol(self.0)
+        Primitive::Symbol(self)
     }
 }
 
@@ -38,30 +68,12 @@ impl From<Symbol> for Primitive {
     }
 }
 
-impl From<SymbolIndex> for Symbol {
-    fn from(value: SymbolIndex) -> Self {
-        Self(value)
-    }
-}
-
-impl From<SymbolIndex> for Primitive {
-    fn from(value: SymbolIndex) -> Self {
-        Self::Symbol(value)
-    }
-}
-
-impl From<SymbolIndex> for Value {
-    fn from(value: SymbolIndex) -> Self {
-        Self::Symbol(value)
-    }
-}
-
 impl TryFrom<Value> for Symbol {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Symbol(idx) => Ok(Self(idx)),
+            Value::Symbol(idx) => Ok(idx),
             _ => Err(()),
         }
     }
@@ -72,7 +84,7 @@ impl TryFrom<Primitive> for Symbol {
 
     fn try_from(value: Primitive) -> Result<Self, Self::Error> {
         match value {
-            Primitive::Symbol(idx) => Ok(Self(idx)),
+            Primitive::Symbol(idx) => Ok(idx),
             _ => Err(()),
         }
     }
@@ -114,21 +126,21 @@ impl IndexMut<Symbol> for Heap {
     }
 }
 
-impl Symbol {
-    /// ### [20.4.3.3.1 SymbolDescriptiveString ( sym )](https://tc39.es/ecma262/#sec-symboldescriptivestring)
-    pub fn descriptive_string(self, agent: &mut Agent) -> String {
-        if let Some(descriptor) = agent[self].descriptor {
-            String::concat(
-                agent,
-                [
-                    String::from_small_string("Symbol("),
-                    descriptor,
-                    String::from_small_string(")"),
-                ],
-            )
-        } else {
-            // TODO: Add to builtin_strings
-            String::from_static_str(agent, "Symbol()")
-        }
+impl HeapMarkAndSweep for Symbol {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.symbols.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 =
+            SymbolIndex::from_u32(self_index - compactions.symbols.get_shift_for_index(self_index));
+    }
+}
+
+impl CreateHeapData<SymbolHeapData, Symbol> for Heap {
+    fn create(&mut self, data: SymbolHeapData) -> Symbol {
+        self.symbols.push(Some(data));
+        Symbol(SymbolIndex::last(&self.symbols))
     }
 }

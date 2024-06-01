@@ -1,6 +1,9 @@
 use std::mem::ManuallyDrop;
 
-use crate::ecmascript::types::{DataBlock, OrdinaryObject};
+use crate::{
+    ecmascript::types::{DataBlock, OrdinaryObject},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+};
 
 #[derive(Debug)]
 pub(crate) enum InternalBuffer {
@@ -48,5 +51,15 @@ impl ArrayBufferHeapData {
 
     pub(crate) fn is_detached_buffer(&self) -> bool {
         matches!(self.buffer, InternalBuffer::Detached)
+    }
+}
+
+impl HeapMarkAndSweep for ArrayBufferHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.object_index.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.object_index.sweep_values(compactions);
     }
 }
