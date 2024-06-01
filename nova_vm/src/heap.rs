@@ -16,9 +16,8 @@ pub(crate) use self::heap_constants::{
     LAST_WELL_KNOWN_SYMBOL_INDEX,
 };
 use self::indexes::{
-    ArrayBufferIndex, DataViewIndex, DateIndex, ErrorIndex, FinalizationRegistryIndex, MapIndex,
-    PrimitiveObjectIndex, PromiseIndex, RegExpIndex, SetIndex, SharedArrayBufferIndex,
-    TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
+    DataViewIndex, DateIndex, ErrorIndex, FinalizationRegistryIndex, MapIndex, PromiseIndex,
+    RegExpIndex, SetIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
 };
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
@@ -42,12 +41,11 @@ use crate::ecmascript::{
         proxy::data::ProxyHeapData,
         regexp::RegExpHeapData,
         set::{data::SetHeapData, Set},
-        shared_array_buffer::{data::SharedArrayBufferHeapData, SharedArrayBuffer},
+        shared_array_buffer::data::SharedArrayBufferHeapData,
         typed_array::{data::TypedArrayHeapData, TypedArray},
         weak_map::{data::WeakMapHeapData, WeakMap},
         weak_ref::{data::WeakRefHeapData, WeakRef},
         weak_set::{data::WeakSetHeapData, WeakSet},
-        ArrayBuffer,
     },
     types::{HeapNumber, HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
 };
@@ -132,13 +130,6 @@ impl CreateHeapData<std::string::String, String> for Heap {
     }
 }
 
-impl CreateHeapData<ArrayBufferHeapData, ArrayBuffer> for Heap {
-    fn create(&mut self, data: ArrayBufferHeapData) -> ArrayBuffer {
-        self.array_buffers.push(Some(data));
-        ArrayBuffer::from(ArrayBufferIndex::last(&self.array_buffers))
-    }
-}
-
 impl CreateHeapData<DataViewHeapData, DataView> for Heap {
     fn create(&mut self, data: DataViewHeapData) -> DataView {
         self.data_views.push(Some(data));
@@ -183,13 +174,6 @@ impl CreateHeapData<ObjectHeapData, Object> for Heap {
     }
 }
 
-impl CreateHeapData<PrimitiveObjectHeapData, Object> for Heap {
-    fn create(&mut self, data: PrimitiveObjectHeapData) -> Object {
-        self.primitive_objects.push(Some(data));
-        Object::PrimitiveObject(PrimitiveObjectIndex::last(&self.primitive_objects))
-    }
-}
-
 impl CreateHeapData<PromiseHeapData, Object> for Heap {
     fn create(&mut self, data: PromiseHeapData) -> Object {
         self.promises.push(Some(data));
@@ -208,13 +192,6 @@ impl CreateHeapData<SetHeapData, Set> for Heap {
     fn create(&mut self, data: SetHeapData) -> Set {
         self.sets.push(Some(data));
         Set(SetIndex::last(&self.sets))
-    }
-}
-
-impl CreateHeapData<SharedArrayBufferHeapData, SharedArrayBuffer> for Heap {
-    fn create(&mut self, data: SharedArrayBufferHeapData) -> SharedArrayBuffer {
-        self.shared_array_buffers.push(Some(data));
-        SharedArrayBuffer(SharedArrayBufferIndex::last(&self.shared_array_buffers))
     }
 }
 

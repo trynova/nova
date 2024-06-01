@@ -9,8 +9,8 @@ use crate::{
         },
     },
     heap::{
-        indexes::SharedArrayBufferIndex, CompactionLists, Heap, HeapMarkAndSweep, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WorkQueues,
+        indexes::SharedArrayBufferIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
     },
 };
 
@@ -21,6 +21,7 @@ use super::ordinary::ordinary_set_prototype_of_check_loop;
 pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct SharedArrayBuffer(pub(crate) SharedArrayBufferIndex);
 
 impl SharedArrayBuffer {
@@ -299,5 +300,12 @@ impl HeapMarkAndSweep for SharedArrayBuffer {
                     .shared_array_buffers
                     .get_shift_for_index(self_index),
         );
+    }
+}
+
+impl CreateHeapData<SharedArrayBufferHeapData, SharedArrayBuffer> for Heap {
+    fn create(&mut self, data: SharedArrayBufferHeapData) -> SharedArrayBuffer {
+        self.shared_array_buffers.push(Some(data));
+        SharedArrayBuffer(SharedArrayBufferIndex::last(&self.shared_array_buffers))
     }
 }

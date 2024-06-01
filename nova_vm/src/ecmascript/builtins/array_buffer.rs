@@ -8,17 +8,21 @@ use crate::{
         abstract_operations::testing_and_comparison::same_value_non_number,
         execution::{Agent, JsResult},
         types::{
-            InternalMethods, Object, OrdinaryObject, OrdinaryObjectInternalSlots,
-            PropertyDescriptor, PropertyKey, Value,
+            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
+            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
         },
     },
-    heap::{indexes::ArrayBufferIndex, CompactionLists, Heap, HeapMarkAndSweep, WorkQueues},
+    heap::{
+        indexes::ArrayBufferIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        WorkQueues,
+    },
 };
 
 pub use data::ArrayBufferHeapData;
 use std::ops::{Index, IndexMut};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct ArrayBuffer(ArrayBufferIndex);
 
 impl ArrayBuffer {
@@ -28,6 +32,18 @@ impl ArrayBuffer {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+}
+
+impl IntoObject for ArrayBuffer {
+    fn into_object(self) -> Object {
+        self.into()
+    }
+}
+
+impl IntoValue for ArrayBuffer {
+    fn into_value(self) -> Value {
+        self.into()
     }
 }
 
@@ -289,5 +305,12 @@ impl HeapMarkAndSweep for ArrayBuffer {
         self.0 = ArrayBufferIndex::from_u32(
             self_index - compactions.array_buffers.get_shift_for_index(self_index),
         );
+    }
+}
+
+impl CreateHeapData<ArrayBufferHeapData, ArrayBuffer> for Heap {
+    fn create(&mut self, data: ArrayBufferHeapData) -> ArrayBuffer {
+        self.array_buffers.push(Some(data));
+        ArrayBuffer::from(ArrayBufferIndex::last(&self.array_buffers))
     }
 }

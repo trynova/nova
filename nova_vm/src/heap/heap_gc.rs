@@ -9,16 +9,16 @@ use super::{
     },
     indexes::{
         DataViewIndex, DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
-        FinalizationRegistryIndex, MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex,
-        RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
-        WeakSetIndex,
+        FinalizationRegistryIndex, MapIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex,
+        SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
     Heap,
 };
 use crate::ecmascript::{
     builtins::{
-        bound_function::BoundFunction, shared_array_buffer::SharedArrayBuffer, Array, ArrayBuffer,
-        BuiltinFunction, ECMAScriptFunction,
+        bound_function::BoundFunction, primitive_objects::PrimitiveObject,
+        shared_array_buffer::SharedArrayBuffer, Array, ArrayBuffer, BuiltinFunction,
+        ECMAScriptFunction,
     },
     execution::{
         DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
@@ -405,11 +405,11 @@ pub fn heap_gc(heap: &mut Heap) {
                 numbers.get(index).mark_values(&mut queues);
             }
         });
-        let mut primitive_object_marks: Box<[PrimitiveObjectIndex]> =
+        let mut primitive_object_marks: Box<[PrimitiveObject]> =
             queues.primitive_objects.drain(..).collect();
         primitive_object_marks.sort();
         primitive_object_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.primitive_objects.get_mut(index) {
                 if *marked {
                     // Already marked, ignore

@@ -169,150 +169,6 @@ pub type WeakMapIndex = BaseIndex<WeakMapHeapData>;
 pub type WeakRefIndex = BaseIndex<WeakRefHeapData>;
 pub type WeakSetIndex = BaseIndex<WeakSetHeapData>;
 
-impl Index<ArrayBufferIndex> for Agent {
-    type Output = ArrayBufferHeapData;
-
-    fn index(&self, index: ArrayBufferIndex) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<ArrayBufferIndex> for Agent {
-    fn index_mut(&mut self, index: ArrayBufferIndex) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<ArrayBufferIndex> for Heap {
-    type Output = ArrayBufferHeapData;
-
-    fn index(&self, index: ArrayBufferIndex) -> &Self::Output {
-        self.array_buffers
-            .get(index.into_index())
-            .expect("ArrayBufferIndex out of bounds")
-            .as_ref()
-            .expect("ArrayBufferIndex slot empty")
-    }
-}
-
-impl IndexMut<ArrayBufferIndex> for Heap {
-    fn index_mut(&mut self, index: ArrayBufferIndex) -> &mut Self::Output {
-        self.array_buffers
-            .get_mut(index.into_index())
-            .expect("ArrayBufferIndex out of bounds")
-            .as_mut()
-            .expect("ArrayBufferIndex slot empty")
-    }
-}
-
-impl Index<ArrayIndex> for Agent {
-    type Output = ArrayHeapData;
-
-    fn index(&self, index: ArrayIndex) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<ArrayIndex> for Agent {
-    fn index_mut(&mut self, index: ArrayIndex) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<ArrayIndex> for Heap {
-    type Output = ArrayHeapData;
-
-    fn index(&self, index: ArrayIndex) -> &Self::Output {
-        self.arrays
-            .get(index.into_index())
-            .expect("ArrayIndex out of bounds")
-            .as_ref()
-            .expect("ArrayIndex slot empty")
-    }
-}
-
-impl IndexMut<ArrayIndex> for Heap {
-    fn index_mut(&mut self, index: ArrayIndex) -> &mut Self::Output {
-        self.arrays
-            .get_mut(index.into_index())
-            .expect("ArrayIndex out of bounds")
-            .as_mut()
-            .expect("ArrayIndex slot empty")
-    }
-}
-
-impl Index<BigIntIndex> for Agent {
-    type Output = BigIntHeapData;
-
-    fn index(&self, index: BigIntIndex) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<BigIntIndex> for Agent {
-    fn index_mut(&mut self, index: BigIntIndex) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<BigIntIndex> for Heap {
-    type Output = BigIntHeapData;
-
-    fn index(&self, index: BigIntIndex) -> &Self::Output {
-        self.bigints
-            .get(index.into_index())
-            .expect("BigIntIndex out of bounds")
-            .as_ref()
-            .expect("BigIntIndex slot empty")
-    }
-}
-
-impl IndexMut<BigIntIndex> for Heap {
-    fn index_mut(&mut self, index: BigIntIndex) -> &mut Self::Output {
-        self.bigints
-            .get_mut(index.into_index())
-            .expect("BigIntIndex out of bounds")
-            .as_mut()
-            .expect("BigIntIndex slot empty")
-    }
-}
-
-impl Index<BoundFunctionIndex> for Agent {
-    type Output = BoundFunctionHeapData;
-
-    fn index(&self, index: BoundFunctionIndex) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<BoundFunctionIndex> for Agent {
-    fn index_mut(&mut self, index: BoundFunctionIndex) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<BoundFunctionIndex> for Heap {
-    type Output = BoundFunctionHeapData;
-
-    fn index(&self, index: BoundFunctionIndex) -> &Self::Output {
-        self.bound_functions
-            .get(index.into_index())
-            .expect("BoundFunctionIndex out of bounds")
-            .as_ref()
-            .expect("BoundFunctionIndex slot empty")
-    }
-}
-
-impl IndexMut<BoundFunctionIndex> for Heap {
-    fn index_mut(&mut self, index: BoundFunctionIndex) -> &mut Self::Output {
-        self.bound_functions
-            .get_mut(index.into_index())
-            .expect("BoundFunctionIndex out of bounds")
-            .as_mut()
-            .expect("BoundFunctionIndex slot empty")
-    }
-}
-
 impl Index<DataViewIndex> for Agent {
     type Output = DataViewHeapData;
 
@@ -382,42 +238,6 @@ impl IndexMut<DateIndex> for Heap {
             .expect("DateIndex out of bounds")
             .as_mut()
             .expect("DateIndex slot empty")
-    }
-}
-
-impl Index<ECMAScriptFunctionIndex> for Agent {
-    type Output = ECMAScriptFunctionHeapData;
-
-    fn index(&self, index: ECMAScriptFunctionIndex) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<ECMAScriptFunctionIndex> for Agent {
-    fn index_mut(&mut self, index: ECMAScriptFunctionIndex) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<ECMAScriptFunctionIndex> for Heap {
-    type Output = ECMAScriptFunctionHeapData;
-
-    fn index(&self, index: ECMAScriptFunctionIndex) -> &Self::Output {
-        self.ecmascript_functions
-            .get(index.into_index())
-            .expect("ECMAScriptFunctionIndex out of bounds")
-            .as_ref()
-            .expect("ECMAScriptFunctionIndex slot empty")
-    }
-}
-
-impl IndexMut<ECMAScriptFunctionIndex> for Heap {
-    fn index_mut(&mut self, index: ECMAScriptFunctionIndex) -> &mut Self::Output {
-        self.ecmascript_functions
-            .get_mut(index.into_index())
-            .expect("ECMAScriptFunctionIndex out of bounds")
-            .as_mut()
-            .expect("ECMAScriptFunctionIndex slot empty")
     }
 }
 
@@ -601,42 +421,6 @@ impl IndexMut<ObjectIndex> for Heap {
     }
 }
 
-impl Index<PrimitiveObjectIndex> for Agent {
-    type Output = PrimitiveObjectHeapData;
-
-    fn index(&self, index: PrimitiveObjectIndex) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<PrimitiveObjectIndex> for Agent {
-    fn index_mut(&mut self, index: PrimitiveObjectIndex) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<PrimitiveObjectIndex> for Heap {
-    type Output = PrimitiveObjectHeapData;
-
-    fn index(&self, index: PrimitiveObjectIndex) -> &Self::Output {
-        self.primitive_objects
-            .get(index.into_index())
-            .expect("PrimitiveObjectIndex out of bounds")
-            .as_ref()
-            .expect("PrimitiveObjectIndex slot empty")
-    }
-}
-
-impl IndexMut<PrimitiveObjectIndex> for Heap {
-    fn index_mut(&mut self, index: PrimitiveObjectIndex) -> &mut Self::Output {
-        self.primitive_objects
-            .get_mut(index.into_index())
-            .expect("PrimitiveObjectIndex out of bounds")
-            .as_mut()
-            .expect("PrimitiveObjectIndex slot empty")
-    }
-}
-
 impl Index<PromiseIndex> for Agent {
     type Output = PromiseHeapData;
 
@@ -778,42 +562,6 @@ impl IndexMut<SetIndex> for Heap {
             .expect("SetIndex out of bounds")
             .as_mut()
             .expect("SetIndex slot empty")
-    }
-}
-
-impl Index<SharedArrayBufferIndex> for Agent {
-    type Output = SharedArrayBufferHeapData;
-
-    fn index(&self, index: SharedArrayBufferIndex) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<SharedArrayBufferIndex> for Agent {
-    fn index_mut(&mut self, index: SharedArrayBufferIndex) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<SharedArrayBufferIndex> for Heap {
-    type Output = SharedArrayBufferHeapData;
-
-    fn index(&self, index: SharedArrayBufferIndex) -> &Self::Output {
-        self.shared_array_buffers
-            .get(index.into_index())
-            .expect("SharedArrayBufferIndex out of bounds")
-            .as_ref()
-            .expect("SharedArrayBufferIndex slot empty")
-    }
-}
-
-impl IndexMut<SharedArrayBufferIndex> for Heap {
-    fn index_mut(&mut self, index: SharedArrayBufferIndex) -> &mut Self::Output {
-        self.shared_array_buffers
-            .get_mut(index.into_index())
-            .expect("SharedArrayBufferIndex out of bounds")
-            .as_mut()
-            .expect("SharedArrayBufferIndex slot empty")
     }
 }
 

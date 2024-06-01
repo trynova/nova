@@ -32,9 +32,9 @@ use super::{
 use crate::{
     ecmascript::{
         builtins::{
-            bound_function::BoundFunction, date::Date, error::Error, map::Map, set::Set,
-            shared_array_buffer::SharedArrayBuffer, ArgumentsList, Array, ArrayBuffer,
-            BuiltinFunction, ECMAScriptFunction,
+            bound_function::BoundFunction, date::Date, error::Error, map::Map,
+            primitive_objects::PrimitiveObject, set::Set, shared_array_buffer::SharedArrayBuffer,
+            ArgumentsList, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
@@ -43,9 +43,8 @@ use crate::{
     heap::{
         indexes::{
             ArrayIndex, DataViewIndex, DateIndex, EmbedderObjectIndex, ErrorIndex,
-            FinalizationRegistryIndex, MapIndex, ObjectIndex, PrimitiveObjectIndex, PromiseIndex,
-            ProxyIndex, RegExpIndex, SetIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
-            WeakSetIndex,
+            FinalizationRegistryIndex, MapIndex, ObjectIndex, PromiseIndex, ProxyIndex,
+            RegExpIndex, SetIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
         },
         CompactionLists, HeapMarkAndSweep, WorkQueues,
     },
@@ -78,7 +77,7 @@ pub enum Object {
     ECMAScriptAsyncGeneratorFunction = ECMASCRIPT_ASYNC_GENERATOR_FUNCTION_DISCRIMINANT,
     ECMAScriptConstructorFunction = ECMASCRIPT_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
     ECMAScriptGeneratorFunction = ECMASCRIPT_GENERATOR_FUNCTION_DISCRIMINANT,
-    PrimitiveObject(PrimitiveObjectIndex) = PRIMITIVE_OBJECT_DISCRIMINANT,
+    PrimitiveObject(PrimitiveObject) = PRIMITIVE_OBJECT_DISCRIMINANT,
     Arguments = ARGUMENTS_DISCRIMINANT,
     Array(Array) = ARRAY_DISCRIMINANT,
     ArrayBuffer(ArrayBuffer) = ARRAY_BUFFER_DISCRIMINANT,

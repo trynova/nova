@@ -6,8 +6,9 @@ use crate::{
             to_big_int, to_int32, to_number, to_numeric, to_string, to_uint32,
         },
         builtins::{
-            bound_function::BoundFunction, shared_array_buffer::SharedArrayBuffer, Array,
-            ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
+            bound_function::BoundFunction, primitive_objects::PrimitiveObject,
+            shared_array_buffer::SharedArrayBuffer, Array, ArrayBuffer, BuiltinFunction,
+            ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
@@ -15,8 +16,8 @@ use crate::{
     },
     heap::indexes::{
         DataViewIndex, DateIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex,
-        MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex,
-        SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
+        MapIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex,
+        WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
     SmallInteger, SmallString,
 };
@@ -79,7 +80,7 @@ pub enum Value {
     ECMAScriptGeneratorFunction,
 
     // Boolean, Number, String, Symbol, BigInt objects
-    PrimitiveObject(PrimitiveObjectIndex),
+    PrimitiveObject(PrimitiveObject),
 
     // Well-known object types
     // Roughly corresponding to 6.1.7.4 Well-Known Intrinsic Objects
@@ -201,9 +202,8 @@ pub(crate) const ECMASCRIPT_CONSTRUCTOR_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::ECMAScriptConstructorFunction);
 pub(crate) const ECMASCRIPT_GENERATOR_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::ECMAScriptGeneratorFunction);
-pub(crate) const PRIMITIVE_OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::PrimitiveObject(
-    PrimitiveObjectIndex::from_u32_index(0),
-));
+pub(crate) const PRIMITIVE_OBJECT_DISCRIMINANT: u8 =
+    value_discriminant(Value::PrimitiveObject(PrimitiveObject::_def()));
 pub(crate) const ARGUMENTS_DISCRIMINANT: u8 = value_discriminant(Value::Arguments);
 pub(crate) const DATA_VIEW_DISCRIMINANT: u8 =
     value_discriminant(Value::DataView(DataViewIndex::from_u32_index(0)));

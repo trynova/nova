@@ -4,9 +4,8 @@ use super::{
     element_array::{ElementArrayKey, ElementsVector},
     indexes::{
         DataViewIndex, DateIndex, ElementIndex, EmbedderObjectIndex, ErrorIndex,
-        FinalizationRegistryIndex, MapIndex, PrimitiveObjectIndex, PromiseIndex, ProxyIndex,
-        RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
-        WeakSetIndex,
+        FinalizationRegistryIndex, MapIndex, PromiseIndex, ProxyIndex, RegExpIndex, SetIndex,
+        SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
     },
     Heap, SymbolHeapData,
 };
@@ -20,7 +19,7 @@ use crate::ecmascript::{
         finalization_registry::data::FinalizationRegistryHeapData,
         map::{data::MapHeapData, Map},
         module::{data::ModuleHeapData, Module},
-        primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
+        primitive_objects::PrimitiveObject,
         promise::data::PromiseHeapData,
         proxy::data::ProxyHeapData,
         regexp::RegExpHeapData,
@@ -120,7 +119,7 @@ pub(crate) struct WorkQueues {
     pub numbers: Vec<HeapNumber>,
     pub object_environments: Vec<ObjectEnvironmentIndex>,
     pub objects: Vec<OrdinaryObject>,
-    pub primitive_objects: Vec<PrimitiveObjectIndex>,
+    pub primitive_objects: Vec<PrimitiveObject>,
     pub promises: Vec<PromiseIndex>,
     pub proxys: Vec<ProxyIndex>,
     pub realms: Vec<RealmIdentifier>,
@@ -819,22 +818,6 @@ impl HeapMarkAndSweep for MapIndex {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let self_index = self.into_u32();
         *self = Self::from_u32(self_index - compactions.maps.get_shift_for_index(self_index));
-    }
-}
-
-impl HeapMarkAndSweep for PrimitiveObjectIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.primitive_objects.push(*self);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(
-            self_index
-                - compactions
-                    .primitive_objects
-                    .get_shift_for_index(self_index),
-        );
     }
 }
 
@@ -1609,29 +1592,5 @@ impl HeapMarkAndSweep for PrivateEnvironment {
 
     fn sweep_values(&mut self, _compactions: &CompactionLists) {
         todo!()
-    }
-}
-
-impl HeapMarkAndSweep for PrimitiveObjectHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-        match self.data {
-            PrimitiveObjectData::String(data) => data.mark_values(queues),
-            PrimitiveObjectData::Symbol(data) => data.mark_values(queues),
-            PrimitiveObjectData::Number(data) => data.mark_values(queues),
-            PrimitiveObjectData::BigInt(data) => data.mark_values(queues),
-            _ => {}
-        }
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
-        match &mut self.data {
-            PrimitiveObjectData::String(data) => data.sweep_values(compactions),
-            PrimitiveObjectData::Symbol(data) => data.sweep_values(compactions),
-            PrimitiveObjectData::Number(data) => data.sweep_values(compactions),
-            PrimitiveObjectData::BigInt(data) => data.sweep_values(compactions),
-            _ => {}
-        }
     }
 }
