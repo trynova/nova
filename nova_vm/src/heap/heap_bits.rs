@@ -3,9 +3,9 @@ use std::borrow::Borrow;
 use super::{
     element_array::{ElementArrayKey, ElementsVector},
     indexes::{
-        ElementIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex, MapIndex,
-        PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex,
-        WeakMapIndex, WeakRefIndex, WeakSetIndex,
+        ElementIndex, EmbedderObjectIndex, FinalizationRegistryIndex, MapIndex, PromiseIndex,
+        ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
+        WeakRefIndex, WeakSetIndex,
     },
     Heap, SymbolHeapData,
 };
@@ -15,7 +15,7 @@ use crate::ecmascript::{
         data_view::DataView,
         date::{data::DateHeapData, Date},
         embedder_object::data::EmbedderObjectHeapData,
-        error::ErrorHeapData,
+        error::{Error, ErrorHeapData},
         finalization_registry::data::FinalizationRegistryHeapData,
         map::{data::MapHeapData, Map},
         module::{data::ModuleHeapData, Module},
@@ -110,7 +110,7 @@ pub(crate) struct WorkQueues {
     pub e_2_8: Vec<(ElementIndex, u32)>,
     pub ecmascript_functions: Vec<ECMAScriptFunction>,
     pub embedder_objects: Vec<EmbedderObjectIndex>,
-    pub errors: Vec<ErrorIndex>,
+    pub errors: Vec<Error>,
     pub finalization_registrys: Vec<FinalizationRegistryIndex>,
     pub function_environments: Vec<FunctionEnvironmentIndex>,
     pub global_environments: Vec<GlobalEnvironmentIndex>,
@@ -786,17 +786,6 @@ pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
             false
         }
     });
-}
-
-impl HeapMarkAndSweep for ErrorIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.errors.push(*self);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(self_index - compactions.errors.get_shift_for_index(self_index));
-    }
 }
 
 impl HeapMarkAndSweep for MapIndex {

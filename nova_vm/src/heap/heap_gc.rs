@@ -8,15 +8,15 @@ use super::{
         sweep_heap_vector_values, CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
     },
     indexes::{
-        ElementIndex, EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex, MapIndex,
-        PromiseIndex, ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex,
-        WeakMapIndex, WeakRefIndex, WeakSetIndex,
+        ElementIndex, EmbedderObjectIndex, FinalizationRegistryIndex, MapIndex, PromiseIndex,
+        ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
+        WeakRefIndex, WeakSetIndex,
     },
     Heap,
 };
 use crate::ecmascript::{
     builtins::{
-        bound_function::BoundFunction, data_view::DataView, date::Date,
+        bound_function::BoundFunction, data_view::DataView, date::Date, error::Error,
         primitive_objects::PrimitiveObject, shared_array_buffer::SharedArrayBuffer, Array,
         ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
     },
@@ -245,7 +245,6 @@ pub fn heap_gc(heap: &mut Heap) {
                 bound_functions.get(index).mark_values(&mut queues);
             }
         });
-        let mut error_marks: Box<[ErrorIndex]> = queues.errors.drain(..).collect();
         let mut ecmascript_function_marks: Box<[ECMAScriptFunction]> =
             queues.ecmascript_functions.drain(..).collect();
         ecmascript_function_marks.sort();
@@ -260,9 +259,10 @@ pub fn heap_gc(heap: &mut Heap) {
                 ecmascript_functions.get(index).mark_values(&mut queues);
             }
         });
+        let mut error_marks: Box<[Error]> = queues.errors.drain(..).collect();
         error_marks.sort();
         error_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.errors.get_mut(index) {
                 if *marked {
                     // Already marked, ignore

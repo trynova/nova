@@ -16,8 +16,8 @@ pub(crate) use self::heap_constants::{
     LAST_WELL_KNOWN_SYMBOL_INDEX,
 };
 use self::indexes::{
-    ErrorIndex, FinalizationRegistryIndex, MapIndex, PromiseIndex, RegExpIndex, SetIndex,
-    TypedArrayIndex, WeakMapIndex, WeakRefIndex, WeakSetIndex,
+    FinalizationRegistryIndex, MapIndex, PromiseIndex, RegExpIndex, SetIndex, TypedArrayIndex,
+    WeakMapIndex, WeakRefIndex, WeakSetIndex,
 };
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
@@ -32,7 +32,7 @@ use crate::ecmascript::{
         data_view::data::DataViewHeapData,
         date::data::DateHeapData,
         embedder_object::data::EmbedderObjectHeapData,
-        error::{Error, ErrorHeapData},
+        error::ErrorHeapData,
         finalization_registry::{data::FinalizationRegistryHeapData, FinalizationRegistry},
         map::{data::MapHeapData, Map},
         module::data::ModuleHeapData,
@@ -127,13 +127,6 @@ impl CreateHeapData<std::string::String, String> for Heap {
             // SAFETY: String couldn't be represented as a SmallString.
             unsafe { self.alloc_string(data) }
         }
-    }
-}
-
-impl CreateHeapData<ErrorHeapData, Error> for Heap {
-    fn create(&mut self, data: ErrorHeapData) -> Error {
-        self.errors.push(Some(data));
-        Error::from(ErrorIndex::last(&self.errors))
     }
 }
 

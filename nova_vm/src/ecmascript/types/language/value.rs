@@ -6,7 +6,7 @@ use crate::{
             to_big_int, to_int32, to_number, to_numeric, to_string, to_uint32,
         },
         builtins::{
-            bound_function::BoundFunction, data_view::DataView, date::Date,
+            bound_function::BoundFunction, data_view::DataView, date::Date, error::Error,
             primitive_objects::PrimitiveObject, shared_array_buffer::SharedArrayBuffer, Array,
             ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
         },
@@ -15,9 +15,9 @@ use crate::{
         types::BUILTIN_STRING_MEMORY,
     },
     heap::indexes::{
-        EmbedderObjectIndex, ErrorIndex, FinalizationRegistryIndex, MapIndex, PromiseIndex,
-        ProxyIndex, RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex,
-        WeakRefIndex, WeakSetIndex,
+        EmbedderObjectIndex, FinalizationRegistryIndex, MapIndex, PromiseIndex, ProxyIndex,
+        RegExpIndex, SetIndex, SymbolIndex, TypedArrayIndex, WeakMapIndex, WeakRefIndex,
+        WeakSetIndex,
     },
     SmallInteger, SmallString,
 };
@@ -92,7 +92,7 @@ pub enum Value {
     ArrayBuffer(ArrayBuffer),
     DataView(DataView),
     Date(Date),
-    Error(ErrorIndex),
+    Error(Error),
     FinalizationRegistry(FinalizationRegistryIndex),
     Map(MapIndex),
     Promise(PromiseIndex),
@@ -170,8 +170,7 @@ pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array:
 pub(crate) const ARRAY_BUFFER_DISCRIMINANT: u8 =
     value_discriminant(Value::ArrayBuffer(ArrayBuffer::_def()));
 pub(crate) const DATE_DISCRIMINANT: u8 = value_discriminant(Value::Date(Date::_def()));
-pub(crate) const ERROR_DISCRIMINANT: u8 =
-    value_discriminant(Value::Error(ErrorIndex::from_u32_index(0)));
+pub(crate) const ERROR_DISCRIMINANT: u8 = value_discriminant(Value::Error(Error::_def()));
 pub(crate) const BUILTIN_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinFunction(BuiltinFunction::_def()));
 pub(crate) const ECMASCRIPT_FUNCTION_DISCRIMINANT: u8 =
