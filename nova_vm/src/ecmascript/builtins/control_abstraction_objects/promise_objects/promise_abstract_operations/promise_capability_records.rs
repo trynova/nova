@@ -108,12 +108,12 @@ impl CreateHeapData<PromiseCapabilityRecord, PromiseCapability> for Heap {
 /// IfAbruptRejectPromise is a shorthand for a sequence of algorithm steps that
 /// use a PromiseCapability Record. An algorithm step of the form:
 ///
-/// ```
+/// ```text
 /// 1. IfAbruptRejectPromise(value, capability).
 /// ```
 ///
 /// means the same thing as:
-/// ```
+/// ```text
 /// 1. Assert: value is a Completion Record.
 /// 2. If value is an abrupt completion, then
 ///     a. Perform ? Call(capability.[[Reject]], undefined, « value.[[Value]] »).
