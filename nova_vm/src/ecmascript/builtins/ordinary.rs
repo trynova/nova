@@ -813,11 +813,11 @@ pub(crate) fn ordinary_own_property_keys(_agent: &Agent, _object: Object) -> Vec
 /// additionalInternalSlotsList is not provided, a new empty List is used.
 ///
 /// > NOTE: Although OrdinaryObjectCreate does little more than call
-/// MakeBasicObject, its use communicates the intention to create an ordinary
-/// object, and not an exotic one. Thus, within this specification, it is not
-/// called by any algorithm that subsequently modifies the internal methods of
-/// the object in ways that would make the result non-ordinary. Operations that
-/// create exotic objects invoke MakeBasicObject directly.
+/// > MakeBasicObject, its use communicates the intention to create an ordinary
+/// > object, and not an exotic one. Thus, within this specification, it is not
+/// > called by any algorithm that subsequently modifies the internal methods of
+/// > the object in ways that would make the result non-ordinary. Operations that
+/// > create exotic objects invoke MakeBasicObject directly.
 ///
 /// NOTE: In this implementation, `proto_intrinsics` determines the heap in
 /// which the object is placed, and therefore its heap data type and its

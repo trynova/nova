@@ -45,11 +45,11 @@ pub enum PreferredType {
 /// the following steps when called:
 ///
 /// > NOTE: When ToPrimitive is called without a hint, then it generally
-/// behaves as if the hint were NUMBER. However, objects may over-ride this
-/// behaviour by defining a @@toPrimitive method. Of the objects defined in
-/// this specification only Dates (see 21.4.4.45) and Symbol objects (see
-/// 20.4.3.5) over-ride the default ToPrimitive behaviour. Dates treat the
-/// absence of a hint as if the hint were STRING.
+/// > behaves as if the hint were NUMBER. However, objects may over-ride this
+/// > behaviour by defining a @@toPrimitive method. Of the objects defined in
+/// > this specification only Dates (see 21.4.4.45) and Symbol objects (see
+/// > 20.4.3.5) over-ride the default ToPrimitive behaviour. Dates treat the
+/// > absence of a hint as if the hint were STRING.
 pub(crate) fn to_primitive(
     agent: &mut Agent,
     input: impl Into<Value> + Copy,
