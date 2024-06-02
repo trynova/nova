@@ -258,7 +258,7 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
 /// requirements:
 /// * The abstract operation does not detach buffer.
 /// * If the abstract operation completes normally with HANDLED,
-/// buffer.[[ArrayBufferByteLength]] is newByteLength.
+///   buffer.\[\[ArrayBufferByteLength]] is newByteLength.
 ///
 /// The default implementation of HostResizeArrayBuffer is to return
 /// NormalCompletion(UNHANDLED).

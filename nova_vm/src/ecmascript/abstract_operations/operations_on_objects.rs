@@ -98,10 +98,10 @@ pub(crate) fn set(
 /// create a new own property of an object.
 ///
 /// > NOTE: This abstract operation creates a property whose attributes are set
-/// to the same defaults used for properties created by the ECMAScript language
-/// assignment operator. Normally, the property will not already exist. If it
-/// does exist and is not configurable or if O is not extensible,
-/// \[\[DefineOwnProperty]] will return false.
+/// > to the same defaults used for properties created by the ECMAScript language
+/// > assignment operator. Normally, the property will not already exist. If it
+/// > does exist and is not configurable or if O is not extensible,
+/// > [\[DefineOwnProperty]] will return false.
 pub(crate) fn create_data_property(
     agent: &mut Agent,
     object: Object,
