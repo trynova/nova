@@ -16,6 +16,7 @@ use crate::ecmascript::{
         control_abstraction_objects::promise_objects::promise_abstract_operations::{
             promise_capability_records::PromiseCapability,
             promise_reaction_records::PromiseReaction,
+            promise_reject_function::BuiltinPromiseRejectFunction,
         },
         data_view::DataView,
         date::Date,
@@ -82,6 +83,7 @@ pub fn heap_gc(heap: &mut Heap) {
             primitive_objects,
             promise_capability_records,
             promise_reaction_records,
+            promise_reject_functions,
             promises,
             proxys,
             realms,
@@ -411,6 +413,20 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 promise_reaction_records.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut promise_reject_function_marks: Box<[BuiltinPromiseRejectFunction]> =
+            queues.promise_reject_functions.drain(..).collect();
+        promise_reject_function_marks.sort();
+        promise_reject_function_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.promise_reject_functions.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                promise_reject_functions.get(index).mark_values(&mut queues);
             }
         });
         let mut proxy_marks: Box<[Proxy]> = queues.proxys.drain(..).collect();
@@ -759,6 +775,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
         primitive_objects,
         promise_capability_records,
         promise_reaction_records,
+        promise_reject_functions,
         promises,
         proxys,
         realms,
@@ -900,6 +917,13 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
                 promise_reaction_records,
                 &compactions,
                 &bits.promise_reaction_records,
+            );
+        });
+        s.spawn(|| {
+            sweep_heap_vector_values(
+                promise_reject_functions,
+                &compactions,
+                &bits.promise_reject_functions,
             );
         });
         s.spawn(|| {

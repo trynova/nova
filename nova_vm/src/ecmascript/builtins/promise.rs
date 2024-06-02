@@ -10,7 +10,7 @@ use crate::{
     },
     heap::{
         indexes::{BaseIndex, PromiseIndex},
-        CreateHeapData, Heap, ObjectEntry, ObjectEntryPropertyDescriptor,
+        CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry, ObjectEntryPropertyDescriptor,
     },
 };
 
@@ -270,5 +270,15 @@ impl IndexMut<Promise> for Agent {
             .expect("Promise out of bounds")
             .as_mut()
             .expect("Promise slot empty")
+    }
+}
+
+impl HeapMarkAndSweep for Promise {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.promises.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+        compactions.promises.shift_index(&mut self.0)
     }
 }

@@ -28,6 +28,7 @@ use crate::ecmascript::{
         control_abstraction_objects::promise_objects::promise_abstract_operations::{
             promise_capability_records::PromiseCapabilityRecord,
             promise_reaction_records::PromiseReactionRecord,
+            promise_reject_function::PromiseRejectFunctionHeapData,
         },
         data_view::data::DataViewHeapData,
         date::data::DateHeapData,
@@ -89,6 +90,7 @@ pub struct Heap {
     pub primitive_objects: Vec<Option<PrimitiveObjectHeapData>>,
     pub promise_capability_records: Vec<Option<PromiseCapabilityRecord>>,
     pub promise_reaction_records: Vec<Option<PromiseReactionRecord>>,
+    pub promise_reject_functions: Vec<Option<PromiseRejectFunctionHeapData>>,
     pub promises: Vec<Option<PromiseHeapData>>,
     pub proxys: Vec<Option<ProxyHeapData>>,
     pub realms: Vec<Option<Realm>>,
@@ -165,6 +167,7 @@ impl Heap {
             primitive_objects: Vec::with_capacity(0),
             promise_capability_records: Vec::with_capacity(0),
             promise_reaction_records: Vec::with_capacity(0),
+            promise_reject_functions: Vec::with_capacity(0),
             promises: Vec::with_capacity(0),
             proxys: Vec::with_capacity(0),
             realms: Vec::with_capacity(1),

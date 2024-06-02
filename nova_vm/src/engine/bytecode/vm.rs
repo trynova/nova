@@ -776,7 +776,7 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::BuiltinGeneratorFunction |
         Value::BuiltinConstructorFunction |
         Value::BuiltinPromiseResolveFunction |
-        Value::BuiltinPromiseRejectFunction |
+        Value::BuiltinPromiseRejectFunction(_) |
         Value::BuiltinPromiseCollectorFunction |
         Value::BuiltinProxyRevokerFunction |
         Value::ECMAScriptAsyncFunction |

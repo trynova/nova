@@ -11,6 +11,7 @@ use crate::ecmascript::{
         control_abstraction_objects::promise_objects::promise_abstract_operations::{
             promise_capability_records::PromiseCapability,
             promise_reaction_records::PromiseReaction,
+            promise_reject_function::BuiltinPromiseRejectFunction,
         },
         data_view::DataView,
         date::Date,
@@ -70,6 +71,7 @@ pub struct HeapBits {
     pub primitive_objects: Box<[bool]>,
     pub promise_capability_records: Box<[bool]>,
     pub promise_reaction_records: Box<[bool]>,
+    pub promise_reject_functions: Box<[bool]>,
     pub promises: Box<[bool]>,
     pub proxys: Box<[bool]>,
     pub realms: Box<[bool]>,
@@ -118,6 +120,7 @@ pub(crate) struct WorkQueues {
     pub promises: Vec<Promise>,
     pub promise_capability_records: Vec<PromiseCapability>,
     pub promise_reaction_records: Vec<PromiseReaction>,
+    pub promise_reject_functions: Vec<BuiltinPromiseRejectFunction>,
     pub proxys: Vec<Proxy>,
     pub realms: Vec<RealmIdentifier>,
     pub regexps: Vec<RegExp>,
@@ -164,6 +167,7 @@ impl HeapBits {
         let primitive_objects = vec![false; heap.primitive_objects.len()];
         let promise_capability_records = vec![false; heap.promise_capability_records.len()];
         let promise_reaction_records = vec![false; heap.promise_reaction_records.len()];
+        let promise_reject_functions = vec![false; heap.promise_reject_functions.len()];
         let promises = vec![false; heap.promises.len()];
         let proxys = vec![false; heap.proxys.len()];
         let realms = vec![false; heap.realms.len()];
@@ -208,6 +212,7 @@ impl HeapBits {
             primitive_objects: primitive_objects.into_boxed_slice(),
             promise_capability_records: promise_capability_records.into_boxed_slice(),
             promise_reaction_records: promise_reaction_records.into_boxed_slice(),
+            promise_reject_functions: promise_reject_functions.into_boxed_slice(),
             promises: promises.into_boxed_slice(),
             proxys: proxys.into_boxed_slice(),
             realms: realms.into_boxed_slice(),
@@ -260,6 +265,7 @@ impl WorkQueues {
                 heap.promise_capability_records.len() / 4,
             ),
             promise_reaction_records: Vec::with_capacity(heap.promise_reaction_records.len() / 4),
+            promise_reject_functions: Vec::with_capacity(heap.promise_reject_functions.len() / 4),
             promises: Vec::with_capacity(heap.promises.len() / 4),
             proxys: Vec::with_capacity(heap.proxys.len() / 4),
             realms: Vec::with_capacity(heap.realms.len() / 4),
@@ -324,7 +330,7 @@ impl WorkQueues {
             Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction => todo!(),
             Value::BuiltinPromiseResolveFunction => todo!(),
-            Value::BuiltinPromiseRejectFunction => todo!(),
+            Value::BuiltinPromiseRejectFunction(data) => self.promise_reject_functions.push(data),
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
             Value::ECMAScriptAsyncFunction => todo!(),

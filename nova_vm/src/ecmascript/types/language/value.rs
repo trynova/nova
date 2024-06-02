@@ -6,12 +6,7 @@ use crate::{
             to_big_int, to_int32, to_number, to_numeric, to_string, to_uint32,
         },
         builtins::{
-            bound_function::BoundFunction, data_view::DataView, date::Date,
-            embedder_object::EmbedderObject, error::Error,
-            finalization_registry::FinalizationRegistry, map::Map, module::Module,
-            primitive_objects::PrimitiveObject, promise::Promise, proxy::Proxy, regexp::RegExp,
-            set::Set, shared_array_buffer::SharedArrayBuffer, weak_map::WeakMap, weak_ref::WeakRef,
-            weak_set::WeakSet, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
+            bound_function::BoundFunction, control_abstraction_objects::promise_objects::promise_abstract_operations::promise_reject_function::BuiltinPromiseRejectFunction, data_view::DataView, date::Date, embedder_object::EmbedderObject, error::Error, finalization_registry::FinalizationRegistry, map::Map, module::Module, primitive_objects::PrimitiveObject, promise::Promise, proxy::Proxy, regexp::RegExp, set::Set, shared_array_buffer::SharedArrayBuffer, weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction
         },
         execution::{Agent, JsResult},
         types::BUILTIN_STRING_MEMORY,
@@ -69,7 +64,7 @@ pub enum Value {
     BuiltinGeneratorFunction,
     BuiltinConstructorFunction,
     BuiltinPromiseResolveFunction,
-    BuiltinPromiseRejectFunction,
+    BuiltinPromiseRejectFunction(BuiltinPromiseRejectFunction),
     BuiltinPromiseCollectorFunction,
     BuiltinProxyRevokerFunction,
     ECMAScriptAsyncFunction,
@@ -182,8 +177,9 @@ pub(crate) const BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinConstructorFunction);
 pub(crate) const BUILTIN_PROMISE_RESOLVE_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinPromiseResolveFunction);
-pub(crate) const BUILTIN_PROMISE_REJECT_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::BuiltinPromiseRejectFunction);
+pub(crate) const BUILTIN_PROMISE_REJECT_FUNCTION_DISCRIMINANT: u8 = value_discriminant(
+    Value::BuiltinPromiseRejectFunction(BuiltinPromiseRejectFunction::_def()),
+);
 pub(crate) const BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinPromiseCollectorFunction);
 pub(crate) const BUILTIN_PROXY_REVOKER_FUNCTION: u8 =
@@ -552,7 +548,7 @@ impl HeapMarkAndSweep for Value {
             Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction => todo!(),
             Value::BuiltinPromiseResolveFunction => todo!(),
-            Value::BuiltinPromiseRejectFunction => todo!(),
+            Value::BuiltinPromiseRejectFunction(_) => todo!(),
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
             Value::ECMAScriptAsyncFunction => todo!(),
@@ -617,7 +613,7 @@ impl HeapMarkAndSweep for Value {
             Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction => todo!(),
             Value::BuiltinPromiseResolveFunction => todo!(),
-            Value::BuiltinPromiseRejectFunction => todo!(),
+            Value::BuiltinPromiseRejectFunction(_) => todo!(),
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
             Value::ECMAScriptAsyncFunction => todo!(),

@@ -182,7 +182,7 @@ impl FunctionPrototype {
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
-            Function::BuiltinPromiseRejectFunction => todo!(),
+            Function::BuiltinPromiseRejectFunction(_) => todo!(),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
             Function::ECMAScriptAsyncFunction => todo!(),
