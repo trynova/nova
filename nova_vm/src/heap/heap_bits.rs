@@ -567,6 +567,7 @@ pub(crate) struct CompactionLists {
     pub primitive_objects: CompactionList,
     pub promise_capability_records: CompactionList,
     pub promise_reaction_records: CompactionList,
+    pub promise_reject_functions: CompactionList,
     pub promises: CompactionList,
     pub regexps: CompactionList,
     pub sets: CompactionList,
@@ -620,6 +621,9 @@ impl CompactionLists {
             ),
             promise_reaction_records: CompactionList::from_mark_bits(
                 &bits.promise_reaction_records,
+            ),
+            promise_reject_functions: CompactionList::from_mark_bits(
+                &bits.promise_reject_functions,
             ),
             promises: CompactionList::from_mark_bits(&bits.promises),
             primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),

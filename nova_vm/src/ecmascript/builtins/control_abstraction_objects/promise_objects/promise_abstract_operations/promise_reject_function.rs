@@ -81,7 +81,7 @@ impl IntoValue for BuiltinPromiseRejectFunction {
 impl PromiseRejectFunctionHeapData {
     /// When a promise reject function is called with argument reason, the
     /// following steps are taken:
-    pub(crate) fn call(agent: &mut Agent, reason: Value) {
+    pub(crate) fn call(agent: &mut Agent, _reason: Value) {
         // 1. Let F be the active function object.
         let f = agent.running_execution_context().function.unwrap();
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
@@ -241,6 +241,18 @@ impl CreateHeapData<PromiseRejectFunctionHeapData, BuiltinPromiseRejectFunction>
     fn create(&mut self, data: PromiseRejectFunctionHeapData) -> BuiltinPromiseRejectFunction {
         self.promise_reject_functions.push(Some(data));
         BuiltinPromiseRejectFunction(BaseIndex::last(&self.promise_reject_functions))
+    }
+}
+
+impl HeapMarkAndSweep for BuiltinPromiseRejectFunction {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.promise_reject_functions.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+        compactions
+            .promise_reject_functions
+            .shift_index(&mut self.0);
     }
 }
 
