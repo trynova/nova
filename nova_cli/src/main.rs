@@ -4,7 +4,7 @@ use nova_vm::ecmascript::{
     scripts_and_modules::script::{parse_script, script_evaluation},
     types::{Object, Value},
 };
-use oxc_diagnostics::OxcDiagnostic;
+use oxc_diagnostics::{GraphicalTheme, OxcDiagnostic};
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 
@@ -116,7 +116,13 @@ fn exit_with_parse_errors(errors: Vec<OxcDiagnostic>, source_path: &str, source:
 
     // This seems to be needed for color and Unicode output.
     miette::set_hook(Box::new(|_| {
-        Box::new(oxc_diagnostics::GraphicalReportHandler::new())
+        use std::io::IsTerminal;
+        let mut handler = oxc_diagnostics::GraphicalReportHandler::new();
+        if !std::io::stdout().is_terminal() || std::io::stderr().is_terminal() {
+            // Fix for https://github.com/oxc-project/oxc/issues/3539
+            handler = handler.with_theme(GraphicalTheme::none());
+        }
+        Box::new(handler)
     }))
     .unwrap();
 
