@@ -68,6 +68,17 @@ impl From<Map> for Object {
     }
 }
 
+impl TryFrom<Object> for Map {
+    type Error = ();
+
+    fn try_from(value: Object) -> Result<Self, Self::Error> {
+        match value {
+            Object::Map(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+
 fn create_map_base_object(agent: &mut Agent, map: Map, entries: &[ObjectEntry]) -> OrdinaryObject {
     // TODO: An issue crops up if multiple realms are in play:
     // The prototype should not be dependent on the realm we're operating in

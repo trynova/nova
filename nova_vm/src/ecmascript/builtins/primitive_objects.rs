@@ -48,6 +48,17 @@ impl IntoValue for PrimitiveObject {
     }
 }
 
+impl TryFrom<Object> for PrimitiveObject {
+    type Error = ();
+
+    fn try_from(value: Object) -> Result<Self, Self::Error> {
+        match value {
+            Object::PrimitiveObject(obj) => Ok(obj),
+            _ => Err(()),
+        }
+    }
+}
+
 impl Index<PrimitiveObject> for Agent {
     type Output = PrimitiveObjectHeapData;
 
