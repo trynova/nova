@@ -5,8 +5,10 @@ use crate::{
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
         builtins::{ArgumentsList, Builtin, BuiltinGetter},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, PropertyKey, String, SymbolHeapData, Value, BUILTIN_STRING_MEMORY},
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{
+            IntoValue, PropertyKey, String, Symbol, SymbolHeapData, Value, BUILTIN_STRING_MEMORY,
+        },
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -69,8 +71,8 @@ impl SymbolPrototype {
         todo!();
     }
 
-    fn value_of(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!();
+    fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        this_symbol_value(agent, this_value).map(|res| res.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -150,5 +152,17 @@ impl SymbolPrototype {
                     .build()
             })
             .build();
+    }
+}
+
+#[inline(always)]
+fn this_symbol_value(agent: &mut Agent, value: Value) -> JsResult<Symbol> {
+    match value {
+        Value::Symbol(symbol) => Ok(symbol),
+        Value::PrimitiveObject(object) if object.is_symbol_object(agent) => {
+            let s: Symbol = agent[object].data.try_into().unwrap();
+            Ok(s)
+        }
+        _ => Err(agent.throw_exception(ExceptionType::TypeError, "this is not a symbol")),
     }
 }
