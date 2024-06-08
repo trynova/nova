@@ -151,7 +151,7 @@ fn initialize_global_object(agent: &mut Agent, global: Object) {
 
     // `print` function
     fn print(agent: &mut Agent, _this: Value, args: ArgumentsList) -> JsResult<Value> {
-        if args.len() == 0 || args[0].is_undefined() {
+        if args.len() == 0 {
             println!();
         } else {
             println!("{}", args[0].to_string(agent)?.as_str(agent));
