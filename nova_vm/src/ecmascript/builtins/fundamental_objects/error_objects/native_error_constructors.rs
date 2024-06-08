@@ -188,6 +188,7 @@ impl NativeErrorConstructors {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let error_constructor = intrinsics.error().into_object();
         let eval_error_prototype = intrinsics.eval_error_prototype();
         let range_error_prototype = intrinsics.range_error_prototype();
         let reference_error_prototype = intrinsics.reference_error_prototype();
@@ -196,28 +197,34 @@ impl NativeErrorConstructors {
         let uri_error_prototype = intrinsics.uri_error_prototype();
         BuiltinFunctionBuilder::new_intrinsic_constructor::<EvalErrorConstructor>(agent, realm)
             .with_property_capacity(1)
+            .with_prototype(error_constructor)
             .with_prototype_property(eval_error_prototype.into_object())
             .build();
         BuiltinFunctionBuilder::new_intrinsic_constructor::<RangeErrorConstructor>(agent, realm)
             .with_property_capacity(1)
+            .with_prototype(error_constructor)
             .with_prototype_property(range_error_prototype.into_object())
             .build();
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ReferenceErrorConstructor>(
             agent, realm,
         )
         .with_property_capacity(1)
+        .with_prototype(error_constructor)
         .with_prototype_property(reference_error_prototype.into_object())
         .build();
         BuiltinFunctionBuilder::new_intrinsic_constructor::<SyntaxErrorConstructor>(agent, realm)
             .with_property_capacity(1)
+            .with_prototype(error_constructor)
             .with_prototype_property(syntax_error_prototype.into_object())
             .build();
         BuiltinFunctionBuilder::new_intrinsic_constructor::<TypeErrorConstructor>(agent, realm)
             .with_property_capacity(1)
+            .with_prototype(error_constructor)
             .with_prototype_property(type_error_prototype.into_object())
             .build();
         BuiltinFunctionBuilder::new_intrinsic_constructor::<URIErrorConstructor>(agent, realm)
             .with_property_capacity(1)
+            .with_prototype(error_constructor)
             .with_prototype_property(uri_error_prototype.into_object())
             .build();
     }

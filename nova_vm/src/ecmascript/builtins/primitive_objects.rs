@@ -59,6 +59,17 @@ impl TryFrom<Object> for PrimitiveObject {
     }
 }
 
+impl TryFrom<Value> for PrimitiveObject {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::PrimitiveObject(obj) => Ok(obj),
+            _ => Err(()),
+        }
+    }
+}
+
 impl Index<PrimitiveObject> for Agent {
     type Output = PrimitiveObjectHeapData;
 
