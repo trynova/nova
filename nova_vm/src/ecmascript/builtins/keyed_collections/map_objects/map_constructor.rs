@@ -1,9 +1,16 @@
 use crate::{
     ecmascript::{
+        abstract_operations::{operations_on_objects::get, testing_and_comparison::is_callable},
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoObject, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        builtins::{
+            map::Map, ordinary::ordinary_create_from_constructor, ArgumentsList, Behaviour,
+            Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
+        types::{
+            Function, IntoObject, IntoValue, Object, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
@@ -37,12 +44,56 @@ impl BuiltinGetter for MapGetSpecies {
 
 impl MapConstructor {
     fn behaviour(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
+        agent: &mut Agent,
+        _: Value,
+        arguments: ArgumentsList,
+        new_target: Option<Object>,
     ) -> JsResult<Value> {
-        todo!()
+        // If NewTarget is undefined, throw a TypeError exception.
+        let Some(new_target) = new_target else {
+            return Err(
+                agent.throw_exception(ExceptionType::TypeError, "Constructor Map requires 'new'")
+            );
+        };
+        let new_target = Function::try_from(new_target).unwrap();
+        // 2. Let map be ? OrdinaryCreateFromConstructor(NewTarget, "%Map.prototype%", « [[MapData]] »).
+        let map = Map::try_from(ordinary_create_from_constructor(
+            agent,
+            new_target,
+            ProtoIntrinsics::Map,
+        )?)
+        .unwrap();
+        // 3. Set map.[[MapData]] to a new empty List.
+        let iterable = arguments.get(0);
+        // 4. If iterable is either undefined or null, return map.
+        if iterable.is_undefined() || iterable.is_null() {
+            Ok(map.into_value())
+        } else {
+            // Note
+            // If the parameter iterable is present, it is expected to be an
+            // object that implements an @@iterator method that returns an
+            // iterator object that produces a two element array-like object
+            // whose first element is a value that will be used as a Map key
+            // and whose second element is the value to associate with that
+            // key.
+
+            // 5. Let adder be ? Get(map, "set").
+            let adder = get(
+                agent,
+                map.into_object(),
+                BUILTIN_STRING_MEMORY.set.to_property_key(),
+            )?;
+            // 6. If IsCallable(adder) is false, throw a TypeError exception.
+            if !is_callable(adder) {
+                Err(agent.throw_exception(
+                    ExceptionType::TypeError,
+                    "Map.prototype.set is not callable",
+                ))
+            } else {
+                // 7. Return ? AddEntriesFromIterable(map, iterable, adder).
+                todo!();
+            }
+        }
     }
 
     fn group_by(
