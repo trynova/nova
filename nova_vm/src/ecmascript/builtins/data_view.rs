@@ -4,8 +4,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObjectInternalSlots, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData, Value,
         },
     },
     heap::{indexes::DataViewIndex, CreateHeapData, Heap},
@@ -95,7 +94,7 @@ impl IndexMut<DataView> for Heap {
     }
 }
 
-impl OrdinaryObjectInternalSlots for DataView {
+impl InternalSlots for DataView {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::DataView;
 
     fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {

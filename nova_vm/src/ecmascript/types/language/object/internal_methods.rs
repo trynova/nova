@@ -1,4 +1,4 @@
-use super::{IntoObject, Object, OrdinaryObjectInternalSlots, PropertyKey};
+use super::{InternalSlots, IntoObject, Object, PropertyKey};
 use crate::ecmascript::{
     abstract_operations::testing_and_comparison::same_value,
     builtins::{
@@ -17,7 +17,7 @@ use crate::ecmascript::{
 /// ### [6.1.7.2 Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots)
 pub trait InternalMethods
 where
-    Self: Sized + Clone + Copy + Into<Object> + OrdinaryObjectInternalSlots,
+    Self: Sized + Clone + Copy + Into<Object> + InternalSlots,
 {
     /// \[\[GetPrototypeOf\]\]
     fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {

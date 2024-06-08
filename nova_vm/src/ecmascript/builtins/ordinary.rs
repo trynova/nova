@@ -9,9 +9,9 @@ use crate::{
         builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, InternalMethods, IntoFunction, IntoObject, Object, ObjectHeapData,
-            OrdinaryObject, OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, String,
-            Symbol, Value, BUILTIN_STRING_MEMORY,
+            Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, Object,
+            ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Symbol, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::{

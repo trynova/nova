@@ -32,9 +32,8 @@ use crate::{
         },
         types::{
             initialize_referenced_binding, put_value, ECMAScriptFunctionHeapData, Function,
-            InternalMethods, IntoFunction, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
+            ObjectHeapData, PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -231,7 +230,7 @@ impl ECMAScriptFunction {
     }
 }
 
-impl OrdinaryObjectInternalSlots for ECMAScriptFunction {
+impl InternalSlots for ECMAScriptFunction {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]

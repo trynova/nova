@@ -4,8 +4,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, ObjectHeapData, OrdinaryObject,
-            OrdinaryObjectInternalSlots, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
+            OrdinaryObject, Value,
         },
     },
     heap::{
@@ -82,7 +82,7 @@ fn create_map_base_object(agent: &mut Agent, map: Map, entries: &[ObjectEntry]) 
     object_index
 }
 
-impl OrdinaryObjectInternalSlots for Map {
+impl InternalSlots for Map {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Map;
 
     #[inline(always)]

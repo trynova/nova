@@ -12,9 +12,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
-            BUILTIN_STRING_MEMORY,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
+            PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -99,7 +98,7 @@ impl Deref for Array {
     }
 }
 
-impl OrdinaryObjectInternalSlots for Array {
+impl InternalSlots for Array {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Array;
 
     #[inline(always)]

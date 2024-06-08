@@ -4,8 +4,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObjectInternalSlots, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData, Value,
         },
     },
     heap::{
@@ -69,7 +68,7 @@ impl From<WeakMap> for Object {
     }
 }
 
-impl OrdinaryObjectInternalSlots for WeakMap {
+impl InternalSlots for WeakMap {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::WeakMap;
 
     #[inline(always)]

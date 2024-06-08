@@ -4,8 +4,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObjectInternalSlots, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData, Value,
         },
     },
     heap::{
@@ -68,7 +67,7 @@ impl From<Promise> for Object {
     }
 }
 
-impl OrdinaryObjectInternalSlots for Promise {
+impl InternalSlots for Promise {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Promise;
 
     #[inline(always)]

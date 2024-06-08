@@ -6,8 +6,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObjectInternalSlots, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData, Value,
         },
     },
     heap::{
@@ -77,7 +76,7 @@ impl TryFrom<Object> for Date {
     }
 }
 
-impl OrdinaryObjectInternalSlots for Date {
+impl InternalSlots for Date {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Date;
 
     #[inline(always)]

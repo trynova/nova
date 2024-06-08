@@ -11,7 +11,7 @@ use super::{
         ECMASCRIPT_ASYNC_FUNCTION_DISCRIMINANT, ECMASCRIPT_ASYNC_GENERATOR_FUNCTION_DISCRIMINANT,
         ECMASCRIPT_CONSTRUCTOR_FUNCTION_DISCRIMINANT, ECMASCRIPT_FUNCTION_DISCRIMINANT,
         ECMASCRIPT_GENERATOR_FUNCTION_DISCRIMINANT,
-    }, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, OrdinaryObjectInternalSlots, PropertyKey, Value
+    }, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, InternalSlots, PropertyKey, Value
 };
 use crate::{
     ecmascript::{
@@ -191,7 +191,7 @@ impl Function {
     }
 }
 
-impl OrdinaryObjectInternalSlots for Function {
+impl InternalSlots for Function {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {

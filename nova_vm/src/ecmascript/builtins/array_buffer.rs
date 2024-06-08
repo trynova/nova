@@ -6,8 +6,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, ObjectHeapData, OrdinaryObject,
-            OrdinaryObjectInternalSlots, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
+            OrdinaryObject, Value,
         },
     },
     heap::{
@@ -99,7 +99,7 @@ impl IndexMut<ArrayBuffer> for Heap {
     }
 }
 
-impl OrdinaryObjectInternalSlots for ArrayBuffer {
+impl InternalSlots for ArrayBuffer {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::ArrayBuffer;
 
     #[inline(always)]

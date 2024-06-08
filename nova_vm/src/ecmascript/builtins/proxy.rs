@@ -4,8 +4,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
-            PropertyDescriptor, PropertyKey, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, PropertyDescriptor,
+            PropertyKey, Value,
         },
     },
     heap::{
@@ -68,7 +68,7 @@ impl From<Proxy> for Object {
     }
 }
 
-impl OrdinaryObjectInternalSlots for Proxy {
+impl InternalSlots for Proxy {
     fn get_backing_object(
         self,
         _agent: &Agent,

@@ -8,9 +8,8 @@ use crate::{
     ecmascript::{
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
-            BUILTIN_STRING_MEMORY,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
+            PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -79,7 +78,7 @@ impl TryFrom<Object> for Error {
     }
 }
 
-impl OrdinaryObjectInternalSlots for Error {
+impl InternalSlots for Error {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Error;
 
     #[inline(always)]

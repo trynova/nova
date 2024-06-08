@@ -5,9 +5,9 @@ use crate::{
         builtins::promise::Promise,
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, InternalMethods, IntoFunction, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObject, OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, String,
-            Value, BUILTIN_STRING_MEMORY,
+            Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
+            ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -108,7 +108,7 @@ impl PromiseRejectFunctionHeapData {
     }
 }
 
-impl OrdinaryObjectInternalSlots for BuiltinPromiseRejectFunction {
+impl InternalSlots for BuiltinPromiseRejectFunction {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]

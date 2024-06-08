@@ -7,9 +7,9 @@ use crate::{
             RealmIdentifier,
         },
         types::{
-            BuiltinFunctionHeapData, Function, InternalMethods, IntoFunction, IntoObject,
-            IntoValue, Object, ObjectHeapData, OrdinaryObjectInternalSlots, PropertyDescriptor,
-            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            BuiltinFunctionHeapData, Function, InternalMethods, InternalSlots, IntoFunction,
+            IntoObject, IntoValue, Object, ObjectHeapData, PropertyDescriptor, PropertyKey, String,
+            Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -185,7 +185,7 @@ impl IndexMut<BuiltinFunction> for Heap {
     }
 }
 
-impl OrdinaryObjectInternalSlots for BuiltinFunction {
+impl InternalSlots for BuiltinFunction {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]

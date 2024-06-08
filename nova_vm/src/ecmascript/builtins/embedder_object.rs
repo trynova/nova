@@ -4,8 +4,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
-            PropertyDescriptor, PropertyKey, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, PropertyDescriptor,
+            PropertyKey, Value,
         },
     },
     heap::indexes::{BaseIndex, EmbedderObjectIndex},
@@ -65,7 +65,7 @@ impl From<EmbedderObject> for Object {
     }
 }
 
-impl OrdinaryObjectInternalSlots for EmbedderObject {
+impl InternalSlots for EmbedderObject {
     #[inline(always)]
     fn get_backing_object(
         self,

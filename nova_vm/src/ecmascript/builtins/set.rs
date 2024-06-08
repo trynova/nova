@@ -4,8 +4,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, ObjectHeapData, OrdinaryObject,
-            OrdinaryObjectInternalSlots, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
+            OrdinaryObject, Value,
         },
     },
     heap::{
@@ -83,7 +83,7 @@ fn create_set_base_object(agent: &mut Agent, set: Set, entries: &[ObjectEntry]) 
     object_index
 }
 
-impl OrdinaryObjectInternalSlots for Set {
+impl InternalSlots for Set {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Set;
 
     #[inline(always)]

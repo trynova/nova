@@ -5,8 +5,8 @@ use crate::{
         execution::{Agent, ProtoIntrinsics},
         types::{
             bigint::{HeapBigInt, SmallBigInt},
-            BigInt, HeapNumber, HeapString, InternalMethods, IntoObject, IntoValue, Number, Object,
-            ObjectHeapData, OrdinaryObject, OrdinaryObjectInternalSlots, String, Symbol, Value,
+            BigInt, HeapNumber, HeapString, InternalMethods, InternalSlots, IntoObject, IntoValue,
+            Number, Object, ObjectHeapData, OrdinaryObject, String, Symbol, Value,
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT,
             NUMBER_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT,
             STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
@@ -82,7 +82,7 @@ impl PrimitiveObject {
     }
 }
 
-impl OrdinaryObjectInternalSlots for PrimitiveObject {
+impl InternalSlots for PrimitiveObject {
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
         agent[self].object_index

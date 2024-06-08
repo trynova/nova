@@ -45,7 +45,7 @@ use crate::{
 
 pub use data::ObjectHeapData;
 pub use internal_methods::InternalMethods;
-pub use internal_slots::OrdinaryObjectInternalSlots;
+pub use internal_slots::InternalSlots;
 pub use into_object::IntoObject;
 pub use property_key::PropertyKey;
 pub use property_storage::PropertyStorage;
@@ -222,7 +222,7 @@ impl TryFrom<Object> for OrdinaryObject {
     }
 }
 
-impl OrdinaryObjectInternalSlots for OrdinaryObject {
+impl InternalSlots for OrdinaryObject {
     #[inline(always)]
     fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject> {
         Some(self)
@@ -412,7 +412,7 @@ impl Object {
     }
 }
 
-impl OrdinaryObjectInternalSlots for Object {
+impl InternalSlots for Object {
     fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject> {
         unreachable!("Object should not try to access its backing object");
     }

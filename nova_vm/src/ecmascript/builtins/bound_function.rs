@@ -8,9 +8,9 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BoundFunctionHeapData, Function, InternalMethods, IntoFunction, IntoObject, IntoValue,
-            Object, ObjectHeapData, OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey,
-            String, Value, BUILTIN_STRING_MEMORY,
+            BoundFunctionHeapData, Function, InternalMethods, InternalSlots, IntoFunction,
+            IntoObject, IntoValue, Object, ObjectHeapData, PropertyDescriptor, PropertyKey, String,
+            Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -53,7 +53,7 @@ impl IntoFunction for BoundFunction {
     }
 }
 
-impl OrdinaryObjectInternalSlots for BoundFunction {
+impl InternalSlots for BoundFunction {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
