@@ -1,17 +1,23 @@
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
+use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
+use crate::ecmascript::builtins::primitive_objects::PrimitiveObject;
+use crate::ecmascript::builtins::primitive_objects::PrimitiveObjectData;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
+use crate::ecmascript::execution::ProtoIntrinsics;
 use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoNumeric;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Number;
 
+use crate::ecmascript::types::Numeric;
 use crate::ecmascript::types::Object;
 
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
@@ -87,15 +93,28 @@ impl NumberConstructor {
         };
 
         // 3. If NewTarget is undefined, return n.
-        let Some(_new_target) = new_target else {
+        let Some(new_target) = new_target else {
             return Ok(n.into_value());
         };
 
-        todo!();
+        let new_target = Function::try_from(new_target).unwrap();
 
         // 4. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%Number.prototype%", « [[NumberData]] »).
+        let o = PrimitiveObject::try_from(ordinary_create_from_constructor(
+            agent,
+            new_target,
+            ProtoIntrinsics::Number,
+        )?)
+        .unwrap();
         // 5. Set O.[[NumberData]] to n.
+        agent[o].data = match n {
+            Numeric::Number(d) => PrimitiveObjectData::Number(d),
+            Numeric::Integer(d) => PrimitiveObjectData::Integer(d),
+            Numeric::Float(d) => PrimitiveObjectData::Float(d),
+            _ => unreachable!(),
+        };
         // 6. Return O.
+        Ok(o.into_value())
     }
 
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)

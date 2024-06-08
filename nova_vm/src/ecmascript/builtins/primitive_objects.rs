@@ -102,6 +102,33 @@ impl PrimitiveObject {
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
+
+    pub fn is_bigint_object(self, agent: &Agent) -> bool {
+        matches!(
+            agent[self].data,
+            PrimitiveObjectData::BigInt(_) | PrimitiveObjectData::SmallBigInt(_)
+        )
+    }
+
+    pub fn is_number_object(self, agent: &Agent) -> bool {
+        matches!(
+            agent[self].data,
+            PrimitiveObjectData::Float(_)
+                | PrimitiveObjectData::Integer(_)
+                | PrimitiveObjectData::Number(_)
+        )
+    }
+
+    pub fn is_string_object(self, agent: &Agent) -> bool {
+        matches!(
+            agent[self].data,
+            PrimitiveObjectData::String(_) | PrimitiveObjectData::SmallString(_)
+        )
+    }
+
+    pub fn is_symbol_object(self, agent: &Agent) -> bool {
+        matches!(agent[self].data, PrimitiveObjectData::Symbol(_))
+    }
 }
 
 impl InternalSlots for PrimitiveObject {
@@ -170,6 +197,54 @@ pub(crate) enum PrimitiveObjectData {
     Float(f32) = FLOAT_DISCRIMINANT,
     BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
+}
+
+impl TryFrom<PrimitiveObjectData> for BigInt {
+    type Error = ();
+
+    fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
+        match value {
+            PrimitiveObjectData::BigInt(data) => Ok(BigInt::BigInt(data)),
+            PrimitiveObjectData::SmallBigInt(data) => Ok(BigInt::SmallBigInt(data)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<PrimitiveObjectData> for Number {
+    type Error = ();
+
+    fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
+        match value {
+            PrimitiveObjectData::Number(data) => Ok(Number::Number(data)),
+            PrimitiveObjectData::Integer(data) => Ok(Number::Integer(data)),
+            PrimitiveObjectData::Float(data) => Ok(Number::Float(data)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<PrimitiveObjectData> for String {
+    type Error = ();
+
+    fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
+        match value {
+            PrimitiveObjectData::String(data) => Ok(String::String(data)),
+            PrimitiveObjectData::SmallString(data) => Ok(String::SmallString(data)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<PrimitiveObjectData> for Symbol {
+    type Error = ();
+
+    fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
+        match value {
+            PrimitiveObjectData::Symbol(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
