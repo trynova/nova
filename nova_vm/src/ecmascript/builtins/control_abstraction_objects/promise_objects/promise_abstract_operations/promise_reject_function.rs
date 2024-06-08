@@ -3,13 +3,17 @@ use std::ops::{Index, IndexMut};
 use crate::{
     ecmascript::{
         builtins::promise::Promise,
-        execution::Agent,
+        execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, InternalMethods, IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject,
-            OrdinaryObjectInternalSlots, Value,
+            Function, InternalMethods, IntoFunction, IntoObject, IntoValue, Object, ObjectHeapData,
+            OrdinaryObject, OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, String,
+            Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{indexes::BaseIndex, CreateHeapData, Heap, HeapMarkAndSweep},
+    heap::{
+        indexes::BaseIndex, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry,
+        ObjectEntryPropertyDescriptor,
+    },
 };
 
 /// ### [27.2.1.3.1 Promise Reject Functions]()
@@ -105,111 +109,168 @@ impl PromiseRejectFunctionHeapData {
 }
 
 impl OrdinaryObjectInternalSlots for BuiltinPromiseRejectFunction {
-    fn internal_extensible(self, _agent: &Agent) -> bool {
-        todo!()
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
+
+    #[inline(always)]
+    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+        agent[self].object_index
     }
 
-    fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {
-        todo!()
-    }
-
-    fn internal_prototype(self, _agent: &Agent) -> Option<Object> {
-        todo!()
-    }
-
-    fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
-        todo!()
+    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+        debug_assert!(self.get_backing_object(agent).is_none());
+        let prototype = self.internal_prototype(agent);
+        let length_entry = ObjectEntry {
+            key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+            value: ObjectEntryPropertyDescriptor::Data {
+                value: 1.into(),
+                writable: false,
+                enumerable: false,
+                configurable: true,
+            },
+        };
+        let name_entry = ObjectEntry {
+            key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+            value: ObjectEntryPropertyDescriptor::Data {
+                value: String::EMPTY_STRING.into_value(),
+                writable: false,
+                enumerable: false,
+                configurable: true,
+            },
+        };
+        let (keys, values) = agent
+            .heap
+            .elements
+            .create_object_entries(&[length_entry, name_entry]);
+        let backing_object = agent.heap.create(ObjectHeapData {
+            extensible: true,
+            prototype,
+            keys,
+            values,
+        });
+        agent[self].object_index = Some(backing_object);
+        backing_object
     }
 }
 
 impl InternalMethods for BuiltinPromiseRejectFunction {
-    fn internal_get_prototype_of(
-        self,
-        _agent: &mut Agent,
-    ) -> crate::ecmascript::execution::JsResult<Option<Object>> {
-        todo!()
-    }
-
-    fn internal_set_prototype_of(
-        self,
-        _agent: &mut Agent,
-        _prototype: Option<Object>,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
-    }
-
-    fn internal_is_extensible(
-        self,
-        _agent: &mut Agent,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
-    }
-
-    fn internal_prevent_extensions(
-        self,
-        _agent: &mut Agent,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
-    }
-
     fn internal_get_own_property(
         self,
-        _agent: &mut Agent,
-        _property_key: crate::ecmascript::types::PropertyKey,
-    ) -> crate::ecmascript::execution::JsResult<Option<crate::ecmascript::types::PropertyDescriptor>>
-    {
-        todo!()
+        agent: &mut Agent,
+        property_key: PropertyKey,
+    ) -> JsResult<Option<PropertyDescriptor>> {
+        if let Some(object_index) = agent[self].object_index {
+            object_index.internal_get_own_property(agent, property_key)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
+            Ok(Some(PropertyDescriptor {
+                value: Some(1.into()),
+                writable: Some(false),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            }))
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
+            Ok(Some(PropertyDescriptor {
+                value: Some(String::EMPTY_STRING.into_value()),
+                writable: Some(false),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     fn internal_define_own_property(
         self,
-        _agent: &mut Agent,
-        _property_key: crate::ecmascript::types::PropertyKey,
-        _property_descriptor: crate::ecmascript::types::PropertyDescriptor,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        property_descriptor: PropertyDescriptor,
+    ) -> JsResult<bool> {
+        let object_index = agent[self]
+            .object_index
+            .unwrap_or_else(|| self.create_backing_object(agent));
+        object_index.internal_define_own_property(agent, property_key, property_descriptor)
     }
 
-    fn internal_has_property(
-        self,
-        _agent: &mut Agent,
-        _property_key: crate::ecmascript::types::PropertyKey,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
+    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+        if let Some(object_index) = agent[self].object_index {
+            object_index.internal_has_property(agent, property_key)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
+            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
+        {
+            Ok(true)
+        } else {
+            let parent = self.internal_get_prototype_of(agent)?;
+            parent.map_or(Ok(false), |parent| {
+                parent.internal_has_property(agent, property_key)
+            })
+        }
     }
 
     fn internal_get(
         self,
-        _agent: &mut Agent,
-        _property_key: crate::ecmascript::types::PropertyKey,
-        _receiver: Value,
-    ) -> crate::ecmascript::execution::JsResult<Value> {
-        todo!()
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
+    ) -> JsResult<Value> {
+        if let Some(object_index) = agent[self].object_index {
+            object_index.internal_get(agent, property_key, receiver)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
+            Ok(1.into())
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
+            Ok(String::EMPTY_STRING.into_value())
+        } else {
+            let parent = self.internal_get_prototype_of(agent)?;
+            parent.map_or(Ok(Value::Undefined), |parent| {
+                parent.internal_get(agent, property_key, receiver)
+            })
+        }
     }
 
     fn internal_set(
         self,
-        _agent: &mut Agent,
-        _property_key: crate::ecmascript::types::PropertyKey,
-        _value: Value,
-        _receiver: Value,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        value: Value,
+        receiver: Value,
+    ) -> JsResult<bool> {
+        if let Some(object_index) = agent[self].object_index {
+            object_index.internal_set(agent, property_key, value, receiver)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
+            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
+        {
+            // length and name are not writable
+            Ok(false)
+        } else {
+            let object_index = self.create_backing_object(agent);
+            object_index.internal_set(agent, property_key, value, receiver)
+        }
     }
 
-    fn internal_delete(
-        self,
-        _agent: &mut Agent,
-        _property_key: crate::ecmascript::types::PropertyKey,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
+    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+        if let Some(object_index) = agent[self].object_index {
+            object_index.internal_delete(agent, property_key)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
+            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
+        {
+            let object_index = self.create_backing_object(agent);
+            object_index.internal_delete(agent, property_key)
+        } else {
+            // Non-existing property
+            Ok(true)
+        }
     }
 
-    fn internal_own_property_keys(
-        self,
-        _agent: &mut Agent,
-    ) -> crate::ecmascript::execution::JsResult<Vec<crate::ecmascript::types::PropertyKey>> {
-        todo!()
+    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+        if let Some(object_index) = agent[self].object_index {
+            object_index.internal_own_property_keys(agent)
+        } else {
+            Ok(vec![
+                PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+                PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+            ])
+        }
     }
 }
 

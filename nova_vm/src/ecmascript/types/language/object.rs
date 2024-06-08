@@ -223,6 +223,15 @@ impl TryFrom<Object> for OrdinaryObject {
 }
 
 impl OrdinaryObjectInternalSlots for OrdinaryObject {
+    #[inline(always)]
+    fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject> {
+        Some(self)
+    }
+
+    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {
+        unreachable!();
+    }
+
     fn internal_extensible(self, agent: &Agent) -> bool {
         agent[self].extensible
     }
@@ -404,6 +413,14 @@ impl Object {
 }
 
 impl OrdinaryObjectInternalSlots for Object {
+    fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject> {
+        unreachable!("Object should not try to access its backing object");
+    }
+
+    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {
+        unreachable!("Object should not try to create its backing object");
+    }
+
     fn internal_extensible(self, agent: &Agent) -> bool {
         match self {
             Object::Object(idx) => idx.internal_extensible(agent),
@@ -1385,9 +1402,9 @@ impl HeapMarkAndSweep for Object {
     }
 }
 
-impl CreateHeapData<ObjectHeapData, Object> for Heap {
-    fn create(&mut self, data: ObjectHeapData) -> Object {
+impl CreateHeapData<ObjectHeapData, OrdinaryObject> for Heap {
+    fn create(&mut self, data: ObjectHeapData) -> OrdinaryObject {
         self.objects.push(Some(data));
-        Object::Object(ObjectIndex::last(&self.objects).into())
+        OrdinaryObject(ObjectIndex::last(&self.objects))
     }
 }

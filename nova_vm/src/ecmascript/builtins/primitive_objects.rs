@@ -2,11 +2,11 @@ use std::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
-        execution::Agent,
+        execution::{Agent, ProtoIntrinsics},
         types::{
             bigint::{HeapBigInt, SmallBigInt},
             BigInt, HeapNumber, HeapString, InternalMethods, IntoObject, IntoValue, Number, Object,
-            OrdinaryObject, OrdinaryObjectInternalSlots, String, Symbol, Value,
+            ObjectHeapData, OrdinaryObject, OrdinaryObjectInternalSlots, String, Symbol, Value,
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT,
             NUMBER_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT,
             STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
@@ -83,124 +83,58 @@ impl PrimitiveObject {
 }
 
 impl OrdinaryObjectInternalSlots for PrimitiveObject {
-    fn internal_extensible(self, _agent: &crate::ecmascript::execution::Agent) -> bool {
-        todo!()
-    }
-
-    fn internal_set_extensible(
-        self,
-        _agent: &mut crate::ecmascript::execution::Agent,
-        _value: bool,
-    ) {
-        todo!()
+    #[inline(always)]
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
+        agent[self].object_index
     }
 
     fn internal_prototype(
         self,
-        _agent: &crate::ecmascript::execution::Agent,
+        agent: &crate::ecmascript::execution::Agent,
     ) -> Option<crate::ecmascript::types::Object> {
-        todo!()
+        match self.get_backing_object(agent) {
+            Some(obj) => obj.internal_prototype(agent),
+            None => {
+                let intrinsic_default_proto = match agent[self].data {
+                    PrimitiveObjectData::Boolean(_) => ProtoIntrinsics::Boolean,
+                    PrimitiveObjectData::String(_) | PrimitiveObjectData::SmallString(_) => {
+                        ProtoIntrinsics::String
+                    }
+                    PrimitiveObjectData::Symbol(_) => ProtoIntrinsics::Symbol,
+                    PrimitiveObjectData::Number(_)
+                    | PrimitiveObjectData::Integer(_)
+                    | PrimitiveObjectData::Float(_) => ProtoIntrinsics::Number,
+                    PrimitiveObjectData::BigInt(_) | PrimitiveObjectData::SmallBigInt(_) => {
+                        ProtoIntrinsics::BigInt
+                    }
+                };
+                // TODO: Should take realm from "backing object"'s Realm/None
+                // variant
+                Some(
+                    agent
+                        .current_realm()
+                        .intrinsics()
+                        .get_intrinsic_default_proto(intrinsic_default_proto),
+                )
+            }
+        }
     }
 
-    fn internal_set_prototype(
-        self,
-        _agent: &mut crate::ecmascript::execution::Agent,
-        _prototype: Option<crate::ecmascript::types::Object>,
-    ) {
-        todo!()
+    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
+        debug_assert!(self.get_backing_object(agent).is_none());
+        let prototype = self.internal_prototype(agent).unwrap();
+        let backing_object = agent.heap.create(ObjectHeapData {
+            extensible: true,
+            prototype: Some(prototype),
+            keys: Default::default(),
+            values: Default::default(),
+        });
+        agent[self].object_index = Some(backing_object);
+        backing_object
     }
 }
 
-impl InternalMethods for PrimitiveObject {
-    fn internal_get_prototype_of(
-        self,
-        _agent: &mut crate::ecmascript::execution::Agent,
-    ) -> crate::ecmascript::execution::JsResult<Option<crate::ecmascript::types::Object>> {
-        todo!()
-    }
-
-    fn internal_set_prototype_of(
-        self,
-        _agent: &mut crate::ecmascript::execution::Agent,
-        _prototype: Option<crate::ecmascript::types::Object>,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
-    }
-
-    fn internal_is_extensible(
-        self,
-        _agent: &mut crate::ecmascript::execution::Agent,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
-    }
-
-    fn internal_prevent_extensions(
-        self,
-        _agent: &mut crate::ecmascript::execution::Agent,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
-    }
-
-    fn internal_get_own_property(
-        self,
-        _agent: &mut crate::ecmascript::execution::Agent,
-        _property_key: crate::ecmascript::types::PropertyKey,
-    ) -> crate::ecmascript::execution::JsResult<Option<crate::ecmascript::types::PropertyDescriptor>>
-    {
-        todo!()
-    }
-
-    fn internal_define_own_property(
-        self,
-        _agent: &mut crate::ecmascript::execution::Agent,
-        _property_key: crate::ecmascript::types::PropertyKey,
-        _property_descriptor: crate::ecmascript::types::PropertyDescriptor,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
-    }
-
-    fn internal_has_property(
-        self,
-        _agent: &mut crate::ecmascript::execution::Agent,
-        _property_key: crate::ecmascript::types::PropertyKey,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
-    }
-
-    fn internal_get(
-        self,
-        _agent: &mut crate::ecmascript::execution::Agent,
-        _property_key: crate::ecmascript::types::PropertyKey,
-        _receiver: crate::ecmascript::types::Value,
-    ) -> crate::ecmascript::execution::JsResult<crate::ecmascript::types::Value> {
-        todo!()
-    }
-
-    fn internal_set(
-        self,
-        _agent: &mut crate::ecmascript::execution::Agent,
-        _property_key: crate::ecmascript::types::PropertyKey,
-        _value: crate::ecmascript::types::Value,
-        _receiver: crate::ecmascript::types::Value,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
-    }
-
-    fn internal_delete(
-        self,
-        _agent: &mut crate::ecmascript::execution::Agent,
-        _property_key: crate::ecmascript::types::PropertyKey,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
-    }
-
-    fn internal_own_property_keys(
-        self,
-        _agent: &mut crate::ecmascript::execution::Agent,
-    ) -> crate::ecmascript::execution::JsResult<Vec<crate::ecmascript::types::PropertyKey>> {
-        todo!()
-    }
-}
+impl InternalMethods for PrimitiveObject {}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]

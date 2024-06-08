@@ -2,23 +2,20 @@ use std::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
-        execution::{Agent, JsResult},
+        execution::{Agent, ProtoIntrinsics},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
-            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
+            InternalMethods, IntoObject, IntoValue, Object, ObjectHeapData, OrdinaryObject,
+            OrdinaryObjectInternalSlots, Value,
         },
     },
     heap::{
         indexes::{BaseIndex, SetIndex},
-        CompactionLists, CreateHeapData, HeapMarkAndSweep, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WorkQueues,
+        CompactionLists, CreateHeapData, HeapMarkAndSweep, ObjectEntry, WorkQueues,
     },
     Heap,
 };
 
 use self::data::SetHeapData;
-
-use super::ordinary::ordinary_set_prototype_of_check_loop;
 
 pub mod data;
 
@@ -87,170 +84,30 @@ fn create_set_base_object(agent: &mut Agent, set: Set, entries: &[ObjectEntry]) 
 }
 
 impl OrdinaryObjectInternalSlots for Set {
-    fn internal_extensible(self, agent: &Agent) -> bool {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_extensible(agent)
-        } else {
-            true
-        }
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Set;
+
+    #[inline(always)]
+    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+        agent[self].object_index
     }
 
-    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_set_extensible(agent, value)
-        } else if !value {
-            // Create base object and set inextensible
-            let base = create_set_base_object(agent, self, &[]);
-            base.internal_set_extensible(agent, value);
-        }
-    }
-
-    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_prototype(agent)
-        } else {
-            Some(
-                agent
-                    .current_realm()
-                    .intrinsics()
-                    .set_prototype()
-                    .into_object(),
-            )
-        }
-    }
-
-    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_set_prototype(agent, prototype)
-        } else {
-            // Create base object and set prototype
-            let base = create_set_base_object(agent, self, &[]);
-            base.internal_set_prototype(agent, prototype);
-        }
+    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+        let prototype = agent
+            .current_realm()
+            .intrinsics()
+            .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
+        let backing_object = agent.heap.create(ObjectHeapData {
+            extensible: true,
+            prototype: Some(prototype),
+            keys: Default::default(),
+            values: Default::default(),
+        });
+        agent[self].object_index = Some(backing_object);
+        backing_object
     }
 }
 
-impl InternalMethods for Set {
-    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
-        Ok(self.internal_prototype(agent))
-    }
-
-    fn internal_set_prototype_of(
-        self,
-        agent: &mut Agent,
-        prototype: Option<Object>,
-    ) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_set_prototype_of(agent, prototype)
-        } else {
-            // If we're setting %Set.prototype% then we can still avoid creating the ObjectHeapData.
-            let current = agent.current_realm().intrinsics().set_prototype();
-            if prototype == Some(current.into_object()) {
-                return Ok(true);
-            }
-            if ordinary_set_prototype_of_check_loop(agent, current.into_object(), prototype) {
-                // OrdinarySetPrototypeOf 7.b.i: Setting prototype would cause a loop to occur.
-                return Ok(false);
-            }
-            self.internal_set_prototype(agent, prototype);
-            Ok(true)
-        }
-    }
-
-    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
-        Ok(self.internal_extensible(agent))
-    }
-
-    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
-        self.internal_set_extensible(agent, false);
-        Ok(true)
-    }
-
-    fn internal_get_own_property(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_get_own_property(agent, property_key)
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn internal_define_own_property(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_has_property(agent, property_key)
-        } else {
-            let new_entry = ObjectEntry {
-                key: property_key,
-                value: ObjectEntryPropertyDescriptor::from(property_descriptor),
-            };
-            create_set_base_object(agent, self, &[new_entry]);
-            Ok(true)
-        }
-    }
-
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_has_property(agent, property_key)
-        } else {
-            let parent = agent.current_realm().intrinsics().set_prototype();
-            parent.internal_has_property(agent, property_key)
-        }
-    }
-
-    fn internal_get(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_get(agent, property_key, receiver)
-        } else {
-            let parent = agent.current_realm().intrinsics().set_prototype();
-            parent.internal_get(agent, property_key, receiver)
-        }
-    }
-
-    fn internal_set(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-    ) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_set(agent, property_key, value, receiver)
-        } else {
-            let prototype = agent.current_realm().intrinsics().set_prototype();
-            prototype.internal_set(agent, property_key, value, receiver)
-        }
-    }
-
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_delete(agent, property_key)
-        } else {
-            // Non-existing property
-            Ok(true)
-        }
-    }
-
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_own_property_keys(agent)
-        } else {
-            Ok(vec![])
-        }
-    }
-}
+impl InternalMethods for Set {}
 
 impl HeapMarkAndSweep for Set {
     fn mark_values(&self, queues: &mut WorkQueues) {

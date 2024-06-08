@@ -14,8 +14,9 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub enum ElementArrayKey {
+    #[default]
     Empty,
     /// up to 16 elements
     E4,
@@ -61,7 +62,7 @@ impl From<usize> for ElementArrayKey {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct ElementsVector {
     pub(crate) elements_index: ElementIndex,
     pub(crate) cap: ElementArrayKey,

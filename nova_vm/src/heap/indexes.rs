@@ -169,6 +169,14 @@ pub type WeakMapIndex = BaseIndex<WeakMapHeapData>;
 pub type WeakRefIndex = BaseIndex<WeakRefHeapData>;
 pub type WeakSetIndex = BaseIndex<WeakSetHeapData>;
 
+// Implement Default for ElementIndex: This is done to support Default
+// constructor of ElementsVector.
+impl Default for ElementIndex {
+    fn default() -> Self {
+        Self(unsafe { NonZeroU32::new_unchecked(1) }, Default::default())
+    }
+}
+
 impl Index<ObjectIndex> for Agent {
     type Output = ObjectHeapData;
 

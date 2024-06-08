@@ -146,7 +146,7 @@ pub(crate) struct Intrinsics {
 /// Enumeration of intrinsics intended to be used as the \[\[Prototype\]\] value of
 /// an object. Used in GetPrototypeFromConstructor.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ProtoIntrinsics {
+pub enum ProtoIntrinsics {
     AggregateError,
     Array,
     ArrayBuffer,
@@ -287,6 +287,9 @@ impl Intrinsics {
         ProxyConstructor::create_intrinsic(agent, realm);
     }
 
+    // Suggest to inline this: The intrinsic default proto is often statically
+    // known.
+    #[inline]
     pub(crate) fn get_intrinsic_default_proto(
         &self,
         intrinsic_default_proto: ProtoIntrinsics,

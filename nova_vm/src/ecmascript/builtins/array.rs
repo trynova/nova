@@ -7,19 +7,20 @@ mod data;
 
 use std::ops::{Deref, Index, IndexMut};
 
-use super::{
-    array_set_length,
-    ordinary::{ordinary_define_own_property, ordinary_set},
-};
+use super::{array_set_length, ordinary::ordinary_define_own_property};
 use crate::{
     ecmascript::{
-        execution::{Agent, JsResult},
+        execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
-            PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
+            InternalMethods, IntoObject, IntoValue, Object, ObjectHeapData,
+            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{indexes::ArrayIndex, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
+    heap::{
+        element_array::ElementsVector, indexes::ArrayIndex, CreateHeapData, Heap, HeapMarkAndSweep,
+        WorkQueues,
+    },
 };
 
 pub use data::{ArrayHeapData, SealableElementsVector};
@@ -99,104 +100,58 @@ impl Deref for Array {
 }
 
 impl OrdinaryObjectInternalSlots for Array {
-    fn internal_extensible(self, agent: &Agent) -> bool {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_extensible(agent)
-        } else {
-            true
-        }
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Array;
+
+    #[inline(always)]
+    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+        agent[self].object_index
+    }
+
+    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+        let prototype = Some(
+            agent
+                .current_realm()
+                .intrinsics()
+                .array_prototype()
+                .into_object(),
+        );
+        let backing_object = agent.heap.create(ObjectHeapData {
+            extensible: true,
+            prototype,
+            keys: ElementsVector::default(),
+            values: ElementsVector::default(),
+        });
+        agent[self].object_index = Some(backing_object);
+        backing_object
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        if let Some(object_index) = agent[self].object_index {
+        agent[self].elements.len_writable = value;
+        if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_set_extensible(agent, value)
         } else if !value {
-            // Create array base object and set inextensible
-            todo!()
-        }
-    }
-
-    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_prototype(agent)
-        } else {
-            Some(
-                agent
-                    .current_realm()
-                    .intrinsics()
-                    .array_prototype()
-                    .into_object(),
-            )
+            self.create_backing_object(agent)
+                .internal_set_extensible(agent, value);
         }
     }
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        if let Some(object_index) = agent[self].object_index {
+        if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_set_prototype(agent, prototype)
         } else {
+            // 1. Let current be O.[[Prototype]].
+            let current = agent.current_realm().intrinsics().array_prototype();
+            if prototype == Some(current.into_object()) {
+                return;
+            }
             // Create array base object with custom prototype
-            todo!()
+            self.create_backing_object(agent)
+                .internal_set_prototype(agent, prototype);
         }
     }
 }
 
 impl InternalMethods for Array {
-    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_get_prototype_of(agent)
-        } else {
-            Ok(Some(
-                agent
-                    .current_realm()
-                    .intrinsics()
-                    .array_prototype()
-                    .into_object(),
-            ))
-        }
-    }
-
-    fn internal_set_prototype_of(
-        self,
-        agent: &mut Agent,
-        prototype: Option<Object>,
-    ) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_set_prototype_of(agent, prototype)
-        } else {
-            // 1. Let current be O.[[Prototype]].
-            let current = agent.current_realm().intrinsics().array_prototype();
-            let object_index = if let Some(v) = prototype {
-                if v == current.into_object() {
-                    return Ok(true);
-                } else {
-                    // TODO: Proper handling
-                    Some(agent.heap.create_object_with_prototype(v, &[]))
-                }
-            } else {
-                Some(agent.heap.create_null_object(Default::default()))
-            };
-            agent[self].object_index = object_index;
-            Ok(true)
-        }
-    }
-
-    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_is_extensible(agent)
-        } else {
-            Ok(true)
-        }
-    }
-
-    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_prevent_extensions(agent)
-        } else {
-            // TODO: Create base array object and call prevent extensions on it.
-            Ok(true)
-        }
-    }
-
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
@@ -256,9 +211,7 @@ impl InternalMethods for Array {
             // f. Let index be ! ToUint32(P).
             let index = index as u32;
             // g. If index ≥ length and lengthDesc.[[Writable]] is false, return false.
-            #[allow(clippy::overly_complex_bool_expr)]
-            if index >= length && false {
-                // TODO: Handle Array { writable: false }
+            if index >= length && !agent[self].elements.len_writable {
                 return Ok(false);
             }
             // h. Let succeeded be ! OrdinaryDefineOwnProperty(A, P, Desc).
@@ -344,16 +297,6 @@ impl InternalMethods for Array {
             };
             object_index.internal_get(agent, property_key, receiver)
         }
-    }
-
-    fn internal_set(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-    ) -> JsResult<bool> {
-        ordinary_set(agent, self.into_object(), property_key, value, receiver)
     }
 
     fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {

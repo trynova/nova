@@ -6,14 +6,16 @@ pub(crate) use data::ErrorHeapData;
 
 use crate::{
     ecmascript::{
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
-            PropertyKey, Value, BUILTIN_STRING_MEMORY,
+            InternalMethods, IntoObject, IntoValue, Object, ObjectHeapData,
+            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
-        indexes::ErrorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::ErrorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry,
+        ObjectEntryPropertyDescriptor, WorkQueues,
     },
 };
 
@@ -78,67 +80,122 @@ impl TryFrom<Object> for Error {
 }
 
 impl OrdinaryObjectInternalSlots for Error {
-    fn internal_extensible(self, _agent: &Agent) -> bool {
-        false
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Error;
+
+    #[inline(always)]
+    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+        agent[self].object_index
     }
 
-    fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {
-        todo!()
+    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+        let prototype = self.internal_prototype(agent).unwrap();
+        let message_entry = agent[self].message.map(|message| ObjectEntry {
+            key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+            value: ObjectEntryPropertyDescriptor::Data {
+                value: message.into_value(),
+                writable: false,
+                enumerable: false,
+                configurable: true,
+            },
+        });
+        let cause_entry = agent[self].cause.map(|cause| ObjectEntry {
+            key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+            value: ObjectEntryPropertyDescriptor::Data {
+                value: cause,
+                writable: false,
+                enumerable: false,
+                configurable: true,
+            },
+        });
+        let (keys, values) =
+            if let (Some(message_entry), Some(cause_entry)) = (message_entry, cause_entry) {
+                agent
+                    .heap
+                    .elements
+                    .create_object_entries(&[message_entry, cause_entry])
+            } else if let Some(message_entry) = message_entry {
+                agent.heap.elements.create_object_entries(&[message_entry])
+            } else if let Some(cause_entry) = cause_entry {
+                agent.heap.elements.create_object_entries(&[cause_entry])
+            } else {
+                agent.heap.elements.create_object_entries(&[])
+            };
+        let backing_object = agent.heap.create(ObjectHeapData {
+            extensible: true,
+            prototype: Some(prototype),
+            keys,
+            values,
+        });
+        agent[self].object_index = Some(backing_object);
+        backing_object
     }
 
-    fn internal_prototype(self, _agent: &Agent) -> Option<Object> {
-        todo!()
-    }
-
-    fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
-        todo!()
+    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+        if let Some(object_index) = self.get_backing_object(agent) {
+            object_index.internal_prototype(agent)
+        } else {
+            let intrinsic = match agent[self].kind {
+                ExceptionType::Error => ProtoIntrinsics::Error,
+                ExceptionType::AggregateError => ProtoIntrinsics::AggregateError,
+                ExceptionType::EvalError => ProtoIntrinsics::EvalError,
+                ExceptionType::RangeError => ProtoIntrinsics::RangeError,
+                ExceptionType::ReferenceError => ProtoIntrinsics::ReferenceError,
+                ExceptionType::SyntaxError => ProtoIntrinsics::SyntaxError,
+                ExceptionType::TypeError => ProtoIntrinsics::TypeError,
+                ExceptionType::UriError => ProtoIntrinsics::UriError,
+            };
+            Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .get_intrinsic_default_proto(intrinsic),
+            )
+        }
     }
 }
 
 impl InternalMethods for Error {
-    fn internal_get_prototype_of(self, _agent: &mut Agent) -> JsResult<Option<Object>> {
-        todo!()
-    }
-
-    fn internal_set_prototype_of(
-        self,
-        _agent: &mut Agent,
-        _prototype: Option<Object>,
-    ) -> JsResult<bool> {
-        todo!()
-    }
-
-    fn internal_is_extensible(self, _agent: &mut Agent) -> JsResult<bool> {
-        todo!()
-    }
-
-    fn internal_prevent_extensions(self, _agent: &mut Agent) -> JsResult<bool> {
-        todo!()
-    }
-
     fn internal_get_own_property(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
+        agent: &mut Agent,
+        property_key: PropertyKey,
     ) -> JsResult<Option<crate::ecmascript::types::PropertyDescriptor>> {
-        todo!()
+        match self.get_backing_object(agent) {
+            Some(backing_object) => backing_object.internal_get_own_property(agent, property_key),
+            None => {
+                let property_value =
+                    if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
+                        agent[self].message.map(|message| message.into_value())
+                    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+                        agent[self].cause
+                    } else {
+                        None
+                    };
+                Ok(property_value.map(|value| PropertyDescriptor {
+                    value: Some(value),
+                    writable: Some(true),
+                    get: None,
+                    set: None,
+                    enumerable: Some(false),
+                    configurable: Some(true),
+                }))
+            }
+        }
     }
 
-    fn internal_define_own_property(
-        self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _property_descriptor: crate::ecmascript::types::PropertyDescriptor,
-    ) -> JsResult<bool> {
-        todo!()
-    }
-
-    fn internal_has_property(
-        self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-    ) -> JsResult<bool> {
-        todo!()
+    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+        match self.get_backing_object(agent) {
+            Some(backing_object) => backing_object.internal_has_property(agent, property_key),
+            None => Ok(
+                if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
+                    agent[self].message.is_some()
+                } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+                    agent[self].cause.is_some()
+                } else {
+                    false
+                },
+            ),
+        }
     }
 
     fn internal_get(
@@ -147,54 +204,43 @@ impl InternalMethods for Error {
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
-        if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.toString) {
-            agent
-                .current_realm()
-                .intrinsics()
-                .error_prototype()
-                .internal_get(agent, property_key, receiver)
-        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
-            match agent[self].kind {
-                ExceptionType::AggregateError => {
-                    Ok(BUILTIN_STRING_MEMORY.AggregateError.into_value())
+        match self.get_backing_object(agent) {
+            Some(backing_object) => backing_object.internal_get(agent, property_key, receiver),
+            None => {
+                let property_value =
+                    if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
+                        agent[self].message.map(|message| message.into_value())
+                    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+                        agent[self].cause
+                    } else {
+                        None
+                    };
+                if let Some(property_value) = property_value {
+                    Ok(property_value)
+                } else if let Some(parent) = self.internal_get_prototype_of(agent)? {
+                    // c. Return ? parent.[[Get]](P, Receiver).
+                    parent.internal_get(agent, property_key, receiver)
+                } else {
+                    Ok(Value::Undefined)
                 }
-                ExceptionType::Error => Ok(BUILTIN_STRING_MEMORY.Error.into_value()),
-                ExceptionType::EvalError => Ok(BUILTIN_STRING_MEMORY.EvalError.into_value()),
-                ExceptionType::RangeError => Ok(BUILTIN_STRING_MEMORY.RangeError.into_value()),
-                ExceptionType::ReferenceError => {
-                    Ok(BUILTIN_STRING_MEMORY.ReferenceError.into_value())
-                }
-                ExceptionType::SyntaxError => Ok(BUILTIN_STRING_MEMORY.SyntaxError.into_value()),
-                ExceptionType::TypeError => Ok(BUILTIN_STRING_MEMORY.TypeError.into_value()),
-                ExceptionType::UriError => Ok(BUILTIN_STRING_MEMORY.URIError.into_value()),
             }
-        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
-            Ok(agent[self]
-                .message
-                .map_or(Value::Undefined, |message| message.into_value()))
-        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-            Ok(agent[self].cause.unwrap_or(Value::Undefined))
-        } else {
-            Ok(Value::Undefined)
         }
     }
 
-    fn internal_set(
-        self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _value: Value,
-        _receiver: Value,
-    ) -> JsResult<bool> {
-        todo!()
-    }
-
-    fn internal_delete(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
-        todo!()
-    }
-
-    fn internal_own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        todo!()
+    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+        match self.get_backing_object(agent) {
+            Some(backing_object) => backing_object.internal_own_property_keys(agent),
+            None => {
+                let mut property_keys = Vec::with_capacity(2);
+                if agent[self].message.is_some() {
+                    property_keys.push(BUILTIN_STRING_MEMORY.message.into());
+                }
+                if agent[self].cause.is_some() {
+                    property_keys.push(BUILTIN_STRING_MEMORY.cause.into());
+                }
+                Ok(property_keys)
+            }
+        }
     }
 }
 

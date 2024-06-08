@@ -349,10 +349,10 @@ pub(crate) fn ordinary_has_instance(
     }
     let c = Function::try_from(c.into_value()).unwrap();
     // 2. If C has a [[BoundTargetFunction]] internal slot, then
-    if let Function::BoundFunction(idx) = c {
+    if let Function::BoundFunction(c) = c {
         // a. Let BC be C.[[BoundTargetFunction]].
+        let bc = agent[c].bound_target_function;
         // b. Return ? InstanceofOperator(O, BC).
-        let bc = agent[idx].function;
         return instanceof_operator(agent, o, bc);
     }
     // 3. If O is not an Object, return false.
@@ -402,7 +402,7 @@ pub(crate) fn get_function_realm(
             // 2. If obj is a bound function exotic object, then
             // a. Let boundTargetFunction be obj.[[BoundTargetFunction]].
             // b. Return ? GetFunctionRealm(boundTargetFunction).
-            get_function_realm(agent, agent[idx].function)
+            get_function_realm(agent, agent[idx].bound_target_function)
         }
         // 3. If obj is a Proxy exotic object, then
         // a. Perform ? ValidateNonRevokedProxy(obj).

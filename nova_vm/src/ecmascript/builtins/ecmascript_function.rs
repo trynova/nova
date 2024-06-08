@@ -32,7 +32,7 @@ use crate::{
         },
         types::{
             initialize_referenced_binding, put_value, ECMAScriptFunctionHeapData, Function,
-            InternalMethods, IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject,
+            InternalMethods, IntoFunction, IntoObject, IntoValue, Object, ObjectHeapData,
             OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, String, Value,
             BUILTIN_STRING_MEMORY,
         },
@@ -229,10 +229,19 @@ impl ECMAScriptFunction {
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
+}
 
-    fn create_ordinary_object(self, agent: &mut Agent) -> OrdinaryObject {
-        assert_eq!(agent[self].object_index, None);
-        let prototype = agent.current_realm().intrinsics().function_prototype();
+impl OrdinaryObjectInternalSlots for ECMAScriptFunction {
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
+
+    #[inline(always)]
+    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+        agent[self].object_index
+    }
+
+    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+        debug_assert!(self.get_backing_object(agent).is_none());
+        let prototype = self.internal_prototype(agent);
         let length_entry = ObjectEntry {
             key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
             value: ObjectEntryPropertyDescriptor::Data {
@@ -254,73 +263,36 @@ impl ECMAScriptFunction {
                 configurable: true,
             },
         };
-        let object_index = agent
+        let (keys, values) = agent
             .heap
-            .create_object_with_prototype(prototype.into_object(), &[length_entry, name_entry]);
-        agent[self].object_index = Some(object_index);
-        object_index
-    }
-}
-
-impl OrdinaryObjectInternalSlots for ECMAScriptFunction {
-    fn internal_extensible(self, _agent: &Agent) -> bool {
-        todo!()
-    }
-
-    fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {
-        todo!()
+            .elements
+            .create_object_entries(&[length_entry, name_entry]);
+        let backing_object = agent.heap.create(ObjectHeapData {
+            extensible: true,
+            prototype,
+            keys,
+            values,
+        });
+        agent[self].object_index = Some(backing_object);
+        backing_object
     }
 
-    fn internal_prototype(self, _agent: &Agent) -> Option<Object> {
-        todo!()
-    }
-
-    fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
-        todo!()
+    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+        if let Some(object_index) = self.get_backing_object(agent) {
+            object_index.internal_prototype(agent)
+        } else {
+            let realm = agent[self].ecmascript_function.realm;
+            Some(
+                agent
+                    .get_realm(realm)
+                    .intrinsics()
+                    .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE),
+            )
+        }
     }
 }
 
 impl InternalMethods for ECMAScriptFunction {
-    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_get_prototype_of(agent)
-        } else {
-            Ok(Some(
-                agent
-                    .current_realm()
-                    .intrinsics()
-                    .function_prototype()
-                    .into_object(),
-            ))
-        }
-    }
-
-    fn internal_set_prototype_of(
-        self,
-        agent: &mut Agent,
-        prototype: Option<Object>,
-    ) -> JsResult<bool> {
-        let object_index = agent[self]
-            .object_index
-            .unwrap_or_else(|| self.create_ordinary_object(agent));
-        object_index.internal_set_prototype_of(agent, prototype)
-    }
-
-    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_is_extensible(agent)
-        } else {
-            Ok(true)
-        }
-    }
-
-    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
-        let object_index = agent[self]
-            .object_index
-            .unwrap_or_else(|| self.create_ordinary_object(agent));
-        object_index.internal_prevent_extensions(agent)
-    }
-
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
@@ -357,7 +329,7 @@ impl InternalMethods for ECMAScriptFunction {
     ) -> JsResult<bool> {
         let object_index = agent[self]
             .object_index
-            .unwrap_or_else(|| self.create_ordinary_object(agent));
+            .unwrap_or_else(|| self.create_backing_object(agent));
         object_index.internal_define_own_property(agent, property_key, property_descriptor)
     }
 
@@ -411,7 +383,7 @@ impl InternalMethods for ECMAScriptFunction {
             // length and name are not writable
             Ok(false)
         } else {
-            let object_index = self.create_ordinary_object(agent);
+            let object_index = self.create_backing_object(agent);
             object_index.internal_set(agent, property_key, value, receiver)
         }
     }
@@ -422,7 +394,7 @@ impl InternalMethods for ECMAScriptFunction {
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
-            let object_index = self.create_ordinary_object(agent);
+            let object_index = self.create_backing_object(agent);
             object_index.internal_delete(agent, property_key)
         } else {
             // Non-existing property

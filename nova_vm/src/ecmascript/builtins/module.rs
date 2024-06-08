@@ -114,6 +114,15 @@ impl Module {
 }
 
 impl OrdinaryObjectInternalSlots for Module {
+    #[inline(always)]
+    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+        agent[self].object_index
+    }
+
+    fn create_backing_object(self, _: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+        unreachable!();
+    }
+
     fn internal_extensible(self, _agent: &Agent) -> bool {
         false
     }
