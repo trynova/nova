@@ -30,7 +30,7 @@ pub(crate) fn reg_exp_create(
 
 fn reg_exp_alloc_intrinsic(agent: &mut Agent) -> RegExp {
     // 1. Let obj be ? OrdinaryCreateFromConstructor(newTarget, "%RegExp.prototype%", « [[OriginalSource]], [[OriginalFlags]], [[RegExpRecord]], [[RegExpMatcher]] »).
-    
+
     // 2. Perform ! DefinePropertyOrThrow(obj, "lastIndex", PropertyDescriptor { [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
     // TODO: lastIndex should be in RegExpHeapData itself, one way or another.
     // 3. Return obj.
