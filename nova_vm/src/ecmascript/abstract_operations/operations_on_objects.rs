@@ -4,13 +4,16 @@ use super::{
     testing_and_comparison::{is_callable, same_value},
     type_conversion::{to_length, to_object},
 };
-use crate::ecmascript::{
-    builtins::{ArgumentsList, Array},
-    execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-    types::{
-        Function, InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey, Value,
-        BUILTIN_STRING_MEMORY,
+use crate::{
+    ecmascript::{
+        builtins::{ArgumentsList, Array},
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{
+            Function, InternalMethods, IntoObject, IntoValue, Object, PropertyDescriptor,
+            PropertyKey, Value, BUILTIN_STRING_MEMORY,
+        },
     },
+    engine::instanceof_operator,
 };
 
 /// ### [7.3.1 MakeBasicObject ( internalSlotsList )](https://tc39.es/ecma262/#sec-makebasicobject)
@@ -46,9 +49,9 @@ pub(crate) fn make_basic_object(_agent: &mut Agent, _internal_slots_list: ()) ->
 /// key) and returns either a normal completion containing an ECMAScript
 /// language value or a throw completion. It is used to retrieve the value of a
 /// specific property of an object.
-pub(crate) fn get(agent: &mut Agent, o: Object, p: PropertyKey) -> JsResult<Value> {
+pub(crate) fn get(agent: &mut Agent, o: impl IntoObject, p: PropertyKey) -> JsResult<Value> {
     // 1. Return ? O.[[Get]](P, O).
-    o.internal_get(agent, p, o.into())
+    o.into_object().internal_get(agent, p, o.into_value())
 }
 
 /// ### [7.3.3 GetV ( V, P )](https://tc39.es/ecma262/#sec-getv)
@@ -335,21 +338,25 @@ pub(crate) fn invoke(
 /// normal completion containing a Boolean or a throw completion. It implements
 /// the default algorithm for determining if O inherits from the instance
 /// object inheritance path provided by C.
-pub(crate) fn ordinary_has_instance(agent: &mut Agent, c: Value, o: Value) -> JsResult<bool> {
+pub(crate) fn ordinary_has_instance(
+    agent: &mut Agent,
+    c: impl IntoValue,
+    o: impl IntoValue,
+) -> JsResult<bool> {
     // 1. If IsCallable(C) is false, return false.
     if !is_callable(c) {
         return Ok(false);
     }
-    let c = Object::try_from(c).unwrap();
+    let c = Function::try_from(c.into_value()).unwrap();
     // 2. If C has a [[BoundTargetFunction]] internal slot, then
-    if let Object::BoundFunction(idx) = c {
+    if let Function::BoundFunction(idx) = c {
         // a. Let BC be C.[[BoundTargetFunction]].
         // b. Return ? InstanceofOperator(O, BC).
-        let _bc = agent[idx].function;
-        // return instance_of_operator(o, bc);
+        let bc = agent[idx].function;
+        return instanceof_operator(agent, o, bc);
     }
     // 3. If O is not an Object, return false.
-    let Ok(mut o) = Object::try_from(o) else {
+    let Ok(mut o) = Object::try_from(o.into_value()) else {
         return Ok(false);
     };
     // 4. Let P be ? Get(C, "prototype").

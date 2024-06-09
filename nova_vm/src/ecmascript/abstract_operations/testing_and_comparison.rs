@@ -49,12 +49,12 @@ pub(crate) fn is_array(_agent: &Agent, argument: Value) -> JsResult<bool> {
 /// The abstract operation IsCallable takes argument argument (an ECMAScript
 /// language value) and returns a Boolean. It determines if argument is a
 /// callable function with a [[Call]] internal method.
-pub(crate) fn is_callable(argument: Value) -> bool {
+pub(crate) fn is_callable(argument: impl IntoValue) -> bool {
     // 1. If argument is not an Object, return false.
     // 2. If argument has a [[Call]] internal method, return true.
     // 3. Return false.
     matches!(
-        argument,
+        argument.into_value(),
         Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_)
     )
 }

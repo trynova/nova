@@ -497,6 +497,13 @@ impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
 
+impl IntoValue for Value {
+    #[inline(always)]
+    fn into_value(self) -> Value {
+        self
+    }
+}
+
 impl HeapMarkAndSweep for Value {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
