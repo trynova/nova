@@ -800,33 +800,62 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
     }
 }
 
-fn instanceof_operator(agent: &mut Agent, value: Value, target: Value) -> JsResult<bool> {
-    let Ok(target) = Object::try_from(target) else {
+/// ### [13.10.2 InstanceofOperator ( V, target )](https://tc39.es/ecma262/#sec-instanceofoperator)
+///
+/// The abstract operation InstanceofOperator takes arguments V (an ECMAScript
+/// language value) and target (an ECMAScript language value) and returns
+/// either a normal completion containing a Boolean or a throw completion. It
+/// implements the generic algorithm for determining if V is an instance of
+/// target either by consulting target's @@hasInstance method or, if absent,
+/// determining whether the value of target's "prototype" property is present
+/// in V's prototype chain.
+///
+/// > #### Note
+/// > Steps 4 and 5 provide compatibility with previous editions of ECMAScript
+/// > that did not use a @@hasInstance method to define the instanceof operator
+/// > semantics. If an object does not define or inherit @@hasInstance it uses
+/// > the default instanceof semantics.
+pub(crate) fn instanceof_operator(
+    agent: &mut Agent,
+    value: impl IntoValue,
+    target: impl IntoValue,
+) -> JsResult<bool> {
+    // 1. If target is not an Object, throw a TypeError exception.
+    let Ok(target) = Object::try_from(target.into_value()) else {
         return Err(agent.throw_exception(
             ExceptionType::TypeError,
             "instanceof target is not an object",
         ));
     };
+    // 2. Let instOfHandler be ? GetMethod(target, @@hasInstance).
     let inst_of_handler = get_method(
         agent,
         target.into_value(),
         WellKnownSymbolIndexes::HasInstance.into(),
     )?;
+    // 3. If instOfHandler is not undefined, then
     if let Some(inst_of_handler) = inst_of_handler {
+        // a. Return ToBoolean(? Call(instOfHandler, target, « V »)).
         let result = call_function(
             agent,
             inst_of_handler,
             target.into_value(),
-            Some(ArgumentsList(&[value])),
+            Some(ArgumentsList(&[value.into_value()])),
         )?;
         Ok(to_boolean(agent, result))
     } else {
+        // 4. If IsCallable(target) is false, throw a TypeError exception.
         if !is_callable(target.into_value()) {
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
                 "instanceof target is not a function",
             ));
         }
-        Ok(ordinary_has_instance(agent, target.into_value(), value)?)
+        // 5. Return ? OrdinaryHasInstance(target, V).
+        Ok(ordinary_has_instance(
+            agent,
+            target.into_value(),
+            value.into_value(),
+        )?)
     }
 }

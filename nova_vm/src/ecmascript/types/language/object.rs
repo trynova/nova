@@ -109,6 +109,67 @@ pub enum Object {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OrdinaryObject(pub(crate) ObjectIndex);
 
+impl IntoValue for Object {
+    fn into_value(self) -> Value {
+        match self {
+            Object::Object(data) => Value::Object(data),
+            Object::BoundFunction(data) => Value::BoundFunction(data),
+            Object::BuiltinFunction(data) => Value::BuiltinFunction(data),
+            Object::ECMAScriptFunction(data) => Value::ECMAScriptFunction(data),
+            Object::BuiltinGeneratorFunction => todo!(),
+            Object::BuiltinConstructorFunction => todo!(),
+            Object::BuiltinPromiseResolveFunction => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => Value::BuiltinPromiseRejectFunction(data),
+            Object::BuiltinPromiseCollectorFunction => todo!(),
+            Object::BuiltinProxyRevokerFunction => todo!(),
+            Object::ECMAScriptAsyncFunction => todo!(),
+            Object::ECMAScriptAsyncGeneratorFunction => todo!(),
+            Object::ECMAScriptConstructorFunction => todo!(),
+            Object::ECMAScriptGeneratorFunction => todo!(),
+            Object::PrimitiveObject(data) => Value::PrimitiveObject(data),
+            Object::Arguments => todo!(),
+            Object::Array(data) => Value::Array(data),
+            Object::ArrayBuffer(data) => Value::ArrayBuffer(data),
+            Object::DataView(data) => Value::DataView(data),
+            Object::Date(data) => Value::Date(data),
+            Object::Error(data) => Value::Error(data),
+            Object::FinalizationRegistry(data) => Value::FinalizationRegistry(data),
+            Object::Map(data) => Value::Map(data),
+            Object::Promise(data) => Value::Promise(data),
+            Object::Proxy(data) => Value::Proxy(data),
+            Object::RegExp(data) => Value::RegExp(data),
+            Object::Set(data) => Value::Set(data),
+            Object::SharedArrayBuffer(data) => Value::SharedArrayBuffer(data),
+            Object::WeakMap(data) => Value::WeakMap(data),
+            Object::WeakRef(data) => Value::WeakRef(data),
+            Object::WeakSet(data) => Value::WeakSet(data),
+            Object::Int8Array(data) => Value::Int8Array(data),
+            Object::Uint8Array(data) => Value::Uint8Array(data),
+            Object::Uint8ClampedArray(data) => Value::Uint8ClampedArray(data),
+            Object::Int16Array(data) => Value::Int16Array(data),
+            Object::Uint16Array(data) => Value::Uint16Array(data),
+            Object::Int32Array(data) => Value::Int32Array(data),
+            Object::Uint32Array(data) => Value::Uint32Array(data),
+            Object::BigInt64Array(data) => Value::BigInt64Array(data),
+            Object::BigUint64Array(data) => Value::BigUint64Array(data),
+            Object::Float32Array(data) => Value::Float32Array(data),
+            Object::Float64Array(data) => Value::Float64Array(data),
+            Object::AsyncFromSyncIterator => todo!(),
+            Object::AsyncIterator => todo!(),
+            Object::Iterator => todo!(),
+            Object::Module(data) => Value::Module(data),
+            Object::EmbedderObject(data) => Value::EmbedderObject(data),
+        }
+    }
+}
+
+impl IntoObject for Object {
+    #[inline(always)]
+    fn into_object(self) -> Object {
+        self
+    }
+}
+
 impl IntoObject for OrdinaryObject {
     fn into_object(self) -> Object {
         self.into()

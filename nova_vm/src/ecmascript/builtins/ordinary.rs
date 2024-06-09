@@ -1108,7 +1108,7 @@ pub(crate) fn get_prototype_from_constructor(
     // intended to be used as the [[Prototype]] value of an object.
     // 2. Let proto be ? Get(constructor, "prototype").
     let prototype_key = BUILTIN_STRING_MEMORY.prototype.into();
-    let proto = get(agent, constructor.into(), prototype_key)?;
+    let proto = get(agent, constructor, prototype_key)?;
     // 3. If proto is not an Object, then
     //   a. Let realm be ? GetFunctionRealm(constructor).
     //   b. Set proto to realm's intrinsic object named intrinsicDefaultProto.
