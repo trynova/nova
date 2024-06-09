@@ -11,52 +11,43 @@ good idea of the data and common actions on it.
 
 So what are common actions that a JavaScript runtime does?
 
-- There's all the boring stuff like arithmetic operations, boolean logic, etc.
-- Creating objects and arrays is very common.
-- Checking for properties in an object is very common.
-- Object access is very common.
-- Creating and calling functions is very common.
-- Creating other builtin objects is quite common. (That is: Date, ArrayBuffer,
-  RegExp, ...)
-- Object property manipulation is common as well.
-- Adding new object properties is fairly common.
-- Checking the length of an array.
-- Iterating arrays and to some degree even objects is very common as well.
+- Calling functions
+- Accessing properties of objects
+- Adding and manipulating object properties
+- Accessing indexed properties of arrays
+- Iterating arrays
 
 What are some uncommon actions?
 
-- Deleting of object properties. It is done, yes, but rarely do you see objects
-  used as hashmaps anymore.
+- Deleting object properties: Hashmap-like object are rare in modern JavaScript.
 - Accessing or defining property descriptors.
-- Accessing or assigning non-element (indexed) properties on arrays.
-- Calling getter or setter functions. This happens but again is not the most
-  common path.
-- Checking the length of a function.
-- Accessing or assigning properties on functions. This does happen, but it is
-  infrequent.
-- Accessing or assigning properties on ArrayBuffers, Uint8Arrays, DataViews,
-  Dates, RegExps, ... Most builtin objects are used for their named purpose only
-  and beyond that are left alone.
-- Checking the prototype of an object. This is done indirectly with
-  hashmap-objects and with method calls but most engines try to minimize these
-  as much as possible with various tricks. The best object is often the one
-  where you never miss a key access.
+- Accessing or assigning named (non-indexed) properties on arrays.
+- Calling getter or setter functions.
+- Accessing the length or name of a function.
+- Adding, manipulating, or deleting properties on functions.
+- Adding, manipulating, or deleting properties on ArrayBuffers, Uint8Arrays,
+  DataViews, Dates, RegExps, ... Most builtin objects are used for their named
+  purpose only and beyond that are left alone.
+- Accessing the prototype of an object. Property access "misses", present in eg.
+  hashmap-like objects and prototype method calls, cause this but most engines
+  and programmers try to minimize these as much as possible with various tricks.
+  The best object is often the one where you never miss a key access.
 - Changing the prototype of an object.
 
 So what we can gather from this is that
 
-1. Objects mostly need good access to their keys and values. Their prototype is
-   somewhat secondary, and with hidden classes / shapes the keys actually become
-   somewhat secondary as well.
-2. Property descriptors are not very important.
-3. Function calls are very important.
-4. Quick iteration over array elements, object keys, and object values are quite
+1. Function calls are very important. Properties of functions are not very
    important.
+1. Objects mostly need good access to their keys and values. Their prototype is
+   mostly secondary, and with hidden classes / shapes the keys actually become
+   secondary as well. This should be no big surprise, as this is exactly what
+   structs are in system programming languages.
+1. Property descriptors are not very important.
+1. Quick iteration over array elements is very important.
 
 From an engine standpoint the only common action that is done outside of
 JavaScript is the garbage collection. The garbage collection mostly cares about
-quick access to JavaScript heap values and, if possible, efficient iteration
-over them.
+quick access to JavaScript heap values and efficient iteration over them.
 
 Thus our heap design starts to form. To help the garbage collection along we
 want to place like elements one after the other. As much as possible, we want to
@@ -70,15 +61,15 @@ we'd want to avoid creating their "object" side if its not going to be used.
 This then means that the "object" side of these must be separate from their
 "business" side. An ArrayBuffer will need to have a pointer to a raw memory
 buffer somewhere and that is its most common usage so it makes sense to put that
-in its "business" side but we do not need to keep its key-value pairs close at
-hand.
+in its "business" side but we do not need to keep its property key-value pairs
+close at hand.
 
 So we put object base heap data one after the other somewhere. We could refer to
 these by pointer but that takes 8 bytes of memory and Rust doesn't particularly
 like raw pointers, nor does it like `&'static` references. So direct references
 are not a good idea. If we use heap vectors we can instead use indexes into
 these vectors! A vector is `usize` indexed but a JS engine will never run into 4
-million objects or numbers or strings. A `u32` index is thus sufficient.
+billion objects or numbers or strings. A `u32` index is thus sufficient.
 
 It then makes sense to put other heap data in vectors as well. So we have
 indexes to the vector of ArrayBuffers, indexes to the vector of objects, etc.
@@ -90,6 +81,72 @@ one after another in the vector of object heap data, and their property values
 are also likely to reside one after the other. We (hope to) get good cache
 locality!
 
+## So... please explain?
+
+In a simple, object-oriented design an Object looks like follows:
+
+```rs
+struct Object {
+   prototype: Option<Gc<Object>>,
+   properties: HashMap<Gc<String>, Gc<PropertyDescriptor>>,
+}
+```
+
+and an Array would be:
+
+```rs
+struct Array {
+   base: Object,
+   elements: Vec<Option<PropertyDescriptor>>,
+}
+```
+
+Note: The V8 version of Object actually includes elements in the object itself.
+
+As we noted above, named properties on arrays are rare as are changing
+prototypes. Hence, we do not actually need the "base" very often. We can thus
+reduce memory usage by changing Array to:
+
+```rs
+struct Array {
+   base: Option<Gc<Object>>,
+   elements: Vec<Option<PropertyDescriptor>>,
+}
+```
+
+Now most Arrays will avoid creating the object base entirely and will instead
+rely on the knowledge that an Array without a base contains no named properties
+(except length, which can be synthesised from elements) and has
+`Array.prototype` as its prototype. (Note: An Array without a base does actually
+need to know which Realm it was created in, so the above struct is not quite
+adequate.)
+
+Using this sort of indirection to setup Arrays and other exotic objects helps
+reduce memory usage, but it does not yet give us the benefit for iterating over
+objects that we want. For that, we need to split the Array into parts and put
+them into parallel vectors:
+
+```rs
+struct BaseObject(Option<ObjectIndex>);
+struct Elements(Vec<Option<PropertyDescriptor>>);
+
+let arrays: ParallelVec<(BaseObject, Elements)>;
+
+struct Array(usize); // Array is now just an index into the arrays vector.
+```
+
+This will create a vector that contains two "segments"; the first segment will
+have N `BaseObject` structs in a linear memory, which is then followed by the
+second segment which has N `Elements` structs again in linear memory. Now we get
+linear traversal of memory (in the best case), and the way we split our heap
+data into smaller parts determines what accesses we optimise for.
+
+As an example, we may consider splitting off the array's length from its
+capacity and pointer. This would mean that accessing array elements would
+require loading two cache lines in parallel instead of loading just one, meaning
+that we stress the memory bandwidth a bit more, but in exchange we'd get to
+ignore the capacity and pointer when accessing `array.length`.
+
 ## Comparing
 
 How do other engines structure their heap? Here I am going to compare our
@@ -100,12 +157,20 @@ though:
 
 1. The V8 heap is built around a slab of allocated memory around a base pointer
    [[1](https://v8.dev/blog/pointer-compression)].
-1. Objects in V8's heap are always prepared to accept properties.
+1. Objects in V8's heap are always prepared to accept properties and elements,
+   as well as embedder slots.
+1. Objects in V8's heap can move meaning that their identities are not stable,
+   at least initially.
 1. Objects in V8 can have varying sizes to accommodate inline property values.
+   By default an empty object is created with 4 inline property value slots and
+   an object size of 32 bytes.
 1. Objects refer to other objects in the V8 heap using pointers or, with pointer
-   compression, 32-bit offsets around the base pointer.
-1. Objects in V8's heap are not necessarily allocated side-by-side.
-1. V8's garbage collection is based on a tracing mark-and-sweep algorithm.
+   compression, 32-bit offsets from the base pointer.
+1. Objects in V8's heap try to be allocated side-by-side but this is not
+   guaranteed. Moving objects can also freely move them in a fragmented manner,
+   although the engine does try to minimize this.
+1. V8's garbage collection is based on a concurrent, tracing mark-and-sweep
+   algorithm.
 
 Then Boa: Boa uses a modified version of the [gc](https://crates.io/crates/gc)
 crate, which is a tracing garbage collector based on a `Trace`, trait and
@@ -154,10 +219,11 @@ Still, V8 does have some disadvantages as well.
 1. Varying object sizes mean that objects cannot live side-by-side in harmony
    and must instead be allocated at least some distance from one another in the
    general case.
-1. Since each object is prepared to accept properties, it means that the object
-   struct size is relatively large for what it's doing. A single `Uint8Array` is
-   72 bytes in size, when its most important usage is being a (potentially
-   resizable) vector of up to 2^53 elements: That can be done in 24 bytes.
+1. Since each object is prepared to accept properties, elements, and embedder
+   slots, it means that the object struct size is relatively large for what it's
+   doing. A single `Uint8Array` is 72 bytes in size, when its most important
+   usage is being a (potentially resizable) vector of up to 2^53 elements: That
+   can be done in 24 bytes.
 
 ### Advantages and disadvantages of Nova
 
@@ -169,7 +235,7 @@ So, what can we expect from Nova's heap? First the advantages:
    index and a type: The type tells which array to access from and the index
    gives the offset.
 1. Placing heap data "by type and use" in a DOD fashion allows eg. `Uint8Array`s
-   to not include any of the data that an object has
+   to not include any of the data that an object has.
 1. Garbage collection must be done on the heap level which quite logically lends
    itself to a tracing mark-and-sweep algorithm.
 1. With careful work it should be possible to enable partially concurrent
@@ -179,13 +245,19 @@ There are disadvantages as well.
 
 1. Either no objects carry inline properties and thus any property access must
    always take an extra pointer indirection, or all objects carry inline
-   properties even if they're not used. This is may be somewhat offset by key
+   properties even if they're not used. This may be somewhat offset by key
    checks requiring object shape access by pointer anyhow and the two reads are
    not 100% dependent of one another (conditional on the number of elements).
 1. Heap vectors need reallocation when growing. This may prove to be such a
    performance demerit that it requires changing from heap vectors into vectors
    of heap chunks, trading reallocation need for worse cache locality.
 1. Garbage collection must be done on the heap level and implemented manually!
+1. Compacting the heap vectors is important to preserve cache locality, but it
+   conversely causes the items in the vectors to change identity. The object at
+   index 250 moves to index 230, and any incoming references must realign
+   themselves. This is doubly bad for hashmaps, where the key needs to be now
+   rehashed. This may be somewhat offset by avoiding major GC as much as
+   possible and only GC'ing the "nursery" part of the heap vectors.
 
 ## Ownership, Rust and the borrow checker
 
