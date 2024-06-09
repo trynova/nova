@@ -1,29 +1,36 @@
 use oxc_syntax::operator::BinaryOperator;
 
-use crate::ecmascript::{
-    abstract_operations::{
-        operations_on_objects::{call, construct, create_data_property_or_throw, has_property},
-        testing_and_comparison::{
-            is_constructor, is_less_than, is_loosely_equal, is_same_type, is_strictly_equal,
+use crate::{
+    ecmascript::{
+        abstract_operations::{
+            operations_on_objects::{
+                call, call_function, construct, create_data_property_or_throw, get_method,
+                has_property, ordinary_has_instance,
+            },
+            testing_and_comparison::{
+                is_callable, is_constructor, is_less_than, is_loosely_equal, is_same_type,
+                is_strictly_equal,
+            },
+            type_conversion::{
+                to_boolean, to_number, to_numeric, to_primitive, to_property_key, to_string,
+            },
         },
-        type_conversion::{
-            to_boolean, to_number, to_numeric, to_primitive, to_property_key, to_string,
+        builtins::{
+            array_create, ordinary::ordinary_object_create_with_intrinsics,
+            ordinary_function_create, ArgumentsList, Array, OrdinaryFunctionCreateParams, ThisMode,
+        },
+        execution::{
+            agent::{resolve_binding, ExceptionType, JsError},
+            get_this_environment, new_declarative_environment, Agent,
+            ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult, ProtoIntrinsics,
+        },
+        types::{
+            get_value, initialize_referenced_binding, put_value, Base, BigInt, Function, IntoValue,
+            Number, Numeric, Object, PropertyKey, Reference, ReferencedName, String, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
-    builtins::{
-        array_create, ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
-        ArgumentsList, Array, OrdinaryFunctionCreateParams, ThisMode,
-    },
-    execution::{
-        agent::{resolve_binding, ExceptionType, JsError},
-        get_this_environment, new_declarative_environment, Agent, ECMAScriptCodeEvaluationState,
-        EnvironmentIndex, JsResult, ProtoIntrinsics,
-    },
-    types::{
-        get_value, initialize_referenced_binding, put_value, Base, BigInt, Function, IntoValue,
-        Number, Numeric, Object, PropertyKey, Reference, ReferencedName, String, Value,
-        BUILTIN_STRING_MEMORY,
-    },
+    heap::WellKnownSymbolIndexes,
 };
 
 use super::{instructions::Instr, Executable, Instruction, InstructionIter};
@@ -589,6 +596,11 @@ impl Vm {
             Instruction::PopExceptionJumpTarget => {
                 vm.exception_jump_target_stack.pop().unwrap();
             }
+            Instruction::InstanceofOperator => {
+                let lval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
+                vm.result = Some(instanceof_operator(agent, lval, rval)?.into());
+            }
             other => todo!("{other:?}"),
         }
 
@@ -785,5 +797,36 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::ECMAScriptGeneratorFunction => BUILTIN_STRING_MEMORY.function,
         // TODO: Check [[Call]] slot for Proxy
         Value::Proxy(_) => todo!(),
+    }
+}
+
+fn instanceof_operator(agent: &mut Agent, value: Value, target: Value) -> JsResult<bool> {
+    let Ok(target) = Object::try_from(target) else {
+        return Err(agent.throw_exception(
+            ExceptionType::TypeError,
+            "instanceof target is not an object",
+        ));
+    };
+    let inst_of_handler = get_method(
+        agent,
+        target.into_value(),
+        WellKnownSymbolIndexes::HasInstance.into(),
+    )?;
+    if let Some(inst_of_handler) = inst_of_handler {
+        let result = call_function(
+            agent,
+            inst_of_handler,
+            target.into_value(),
+            Some(ArgumentsList(&[value])),
+        )?;
+        Ok(to_boolean(agent, result))
+    } else {
+        if !is_callable(target.into_value()) {
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                "instanceof target is not a function",
+            ));
+        }
+        Ok(ordinary_has_instance(agent, target.into_value(), value)?)
     }
 }
