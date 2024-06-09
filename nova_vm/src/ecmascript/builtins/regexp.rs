@@ -1,21 +1,20 @@
+pub(crate) mod abstract_operations;
+pub(crate) mod data;
+
 use std::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
         execution::Agent,
-        types::{IntoObject, IntoValue, Object, OrdinaryObject, Value},
+        types::{IntoObject, IntoValue, Object, Value},
     },
     heap::{
         indexes::{BaseIndex, RegExpIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
 };
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct RegExpHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
-    // _regex: RegExp,
-}
+pub(crate) use abstract_operations::*;
+pub(crate) use data::RegExpHeapData;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -43,6 +42,28 @@ impl From<RegExp> for Object {
     }
 }
 
+impl TryFrom<Object> for RegExp {
+    type Error = ();
+
+    fn try_from(value: Object) -> Result<Self, Self::Error> {
+        match value {
+            Object::RegExp(regexp) => Ok(regexp),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Value> for RegExp {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::RegExp(regexp) => Ok(regexp),
+            _ => Err(()),
+        }
+    }
+}
+
 impl IntoValue for RegExp {
     fn into_value(self) -> Value {
         self.into()
@@ -64,16 +85,6 @@ impl HeapMarkAndSweep for RegExp {
         let self_index = self.0.into_u32();
         self.0 =
             RegExpIndex::from_u32(self_index - compactions.regexps.get_shift_for_index(self_index));
-    }
-}
-
-impl HeapMarkAndSweep for RegExpHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
     }
 }
 
