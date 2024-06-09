@@ -160,6 +160,19 @@ pub enum Instruction {
     /// Reset the running execution context's LexicalEnvironment to its current
     /// value's \[\[OuterEnv]].
     ExitDeclarativeEnvironment,
+    /// Begin binding values using a sync iterator
+    BeginArrayBindingPattern,
+    /// Bind current result to given identifier
+    ArrayBindingPatternBind,
+    /// Bind current result to given identifier, falling back to an initializer
+    /// if the current result is undefined.
+    ArrayBindingPatternBindWithInitializer,
+    /// Skip the next iterator value
+    ArrayBindingPatternSkip,
+    /// Load the next iterator value onto the stack
+    ArrayBindingPatternGetValue,
+    /// Finish binding values using a sync iterator
+    FinishArrayBindingPattern,
 }
 
 impl Instruction {
@@ -181,7 +194,9 @@ impl Instruction {
             | Self::StoreConstant
             | Self::ResolveBinding
             | Self::CreateImmutableBinding
-            | Self::CreateMutableBinding => 1,
+            | Self::CreateMutableBinding
+            | Self::ArrayBindingPatternBind
+            | Self::ArrayBindingPatternBindWithInitializer => 1,
             _ => 0,
         }
     }
@@ -198,6 +213,8 @@ impl Instruction {
                 | Self::ResolveBinding
                 | Self::CreateImmutableBinding
                 | Self::CreateMutableBinding
+                | Self::ArrayBindingPatternBind
+                | Self::ArrayBindingPatternBindWithInitializer
         )
     }
 

@@ -17,6 +17,7 @@ use oxc_ast::{
     ast::{self, CallExpression, FunctionBody, NewExpression, Statement},
     syntax_directed_operations::BoundNames,
 };
+use oxc_span::Atom;
 use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 
 pub type IndexType = u16;
@@ -26,6 +27,20 @@ pub(crate) struct CompileContext<'agent> {
     exe: Executable,
     /// NamedEvaluation name parameter
     name_identifier: Option<usize>,
+}
+
+impl CompileContext<'_> {
+    pub(crate) fn create_identifier(&mut self, atom: &Atom<'_>) -> String {
+        let existing =
+            self.exe.identifiers.iter().find(|existing_identifier| {
+                existing_identifier.as_str(self.agent) == atom.as_str()
+            });
+        if let Some(&existing) = existing {
+            existing
+        } else {
+            String::from_str(self.agent, atom.as_str())
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -1200,6 +1215,69 @@ impl CompileEvaluation for ast::IfStatement<'_> {
     }
 }
 
+impl CompileEvaluation for ast::ArrayPattern<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        ctx.exe
+            .add_instruction(Instruction::BeginArrayBindingPattern);
+        for ele in &self.elements {
+            let Some(ele) = ele else {
+                ctx.exe
+                    .add_instruction(Instruction::ArrayBindingPatternSkip);
+                continue;
+            };
+            match &ele.kind {
+                ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                    let identifier_string = ctx.create_identifier(&identifier.name);
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::ArrayBindingPatternBind,
+                        identifier_string,
+                    )
+                }
+                ast::BindingPatternKind::ObjectPattern(pattern) => {
+                    ctx.exe
+                        .add_instruction(Instruction::ArrayBindingPatternGetValue);
+                    pattern.compile(ctx);
+                }
+                ast::BindingPatternKind::ArrayPattern(pattern) => {
+                    ctx.exe
+                        .add_instruction(Instruction::ArrayBindingPatternGetValue);
+                    pattern.compile(ctx);
+                }
+                ast::BindingPatternKind::AssignmentPattern(pattern) => match &pattern.left.kind {
+                    ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                        let identifier_string = ctx.create_identifier(&identifier.name);
+                        ctx.exe.add_instruction_with_identifier(
+                            Instruction::ArrayBindingPatternBindWithInitializer,
+                            identifier_string,
+                        );
+                    }
+                    ast::BindingPatternKind::ObjectPattern(_)
+                    | ast::BindingPatternKind::ArrayPattern(_)
+                    | ast::BindingPatternKind::AssignmentPattern(_) => {
+                        ctx.exe
+                            .add_instruction(Instruction::ArrayBindingPatternGetValue);
+                        pattern.compile(ctx);
+                    }
+                },
+            }
+        }
+        ctx.exe
+            .add_instruction(Instruction::FinishArrayBindingPattern);
+    }
+}
+
+impl CompileEvaluation for ast::AssignmentPattern<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::ObjectPattern<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
 impl CompileEvaluation for ast::VariableDeclaration<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self.kind {
@@ -1207,17 +1285,33 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
             ast::VariableDeclarationKind::Var => {
                 for decl in &self.declarations {
                     // VariableDeclaration : BindingIdentifier
-                    if decl.init.is_none() {
+                    let Some(init) = &decl.init else {
                         // 1. Return EMPTY.
                         return;
-                    }
+                    };
+                    // VariableDeclaration : BindingIdentifier Initializer
+
                     let ast::BindingPatternKind::BindingIdentifier(identifier) = &decl.id.kind
                     else {
-                        todo!("{:?}", decl.id.kind);
+                        //  LexicalBinding : BindingPattern Initializer
+                        // 1. Let rhs be ? Evaluation of Initializer.
+                        init.compile(ctx);
+                        // 2. Let rval be ? GetValue(rhs).
+                        if is_reference(init) {
+                            ctx.exe.add_instruction(Instruction::GetValue);
+                        }
+                        ctx.exe.add_instruction(Instruction::Load);
+                        // 3. Return ? BindingInitialization of BidingPattern with arguments rval and undefined.
+                        match &decl.id.kind {
+                            ast::BindingPatternKind::BindingIdentifier(_) => unreachable!(),
+                            ast::BindingPatternKind::ObjectPattern(pattern) => pattern.compile(ctx),
+                            ast::BindingPatternKind::ArrayPattern(pattern) => pattern.compile(ctx),
+                            ast::BindingPatternKind::AssignmentPattern(pattern) => {
+                                pattern.compile(ctx)
+                            }
+                        }
+                        return;
                     };
-
-                    // VariableDeclaration : BindingIdentifier Initializer
-                    let init = decl.init.as_ref().unwrap();
 
                     // 1. Let bindingId be StringValue of BindingIdentifier.
                     // 2. Let lhs be ? ResolveBinding(bindingId).
@@ -1273,8 +1367,27 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                 for decl in &self.declarations {
                     let ast::BindingPatternKind::BindingIdentifier(identifier) = &decl.id.kind
                     else {
+                        let init = decl.init.as_ref().unwrap();
+
                         //  LexicalBinding : BindingPattern Initializer
-                        todo!("{:?}", decl.id.kind);
+                        // 1. Let rhs be ? Evaluation of Initializer.
+                        init.compile(ctx);
+                        // 2. Let value be ? GetValue(rhs).
+                        if is_reference(init) {
+                            ctx.exe.add_instruction(Instruction::GetValue);
+                        }
+                        // 3. Let env be the running execution context's LexicalEnvironment.
+                        // 4. Return ? BindingInitialization of BindingPattern with arguments value and env.
+                        ctx.exe.add_instruction(Instruction::Load);
+                        match &decl.id.kind {
+                            ast::BindingPatternKind::BindingIdentifier(_) => unreachable!(),
+                            ast::BindingPatternKind::ObjectPattern(pattern) => pattern.compile(ctx),
+                            ast::BindingPatternKind::ArrayPattern(pattern) => pattern.compile(ctx),
+                            ast::BindingPatternKind::AssignmentPattern(pattern) => {
+                                pattern.compile(ctx)
+                            }
+                        }
+                        return;
                     };
 
                     // 1. Let lhs be ! ResolveBinding(StringValue of BindingIdentifier).

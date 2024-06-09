@@ -4,7 +4,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call, call_function, construct, create_data_property_or_throw, get_method,
+                call, call_function, construct, create_data_property_or_throw, get, get_method,
                 has_property, ordinary_has_instance,
             },
             testing_and_comparison::{
@@ -25,9 +25,9 @@ use crate::{
             ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult, ProtoIntrinsics,
         },
         types::{
-            get_value, initialize_referenced_binding, put_value, Base, BigInt, Function, IntoValue,
-            Number, Numeric, Object, PropertyKey, Reference, ReferencedName, String, Value,
-            BUILTIN_STRING_MEMORY,
+            get_value, initialize_referenced_binding, put_value, Base, BigInt, Function,
+            IntoFunction, IntoValue, Number, Numeric, Object, PropertyKey, Reference,
+            ReferencedName, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::WellKnownSymbolIndexes,
@@ -600,6 +600,92 @@ impl Vm {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
                 vm.result = Some(instanceof_operator(agent, lval, rval)?.into());
+            }
+            Instruction::BeginArrayBindingPattern => {
+                let obj = vm.stack.pop().unwrap();
+                // 1. Let iteratorRecord be ? GetIterator(value, sync).
+                // From GetIterator:
+                // Let method be ? GetMethod(obj, @@iterator).
+                let method = get_method(agent, obj, WellKnownSymbolIndexes::Iterator.into())?;
+                let Some(method) = method else {
+                    return Err(
+                        agent.throw_exception(ExceptionType::TypeError, "Value is not iterable")
+                    );
+                };
+                if Array::try_from(obj).is_ok()
+                    && method
+                        == agent
+                            .current_realm()
+                            .intrinsics()
+                            .array_prototype_values()
+                            .into_function()
+                {
+                    // Fast path: We're iterating an array with the normal array iterator method
+                    let array = Array::try_from(obj).unwrap();
+                    let mut index = 0;
+                    let mut done = false;
+                    let mut closure = |agent: &mut Agent| -> JsResult<Option<Value>> {
+                        // SAFETY: Length must be recalculated on each loop
+                        // because array may contain getters that change the
+                        // array length.
+                        let len = array.len(agent);
+                        if index >= len {
+                            // Array ended; remaining items will get undefined.
+                            Ok(None)
+                        } else {
+                            let result = get(agent, array, index.into())?;
+                            index += 1;
+                            Ok(Some(result))
+                        }
+                    };
+                    while let Some(instr) = executable.get_instruction(&mut vm.ip) {
+                        match instr.kind {
+                            Instruction::ArrayBindingPatternBind => {
+                                let lex_env = agent
+                                    .running_execution_context()
+                                    .ecmascript_code
+                                    .as_ref()
+                                    .unwrap()
+                                    .lexical_environment;
+                                let binding_id = vm
+                                    .fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                                let lhs = resolve_binding(agent, binding_id, Some(lex_env))?;
+                                let v = if !done {
+                                    if let Some(result) = closure(agent)? {
+                                        result
+                                    } else {
+                                        done = true;
+                                        Value::Undefined
+                                    }
+                                } else {
+                                    Value::Undefined
+                                };
+                                initialize_referenced_binding(agent, lhs, v)?;
+                            }
+                            Instruction::ArrayBindingPatternBindWithInitializer => todo!(),
+                            Instruction::ArrayBindingPatternSkip => todo!(),
+                            Instruction::ArrayBindingPatternGetValue => todo!(),
+                            Instruction::FinishArrayBindingPattern => {
+                                break;
+                            }
+                            _ => match Self::execute_instruction(agent, vm, executable, &instr)? {
+                                ContinuationKind::Normal => {}
+                                ContinuationKind::Return
+                                | ContinuationKind::Yield
+                                | ContinuationKind::Await => unreachable!(),
+                            },
+                        }
+                    }
+                } else {
+                    todo!();
+                }
+            }
+            Instruction::ArrayBindingPatternBind
+            | Instruction::ArrayBindingPatternBindWithInitializer
+            | Instruction::ArrayBindingPatternSkip
+            | Instruction::ArrayBindingPatternGetValue
+            | Instruction::FinishArrayBindingPattern => {
+                // unreachable!("BeginArrayBindingPattern should take care of stepping over these");
             }
             other => todo!("{other:?}"),
         }

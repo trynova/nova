@@ -77,6 +77,42 @@ impl PropertyKey {
     }
 }
 
+impl From<u32> for PropertyKey {
+    fn from(value: u32) -> Self {
+        PropertyKey::Integer(value.into())
+    }
+}
+
+impl From<u16> for PropertyKey {
+    fn from(value: u16) -> Self {
+        PropertyKey::Integer(value.into())
+    }
+}
+
+impl From<u8> for PropertyKey {
+    fn from(value: u8) -> Self {
+        PropertyKey::Integer(value.into())
+    }
+}
+
+impl From<i32> for PropertyKey {
+    fn from(value: i32) -> Self {
+        PropertyKey::Integer(value.into())
+    }
+}
+
+impl From<i16> for PropertyKey {
+    fn from(value: i16) -> Self {
+        PropertyKey::Integer(value.into())
+    }
+}
+
+impl From<i8> for PropertyKey {
+    fn from(value: i8) -> Self {
+        PropertyKey::Integer(value.into())
+    }
+}
+
 impl From<SmallInteger> for PropertyKey {
     fn from(value: SmallInteger) -> Self {
         PropertyKey::Integer(value)
