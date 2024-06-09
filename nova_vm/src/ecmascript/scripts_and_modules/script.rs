@@ -1525,14 +1525,21 @@ mod test {
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script =
-            parse_script(&allocator, "const [a, b] = [1, 2];".into(), realm, None).unwrap();
+        let script = parse_script(
+            &allocator,
+            "const [a, b, , c] = [1, 2, 3, 4];".into(),
+            realm,
+            None,
+        )
+        .unwrap();
         script_evaluation(&mut agent, script).unwrap();
         let a_key = String::from_static_str(&mut agent, "a");
         let b_key = String::from_static_str(&mut agent, "b");
+        let c_key = String::from_static_str(&mut agent, "c");
         let global_env = agent.get_realm(realm).global_env.unwrap();
         assert!(global_env.has_lexical_declaration(&agent, a_key));
         assert!(global_env.has_lexical_declaration(&agent, b_key));
+        assert!(global_env.has_lexical_declaration(&agent, c_key));
         assert_eq!(
             global_env
                 .get_binding_value(&mut agent, a_key, true)
@@ -1544,6 +1551,12 @@ mod test {
                 .get_binding_value(&mut agent, b_key, true)
                 .unwrap(),
             2.into()
+        );
+        assert_eq!(
+            global_env
+                .get_binding_value(&mut agent, c_key, true)
+                .unwrap(),
+            4.into()
         );
     }
 }

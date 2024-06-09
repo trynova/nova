@@ -624,17 +624,17 @@ impl Vm {
                     let array = Array::try_from(obj).unwrap();
                     let mut index = 0;
                     let mut done = false;
-                    let mut closure = |agent: &mut Agent| -> JsResult<Option<Value>> {
+                    let closure = |agent: &mut Agent, index: &mut u32| -> JsResult<Option<Value>> {
                         // SAFETY: Length must be recalculated on each loop
                         // because array may contain getters that change the
                         // array length.
                         let len = array.len(agent);
-                        if index >= len {
+                        if *index >= len {
                             // Array ended; remaining items will get undefined.
                             Ok(None)
                         } else {
-                            let result = get(agent, array, index.into())?;
-                            index += 1;
+                            let result = get(agent, array, (*index).into())?;
+                            *index += 1;
                             Ok(Some(result))
                         }
                     };
@@ -651,7 +651,7 @@ impl Vm {
                                     .fetch_identifier(executable, instr.args[0].unwrap() as usize);
                                 let lhs = resolve_binding(agent, binding_id, Some(lex_env))?;
                                 let v = if !done {
-                                    if let Some(result) = closure(agent)? {
+                                    if let Some(result) = closure(agent, &mut index)? {
                                         result
                                     } else {
                                         done = true;
@@ -663,7 +663,9 @@ impl Vm {
                                 initialize_referenced_binding(agent, lhs, v)?;
                             }
                             Instruction::ArrayBindingPatternBindWithInitializer => todo!(),
-                            Instruction::ArrayBindingPatternSkip => todo!(),
+                            Instruction::ArrayBindingPatternSkip => {
+                                index += 1;
+                            }
                             Instruction::ArrayBindingPatternGetValue => todo!(),
                             Instruction::FinishArrayBindingPattern => {
                                 break;
