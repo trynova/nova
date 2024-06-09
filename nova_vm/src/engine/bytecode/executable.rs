@@ -1,6 +1,7 @@
 use super::{instructions::Instr, Instruction};
 use crate::{
     ecmascript::{
+        builtins::regexp::reg_exp_create,
         execution::Agent,
         scripts_and_modules::script::ScriptIdentifier,
         syntax_directed_operations::scope_analysis::{
@@ -1026,8 +1027,12 @@ impl CompileEvaluation for ast::PrivateInExpression<'_> {
 }
 
 impl CompileEvaluation for ast::RegExpLiteral<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!()
+    fn compile(&self, ctx: &mut CompileContext) {
+        let pattern = String::from_str(ctx.agent, self.regex.pattern.as_str());
+        let regexp =
+            reg_exp_create(ctx.agent, pattern.into_value(), Some(self.regex.flags)).unwrap();
+        ctx.exe
+            .add_instruction_with_constant(Instruction::StoreConstant, regexp);
     }
 }
 
