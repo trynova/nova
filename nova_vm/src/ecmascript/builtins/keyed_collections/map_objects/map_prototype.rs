@@ -123,6 +123,7 @@ impl MapPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.map_prototype();
         let map_constructor = intrinsics.map();
 
@@ -130,6 +131,7 @@ impl MapPrototype {
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(13)
+            .with_prototype(object_prototype)
             .with_builtin_function_property::<MapPrototypeClear>()
             .with_constructor_property(map_constructor)
             .with_builtin_function_property::<MapPrototypeDelete>()

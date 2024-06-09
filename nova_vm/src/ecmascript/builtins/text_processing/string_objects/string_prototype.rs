@@ -385,11 +385,13 @@ impl StringPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.string_prototype();
         let string_constructor = intrinsics.string();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(36)
+            .with_prototype(object_prototype)
             .with_builtin_function_property::<StringPrototypeGetAt>()
             .with_builtin_function_property::<StringPrototypeCharAt>()
             .with_builtin_function_property::<StringPrototypeCharCodeAt>()

@@ -261,11 +261,13 @@ impl DataViewPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.data_view_prototype();
         let data_view_constructor = intrinsics.data_view();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(25)
+            .with_prototype(object_prototype)
             .with_builtin_function_getter_property::<DataViewPrototypeGetBuffer>()
             .with_builtin_function_getter_property::<DataViewPrototypeGetByteLength>()
             .with_builtin_function_getter_property::<DataViewPrototypeGetByteOffset>()

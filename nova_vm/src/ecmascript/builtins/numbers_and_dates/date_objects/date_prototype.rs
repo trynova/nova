@@ -576,11 +576,13 @@ impl DatePrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.date_prototype();
         let date_constructor = intrinsics.date();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(45)
+            .with_prototype(object_prototype)
             .with_constructor_property(date_constructor)
             .with_builtin_function_property::<DatePrototypeGetDate>()
             .with_builtin_function_property::<DatePrototypeGetDay>()

@@ -41,10 +41,12 @@ impl AsyncFromSyncIteratorPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let async_iterator_prototype = intrinsics.async_iterator_prototype();
         let this = intrinsics.async_from_sync_iterator_prototype();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(3)
+            .with_prototype(async_iterator_prototype)
             .with_builtin_function_property::<AsyncFromSyncIteratorPrototypeNext>()
             .with_builtin_function_property::<AsyncFromSyncIteratorPrototypeReturn>()
             .with_builtin_function_property::<AsyncFromSyncIteratorPrototypeThrow>()

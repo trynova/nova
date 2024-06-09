@@ -54,11 +54,13 @@ impl WeakMapPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.weak_map_prototype();
         let weak_map_constructor = intrinsics.weak_map();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(6)
+            .with_prototype(object_prototype)
             .with_constructor_property(weak_map_constructor)
             .with_builtin_function_property::<WeakMapPrototypeDelete>()
             .with_builtin_function_property::<WeakMapPrototypeGet>()

@@ -157,7 +157,6 @@ impl ObjectPrototype {
             Value::Number(_) | Value::Integer(_) | Value::Float(_) => {
                 Ok(BUILTIN_STRING_MEMORY._object_Number_.into_value())
             }
-            Value::Object(_) => todo!(),
             // 4. Let isArray be ? IsArray(O).
             // 5. If isArray is true, let builtinTag be "Array".
             Value::Array(_) => Ok(BUILTIN_STRING_MEMORY._object_Array_.into_value()),

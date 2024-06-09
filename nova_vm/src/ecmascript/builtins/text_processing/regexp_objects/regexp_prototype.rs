@@ -242,11 +242,13 @@ impl RegExpPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.reg_exp_prototype();
         let reg_exp_constructor = intrinsics.reg_exp();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(19)
+            .with_prototype(object_prototype)
             .with_constructor_property(reg_exp_constructor)
             .with_builtin_intrinsic_function_property::<RegExpPrototypeExec>()
             .with_builtin_function_getter_property::<RegExpPrototypeGetDotAll>()

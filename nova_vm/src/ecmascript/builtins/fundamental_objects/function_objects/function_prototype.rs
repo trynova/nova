@@ -9,7 +9,9 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, BuiltinIntrinsicConstructor,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{Function, IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        types::{
+            Function, IntoFunction, IntoObject, IntoValue, String, Value, BUILTIN_STRING_MEMORY,
+        },
     },
     heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -206,12 +208,13 @@ impl FunctionPrototype {
         ThrowTypeError::create_intrinsic(agent, realm);
 
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype().into_object();
         let throw_type_error = intrinsics.throw_type_error().into_function();
         let function_constructor = intrinsics.function();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<FunctionPrototype>(agent, realm)
             .with_property_capacity(8)
-            .with_null_prototype()
+            .with_prototype(object_prototype)
             // 10.2.4 AddRestrictedFunctionProperties ( F, realm )
             .with_property(|builder| {
                 builder

@@ -43,11 +43,13 @@ impl BooleanPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.boolean_prototype();
         let boolean_constructor = intrinsics.boolean();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(3)
+            .with_prototype(object_prototype)
             .with_constructor_property(boolean_constructor)
             .with_builtin_function_property::<BooleanPrototypeToString>()
             .with_builtin_function_property::<BooleanPrototypeValueOf>()

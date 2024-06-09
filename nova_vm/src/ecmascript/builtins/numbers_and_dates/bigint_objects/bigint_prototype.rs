@@ -70,11 +70,13 @@ impl BigIntPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.big_int_prototype();
         let big_int_constructor = intrinsics.big_int();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(5)
+            .with_prototype(object_prototype)
             .with_constructor_property(big_int_constructor)
             .with_builtin_function_property::<BigIntPrototypeToLocaleString>()
             .with_builtin_function_property::<BigIntPrototypeToString>()

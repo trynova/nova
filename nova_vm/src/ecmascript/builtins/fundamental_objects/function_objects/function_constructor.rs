@@ -39,11 +39,12 @@ impl FunctionConstructor {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
-        let function_prototype = intrinsics.function_prototype();
+        let function_prototype = intrinsics.function_prototype().into_object();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<FunctionConstructor>(agent, realm)
             .with_property_capacity(1)
-            .with_prototype_property(function_prototype.into_object())
+            .with_prototype(function_prototype)
+            .with_prototype_property(function_prototype)
             .build();
     }
 }
