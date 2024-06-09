@@ -170,6 +170,7 @@ where
             None => {
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
                 let Some(parent) = self.internal_get_prototype_of(agent)? else {
+                    // b. If parent is null, return undefined.
                     return Ok(Value::Undefined);
                 };
 
