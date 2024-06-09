@@ -1486,4 +1486,34 @@ mod test {
         let value = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(value, Value::from_static_str(&mut agent, "Symbol(foo)"));
     }
+
+    #[test]
+    fn instanceof() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(&allocator, "3 instanceof Number".into(), realm, None).unwrap();
+        assert_eq!(script_evaluation(&mut agent, script).unwrap(), false.into());
+
+        let script =
+            parse_script(&allocator, "'foo' instanceof String".into(), realm, None).unwrap();
+        assert_eq!(script_evaluation(&mut agent, script).unwrap(), false.into());
+
+        let script =
+            parse_script(&allocator, "({}) instanceof Object".into(), realm, None).unwrap();
+        assert_eq!(script_evaluation(&mut agent, script).unwrap(), true.into());
+
+        let script = parse_script(&allocator, "({}) instanceof Array".into(), realm, None).unwrap();
+        assert_eq!(script_evaluation(&mut agent, script).unwrap(), false.into());
+
+        let script =
+            parse_script(&allocator, "([]) instanceof Object".into(), realm, None).unwrap();
+        assert_eq!(script_evaluation(&mut agent, script).unwrap(), true.into());
+
+        let script = parse_script(&allocator, "([]) instanceof Array".into(), realm, None).unwrap();
+        assert_eq!(script_evaluation(&mut agent, script).unwrap(), true.into());
+    }
 }

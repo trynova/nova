@@ -110,12 +110,14 @@ impl SetPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.set_prototype();
         let set_constructor = intrinsics.set();
         let set_prototype_values = intrinsics.set_prototype_values();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(12)
+            .with_prototype(object_prototype)
             .with_builtin_function_property::<SetPrototypeAdd>()
             .with_builtin_function_property::<SetPrototypeClear>()
             .with_constructor_property(set_constructor)

@@ -529,10 +529,12 @@ impl MathObject {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.math();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(44)
+            .with_prototype(object_prototype)
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.E.into())

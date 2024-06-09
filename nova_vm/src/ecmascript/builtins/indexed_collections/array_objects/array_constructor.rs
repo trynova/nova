@@ -445,10 +445,12 @@ impl ArrayConstructor {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let function_prototype = intrinsics.function_prototype().into_object();
         let array_prototype = intrinsics.array_prototype();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ArrayConstructor>(agent, realm)
             .with_property_capacity(5)
+            .with_prototype(function_prototype)
             .with_builtin_function_property::<ArrayFrom>()
             .with_builtin_function_property::<ArrayIsArray>()
             .with_builtin_function_property::<ArrayOf>()

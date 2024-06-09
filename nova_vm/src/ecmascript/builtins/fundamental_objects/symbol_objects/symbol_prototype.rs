@@ -75,6 +75,7 @@ impl SymbolPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.symbol_prototype();
         let symbol_constructor = intrinsics.symbol();
 
@@ -125,6 +126,7 @@ impl SymbolPrototype {
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(6)
+            .with_prototype(object_prototype)
             .with_constructor_property(symbol_constructor)
             .with_builtin_function_getter_property::<SymbolPrototypeGetDescription>()
             .with_builtin_function_property::<SymbolPrototypeToString>()

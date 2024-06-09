@@ -8,6 +8,7 @@ pub(crate) struct NativeErrorPrototypes;
 impl NativeErrorPrototypes {
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let error_prototype = intrinsics.error_prototype();
         let eval_constructor = intrinsics.eval_error();
         let eval_this = intrinsics.eval_error_prototype();
         let range_constructor = intrinsics.range_error();
@@ -23,6 +24,7 @@ impl NativeErrorPrototypes {
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, eval_this)
             .with_property_capacity(3)
+            .with_prototype(error_prototype)
             .with_constructor_property(eval_constructor)
             .with_property(|builder| {
                 builder
@@ -41,6 +43,7 @@ impl NativeErrorPrototypes {
             .build();
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, range_this)
             .with_property_capacity(3)
+            .with_prototype(error_prototype)
             .with_constructor_property(range_constructor)
             .with_property(|builder| {
                 builder
@@ -59,6 +62,7 @@ impl NativeErrorPrototypes {
             .build();
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, reference_this)
             .with_property_capacity(3)
+            .with_prototype(error_prototype)
             .with_constructor_property(reference_constructor)
             .with_property(|builder| {
                 builder
@@ -77,6 +81,7 @@ impl NativeErrorPrototypes {
             .build();
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, syntax_this)
             .with_property_capacity(3)
+            .with_prototype(error_prototype)
             .with_constructor_property(syntax_constructor)
             .with_property(|builder| {
                 builder
@@ -95,6 +100,7 @@ impl NativeErrorPrototypes {
             .build();
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, type_this)
             .with_property_capacity(3)
+            .with_prototype(error_prototype)
             .with_constructor_property(type_constructor)
             .with_property(|builder| {
                 builder
@@ -113,6 +119,7 @@ impl NativeErrorPrototypes {
             .build();
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, uri_this)
             .with_property_capacity(3)
+            .with_prototype(error_prototype)
             .with_constructor_property(uri_constructor)
             .with_property(|builder| {
                 builder

@@ -59,11 +59,13 @@ impl ErrorPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.error_prototype();
         let error_constructor = intrinsics.error();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(4)
+            .with_prototype(object_prototype)
             .with_constructor_property(error_constructor)
             .with_property(|builder| {
                 builder
