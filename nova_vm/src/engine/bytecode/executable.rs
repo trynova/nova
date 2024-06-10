@@ -1,3 +1,5 @@
+use core::num;
+
 use super::{instructions::Instr, Instruction};
 use crate::{
     ecmascript::{
@@ -7,7 +9,7 @@ use crate::{
         syntax_directed_operations::scope_analysis::{
             LexicallyScopedDeclaration, LexicallyScopedDeclarations,
         },
-        types::{BigIntHeapData, Reference, String, Value},
+        types::{BigIntHeapData, Number, Reference, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::CreateHeapData,
 };
@@ -18,7 +20,10 @@ use oxc_ast::{
     syntax_directed_operations::BoundNames,
 };
 use oxc_span::Atom;
-use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
+use oxc_syntax::{
+    number::BigintBase,
+    operator::{BinaryOperator, UnaryOperator},
+};
 
 pub type IndexType = u16;
 
@@ -658,6 +663,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
         for property in self.properties.iter() {
             match property {
                 ast::ObjectPropertyKind::ObjectProperty(prop) => {
+                    println!("{:?}", prop);
                     match &prop.key {
                         ast::PropertyKey::ArrayExpression(init) => init.compile(ctx),
                         ast::PropertyKey::ArrowFunctionExpression(init) => init.compile(ctx),
@@ -703,16 +709,20 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         }
                         ast::PropertyKey::StaticMemberExpression(init) => init.compile(ctx),
                         ast::PropertyKey::StringLiteral(init) => {
-                            // NOTE: No "__proto__" handling as this is a
-                            // computed property.
-                            let property_key = crate::ecmascript::types::PropertyKey::from_str(
-                                ctx.agent,
-                                &init.value,
-                            );
-                            ctx.exe.add_instruction_with_constant(
-                                Instruction::LoadConstant,
-                                property_key,
-                            );
+                            if !prop.computed && init.value == "__proto__" {
+                                // TODO: If property key is "__proto__" then we
+                                // should dispatch a SetPrototype instruction.
+                                todo!();
+                            } else {
+                                let property_key = crate::ecmascript::types::PropertyKey::from_str(
+                                    ctx.agent,
+                                    &init.value,
+                                );
+                                ctx.exe.add_instruction_with_constant(
+                                    Instruction::LoadConstant,
+                                    property_key,
+                                );
+                            }
                         }
                         ast::PropertyKey::Super(init) => {
                             init.compile(ctx);
@@ -1217,64 +1227,229 @@ impl CompileEvaluation for ast::IfStatement<'_> {
 
 impl CompileEvaluation for ast::ArrayPattern<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        ctx.exe
-            .add_instruction(Instruction::BeginArrayBindingPattern);
+        if self.elements.is_empty() {
+            return;
+        }
+
+        // TODO: Lift rest parameter restriction; it's eminently possible to
+        // handle those as well.
+        let simple = if self.rest.is_none()
+            && self
+                .elements
+                .iter()
+                .find(|ele| {
+                    // An array destructuring formed of only skipped values
+                    !ele.is_none()
+                    // and binding identifier
+                        && !matches!(
+                            ele.as_ref().unwrap().kind,
+                            ast::BindingPatternKind::BindingIdentifier(_)
+                        )
+                })
+                .is_none()
+        {
+            // can be
+            ctx.exe.add_instruction_with_immediate(
+                Instruction::BeginSimpleArrayBindingPattern,
+                self.elements.len(),
+            );
+            true
+        } else {
+            ctx.exe
+                .add_instruction(Instruction::BeginArrayBindingPattern);
+            false
+        };
         for ele in &self.elements {
             let Some(ele) = ele else {
-                ctx.exe
-                    .add_instruction(Instruction::ArrayBindingPatternSkip);
+                ctx.exe.add_instruction(Instruction::BindingPatternSkip);
                 continue;
             };
             match &ele.kind {
                 ast::BindingPatternKind::BindingIdentifier(identifier) => {
                     let identifier_string = ctx.create_identifier(&identifier.name);
                     ctx.exe.add_instruction_with_identifier(
-                        Instruction::ArrayBindingPatternBind,
+                        Instruction::BindingPatternBind,
                         identifier_string,
                     )
                 }
                 ast::BindingPatternKind::ObjectPattern(pattern) => {
+                    ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
+                    pattern.compile(ctx);
+                }
+                ast::BindingPatternKind::ArrayPattern(pattern) => {
+                    ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
+                    pattern.compile(ctx);
+                }
+                ast::BindingPatternKind::AssignmentPattern(pattern) => {
+                    pattern.compile(ctx);
+                }
+            }
+        }
+        if let Some(rest) = &self.rest {
+            match &rest.argument.kind {
+                ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                    let identifier_string = ctx.create_identifier(&identifier.name);
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::BindingPatternBindRest,
+                        identifier_string,
+                    );
+                }
+                ast::BindingPatternKind::ObjectPattern(pattern) => {
                     ctx.exe
-                        .add_instruction(Instruction::ArrayBindingPatternGetValue);
+                        .add_instruction(Instruction::BindingPatternGetRestValue);
                     pattern.compile(ctx);
                 }
                 ast::BindingPatternKind::ArrayPattern(pattern) => {
                     ctx.exe
-                        .add_instruction(Instruction::ArrayBindingPatternGetValue);
+                        .add_instruction(Instruction::BindingPatternGetRestValue);
                     pattern.compile(ctx);
                 }
-                ast::BindingPatternKind::AssignmentPattern(pattern) => match &pattern.left.kind {
-                    ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                        let identifier_string = ctx.create_identifier(&identifier.name);
-                        ctx.exe.add_instruction_with_identifier(
-                            Instruction::ArrayBindingPatternBindWithInitializer,
-                            identifier_string,
-                        );
-                    }
-                    ast::BindingPatternKind::ObjectPattern(_)
-                    | ast::BindingPatternKind::ArrayPattern(_)
-                    | ast::BindingPatternKind::AssignmentPattern(_) => {
-                        ctx.exe
-                            .add_instruction(Instruction::ArrayBindingPatternGetValue);
-                        pattern.compile(ctx);
-                    }
-                },
+                ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
             }
         }
-        ctx.exe
-            .add_instruction(Instruction::FinishArrayBindingPattern);
-    }
-}
-
-impl CompileEvaluation for ast::AssignmentPattern<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!()
+        if !simple {
+            ctx.exe.add_instruction(Instruction::FinishBindingPattern);
+        }
     }
 }
 
 impl CompileEvaluation for ast::ObjectPattern<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!()
+    fn compile(&self, ctx: &mut CompileContext) {
+        // TODO: Handle rest parameters, those should be eminently possible to
+        // handle as well.
+        let simple = if self.rest.is_none()
+            && self
+                .properties
+                .iter()
+                .find(|prop| {
+                    prop.computed
+                        || !matches!(
+                            prop.value.kind,
+                            ast::BindingPatternKind::BindingIdentifier(_)
+                        )
+                })
+                .is_none()
+        {
+            // An object destructuring with only statically analyzable keys can
+            // be handled in an optimised way.
+            ctx.exe.add_instruction_with_immediate(
+                Instruction::BeginSimpleObjectBindingPattern,
+                self.properties.len(),
+            );
+            true
+        } else {
+            ctx.exe
+                .add_instruction(Instruction::BeginObjectBindingPattern);
+            false
+        };
+
+        for ele in &self.properties {
+            match &ele.key {
+                ast::PropertyKey::StaticIdentifier(identifier) => {
+                    let identifier_string = ctx.create_identifier(&identifier.name);
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::BindingPatternBind,
+                        identifier_string,
+                    );
+                    // Skip the rest of the hard work.
+                    continue;
+                }
+                ast::PropertyKey::PrivateIdentifier(_) => todo!(),
+                ast::PropertyKey::BooleanLiteral(boolean) => {
+                    let identifier_string = if boolean.value {
+                        BUILTIN_STRING_MEMORY.r#true
+                    } else {
+                        BUILTIN_STRING_MEMORY.r#false
+                    };
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::BindingPatternBind,
+                        identifier_string,
+                    );
+                    continue;
+                }
+                ast::PropertyKey::NullLiteral(_) => {
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::BindingPatternBind,
+                        BUILTIN_STRING_MEMORY.null,
+                    );
+                    continue;
+                }
+                ast::PropertyKey::NumericLiteral(numeric) => {
+                    let mut buffer = ryu_js::Buffer::new();
+                    let identifier_string =
+                        String::from_string(ctx.agent, buffer.format(numeric.value).to_string());
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::BindingPatternBind,
+                        identifier_string,
+                    );
+                }
+                ast::PropertyKey::BigintLiteral(bigint) => todo!(),
+                ast::PropertyKey::RegExpLiteral(_) => todo!(),
+                ast::PropertyKey::StringLiteral(_) => todo!(),
+                ast::PropertyKey::TemplateLiteral(_) => todo!(),
+                ast::PropertyKey::Identifier(_) => todo!(),
+                ast::PropertyKey::MetaProperty(_) => todo!(),
+                ast::PropertyKey::Super(_) => todo!(),
+                ast::PropertyKey::ArrayExpression(_) => todo!(),
+                ast::PropertyKey::ArrowFunctionExpression(_) => todo!(),
+                ast::PropertyKey::AssignmentExpression(_) => todo!(),
+                ast::PropertyKey::AwaitExpression(_) => todo!(),
+                ast::PropertyKey::BinaryExpression(_) => todo!(),
+                ast::PropertyKey::CallExpression(_) => todo!(),
+                ast::PropertyKey::ChainExpression(_) => todo!(),
+                ast::PropertyKey::ClassExpression(_) => todo!(),
+                ast::PropertyKey::ConditionalExpression(_) => todo!(),
+                ast::PropertyKey::FunctionExpression(_) => todo!(),
+                ast::PropertyKey::ImportExpression(_) => todo!(),
+                ast::PropertyKey::LogicalExpression(_) => todo!(),
+                ast::PropertyKey::NewExpression(_) => todo!(),
+                ast::PropertyKey::ObjectExpression(_) => todo!(),
+                ast::PropertyKey::ParenthesizedExpression(_) => todo!(),
+                ast::PropertyKey::SequenceExpression(_) => todo!(),
+                ast::PropertyKey::TaggedTemplateExpression(_) => todo!(),
+                ast::PropertyKey::ThisExpression(_) => todo!(),
+                ast::PropertyKey::UnaryExpression(_) => todo!(),
+                ast::PropertyKey::UpdateExpression(_) => todo!(),
+                ast::PropertyKey::YieldExpression(_) => todo!(),
+                ast::PropertyKey::PrivateInExpression(_) => todo!(),
+                ast::PropertyKey::JSXElement(_) => todo!(),
+                ast::PropertyKey::JSXFragment(_) => todo!(),
+                ast::PropertyKey::TSAsExpression(_) => todo!(),
+                ast::PropertyKey::TSSatisfiesExpression(_) => todo!(),
+                ast::PropertyKey::TSTypeAssertion(_) => todo!(),
+                ast::PropertyKey::TSNonNullExpression(_) => todo!(),
+                ast::PropertyKey::TSInstantiationExpression(_) => todo!(),
+                ast::PropertyKey::ComputedMemberExpression(_) => todo!(),
+                ast::PropertyKey::StaticMemberExpression(_) => todo!(),
+                ast::PropertyKey::PrivateFieldExpression(_) => todo!(),
+            }
+        }
+    }
+}
+
+impl CompileEvaluation for ast::AssignmentPattern<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        match &self.left.kind {
+            // const { a = 3 } = value;
+            // const [a = 3] = value;
+            ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                let identifier_string = ctx.create_identifier(&identifier.name);
+                ctx.exe.add_instruction_with_identifier(
+                    Instruction::BindingPatternBindWithInitializer,
+                    identifier_string,
+                );
+            }
+            // const {{ a } = right} = value;
+            // const [[ a ] = right] = value;
+            ast::BindingPatternKind::ObjectPattern(_)
+            | ast::BindingPatternKind::ArrayPattern(_) => {
+                ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
+                self.compile(ctx);
+            }
+            // Probably unreachable? Assignment into an assignment?
+            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
+        }
+        self.right.compile(ctx);
     }
 }
 

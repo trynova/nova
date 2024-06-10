@@ -4,7 +4,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call, call_function, construct, create_data_property_or_throw, get, get_method,
+                call, call_function, construct, create_data_property_or_throw, get_method,
                 has_property, ordinary_has_instance,
             },
             testing_and_comparison::{
@@ -601,101 +601,100 @@ impl Vm {
                 let rval = vm.result.take().unwrap();
                 vm.result = Some(instanceof_operator(agent, lval, rval)?.into());
             }
-            Instruction::BeginArrayBindingPattern => {
-                let obj = vm.stack.pop().unwrap();
-                // 1. Let iteratorRecord be ? GetIterator(value, sync).
-                // From GetIterator:
-                // Let method be ? GetMethod(obj, @@iterator).
-                let method = get_method(agent, obj, WellKnownSymbolIndexes::Iterator.into())?;
-                let Some(method) = method else {
-                    return Err(
-                        agent.throw_exception(ExceptionType::TypeError, "Value is not iterable")
-                    );
-                };
-                if Array::try_from(obj).is_ok()
-                    && method
-                        == agent
-                            .current_realm()
-                            .intrinsics()
-                            .array_prototype_values()
-                            .into_function()
-                {
-                    // Fast path: We're iterating an array with the normal array iterator method
-                    let array = Array::try_from(obj).unwrap();
-                    let mut index = 0;
-                    let mut done = false;
-                    let closure = |agent: &mut Agent, index: &mut u32| -> JsResult<Option<Value>> {
-                        // SAFETY: Length must be recalculated on each loop
-                        // because array may contain getters that change the
-                        // array length.
-                        let len = array.len(agent);
-                        if *index >= len {
-                            // Array ended; remaining items will get undefined.
-                            Ok(None)
-                        } else {
-                            let result = get(agent, array, (*index).into())?;
-                            *index += 1;
-                            Ok(Some(result))
-                        }
-                    };
-                    while let Some(instr) = executable.get_instruction(&mut vm.ip) {
-                        match instr.kind {
-                            Instruction::ArrayBindingPatternBind => {
-                                let lex_env = agent
-                                    .running_execution_context()
-                                    .ecmascript_code
-                                    .as_ref()
-                                    .unwrap()
-                                    .lexical_environment;
-                                let binding_id = vm
-                                    .fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                                let lhs = resolve_binding(agent, binding_id, Some(lex_env))?;
-                                let v = if !done {
-                                    if let Some(result) = closure(agent, &mut index)? {
-                                        result
-                                    } else {
-                                        done = true;
-                                        Value::Undefined
-                                    }
-                                } else {
-                                    Value::Undefined
-                                };
-                                initialize_referenced_binding(agent, lhs, v)?;
-                            }
-                            Instruction::ArrayBindingPatternBindWithInitializer => todo!(),
-                            Instruction::ArrayBindingPatternSkip => {
-                                if !done && closure(agent, &mut index)?.is_none() {
-                                    done = true;
-                                }
-                                index += 1;
-                            }
-                            Instruction::ArrayBindingPatternGetValue => todo!(),
-                            Instruction::FinishArrayBindingPattern => {
-                                break;
-                            }
-                            _ => match Self::execute_instruction(agent, vm, executable, &instr)? {
-                                ContinuationKind::Normal => {}
-                                ContinuationKind::Return
-                                | ContinuationKind::Yield
-                                | ContinuationKind::Await => unreachable!(),
-                            },
-                        }
-                    }
-                } else {
-                    todo!();
-                }
+            Instruction::BeginSimpleArrayBindingPattern => {
+                Self::execute_simple_array_binding(agent, vm, executable, instr)?
             }
-            Instruction::ArrayBindingPatternBind
-            | Instruction::ArrayBindingPatternBindWithInitializer
-            | Instruction::ArrayBindingPatternSkip
-            | Instruction::ArrayBindingPatternGetValue
-            | Instruction::FinishArrayBindingPattern => {
-                // unreachable!("BeginArrayBindingPattern should take care of stepping over these");
+            Instruction::BeginArrayBindingPattern => {
+                Self::execute_complex_array_binding(agent, vm, executable)?
+            }
+            Instruction::BindingPatternBind
+            | Instruction::BindingPatternBindRest
+            | Instruction::BindingPatternBindWithInitializer
+            | Instruction::BindingPatternSkip
+            | Instruction::BindingPatternGetValue
+            | Instruction::BindingPatternGetRestValue
+            | Instruction::FinishBindingPattern => {
+                unreachable!("BeginArrayBindingPattern should take care of stepping over these");
             }
             other => todo!("{other:?}"),
         }
 
         Ok(ContinuationKind::Normal)
+    }
+
+    fn execute_simple_array_binding(
+        agent: &mut Agent,
+        vm: &mut Vm,
+        executable: &Executable,
+        instr: &Instr,
+    ) -> JsResult<()> {
+        let obj = vm.stack.pop().unwrap();
+        // 1. Let iteratorRecord be ? GetIterator(value, sync).
+        // From GetIterator:
+        // Let method be ? GetMethod(obj, @@iterator).
+        let method = get_method(agent, obj, WellKnownSymbolIndexes::Iterator.into())?;
+        let Some(method) = method else {
+            return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not iterable"));
+        };
+        if Array::try_from(obj).is_ok()
+            && method
+                == agent
+                    .current_realm()
+                    .intrinsics()
+                    .array_prototype_values()
+                    .into_function()
+        {
+            // Fast path: We're iterating an array with the normal array iterator method
+            let array = Array::try_from(obj).unwrap();
+            let binding_count = instr.args[0].unwrap() as u32;
+            let elements = agent[array].elements;
+            let elements_count = elements.len();
+            // The iterator iterates for as long as there are items in the
+            // array. Once the end of the array is found, no more elements are
+            // accessed. Hence, if the array is dense and contains no getters
+            // we can be sure that the iterator stops precisely when either the
+            // bindings or the elements run out, and no JavaScript code can run
+            // while the iterator is running.
+            let iterator_length = binding_count.min(elements_count);
+            let is_dense_array_slice = agent[elements][0..iterator_length as usize]
+                .iter()
+                .find(|el| el.is_none())
+                .is_none();
+            if !is_dense_array_slice {
+                // If the array is not dense, then we might trigger JavaScript
+                // through getters in either the array or its prototype.
+                // We need to deoptimize this.
+                return Self::execute_complex_array_binding(agent, vm, executable);
+            }
+            let lex_env = agent
+                .running_execution_context()
+                .ecmascript_code
+                .as_ref()
+                .unwrap()
+                .lexical_environment;
+            for index in 0..binding_count {
+                let instr = executable.get_instruction(&mut vm.ip).unwrap();
+                if instr.kind == Instruction::BindingPatternSkip || index >= elements_count {
+                    continue;
+                }
+                assert_eq!(instr.kind, Instruction::BindingPatternBind);
+                let binding_id = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                let lhs = resolve_binding(agent, binding_id, Some(lex_env))?;
+                let v = agent[elements][index as usize].unwrap();
+                initialize_referenced_binding(agent, lhs, v)?;
+            }
+        } else {
+            todo!();
+        }
+        Ok(())
+    }
+
+    fn execute_complex_array_binding(
+        _agent: &mut Agent,
+        _vm: &mut Vm,
+        _executable: &Executable,
+    ) -> JsResult<()> {
+        todo!();
     }
 }
 

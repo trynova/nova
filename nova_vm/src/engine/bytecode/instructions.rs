@@ -160,19 +160,66 @@ pub enum Instruction {
     /// Reset the running execution context's LexicalEnvironment to its current
     /// value's \[\[OuterEnv]].
     ExitDeclarativeEnvironment,
+    /// Begin binding values using destructuring for known repetitions
+    BeginSimpleObjectBindingPattern,
+    /// Begin binding values using destructuring
+    BeginObjectBindingPattern,
+    /// Begin binding values using a sync iterator for known repetitions
+    BeginSimpleArrayBindingPattern,
     /// Begin binding values using a sync iterator
     BeginArrayBindingPattern,
     /// Bind current result to given identifier
-    ArrayBindingPatternBind,
+    ///
+    /// ```js
+    /// const { a } = x;
+    /// const [a] = x;
+    /// ```
+    BindingPatternBind,
+    /// Bind all remaining values to given identifier
+    ///
+    /// ```js
+    /// const { a, ...b } = x;
+    /// const [a, ...b] = x;
+    /// ```
+    BindingPatternBindRest,
     /// Bind current result to given identifier, falling back to an initializer
     /// if the current result is undefined.
-    ArrayBindingPatternBindWithInitializer,
-    /// Skip the next iterator value
-    ArrayBindingPatternSkip,
-    /// Load the next iterator value onto the stack
-    ArrayBindingPatternGetValue,
-    /// Finish binding values using a sync iterator
-    FinishArrayBindingPattern,
+    ///
+    /// ```js
+    /// const { a = 3 } = x;
+    /// const [a = 3] = x;
+    /// ```
+    BindingPatternBindWithInitializer,
+    /// Skip the next value
+    ///
+    /// ```js
+    /// const [a,,b] = x;
+    /// ```
+    BindingPatternSkip,
+    /// Load the next value onto the stack
+    ///
+    /// This is used to implement nested binding patterns. The current binding
+    /// pattern needs to take the "next step", but instead of binding to an
+    /// identifier it is instead saved on the stack and the nested binding
+    /// pattern starts its work.
+    ///
+    /// ```js
+    /// const [{ a }] = x;
+    /// const { a: [b] } = x;
+    /// ```
+    BindingPatternGetValue,
+    /// Load all remaining values onto the stack
+    ///
+    /// This is used to implement nested binding patterns in rest elements.
+    ///
+    /// ```js
+    /// const [a, ...[b, c]] = x;
+    /// ```
+    BindingPatternGetRestValue,
+    /// Finish binding values
+    ///
+    /// This stops
+    FinishBindingPattern,
 }
 
 impl Instruction {
@@ -195,8 +242,10 @@ impl Instruction {
             | Self::ResolveBinding
             | Self::CreateImmutableBinding
             | Self::CreateMutableBinding
-            | Self::ArrayBindingPatternBind
-            | Self::ArrayBindingPatternBindWithInitializer => 1,
+            | Self::BeginSimpleArrayBindingPattern
+            | Self::BeginSimpleObjectBindingPattern
+            | Self::BindingPatternBind
+            | Self::BindingPatternBindWithInitializer => 1,
             _ => 0,
         }
     }
@@ -213,8 +262,8 @@ impl Instruction {
                 | Self::ResolveBinding
                 | Self::CreateImmutableBinding
                 | Self::CreateMutableBinding
-                | Self::ArrayBindingPatternBind
-                | Self::ArrayBindingPatternBindWithInitializer
+                | Self::BindingPatternBind
+                | Self::BindingPatternBindWithInitializer
         )
     }
 
