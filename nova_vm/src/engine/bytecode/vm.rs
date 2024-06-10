@@ -664,6 +664,9 @@ impl Vm {
                             }
                             Instruction::ArrayBindingPatternBindWithInitializer => todo!(),
                             Instruction::ArrayBindingPatternSkip => {
+                                if !done && closure(agent, &mut index)?.is_none() {
+                                    done = true;
+                                }
                                 index += 1;
                             }
                             Instruction::ArrayBindingPatternGetValue => todo!(),
