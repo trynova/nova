@@ -504,9 +504,9 @@ pub(crate) fn to_string(agent: &mut Agent, argument: impl Into<Value> + Copy) ->
             Err(agent.throw_exception(ExceptionType::TypeError, "Cannot turn Symbol into string"))
         }
         // 7. If argument is a Number, return Number::toString(argument, 10).
-        Value::Number(_) => todo!(),
-        Value::Integer(_) => todo!(),
-        Value::Float(_) => todo!(),
+        Value::Number(_) | Value::Integer(_) | Value::Float(_) => {
+            Number::to_string_radix_10(agent, Number::try_from(argument).unwrap())
+        }
         // 8. If argument is a BigInt, return BigInt::toString(argument, 10).
         Value::BigInt(_) => todo!(),
         Value::SmallBigInt(_) => todo!(),

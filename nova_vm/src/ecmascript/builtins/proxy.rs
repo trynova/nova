@@ -4,8 +4,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
-            PropertyDescriptor, PropertyKey, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, PropertyDescriptor,
+            PropertyKey, Value,
         },
     },
     heap::{
@@ -68,7 +68,18 @@ impl From<Proxy> for Object {
     }
 }
 
-impl OrdinaryObjectInternalSlots for Proxy {
+impl InternalSlots for Proxy {
+    fn get_backing_object(
+        self,
+        _agent: &Agent,
+    ) -> Option<crate::ecmascript::types::OrdinaryObject> {
+        todo!()
+    }
+
+    fn create_backing_object(self, _agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+        todo!()
+    }
+
     fn internal_extensible(self, _agent: &Agent) -> bool {
         todo!();
     }
@@ -158,6 +169,24 @@ impl InternalMethods for Proxy {
 
     fn internal_own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         todo!();
+    }
+
+    fn internal_call(
+        self,
+        _agent: &mut Agent,
+        _this_value: Value,
+        _arguments_list: super::ArgumentsList,
+    ) -> JsResult<Value> {
+        todo!()
+    }
+
+    fn internal_construct(
+        self,
+        _agent: &mut Agent,
+        _arguments_list: super::ArgumentsList,
+        _new_target: crate::ecmascript::types::Function,
+    ) -> JsResult<Object> {
+        todo!()
     }
 }
 

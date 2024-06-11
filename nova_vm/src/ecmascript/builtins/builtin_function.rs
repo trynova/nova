@@ -2,11 +2,14 @@ use std::ops::{Deref, Index, IndexMut};
 
 use crate::{
     ecmascript::{
-        execution::{agent::ExceptionType, Agent, ExecutionContext, JsResult, RealmIdentifier},
+        execution::{
+            agent::ExceptionType, Agent, ExecutionContext, JsResult, ProtoIntrinsics,
+            RealmIdentifier,
+        },
         types::{
-            BuiltinFunctionHeapData, Function, InternalMethods, IntoFunction, IntoObject,
-            IntoValue, Object, OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey,
-            String, Value, BUILTIN_STRING_MEMORY,
+            BuiltinFunctionHeapData, Function, InternalMethods, InternalSlots, IntoFunction,
+            IntoObject, IntoValue, Object, ObjectHeapData, PropertyDescriptor, PropertyKey, String,
+            Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -15,8 +18,6 @@ use crate::{
         ObjectEntryPropertyDescriptor, WorkQueues,
     },
 };
-
-use super::ordinary::ordinary_set_prototype_of_check_loop;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ArgumentsList<'a>(pub(crate) &'a [Value]);
@@ -184,84 +185,56 @@ impl IndexMut<BuiltinFunction> for Heap {
     }
 }
 
-impl OrdinaryObjectInternalSlots for BuiltinFunction {
-    fn internal_extensible(self, agent: &Agent) -> bool {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_extensible(agent)
-        } else {
-            true
-        }
+impl InternalSlots for BuiltinFunction {
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
+
+    #[inline(always)]
+    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+        agent[self].object_index
     }
 
-    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_set_extensible(agent, value)
-        } else {
-            // Create function base object and set inextensible
-            todo!()
-        }
-    }
-
-    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_prototype(agent)
-        } else {
-            Some(
-                agent
-                    .current_realm()
-                    .intrinsics()
-                    .function_prototype()
-                    .into_object(),
-            )
-        }
-    }
-
-    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_set_prototype(agent, prototype)
-        } else {
-            // Create function base object and set inextensible
-            todo!()
-        }
+    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+        let prototype = agent
+            .current_realm()
+            .intrinsics()
+            .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
+        let length_entry = ObjectEntry {
+            key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+            value: ObjectEntryPropertyDescriptor::Data {
+                value: agent[self].length.into(),
+                writable: false,
+                enumerable: false,
+                configurable: true,
+            },
+        };
+        let name_entry = ObjectEntry {
+            key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+            value: ObjectEntryPropertyDescriptor::Data {
+                value: agent[self]
+                    .initial_name
+                    .unwrap_or(String::EMPTY_STRING)
+                    .into_value(),
+                writable: false,
+                enumerable: false,
+                configurable: true,
+            },
+        };
+        let (keys, values) = agent
+            .heap
+            .elements
+            .create_object_entries(&[length_entry, name_entry]);
+        let backing_object = agent.heap.create(ObjectHeapData {
+            extensible: true,
+            prototype: Some(prototype),
+            keys,
+            values,
+        });
+        agent[self].object_index = Some(backing_object);
+        backing_object
     }
 }
 
 impl InternalMethods for BuiltinFunction {
-    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
-        Ok(self.internal_prototype(agent))
-    }
-
-    fn internal_set_prototype_of(
-        self,
-        agent: &mut Agent,
-        prototype: Option<Object>,
-    ) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_set_prototype_of(agent, prototype)
-        } else {
-            // If we're setting %ArrayBuffer.prototype% then we can still avoid creating the ObjectHeapData.
-            let current = agent.current_realm().intrinsics().function_prototype();
-            if prototype == Some(current.into_object()) {
-                return Ok(true);
-            }
-            if ordinary_set_prototype_of_check_loop(agent, current.into_object(), prototype) {
-                // OrdinarySetPrototypeOf 7.b.i: Setting prototype would cause a loop to occur.
-                return Ok(false);
-            }
-            self.internal_set_prototype(agent, prototype);
-            Ok(true)
-        }
-    }
-
-    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
-        Ok(self.internal_extensible(agent))
-    }
-
-    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
-        self.internal_set_extensible(agent, false);
-        Ok(true)
-    }
-
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
@@ -299,7 +272,10 @@ impl InternalMethods for BuiltinFunction {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_has_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-            let prototype = agent.current_realm().intrinsics().array_prototype();
+            let prototype = agent
+                .current_realm()
+                .intrinsics()
+                .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
             let length_entry = ObjectEntry {
                 key: property_key,
                 value: ObjectEntryPropertyDescriptor::from(property_descriptor),
@@ -315,11 +291,14 @@ impl InternalMethods for BuiltinFunction {
             };
             let object_index = agent
                 .heap
-                .create_object_with_prototype(prototype.into_object(), &[length_entry, name_entry]);
+                .create_object_with_prototype(prototype, &[length_entry, name_entry]);
             agent[self].object_index = Some(object_index);
             Ok(true)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
-            let prototype = agent.current_realm().intrinsics().array_prototype();
+            let prototype = agent
+                .current_realm()
+                .intrinsics()
+                .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
             let length_entry = ObjectEntry {
                 key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
                 value: ObjectEntryPropertyDescriptor::Data {
@@ -335,11 +314,14 @@ impl InternalMethods for BuiltinFunction {
             };
             let object_index = agent
                 .heap
-                .create_object_with_prototype(prototype.into_object(), &[length_entry, name_entry]);
+                .create_object_with_prototype(prototype, &[length_entry, name_entry]);
             agent[self].object_index = Some(object_index);
             Ok(true)
         } else {
-            let prototype = agent.current_realm().intrinsics().array_prototype();
+            let prototype = agent
+                .current_realm()
+                .intrinsics()
+                .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
             let length_entry = ObjectEntry {
                 key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
                 value: ObjectEntryPropertyDescriptor::Data {
@@ -362,10 +344,9 @@ impl InternalMethods for BuiltinFunction {
                 key: property_key,
                 value: ObjectEntryPropertyDescriptor::from(property_descriptor),
             };
-            let object_index = agent.heap.create_object_with_prototype(
-                prototype.into_object(),
-                &[length_entry, name_entry, other_entry],
-            );
+            let object_index = agent
+                .heap
+                .create_object_with_prototype(prototype, &[length_entry, name_entry, other_entry]);
             agent[self].object_index = Some(object_index);
             Ok(true)
         }
@@ -421,7 +402,10 @@ impl InternalMethods for BuiltinFunction {
             // length and name are not writable
             Ok(false)
         } else {
-            let prototype = agent.current_realm().intrinsics().array_prototype();
+            let prototype = agent
+                .current_realm()
+                .intrinsics()
+                .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
             prototype.internal_set(agent, property_key, value, receiver)
         }
     }
@@ -432,7 +416,10 @@ impl InternalMethods for BuiltinFunction {
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
-            let prototype = agent.current_realm().intrinsics().array_prototype();
+            let prototype = agent
+                .current_realm()
+                .intrinsics()
+                .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
             let entry = if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
                 ObjectEntry {
                     key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
@@ -454,9 +441,7 @@ impl InternalMethods for BuiltinFunction {
                     },
                 }
             };
-            let object_index = agent
-                .heap
-                .create_object_with_prototype(prototype.into_object(), &[entry]);
+            let object_index = agent.heap.create_object_with_prototype(prototype, &[entry]);
             agent[self].object_index = Some(object_index);
             Ok(true)
         } else {
@@ -636,8 +621,11 @@ pub fn create_builtin_function(
     //    are the elements of internalSlotsList, and an [[InitialName]] internal slot.
     let object_index = if let Some(prototype) = args.prototype {
         // If a prototype is set, then check that it is not the %Function.prototype%
-        let realm_function_prototype = agent.get_realm(realm).intrinsics().function_prototype();
-        if prototype == realm_function_prototype.into_object() {
+        let realm_function_prototype = agent
+            .get_realm(realm)
+            .intrinsics()
+            .get_intrinsic_default_proto(BuiltinFunction::DEFAULT_PROTOTYPE);
+        if prototype == realm_function_prototype {
             // If the prototype matched the realm function prototype, then ignore it
             // as the BuiltinFunctionHeapData indirectly implies this prototype.
             None

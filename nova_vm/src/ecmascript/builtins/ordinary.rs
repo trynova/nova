@@ -9,9 +9,9 @@ use crate::{
         builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, InternalMethods, IntoFunction, IntoObject, Object, ObjectHeapData,
-            OrdinaryObject, OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, String,
-            Symbol, Value, BUILTIN_STRING_MEMORY,
+            Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, Object,
+            ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Symbol, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -67,94 +67,7 @@ impl IndexMut<OrdinaryObject> for Heap {
 }
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
-impl InternalMethods for OrdinaryObject {
-    /// ### [10.1.1 \[\[GetPrototypeOf\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-getprototypeof)
-    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
-        Ok(ordinary_get_prototype_of(agent, self.into()))
-    }
-
-    /// ### [10.1.2 \[\[SetPrototypeOf\]\] ( V )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-setprototypeof-v)
-    fn internal_set_prototype_of(
-        self,
-        agent: &mut Agent,
-        prototype: Option<Object>,
-    ) -> JsResult<bool> {
-        Ok(ordinary_set_prototype_of(agent, self.into(), prototype))
-    }
-
-    /// ### [10.1.3 \[\[IsExtensible\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-isextensible)
-    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
-        // 1. Return OrdinaryIsExtensible(O).
-        Ok(ordinary_is_extensible(agent, self.into()))
-    }
-
-    /// ### [10.1.4 \[\[PreventExtensions\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-preventextensions)
-    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
-        // 1. Return OrdinaryPreventExtensions(O).
-        Ok(ordinary_prevent_extensions(agent, self.into()))
-    }
-
-    /// ### [10.1.5 \[\[GetOwnProperty\]\] ( P )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-getownproperty-p)
-    fn internal_get_own_property(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
-        // 1. Return OrdinaryGetOwnProperty(O, P).
-        Ok(ordinary_get_own_property(agent, self.into(), property_key))
-    }
-
-    /// ### [10.1.6 \[\[DefineOwnProperty\]\] ( P, Desc )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-defineownproperty-p-desc)
-    fn internal_define_own_property(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
-        ordinary_define_own_property(agent, self.into(), property_key, descriptor)
-    }
-
-    /// ### [10.1.7 \[\[HasProperty\]\] ( P )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-hasproperty-p)
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        // 1. Return ? OrdinaryHasProperty(O, P).
-        ordinary_has_property(agent, self.into(), property_key)
-    }
-
-    /// ### [10.1.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-get-p-receiver)
-    fn internal_get(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
-        // 1. Return ? OrdinaryGet(O, P, Receiver).
-        ordinary_get(agent, self.into(), property_key, receiver)
-    }
-
-    /// ### [10.1.9 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-set-p-v-receiver)
-    fn internal_set(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-    ) -> JsResult<bool> {
-        // 1. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_set(agent, self.into(), property_key, value, receiver)
-    }
-
-    /// ### [10.1.10 \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-delete-p)
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        // 1. Return ? OrdinaryDelete(O, P).
-        ordinary_delete(agent, self.into(), property_key)
-    }
-
-    /// ### [10.1.11 \[\[OwnPropertyKeys\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-ownpropertykeys)
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        // 1. Return OrdinaryOwnPropertyKeys(O).
-        Ok(ordinary_own_property_keys(agent, self.into()))
-    }
-}
+impl InternalMethods for OrdinaryObject {}
 
 /// ### [10.1.1.1 OrdinaryGetPrototypeOf ( O )](https://tc39.es/ecma262/#sec-ordinarygetprototypeof)
 pub(crate) fn ordinary_get_prototype_of(agent: &mut Agent, object: Object) -> Option<Object> {

@@ -2,7 +2,7 @@ use crate::{
     ecmascript::{
         builtins::{Behaviour, ECMAScriptFunctionObjectHeapData},
         execution::RealmIdentifier,
-        types::{OrdinaryObject, String},
+        types::{OrdinaryObject, String, Value},
     },
     heap::element_array::ElementsVector,
 };
@@ -13,8 +13,20 @@ use super::Function;
 pub struct BoundFunctionHeapData {
     pub(crate) object_index: Option<OrdinaryObject>,
     pub(crate) length: u8,
-    pub(crate) function: Function,
-    pub(crate) bound_values: ElementsVector,
+    /// ### \[\[BoundTargetFunction\]\]
+    ///
+    /// The wrapped function object.
+    pub(crate) bound_target_function: Function,
+    /// ### \[\[BoundThis\]\]
+    ///
+    /// The value that is always passed as the **this** value when calling the
+    /// wrapped function.
+    pub(crate) bound_this: Value,
+    /// ### \[\[BoundArguments\]\]
+    ///
+    /// A list of values whose elements are used as the first arguments to any
+    /// call to the wrapped function.
+    pub(crate) bound_arguments: ElementsVector,
     pub(crate) name: Option<String>,
 }
 

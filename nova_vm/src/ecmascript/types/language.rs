@@ -22,8 +22,7 @@ pub use into_value::IntoValue;
 pub use number::{HeapNumber, Number, NumberHeapData};
 pub use numeric::Numeric;
 pub use object::{
-    InternalMethods, IntoObject, Object, ObjectHeapData, OrdinaryObject,
-    OrdinaryObjectInternalSlots, PropertyKey,
+    InternalMethods, InternalSlots, IntoObject, Object, ObjectHeapData, OrdinaryObject, PropertyKey,
 };
 pub use primitive::Primitive;
 pub use string::{HeapString, String, StringHeapData, BUILTIN_STRINGS_LIST, BUILTIN_STRING_MEMORY};

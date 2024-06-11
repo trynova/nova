@@ -4,8 +4,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
-            PropertyDescriptor, PropertyKey, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, PropertyDescriptor,
+            PropertyKey, Value,
         },
     },
     heap::indexes::{BaseIndex, EmbedderObjectIndex},
@@ -65,7 +65,18 @@ impl From<EmbedderObject> for Object {
     }
 }
 
-impl OrdinaryObjectInternalSlots for EmbedderObject {
+impl InternalSlots for EmbedderObject {
+    #[inline(always)]
+    fn get_backing_object(
+        self,
+        _agent: &Agent,
+    ) -> Option<crate::ecmascript::types::OrdinaryObject> {
+        todo!();
+    }
+
+    fn create_backing_object(self, _agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+        todo!();
+    }
     fn internal_extensible(self, _agent: &Agent) -> bool {
         todo!();
     }
@@ -158,26 +169,26 @@ impl InternalMethods for EmbedderObject {
     }
 }
 
-impl Index<EmbedderObjectIndex> for Agent {
+impl Index<EmbedderObject> for Agent {
     type Output = EmbedderObjectHeapData;
 
-    fn index(&self, index: EmbedderObjectIndex) -> &Self::Output {
+    fn index(&self, index: EmbedderObject) -> &Self::Output {
         self.heap
             .embedder_objects
-            .get(index.into_index())
-            .expect("EmbedderObjectIndex out of bounds")
+            .get(index.0.into_index())
+            .expect("EmbedderObject out of bounds")
             .as_ref()
-            .expect("EmbedderObjectIndex slot empty")
+            .expect("EmbedderObject slot empty")
     }
 }
 
-impl IndexMut<EmbedderObjectIndex> for Agent {
-    fn index_mut(&mut self, index: EmbedderObjectIndex) -> &mut Self::Output {
+impl IndexMut<EmbedderObject> for Agent {
+    fn index_mut(&mut self, index: EmbedderObject) -> &mut Self::Output {
         self.heap
             .embedder_objects
-            .get_mut(index.into_index())
-            .expect("EmbedderObjectIndex out of bounds")
+            .get_mut(index.0.into_index())
+            .expect("EmbedderObject out of bounds")
             .as_mut()
-            .expect("EmbedderObjectIndex slot empty")
+            .expect("EmbedderObject slot empty")
     }
 }

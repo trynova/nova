@@ -64,7 +64,7 @@ pub(crate) fn is_constructor(agent: &mut Agent, constructor: Value) -> bool {
     // 2. If argument has a [[Construct]] internal method, return true.
     match constructor {
         Value::BoundFunction(idx) => {
-            let function = agent[idx].function;
+            let function = agent[idx].bound_target_function;
             is_constructor(agent, function.into_value())
         }
         Value::BuiltinFunction(idx) => {

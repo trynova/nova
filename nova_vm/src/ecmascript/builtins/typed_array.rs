@@ -4,7 +4,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
             PropertyDescriptor, PropertyKey, Value, BIGINT_64_ARRAY_DISCRIMINANT,
             BIGUINT_64_ARRAY_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT,
             FLOAT_64_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
@@ -144,22 +144,23 @@ impl IndexMut<TypedArray> for Heap {
     }
 }
 
-impl OrdinaryObjectInternalSlots for TypedArray {
-    fn internal_extensible(self, agent: &Agent) -> bool {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_extensible(agent)
-        } else {
-            true
-        }
+impl InternalSlots for TypedArray {
+    #[inline(always)]
+    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+        agent[self].object_index
     }
 
-    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_set_extensible(agent, value)
-        } else {
-            // Create base object and set inextensible
-            todo!()
-        }
+    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+        debug_assert!(self.get_backing_object(agent).is_none());
+        let prototype = self.internal_prototype(agent);
+        let backing_object = agent.heap.create(ObjectHeapData {
+            extensible: true,
+            prototype,
+            keys: Default::default(),
+            values: Default::default(),
+        });
+        agent[self].object_index = Some(backing_object);
+        backing_object
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
@@ -175,22 +176,9 @@ impl OrdinaryObjectInternalSlots for TypedArray {
             )
         }
     }
-
-    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_set_prototype(agent, prototype)
-        } else {
-            // Create base object and set inextensible
-            todo!()
-        }
-    }
 }
 
 impl InternalMethods for TypedArray {
-    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
-        Ok(self.internal_prototype(agent))
-    }
-
     fn internal_set_prototype_of(
         self,
         agent: &mut Agent,
@@ -210,27 +198,6 @@ impl InternalMethods for TypedArray {
             }
             self.internal_set_prototype(agent, prototype);
             Ok(true)
-        }
-    }
-
-    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
-        Ok(self.internal_extensible(agent))
-    }
-
-    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
-        self.internal_set_extensible(agent, false);
-        Ok(true)
-    }
-
-    fn internal_get_own_property(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_get_own_property(agent, property_key)
-        } else {
-            Ok(None)
         }
     }
 
@@ -256,33 +223,6 @@ impl InternalMethods for TypedArray {
         }
     }
 
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_has_property(agent, property_key)
-        } else {
-            let parent = self.internal_get_prototype_of(agent)?;
-            parent.map_or(Ok(false), |parent| {
-                parent.internal_has_property(agent, property_key)
-            })
-        }
-    }
-
-    fn internal_get(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_get(agent, property_key, receiver)
-        } else {
-            let parent = self.internal_get_prototype_of(agent)?;
-            parent.map_or(Ok(Value::Undefined), |parent| {
-                parent.internal_get(agent, property_key, receiver)
-            })
-        }
-    }
-
     fn internal_set(
         self,
         agent: &mut Agent,
@@ -295,23 +235,6 @@ impl InternalMethods for TypedArray {
         } else {
             let prototype = agent.current_realm().intrinsics().typed_array_prototype();
             prototype.internal_set(agent, property_key, value, receiver)
-        }
-    }
-
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_delete(agent, property_key)
-        } else {
-            // Non-existing property
-            Ok(true)
-        }
-    }
-
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_own_property_keys(agent)
-        } else {
-            Ok(vec![])
         }
     }
 }

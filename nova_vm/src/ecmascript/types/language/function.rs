@@ -11,17 +11,15 @@ use super::{
         ECMASCRIPT_ASYNC_FUNCTION_DISCRIMINANT, ECMASCRIPT_ASYNC_GENERATOR_FUNCTION_DISCRIMINANT,
         ECMASCRIPT_CONSTRUCTOR_FUNCTION_DISCRIMINANT, ECMASCRIPT_FUNCTION_DISCRIMINANT,
         ECMASCRIPT_GENERATOR_FUNCTION_DISCRIMINANT,
-    },
-    InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots, PropertyKey,
-    Value,
+    }, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, InternalSlots, PropertyKey, Value
 };
 use crate::{
     ecmascript::{
         builtins::{
             bound_function::BoundFunction, control_abstraction_objects::promise_objects::promise_abstract_operations::promise_reject_function::BuiltinPromiseRejectFunction, ArgumentsList, BuiltinFunction, ECMAScriptFunction
         },
-        execution::{Agent, JsResult},
-        types::PropertyDescriptor,
+        execution::{Agent, JsResult, ProtoIntrinsics},
+        types::{PropertyDescriptor},
     },
     heap::{indexes::BuiltinFunctionIndex, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -193,9 +191,15 @@ impl Function {
     }
 }
 
-impl OrdinaryObjectInternalSlots for Function {
-    fn internal_extensible(self, agent: &Agent) -> bool {
-        if let Some(object_index) = match self {
+impl InternalSlots for Function {
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
+
+    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {
+        unreachable!("Function should not try to create backing object");
+    }
+
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
+        match self {
             Function::BoundFunction(d) => agent[d].object_index,
             Function::BuiltinFunction(d) => agent[d].object_index,
             Function::ECMAScriptFunction(d) => agent[d].object_index,
@@ -209,29 +213,11 @@ impl OrdinaryObjectInternalSlots for Function {
             Function::ECMAScriptAsyncGeneratorFunction => todo!(),
             Function::ECMAScriptConstructorFunction => todo!(),
             Function::ECMAScriptGeneratorFunction => todo!(),
-        } {
-            object_index.internal_extensible(agent)
-        } else {
-            true
         }
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        if let Some(object_index) = match self {
-            Function::BoundFunction(d) => agent[d].object_index,
-            Function::BuiltinFunction(d) => agent[d].object_index,
-            Function::ECMAScriptFunction(d) => agent[d].object_index,
-            Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction => todo!(),
-            Function::BuiltinPromiseResolveFunction => todo!(),
-            Function::BuiltinPromiseRejectFunction(d) => agent[d].object_index,
-            Function::BuiltinPromiseCollectorFunction => todo!(),
-            Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
-        } {
+        if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_set_extensible(agent, value)
         } else if !value {
             // Create function base object and set inextensible
@@ -239,50 +225,8 @@ impl OrdinaryObjectInternalSlots for Function {
         }
     }
 
-    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
-        if let Some(object_index) = match self {
-            Function::BoundFunction(d) => agent[d].object_index,
-            Function::BuiltinFunction(d) => agent[d].object_index,
-            Function::ECMAScriptFunction(d) => agent[d].object_index,
-            Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction => todo!(),
-            Function::BuiltinPromiseResolveFunction => todo!(),
-            Function::BuiltinPromiseRejectFunction(d) => agent[d].object_index,
-            Function::BuiltinPromiseCollectorFunction => todo!(),
-            Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
-        } {
-            object_index.internal_prototype(agent)
-        } else {
-            Some(
-                agent
-                    .current_realm()
-                    .intrinsics()
-                    .function_prototype()
-                    .into(),
-            )
-        }
-    }
-
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        if let Some(object_index) = match self {
-            Function::BoundFunction(d) => agent[d].object_index,
-            Function::BuiltinFunction(d) => agent[d].object_index,
-            Function::ECMAScriptFunction(d) => agent[d].object_index,
-            Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction => todo!(),
-            Function::BuiltinPromiseResolveFunction => todo!(),
-            Function::BuiltinPromiseRejectFunction(d) => agent[d].object_index,
-            Function::BuiltinPromiseCollectorFunction => todo!(),
-            Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
-        } {
+        if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_set_prototype(agent, prototype)
         } else if prototype
             != Some(

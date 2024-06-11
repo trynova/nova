@@ -146,7 +146,7 @@ pub(crate) struct Intrinsics {
 /// Enumeration of intrinsics intended to be used as the \[\[Prototype\]\] value of
 /// an object. Used in GetPrototypeFromConstructor.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ProtoIntrinsics {
+pub enum ProtoIntrinsics {
     AggregateError,
     Array,
     ArrayBuffer,
@@ -287,6 +287,9 @@ impl Intrinsics {
         ProxyConstructor::create_intrinsic(agent, realm);
     }
 
+    // Suggest to inline this: The intrinsic default proto is often statically
+    // known.
+    #[inline]
     pub(crate) fn get_intrinsic_default_proto(
         &self,
         intrinsic_default_proto: ProtoIntrinsics,
@@ -309,30 +312,32 @@ impl Intrinsics {
             ProtoIntrinsics::SyntaxError => self.syntax_error_prototype().into(),
             ProtoIntrinsics::TypeError => self.type_error_prototype().into(),
             ProtoIntrinsics::UriError => self.uri_error_prototype().into(),
-            ProtoIntrinsics::AggregateError => self.aggregate_error().into(),
-            ProtoIntrinsics::AsyncFunction => self.async_function().into(),
-            ProtoIntrinsics::AsyncGeneratorFunction => self.async_generator_function().into(),
-            ProtoIntrinsics::BigInt64Array => self.big_int64_array().into(),
-            ProtoIntrinsics::BigUint64Array => self.big_int64_array().into(),
-            ProtoIntrinsics::DataView => self.data_view().into(),
-            ProtoIntrinsics::FinalizationRegistry => self.finalization_registry().into(),
-            ProtoIntrinsics::Float32Array => self.float32_array().into(),
-            ProtoIntrinsics::Float64Array => self.float64_array().into(),
-            ProtoIntrinsics::GeneratorFunction => self.generator_function().into(),
-            ProtoIntrinsics::Int16Array => self.int16_array().into(),
-            ProtoIntrinsics::Int32Array => self.int32_array().into(),
-            ProtoIntrinsics::Int8Array => self.int8_array().into(),
-            ProtoIntrinsics::Map => self.map().into(),
-            ProtoIntrinsics::Promise => self.promise().into(),
-            ProtoIntrinsics::RegExp => self.reg_exp().into(),
-            ProtoIntrinsics::Set => self.set().into(),
-            ProtoIntrinsics::SharedArrayBuffer => self.shared_array_buffer().into(),
-            ProtoIntrinsics::Uint16Array => self.uint16_array().into(),
-            ProtoIntrinsics::Uint32Array => self.uint32_array().into(),
-            ProtoIntrinsics::Uint8Array => self.uint8_array().into(),
-            ProtoIntrinsics::WeakMap => self.weak_map().into(),
-            ProtoIntrinsics::WeakRef => self.weak_ref().into(),
-            ProtoIntrinsics::WeakSet => self.weak_set().into(),
+            ProtoIntrinsics::AggregateError => self.aggregate_error_prototype().into(),
+            ProtoIntrinsics::AsyncFunction => self.async_function_prototype().into(),
+            ProtoIntrinsics::AsyncGeneratorFunction => {
+                self.async_generator_function_prototype().into()
+            }
+            ProtoIntrinsics::BigInt64Array => self.big_int64_array_prototype().into(),
+            ProtoIntrinsics::BigUint64Array => self.big_int64_array_prototype().into(),
+            ProtoIntrinsics::DataView => self.data_view_prototype().into(),
+            ProtoIntrinsics::FinalizationRegistry => self.finalization_registry_prototype().into(),
+            ProtoIntrinsics::Float32Array => self.float32_array_prototype().into(),
+            ProtoIntrinsics::Float64Array => self.float64_array_prototype().into(),
+            ProtoIntrinsics::GeneratorFunction => self.generator_function_prototype().into(),
+            ProtoIntrinsics::Int16Array => self.int16_array_prototype().into(),
+            ProtoIntrinsics::Int32Array => self.int32_array_prototype().into(),
+            ProtoIntrinsics::Int8Array => self.int8_array_prototype().into(),
+            ProtoIntrinsics::Map => self.map_prototype().into(),
+            ProtoIntrinsics::Promise => self.promise_prototype().into(),
+            ProtoIntrinsics::RegExp => self.reg_exp_prototype().into(),
+            ProtoIntrinsics::Set => self.set_prototype().into(),
+            ProtoIntrinsics::SharedArrayBuffer => self.shared_array_buffer_prototype().into(),
+            ProtoIntrinsics::Uint16Array => self.uint16_array_prototype().into(),
+            ProtoIntrinsics::Uint32Array => self.uint32_array_prototype().into(),
+            ProtoIntrinsics::Uint8Array => self.uint8_array_prototype().into(),
+            ProtoIntrinsics::WeakMap => self.weak_map_prototype().into(),
+            ProtoIntrinsics::WeakRef => self.weak_ref_prototype().into(),
+            ProtoIntrinsics::WeakSet => self.weak_set_prototype().into(),
         }
     }
 

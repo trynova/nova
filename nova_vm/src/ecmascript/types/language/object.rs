@@ -45,7 +45,7 @@ use crate::{
 
 pub use data::ObjectHeapData;
 pub use internal_methods::InternalMethods;
-pub use internal_slots::OrdinaryObjectInternalSlots;
+pub use internal_slots::InternalSlots;
 pub use into_object::IntoObject;
 pub use property_key::PropertyKey;
 pub use property_storage::PropertyStorage;
@@ -222,7 +222,16 @@ impl TryFrom<Object> for OrdinaryObject {
     }
 }
 
-impl OrdinaryObjectInternalSlots for OrdinaryObject {
+impl InternalSlots for OrdinaryObject {
+    #[inline(always)]
+    fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject> {
+        Some(self)
+    }
+
+    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {
+        unreachable!();
+    }
+
     fn internal_extensible(self, agent: &Agent) -> bool {
         agent[self].extensible
     }
@@ -403,28 +412,36 @@ impl Object {
     }
 }
 
-impl OrdinaryObjectInternalSlots for Object {
+impl InternalSlots for Object {
+    fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject> {
+        unreachable!("Object should not try to access its backing object");
+    }
+
+    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {
+        unreachable!("Object should not try to create its backing object");
+    }
+
     fn internal_extensible(self, agent: &Agent) -> bool {
         match self {
-            Object::Object(idx) => idx.internal_extensible(agent),
-            Object::Array(idx) => idx.internal_extensible(agent),
-            Object::ArrayBuffer(idx) => idx.internal_extensible(agent),
-            Object::Date(idx) => idx.internal_extensible(agent),
-            Object::Error(idx) => idx.internal_extensible(agent),
-            Object::BoundFunction(idx) => idx.internal_extensible(agent),
-            Object::BuiltinFunction(idx) => idx.internal_extensible(agent),
-            Object::ECMAScriptFunction(idx) => idx.internal_extensible(agent),
+            Object::Object(data) => data.internal_extensible(agent),
+            Object::Array(data) => data.internal_extensible(agent),
+            Object::ArrayBuffer(data) => data.internal_extensible(agent),
+            Object::Date(data) => data.internal_extensible(agent),
+            Object::Error(data) => data.internal_extensible(agent),
+            Object::BoundFunction(data) => data.internal_extensible(agent),
+            Object::BuiltinFunction(data) => data.internal_extensible(agent),
+            Object::ECMAScriptFunction(data) => data.internal_extensible(agent),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => data.internal_extensible(agent),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
             Object::ECMAScriptAsyncGeneratorFunction => todo!(),
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::PrimitiveObject(_data) => todo!(),
+            Object::PrimitiveObject(data) => data.internal_extensible(agent),
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -458,29 +475,27 @@ impl OrdinaryObjectInternalSlots for Object {
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
         match self {
-            Object::Object(idx) => idx.internal_set_extensible(agent, value),
-            Object::Array(idx) => idx.internal_set_extensible(agent, value),
-            Object::ArrayBuffer(idx) => idx.internal_set_extensible(agent, value),
-            Object::Date(idx) => idx.internal_set_extensible(agent, value),
-            Object::Error(idx) => idx.internal_set_extensible(agent, value),
-            Object::BoundFunction(idx) => Function::from(idx).internal_set_extensible(agent, value),
-            Object::BuiltinFunction(idx) => {
-                Function::from(idx).internal_set_extensible(agent, value)
-            }
-            Object::ECMAScriptFunction(idx) => {
-                Function::from(idx).internal_set_extensible(agent, value)
-            }
+            Object::Object(data) => data.internal_set_extensible(agent, value),
+            Object::Array(data) => data.internal_set_extensible(agent, value),
+            Object::ArrayBuffer(data) => data.internal_set_extensible(agent, value),
+            Object::Date(data) => data.internal_set_extensible(agent, value),
+            Object::Error(data) => data.internal_set_extensible(agent, value),
+            Object::BoundFunction(data) => data.internal_set_extensible(agent, value),
+            Object::BuiltinFunction(idx) => idx.internal_set_extensible(agent, value),
+            Object::ECMAScriptFunction(idx) => idx.internal_set_extensible(agent, value),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => {
+                data.internal_set_extensible(agent, value)
+            }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
             Object::ECMAScriptAsyncGeneratorFunction => todo!(),
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::PrimitiveObject(_data) => todo!(),
+            Object::PrimitiveObject(data) => data.internal_set_extensible(agent, value),
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -514,25 +529,25 @@ impl OrdinaryObjectInternalSlots for Object {
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
         match self {
-            Object::Object(idx) => idx.internal_prototype(agent),
-            Object::Array(idx) => idx.internal_prototype(agent),
-            Object::ArrayBuffer(idx) => idx.internal_prototype(agent),
-            Object::Date(idx) => idx.internal_prototype(agent),
-            Object::Error(idx) => idx.internal_prototype(agent),
-            Object::BoundFunction(idx) => Function::from(idx).internal_prototype(agent),
-            Object::BuiltinFunction(idx) => Function::from(idx).internal_prototype(agent),
-            Object::ECMAScriptFunction(idx) => Function::from(idx).internal_prototype(agent),
+            Object::Object(data) => data.internal_prototype(agent),
+            Object::Array(data) => data.internal_prototype(agent),
+            Object::ArrayBuffer(data) => data.internal_prototype(agent),
+            Object::Date(data) => data.internal_prototype(agent),
+            Object::Error(data) => data.internal_prototype(agent),
+            Object::BoundFunction(data) => data.internal_prototype(agent),
+            Object::BuiltinFunction(data) => data.internal_prototype(agent),
+            Object::ECMAScriptFunction(data) => data.internal_prototype(agent),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => data.internal_prototype(agent),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
             Object::ECMAScriptAsyncGeneratorFunction => todo!(),
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::PrimitiveObject(_data) => todo!(),
+            Object::PrimitiveObject(data) => data.internal_prototype(agent),
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -566,31 +581,27 @@ impl OrdinaryObjectInternalSlots for Object {
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
         match self {
-            Object::Object(idx) => idx.internal_set_prototype(agent, prototype),
-            Object::Array(idx) => idx.internal_set_prototype(agent, prototype),
-            Object::ArrayBuffer(idx) => idx.internal_set_prototype(agent, prototype),
-            Object::Date(idx) => idx.internal_set_prototype(agent, prototype),
-            Object::Error(idx) => idx.internal_set_prototype(agent, prototype),
-            Object::BoundFunction(idx) => {
-                Function::from(idx).internal_set_prototype(agent, prototype)
-            }
-            Object::BuiltinFunction(idx) => {
-                Function::from(idx).internal_set_prototype(agent, prototype)
-            }
-            Object::ECMAScriptFunction(idx) => {
-                Function::from(idx).internal_set_prototype(agent, prototype)
-            }
+            Object::Object(data) => data.internal_set_prototype(agent, prototype),
+            Object::Array(data) => data.internal_set_prototype(agent, prototype),
+            Object::ArrayBuffer(data) => data.internal_set_prototype(agent, prototype),
+            Object::Date(data) => data.internal_set_prototype(agent, prototype),
+            Object::Error(data) => data.internal_set_prototype(agent, prototype),
+            Object::BoundFunction(data) => data.internal_set_prototype(agent, prototype),
+            Object::BuiltinFunction(data) => data.internal_set_prototype(agent, prototype),
+            Object::ECMAScriptFunction(data) => data.internal_set_prototype(agent, prototype),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => {
+                data.internal_set_prototype(agent, prototype)
+            }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
             Object::ECMAScriptAsyncGeneratorFunction => todo!(),
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::PrimitiveObject(_data) => todo!(),
+            Object::PrimitiveObject(data) => data.internal_set_prototype(agent, prototype),
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -626,25 +637,25 @@ impl OrdinaryObjectInternalSlots for Object {
 impl InternalMethods for Object {
     fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
         match self {
-            Object::Object(idx) => idx.internal_get_prototype_of(agent),
-            Object::Array(idx) => idx.internal_get_prototype_of(agent),
-            Object::ArrayBuffer(idx) => idx.internal_get_prototype_of(agent),
-            Object::Date(idx) => idx.internal_get_prototype_of(agent),
-            Object::Error(idx) => idx.internal_get_prototype_of(agent),
-            Object::BoundFunction(idx) => Function::from(idx).internal_get_prototype_of(agent),
-            Object::BuiltinFunction(idx) => Function::from(idx).internal_get_prototype_of(agent),
-            Object::ECMAScriptFunction(idx) => Function::from(idx).internal_get_prototype_of(agent),
+            Object::Object(data) => data.internal_get_prototype_of(agent),
+            Object::Array(data) => data.internal_get_prototype_of(agent),
+            Object::ArrayBuffer(data) => data.internal_get_prototype_of(agent),
+            Object::Date(data) => data.internal_get_prototype_of(agent),
+            Object::Error(data) => data.internal_get_prototype_of(agent),
+            Object::BoundFunction(data) => data.internal_get_prototype_of(agent),
+            Object::BuiltinFunction(data) => data.internal_get_prototype_of(agent),
+            Object::ECMAScriptFunction(data) => data.internal_get_prototype_of(agent),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => data.internal_get_prototype_of(agent),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
             Object::ECMAScriptAsyncGeneratorFunction => todo!(),
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::PrimitiveObject(_data) => todo!(),
+            Object::PrimitiveObject(data) => data.internal_get_prototype_of(agent),
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -682,31 +693,27 @@ impl InternalMethods for Object {
         prototype: Option<Object>,
     ) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => idx.internal_set_prototype_of(agent, prototype),
-            Object::Array(idx) => idx.internal_set_prototype_of(agent, prototype),
-            Object::ArrayBuffer(idx) => idx.internal_set_prototype_of(agent, prototype),
-            Object::Date(idx) => idx.internal_set_prototype_of(agent, prototype),
-            Object::Error(idx) => idx.internal_set_prototype_of(agent, prototype),
-            Object::BoundFunction(idx) => {
-                Function::from(idx).internal_set_prototype_of(agent, prototype)
-            }
-            Object::BuiltinFunction(idx) => {
-                Function::from(idx).internal_set_prototype_of(agent, prototype)
-            }
-            Object::ECMAScriptFunction(idx) => {
-                Function::from(idx).internal_set_prototype_of(agent, prototype)
-            }
+            Object::Object(data) => data.internal_set_prototype_of(agent, prototype),
+            Object::Array(data) => data.internal_set_prototype_of(agent, prototype),
+            Object::ArrayBuffer(data) => data.internal_set_prototype_of(agent, prototype),
+            Object::Date(data) => data.internal_set_prototype_of(agent, prototype),
+            Object::Error(data) => data.internal_set_prototype_of(agent, prototype),
+            Object::BoundFunction(data) => data.internal_set_prototype_of(agent, prototype),
+            Object::BuiltinFunction(data) => data.internal_set_prototype_of(agent, prototype),
+            Object::ECMAScriptFunction(data) => data.internal_set_prototype_of(agent, prototype),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => {
+                data.internal_set_prototype_of(agent, prototype)
+            }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
             Object::ECMAScriptAsyncGeneratorFunction => todo!(),
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::PrimitiveObject(_data) => todo!(),
+            Object::PrimitiveObject(data) => data.internal_set_prototype_of(agent, prototype),
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -740,25 +747,25 @@ impl InternalMethods for Object {
 
     fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => idx.internal_is_extensible(agent),
-            Object::Array(idx) => idx.internal_is_extensible(agent),
-            Object::ArrayBuffer(idx) => idx.internal_is_extensible(agent),
-            Object::Date(idx) => idx.internal_is_extensible(agent),
-            Object::Error(idx) => idx.internal_is_extensible(agent),
-            Object::BoundFunction(idx) => Function::from(idx).internal_is_extensible(agent),
-            Object::BuiltinFunction(idx) => Function::from(idx).internal_is_extensible(agent),
-            Object::ECMAScriptFunction(idx) => Function::from(idx).internal_is_extensible(agent),
+            Object::Object(data) => data.internal_is_extensible(agent),
+            Object::Array(data) => data.internal_is_extensible(agent),
+            Object::ArrayBuffer(data) => data.internal_is_extensible(agent),
+            Object::Date(data) => data.internal_is_extensible(agent),
+            Object::Error(data) => data.internal_is_extensible(agent),
+            Object::BoundFunction(data) => data.internal_is_extensible(agent),
+            Object::BuiltinFunction(data) => data.internal_is_extensible(agent),
+            Object::ECMAScriptFunction(data) => data.internal_is_extensible(agent),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => data.internal_is_extensible(agent),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
             Object::ECMAScriptAsyncGeneratorFunction => todo!(),
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::PrimitiveObject(_data) => todo!(),
+            Object::PrimitiveObject(data) => data.internal_is_extensible(agent),
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -792,27 +799,25 @@ impl InternalMethods for Object {
 
     fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => idx.internal_prevent_extensions(agent),
-            Object::Array(idx) => idx.internal_prevent_extensions(agent),
-            Object::ArrayBuffer(idx) => idx.internal_prevent_extensions(agent),
-            Object::Date(idx) => idx.internal_prevent_extensions(agent),
-            Object::Error(idx) => idx.internal_prevent_extensions(agent),
-            Object::BoundFunction(idx) => Function::from(idx).internal_prevent_extensions(agent),
-            Object::BuiltinFunction(idx) => Function::from(idx).internal_prevent_extensions(agent),
-            Object::ECMAScriptFunction(idx) => {
-                Function::from(idx).internal_prevent_extensions(agent)
-            }
+            Object::Object(data) => data.internal_prevent_extensions(agent),
+            Object::Array(data) => data.internal_prevent_extensions(agent),
+            Object::ArrayBuffer(data) => data.internal_prevent_extensions(agent),
+            Object::Date(data) => data.internal_prevent_extensions(agent),
+            Object::Error(data) => data.internal_prevent_extensions(agent),
+            Object::BoundFunction(data) => data.internal_prevent_extensions(agent),
+            Object::BuiltinFunction(data) => data.internal_prevent_extensions(agent),
+            Object::ECMAScriptFunction(data) => data.internal_prevent_extensions(agent),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => data.internal_prevent_extensions(agent),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
             Object::ECMAScriptAsyncGeneratorFunction => todo!(),
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::PrimitiveObject(_data) => todo!(),
+            Object::PrimitiveObject(data) => data.internal_prevent_extensions(agent),
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -850,31 +855,27 @@ impl InternalMethods for Object {
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         match self {
-            Object::Object(idx) => idx.internal_get_own_property(agent, property_key),
-            Object::Array(idx) => idx.internal_get_own_property(agent, property_key),
-            Object::ArrayBuffer(idx) => idx.internal_get_own_property(agent, property_key),
-            Object::Date(idx) => idx.internal_get_own_property(agent, property_key),
-            Object::Error(idx) => idx.internal_get_own_property(agent, property_key),
-            Object::BoundFunction(idx) => {
-                Function::from(idx).internal_get_own_property(agent, property_key)
-            }
-            Object::BuiltinFunction(idx) => {
-                Function::from(idx).internal_get_own_property(agent, property_key)
-            }
-            Object::ECMAScriptFunction(idx) => {
-                Function::from(idx).internal_get_own_property(agent, property_key)
-            }
+            Object::Object(data) => data.internal_get_own_property(agent, property_key),
+            Object::Array(data) => data.internal_get_own_property(agent, property_key),
+            Object::ArrayBuffer(data) => data.internal_get_own_property(agent, property_key),
+            Object::Date(data) => data.internal_get_own_property(agent, property_key),
+            Object::Error(data) => data.internal_get_own_property(agent, property_key),
+            Object::BoundFunction(data) => data.internal_get_own_property(agent, property_key),
+            Object::BuiltinFunction(data) => data.internal_get_own_property(agent, property_key),
+            Object::ECMAScriptFunction(data) => data.internal_get_own_property(agent, property_key),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => {
+                data.internal_get_own_property(agent, property_key)
+            }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
             Object::ECMAScriptAsyncGeneratorFunction => todo!(),
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::PrimitiveObject(_data) => todo!(),
+            Object::PrimitiveObject(data) => data.internal_get_own_property(agent, property_key),
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -928,32 +929,30 @@ impl InternalMethods for Object {
             Object::Error(idx) => {
                 idx.internal_define_own_property(agent, property_key, property_descriptor)
             }
-            Object::BoundFunction(idx) => Function::from(idx).internal_define_own_property(
-                agent,
-                property_key,
-                property_descriptor,
-            ),
-            Object::BuiltinFunction(idx) => Function::from(idx).internal_define_own_property(
-                agent,
-                property_key,
-                property_descriptor,
-            ),
-            Object::ECMAScriptFunction(idx) => Function::from(idx).internal_define_own_property(
-                agent,
-                property_key,
-                property_descriptor,
-            ),
+            Object::BoundFunction(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::BuiltinFunction(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::ECMAScriptFunction(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
             Object::ECMAScriptAsyncGeneratorFunction => todo!(),
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::PrimitiveObject(_data) => todo!(),
+            Object::PrimitiveObject(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -991,31 +990,27 @@ impl InternalMethods for Object {
 
     fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => idx.internal_has_property(agent, property_key),
-            Object::Array(idx) => idx.internal_has_property(agent, property_key),
-            Object::ArrayBuffer(idx) => idx.internal_has_property(agent, property_key),
-            Object::Date(idx) => idx.internal_has_property(agent, property_key),
-            Object::Error(idx) => idx.internal_has_property(agent, property_key),
-            Object::BoundFunction(idx) => {
-                Function::from(idx).internal_has_property(agent, property_key)
-            }
-            Object::BuiltinFunction(idx) => {
-                Function::from(idx).internal_has_property(agent, property_key)
-            }
-            Object::ECMAScriptFunction(idx) => {
-                Function::from(idx).internal_has_property(agent, property_key)
-            }
+            Object::Object(data) => data.internal_has_property(agent, property_key),
+            Object::Array(data) => data.internal_has_property(agent, property_key),
+            Object::ArrayBuffer(data) => data.internal_has_property(agent, property_key),
+            Object::Date(data) => data.internal_has_property(agent, property_key),
+            Object::Error(data) => data.internal_has_property(agent, property_key),
+            Object::BoundFunction(data) => data.internal_has_property(agent, property_key),
+            Object::BuiltinFunction(data) => data.internal_has_property(agent, property_key),
+            Object::ECMAScriptFunction(data) => data.internal_has_property(agent, property_key),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => {
+                data.internal_has_property(agent, property_key)
+            }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
             Object::ECMAScriptAsyncGeneratorFunction => todo!(),
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::PrimitiveObject(_data) => todo!(),
+            Object::PrimitiveObject(data) => data.internal_has_property(agent, property_key),
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -1054,27 +1049,27 @@ impl InternalMethods for Object {
         receiver: Value,
     ) -> JsResult<Value> {
         match self {
-            Object::Object(idx) => idx.internal_get(agent, property_key, receiver),
-            Object::Array(idx) => idx.internal_get(agent, property_key, receiver),
-            Object::ArrayBuffer(idx) => idx.internal_get(agent, property_key, receiver),
-            Object::Date(idx) => idx.internal_get(agent, property_key, receiver),
-            Object::Error(idx) => idx.internal_get(agent, property_key, receiver),
-            Object::BoundFunction(idx) => {
-                Function::from(idx).internal_get(agent, property_key, receiver)
-            }
-            Object::BuiltinFunction(idx) => idx.internal_get(agent, property_key, receiver),
-            Object::ECMAScriptFunction(idx) => idx.internal_get(agent, property_key, receiver),
+            Object::Object(data) => data.internal_get(agent, property_key, receiver),
+            Object::Array(data) => data.internal_get(agent, property_key, receiver),
+            Object::ArrayBuffer(data) => data.internal_get(agent, property_key, receiver),
+            Object::Date(data) => data.internal_get(agent, property_key, receiver),
+            Object::Error(data) => data.internal_get(agent, property_key, receiver),
+            Object::BoundFunction(data) => data.internal_get(agent, property_key, receiver),
+            Object::BuiltinFunction(data) => data.internal_get(agent, property_key, receiver),
+            Object::ECMAScriptFunction(data) => data.internal_get(agent, property_key, receiver),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => {
+                data.internal_get(agent, property_key, receiver)
+            }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
             Object::ECMAScriptAsyncGeneratorFunction => todo!(),
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::PrimitiveObject(_data) => todo!(),
+            Object::PrimitiveObject(data) => data.internal_get(agent, property_key, receiver),
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -1114,31 +1109,33 @@ impl InternalMethods for Object {
         receiver: Value,
     ) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => idx.internal_set(agent, property_key, value, receiver),
-            Object::Array(idx) => idx.internal_set(agent, property_key, value, receiver),
-            Object::ArrayBuffer(idx) => idx.internal_set(agent, property_key, value, receiver),
-            Object::Date(idx) => idx.internal_set(agent, property_key, value, receiver),
-            Object::Error(idx) => idx.internal_set(agent, property_key, value, receiver),
-            Object::BoundFunction(idx) => {
-                Function::from(idx).internal_set(agent, property_key, value, receiver)
+            Object::Object(data) => data.internal_set(agent, property_key, value, receiver),
+            Object::Array(data) => data.internal_set(agent, property_key, value, receiver),
+            Object::ArrayBuffer(data) => data.internal_set(agent, property_key, value, receiver),
+            Object::Date(data) => data.internal_set(agent, property_key, value, receiver),
+            Object::Error(data) => data.internal_set(agent, property_key, value, receiver),
+            Object::BoundFunction(data) => data.internal_set(agent, property_key, value, receiver),
+            Object::BuiltinFunction(data) => {
+                data.internal_set(agent, property_key, value, receiver)
             }
-            Object::BuiltinFunction(idx) => {
-                Function::from(idx).internal_set(agent, property_key, value, receiver)
-            }
-            Object::ECMAScriptFunction(idx) => {
-                Function::from(idx).internal_set(agent, property_key, value, receiver)
+            Object::ECMAScriptFunction(data) => {
+                data.internal_set(agent, property_key, value, receiver)
             }
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => {
+                data.internal_set(agent, property_key, value, receiver)
+            }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
             Object::ECMAScriptAsyncGeneratorFunction => todo!(),
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::PrimitiveObject(_data) => todo!(),
+            Object::PrimitiveObject(data) => {
+                data.internal_set(agent, property_key, value, receiver)
+            }
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -1172,29 +1169,25 @@ impl InternalMethods for Object {
 
     fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
         match self {
-            Object::Object(idx) => idx.internal_delete(agent, property_key),
-            Object::Array(idx) => idx.internal_delete(agent, property_key),
-            Object::ArrayBuffer(idx) => idx.internal_delete(agent, property_key),
-            Object::Date(idx) => idx.internal_delete(agent, property_key),
-            Object::Error(idx) => idx.internal_delete(agent, property_key),
-            Object::BoundFunction(idx) => Function::from(idx).internal_delete(agent, property_key),
-            Object::BuiltinFunction(idx) => {
-                Function::from(idx).internal_delete(agent, property_key)
-            }
-            Object::ECMAScriptFunction(idx) => {
-                Function::from(idx).internal_delete(agent, property_key)
-            }
+            Object::Object(data) => data.internal_delete(agent, property_key),
+            Object::Array(data) => data.internal_delete(agent, property_key),
+            Object::ArrayBuffer(data) => data.internal_delete(agent, property_key),
+            Object::Date(data) => data.internal_delete(agent, property_key),
+            Object::Error(data) => data.internal_delete(agent, property_key),
+            Object::BoundFunction(data) => data.internal_delete(agent, property_key),
+            Object::BuiltinFunction(data) => data.internal_delete(agent, property_key),
+            Object::ECMAScriptFunction(data) => data.internal_delete(agent, property_key),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => data.internal_delete(agent, property_key),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
             Object::ECMAScriptAsyncGeneratorFunction => todo!(),
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::PrimitiveObject(_data) => todo!(),
+            Object::PrimitiveObject(data) => data.internal_delete(agent, property_key),
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -1228,27 +1221,25 @@ impl InternalMethods for Object {
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         match self {
-            Object::Object(idx) => idx.internal_own_property_keys(agent),
-            Object::Array(idx) => idx.internal_own_property_keys(agent),
-            Object::ArrayBuffer(idx) => idx.internal_own_property_keys(agent),
-            Object::Date(idx) => idx.internal_own_property_keys(agent),
-            Object::Error(idx) => idx.internal_own_property_keys(agent),
-            Object::BoundFunction(idx) => Function::from(idx).internal_own_property_keys(agent),
-            Object::BuiltinFunction(idx) => Function::from(idx).internal_own_property_keys(agent),
-            Object::ECMAScriptFunction(idx) => {
-                Function::from(idx).internal_own_property_keys(agent)
-            }
+            Object::Object(data) => data.internal_own_property_keys(agent),
+            Object::Array(data) => data.internal_own_property_keys(agent),
+            Object::ArrayBuffer(data) => data.internal_own_property_keys(agent),
+            Object::Date(data) => data.internal_own_property_keys(agent),
+            Object::Error(data) => data.internal_own_property_keys(agent),
+            Object::BoundFunction(data) => data.internal_own_property_keys(agent),
+            Object::BuiltinFunction(data) => data.internal_own_property_keys(agent),
+            Object::ECMAScriptFunction(data) => data.internal_own_property_keys(agent),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => data.internal_own_property_keys(agent),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
             Object::ECMAScriptAsyncGeneratorFunction => todo!(),
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
-            Object::PrimitiveObject(_data) => todo!(),
+            Object::PrimitiveObject(data) => data.internal_own_property_keys(agent),
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -1287,14 +1278,10 @@ impl InternalMethods for Object {
         arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
         match self {
-            Object::BoundFunction(idx) => {
-                Function::from(idx).internal_call(agent, this_value, arguments_list)
-            }
-            Object::BuiltinFunction(idx) => {
-                Function::from(idx).internal_call(agent, this_value, arguments_list)
-            }
-            Object::ECMAScriptFunction(idx) => {
-                Function::from(idx).internal_call(agent, this_value, arguments_list)
+            Object::BoundFunction(data) => data.internal_call(agent, this_value, arguments_list),
+            Object::BuiltinFunction(data) => data.internal_call(agent, this_value, arguments_list),
+            Object::ECMAScriptFunction(data) => {
+                data.internal_call(agent, this_value, arguments_list)
             }
             Object::EmbedderObject(_) => todo!(),
             _ => unreachable!(),
@@ -1308,14 +1295,14 @@ impl InternalMethods for Object {
         new_target: Function,
     ) -> JsResult<Object> {
         match self {
-            Object::BoundFunction(idx) => {
-                Function::from(idx).internal_construct(agent, arguments_list, new_target)
+            Object::BoundFunction(data) => {
+                data.internal_construct(agent, arguments_list, new_target)
             }
-            Object::BuiltinFunction(idx) => {
-                Function::from(idx).internal_construct(agent, arguments_list, new_target)
+            Object::BuiltinFunction(data) => {
+                data.internal_construct(agent, arguments_list, new_target)
             }
-            Object::ECMAScriptFunction(idx) => {
-                Function::from(idx).internal_construct(agent, arguments_list, new_target)
+            Object::ECMAScriptFunction(data) => {
+                data.internal_construct(agent, arguments_list, new_target)
             }
             _ => unreachable!(),
         }
@@ -1325,14 +1312,14 @@ impl InternalMethods for Object {
 impl HeapMarkAndSweep for Object {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
-            Object::Object(idx) => idx.mark_values(queues),
-            Object::Array(idx) => idx.mark_values(queues),
-            Object::ArrayBuffer(idx) => idx.mark_values(queues),
-            Object::Date(idx) => idx.mark_values(queues),
-            Object::Error(idx) => idx.mark_values(queues),
-            Object::BoundFunction(d) => d.mark_values(queues),
-            Object::BuiltinFunction(d) => d.mark_values(queues),
-            Object::ECMAScriptFunction(d) => d.mark_values(queues),
+            Object::Object(data) => data.mark_values(queues),
+            Object::Array(data) => data.mark_values(queues),
+            Object::ArrayBuffer(data) => data.mark_values(queues),
+            Object::Date(data) => data.mark_values(queues),
+            Object::Error(data) => data.mark_values(queues),
+            Object::BoundFunction(data) => data.mark_values(queues),
+            Object::BuiltinFunction(data) => data.mark_values(queues),
+            Object::ECMAScriptFunction(data) => data.mark_values(queues),
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction => todo!(),
             Object::ECMAScriptAsyncFunction => todo!(),
@@ -1340,10 +1327,10 @@ impl HeapMarkAndSweep for Object {
             Object::ECMAScriptConstructorFunction => todo!(),
             Object::ECMAScriptGeneratorFunction => todo!(),
             Object::BuiltinPromiseResolveFunction => todo!(),
-            Object::BuiltinPromiseRejectFunction(_data) => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => data.mark_values(queues),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
-            Object::PrimitiveObject(idx) => idx.mark_values(queues),
+            Object::PrimitiveObject(data) => data.mark_values(queues),
             Object::Arguments => todo!(),
             Object::DataView(_) => todo!(),
             Object::FinalizationRegistry(_) => todo!(),
@@ -1377,17 +1364,17 @@ impl HeapMarkAndSweep for Object {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         match self {
-            Self::Object(idx) => idx.sweep_values(compactions),
-            Self::Array(idx) => idx.sweep_values(compactions),
-            Self::Error(idx) => idx.sweep_values(compactions),
+            Self::Object(data) => data.sweep_values(compactions),
+            Self::Array(data) => data.sweep_values(compactions),
+            Self::Error(data) => data.sweep_values(compactions),
             _ => todo!(),
         }
     }
 }
 
-impl CreateHeapData<ObjectHeapData, Object> for Heap {
-    fn create(&mut self, data: ObjectHeapData) -> Object {
+impl CreateHeapData<ObjectHeapData, OrdinaryObject> for Heap {
+    fn create(&mut self, data: ObjectHeapData) -> OrdinaryObject {
         self.objects.push(Some(data));
-        Object::Object(ObjectIndex::last(&self.objects).into())
+        OrdinaryObject(ObjectIndex::last(&self.objects))
     }
 }

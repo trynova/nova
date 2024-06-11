@@ -7,8 +7,8 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots,
-            PropertyDescriptor, PropertyKey, String, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, PropertyDescriptor,
+            PropertyKey, String, Value,
         },
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -113,7 +113,16 @@ impl Module {
     }
 }
 
-impl OrdinaryObjectInternalSlots for Module {
+impl InternalSlots for Module {
+    #[inline(always)]
+    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+        agent[self].object_index
+    }
+
+    fn create_backing_object(self, _: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+        unreachable!();
+    }
+
     fn internal_extensible(self, _agent: &Agent) -> bool {
         false
     }
