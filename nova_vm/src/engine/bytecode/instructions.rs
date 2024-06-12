@@ -160,8 +160,6 @@ pub enum Instruction {
     /// Reset the running execution context's LexicalEnvironment to its current
     /// value's \[\[OuterEnv]].
     ExitDeclarativeEnvironment,
-    /// Begin binding values using destructuring for known repetitions
-    BeginSimpleObjectBindingPattern,
     /// Begin binding values using destructuring
     BeginObjectBindingPattern,
     /// Begin binding values using a sync iterator for known repetitions
@@ -175,6 +173,8 @@ pub enum Instruction {
     /// const [a] = x;
     /// ```
     BindingPatternBind,
+    /// Bind current result to
+    BindingPatternBindNamed,
     /// Bind all remaining values to given identifier
     ///
     /// ```js
@@ -225,6 +225,8 @@ pub enum Instruction {
 impl Instruction {
     pub fn argument_count(self) -> u8 {
         match self {
+            // Number of repetitions and lexical status
+            Self::BeginSimpleArrayBindingPattern => 2,
             Self::ArrayCreate
             | Self::ArraySetLength
             | Self::ArraySetValue
@@ -242,8 +244,8 @@ impl Instruction {
             | Self::ResolveBinding
             | Self::CreateImmutableBinding
             | Self::CreateMutableBinding
-            | Self::BeginSimpleArrayBindingPattern
-            | Self::BeginSimpleObjectBindingPattern
+            | Self::BeginArrayBindingPattern
+            | Self::BeginObjectBindingPattern
             | Self::BindingPatternBind
             | Self::BindingPatternBindWithInitializer => 1,
             _ => 0,

@@ -4,7 +4,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call, call_function, construct, create_data_property_or_throw, get_method,
+                call, call_function, construct, create_data_property_or_throw, get_method, get_v,
                 has_property, ordinary_has_instance,
             },
             testing_and_comparison::{
@@ -602,10 +602,58 @@ impl Vm {
                 vm.result = Some(instanceof_operator(agent, lval, rval)?.into());
             }
             Instruction::BeginSimpleArrayBindingPattern => {
-                Self::execute_simple_array_binding(agent, vm, executable, instr)?
+                let lexical = instr.args[0].unwrap() == 1;
+                let env = if lexical {
+                    // Lexical binding, const [] = a; or let [] = a;
+                    Some(
+                        agent
+                            .running_execution_context()
+                            .ecmascript_code
+                            .as_ref()
+                            .unwrap()
+                            .lexical_environment,
+                    )
+                } else {
+                    // Var binding, var [] = a;
+                    None
+                };
+                Self::execute_simple_array_binding(agent, vm, executable, instr, env)?
             }
             Instruction::BeginArrayBindingPattern => {
-                Self::execute_complex_array_binding(agent, vm, executable)?
+                let lexical = instr.args[0].unwrap() == 1;
+                let env = if lexical {
+                    // Lexical binding, const [] = a; or let [] = a;
+                    Some(
+                        agent
+                            .running_execution_context()
+                            .ecmascript_code
+                            .as_ref()
+                            .unwrap()
+                            .lexical_environment,
+                    )
+                } else {
+                    // Var binding, var [] = a;
+                    None
+                };
+                Self::execute_complex_array_binding(agent, vm, executable, env)?
+            }
+            Instruction::BeginObjectBindingPattern => {
+                let lexical = instr.args[0].unwrap() == 1;
+                let env = if lexical {
+                    // Lexical binding, const {} = a; or let {} = a;
+                    Some(
+                        agent
+                            .running_execution_context()
+                            .ecmascript_code
+                            .as_ref()
+                            .unwrap()
+                            .lexical_environment,
+                    )
+                } else {
+                    // Var binding, var {} = a;
+                    None
+                };
+                Self::execute_object_binding(agent, vm, executable, env)?
             }
             Instruction::BindingPatternBind
             | Instruction::BindingPatternBindRest
@@ -627,6 +675,7 @@ impl Vm {
         vm: &mut Vm,
         executable: &Executable,
         instr: &Instr,
+        environment: Option<EnvironmentIndex>,
     ) -> JsResult<()> {
         let obj = vm.stack.pop().unwrap();
         // 1. Let iteratorRecord be ? GetIterator(value, sync).
@@ -656,22 +705,15 @@ impl Vm {
             // bindings or the elements run out, and no JavaScript code can run
             // while the iterator is running.
             let iterator_length = binding_count.min(elements_count);
-            let is_dense_array_slice = agent[elements][0..iterator_length as usize]
+            let is_dense_array_slice = !agent[elements][0..iterator_length as usize]
                 .iter()
-                .find(|el| el.is_none())
-                .is_none();
+                .any(|el| el.is_none());
             if !is_dense_array_slice {
                 // If the array is not dense, then we might trigger JavaScript
                 // through getters in either the array or its prototype.
                 // We need to deoptimize this.
-                return Self::execute_complex_array_binding(agent, vm, executable);
+                return Self::execute_complex_array_binding(agent, vm, executable, environment);
             }
-            let lex_env = agent
-                .running_execution_context()
-                .ecmascript_code
-                .as_ref()
-                .unwrap()
-                .lexical_environment;
             for index in 0..binding_count {
                 let instr = executable.get_instruction(&mut vm.ip).unwrap();
                 if instr.kind == Instruction::BindingPatternSkip || index >= elements_count {
@@ -679,9 +721,13 @@ impl Vm {
                 }
                 assert_eq!(instr.kind, Instruction::BindingPatternBind);
                 let binding_id = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                let lhs = resolve_binding(agent, binding_id, Some(lex_env))?;
+                let lhs = resolve_binding(agent, binding_id, environment)?;
                 let v = agent[elements][index as usize].unwrap();
-                initialize_referenced_binding(agent, lhs, v)?;
+                if environment.is_none() {
+                    put_value(agent, &lhs, v)?;
+                } else {
+                    initialize_referenced_binding(agent, lhs, v)?;
+                }
             }
         } else {
             todo!();
@@ -693,8 +739,62 @@ impl Vm {
         _agent: &mut Agent,
         _vm: &mut Vm,
         _executable: &Executable,
+        _environment: Option<EnvironmentIndex>,
     ) -> JsResult<()> {
         todo!();
+    }
+
+    fn execute_object_binding(
+        agent: &mut Agent,
+        vm: &mut Vm,
+        executable: &Executable,
+        environment: Option<EnvironmentIndex>,
+    ) -> JsResult<()> {
+        let value = vm.stack.pop().unwrap();
+
+        loop {
+            let instr = executable.get_instruction(&mut vm.ip).unwrap();
+            if instr.kind == Instruction::BindingPatternBind {
+                // Shorthand pattern, ie. SingleNameBinding: const { b } = a;
+                let binding_id = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                let lhs = resolve_binding(agent, binding_id, environment)?;
+                let v = get_v(agent, value, binding_id.into())?;
+                if environment.is_none() {
+                    put_value(agent, &lhs, v)?;
+                } else {
+                    initialize_referenced_binding(agent, lhs, v)?;
+                }
+                continue;
+            } else if instr.kind == Instruction::EvaluatePropertyAccessWithIdentifierKey {
+                let property_name_string =
+                    vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                let strict = true;
+
+                let reference = Reference {
+                    base: Base::Value(value),
+                    referenced_name: ReferencedName::from(property_name_string),
+                    strict,
+                    this_value: None,
+                };
+
+                let v = get_value(agent, &reference)?;
+                let bind_instruction = executable.get_instruction(&mut vm.ip).unwrap();
+                let binding_id =
+                    vm.fetch_identifier(executable, bind_instruction.args[0].unwrap() as usize);
+                assert_eq!(bind_instruction.kind, Instruction::BindingPatternBind);
+                if let Some(environment) = environment {
+                    environment
+                        .initialize_binding(agent, binding_id, value)
+                        .unwrap();
+                } else {
+                    let lhs = resolve_binding(agent, binding_id, None)?;
+                    put_value(agent, &lhs, v)?;
+                }
+            } else if instr.kind == Instruction::FinishBindingPattern {
+                break;
+            }
+        }
+        Ok(())
     }
 }
 
