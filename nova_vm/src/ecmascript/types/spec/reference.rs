@@ -170,16 +170,10 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             Ok(env.get_binding_value(agent, referenced_name, reference.strict)?)
         }
         Base::Unresolvable => {
-            let string = match &reference.referenced_name {
-                ReferencedName::String(str) => agent[*str].as_str(),
-                ReferencedName::SmallString(str) => str.as_str(),
-                ReferencedName::Symbol(_) => "Symbol",
-                ReferencedName::PrivateName => todo!(),
-            };
             // 2. If IsUnresolvableReference(V) is true, throw a ReferenceError exception.
             Err(agent.throw_exception(
                 ExceptionType::ReferenceError,
-                &format!("Unable to resolve {string}"),
+                "Unable to resolve identifier.",
             ))
         }
     }
