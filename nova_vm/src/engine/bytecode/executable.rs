@@ -2021,6 +2021,24 @@ impl CompileEvaluation for ast::TryStatement<'_> {
     }
 }
 
+impl CompileEvaluation for ast::DoWhileStatement<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        let continue_jump = ctx.exe.get_jump_index_to_here();
+        self.body.compile(ctx);
+        self.test.compile(ctx);
+        if is_reference(&self.test) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        // jump over loop jump if test fails
+        let end_jump = ctx
+            .exe
+            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+        ctx.exe
+            .add_jump_instruction_to_index(Instruction::Jump, continue_jump);
+        ctx.exe.set_jump_target_here(end_jump);
+    }
+}
+
 impl CompileEvaluation for ast::Statement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
@@ -2034,7 +2052,29 @@ impl CompileEvaluation for ast::Statement<'_> {
             ast::Statement::ForStatement(x) => x.compile(ctx),
             ast::Statement::ThrowStatement(x) => x.compile(ctx),
             ast::Statement::TryStatement(x) => x.compile(ctx),
-            other => todo!("{other:?}"),
+            Statement::BreakStatement(_) => todo!(),
+            Statement::ContinueStatement(_) => todo!(),
+            Statement::DebuggerStatement(_) => todo!(),
+            Statement::DoWhileStatement(statement) => statement.compile(ctx),
+            Statement::ForInStatement(_) => todo!(),
+            Statement::ForOfStatement(_) => todo!(),
+            Statement::LabeledStatement(_) => todo!(),
+            Statement::SwitchStatement(_) => todo!(),
+            Statement::WhileStatement(_) => todo!(),
+            Statement::WithStatement(_) => todo!(),
+            Statement::ClassDeclaration(_) => todo!(),
+            Statement::UsingDeclaration(_) => todo!(),
+            Statement::ImportDeclaration(_) => todo!(),
+            Statement::ExportAllDeclaration(_) => todo!(),
+            Statement::ExportDefaultDeclaration(_) => todo!(),
+            Statement::ExportNamedDeclaration(_) => todo!(),
+            Statement::TSEnumDeclaration(_)
+            | Statement::TSExportAssignment(_)
+            | Statement::TSImportEqualsDeclaration(_)
+            | Statement::TSInterfaceDeclaration(_)
+            | Statement::TSModuleDeclaration(_)
+            | Statement::TSNamespaceExportDeclaration(_)
+            | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
         }
     }
 }

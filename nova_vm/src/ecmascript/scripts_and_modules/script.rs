@@ -1559,4 +1559,31 @@ mod test {
             4.into()
         );
     }
+
+    #[test]
+    fn do_while() {
+        let allocator = Allocator::default();
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "let i = 0; do { i++ } while(i < 10)".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        script_evaluation(&mut agent, script).unwrap();
+
+        let i_key = String::from_static_str(&mut agent, "i");
+        let global_env = agent.get_realm(realm).global_env.unwrap();
+        assert!(global_env.has_lexical_declaration(&agent, i_key));
+        assert_eq!(
+            global_env
+                .get_binding_value(&mut agent, i_key, true)
+                .unwrap(),
+            10.into()
+        );
+    }
 }
