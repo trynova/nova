@@ -97,6 +97,7 @@ impl IndexMut<DataView> for Heap {
 impl InternalSlots for DataView {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::DataView;
 
+    #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
         agent[self].object_index
     }
