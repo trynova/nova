@@ -107,10 +107,6 @@ impl Module {
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
-
-    fn get_backing_object(self, agent: &Agent) -> Option<Object> {
-        agent[self].object_index.map(|idx| idx.into())
-    }
 }
 
 impl InternalSlots for Module {
@@ -170,9 +166,9 @@ impl InternalMethods for Module {
         match property_key {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return OrdinaryGetOwnProperty(O, P).
-                Ok(self
-                    .get_backing_object(agent)
-                    .and_then(|object| ordinary_get_own_property(agent, object, property_key)))
+                Ok(self.get_backing_object(agent).and_then(|object| {
+                    ordinary_get_own_property(agent, object.into_object(), property_key)
+                }))
             }
             // TODO: Check this but it should not be possible to export any
             // integer-valued names.
@@ -217,8 +213,13 @@ impl InternalMethods for Module {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
                 Ok(self.get_backing_object(agent).map_or(false, |object| {
-                    ordinary_define_own_property(agent, object, property_key, property_descriptor)
-                        .unwrap()
+                    ordinary_define_own_property(
+                        agent,
+                        object.into_object(),
+                        property_key,
+                        property_descriptor,
+                    )
+                    .unwrap()
                 }))
             }
             // TODO: Check this but it should not be possible to export any
@@ -281,7 +282,7 @@ impl InternalMethods for Module {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryHasProperty(O, P).
                 Ok(self.get_backing_object(agent).map_or(false, |object| {
-                    ordinary_has_property(agent, object, property_key).unwrap()
+                    ordinary_has_property(agent, object.into_object(), property_key).unwrap()
                 }))
             }
         }
@@ -307,7 +308,7 @@ impl InternalMethods for Module {
                 Ok(self
                     .get_backing_object(agent)
                     .map_or(Value::Undefined, |object| {
-                        ordinary_get(agent, object, property_key, receiver).unwrap()
+                        ordinary_get(agent, object.into_object(), property_key, receiver).unwrap()
                     }))
             }
             PropertyKey::Integer(_) => Ok(Value::Undefined),
@@ -380,7 +381,7 @@ impl InternalMethods for Module {
                 // 1. If P is a Symbol, then
                 // a. Return ! OrdinaryDelete(O, P).
                 Ok(self.get_backing_object(agent).map_or(true, |object| {
-                    ordinary_delete(agent, object, property_key).unwrap()
+                    ordinary_delete(agent, object.into_object(), property_key).unwrap()
                 }))
             }
             PropertyKey::Integer(_) => Ok(false),
@@ -412,9 +413,9 @@ impl InternalMethods for Module {
             .map(|string| PropertyKey::from(*string));
         let exports_count = exports.len();
         // 2. Let symbolKeys be OrdinaryOwnPropertyKeys(O).
-        let symbol_keys = self
-            .get_backing_object(agent)
-            .map_or(vec![], |object| ordinary_own_property_keys(agent, object));
+        let symbol_keys = self.get_backing_object(agent).map_or(vec![], |object| {
+            ordinary_own_property_keys(agent, object.into_object())
+        });
         let symbol_keys_count = symbol_keys.len();
         // 3. Return the list-concatenation of exports and symbolKeys.
         let mut own_property_keys = Vec::with_capacity(exports_count + symbol_keys_count);
