@@ -198,6 +198,7 @@ impl InternalSlots for Function {
         unreachable!("Function should not try to create backing object");
     }
 
+    #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
         match self {
             Function::BoundFunction(d) => agent[d].object_index,

@@ -69,6 +69,7 @@ impl From<Proxy> for Object {
 }
 
 impl InternalSlots for Proxy {
+    #[inline(always)]
     fn get_backing_object(
         self,
         _agent: &Agent,
