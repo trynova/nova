@@ -4,7 +4,10 @@ use crate::ecmascript::{
         agent::{self, ExceptionType},
         get_global_object, EnvironmentIndex,
     },
-    types::{HeapString, InternalMethods, Object, PropertyKey, String, Symbol, Value},
+    types::{
+        HeapString, InternalMethods, IntoValue, Object, PropertyKey, String, Symbol, Value,
+        BUILTIN_STRING_MEMORY,
+    },
 };
 use agent::{Agent, JsResult};
 use small_string::SmallString;
@@ -132,11 +135,9 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
                         .intrinsics()
                         .boolean_prototype()
                         .internal_get(agent, referenced_name, value),
-                    Value::String(_) | Value::SmallString(_) => agent
-                        .current_realm()
-                        .intrinsics()
-                        .string_prototype()
-                        .internal_get(agent, referenced_name, value),
+                    Value::String(_) | Value::SmallString(_) => {
+                        get_string_value(agent, String::try_from(value).unwrap(), referenced_name)
+                    }
                     Value::Symbol(_) => agent
                         .current_realm()
                         .intrinsics()
@@ -169,12 +170,53 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             Ok(env.get_binding_value(agent, referenced_name, reference.strict)?)
         }
         Base::Unresolvable => {
+            let string = match &reference.referenced_name {
+                ReferencedName::String(str) => agent[*str].as_str(),
+                ReferencedName::SmallString(str) => str.as_str(),
+                ReferencedName::Symbol(_) => "Symbol",
+                ReferencedName::PrivateName => todo!(),
+            };
             // 2. If IsUnresolvableReference(V) is true, throw a ReferenceError exception.
             Err(agent.throw_exception(
                 ExceptionType::ReferenceError,
-                "Unable to resolve identifier.",
+                &format!("Unable to resolve {string}"),
             ))
         }
+    }
+}
+
+fn get_string_value(
+    agent: &mut Agent,
+    string: String,
+    referenced_name: PropertyKey,
+) -> JsResult<Value> {
+    let string_length = string.len(agent);
+    if string_length > u32::MAX as usize {
+        panic!("String length over u32::MAX");
+    }
+    if referenced_name == BUILTIN_STRING_MEMORY.length.into() {
+        let string_length = string_length as u32;
+        Ok(string_length.into())
+    } else if let PropertyKey::Integer(index) = referenced_name {
+        let index = index.into_i64();
+        if index < 0 || (index as usize) >= string_length {
+            // Over-indexing, prototype chain it is.
+            agent
+                .current_realm()
+                .intrinsics()
+                .string_prototype()
+                .internal_get(agent, referenced_name, string.into_value())
+        } else {
+            let char_byte = string.as_str(agent).as_bytes()[index as usize];
+            let char = SmallString::from_str_unchecked(std::str::from_utf8(&[char_byte]).unwrap());
+            Ok(char.into_value())
+        }
+    } else {
+        agent
+            .current_realm()
+            .intrinsics()
+            .string_prototype()
+            .internal_get(agent, referenced_name, string.into_value())
     }
 }
 
