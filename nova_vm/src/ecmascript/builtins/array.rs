@@ -343,7 +343,6 @@ impl InternalMethods for Array {
     }
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        #[cold]
         let backing_keys = if let Some(backing_object) = self.get_backing_object(agent) {
             backing_object.internal_own_property_keys(agent)?
         } else {
