@@ -31,6 +31,10 @@ pub(crate) struct CompileContext<'agent> {
     ///
     /// Otherwise, all bindings being created are variable scoped.
     lexical_binding_state: bool,
+    /// Place where to jump if a `continue;` is executed
+    current_continue: Option<JumpIndex>,
+    /// `break;` statement jumps that were present in the current loop
+    current_break: Option<Vec<JumpIndex>>,
 }
 
 impl CompileContext<'_> {
@@ -149,6 +153,8 @@ impl Executable {
             },
             name_identifier: None,
             lexical_binding_state: false,
+            current_continue: None,
+            current_break: None,
         };
 
         let iter = body.iter();
@@ -319,7 +325,8 @@ impl Executable {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[repr(transparent)]
 pub(crate) struct JumpIndex {
     pub(crate) index: usize,
 }
@@ -1963,13 +1970,24 @@ impl CompileEvaluation for ast::ForStatement<'_> {
             .exe
             .add_instruction_with_jump_slot(Instruction::JumpIfNot);
         self.body.compile(ctx);
-        let _continue_jump = ctx.exe.get_jump_index_to_here();
+        let continue_jump = ctx.exe.get_jump_index_to_here();
+
+        let previous_continue = ctx.current_continue.replace(continue_jump.clone());
+        let previous_break = ctx.current_break.replace(vec![]);
+
         if let Some(update) = &self.update {
             update.compile(ctx);
         }
         ctx.exe
             .add_jump_instruction_to_index(Instruction::Jump, loop_jump);
         ctx.exe.set_jump_target_here(end_jump);
+
+        let own_breaks = ctx.current_break.take().unwrap();
+        for break_entry in own_breaks {
+            ctx.exe.set_jump_target_here(break_entry);
+        }
+        ctx.current_break = previous_break;
+        ctx.current_continue = previous_continue;
     }
 }
 
@@ -2024,6 +2042,10 @@ impl CompileEvaluation for ast::TryStatement<'_> {
 impl CompileEvaluation for ast::DoWhileStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let continue_jump = ctx.exe.get_jump_index_to_here();
+
+        let previous_continue = ctx.current_continue.replace(continue_jump.clone());
+        let previous_break = ctx.current_break.replace(vec![]);
+
         self.body.compile(ctx);
         self.test.compile(ctx);
         if is_reference(&self.test) {
@@ -2036,6 +2058,37 @@ impl CompileEvaluation for ast::DoWhileStatement<'_> {
         ctx.exe
             .add_jump_instruction_to_index(Instruction::Jump, continue_jump);
         ctx.exe.set_jump_target_here(end_jump);
+
+        let own_breaks = ctx.current_break.take().unwrap();
+        for break_entry in own_breaks {
+            ctx.exe.set_jump_target_here(break_entry);
+        }
+        ctx.current_break = previous_break;
+        ctx.current_continue = previous_continue;
+    }
+}
+
+impl CompileEvaluation for ast::BreakStatement<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        if let Some(label) = &self.label {
+            let label = label.name.as_str();
+            todo!("break {};", label);
+        }
+        let break_jump = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+        ctx.current_break.as_mut().unwrap().push(break_jump);
+    }
+}
+
+impl CompileEvaluation for ast::ContinueStatement<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        if let Some(label) = &self.label {
+            let label = label.name.as_str();
+            todo!("continue {};", label);
+        }
+        ctx.exe.add_jump_instruction_to_index(
+            Instruction::Jump,
+            ctx.current_continue.clone().unwrap(),
+        );
     }
 }
 
@@ -2052,8 +2105,8 @@ impl CompileEvaluation for ast::Statement<'_> {
             ast::Statement::ForStatement(x) => x.compile(ctx),
             ast::Statement::ThrowStatement(x) => x.compile(ctx),
             ast::Statement::TryStatement(x) => x.compile(ctx),
-            Statement::BreakStatement(_) => todo!(),
-            Statement::ContinueStatement(_) => todo!(),
+            Statement::BreakStatement(statement) => statement.compile(ctx),
+            Statement::ContinueStatement(statement) => statement.compile(ctx),
             Statement::DebuggerStatement(_) => todo!(),
             Statement::DoWhileStatement(statement) => statement.compile(ctx),
             Statement::ForInStatement(_) => todo!(),
