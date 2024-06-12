@@ -160,11 +160,73 @@ pub enum Instruction {
     /// Reset the running execution context's LexicalEnvironment to its current
     /// value's \[\[OuterEnv]].
     ExitDeclarativeEnvironment,
+    /// Begin binding values using destructuring
+    BeginObjectBindingPattern,
+    /// Begin binding values using a sync iterator for known repetitions
+    BeginSimpleArrayBindingPattern,
+    /// Begin binding values using a sync iterator
+    BeginArrayBindingPattern,
+    /// Bind current result to given identifier
+    ///
+    /// ```js
+    /// const { a } = x;
+    /// const [a] = x;
+    /// ```
+    BindingPatternBind,
+    /// Bind current result to
+    BindingPatternBindNamed,
+    /// Bind all remaining values to given identifier
+    ///
+    /// ```js
+    /// const { a, ...b } = x;
+    /// const [a, ...b] = x;
+    /// ```
+    BindingPatternBindRest,
+    /// Bind current result to given identifier, falling back to an initializer
+    /// if the current result is undefined.
+    ///
+    /// ```js
+    /// const { a = 3 } = x;
+    /// const [a = 3] = x;
+    /// ```
+    BindingPatternBindWithInitializer,
+    /// Skip the next value
+    ///
+    /// ```js
+    /// const [a,,b] = x;
+    /// ```
+    BindingPatternSkip,
+    /// Load the next value onto the stack
+    ///
+    /// This is used to implement nested binding patterns. The current binding
+    /// pattern needs to take the "next step", but instead of binding to an
+    /// identifier it is instead saved on the stack and the nested binding
+    /// pattern starts its work.
+    ///
+    /// ```js
+    /// const [{ a }] = x;
+    /// const { a: [b] } = x;
+    /// ```
+    BindingPatternGetValue,
+    /// Load all remaining values onto the stack
+    ///
+    /// This is used to implement nested binding patterns in rest elements.
+    ///
+    /// ```js
+    /// const [a, ...[b, c]] = x;
+    /// ```
+    BindingPatternGetRestValue,
+    /// Finish binding values
+    ///
+    /// This stops
+    FinishBindingPattern,
 }
 
 impl Instruction {
     pub fn argument_count(self) -> u8 {
         match self {
+            // Number of repetitions and lexical status
+            Self::BeginSimpleArrayBindingPattern => 2,
             Self::ArrayCreate
             | Self::ArraySetLength
             | Self::ArraySetValue
@@ -181,7 +243,11 @@ impl Instruction {
             | Self::StoreConstant
             | Self::ResolveBinding
             | Self::CreateImmutableBinding
-            | Self::CreateMutableBinding => 1,
+            | Self::CreateMutableBinding
+            | Self::BeginArrayBindingPattern
+            | Self::BeginObjectBindingPattern
+            | Self::BindingPatternBind
+            | Self::BindingPatternBindWithInitializer => 1,
             _ => 0,
         }
     }
@@ -198,6 +264,8 @@ impl Instruction {
                 | Self::ResolveBinding
                 | Self::CreateImmutableBinding
                 | Self::CreateMutableBinding
+                | Self::BindingPatternBind
+                | Self::BindingPatternBindWithInitializer
         )
     }
 

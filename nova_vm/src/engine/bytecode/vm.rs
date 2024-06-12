@@ -4,7 +4,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call, call_function, construct, create_data_property_or_throw, get_method,
+                call, call_function, construct, create_data_property_or_throw, get_method, get_v,
                 has_property, ordinary_has_instance,
             },
             testing_and_comparison::{
@@ -25,9 +25,9 @@ use crate::{
             ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult, ProtoIntrinsics,
         },
         types::{
-            get_value, initialize_referenced_binding, put_value, Base, BigInt, Function, IntoValue,
-            Number, Numeric, Object, PropertyKey, Reference, ReferencedName, String, Value,
-            BUILTIN_STRING_MEMORY,
+            get_value, initialize_referenced_binding, put_value, Base, BigInt, Function,
+            IntoFunction, IntoValue, Number, Numeric, Object, PropertyKey, Reference,
+            ReferencedName, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::WellKnownSymbolIndexes,
@@ -601,10 +601,200 @@ impl Vm {
                 let rval = vm.result.take().unwrap();
                 vm.result = Some(instanceof_operator(agent, lval, rval)?.into());
             }
+            Instruction::BeginSimpleArrayBindingPattern => {
+                let lexical = instr.args[1].unwrap() == 1;
+                let env = if lexical {
+                    // Lexical binding, const [] = a; or let [] = a;
+                    Some(
+                        agent
+                            .running_execution_context()
+                            .ecmascript_code
+                            .as_ref()
+                            .unwrap()
+                            .lexical_environment,
+                    )
+                } else {
+                    // Var binding, var [] = a;
+                    None
+                };
+                Self::execute_simple_array_binding(agent, vm, executable, instr, env)?
+            }
+            Instruction::BeginArrayBindingPattern => {
+                let lexical = instr.args[0].unwrap() == 1;
+                let env = if lexical {
+                    // Lexical binding, const [] = a; or let [] = a;
+                    Some(
+                        agent
+                            .running_execution_context()
+                            .ecmascript_code
+                            .as_ref()
+                            .unwrap()
+                            .lexical_environment,
+                    )
+                } else {
+                    // Var binding, var [] = a;
+                    None
+                };
+                Self::execute_complex_array_binding(agent, vm, executable, env)?
+            }
+            Instruction::BeginObjectBindingPattern => {
+                let lexical = instr.args[0].unwrap() == 1;
+                let env = if lexical {
+                    // Lexical binding, const {} = a; or let {} = a;
+                    Some(
+                        agent
+                            .running_execution_context()
+                            .ecmascript_code
+                            .as_ref()
+                            .unwrap()
+                            .lexical_environment,
+                    )
+                } else {
+                    // Var binding, var {} = a;
+                    None
+                };
+                Self::execute_object_binding(agent, vm, executable, env)?
+            }
+            Instruction::BindingPatternBind
+            | Instruction::BindingPatternBindRest
+            | Instruction::BindingPatternBindWithInitializer
+            | Instruction::BindingPatternSkip
+            | Instruction::BindingPatternGetValue
+            | Instruction::BindingPatternGetRestValue
+            | Instruction::FinishBindingPattern => {
+                unreachable!("BeginArrayBindingPattern should take care of stepping over these");
+            }
             other => todo!("{other:?}"),
         }
 
         Ok(ContinuationKind::Normal)
+    }
+
+    fn execute_simple_array_binding(
+        agent: &mut Agent,
+        vm: &mut Vm,
+        executable: &Executable,
+        instr: &Instr,
+        environment: Option<EnvironmentIndex>,
+    ) -> JsResult<()> {
+        let obj = vm.stack.pop().unwrap();
+        // 1. Let iteratorRecord be ? GetIterator(value, sync).
+        // From GetIterator:
+        // Let method be ? GetMethod(obj, @@iterator).
+        let method = get_method(agent, obj, WellKnownSymbolIndexes::Iterator.into())?;
+        let Some(method) = method else {
+            return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not iterable"));
+        };
+        if Array::try_from(obj).is_ok()
+            && method
+                == agent
+                    .current_realm()
+                    .intrinsics()
+                    .array_prototype_values()
+                    .into_function()
+        {
+            // Fast path: We're iterating an array with the normal array iterator method
+            let array = Array::try_from(obj).unwrap();
+            let binding_count = instr.args[0].unwrap() as u32;
+            let elements = agent[array].elements;
+            let elements_count = elements.len();
+            // The iterator iterates for as long as there are items in the
+            // array. Once the end of the array is found, no more elements are
+            // accessed. Hence, if the array is dense and contains no getters
+            // we can be sure that the iterator stops precisely when either the
+            // bindings or the elements run out, and no JavaScript code can run
+            // while the iterator is running.
+            let iterator_length = binding_count.min(elements_count);
+            let is_dense_array_slice = !agent[elements][0..iterator_length as usize]
+                .iter()
+                .any(|el| el.is_none());
+            if !is_dense_array_slice {
+                // If the array is not dense, then we might trigger JavaScript
+                // through getters in either the array or its prototype.
+                // We need to deoptimize this.
+                return Self::execute_complex_array_binding(agent, vm, executable, environment);
+            }
+            for index in 0..binding_count {
+                let instr = executable.get_instruction(&mut vm.ip).unwrap();
+                if instr.kind == Instruction::BindingPatternSkip || index >= elements_count {
+                    continue;
+                }
+                assert_eq!(instr.kind, Instruction::BindingPatternBind);
+                let binding_id = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                let lhs = resolve_binding(agent, binding_id, environment)?;
+                let v = agent[elements][index as usize].unwrap();
+                if environment.is_none() {
+                    put_value(agent, &lhs, v)?;
+                } else {
+                    initialize_referenced_binding(agent, lhs, v)?;
+                }
+            }
+        } else {
+            todo!();
+        }
+        Ok(())
+    }
+
+    fn execute_complex_array_binding(
+        _agent: &mut Agent,
+        _vm: &mut Vm,
+        _executable: &Executable,
+        _environment: Option<EnvironmentIndex>,
+    ) -> JsResult<()> {
+        todo!();
+    }
+
+    fn execute_object_binding(
+        agent: &mut Agent,
+        vm: &mut Vm,
+        executable: &Executable,
+        environment: Option<EnvironmentIndex>,
+    ) -> JsResult<()> {
+        let value = vm.stack.pop().unwrap();
+
+        loop {
+            let instr = executable.get_instruction(&mut vm.ip).unwrap();
+            if instr.kind == Instruction::BindingPatternBind {
+                // Shorthand pattern, ie. SingleNameBinding: const { b } = a;
+                let binding_id = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                let lhs = resolve_binding(agent, binding_id, environment)?;
+                let v = get_v(agent, value, binding_id.into())?;
+                if environment.is_none() {
+                    put_value(agent, &lhs, v)?;
+                } else {
+                    initialize_referenced_binding(agent, lhs, v)?;
+                }
+                continue;
+            } else if instr.kind == Instruction::EvaluatePropertyAccessWithIdentifierKey {
+                let property_name_string =
+                    vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                let strict = true;
+
+                let reference = Reference {
+                    base: Base::Value(value),
+                    referenced_name: ReferencedName::from(property_name_string),
+                    strict,
+                    this_value: None,
+                };
+
+                let v = get_value(agent, &reference)?;
+                let bind_instruction = executable.get_instruction(&mut vm.ip).unwrap();
+                let binding_id =
+                    vm.fetch_identifier(executable, bind_instruction.args[0].unwrap() as usize);
+                assert_eq!(bind_instruction.kind, Instruction::BindingPatternBind);
+                if let Some(environment) = environment {
+                    environment
+                        .initialize_binding(agent, binding_id, value)
+                        .unwrap();
+                } else {
+                    let lhs = resolve_binding(agent, binding_id, None)?;
+                    put_value(agent, &lhs, v)?;
+                }
+            } else if instr.kind == Instruction::FinishBindingPattern {
+                break;
+            }
+        }
+        Ok(())
     }
 }
 
