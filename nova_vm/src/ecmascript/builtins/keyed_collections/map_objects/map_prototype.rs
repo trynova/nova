@@ -4,8 +4,8 @@ use crate::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic},
-        execution::{Agent, JsResult, RealmIdentifier},
+        builtins::{map::Map, ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic},
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{IntoValue, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
@@ -113,8 +113,10 @@ impl MapPrototype {
         todo!()
     }
 
-    fn get_size(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    fn get_size(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let m = require_map_data_internal_slot(agent, this_value)?;
+        let count = agent[m].keys.len() as u32;
+        Ok(count.into())
     }
 
     fn values(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
@@ -173,5 +175,13 @@ impl MapPrototype {
                     .build()
             })
             .build();
+    }
+}
+
+#[inline(always)]
+fn require_map_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<Map> {
+    match value {
+        Value::Map(map) => Ok(map),
+        _ => Err(agent.throw_exception(ExceptionType::TypeError, "Object is not a Map")),
     }
 }

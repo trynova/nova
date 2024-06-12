@@ -1,7 +1,7 @@
 use crate::ecmascript::{
     abstract_operations::type_conversion::to_integer_or_infinity,
     builders::ordinary_object_builder::OrdinaryObjectBuilder,
-    builtins::{ArgumentsList, Builtin},
+    builtins::{primitive_objects::PrimitiveObject, ArgumentsList, Builtin},
     execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
     types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
 };
@@ -220,9 +220,15 @@ fn this_number_value(agent: &mut Agent, value: Value) -> JsResult<Number> {
         return Ok(value);
     }
     // 2. If value is an Object and value has a [[NumberData]] internal slot, then
-    // a. Let n be value.[[NumberData]].
-    // b. Assert: n is a Number.
-    // c. Return n.
+    if let Ok(value) = PrimitiveObject::try_from(value) {
+        if value.is_number_object(agent) {
+            // a. Let n be value.[[NumberData]].
+            // b. Assert: n is a Number.
+            let n: Number = agent[value].data.try_into().unwrap();
+            // c. Return n.
+            return Ok(n);
+        }
+    }
     // 3. Throw a TypeError exception.
     Err(agent.throw_exception(ExceptionType::TypeError, "Not a Number"))
 }
