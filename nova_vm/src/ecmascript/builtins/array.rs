@@ -36,6 +36,25 @@ impl Array {
     pub fn len(&self, agent: &Agent) -> u32 {
         agent[*self].elements.len()
     }
+
+    #[inline]
+    fn internal_get_backing(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
+    ) -> JsResult<Value> {
+        if let Some(object_index) = self.get_backing_object(agent) {
+            // If backing object exists, then we might have properties there
+            object_index.internal_get(agent, property_key, receiver)
+        } else {
+            // If backing object doesn't exist, then we might still have
+            // properties in the prototype.
+            self.internal_prototype(agent)
+                .unwrap()
+                .internal_get(agent, property_key, receiver)
+        }
+    }
 }
 
 impl IntoValue for Array {
@@ -270,18 +289,20 @@ impl InternalMethods for Array {
             Ok(self.len(agent).into())
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
-            if index < 0 {
-                let Some(object_index) = agent[self].object_index else {
-                    return Ok(Value::Undefined);
-                };
-                return object_index.internal_get(agent, property_key, receiver);
-            }
-            if index >= i64::pow(2, 32) {
-                return Ok(Value::Undefined);
+            if index < 0 || index >= i64::pow(2, 32) {
+                // Negative indexes and indexes over 2^32 go into backing store
+                return self.internal_get_backing(agent, property_key, receiver);
             }
             let elements = agent[self].elements;
             if index >= elements.len() as i64 {
-                return Ok(Value::Undefined);
+                // Indexes below 2^32 but above length are necessarily not
+                // defined: If they were, then the length would be larger.
+                // Hence, we look in the prototype.
+                return if let Some(prototype) = self.internal_prototype(agent) {
+                    prototype.internal_get(agent, property_key, receiver)
+                } else {
+                    Ok(Value::Undefined)
+                };
             }
             let elements = &agent[elements];
             // Index has been checked to be between 0 <= idx < len; unwrapping should never fail.
@@ -291,10 +312,7 @@ impl InternalMethods for Array {
             };
             Ok(element)
         } else {
-            let Some(object_index) = agent[self].object_index else {
-                return Ok(Value::Undefined);
-            };
-            object_index.internal_get(agent, property_key, receiver)
+            self.internal_get_backing(agent, property_key, receiver)
         }
     }
 
@@ -303,12 +321,10 @@ impl InternalMethods for Array {
             Ok(true)
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
-            if index < 0 {
+            if index < 0 || index >= i64::pow(2, 32) {
                 return agent[self].object_index.map_or(Ok(true), |object_index| {
                     object_index.internal_delete(agent, property_key)
                 });
-            } else if index >= i64::pow(2, 32) {
-                return Ok(true);
             }
             let elements = agent[self].elements;
             if index >= elements.len() as i64 {
@@ -327,17 +343,24 @@ impl InternalMethods for Array {
     }
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        let array_data = &agent[self];
-        // TODO: Handle object_index
-        let mut keys = Vec::with_capacity(array_data.elements.len() as usize);
+        #[cold]
+        let backing_keys = if let Some(backing_object) = self.get_backing_object(agent) {
+            backing_object.internal_own_property_keys(agent)?
+        } else {
+            Default::default()
+        };
+        let elements = agent[self].elements;
+        let mut keys = Vec::with_capacity(elements.len() as usize + backing_keys.len());
 
-        let elements_data = &agent[array_data.elements];
+        let elements_data = &agent[elements];
 
         for (index, value) in elements_data.iter().enumerate() {
             if value.is_some() {
                 keys.push(PropertyKey::Integer((index as u32).into()))
             }
         }
+
+        keys.extend(backing_keys);
 
         Ok(keys)
     }
