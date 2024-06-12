@@ -22,14 +22,6 @@ use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 
 pub type IndexType = u16;
 
-pub(super) struct LabelEntry<'source> {
-    label: &'source str,
-    /// Continue label location
-    cont: usize,
-    /// Break label location
-    brk: usize,
-}
-
 pub(crate) struct CompileContext<'agent> {
     agent: &'agent mut Agent,
     exe: Executable,
