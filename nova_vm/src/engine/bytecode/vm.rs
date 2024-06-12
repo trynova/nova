@@ -602,7 +602,7 @@ impl Vm {
                 vm.result = Some(instanceof_operator(agent, lval, rval)?.into());
             }
             Instruction::BeginSimpleArrayBindingPattern => {
-                let lexical = instr.args[0].unwrap() == 1;
+                let lexical = instr.args[1].unwrap() == 1;
                 let env = if lexical {
                     // Lexical binding, const [] = a; or let [] = a;
                     Some(
