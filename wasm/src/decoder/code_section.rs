@@ -9,7 +9,6 @@ use core2::io;
 #[cfg(not(feature = "no_std"))]
 use std::io;
 
-
 #[allow(clippy::read_zero_byte_vec)]
 pub fn decode_code_section<R: io::Read>(reader: &mut R) -> Result<CodeBlock> {
     let body_size = decode_u32(reader)?.value;
