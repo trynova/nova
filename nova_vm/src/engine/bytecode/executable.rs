@@ -620,32 +620,180 @@ impl CompileEvaluation for ast::LogicalExpression<'_> {
 
 impl CompileEvaluation for ast::AssignmentExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        match &self.left {
+        // 1. Let lref be ? Evaluation of LeftHandSideExpression.
+        let identifier = match &self.left {
             ast::AssignmentTarget::ArrayAssignmentTarget(_) => todo!(),
             ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) => {
-                identifier.compile(ctx)
+                // impl CompileEvaluation for ast::IdentifierReference<'_>
+                // is inlined here to reuse the identifier.
+                let identifier = String::from_str(ctx.agent, identifier.name.as_str());
+                let identifier = ctx.exe.add_identifier(identifier);
+                ctx.exe
+                    .add_instruction_with_immediate(Instruction::ResolveBinding, identifier);
+                Some(identifier)
             }
-            ast::AssignmentTarget::ComputedMemberExpression(expression) => expression.compile(ctx),
+            ast::AssignmentTarget::ComputedMemberExpression(expression) => {
+                expression.compile(ctx);
+                None
+            }
             ast::AssignmentTarget::ObjectAssignmentTarget(_) => todo!(),
             ast::AssignmentTarget::PrivateFieldExpression(_) => todo!(),
-            ast::AssignmentTarget::StaticMemberExpression(expression) => expression.compile(ctx),
+            ast::AssignmentTarget::StaticMemberExpression(expression) => {
+                expression.compile(ctx);
+                None
+            }
             ast::AssignmentTarget::TSAsExpression(_)
             | ast::AssignmentTarget::TSSatisfiesExpression(_)
             | ast::AssignmentTarget::TSNonNullExpression(_)
             | ast::AssignmentTarget::TSTypeAssertion(_)
             | ast::AssignmentTarget::TSInstantiationExpression(_) => unreachable!(),
+        };
+
+        if self.operator == oxc_syntax::operator::AssignmentOperator::Assign {
+            ctx.exe.add_instruction(Instruction::PushReference);
+            self.right.compile(ctx);
+
+            if is_reference(&self.right) {
+                ctx.exe.add_instruction(Instruction::GetValue);
+            }
+
+            ctx.exe.add_instruction(Instruction::PopReference);
+            ctx.exe.add_instruction(Instruction::PutValue);
+        } else if matches!(
+            self.operator,
+            oxc_syntax::operator::AssignmentOperator::LogicalAnd
+                | oxc_syntax::operator::AssignmentOperator::LogicalNullish
+                | oxc_syntax::operator::AssignmentOperator::LogicalOr
+        ) {
+            // 2. Let lval be ? GetValue(lref).
+            ctx.exe.add_instruction(Instruction::GetValueKeepReference);
+            ctx.exe.add_instruction(Instruction::PushReference);
+            // We store the left value on the stack, because we'll need to
+            // restore it later.
+            ctx.exe.add_instruction(Instruction::LoadCopy);
+
+            match self.operator {
+                oxc_syntax::operator::AssignmentOperator::LogicalAnd => {
+                    // 3. Let lbool be ToBoolean(lval).
+                    // Note: We do not directly call ToBoolean: JumpIfNot does.
+                    // 4. If lbool is false, return lval.
+                }
+                oxc_syntax::operator::AssignmentOperator::LogicalOr => {
+                    // 3. Let lbool be ToBoolean(lval).
+                    // Note: We do not directly call ToBoolean: JumpIfNot does.
+                    // 4. If lbool is true, return lval.
+                    ctx.exe.add_instruction(Instruction::LogicalNot);
+                }
+                oxc_syntax::operator::AssignmentOperator::LogicalNullish => {
+                    // 3. If lval is neither undefined nor null, return lval.
+                    ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
+                }
+                _ => unreachable!(),
+            }
+
+            let jump_to_end = ctx
+                .exe
+                .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+
+            // We're returning the right expression, so we discard the left
+            // value at the top of the stack.
+            ctx.exe.add_instruction(Instruction::Store);
+
+            // 5. If IsAnonymousFunctionDefinition(AssignmentExpression)
+            // is true and IsIdentifierRef of LeftHandSideExpression is true,
+            // then
+            if let Some(identifier) = identifier {
+                // a. Let lhs be the StringValue of LeftHandSideExpression.
+                match &self.right {
+                    ast::Expression::ArrowFunctionExpression(expr) => {
+                        // Always anonymous
+                        // b. Let rval be ? NamedEvaluation of AssignmentExpression with argument lhs.
+                        ctx.name_identifier = Some(identifier);
+                        expr.compile(ctx);
+                    }
+                    ast::Expression::FunctionExpression(expr) => {
+                        if expr.id.is_none() {
+                            ctx.name_identifier = Some(identifier);
+                        }
+                        // b. Let rval be ? NamedEvaluation of AssignmentExpression with argument lhs.
+                        expr.compile(ctx);
+                    }
+                    _ => {
+                        // 6. Else
+                        // a. Let rref be ? Evaluation of AssignmentExpression.
+                        self.right.compile(ctx);
+                        // b. Let rval be ? GetValue(rref).
+                        if is_reference(&self.right) {
+                            ctx.exe.add_instruction(Instruction::GetValue);
+                        }
+                    }
+                };
+            } else {
+                // 6. Else
+                // a. Let rref be ? Evaluation of AssignmentExpression.
+                self.right.compile(ctx);
+                if is_reference(&self.right) {
+                    // b. Let rval be ? GetValue(rref).
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+            }
+
+            // 7. Perform ? PutValue(lref, rval).
+            ctx.exe.add_instruction(Instruction::LoadCopy);
+            ctx.exe.add_instruction(Instruction::PopReference);
+            ctx.exe.add_instruction(Instruction::PutValue);
+
+            // 4. ... return lval.
+            ctx.exe.set_jump_target_here(jump_to_end);
+            ctx.exe.add_instruction(Instruction::Store);
+        } else {
+            // 2. let lval be ? GetValue(lref).
+            ctx.exe.add_instruction(Instruction::GetValueKeepReference);
+            ctx.exe.add_instruction(Instruction::Load);
+            ctx.exe.add_instruction(Instruction::PushReference);
+            // 3. Let rref be ? Evaluation of AssignmentExpression.
+            self.right.compile(ctx);
+
+            // 4. Let rval be ? GetValue(rref).
+            if is_reference(&self.right) {
+                ctx.exe.add_instruction(Instruction::GetValue);
+            }
+
+            // 5. Let assignmentOpText be the source text matched by AssignmentOperator.
+            // 6. Let opText be the sequence of Unicode code points associated with assignmentOpText in the following table:
+            let op_text = match self.operator {
+                oxc_syntax::operator::AssignmentOperator::Addition => BinaryOperator::Addition,
+                oxc_syntax::operator::AssignmentOperator::Subtraction => {
+                    BinaryOperator::Subtraction
+                }
+                oxc_syntax::operator::AssignmentOperator::Multiplication => {
+                    BinaryOperator::Multiplication
+                }
+                oxc_syntax::operator::AssignmentOperator::Division => BinaryOperator::Division,
+                oxc_syntax::operator::AssignmentOperator::Remainder => BinaryOperator::Remainder,
+                oxc_syntax::operator::AssignmentOperator::ShiftLeft => BinaryOperator::ShiftLeft,
+                oxc_syntax::operator::AssignmentOperator::ShiftRight => BinaryOperator::ShiftRight,
+                oxc_syntax::operator::AssignmentOperator::ShiftRightZeroFill => {
+                    BinaryOperator::ShiftRightZeroFill
+                }
+                oxc_syntax::operator::AssignmentOperator::BitwiseOR => BinaryOperator::BitwiseOR,
+                oxc_syntax::operator::AssignmentOperator::BitwiseXOR => BinaryOperator::BitwiseXOR,
+                oxc_syntax::operator::AssignmentOperator::BitwiseAnd => BinaryOperator::BitwiseAnd,
+                oxc_syntax::operator::AssignmentOperator::Exponential => {
+                    BinaryOperator::Exponential
+                }
+                _ => unreachable!(),
+            };
+            // 7. Let r be ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
+            ctx.exe
+                .add_instruction(Instruction::ApplyStringOrNumericBinaryOperator(op_text));
+            ctx.exe.add_instruction(Instruction::LoadCopy);
+            // 8. Perform ? PutValue(lref, r).
+            ctx.exe.add_instruction(Instruction::PopReference);
+            ctx.exe.add_instruction(Instruction::PutValue);
+            // 9. Return r.
+            ctx.exe.add_instruction(Instruction::Store);
         }
-
-        ctx.exe.add_instruction(Instruction::PushReference);
-
-        self.right.compile(ctx);
-
-        if is_reference(&self.right) {
-            ctx.exe.add_instruction(Instruction::GetValue);
-        }
-
-        ctx.exe.add_instruction(Instruction::PopReference);
-        ctx.exe.add_instruction(Instruction::PutValue);
     }
 }
 

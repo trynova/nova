@@ -8,8 +8,7 @@ use crate::{
                 has_property, ordinary_has_instance,
             },
             testing_and_comparison::{
-                is_callable, is_constructor, is_less_than, is_loosely_equal, is_same_type,
-                is_strictly_equal,
+                is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
             },
             type_conversion::{
                 to_boolean, to_number, to_numeric, to_primitive, to_property_key, to_string,
@@ -848,20 +847,12 @@ fn apply_string_or_numeric_binary_operator(
         rnum = to_numeric(agent, rval)?;
     }
 
-    // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
-    if !is_same_type(lnum, rnum) {
-        return Err(agent.throw_exception(
-            ExceptionType::TypeError,
-            "The left and right-hand sides do not have the same type.",
-        ));
-    }
-
     // 6. If lnum is a BigInt, then
     if let (Ok(lnum), Ok(rnum)) = (BigInt::try_from(lnum), BigInt::try_from(rnum)) {
-        match op_text {
+        Ok(match op_text {
             // a. If opText is **, return ? BigInt::exponentiate(lnum, rnum).
             BinaryOperator::Exponential => {
-                return BigInt::exponentiate(agent, lnum, rnum).map(|bigint| bigint.into())
+                BigInt::exponentiate(agent, lnum, rnum).map(|bigint| bigint.into_value())?
             }
             // b. If opText is /, return ? BigInt::divide(lnum, rnum).
             BinaryOperator::Division => todo!(),
@@ -869,50 +860,64 @@ fn apply_string_or_numeric_binary_operator(
             BinaryOperator::Remainder => todo!(),
             // d. If opText is >>>, return ? BigInt::unsignedRightShift(lnum, rnum).
             BinaryOperator::ShiftRightZeroFill => todo!(),
+            // <<	BigInt	BigInt::leftShift
+            BinaryOperator::ShiftLeft => todo!(),
+            // >>	BigInt	BigInt::signedRightShift
+            BinaryOperator::ShiftRight => todo!(),
+            // +	BigInt	BigInt::add
+            BinaryOperator::Addition => todo!(),
+            // -	BigInt	BigInt::subtract
+            BinaryOperator::Subtraction => todo!(),
+            // *	BigInt	BigInt::multiply
+            BinaryOperator::Multiplication => todo!(),
+            // |	BigInt	BigInt::bitwiseOR
+            BinaryOperator::BitwiseOR => todo!(),
+            // ^	BigInt	BigInt::bitwiseXOR
+            BinaryOperator::BitwiseXOR => todo!(),
+            // &	BigInt	BigInt::bitwiseAND
+            BinaryOperator::BitwiseAnd => todo!(),
             _ => unreachable!(),
-        }
+        })
+    } else if let (Ok(lnum), Ok(rnum)) = (Number::try_from(lnum), Number::try_from(rnum)) {
+        // 7. Let operation be the abstract operation associated with opText and
+        // Type(lnum) in the following table:
+        // 8. Return operation(lnum, rnum).
+        // NOTE: We do step 8. explicitly in branch.
+        Ok(match op_text {
+            // opText	Type(lnum)	operation
+            // **	Number	Number::exponentiate
+            BinaryOperator::Exponential => Number::exponentiate(agent, lnum, rnum).into_value(),
+            // *	Number	Number::multiply
+            BinaryOperator::Multiplication => todo!(),
+            // /	Number	Number::divide
+            BinaryOperator::Division => todo!(),
+            // %	Number	Number::remainder
+            BinaryOperator::Remainder => todo!(),
+            // +	Number	Number::add
+            BinaryOperator::Addition => Number::add(agent, lnum, rnum).into_value(),
+            // -	Number	Number::subtract
+            BinaryOperator::Subtraction => Number::subtract(agent, lnum, rnum).into_value(),
+            // <<	Number	Number::leftShift
+            BinaryOperator::ShiftLeft => todo!(),
+            // >>	Number	Number::signedRightShift
+            BinaryOperator::ShiftRight => todo!(),
+            // >>>	Number	Number::unsignedRightShift
+            BinaryOperator::ShiftRightZeroFill => todo!(),
+            // |	Number	Number::bitwiseOR
+            BinaryOperator::BitwiseOR => Number::bitwise_or(agent, lnum, rnum)?.into(),
+            // ^	Number	Number::bitwiseXOR
+            BinaryOperator::BitwiseXOR => Number::bitwise_xor(agent, lnum, rnum)?.into(),
+            // &	Number	Number::bitwiseAND
+            BinaryOperator::BitwiseAnd => Number::bitwise_and(agent, lnum, rnum)?.into(),
+            _ => unreachable!(),
+        })
+    } else {
+        // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
+        Err(agent.throw_exception(
+            ExceptionType::TypeError,
+            "The left and right-hand sides do not have the same type.",
+        ))
     }
-
-    // 7. Let operation be the abstract operation associated with opText and
-    // Type(lnum) in the following table:
-    // 8. Return operation(lnum, rnum).
-    // NOTE: We do step 8. explicitly in branch.
-    Ok(match op_text {
-        // opText	Type(lnum)	operation
-        // **	Number	Number::exponentiate
-        BinaryOperator::Exponential if lnum.is_number() => Number::exponentiate(
-            agent,
-            Number::try_from(lnum).unwrap(),
-            rnum.try_into().unwrap(),
-        )
-        .into(),
-        // *	Number	Number::multiply
-        // *	BigInt	BigInt::multiply
-        // /	Number	Number::divide
-        // %	Number	Number::remainder
-        // +	Number	Number::add
-        BinaryOperator::Addition if lnum.is_number() => {
-            Number::add(agent, lnum.try_into().unwrap(), rnum.try_into().unwrap()).into()
-        }
-        // +	BigInt	BigInt::add
-        // -	Number	Number::subtract
-        BinaryOperator::Subtraction if lnum.is_number() => {
-            Number::subtract(agent, lnum.try_into().unwrap(), rnum.try_into().unwrap()).into()
-        }
-        // -	BigInt	BigInt::subtract
-        // <<	Number	Number::leftShift
-        // <<	BigInt	BigInt::leftShift
-        // >>	Number	Number::signedRightShift
-        // >>	BigInt	BigInt::signedRightShift
-        // >>>	Number	Number::unsignedRightShift
-        // &	Number	Number::bitwiseAND
-        // &	BigInt	BigInt::bitwiseAND
-        // ^	Number	Number::bitwiseXOR
-        // ^	BigInt	BigInt::bitwiseXOR
-        // |	Number	Number::bitwiseOR
-        // |	BigInt	BigInt::bitwiseOR
-        _ => todo!(),
-    })
 }
 
 /// ### [13.5.3 The typeof operator](https://tc39.es/ecma262/#sec-typeof-operator)
