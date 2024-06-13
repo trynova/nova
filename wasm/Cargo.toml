@@ -3,6 +3,10 @@ name = "wasm"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["no_std"]
+no_std = ["dep:core2"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+core2 = {version = "0.4", optional = true}

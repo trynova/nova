@@ -1,10 +1,12 @@
+#![no_std]
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SmallString {
     bytes: [u8; 7],
 }
 
-impl std::fmt::Debug for SmallString {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for SmallString {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "\"{}\"", self.as_str())
     }
 }
@@ -27,7 +29,7 @@ impl SmallString {
     #[inline]
     pub fn as_str(&self) -> &str {
         // SAFETY: Guaranteed to be UTF-8.
-        unsafe { std::str::from_utf8_unchecked(self.as_bytes()) }
+        unsafe { core::str::from_utf8_unchecked(self.as_bytes()) }
     }
 
     #[inline]

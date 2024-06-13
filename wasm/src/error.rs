@@ -1,9 +1,14 @@
-pub type Result<T> = std::result::Result<T, Error>;
+#[cfg(feature = "no_std")]
+use core2::io;
+#[cfg(not(feature = "no_std"))]
+use std::io;
+
+pub type Result<T> = core::result::Result<T, Error>;
 
 #[repr(u8)]
 #[derive(Debug)]
 pub enum Error {
-    IoError(std::io::Error),
+    IoError(io::Error),
     ReadZeroBytes,
     TooManyBytes { expected: u8, found: u8 },
     InvalidSectionOrder,
@@ -14,8 +19,8 @@ pub enum Error {
     ArrayTooLarge,
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::IoError(e) => e.fmt(f),
             Self::ReadZeroBytes => f.write_str("Tried to read from reader but got 0 bytes"),
@@ -35,10 +40,10 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl core::error::Error for Error {}
 
-impl From<std::io::Error> for Error {
-    fn from(v: std::io::Error) -> Self {
+impl From<io::Error> for Error {
+    fn from(v: io::Error) -> Self {
         Self::IoError(v)
     }
 }
