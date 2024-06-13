@@ -738,7 +738,8 @@ impl Number {
     }
 
     /// ### [6.1.6.1.16 NumberBitwiseOp ( op, x, y )](https://tc39.es/ecma262/#sec-numberbitwiseop)
-    fn bitwise_op(agent: &mut Agent, op: BitwiseOp, x: Self, y: Self) -> JsResult<Self> {
+    #[inline(always)]
+    fn bitwise_op(agent: &mut Agent, op: BitwiseOp, x: Self, y: Self) -> JsResult<i32> {
         // 1. Let lnum be ! ToInt32(x).
         let lnum = x.into_value().to_int32(agent)?;
 
@@ -771,23 +772,23 @@ impl Number {
         };
 
         // 8. Return the Number value for the integer represented by the 32-bit two's complement bit string result.
-        Ok(Number::from(result))
+        Ok(result)
     }
 
     /// ### [6.1.6.1.17 Number::bitwiseAND ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseAND)
-    pub fn bitwise_and(agent: &mut Agent, x: Self, y: Self) -> JsResult<Self> {
+    pub fn bitwise_and(agent: &mut Agent, x: Self, y: Self) -> JsResult<i32> {
         // 1. Return NumberBitwiseOp(&, x, y).
         Number::bitwise_op(agent, BitwiseOp::And, x, y)
     }
 
     /// ### [6.1.6.1.18 Number::bitwiseXOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseXOR)
-    pub fn bitwise_xor(agent: &mut Agent, x: Self, y: Self) -> JsResult<Self> {
+    pub fn bitwise_xor(agent: &mut Agent, x: Self, y: Self) -> JsResult<i32> {
         // 1. Return NumberBitwiseOp(^, x, y).
         Number::bitwise_op(agent, BitwiseOp::Xor, x, y)
     }
 
     /// ### [6.1.6.1.19 Number::bitwiseOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseOR)
-    pub fn bitwise_or(agent: &mut Agent, x: Self, y: Self) -> JsResult<Self> {
+    pub fn bitwise_or(agent: &mut Agent, x: Self, y: Self) -> JsResult<i32> {
         // 1. Return NumberBitwiseOp(|, x, y).
         Number::bitwise_op(agent, BitwiseOp::Or, x, y)
     }
