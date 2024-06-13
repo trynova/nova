@@ -99,6 +99,7 @@ pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1
         || (x.into().is_string() && y.into().is_string())
         || (x.into().is_symbol() && y.into().is_symbol())
         || (x.into().is_number() && y.into().is_number())
+        || (x.into().is_bigint() && y.into().is_bigint())
         || (x.into().is_object() && y.into().is_object())
 }
 
