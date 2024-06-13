@@ -419,12 +419,14 @@ impl ArrayPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.array_prototype();
         let array_constructor = intrinsics.array();
         let array_prototype_values = intrinsics.array_prototype_values();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(41)
+            .with_prototype(object_prototype)
             .with_builtin_function_property::<ArrayPrototypeAt>()
             .with_builtin_function_property::<ArrayPrototypeConcat>()
             .with_constructor_property(array_constructor)

@@ -1,12 +1,9 @@
 use crate::{
     ecmascript::{
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, String, Value, BUILTIN_STRING_MEMORY},
+        types::{PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -19,17 +16,26 @@ impl Builtin for DataViewPrototypeGetBuffer {
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DataViewPrototype::get_buffer);
 }
+impl BuiltinGetter for DataViewPrototypeGetBuffer {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.buffer.to_property_key();
+}
 struct DataViewPrototypeGetByteLength;
 impl Builtin for DataViewPrototypeGetByteLength {
     const NAME: String = BUILTIN_STRING_MEMORY.get_byteLength;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DataViewPrototype::get_byte_length);
 }
+impl BuiltinGetter for DataViewPrototypeGetByteLength {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.byteLength.to_property_key();
+}
 struct DataViewPrototypeGetByteOffset;
 impl Builtin for DataViewPrototypeGetByteOffset {
     const NAME: String = BUILTIN_STRING_MEMORY.get_byteOffset;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DataViewPrototype::get_byte_offset);
+}
+impl BuiltinGetter for DataViewPrototypeGetByteOffset {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.byteOffset.to_property_key();
 }
 struct DataViewPrototypeGetBigInt64;
 impl Builtin for DataViewPrototypeGetBigInt64 {
@@ -255,47 +261,16 @@ impl DataViewPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.data_view_prototype();
         let data_view_constructor = intrinsics.data_view();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(25)
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.buffer.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<DataViewPrototypeGetBuffer>(agent, realm)
-                            .build()
-                            .into_function()
-                    })
-                    .with_enumerable(DataViewPrototypeGetBuffer::ENUMERABLE)
-                    .with_configurable(DataViewPrototypeGetBuffer::CONFIGURABLE)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.byteLength.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<DataViewPrototypeGetByteLength>(agent, realm)
-                            .build()
-                            .into_function()
-                    })
-                    .with_enumerable(DataViewPrototypeGetByteLength::ENUMERABLE)
-                    .with_configurable(DataViewPrototypeGetByteLength::CONFIGURABLE)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.byteOffset.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<DataViewPrototypeGetByteOffset>(agent, realm)
-                            .build()
-                            .into_function()
-                    })
-                    .with_enumerable(DataViewPrototypeGetByteOffset::ENUMERABLE)
-                    .with_configurable(DataViewPrototypeGetByteOffset::CONFIGURABLE)
-                    .build()
-            })
+            .with_prototype(object_prototype)
+            .with_builtin_function_getter_property::<DataViewPrototypeGetBuffer>()
+            .with_builtin_function_getter_property::<DataViewPrototypeGetByteLength>()
+            .with_builtin_function_getter_property::<DataViewPrototypeGetByteOffset>()
             .with_constructor_property(data_view_constructor)
             .with_builtin_function_property::<DataViewPrototypeGetBigInt64>()
             .with_builtin_function_property::<DataViewPrototypeGetBigUint64>()

@@ -1,6 +1,7 @@
-use oxc_span::Atom;
-
-use crate::ecmascript::types::{Function, Value};
+use crate::{
+    ecmascript::types::{Function, Value},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+};
 use std::collections::HashMap;
 
 use super::PrivateEnvironmentIndex;
@@ -40,7 +41,17 @@ pub struct PrivateEnvironment {
     /// ### \[\[Names\]\]
     ///
     /// The Private Names declared by this class.
-    names: HashMap<Atom, PrivateName>,
+    names: HashMap<String, PrivateName>,
+}
+
+impl HeapMarkAndSweep for PrivateEnvironment {
+    fn mark_values(&self, _queues: &mut WorkQueues) {
+        todo!()
+    }
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists) {
+        todo!()
+    }
 }
 
 /// ### [9.2.1.1 NewPrivateEnvironment ( outerPrivEnv )](https://tc39.es/ecma262/#sec-newprivateenvironment)
@@ -59,4 +70,14 @@ pub(crate) fn new_private_environment(
         names: Default::default(),
     }
     // }.
+}
+
+impl HeapMarkAndSweep for PrivateEnvironmentIndex {
+    fn mark_values(&self, _queues: &mut WorkQueues) {
+        todo!()
+    }
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists) {
+        todo!()
+    }
 }

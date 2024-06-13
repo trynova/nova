@@ -3,8 +3,6 @@
 //! - This is inspired by and/or copied from Kiesel engine:
 //!   Copyright (c) 2023-2024 Linus Groh
 
-use oxc_span::Atom;
-
 use super::{
     environments::get_identifier_reference, EnvironmentIndex, ExecutionContext, Realm,
     RealmIdentifier,
@@ -14,9 +12,9 @@ use crate::{
         abstract_operations::type_conversion::to_string,
         builtins::error::ErrorHeapData,
         scripts_and_modules::ScriptOrModule,
-        types::{Function, Reference, String, Symbol, Value},
+        types::{Function, IntoValue, Reference, String, Symbol, Value},
     },
-    heap::indexes::ErrorIndex,
+    heap::CreateHeapData,
     Heap,
 };
 use std::collections::HashMap;
@@ -24,8 +22,7 @@ use std::collections::HashMap;
 #[derive(Debug, Default)]
 pub struct Options {
     pub disable_gc: bool,
-    pub print_ast: bool,
-    pub print_bytecode: bool,
+    pub print_internals: bool,
 }
 
 pub type JsResult<T> = std::result::Result<T, JsError>;
@@ -36,6 +33,10 @@ pub struct JsError(Value);
 impl JsError {
     pub(crate) fn new(value: Value) -> Self {
         Self(value)
+    }
+
+    pub fn value(self) -> Value {
+        self.0
     }
 
     pub fn to_string(self, agent: &mut Agent) -> String {
@@ -90,21 +91,21 @@ impl Agent {
     }
 
     pub fn get_realm(&self, id: RealmIdentifier) -> &Realm {
-        self.heap.get_realm(id)
+        &self[id]
     }
 
     pub fn get_realm_mut(&mut self, id: RealmIdentifier) -> &mut Realm {
-        self.heap.get_realm_mut(id)
+        &mut self[id]
     }
 
     /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
     pub fn throw_exception(&mut self, kind: ExceptionType, message: &'static str) -> JsError {
         let message = String::from_str(self, message);
-        self.heap
-            .errors
-            .push(Some(ErrorHeapData::new(kind, Some(message), None)));
-        let index = ErrorIndex::last(&self.heap.errors);
-        JsError(Value::Error(index))
+        JsError(
+            self.heap
+                .create(ErrorHeapData::new(kind, Some(message), None))
+                .into_value(),
+        )
     }
 
     pub(crate) fn running_execution_context(&self) -> &ExecutionContext {
@@ -143,7 +144,7 @@ pub(crate) fn get_active_script_or_module(agent: &mut Agent) -> Option<ScriptOrM
 /// binding.
 pub(crate) fn resolve_binding(
     agent: &mut Agent,
-    name: &Atom,
+    name: String,
     env: Option<EnvironmentIndex>,
 ) -> JsResult<Reference> {
     let env = env.unwrap_or_else(|| {
@@ -173,6 +174,7 @@ pub(crate) fn resolve_binding(
 #[derive(Debug, Clone, Copy)]
 pub enum ExceptionType {
     Error,
+    AggregateError,
     EvalError,
     RangeError,
     ReferenceError,

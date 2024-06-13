@@ -1,12 +1,9 @@
 use crate::{
     ecmascript::{
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, String, Value, BUILTIN_STRING_MEMORY},
+        types::{PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -19,11 +16,17 @@ impl Builtin for ArrayBufferPrototypeGetByteLength {
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayBufferPrototype::get_byte_length);
 }
+impl BuiltinGetter for ArrayBufferPrototypeGetByteLength {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.byteLength.to_property_key();
+}
 struct ArrayBufferPrototypeGetDetached;
 impl Builtin for ArrayBufferPrototypeGetDetached {
     const NAME: String = BUILTIN_STRING_MEMORY.get_detached;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayBufferPrototype::get_detached);
+}
+impl BuiltinGetter for ArrayBufferPrototypeGetDetached {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.detached.to_property_key();
 }
 struct ArrayBufferPrototypeGetMaxByteLength;
 impl Builtin for ArrayBufferPrototypeGetMaxByteLength {
@@ -31,11 +34,17 @@ impl Builtin for ArrayBufferPrototypeGetMaxByteLength {
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayBufferPrototype::get_max_byte_length);
 }
+impl BuiltinGetter for ArrayBufferPrototypeGetMaxByteLength {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.maxByteLength.to_property_key();
+}
 struct ArrayBufferPrototypeGetResizable;
 impl Builtin for ArrayBufferPrototypeGetResizable {
     const NAME: String = BUILTIN_STRING_MEMORY.get_resizable;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayBufferPrototype::get_resizable);
+}
+impl BuiltinGetter for ArrayBufferPrototypeGetResizable {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.resizable.to_property_key();
 }
 struct ArrayBufferPrototypeResize;
 impl Builtin for ArrayBufferPrototypeResize {
@@ -109,66 +118,18 @@ impl ArrayBufferPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.array_buffer_prototype();
         let array_buffer_constructor = intrinsics.array_buffer();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(10)
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.byteLength.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<ArrayBufferPrototypeGetByteLength>(
-                            agent, realm,
-                        )
-                        .build()
-                        .into_function()
-                    })
-                    .with_enumerable(ArrayBufferPrototypeGetByteLength::ENUMERABLE)
-                    .with_configurable(ArrayBufferPrototypeGetByteLength::CONFIGURABLE)
-                    .build()
-            })
+            .with_prototype(object_prototype)
+            .with_builtin_function_getter_property::<ArrayBufferPrototypeGetByteLength>()
             .with_constructor_property(array_buffer_constructor)
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.detached.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<ArrayBufferPrototypeGetDetached>(agent, realm)
-                            .build()
-                            .into_function()
-                    })
-                    .with_enumerable(ArrayBufferPrototypeGetDetached::ENUMERABLE)
-                    .with_configurable(ArrayBufferPrototypeGetDetached::CONFIGURABLE)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.maxByteLength.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<ArrayBufferPrototypeGetMaxByteLength>(
-                            agent, realm,
-                        )
-                        .build()
-                        .into_function()
-                    })
-                    .with_enumerable(ArrayBufferPrototypeGetMaxByteLength::ENUMERABLE)
-                    .with_configurable(ArrayBufferPrototypeGetMaxByteLength::CONFIGURABLE)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.resizable.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<ArrayBufferPrototypeGetResizable>(
-                            agent, realm,
-                        )
-                        .build()
-                        .into_function()
-                    })
-                    .with_enumerable(ArrayBufferPrototypeGetResizable::ENUMERABLE)
-                    .with_configurable(ArrayBufferPrototypeGetResizable::CONFIGURABLE)
-                    .build()
-            })
+            .with_builtin_function_getter_property::<ArrayBufferPrototypeGetDetached>()
+            .with_builtin_function_getter_property::<ArrayBufferPrototypeGetMaxByteLength>()
+            .with_builtin_function_getter_property::<ArrayBufferPrototypeGetResizable>()
             .with_builtin_function_property::<ArrayBufferPrototypeResize>()
             .with_builtin_function_property::<ArrayBufferPrototypeSlice>()
             .with_builtin_function_property::<ArrayBufferPrototypeTransfer>()

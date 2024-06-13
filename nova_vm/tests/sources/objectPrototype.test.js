@@ -1,15 +1,19 @@
 const nullObject = Object.create(null);
 
 if (!nullObject) {
-    throw new Error("'Object.create(null)' produced nullish output");
+  throw new Error("'Object.create(null)' produced nullish output");
 }
 if (Object.getPrototypeOf(nullObject) !== null) {
-    throw new Error("'Object.create(null)' did not produce object with null prototype");
+  throw new Error(
+    "'Object.create(null)' did not produce object with null prototype",
+  );
 }
 const objectOfNullObject = Object.create(nullObject);
 if (!objectOfNullObject) {
-    throw new Error("'Object.create(nullObject)' produced nullish output");
+  throw new Error("'Object.create(nullObject)' produced nullish output");
 }
 if (Object.getPrototypeOf(objectOfNullObject) !== nullObject) {
-    throw new Error("'Object.create(nullObject)' did not produce object with nullObject prototype");
+  throw new Error(
+    "'Object.create(nullObject)' did not produce object with nullObject prototype",
+  );
 }

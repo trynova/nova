@@ -1,24 +1,66 @@
 include!(concat!(env!("OUT_DIR"), "/builtin_strings.rs"));
 mod data;
 
-use super::{IntoPrimitive, IntoValue, Primitive, Value};
+use std::ops::{Index, IndexMut};
+
+use super::{IntoPrimitive, IntoValue, Primitive, PropertyKey, Value};
 use crate::{
     ecmascript::execution::Agent,
-    heap::{indexes::StringIndex, CreateHeapData, GetHeapData},
+    heap::{
+        indexes::StringIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+    },
     SmallString,
 };
 
 pub use data::StringHeapData;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct HeapString(pub(crate) StringIndex);
+
+impl HeapString {
+    pub(crate) const fn _def() -> Self {
+        HeapString(StringIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
+
+impl Index<HeapString> for Agent {
+    type Output = StringHeapData;
+
+    fn index(&self, index: HeapString) -> &Self::Output {
+        self.heap
+            .strings
+            .get(index.0.into_index())
+            .expect("HeapString out of bounds")
+            .as_ref()
+            .expect("HeapString slot empty")
+    }
+}
+
+impl IndexMut<HeapString> for Agent {
+    fn index_mut(&mut self, index: HeapString) -> &mut Self::Output {
+        self.heap
+            .strings
+            .get_mut(index.0.into_index())
+            .expect("HeapString out of bounds")
+            .as_mut()
+            .expect("HeapString slot empty")
+    }
+}
+
 /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum String {
-    String(StringIndex),
+    String(HeapString),
     SmallString(SmallString),
 }
 
-impl IntoValue for StringIndex {
+impl IntoValue for HeapString {
     fn into_value(self) -> Value {
         Value::String(self)
     }
@@ -42,14 +84,14 @@ impl IntoPrimitive for String {
     }
 }
 
-impl From<StringIndex> for String {
-    fn from(value: StringIndex) -> Self {
+impl From<HeapString> for String {
+    fn from(value: HeapString) -> Self {
         String::String(value)
     }
 }
 
-impl From<StringIndex> for Primitive {
-    fn from(value: StringIndex) -> Self {
+impl From<HeapString> for Primitive {
+    fn from(value: HeapString) -> Self {
         Self::String(value)
     }
 }
@@ -137,6 +179,13 @@ impl String {
         agent.heap.create(string)
     }
 
+    pub const fn to_property_key(self) -> PropertyKey {
+        match self {
+            String::String(data) => PropertyKey::String(data),
+            String::SmallString(data) => PropertyKey::SmallString(data),
+        }
+    }
+
     pub fn from_static_str(agent: &mut Agent, str: &'static str) -> Self {
         if let Ok(value) = String::try_from(str) {
             value
@@ -154,6 +203,80 @@ impl String {
         String::SmallString(SmallString::from_str_unchecked(message))
     }
 
+    pub fn concat(agent: &mut Agent, strings: impl AsRef<[String]>) -> String {
+        // TODO: This function will need heavy changes once we support creating
+        // WTF-8 strings, since WTF-8 concatenation isn't byte concatenation.
+
+        // We use this status enum so we can reuse one of the heap string inputs
+        // if the output would be identical, and so we don't allocate at all
+        // until it's clear we need a new heap string.
+        enum Status {
+            Empty,
+            ExistingString(HeapString),
+            SmallString { data: [u8; 7], len: usize },
+            String(std::string::String),
+        }
+        let mut status = Status::Empty;
+
+        for string in strings.as_ref() {
+            if string.is_empty_string() {
+                continue;
+            }
+
+            match &mut status {
+                Status::Empty => {
+                    status = match string {
+                        String::SmallString(smstr) => Status::SmallString {
+                            data: *smstr.data(),
+                            len: smstr.len(),
+                        },
+                        String::String(idx) => Status::ExistingString(*idx),
+                    };
+                }
+                Status::ExistingString(idx) => {
+                    let mut result =
+                        std::string::String::with_capacity(agent[*idx].len() + string.len(agent));
+                    result.push_str(agent[*idx].as_str());
+                    result.push_str(string.as_str(agent));
+                    status = Status::String(result)
+                }
+                Status::SmallString { data, len } => {
+                    let string_len = string.len(agent);
+                    if *len + string_len <= 7 {
+                        let String::SmallString(smstr) = string else {
+                            // TODO: This is reachable if `string` ends with a
+                            // null byte.
+                            todo!()
+                        };
+                        data[*len..(*len + string_len)]
+                            .copy_from_slice(&smstr.data()[..string_len]);
+                        *len += string_len;
+                    } else {
+                        let mut result = std::string::String::with_capacity(*len + string_len);
+                        // SAFETY: Since SmallStrings are guaranteed UTF-8, `&data[..len]` is the result
+                        // of concatenating UTF-8 strings, which is always valid UTF-8.
+                        result.push_str(unsafe { std::str::from_utf8_unchecked(&data[..*len]) });
+                        result.push_str(string.as_str(agent));
+                        status = Status::String(result);
+                    }
+                }
+                Status::String(buffer) => buffer.push_str(string.as_str(agent)),
+            }
+        }
+
+        match status {
+            Status::Empty => String::EMPTY_STRING,
+            Status::ExistingString(idx) => String::String(idx),
+            Status::SmallString { data, len } => {
+                // SAFETY: Since SmallStrings are guaranteed UTF-8, `&data[..len]` is the result of
+                // concatenating UTF-8 strings, which is always valid UTF-8.
+                let str_slice = unsafe { std::str::from_utf8_unchecked(&data[..len]) };
+                SmallString::from_str_unchecked(str_slice).into()
+            }
+            Status::String(string) => agent.heap.create(string),
+        }
+    }
+
     pub fn into_value(self) -> Value {
         self.into()
     }
@@ -161,14 +284,14 @@ impl String {
     /// Byte length of the string.
     pub fn len(self, agent: &Agent) -> usize {
         match self {
-            String::String(s) => agent.heap.get(s).len(),
+            String::String(s) => agent[s].len(),
             String::SmallString(s) => s.len(),
         }
     }
 
     pub fn as_str<'string, 'agent: 'string>(&'string self, agent: &'agent Agent) -> &'string str {
         match self {
-            String::String(s) => agent.heap.get(*s).as_str(),
+            String::String(s) => agent[*s].as_str(),
             String::SmallString(s) => s.as_str(),
         }
     }
@@ -178,8 +301,8 @@ impl String {
     pub fn eq(agent: &mut Agent, x: String, y: String) -> bool {
         match (x, y) {
             (String::String(x), String::String(y)) => {
-                let x = agent.heap.get(x);
-                let y = agent.heap.get(y);
+                let x = &agent[x];
+                let y = &agent[y];
                 x == y
             }
             (String::SmallString(x), String::SmallString(y)) => x == y,
@@ -219,5 +342,40 @@ impl String {
 
         // 5. Return -1.
         -1
+    }
+}
+
+impl CreateHeapData<StringHeapData, String> for Heap {
+    fn create(&mut self, data: StringHeapData) -> String {
+        self.strings.push(Some(data));
+        String::String(HeapString(StringIndex::last(&self.strings)))
+    }
+}
+
+impl HeapMarkAndSweep for String {
+    #[inline(always)]
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        if let Self::String(idx) = self {
+            idx.mark_values(queues);
+        }
+    }
+
+    #[inline(always)]
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        if let Self::String(idx) = self {
+            idx.sweep_values(compactions);
+        }
+    }
+}
+
+impl HeapMarkAndSweep for HeapString {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.strings.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 =
+            StringIndex::from_u32(self_index - compactions.strings.get_shift_for_index(self_index));
     }
 }

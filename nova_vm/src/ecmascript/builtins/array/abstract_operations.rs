@@ -11,7 +11,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{indexes::ArrayIndex, GetHeapData},
+    heap::indexes::ArrayIndex,
 };
 
 use super::{data::SealableElementsVector, Array, ArrayHeapData};
@@ -43,7 +43,7 @@ pub fn array_create(
         {
             None
         } else {
-            Some(agent.heap.create_object_with_prototype(proto, vec![]))
+            Some(agent.heap.create_object_with_prototype(proto, &[]))
         }
     } else {
         None
@@ -91,7 +91,7 @@ pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -
     }
     // 6. Set newLenDesc.[[Value]] to newLen.
     // 7. Let oldLenDesc be OrdinaryGetOwnProperty(A, "length").
-    let array_heap_data = agent.heap.get_mut(a.0);
+    let array_heap_data = &mut agent[a];
     // 10. Let oldLen be oldLenDesc.[[Value]].
     let (old_len, old_len_writable) = (
         array_heap_data.elements.len(),
@@ -120,10 +120,12 @@ pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -
     debug_assert!(old_len > new_len);
     for i in old_len..new_len {
         // a. Let deleteSucceeded be ! A.[[Delete]](P).
-        let delete_succeeded = a.delete(agent, PropertyKey::Integer(i.into())).unwrap();
+        let delete_succeeded = a
+            .internal_delete(agent, PropertyKey::Integer(i.into()))
+            .unwrap();
         // b. If deleteSucceeded is false, then
         if !delete_succeeded {
-            let array_heap_data = agent.heap.get_mut(a.0);
+            let array_heap_data = &mut agent[a];
             // i. Set newLenDesc.[[Value]] to ! ToUint32(P) + 1𝔽.
             array_heap_data.elements.len = i + 1;
             // ii. If newWritable is false, set newLenDesc.[[Writable]] to false.
@@ -137,7 +139,7 @@ pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -
     if !new_len_writable {
         // a. Set succeeded to ! OrdinaryDefineOwnProperty(A, "length", PropertyDescriptor { [[Writable]]: false }).
         // b. Assert: succeeded is true.
-        let array_heap_data = agent.heap.get_mut(a.0);
+        let array_heap_data = &mut agent[a];
         array_heap_data.elements.len_writable &= new_len_writable;
     }
     // 19. Return true.

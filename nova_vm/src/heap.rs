@@ -15,64 +15,95 @@ pub(crate) use self::heap_constants::{
     LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX, LAST_INTRINSIC_OBJECT_INDEX,
     LAST_WELL_KNOWN_SYMBOL_INDEX,
 };
-use self::indexes::{DateIndex, ErrorIndex};
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
     element_array::{
         ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16, ElementArray2Pow24,
         ElementArray2Pow32, ElementArray2Pow4, ElementArray2Pow6, ElementArray2Pow8, ElementArrays,
     },
-    indexes::{
-        BaseIndex, BigIntIndex, BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex,
-        NumberIndex, ObjectIndex, StringIndex,
-    },
+    indexes::{NumberIndex, ObjectIndex, StringIndex},
 };
 use crate::ecmascript::{
     builtins::{
-        date::{data::DateHeapData, Date},
-        error::{Error, ErrorHeapData},
+        control_abstraction_objects::promise_objects::promise_abstract_operations::{
+            promise_capability_records::PromiseCapabilityRecord,
+            promise_reaction_records::PromiseReactionRecord,
+            promise_reject_function::PromiseRejectFunctionHeapData,
+        },
+        data_view::data::DataViewHeapData,
+        date::data::DateHeapData,
+        embedder_object::data::EmbedderObjectHeapData,
+        error::ErrorHeapData,
+        finalization_registry::data::FinalizationRegistryHeapData,
+        map::data::MapHeapData,
+        module::data::ModuleHeapData,
+        primitive_objects::PrimitiveObjectHeapData,
+        promise::data::PromiseHeapData,
+        proxy::data::ProxyHeapData,
         regexp::RegExpHeapData,
+        set::data::SetHeapData,
+        shared_array_buffer::data::SharedArrayBufferHeapData,
+        typed_array::data::TypedArrayHeapData,
+        weak_map::data::WeakMapHeapData,
+        weak_ref::data::WeakRefHeapData,
+        weak_set::data::WeakSetHeapData,
     },
-    types::BUILTIN_STRINGS_LIST,
+    types::{HeapNumber, HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
 };
 use crate::ecmascript::{
-    builtins::{ArrayBufferHeapData, ArrayHeapData, BuiltinFunction},
+    builtins::{ArrayBufferHeapData, ArrayHeapData},
     execution::{Environments, Realm, RealmIdentifier},
     scripts_and_modules::{
-        module::{Module, ModuleIdentifier},
+        module::ModuleIdentifier,
         script::{Script, ScriptIdentifier},
     },
     types::{
-        BigInt, BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData,
-        ECMAScriptFunctionHeapData, Function, Number, NumberHeapData, Object, ObjectHeapData,
-        String, StringHeapData, SymbolHeapData, Value,
+        BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
+        NumberHeapData, Object, ObjectHeapData, String, StringHeapData, SymbolHeapData, Value,
     },
 };
+pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 #[derive(Debug)]
 pub struct Heap {
-    pub modules: Vec<Option<Module>>,
-    pub realms: Vec<Option<Realm>>,
-    pub scripts: Vec<Option<Script>>,
-    pub environments: Environments,
+    pub array_buffers: Vec<Option<ArrayBufferHeapData>>,
+    pub arrays: Vec<Option<ArrayHeapData>>,
+    pub bigints: Vec<Option<BigIntHeapData>>,
+    pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
+    pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
+    pub data_views: Vec<Option<DataViewHeapData>>,
+    pub dates: Vec<Option<DateHeapData>>,
+    pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,
     /// ElementsArrays is where all element arrays live;
     /// Element arrays are static arrays of Values plus
     /// a HashMap of possible property descriptors.
     pub elements: ElementArrays,
-    pub arrays: Vec<Option<ArrayHeapData>>,
-    pub array_buffers: Vec<Option<ArrayBufferHeapData>>,
-    pub bigints: Vec<Option<BigIntHeapData>>,
+    pub embedder_objects: Vec<Option<EmbedderObjectHeapData>>,
+    pub environments: Environments,
     pub errors: Vec<Option<ErrorHeapData>>,
-    pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
-    pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
-    pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,
-    pub dates: Vec<Option<DateHeapData>>,
+    pub finalization_registrys: Vec<Option<FinalizationRegistryHeapData>>,
     pub globals: Vec<Value>,
+    pub maps: Vec<Option<MapHeapData>>,
+    pub modules: Vec<Option<ModuleHeapData>>,
     pub numbers: Vec<Option<NumberHeapData>>,
     pub objects: Vec<Option<ObjectHeapData>>,
+    pub primitive_objects: Vec<Option<PrimitiveObjectHeapData>>,
+    pub promise_capability_records: Vec<Option<PromiseCapabilityRecord>>,
+    pub promise_reaction_records: Vec<Option<PromiseReactionRecord>>,
+    pub promise_reject_functions: Vec<Option<PromiseRejectFunctionHeapData>>,
+    pub promises: Vec<Option<PromiseHeapData>>,
+    pub proxys: Vec<Option<ProxyHeapData>>,
+    pub realms: Vec<Option<Realm>>,
     pub regexps: Vec<Option<RegExpHeapData>>,
+    pub scripts: Vec<Option<Script>>,
+    pub sets: Vec<Option<SetHeapData>>,
+    pub shared_array_buffers: Vec<Option<SharedArrayBufferHeapData>>,
     pub strings: Vec<Option<StringHeapData>>,
     pub symbols: Vec<Option<SymbolHeapData>>,
+    pub typed_arrays: Vec<Option<TypedArrayHeapData>>,
+    pub weak_maps: Vec<Option<WeakMapHeapData>>,
+    pub weak_refs: Vec<Option<WeakRefHeapData>>,
+    pub weak_sets: Vec<Option<WeakSetHeapData>>,
 }
 
 pub trait CreateHeapData<T, F> {
@@ -80,114 +111,6 @@ pub trait CreateHeapData<T, F> {
     /// guaranteed.
     fn create(&mut self, data: T) -> F;
 }
-
-pub trait GetHeapData<'a, T, F: 'a> {
-    fn get(&'a self, id: BaseIndex<T>) -> &'a F;
-    fn get_mut(&'a mut self, id: BaseIndex<T>) -> &'a mut F;
-}
-
-impl CreateHeapData<f64, Number> for Heap {
-    fn create(&mut self, data: f64) -> Number {
-        // NOTE: This function cannot currently be implemented
-        // directly using `Number::from_f64` as it takes an Agent
-        // parameter that we do not have access to here.
-        if let Ok(value) = Number::try_from(data) {
-            value
-        } else {
-            // SAFETY: Number was not representable as a
-            // stack-allocated Number.
-            let id = unsafe { self.alloc_number(data) };
-            Number::Number(id)
-        }
-    }
-}
-
-macro_rules! impl_heap_data {
-    ($table: ident, $in: ty, $out: ty) => {
-        impl<'a> GetHeapData<'a, $in, $out> for Heap {
-            fn get(&'a self, id: BaseIndex<$in>) -> &'a $out {
-                self.$table
-                    .get(id.into_index())
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex for Heap::get ({id:?}): Index is out of bounds");
-                    })
-                    .as_ref()
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex for Heap::get ({id:?}): No item at index");
-                    })
-            }
-
-            fn get_mut(&'a mut self, id: BaseIndex<$in>) -> &'a mut $out {
-                self.$table
-                    .get_mut(id.into_index())
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex Heap::get_mut ({id:?}): Index is out of bounds");
-                    })
-                    .as_mut()
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex Heap::get_mut ({id:?}): No item at index");
-                    })
-            }
-        }
-    };
-    ($table: ident, $in: ty, $out: ty, $accessor: ident) => {
-        impl<'a> GetHeapData<'a, $in, $out> for Heap {
-            fn get(&'a self, id: BaseIndex<$in>) -> &'a $out {
-                &self
-                    .$table
-                    .get(id.into_index())
-                    .as_ref()
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex Heap::get ({id:?}): Index is out of bounds")
-                    })
-                    .as_ref()
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex Heap::get ({id:?}): No item at index")
-                    })
-                    .$accessor
-            }
-
-            fn get_mut(&'a mut self, id: BaseIndex<$in>) -> &'a mut $out {
-                &mut self
-                    .$table
-                    .get_mut(id.into_index())
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex Heap::get_mut ({id:?}): Index is out of bounds",)
-                    })
-                    .as_mut()
-                    .unwrap_or_else(|| {
-                        panic!("Invalid HeapIndex Heap::get_mut ({id:?}): No item at index",)
-                    })
-                    .$accessor
-            }
-        }
-    };
-}
-
-impl_heap_data!(arrays, ArrayHeapData, ArrayHeapData);
-impl_heap_data!(array_buffers, ArrayBufferHeapData, ArrayBufferHeapData);
-impl_heap_data!(dates, DateHeapData, DateHeapData);
-impl_heap_data!(errors, ErrorHeapData, ErrorHeapData);
-impl_heap_data!(
-    bound_functions,
-    BoundFunctionHeapData,
-    BoundFunctionHeapData
-);
-impl_heap_data!(
-    builtin_functions,
-    BuiltinFunctionHeapData,
-    BuiltinFunctionHeapData
-);
-impl_heap_data!(
-    ecmascript_functions,
-    ECMAScriptFunctionHeapData,
-    ECMAScriptFunctionHeapData
-);
-impl_heap_data!(numbers, NumberHeapData, f64, data);
-impl_heap_data!(objects, ObjectHeapData, ObjectHeapData);
-impl_heap_data!(strings, StringHeapData, StringHeapData);
-impl_heap_data!(symbols, SymbolHeapData, SymbolHeapData);
-impl_heap_data!(bigints, BigIntHeapData, BigIntHeapData);
 
 impl CreateHeapData<&str, String> for Heap {
     fn create(&mut self, data: &str) -> String {
@@ -211,62 +134,17 @@ impl CreateHeapData<std::string::String, String> for Heap {
     }
 }
 
-impl CreateHeapData<DateHeapData, Date> for Heap {
-    fn create(&mut self, data: DateHeapData) -> Date {
-        self.dates.push(Some(data));
-        Date::from(DateIndex::last(&self.dates))
-    }
-}
-
-impl CreateHeapData<ErrorHeapData, Error> for Heap {
-    fn create(&mut self, data: ErrorHeapData) -> Error {
-        self.errors.push(Some(data));
-        Error::from(ErrorIndex::last(&self.errors))
-    }
-}
-
-impl CreateHeapData<BoundFunctionHeapData, Function> for Heap {
-    fn create(&mut self, data: BoundFunctionHeapData) -> Function {
-        self.bound_functions.push(Some(data));
-        Function::from(BoundFunctionIndex::last(&self.bound_functions))
-    }
-}
-
-impl CreateHeapData<BuiltinFunctionHeapData, BuiltinFunction> for Heap {
-    fn create(&mut self, data: BuiltinFunctionHeapData) -> BuiltinFunction {
-        self.builtin_functions.push(Some(data));
-        BuiltinFunctionIndex::last(&self.builtin_functions).into()
-    }
-}
-
-impl CreateHeapData<ECMAScriptFunctionHeapData, Function> for Heap {
-    fn create(&mut self, data: ECMAScriptFunctionHeapData) -> Function {
-        self.ecmascript_functions.push(Some(data));
-        Function::from(ECMAScriptFunctionIndex::last(&self.ecmascript_functions))
-    }
-}
-
-impl CreateHeapData<ObjectHeapData, Object> for Heap {
-    fn create(&mut self, data: ObjectHeapData) -> Object {
-        self.objects.push(Some(data));
-        Object::Object(ObjectIndex::last(&self.objects))
-    }
-}
-
-impl CreateHeapData<BigIntHeapData, BigInt> for Heap {
-    fn create(&mut self, data: BigIntHeapData) -> BigInt {
-        self.bigints.push(Some(data));
-        BigInt::BigInt(BigIntIndex::last(&self.bigints))
-    }
-}
-
 impl Heap {
     pub fn new() -> Heap {
         let mut heap = Heap {
-            modules: vec![],
-            realms: Vec::with_capacity(1),
-            scripts: Vec::with_capacity(1),
-            environments: Default::default(),
+            array_buffers: Vec::with_capacity(1024),
+            arrays: Vec::with_capacity(1024),
+            bigints: Vec::with_capacity(1024),
+            bound_functions: Vec::with_capacity(256),
+            builtin_functions: Vec::with_capacity(1024),
+            data_views: Vec::with_capacity(0),
+            dates: Vec::with_capacity(1024),
+            ecmascript_functions: Vec::with_capacity(1024),
             elements: ElementArrays {
                 e2pow4: ElementArray2Pow4::with_capacity(1024),
                 e2pow6: ElementArray2Pow6::with_capacity(1024),
@@ -277,20 +155,32 @@ impl Heap {
                 e2pow24: ElementArray2Pow24::default(),
                 e2pow32: ElementArray2Pow32::default(),
             },
-            arrays: Vec::with_capacity(1024),
-            array_buffers: Vec::with_capacity(1024),
-            bigints: Vec::with_capacity(1024),
+            embedder_objects: Vec::with_capacity(0),
+            environments: Default::default(),
             errors: Vec::with_capacity(1024),
-            bound_functions: Vec::with_capacity(256),
-            builtin_functions: Vec::with_capacity(1024),
-            ecmascript_functions: Vec::with_capacity(1024),
-            dates: Vec::with_capacity(1024),
+            finalization_registrys: Vec::with_capacity(0),
             globals: Vec::with_capacity(1024),
+            maps: Vec::with_capacity(128),
+            modules: Vec::with_capacity(0),
             numbers: Vec::with_capacity(1024),
             objects: Vec::with_capacity(1024),
+            primitive_objects: Vec::with_capacity(0),
+            promise_capability_records: Vec::with_capacity(0),
+            promise_reaction_records: Vec::with_capacity(0),
+            promise_reject_functions: Vec::with_capacity(0),
+            promises: Vec::with_capacity(0),
+            proxys: Vec::with_capacity(0),
+            realms: Vec::with_capacity(1),
             regexps: Vec::with_capacity(1024),
+            scripts: Vec::with_capacity(1),
+            sets: Vec::with_capacity(128),
+            shared_array_buffers: Vec::with_capacity(0),
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
+            typed_arrays: Vec::with_capacity(0),
+            weak_maps: Vec::with_capacity(0),
+            weak_refs: Vec::with_capacity(0),
+            weak_sets: Vec::with_capacity(0),
         };
 
         heap.strings.extend_from_slice(
@@ -301,7 +191,7 @@ impl Heap {
         heap
     }
 
-    pub(crate) fn add_module(&mut self, module: Module) -> ModuleIdentifier {
+    pub(crate) fn add_module(&mut self, module: ModuleHeapData) -> ModuleIdentifier {
         self.modules.push(Some(module));
         ModuleIdentifier::last(&self.modules)
     }
@@ -316,58 +206,10 @@ impl Heap {
         ScriptIdentifier::last(&self.scripts)
     }
 
-    pub(crate) fn get_module(&self, id: ModuleIdentifier) -> &Module {
-        self.modules
-            .get(id.into_index())
-            .expect("ModuleIdentifier did not match a Module")
-            .as_ref()
-            .expect("ModuleIdentifier matched a freed Module")
-    }
-
-    pub(crate) fn get_module_mut(&mut self, id: ModuleIdentifier) -> &mut Module {
-        self.modules
-            .get_mut(id.into_index())
-            .expect("ModuleIdentifier did not match a Module")
-            .as_mut()
-            .expect("ModuleIdentifier matched a freed Module")
-    }
-
-    pub(crate) fn get_realm(&self, id: RealmIdentifier) -> &Realm {
-        self.realms
-            .get(id.into_index())
-            .expect("RealmIdentifier did not match a Realm")
-            .as_ref()
-            .expect("RealmIdentifier matched a freed Realm")
-    }
-
-    pub(crate) fn get_realm_mut(&mut self, id: RealmIdentifier) -> &mut Realm {
-        self.realms
-            .get_mut(id.into_index())
-            .expect("RealmIdentifier did not match a Realm")
-            .as_mut()
-            .expect("RealmIdentifier matched a freed Realm")
-    }
-
-    pub(crate) fn get_script(&self, id: ScriptIdentifier) -> &Script {
-        self.scripts
-            .get(id.into_index())
-            .expect("ScriptIdentifier did not match a Script")
-            .as_ref()
-            .expect("ScriptIdentifier matched a freed Script")
-    }
-
-    pub(crate) fn get_script_mut(&mut self, id: ScriptIdentifier) -> &mut Script {
-        self.scripts
-            .get_mut(id.into_index())
-            .expect("ScriptIdentifier did not match a Script")
-            .as_mut()
-            .expect("ScriptIdentifier matched a freed Script")
-    }
-
     /// Allocate a string onto the Agent heap
     ///
     /// This method will currently iterate through all heap strings to look for
-    /// a possible matching string and if found will return its StringIndex
+    /// a possible matching string and if found will return its HeapString
     /// instead of allocating a copy.
     ///
     /// # Safety
@@ -382,14 +224,13 @@ impl Heap {
             return idx;
         }
         let data = StringHeapData::from_str(message);
-        self.strings.push(Some(data));
-        StringIndex::last(&self.strings).into()
+        self.create(data)
     }
 
     /// Allocate a static string onto the Agent heap
     ///
     /// This method will currently iterate through all heap strings to look for
-    /// a possible matching string and if found will return its StringIndex
+    /// a possible matching string and if found will return its HeapString
     /// instead of allocating a copy.
     ///
     /// # Safety
@@ -404,14 +245,13 @@ impl Heap {
             return idx;
         }
         let data = StringHeapData::from_string(message);
-        self.strings.push(Some(data));
-        StringIndex::last(&self.strings).into()
+        self.create(data)
     }
 
     /// Allocate a static string onto the Agent heap
     ///
     /// This method will currently iterate through all heap strings to look for
-    /// a possible matching string and if found will return its StringIndex
+    /// a possible matching string and if found will return its HeapString
     /// instead of allocating a copy.
     ///
     /// # Safety
@@ -426,8 +266,7 @@ impl Heap {
             return idx;
         }
         let data = StringHeapData::from_static_str(message);
-        self.strings.push(Some(data));
-        StringIndex::last(&self.strings).into()
+        self.create(data)
     }
 
     fn find_equal_string(&self, message: &str) -> Option<String> {
@@ -435,7 +274,7 @@ impl Heap {
         self.strings
             .iter()
             .position(|opt| opt.as_ref().map_or(false, |data| data.as_str() == message))
-            .map(|found_index| StringIndex::from_index(found_index).into())
+            .map(|found_index| HeapString(StringIndex::from_index(found_index)).into())
     }
 
     /// Allocate a 64-bit floating point number onto the Agent heap
@@ -445,13 +284,13 @@ impl Heap {
     /// The number being allocated must not be representable
     /// as a SmallInteger or f32. All stack-allocated numbers must be
     /// inequal to any heap-allocated number.
-    pub unsafe fn alloc_number(&mut self, number: f64) -> NumberIndex {
+    pub unsafe fn alloc_number(&mut self, number: f64) -> HeapNumber {
         debug_assert!(number.fract() != 0.0 || number as f32 as f64 != number);
         self.numbers.push(Some(number.into()));
-        NumberIndex::last(&self.numbers)
+        HeapNumber(NumberIndex::last(&self.numbers))
     }
 
-    pub(crate) fn create_null_object(&mut self, entries: Vec<ObjectEntry>) -> ObjectIndex {
+    pub(crate) fn create_null_object(&mut self, entries: &[ObjectEntry]) -> OrdinaryObject {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -460,14 +299,14 @@ impl Heap {
             prototype: None,
         };
         self.objects.push(Some(object_data));
-        ObjectIndex::last(&self.objects)
+        ObjectIndex::last(&self.objects).into()
     }
 
     pub(crate) fn create_object_with_prototype(
         &mut self,
         prototype: Object,
-        entries: Vec<ObjectEntry>,
-    ) -> ObjectIndex {
+        entries: &[ObjectEntry],
+    ) -> OrdinaryObject {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -476,7 +315,7 @@ impl Heap {
             prototype: Some(prototype),
         };
         self.objects.push(Some(object_data));
-        ObjectIndex::last(&self.objects)
+        ObjectIndex::last(&self.objects).into()
     }
 }
 

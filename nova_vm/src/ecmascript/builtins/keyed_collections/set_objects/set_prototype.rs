@@ -1,12 +1,9 @@
 use crate::{
     ecmascript::{
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -61,6 +58,9 @@ impl Builtin for SetPrototypeGetSize {
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::get_size);
 }
+impl BuiltinGetter for SetPrototypeGetSize {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.size.to_property_key();
+}
 struct SetPrototypeValues;
 impl Builtin for SetPrototypeValues {
     const NAME: String = BUILTIN_STRING_MEMORY.values;
@@ -110,12 +110,14 @@ impl SetPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.set_prototype();
         let set_constructor = intrinsics.set();
         let set_prototype_values = intrinsics.set_prototype_values();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(12)
+            .with_prototype(object_prototype)
             .with_builtin_function_property::<SetPrototypeAdd>()
             .with_builtin_function_property::<SetPrototypeClear>()
             .with_constructor_property(set_constructor)
@@ -124,18 +126,7 @@ impl SetPrototype {
             .with_builtin_function_property::<SetPrototypeForEach>()
             .with_builtin_function_property::<SetPrototypeHas>()
             .with_builtin_function_property::<SetPrototypeKeys>()
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.size.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<SetPrototypeGetSize>(agent, realm)
-                            .build()
-                            .into_function()
-                    })
-                    .with_enumerable(SetPrototypeGetSize::ENUMERABLE)
-                    .with_configurable(SetPrototypeGetSize::CONFIGURABLE)
-                    .build()
-            })
+            .with_builtin_function_getter_property::<SetPrototypeGetSize>()
             .with_builtin_intrinsic_function_property::<SetPrototypeValues>()
             .with_property(|builder| {
                 builder

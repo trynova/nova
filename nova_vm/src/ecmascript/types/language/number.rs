@@ -1,5 +1,7 @@
 mod data;
 
+use std::ops::{Index, IndexMut};
+
 use super::{
     value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
     IntoNumeric, IntoPrimitive, IntoValue, Numeric, Primitive, String, Value,
@@ -9,29 +11,45 @@ use crate::{
         abstract_operations::type_conversion::to_int32,
         execution::{Agent, JsResult},
     },
-    heap::{indexes::NumberIndex, CreateHeapData, GetHeapData},
+    heap::{
+        indexes::NumberIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+    },
     SmallInteger,
 };
 
 pub use data::NumberHeapData;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
+pub struct HeapNumber(pub(crate) NumberIndex);
+
+impl HeapNumber {
+    pub(crate) const fn _def() -> Self {
+        HeapNumber(NumberIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
+
 /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
 #[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum Number {
-    Number(NumberIndex) = NUMBER_DISCRIMINANT,
+    Number(HeapNumber) = NUMBER_DISCRIMINANT,
     // 56-bit signed integer.
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     Float(f32) = FLOAT_DISCRIMINANT,
 }
 
-impl IntoValue for NumberIndex {
+impl IntoValue for HeapNumber {
     fn into_value(self) -> Value {
         Value::Number(self)
     }
 }
 
-impl IntoPrimitive for NumberIndex {
+impl IntoPrimitive for HeapNumber {
     fn into_primitive(self) -> Primitive {
         Primitive::Number(self)
     }
@@ -47,7 +65,7 @@ impl IntoValue for Number {
     }
 }
 
-impl IntoNumeric for NumberIndex {
+impl IntoNumeric for HeapNumber {
     fn into_numeric(self) -> Numeric {
         Numeric::Number(self)
     }
@@ -83,8 +101,8 @@ impl std::fmt::Debug for Number {
     }
 }
 
-impl From<NumberIndex> for Number {
-    fn from(value: NumberIndex) -> Self {
+impl From<HeapNumber> for Number {
+    fn from(value: HeapNumber) -> Self {
         Number::Number(value)
     }
 }
@@ -97,10 +115,10 @@ impl From<SmallInteger> for Number {
 
 impl From<i64> for Number {
     fn from(value: i64) -> Self {
-        let n = value
-            .min(SmallInteger::MAX_NUMBER)
-            .max(SmallInteger::MIN_NUMBER);
-        Number::Integer(SmallInteger::try_from(n).unwrap())
+        Number::Integer(
+            SmallInteger::try_from(value.clamp(SmallInteger::MIN_NUMBER, SmallInteger::MAX_NUMBER))
+                .unwrap(),
+        )
     }
 }
 
@@ -199,7 +217,7 @@ impl Number {
 
     pub fn is_nan(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => agent.heap.get(n).is_nan(),
+            Number::Number(n) => agent[n].is_nan(),
             Number::Integer(_) => false,
             Number::Float(n) => n.is_nan(),
         }
@@ -207,7 +225,7 @@ impl Number {
 
     pub fn is_pos_zero(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(*agent.heap.get(n)),
+            Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(agent[n]),
             Number::Integer(n) => 0i64 == n.into(),
             Number::Float(n) => f32::to_bits(0.0) == f32::to_bits(n),
         }
@@ -215,7 +233,7 @@ impl Number {
 
     pub fn is_neg_zero(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => f64::to_bits(-0.0) == f64::to_bits(*agent.heap.get(n)),
+            Number::Number(n) => f64::to_bits(-0.0) == f64::to_bits(agent[n]),
             Number::Integer(_) => false,
             Number::Float(n) => f32::to_bits(-0.0) == f32::to_bits(n),
         }
@@ -223,7 +241,7 @@ impl Number {
 
     pub fn is_pos_infinity(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => *agent.heap.get(n) == f64::INFINITY,
+            Number::Number(n) => agent[n] == f64::INFINITY,
             Number::Integer(_) => false,
             Number::Float(n) => n == f32::INFINITY,
         }
@@ -231,7 +249,7 @@ impl Number {
 
     pub fn is_neg_infinity(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => *agent.heap.get(n) == f64::NEG_INFINITY,
+            Number::Number(n) => agent[n] == f64::NEG_INFINITY,
             Number::Integer(_) => false,
             Number::Float(n) => n == f32::NEG_INFINITY,
         }
@@ -239,7 +257,7 @@ impl Number {
 
     pub fn is_finite(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => agent.heap.get(n).is_finite(),
+            Number::Number(n) => agent[n].is_finite(),
             Number::Integer(_) => true,
             Number::Float(n) => n.is_finite(),
         }
@@ -247,7 +265,7 @@ impl Number {
 
     pub fn is_nonzero(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => 0.0 != *agent.heap.get(n),
+            Number::Number(n) => 0.0 != agent[n],
             Number::Integer(n) => 0i64 != n.into(),
             Number::Float(n) => 0.0 != n,
         }
@@ -257,7 +275,7 @@ impl Number {
     pub fn truncate(self, agent: &mut Agent) -> Number {
         match self {
             Number::Number(n) => {
-                let n = agent.heap.get(n).trunc();
+                let n = agent[n].trunc();
                 agent.heap.create(n)
             }
             Number::Integer(_) => self,
@@ -267,7 +285,7 @@ impl Number {
 
     pub fn into_f64(self, agent: &Agent) -> f64 {
         match self {
-            Number::Number(n) => *agent.heap.get(n),
+            Number::Number(n) => agent[n],
             Number::Integer(n) => Into::<i64>::into(n) as f64,
             Number::Float(n) => n as f64,
         }
@@ -275,7 +293,7 @@ impl Number {
 
     pub fn into_i64(self, agent: &Agent) -> i64 {
         match self {
-            Number::Number(n) => *agent.heap.get(n) as i64,
+            Number::Number(n) => agent[n] as i64,
             Number::Integer(n) => Into::<i64>::into(n),
             Number::Float(n) => n as i64,
         }
@@ -289,24 +307,22 @@ impl Number {
     fn is(agent: &mut Agent, x: Self, y: Self) -> bool {
         match (x, y) {
             // Optimisation: First compare by-reference; only read from heap if needed.
-            (Number::Number(x), Number::Number(y)) => {
-                x == y || agent.heap.get(x) == agent.heap.get(y)
-            }
+            (Number::Number(x), Number::Number(y)) => x == y || agent[x] == agent[y],
             (Number::Integer(x), Number::Integer(y)) => x == y,
             (Number::Float(x), Number::Float(y)) => x == y,
             (Number::Number(x), Number::Integer(y)) => {
                 // Optimisation: Integers should never be allocated into the heap as f64s.
-                debug_assert!(*agent.heap.get(x) != y.into_i64() as f64);
+                debug_assert!(agent[x] != y.into_i64() as f64);
                 false
             }
             (Number::Number(x), Number::Float(y)) => {
                 // Optimisation: f32s should never be allocated into the heap
-                debug_assert!(*agent.heap.get(x) != y as f64);
+                debug_assert!(agent[x] != y as f64);
                 false
             }
             (Number::Integer(x), Number::Number(y)) => {
                 // Optimisation: Integers should never be allocated into the heap as f64s.
-                debug_assert!((x.into_i64() as f64) != *agent.heap.get(y));
+                debug_assert!((x.into_i64() as f64) != agent[y]);
                 false
             }
             (Number::Integer(x), Number::Float(y)) => {
@@ -315,7 +331,7 @@ impl Number {
             }
             (Number::Float(x), Number::Number(y)) => {
                 // Optimisation: f32s should never be allocated into the heap
-                debug_assert!((x as f64) != *agent.heap.get(y));
+                debug_assert!((x as f64) != agent[y]);
                 false
             }
             (Number::Float(x), Number::Integer(y)) => {
@@ -327,7 +343,7 @@ impl Number {
 
     pub fn is_odd_integer(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => *agent.heap.get(n) % 2.0 == 1.0,
+            Number::Number(n) => agent[n] % 2.0 == 1.0,
             Number::Integer(n) => Into::<i64>::into(n) % 2 == 1,
             Number::Float(n) => n % 2.0 == 1.0,
         }
@@ -336,7 +352,7 @@ impl Number {
     pub fn abs(self, agent: &mut Agent) -> Self {
         match self {
             Number::Number(n) => {
-                let n = *agent.heap.get(n);
+                let n = agent[n];
                 if n > 0.0 {
                     self
                 } else {
@@ -363,7 +379,7 @@ impl Number {
         // 2. Return the result of negating x; that is, compute a Number with the same magnitude but opposite sign.
         match x {
             Number::Number(n) => {
-                let value = *agent.heap.get(n);
+                let value = agent[n];
                 agent.heap.create(-value)
             }
             Number::Integer(n) => SmallInteger::try_from(-n.into_i64()).unwrap().into(),
@@ -626,13 +642,13 @@ impl Number {
 
         // 11. If ℝ(x) < ℝ(y), return true. Otherwise, return false.
         Some(match (x, y) {
-            (Number::Number(x), Number::Number(y)) => agent.heap.get(x) < agent.heap.get(y),
-            (Number::Number(x), Number::Integer(y)) => *agent.heap.get(x) < y.into_i64() as f64,
-            (Number::Number(x), Number::Float(y)) => *agent.heap.get(x) < y as f64,
-            (Number::Integer(x), Number::Number(y)) => (x.into_i64() as f64) < *agent.heap.get(y),
+            (Number::Number(x), Number::Number(y)) => agent[x] < agent[y],
+            (Number::Number(x), Number::Integer(y)) => agent[x] < y.into_i64() as f64,
+            (Number::Number(x), Number::Float(y)) => agent[x] < y as f64,
+            (Number::Integer(x), Number::Number(y)) => (x.into_i64() as f64) < agent[y],
             (Number::Integer(x), Number::Integer(y)) => x.into_i64() < y.into_i64(),
             (Number::Integer(x), Number::Float(y)) => (x.into_i64() as f64) < y as f64,
-            (Number::Float(x), Number::Number(y)) => (x as f64) < *agent.heap.get(y),
+            (Number::Float(x), Number::Number(y)) => (x as f64) < agent[y],
             (Number::Float(x), Number::Integer(y)) => (x as f64) < y.into_i64() as f64,
             (Number::Float(x), Number::Float(y)) => x < y,
         })
@@ -821,3 +837,73 @@ impl_value_from_n!(u16);
 impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
+
+impl Index<HeapNumber> for Agent {
+    type Output = f64;
+
+    fn index(&self, index: HeapNumber) -> &Self::Output {
+        &self
+            .heap
+            .numbers
+            .get(index.0.into_index())
+            .expect("HeapNumber out of bounds")
+            .as_ref()
+            .expect("HeapNumber slot empty")
+            .data
+    }
+}
+
+impl IndexMut<HeapNumber> for Agent {
+    fn index_mut(&mut self, index: HeapNumber) -> &mut Self::Output {
+        &mut self
+            .heap
+            .numbers
+            .get_mut(index.0.into_index())
+            .expect("HeapNumber out of bounds")
+            .as_mut()
+            .expect("HeapNumber slot empty")
+            .data
+    }
+}
+
+impl CreateHeapData<f64, Number> for Heap {
+    fn create(&mut self, data: f64) -> Number {
+        // NOTE: This function cannot currently be implemented
+        // directly using `Number::from_f64` as it takes an Agent
+        // parameter that we do not have access to here.
+        if let Ok(value) = Number::try_from(data) {
+            value
+        } else {
+            // SAFETY: Number was not representable as a
+            // stack-allocated Number.
+            let heap_number = unsafe { self.alloc_number(data) };
+            Number::Number(heap_number)
+        }
+    }
+}
+
+impl HeapMarkAndSweep for Number {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        if let Self::Number(idx) = self {
+            idx.mark_values(queues);
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        if let Self::Number(idx) = self {
+            idx.sweep_values(compactions);
+        }
+    }
+}
+
+impl HeapMarkAndSweep for HeapNumber {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.numbers.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 =
+            NumberIndex::from_u32(self_index - compactions.numbers.get_shift_for_index(self_index));
+    }
+}

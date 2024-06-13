@@ -1,6 +1,6 @@
 use crate::ecmascript::types::{Function, PropertyDescriptor, PropertyKey, Value};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct ObjectEntry {
     pub key: PropertyKey,
     pub value: ObjectEntryPropertyDescriptor,
@@ -47,7 +47,7 @@ impl From<PropertyDescriptor> for ObjectEntryPropertyDescriptor {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum ObjectEntryPropertyDescriptor {
     Data {
         value: Value,

@@ -4,10 +4,10 @@ members = ["nova_cli", "nova_vm", "common", "small_string", "wasm"]
 
 [workspace.dependencies]
 num-bigint = "0.4.4"
-oxc_parser = "0.6.0"
-oxc_span = "0.6.0"
-oxc_syntax = "0.6.0"
-oxc_ast = "0.6.0"
-oxc_allocator = "0.6.0"
-oxc_diagnostics = "0.6.0"
+oxc_parser = "0.13.0"
+oxc_span = "0.13.0"
+oxc_syntax = "0.13.0"
+oxc_ast = "0.13.0"
+oxc_allocator = "0.13.0"
+oxc_diagnostics = "0.13.0"
 wtf8 = "0.1"

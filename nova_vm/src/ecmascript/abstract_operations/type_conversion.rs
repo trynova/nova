@@ -19,7 +19,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{GetHeapData, WellKnownSymbolIndexes},
+    heap::WellKnownSymbolIndexes,
     SmallInteger,
 };
 
@@ -45,11 +45,11 @@ pub enum PreferredType {
 /// the following steps when called:
 ///
 /// > NOTE: When ToPrimitive is called without a hint, then it generally
-/// behaves as if the hint were NUMBER. However, objects may over-ride this
-/// behaviour by defining a @@toPrimitive method. Of the objects defined in
-/// this specification only Dates (see 21.4.4.45) and Symbol objects (see
-/// 20.4.3.5) over-ride the default ToPrimitive behaviour. Dates treat the
-/// absence of a hint as if the hint were STRING.
+/// > behaves as if the hint were NUMBER. However, objects may over-ride this
+/// > behaviour by defining a @@toPrimitive method. Of the objects defined in
+/// > this specification only Dates (see 21.4.4.45) and Symbol objects (see
+/// > 20.4.3.5) over-ride the default ToPrimitive behaviour. Dates treat the
+/// > absence of a hint as if the hint were STRING.
 pub(crate) fn to_primitive(
     agent: &mut Agent,
     input: impl Into<Value> + Copy,
@@ -504,9 +504,9 @@ pub(crate) fn to_string(agent: &mut Agent, argument: impl Into<Value> + Copy) ->
             Err(agent.throw_exception(ExceptionType::TypeError, "Cannot turn Symbol into string"))
         }
         // 7. If argument is a Number, return Number::toString(argument, 10).
-        Value::Number(_) => todo!(),
-        Value::Integer(_) => todo!(),
-        Value::Float(_) => todo!(),
+        Value::Number(_) | Value::Integer(_) | Value::Float(_) => {
+            Number::to_string_radix_10(agent, Number::try_from(argument).unwrap())
+        }
         // 8. If argument is a BigInt, return BigInt::toString(argument, 10).
         Value::BigInt(_) => todo!(),
         Value::SmallBigInt(_) => todo!(),
@@ -570,7 +570,7 @@ pub(crate) fn to_property_key(agent: &mut Agent, argument: Value) -> JsResult<Pr
         Primitive::SmallBigInt(x)
             if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&x.into_i64()) =>
         {
-            Ok(PropertyKey::Integer(x))
+            Ok(PropertyKey::Integer(x.into_inner()))
         }
         Primitive::Undefined => Ok(PropertyKey::from(BUILTIN_STRING_MEMORY.undefined)),
         Primitive::Null => Ok(PropertyKey::from(BUILTIN_STRING_MEMORY.null)),
@@ -599,7 +599,7 @@ pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<i64> {
     if match len {
         Number::Integer(n) => n.into_i64() <= 0,
         Number::Float(n) => n <= 0.0,
-        Number::Number(n) => *agent.heap.get(n) <= 0.0,
+        Number::Number(n) => agent[n] <= 0.0,
     } {
         return Ok(0);
     }
@@ -608,7 +608,7 @@ pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<i64> {
     Ok(match len {
         Number::Integer(n) => n.into_i64().min(SmallInteger::MAX_NUMBER),
         Number::Float(n) => n.min(SmallInteger::MAX_NUMBER as f32) as i64,
-        Number::Number(n) => agent.heap.get(n).min(SmallInteger::MAX_NUMBER as f64) as i64,
+        Number::Number(n) => agent[n].min(SmallInteger::MAX_NUMBER as f64) as i64,
     })
 }
 
@@ -618,7 +618,7 @@ pub(crate) fn canonical_numeric_index_string(
     argument: String,
 ) -> Option<Number> {
     // 1. If argument is "-0", return -0𝔽.
-    if argument == BUILTIN_STRING_MEMORY._0 {
+    if argument == BUILTIN_STRING_MEMORY.__0 {
         return Some((-0.0).into());
     }
 

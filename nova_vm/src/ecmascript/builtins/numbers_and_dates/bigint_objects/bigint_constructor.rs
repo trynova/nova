@@ -9,10 +9,12 @@ use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilde
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
+use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
 use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::types::bigint::SmallBigInt;
 use crate::ecmascript::types::BigInt;
 use crate::ecmascript::types::BigIntHeapData;
 use crate::ecmascript::types::IntoObject;
@@ -21,9 +23,9 @@ use crate::ecmascript::types::Number;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
-use crate::heap::indexes::BigIntIndex;
 
-use crate::heap::GetHeapData;
+use crate::heap::CreateHeapData;
+use crate::heap::IntrinsicConstructorIndexes;
 use crate::SmallInteger;
 
 /// ### [21.1.2.1 BigInt ( value )](https://tc39.es/ecma262/#sec-bigint-constructor)
@@ -33,6 +35,9 @@ impl Builtin for BigIntConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
     const NAME: String = BUILTIN_STRING_MEMORY.BigInt;
+}
+impl BuiltinIntrinsicConstructor for BigIntConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::BigInt;
 }
 
 struct BigIntAsIntN;
@@ -89,12 +94,10 @@ impl BigIntConstructor {
                 let int = int.into_i64();
                 let modulo = int % 2i64.pow(bits);
                 if modulo >= 2i64.pow(bits - 1) {
-                    Ok(
-                        BigInt::from(SmallInteger::try_from(modulo - 2i64.pow(bits)).unwrap())
-                            .into_value(),
-                    )
+                    let result = modulo - 2i64.pow(bits);
+                    Ok(BigInt::from(SmallBigInt::try_from(result).unwrap()).into_value())
                 } else {
-                    Ok(BigInt::from(SmallInteger::try_from(modulo).unwrap()).into_value())
+                    Ok(BigInt::from(SmallBigInt::try_from(modulo).unwrap()).into_value())
                 }
             }
         }
@@ -119,7 +122,7 @@ impl BigIntConstructor {
             BigInt::SmallBigInt(int) => {
                 let int = int.into_i64();
                 let modulo = int % 2i64.pow(bits);
-                Ok(BigInt::from(SmallInteger::try_from(modulo).unwrap()).into_value())
+                Ok(BigInt::from(SmallBigInt::try_from(modulo).unwrap()).into_value())
             }
         }
     }
@@ -127,20 +130,13 @@ impl BigIntConstructor {
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let big_int_prototype = intrinsics.big_int_prototype();
-        let this = intrinsics.big_int();
-        let this_object_index = intrinsics.big_int_base_object();
 
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<BigIntConstructor>(
-            agent,
-            realm,
-            this,
-            Some(this_object_index),
-        )
-        .with_property_capacity(3)
-        .with_builtin_function_property::<BigIntAsIntN>()
-        .with_builtin_function_property::<BigIntAsUintN>()
-        .with_prototype_property(big_int_prototype.into_object())
-        .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<BigIntConstructor>(agent, realm)
+            .with_property_capacity(3)
+            .with_builtin_function_property::<BigIntAsIntN>()
+            .with_builtin_function_property::<BigIntAsUintN>()
+            .with_prototype_property(big_int_prototype.into_object())
+            .build();
     }
 }
 
@@ -150,29 +146,21 @@ fn number_to_big_int(agent: &mut Agent, value: Number) -> JsResult<BigInt> {
     } else {
         match value {
             Number::Number(idx) => {
-                let value = *agent.heap.get(idx);
+                let value = agent[idx];
                 if let Ok(data) = SmallInteger::try_from(value) {
-                    Ok(data.into())
+                    Ok(BigInt::SmallBigInt(data.into()))
                 } else {
                     let number = value.to_bigint().unwrap();
-                    agent
-                        .heap
-                        .bigints
-                        .push(Some(BigIntHeapData { data: number }));
-                    Ok(BigIntIndex::last(&agent.heap.bigints).into())
+                    Ok(agent.heap.create(BigIntHeapData { data: number }))
                 }
             }
-            Number::Integer(int) => Ok(int.into()),
+            Number::Integer(int) => Ok(BigInt::SmallBigInt(int.into())),
             Number::Float(value) => {
                 if let Ok(data) = SmallInteger::try_from(value) {
-                    Ok(data.into())
+                    Ok(BigInt::SmallBigInt(data.into()))
                 } else {
                     let number = value.to_bigint().unwrap();
-                    agent
-                        .heap
-                        .bigints
-                        .push(Some(BigIntHeapData { data: number }));
-                    Ok(BigIntIndex::last(&agent.heap.bigints).into())
+                    Ok(agent.heap.create(BigIntHeapData { data: number }))
                 }
             }
         }

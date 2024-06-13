@@ -1,12 +1,9 @@
 use crate::{
     ecmascript::{
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, String, Value, BUILTIN_STRING_MEMORY},
+        types::{PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -18,6 +15,9 @@ impl Builtin for SharedArrayBufferPrototypeGetByteLength {
     const NAME: String = BUILTIN_STRING_MEMORY.get_byteLength;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SharedArrayBufferPrototype::get_byte_length);
+}
+impl BuiltinGetter for SharedArrayBufferPrototypeGetByteLength {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.byteLength.to_property_key();
 }
 struct SharedArrayBufferPrototypeGrow;
 impl Builtin for SharedArrayBufferPrototypeGrow {
@@ -31,12 +31,18 @@ impl Builtin for SharedArrayBufferPrototypeGetGrowable {
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SharedArrayBufferPrototype::get_growable);
 }
+impl BuiltinGetter for SharedArrayBufferPrototypeGetGrowable {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.growable.to_property_key();
+}
 struct SharedArrayBufferPrototypeGetMaxByteLength;
 impl Builtin for SharedArrayBufferPrototypeGetMaxByteLength {
     const NAME: String = BUILTIN_STRING_MEMORY.get_maxByteLength;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour =
         Behaviour::Regular(SharedArrayBufferPrototype::get_max_byte_length);
+}
+impl BuiltinGetter for SharedArrayBufferPrototypeGetMaxByteLength {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.maxByteLength.to_property_key();
 }
 struct SharedArrayBufferPrototypeSlice;
 impl Builtin for SharedArrayBufferPrototypeSlice {
@@ -76,55 +82,18 @@ impl SharedArrayBufferPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.shared_array_buffer_prototype();
         let shared_array_buffer_constructor = intrinsics.shared_array_buffer();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(7)
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.byteLength.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<SharedArrayBufferPrototypeGetByteLength>(
-                            agent, realm,
-                        )
-                        .build()
-                        .into_function()
-                    })
-                    .with_enumerable(SharedArrayBufferPrototypeGetByteLength::ENUMERABLE)
-                    .with_configurable(SharedArrayBufferPrototypeGetByteLength::CONFIGURABLE)
-                    .build()
-            })
+            .with_prototype(object_prototype)
+            .with_builtin_function_getter_property::<SharedArrayBufferPrototypeGetByteLength>()
             .with_constructor_property(shared_array_buffer_constructor)
             .with_builtin_function_property::<SharedArrayBufferPrototypeGrow>()
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.growable.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<SharedArrayBufferPrototypeGetGrowable>(
-                            agent, realm,
-                        )
-                        .build()
-                        .into_function()
-                    })
-                    .with_enumerable(SharedArrayBufferPrototypeGetGrowable::ENUMERABLE)
-                    .with_configurable(SharedArrayBufferPrototypeGetGrowable::CONFIGURABLE)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.maxByteLength.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<SharedArrayBufferPrototypeGetMaxByteLength>(
-                            agent, realm,
-                        )
-                        .build()
-                        .into_function()
-                    })
-                    .with_enumerable(SharedArrayBufferPrototypeGetMaxByteLength::ENUMERABLE)
-                    .with_configurable(SharedArrayBufferPrototypeGetMaxByteLength::CONFIGURABLE)
-                    .build()
-            })
+            .with_builtin_function_getter_property::<SharedArrayBufferPrototypeGetGrowable>()
+            .with_builtin_function_getter_property::<SharedArrayBufferPrototypeGetMaxByteLength>()
             .with_builtin_function_property::<SharedArrayBufferPrototypeSlice>()
             .with_property(|builder| {
                 builder

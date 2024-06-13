@@ -4,9 +4,9 @@ use crate::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        builtins::{map::Map, ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic},
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{IntoValue, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -70,6 +70,9 @@ impl Builtin for MapPrototypeGetSize {
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::get_size);
 }
+impl BuiltinGetter for MapPrototypeGetSize {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.size.to_property_key();
+}
 struct MapPrototypeValues;
 impl Builtin for MapPrototypeValues {
     const NAME: String = BUILTIN_STRING_MEMORY.values;
@@ -110,8 +113,10 @@ impl MapPrototype {
         todo!()
     }
 
-    fn get_size(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    fn get_size(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let m = require_map_data_internal_slot(agent, this_value)?;
+        let count = agent[m].keys.len() as u32;
+        Ok(count.into())
     }
 
     fn values(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
@@ -120,6 +125,7 @@ impl MapPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.map_prototype();
         let map_constructor = intrinsics.map();
 
@@ -127,6 +133,7 @@ impl MapPrototype {
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(13)
+            .with_prototype(object_prototype)
             .with_builtin_function_property::<MapPrototypeClear>()
             .with_constructor_property(map_constructor)
             .with_builtin_function_property::<MapPrototypeDelete>()
@@ -136,18 +143,7 @@ impl MapPrototype {
             .with_builtin_function_property::<MapPrototypeHas>()
             .with_builtin_function_property::<MapPrototypeKeys>()
             .with_builtin_function_property::<MapPrototypeSet>()
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.size.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<MapPrototypeGetSize>(agent, realm)
-                            .build()
-                            .into_function()
-                    })
-                    .with_enumerable(MapPrototypeGetSize::ENUMERABLE)
-                    .with_configurable(MapPrototypeGetSize::CONFIGURABLE)
-                    .build()
-            })
+            .with_builtin_function_getter_property::<MapPrototypeGetSize>()
             .with_property(|builder| {
                 builder
                     .with_key(MapPrototypeValues::NAME.into())
@@ -179,5 +175,13 @@ impl MapPrototype {
                     .build()
             })
             .build();
+    }
+}
+
+#[inline(always)]
+fn require_map_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<Map> {
+    match value {
+        Value::Map(map) => Ok(map),
+        _ => Err(agent.throw_exception(ExceptionType::TypeError, "Object is not a Map")),
     }
 }

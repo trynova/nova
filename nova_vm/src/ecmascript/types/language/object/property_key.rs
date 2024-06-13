@@ -2,16 +2,15 @@ use crate::{
     ecmascript::{
         execution::Agent,
         types::{
-            language::value::{
-                INTEGER_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
-                SYMBOL_DISCRIMINANT,
+            language::{
+                string::HeapString,
+                value::{
+                    INTEGER_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
+                    SYMBOL_DISCRIMINANT,
+                },
             },
             String, Symbol, Value,
         },
-    },
-    heap::{
-        indexes::{StringIndex, SymbolIndex},
-        GetHeapData,
     },
     SmallInteger, SmallString,
 };
@@ -21,8 +20,8 @@ use crate::{
 pub enum PropertyKey {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
-    String(StringIndex) = STRING_DISCRIMINANT,
-    Symbol(SymbolIndex) = SYMBOL_DISCRIMINANT,
+    String(HeapString) = STRING_DISCRIMINANT,
+    Symbol(Symbol) = SYMBOL_DISCRIMINANT,
     // TODO: PrivateKey
 }
 
@@ -64,7 +63,7 @@ impl PropertyKey {
                 s1.as_str() == s2.as_str()
             }
             (PropertyKey::String(s), PropertyKey::Integer(n)) => {
-                let s = agent.heap.get(s).as_str();
+                let s = agent[s].as_str();
 
                 Self::is_str_eq_num(s, n.into_i64())
             }
@@ -75,6 +74,42 @@ impl PropertyKey {
             (PropertyKey::Integer(_), _) => y.equals(agent, self),
             _ => false,
         }
+    }
+}
+
+impl From<u32> for PropertyKey {
+    fn from(value: u32) -> Self {
+        PropertyKey::Integer(value.into())
+    }
+}
+
+impl From<u16> for PropertyKey {
+    fn from(value: u16) -> Self {
+        PropertyKey::Integer(value.into())
+    }
+}
+
+impl From<u8> for PropertyKey {
+    fn from(value: u8) -> Self {
+        PropertyKey::Integer(value.into())
+    }
+}
+
+impl From<i32> for PropertyKey {
+    fn from(value: i32) -> Self {
+        PropertyKey::Integer(value.into())
+    }
+}
+
+impl From<i16> for PropertyKey {
+    fn from(value: i16) -> Self {
+        PropertyKey::Integer(value.into())
+    }
+}
+
+impl From<i8> for PropertyKey {
+    fn from(value: i8) -> Self {
+        PropertyKey::Integer(value.into())
     }
 }
 
@@ -90,21 +125,15 @@ impl From<SmallString> for PropertyKey {
     }
 }
 
-impl From<StringIndex> for PropertyKey {
-    fn from(value: StringIndex) -> Self {
+impl From<HeapString> for PropertyKey {
+    fn from(value: HeapString) -> Self {
         PropertyKey::String(value)
-    }
-}
-
-impl From<SymbolIndex> for PropertyKey {
-    fn from(value: SymbolIndex) -> Self {
-        PropertyKey::Symbol(value)
     }
 }
 
 impl From<Symbol> for PropertyKey {
     fn from(value: Symbol) -> Self {
-        PropertyKey::Symbol(value.0)
+        PropertyKey::Symbol(value)
     }
 }
 
@@ -153,7 +182,7 @@ impl TryFrom<Value> for PropertyKey {
                 if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER)
                     .contains(&x.into_i64()) =>
             {
-                Ok(PropertyKey::Integer(x))
+                Ok(PropertyKey::Integer(x.into_inner()))
             }
             _ => Err(()),
         }

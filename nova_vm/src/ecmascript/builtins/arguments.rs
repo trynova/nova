@@ -124,7 +124,8 @@ pub(crate) fn create_unmapped_arguments_object(
     let len = arguments_list.len();
     let len = Number::from_f64(agent, len as f64).into_value();
     // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%, « [[ParameterMap]] »).
-    let obj = ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object));
+    // TODO: We need a heap data type with the [[ParameterMap]] internal slot.
+    let obj = ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
     // 3. Set obj.[[ParameterMap]] to undefined.
     // 4. Perform ! DefinePropertyOrThrow(obj, "length", PropertyDescriptor {
     let key = PropertyKey::from(BUILTIN_STRING_MEMORY.length);

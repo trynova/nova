@@ -1,5 +1,7 @@
 use wtf8::{Wtf8, Wtf8Buf};
 
+use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StringHeapData {
     // pub utf16_len: Option<u32>,
@@ -45,4 +47,10 @@ impl StringHeapData {
             data: StringBuffer::Owned(Wtf8Buf::from_string(str)),
         }
     }
+}
+
+impl HeapMarkAndSweep for StringHeapData {
+    fn mark_values(&self, _queues: &mut WorkQueues) {}
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists) {}
 }

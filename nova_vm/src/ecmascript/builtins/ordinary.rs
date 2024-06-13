@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut};
+
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -7,101 +9,70 @@ use crate::{
         builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, InternalMethods, IntoObject, Object, OrdinaryObject,
-            OrdinaryObjectInternalSlots, PropertyDescriptor, PropertyKey, Value,
+            Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, Object,
+            ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Symbol, Value,
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::CreateHeapData,
+    heap::{
+        indexes::ObjectIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        WellKnownSymbolIndexes, WorkQueues,
+    },
 };
 
-use super::{date::data::DateHeapData, error::ErrorHeapData};
+use super::{
+    data_view::data::DataViewHeapData, date::data::DateHeapData, error::ErrorHeapData,
+    finalization_registry::data::FinalizationRegistryHeapData, map::data::MapHeapData,
+    primitive_objects::PrimitiveObjectHeapData, promise::data::PromiseHeapData,
+    regexp::RegExpHeapData, set::data::SetHeapData,
+    shared_array_buffer::data::SharedArrayBufferHeapData, typed_array::data::TypedArrayHeapData,
+    weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
+    weak_set::data::WeakSetHeapData, ArrayBufferHeapData, ArrayHeapData,
+};
 
-/// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
-impl InternalMethods for OrdinaryObject {
-    /// ### [10.1.1 \[\[GetPrototypeOf\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-getprototypeof)
-    fn get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
-        Ok(ordinary_get_prototype_of(agent, self.into()))
-    }
+impl Index<OrdinaryObject> for Agent {
+    type Output = ObjectHeapData;
 
-    /// ### [10.1.2 \[\[SetPrototypeOf\]\] ( V )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-setprototypeof-v)
-    fn set_prototype_of(self, agent: &mut Agent, prototype: Option<Object>) -> JsResult<bool> {
-        Ok(ordinary_set_prototype_of(agent, self.into(), prototype))
-    }
-
-    /// ### [10.1.3 \[\[IsExtensible\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-isextensible)
-    fn is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
-        // 1. Return OrdinaryIsExtensible(O).
-        Ok(ordinary_is_extensible(agent, self.into()))
-    }
-
-    /// ### [10.1.4 \[\[PreventExtensions\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-preventextensions)
-    fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
-        // 1. Return OrdinaryPreventExtensions(O).
-        Ok(ordinary_prevent_extensions(agent, self.into()))
-    }
-
-    /// ### [10.1.5 \[\[GetOwnProperty\]\] ( P )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-getownproperty-p)
-    fn get_own_property(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
-        // 1. Return OrdinaryGetOwnProperty(O, P).
-        Ok(ordinary_get_own_property(agent, self.into(), property_key))
-    }
-
-    /// ### [10.1.6 \[\[DefineOwnProperty\]\] ( P, Desc )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-defineownproperty-p-desc)
-    fn define_own_property(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
-        ordinary_define_own_property(agent, self.into(), property_key, descriptor)
-    }
-
-    /// ### [10.1.7 \[\[HasProperty\]\] ( P )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-hasproperty-p)
-    fn has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        // 1. Return ? OrdinaryHasProperty(O, P).
-        ordinary_has_property(agent, self.into(), property_key)
-    }
-
-    /// ### [10.1.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-get-p-receiver)
-    fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
-        // 1. Return ? OrdinaryGet(O, P, Receiver).
-        ordinary_get(agent, self.into(), property_key, receiver)
-    }
-
-    /// ### [10.1.9 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-set-p-v-receiver)
-    fn set(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-    ) -> JsResult<bool> {
-        // 1. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_set(agent, self.into(), property_key, value, receiver)
-    }
-
-    /// ### [10.1.10 \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-delete-p)
-    fn delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        // 1. Return ? OrdinaryDelete(O, P).
-        ordinary_delete(agent, self.into(), property_key)
-    }
-
-    /// ### [10.1.11 \[\[OwnPropertyKeys\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-ownpropertykeys)
-    fn own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        // 1. Return OrdinaryOwnPropertyKeys(O).
-        ordinary_own_property_keys(agent, self.into())
+    fn index(&self, index: OrdinaryObject) -> &Self::Output {
+        &self.heap[index]
     }
 }
+
+impl IndexMut<OrdinaryObject> for Agent {
+    fn index_mut(&mut self, index: OrdinaryObject) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<OrdinaryObject> for Heap {
+    type Output = ObjectHeapData;
+
+    fn index(&self, index: OrdinaryObject) -> &Self::Output {
+        self.objects
+            .get(index.0.into_index())
+            .expect("OrdinaryObject out of bounds")
+            .as_ref()
+            .expect("OrdinaryObject slot empty")
+    }
+}
+
+impl IndexMut<OrdinaryObject> for Heap {
+    fn index_mut(&mut self, index: OrdinaryObject) -> &mut Self::Output {
+        self.objects
+            .get_mut(index.0.into_index())
+            .expect("OrdinaryObject out of bounds")
+            .as_mut()
+            .expect("OrdinaryObject slot empty")
+    }
+}
+
+/// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
+impl InternalMethods for OrdinaryObject {}
 
 /// ### [10.1.1.1 OrdinaryGetPrototypeOf ( O )](https://tc39.es/ecma262/#sec-ordinarygetprototypeof)
 pub(crate) fn ordinary_get_prototype_of(agent: &mut Agent, object: Object) -> Option<Object> {
     // 1. Return O.[[Prototype]].
-    object.prototype(agent)
+    object.internal_prototype(agent)
 }
 
 /// Implements steps 5 through 7 of OrdinarySetPrototypeOf
@@ -138,7 +109,7 @@ pub(crate) fn ordinary_set_prototype_of_check_loop(
         // }
 
         // ii. Else, set p to p.[[Prototype]].
-        p = p_inner.prototype(agent);
+        p = p_inner.internal_prototype(agent);
     }
     true
 }
@@ -150,7 +121,7 @@ pub(crate) fn ordinary_set_prototype_of(
     prototype: Option<Object>,
 ) -> bool {
     // 1. Let current be O.[[Prototype]].
-    let current = object.prototype(agent);
+    let current = object.internal_prototype(agent);
 
     // 2. If SameValue(V, current) is true, return true.
     match (prototype, current) {
@@ -160,7 +131,7 @@ pub(crate) fn ordinary_set_prototype_of(
     }
 
     // 3. Let extensible be O.[[Extensible]].
-    let extensible = object.extensible(agent);
+    let extensible = object.internal_extensible(agent);
 
     // 4. If extensible is false, return false.
     if !extensible {
@@ -173,7 +144,7 @@ pub(crate) fn ordinary_set_prototype_of(
     }
 
     // 8. Set O.[[Prototype]] to V.
-    object.set_prototype(agent, prototype);
+    object.internal_set_prototype(agent, prototype);
 
     // 9. Return true.
     true
@@ -182,13 +153,13 @@ pub(crate) fn ordinary_set_prototype_of(
 /// ### [10.1.3.1 OrdinaryIsExtensible ( O )](https://tc39.es/ecma262/#sec-ordinaryisextensible)
 pub(crate) fn ordinary_is_extensible(agent: &mut Agent, object: Object) -> bool {
     // 1. Return O.[[Extensible]].
-    object.extensible(agent)
+    object.internal_extensible(agent)
 }
 
 /// ### [10.1.4.1 OrdinaryPreventExtensions ( O )](https://tc39.es/ecma262/#sec-ordinarypreventextensions)
 pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: Object) -> bool {
     // 1. Set O.[[Extensible]] to false.
-    object.set_extensible(agent, false);
+    object.internal_set_extensible(agent, false);
 
     // 2. Return true.
     true
@@ -244,10 +215,10 @@ pub(crate) fn ordinary_define_own_property(
     descriptor: PropertyDescriptor,
 ) -> JsResult<bool> {
     // 1. Let current be ? O.[[GetOwnProperty]](P).
-    let current = object.get_own_property(agent, property_key)?;
+    let current = object.internal_get_own_property(agent, property_key)?;
 
     // 2. Let extensible be ? IsExtensible(O).
-    let extensible = object.extensible(agent);
+    let extensible = object.internal_extensible(agent);
 
     // 3. Return ValidateAndApplyPropertyDescriptor(O, P, extensible, Desc, current).
     validate_and_apply_property_descriptor(
@@ -307,17 +278,12 @@ fn validate_and_apply_property_descriptor(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            // try object.propertyStorage().set(property_key, PropertyDescriptor{
-            //     .value = descriptor.value orelse .undefined,
-            //     .writable = descriptor.writable orelse false,
-            //     .enumerable = descriptor.enumerable orelse false,
-            //     .configurable = descriptor.configurable orelse false,
-            // });
             object.property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
                     value: Some(descriptor.value.unwrap_or(Value::Undefined)),
+                    writable: Some(descriptor.writable.unwrap_or(false)),
                     enumerable: Some(descriptor.enumerable.unwrap_or(false)),
                     configurable: Some(descriptor.configurable.unwrap_or(false)),
                     ..Default::default()
@@ -346,10 +312,8 @@ fn validate_and_apply_property_descriptor(
 
         // b. If Desc has an [[Enumerable]] field and SameValue(Desc.[[Enumerable]], current.[[Enumerable]])
         //    is false, return false.
-        if let Some(true) = descriptor.enumerable {
-            if descriptor.enumerable != current.enumerable {
-                return Ok(false);
-            }
+        if descriptor.enumerable.is_some() && descriptor.enumerable != current.enumerable {
+            return Ok(false);
         }
 
         // c. If IsGenericDescriptor(Desc) is false and SameValue(IsAccessorDescriptor(Desc), IsAccessorDescriptor(current))
@@ -387,7 +351,7 @@ fn validate_and_apply_property_descriptor(
             }
         }
         // e. Else if current.[[Writable]] is false, then
-        else if let Some(true) = current.writable {
+        else if current.writable == Some(false) {
             // i. If Desc has a [[Writable]] field and Desc.[[Writable]] is true, return false.
             if let Some(true) = descriptor.writable {
                 return Ok(false);
@@ -486,7 +450,7 @@ fn validate_and_apply_property_descriptor(
                 property_key,
                 PropertyDescriptor {
                     value: descriptor.value.or(current.value),
-                    writable: Some(descriptor.writable.unwrap_or(false)),
+                    writable: descriptor.writable.or(current.writable),
                     get: descriptor.get.or(current.get),
                     set: descriptor.set.or(current.set),
                     enumerable: descriptor.enumerable.or(current.enumerable),
@@ -507,7 +471,7 @@ pub(crate) fn ordinary_has_property(
     property_key: PropertyKey,
 ) -> JsResult<bool> {
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
-    let has_own = object.get_own_property(agent, property_key)?;
+    let has_own = object.internal_get_own_property(agent, property_key)?;
 
     // 2. If hasOwn is not undefined, return true.
     if has_own.is_some() {
@@ -515,12 +479,12 @@ pub(crate) fn ordinary_has_property(
     }
 
     // 3. Let parent be ? O.[[GetPrototypeOf]]().
-    let parent = object.get_prototype_of(agent)?;
+    let parent = object.internal_get_prototype_of(agent)?;
 
     // 4. If parent is not null, then
     if let Some(parent) = parent {
         // a. Return ? parent.[[HasProperty]](P).
-        return parent.has_property(agent, property_key);
+        return parent.internal_has_property(agent, property_key);
     }
 
     // 5. Return false.
@@ -535,16 +499,16 @@ pub(crate) fn ordinary_get(
     receiver: Value,
 ) -> JsResult<Value> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let Some(descriptor) = object.get_own_property(agent, property_key)? else {
+    let Some(descriptor) = object.internal_get_own_property(agent, property_key)? else {
         // 2. If desc is undefined, then
 
         // a. Let parent be ? O.[[GetPrototypeOf]]().
-        let Some(parent) = object.get_prototype_of(agent)? else {
+        let Some(parent) = object.internal_get_prototype_of(agent)? else {
             return Ok(Value::Undefined);
         };
 
         // c. Return ? parent.[[Get]](P, Receiver).
-        return parent.get(agent, property_key, receiver);
+        return parent.internal_get(agent, property_key, receiver);
     };
 
     // 3. If IsDataDescriptor(desc) is true, return desc.[[Value]].
@@ -575,7 +539,7 @@ pub(crate) fn ordinary_set(
     receiver: Value,
 ) -> JsResult<bool> {
     // 1. Let ownDesc be ? O.[[GetOwnProperty]](P).
-    let own_descriptor = object.get_own_property(agent, property_key)?;
+    let own_descriptor = object.internal_get_own_property(agent, property_key)?;
 
     // 2. Return ? OrdinarySetWithOwnDescriptor(O, P, V, Receiver, ownDesc).
     ordinary_set_with_own_descriptor(agent, object, property_key, value, receiver, own_descriptor)
@@ -595,12 +559,12 @@ pub(crate) fn ordinary_set_with_own_descriptor(
     } else {
         // 1. If ownDesc is undefined, then
         // a. Let parent be ? O.[[GetPrototypeOf]]().
-        let parent = object.get_prototype_of(agent)?;
+        let parent = object.internal_get_prototype_of(agent)?;
 
         // b. If parent is not null, then
         if let Some(parent) = parent {
             // i. Return ? parent.[[Set]](P, V, Receiver).
-            return parent.set(agent, property_key, value, receiver);
+            return parent.internal_set(agent, property_key, value, receiver);
         }
         // c. Else,
         else {
@@ -630,7 +594,7 @@ pub(crate) fn ordinary_set_with_own_descriptor(
         };
 
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
-        let existing_descriptor = receiver.get_own_property(agent, property_key)?;
+        let existing_descriptor = receiver.internal_get_own_property(agent, property_key)?;
 
         // d. If existingDescriptor is not undefined, then
         if let Some(existing_descriptor) = existing_descriptor {
@@ -651,12 +615,15 @@ pub(crate) fn ordinary_set_with_own_descriptor(
             };
 
             // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
-            return receiver.define_own_property(agent, property_key, value_descriptor);
+            return receiver.internal_define_own_property(agent, property_key, value_descriptor);
         }
         // e. Else,
         else {
             // i. Assert: Receiver does not currently have a property P.
-            debug_assert!(!receiver.property_storage().has(agent, property_key));
+            debug_assert!(receiver
+                .internal_get_own_property(agent, property_key)
+                .unwrap()
+                .is_none());
 
             // ii. Return ? CreateDataProperty(Receiver, P, V).
             return create_data_property(agent, receiver, property_key, value);
@@ -686,7 +653,7 @@ pub(crate) fn ordinary_delete(
     property_key: PropertyKey,
 ) -> JsResult<bool> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let descriptor = object.get_own_property(agent, property_key)?;
+    let descriptor = object.internal_get_own_property(agent, property_key)?;
 
     // 2. If desc is undefined, return true.
     let Some(descriptor) = descriptor else {
@@ -707,12 +674,8 @@ pub(crate) fn ordinary_delete(
 }
 
 /// ### [10.1.11.1 OrdinaryOwnPropertyKeys ( O )](https://tc39.es/ecma262/#sec-ordinaryownpropertykeys)
-pub(crate) fn ordinary_own_property_keys(
-    _agent: &mut Agent,
-    _object: Object,
-) -> JsResult<Vec<PropertyKey>> {
+pub(crate) fn ordinary_own_property_keys(_agent: &Agent, _object: Object) -> Vec<PropertyKey> {
     // 1. Let keys be a new empty List.
-    let keys = Vec::new();
 
     // 2. For each own property key P of O such that P is an array index, in ascending numeric
     //    index order, do
@@ -749,7 +712,7 @@ pub(crate) fn ordinary_own_property_keys(
     // }
 
     // 5. Return keys.
-    Ok(keys)
+    Vec::new()
 }
 
 /// ### [10.1.12 OrdinaryObjectCreate ( proto \[ , additionalInternalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinaryobjectcreate)
@@ -763,24 +726,42 @@ pub(crate) fn ordinary_own_property_keys(
 /// additionalInternalSlotsList is not provided, a new empty List is used.
 ///
 /// > NOTE: Although OrdinaryObjectCreate does little more than call
-/// MakeBasicObject, its use communicates the intention to create an ordinary
-/// object, and not an exotic one. Thus, within this specification, it is not
-/// called by any algorithm that subsequently modifies the internal methods of
-/// the object in ways that would make the result non-ordinary. Operations that
-/// create exotic objects invoke MakeBasicObject directly.
+/// > MakeBasicObject, its use communicates the intention to create an ordinary
+/// > object, and not an exotic one. Thus, within this specification, it is not
+/// > called by any algorithm that subsequently modifies the internal methods of
+/// > the object in ways that would make the result non-ordinary. Operations that
+/// > create exotic objects invoke MakeBasicObject directly.
+///
+/// NOTE: In this implementation, `proto_intrinsics` determines the heap in
+/// which the object is placed, and therefore its heap data type and its
+/// internal slots. If `prototype` is None, the object will be created with the
+/// default prototype from the intrinsics, otherwise with the given prototype.
+/// To create an object with null prototype, both `proto_intrinsics` and
+/// `prototype` must be None.
 pub(crate) fn ordinary_object_create_with_intrinsics(
     agent: &mut Agent,
-    prototype: Option<ProtoIntrinsics>,
+    proto_intrinsics: Option<ProtoIntrinsics>,
+    prototype: Option<Object>,
 ) -> Object {
-    let Some(prototype) = prototype else {
-        return agent.heap.create_null_object(vec![]).into();
+    let Some(proto_intrinsics) = proto_intrinsics else {
+        assert!(prototype.is_none());
+        return agent.heap.create_null_object(&[]).into();
     };
 
-    match prototype {
-        ProtoIntrinsics::Array => todo!(),
-        ProtoIntrinsics::ArrayBuffer => todo!(),
-        ProtoIntrinsics::BigInt => todo!(),
-        ProtoIntrinsics::Boolean => todo!(),
+    let object = match proto_intrinsics {
+        ProtoIntrinsics::Array => agent.heap.create(ArrayHeapData::default()).into_object(),
+        ProtoIntrinsics::ArrayBuffer => agent
+            .heap
+            .create(ArrayBufferHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::BigInt => agent
+            .heap
+            .create(PrimitiveObjectHeapData::new_big_int_object(0.into()))
+            .into_object(),
+        ProtoIntrinsics::Boolean => agent
+            .heap
+            .create(PrimitiveObjectHeapData::new_boolean_object(false))
+            .into_object(),
         ProtoIntrinsics::Error => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::Error, None, None))
@@ -791,7 +772,10 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .into_object(),
         ProtoIntrinsics::Date => agent.heap.create(DateHeapData::new_invalid()).into_object(),
         ProtoIntrinsics::Function => todo!(),
-        ProtoIntrinsics::Number => todo!(),
+        ProtoIntrinsics::Number => agent
+            .heap
+            .create(PrimitiveObjectHeapData::new_number_object(0.into()))
+            .into_object(),
         ProtoIntrinsics::Object => agent
             .heap
             .create_object_with_prototype(
@@ -800,7 +784,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
                     .intrinsics()
                     .object_prototype()
                     .into_object(),
-                vec![],
+                &[],
             )
             .into(),
         ProtoIntrinsics::RangeError => agent
@@ -815,8 +799,18 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
                 None,
             ))
             .into_object(),
-        ProtoIntrinsics::String => todo!(),
-        ProtoIntrinsics::Symbol => todo!(),
+        ProtoIntrinsics::String => agent
+            .heap
+            .create(PrimitiveObjectHeapData::new_string_object(
+                String::EMPTY_STRING,
+            ))
+            .into_object(),
+        ProtoIntrinsics::Symbol => agent
+            .heap
+            .create(PrimitiveObjectHeapData::new_symbol_object(Symbol::from(
+                WellKnownSymbolIndexes::AsyncIterator,
+            )))
+            .into_object(),
         ProtoIntrinsics::SyntaxError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::SyntaxError, None, None))
@@ -829,7 +823,80 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .heap
             .create(ErrorHeapData::new(ExceptionType::UriError, None, None))
             .into_object(),
+        ProtoIntrinsics::AggregateError => agent
+            .heap
+            .create(ErrorHeapData::new(
+                ExceptionType::AggregateError,
+                None,
+                None,
+            ))
+            .into_object(),
+        ProtoIntrinsics::AsyncFunction => todo!(),
+        ProtoIntrinsics::AsyncGeneratorFunction => todo!(),
+        ProtoIntrinsics::BigInt64Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::BigUint64Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::DataView => agent.heap.create(DataViewHeapData::default()).into_object(),
+        ProtoIntrinsics::FinalizationRegistry => agent
+            .heap
+            .create(FinalizationRegistryHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Float32Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Float64Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::GeneratorFunction => todo!(),
+        ProtoIntrinsics::Int16Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Int32Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Int8Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Map => agent.heap.create(MapHeapData::default()).into_object(),
+        ProtoIntrinsics::Promise => agent.heap.create(PromiseHeapData::default()).into_object(),
+        ProtoIntrinsics::RegExp => agent.heap.create(RegExpHeapData::default()).into_object(),
+        ProtoIntrinsics::Set => agent.heap.create(SetHeapData::default()).into_object(),
+        ProtoIntrinsics::SharedArrayBuffer => agent
+            .heap
+            .create(SharedArrayBufferHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Uint16Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Uint32Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Uint8Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::WeakMap => agent.heap.create(WeakMapHeapData::default()).into_object(),
+        ProtoIntrinsics::WeakRef => agent.heap.create(WeakRefHeapData::default()).into_object(),
+        ProtoIntrinsics::WeakSet => agent.heap.create(WeakSetHeapData::default()).into_object(),
+    };
+
+    if let Some(prototype) = prototype {
+        object.internal_set_prototype(agent, Some(prototype));
     }
+
+    object
 }
 
 /// ### [10.1.13 OrdinaryCreateFromConstructor ( constructor, intrinsicDefaultProto \[ , internalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinarycreatefromconstructor)
@@ -844,24 +911,28 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
 /// \[\[Prototype]]. internalSlotsList contains the names of additional
 /// internal slots that must be defined as part of the object. If
 /// internalSlotsList is not provided, a new empty List is used.
+///
+/// NOTE: In this implementation, `intrinsic_default_proto` also defines which
+/// kind of heap data type the created object uses, and therefore which internal
+/// slots it has. Therefore the `internalSlotsList` property isn't present.
 pub(crate) fn ordinary_create_from_constructor(
     agent: &mut Agent,
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
-    _internal_slots_list: (),
 ) -> JsResult<Object> {
     // 1. Assert: intrinsicDefaultProto is this specification's name of an
     // intrinsic object. The corresponding object must be an intrinsic that is
     // intended to be used as the [[Prototype]] value of an object.
 
     // 2. Let proto be ? GetPrototypeFromConstructor(constructor, intrinsicDefaultProto).
-    let _proto = get_prototype_from_constructor(agent, constructor, intrinsic_default_proto)?;
+    let proto = get_prototype_from_constructor(agent, constructor, intrinsic_default_proto)?;
     // 3. If internalSlotsList is present, let slotsList be internalSlotsList.
     // 4. Else, let slotsList be a new empty List.
     // 5. Return OrdinaryObjectCreate(proto, slotsList).
     Ok(ordinary_object_create_with_intrinsics(
         agent,
         Some(intrinsic_default_proto),
+        proto,
     ))
 }
 
@@ -875,31 +946,133 @@ pub(crate) fn ordinary_create_from_constructor(
 /// retrieved from the constructor's "prototype" property, if it exists.
 /// Otherwise the intrinsic named by intrinsicDefaultProto is used for
 /// \[\[Prototype\]\].
+///
+/// NOTE: In this implementation, the function returns None if the prototype it
+/// would otherwise return is the prototype that corresponds to
+/// `intrinsic_default_proto`.
 pub(crate) fn get_prototype_from_constructor(
     agent: &mut Agent,
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
-) -> JsResult<Object> {
+) -> JsResult<Option<Object>> {
+    let function_realm = get_function_realm(agent, constructor);
+    // NOTE: %Constructor%.prototype is an immutable property; we can thus
+    // check if we %Constructor% is the ProtoIntrinsic we expect and if it is,
+    // return None because we know %Constructor%.prototype corresponds to the
+    // ProtoIntrinsic.
+    if let Ok(intrinsics) = function_realm.map(|realm| agent.get_realm(realm).intrinsics()) {
+        let intrinsic_constructor = match intrinsic_default_proto {
+            ProtoIntrinsics::AggregateError => intrinsics.aggregate_error().into_function(),
+            ProtoIntrinsics::Array => intrinsics.array().into_function(),
+            ProtoIntrinsics::ArrayBuffer => intrinsics.array_buffer().into_function(),
+            ProtoIntrinsics::AsyncFunction => intrinsics.async_function().into_function(),
+            ProtoIntrinsics::AsyncGeneratorFunction => {
+                intrinsics.async_generator_function().into_function()
+            }
+            ProtoIntrinsics::BigInt => intrinsics.big_int().into_function(),
+            ProtoIntrinsics::BigInt64Array => intrinsics.big_int64_array().into_function(),
+            ProtoIntrinsics::BigUint64Array => intrinsics.big_uint64_array().into_function(),
+            ProtoIntrinsics::Boolean => intrinsics.boolean().into_function(),
+            ProtoIntrinsics::DataView => intrinsics.data_view().into_function(),
+            ProtoIntrinsics::Date => intrinsics.date().into_function(),
+            ProtoIntrinsics::Error => intrinsics.error().into_function(),
+            ProtoIntrinsics::EvalError => intrinsics.eval_error().into_function(),
+            ProtoIntrinsics::FinalizationRegistry => {
+                intrinsics.finalization_registry().into_function()
+            }
+            ProtoIntrinsics::Float32Array => intrinsics.float32_array().into_function(),
+            ProtoIntrinsics::Float64Array => intrinsics.float64_array().into_function(),
+            ProtoIntrinsics::Function => intrinsics.function().into_function(),
+            ProtoIntrinsics::GeneratorFunction => intrinsics.generator_function().into_function(),
+            ProtoIntrinsics::Int16Array => intrinsics.int16_array().into_function(),
+            ProtoIntrinsics::Int32Array => intrinsics.int32_array().into_function(),
+            ProtoIntrinsics::Int8Array => intrinsics.int8_array().into_function(),
+            ProtoIntrinsics::Map => intrinsics.map().into_function(),
+            ProtoIntrinsics::Number => intrinsics.number().into_function(),
+            ProtoIntrinsics::Object => intrinsics.object().into_function(),
+            ProtoIntrinsics::Promise => intrinsics.promise().into_function(),
+            ProtoIntrinsics::RangeError => intrinsics.range_error().into_function(),
+            ProtoIntrinsics::ReferenceError => intrinsics.reference_error().into_function(),
+            ProtoIntrinsics::RegExp => intrinsics.reg_exp().into_function(),
+            ProtoIntrinsics::Set => intrinsics.set().into_function(),
+            ProtoIntrinsics::SharedArrayBuffer => intrinsics.shared_array_buffer().into_function(),
+            ProtoIntrinsics::String => intrinsics.string().into_function(),
+            ProtoIntrinsics::Symbol => intrinsics.symbol().into_function(),
+            ProtoIntrinsics::SyntaxError => intrinsics.syntax_error().into_function(),
+            ProtoIntrinsics::TypeError => intrinsics.type_error().into_function(),
+            ProtoIntrinsics::Uint16Array => intrinsics.uint16_array().into_function(),
+            ProtoIntrinsics::Uint32Array => intrinsics.uint32_array().into_function(),
+            ProtoIntrinsics::Uint8Array => intrinsics.uint8_array().into_function(),
+            ProtoIntrinsics::UriError => intrinsics.uri_error().into_function(),
+            ProtoIntrinsics::WeakMap => intrinsics.weak_map().into_function(),
+            ProtoIntrinsics::WeakRef => intrinsics.weak_ref().into_function(),
+            ProtoIntrinsics::WeakSet => intrinsics.weak_set().into_function(),
+        };
+        if constructor == intrinsic_constructor {
+            // The ProtoIntrinsic's constructor matches the constructor we're
+            // being called with, so the constructor's prototype matches the
+            // ProtoIntrinsic.
+            return Ok(None);
+        }
+    }
+
     // 1. Assert: intrinsicDefaultProto is this specification's name of an
     // intrinsic object. The corresponding object must be an intrinsic that is
     // intended to be used as the [[Prototype]] value of an object.
     // 2. Let proto be ? Get(constructor, "prototype").
     let prototype_key = BUILTIN_STRING_MEMORY.prototype.into();
-    let proto = get(agent, constructor.into(), prototype_key)?;
+    let proto = get(agent, constructor, prototype_key)?;
     // 3. If proto is not an Object, then
+    //   a. Let realm be ? GetFunctionRealm(constructor).
+    //   b. Set proto to realm's intrinsic object named intrinsicDefaultProto.
+    // 4. Return proto.
     match Object::try_from(proto) {
         Err(_) => {
-            // a. Let realm be ? GetFunctionRealm(constructor).
-            let realm = get_function_realm(agent, constructor)?;
-            // b. Set proto to realm's intrinsic object named intrinsicDefaultProto.
-            Ok(agent
-                .get_realm(realm)
-                .intrinsics()
-                .get_intrinsic_default_proto(intrinsic_default_proto))
+            function_realm?;
+            Ok(None)
         }
         Ok(proto) => {
-            // 4. Return proto.
-            Ok(proto)
+            if let Ok(realm) = function_realm {
+                let default_proto = agent
+                    .get_realm(realm)
+                    .intrinsics()
+                    .get_intrinsic_default_proto(intrinsic_default_proto);
+                if proto == default_proto {
+                    return Ok(None);
+                }
+            }
+            Ok(Some(proto))
         }
+    }
+}
+
+/// 10.4.7.2 SetImmutablePrototype ( O, V )
+///
+/// The abstract operation SetImmutablePrototype takes arguments O (an Object)
+/// and V (an Object or null) and returns either a normal completion containing
+/// a Boolean or a throw completion.
+#[inline]
+pub(crate) fn set_immutable_prototype(
+    agent: &mut Agent,
+    o: Object,
+    v: Option<Object>,
+) -> JsResult<bool> {
+    // 1. Let current be ? O.[[GetPrototypeOf]]().
+    let current = o.internal_get_prototype_of(agent)?;
+    // 2. If SameValue(V, current) is true, return true.
+    // 3. Return false.
+    Ok(same_value(agent, v, current))
+}
+
+impl HeapMarkAndSweep for OrdinaryObject {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.objects.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 = ObjectIndex::from_u32_index(
+            self_index - compactions.objects.get_shift_for_index(self_index),
+        );
     }
 }

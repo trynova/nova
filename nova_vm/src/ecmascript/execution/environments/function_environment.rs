@@ -1,10 +1,11 @@
-use oxc_span::Atom;
-
 use super::{DeclarativeEnvironment, DeclarativeEnvironmentIndex, FunctionEnvironmentIndex};
-use crate::ecmascript::{
-    builtins::{ECMAScriptFunction, ThisMode},
-    execution::{agent::ExceptionType, Agent, JsResult},
-    types::{Function, InternalMethods, IntoFunction, Object, Value},
+use crate::{
+    ecmascript::{
+        builtins::{ECMAScriptFunction, ThisMode},
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{Function, InternalMethods, IntoFunction, Object, String, Value},
+    },
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -61,6 +62,22 @@ pub(crate) struct FunctionEnvironment {
     pub(crate) declarative_environment: DeclarativeEnvironmentIndex,
 }
 
+impl HeapMarkAndSweep for FunctionEnvironment {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.declarative_environment.mark_values(queues);
+        self.function_object.mark_values(queues);
+        self.new_target.mark_values(queues);
+        self.this_value.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.declarative_environment.sweep_values(compactions);
+        self.function_object.sweep_values(compactions);
+        self.new_target.sweep_values(compactions);
+        self.this_value.sweep_values(compactions);
+    }
+}
+
 impl std::ops::Deref for FunctionEnvironment {
     type Target = DeclarativeEnvironmentIndex;
     fn deref(&self) -> &Self::Target {
@@ -78,7 +95,7 @@ pub(crate) fn new_function_environment(
     f: ECMAScriptFunction,
     new_target: Option<Object>,
 ) -> FunctionEnvironmentIndex {
-    let ecmascript_function_object = f.heap_data(agent);
+    let ecmascript_function_object = &agent[f].ecmascript_function;
     let this_mode = ecmascript_function_object.this_mode;
     // 1. Let env be a new Function Environment Record containing no bindings.
     let dcl_env = DeclarativeEnvironment::new(Some(ecmascript_function_object.environment));
@@ -124,26 +141,50 @@ impl FunctionEnvironmentIndex {
         self.heap_data(agent).this_binding_status
     }
 
+    /// ### [9.1.1.3.4 GetThisBinding ( )](https://tc39.es/ecma262/#sec-function-environment-records-getthisbinding)
+    /// The GetThisBinding concrete method of a Function Environment Record
+    /// envRec takes no arguments and returns either a normal completion
+    /// containing an ECMAScript language value or a throw completion.
+    pub(crate) fn get_this_binding(self, agent: &mut Agent) -> JsResult<Value> {
+        // 1. Assert: envRec.[[ThisBindingStatus]] is not lexical.
+        // 2. If envRec.[[ThisBindingStatus]] is uninitialized, throw a ReferenceError exception.
+        // 3. Return envRec.[[ThisValue]].
+        let env_rec = self.heap_data(agent);
+        match env_rec.this_binding_status {
+            ThisBindingStatus::Lexical => unreachable!(),
+            ThisBindingStatus::Initialized => Ok(env_rec.this_value.unwrap()),
+            ThisBindingStatus::Uninitialized => {
+                Err(agent
+                    .throw_exception(ExceptionType::ReferenceError, "Uninitialized this binding"))
+            }
+        }
+    }
+
     /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
-    pub(crate) fn has_binding(self, agent: &Agent, name: &str) -> bool {
+    pub(crate) fn has_binding(self, agent: &Agent, name: String) -> bool {
         let env_rec = self.heap_data(agent);
         env_rec.has_binding(agent, name)
     }
 
     /// ### [9.1.1.1.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-declarative-environment-records-createmutablebinding-n-d)
-    pub(crate) fn create_mutable_binding(self, agent: &mut Agent, name: &Atom, is_deletable: bool) {
+    pub(crate) fn create_mutable_binding(
+        self,
+        agent: &mut Agent,
+        name: String,
+        is_deletable: bool,
+    ) {
         let env_rec = self.heap_data_mut(agent);
         env_rec.create_mutable_binding(agent, name, is_deletable);
     }
 
     /// ### [9.1.1.1.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-createimmutablebinding-n-s)
-    pub(crate) fn create_immutable_binding(self, agent: &mut Agent, name: &Atom, is_strict: bool) {
+    pub(crate) fn create_immutable_binding(self, agent: &mut Agent, name: String, is_strict: bool) {
         let env_rec = self.heap_data_mut(agent);
         env_rec.create_immutable_binding(agent, name, is_strict);
     }
 
     /// ### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
-    pub(crate) fn initialize_binding(self, agent: &mut Agent, name: &Atom, value: Value) {
+    pub(crate) fn initialize_binding(self, agent: &mut Agent, name: String, value: Value) {
         let env_rec = self.heap_data_mut(agent);
         env_rec.initialize_binding(agent, name, value)
     }
@@ -152,7 +193,7 @@ impl FunctionEnvironmentIndex {
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         value: Value,
         mut is_strict: bool,
     ) -> JsResult<()> {
@@ -176,7 +217,11 @@ impl FunctionEnvironmentIndex {
             return Ok(());
         };
 
-        let binding = dcl_rec.heap_data_mut(agent).bindings.get_mut(name).unwrap();
+        let binding = dcl_rec
+            .heap_data_mut(agent)
+            .bindings
+            .get_mut(&name)
+            .unwrap();
 
         // 2. If the binding for N in envRec is a strict binding, set S to true.
         if binding.strict {
@@ -217,7 +262,7 @@ impl FunctionEnvironmentIndex {
     pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         is_strict: bool,
     ) -> JsResult<Value> {
         let env_rec = self.heap_data(agent);
@@ -225,7 +270,7 @@ impl FunctionEnvironmentIndex {
     }
 
     /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
-    pub(crate) fn delete_binding(self, agent: &mut Agent, name: &Atom) -> bool {
+    pub(crate) fn delete_binding(self, agent: &mut Agent, name: String) -> bool {
         let env_rec = self.heap_data(agent);
         env_rec.delete_binding(agent, name)
     }
@@ -296,7 +341,7 @@ impl FunctionEnvironmentIndex {
                 let data = agent
                     .heap
                     .ecmascript_functions
-                    .get(idx.into_index())
+                    .get(idx.get_index())
                     .unwrap()
                     .as_ref()
                     .unwrap();
@@ -305,7 +350,7 @@ impl FunctionEnvironmentIndex {
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
-            Function::BuiltinPromiseRejectFunction => todo!(),
+            Function::BuiltinPromiseRejectFunction(_) => todo!(),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
             Function::ECMAScriptAsyncFunction => todo!(),
@@ -331,7 +376,7 @@ impl FunctionEnvironmentIndex {
                 let data = agent
                     .heap
                     .ecmascript_functions
-                    .get(idx.into_index())
+                    .get(idx.get_index())
                     .unwrap()
                     .as_ref()
                     .unwrap();
@@ -340,7 +385,7 @@ impl FunctionEnvironmentIndex {
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
-            Function::BuiltinPromiseRejectFunction => todo!(),
+            Function::BuiltinPromiseRejectFunction(_) => todo!(),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
             Function::ECMAScriptAsyncFunction => todo!(),
@@ -355,7 +400,23 @@ impl FunctionEnvironmentIndex {
         // 3. Assert: home is an Object.
         // Type guarantees Objectness.
         // 4. Return ? home.[[GetPrototypeOf]]().
-        home.get_prototype_of(agent)
+        home.internal_get_prototype_of(agent)
             .map(|proto| proto.map_or_else(|| Value::Null, |proto| proto.into_value()))
+    }
+}
+
+impl HeapMarkAndSweep for FunctionEnvironmentIndex {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.function_environments.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(
+            self_index
+                - compactions
+                    .function_environments
+                    .get_shift_for_index(self_index),
+        );
     }
 }

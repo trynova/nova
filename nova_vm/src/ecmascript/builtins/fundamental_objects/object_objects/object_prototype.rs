@@ -6,7 +6,10 @@ use crate::{
             type_conversion::{to_object, to_property_key},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
+        builtins::{
+            primitive_objects::PrimitiveObjectData, ArgumentsList, Behaviour, Builtin,
+            BuiltinIntrinsic,
+        },
         execution::{Agent, JsResult, RealmIdentifier},
         types::{InternalMethods, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
@@ -94,7 +97,7 @@ impl ObjectPrototype {
         };
         let o = to_object(agent, this_value)?;
         loop {
-            let proto = v.get_prototype_of(agent)?;
+            let proto = v.internal_get_prototype_of(agent)?;
             if let Some(proto) = proto {
                 v = proto;
                 if same_value(agent, o, v) {
@@ -113,7 +116,7 @@ impl ObjectPrototype {
     ) -> JsResult<Value> {
         let p = to_property_key(agent, arguments.get(0))?;
         let o = to_object(agent, this_value)?;
-        let desc = o.get_own_property(agent, p)?;
+        let desc = o.internal_get_own_property(agent, p)?;
         if let Some(desc) = desc {
             Ok(desc.enumerable.unwrap_or(false).into())
         } else {
@@ -143,20 +146,17 @@ impl ObjectPrototype {
             Value::Null => Ok(BUILTIN_STRING_MEMORY._object_Null_.into_value()),
             // 9. Else if O has a [[BooleanData]] internal slot, let builtinTag be "Boolean".
             // 17. Return the string-concatenation of "[object ", tag, and "]".
-            Value::Boolean(_) | Value::BooleanObject => {
-                Ok(BUILTIN_STRING_MEMORY._object_Boolean_.into_value())
-            }
+            Value::Boolean(_) => Ok(BUILTIN_STRING_MEMORY._object_Boolean_.into_value()),
             // 6. Else if O has a [[ParameterMap]] internal slot, let builtinTag be "Arguments".
             Value::Arguments => Ok(BUILTIN_STRING_MEMORY._object_Arguments_.into_value()),
             // 11. Else if O has a [[StringData]] internal slot, let builtinTag be "String".
-            Value::String(_) | Value::SmallString(_) | Value::StringObject => {
+            Value::String(_) | Value::SmallString(_) => {
                 Ok(BUILTIN_STRING_MEMORY._object_String_.into_value())
             }
             // 10. Else if O has a [[NumberData]] internal slot, let builtinTag be "Number".
-            Value::Number(_) | Value::Integer(_) | Value::Float(_) | Value::NumberObject => {
-                Ok(BUILTIN_STRING_MEMORY._object_Error_.into_value())
+            Value::Number(_) | Value::Integer(_) | Value::Float(_) => {
+                Ok(BUILTIN_STRING_MEMORY._object_Number_.into_value())
             }
-            Value::Object(_) => todo!(),
             // 4. Let isArray be ? IsArray(O).
             // 5. If isArray is true, let builtinTag be "Array".
             Value::Array(_) => Ok(BUILTIN_STRING_MEMORY._object_Array_.into_value()),
@@ -169,14 +169,42 @@ impl ObjectPrototype {
                 Ok(BUILTIN_STRING_MEMORY._object_Function_.into_value())
             }
             // TODO: Check for [[Call]] slot of Proxy
-            Value::Proxy => todo!(),
+            Value::Proxy(_) => todo!(),
             // TODO: Check for [[Call]] slot of EmbedderObject
-            Value::EmbedderObject => todo!(),
+            Value::EmbedderObject(_) => todo!(),
             // 13. Else if O has a [[RegExpMatcher]] internal slot, let builtinTag be "RegExp".
             Value::RegExp(_) => Ok(BUILTIN_STRING_MEMORY._object_RegExp_.into_value()),
+            Value::PrimitiveObject(idx) => match &agent[idx].data {
+                PrimitiveObjectData::Boolean(_) => {
+                    Ok(BUILTIN_STRING_MEMORY._object_Boolean_.into_value())
+                }
+                PrimitiveObjectData::String(_) => {
+                    Ok(BUILTIN_STRING_MEMORY._object_String_.into_value())
+                }
+                PrimitiveObjectData::SmallString(_) => {
+                    Ok(BUILTIN_STRING_MEMORY._object_String_.into_value())
+                }
+                PrimitiveObjectData::Number(_)
+                | PrimitiveObjectData::Integer(_)
+                | PrimitiveObjectData::Float(_) => {
+                    Ok(BUILTIN_STRING_MEMORY._object_Number_.into_value())
+                }
+                PrimitiveObjectData::Symbol(_)
+                | PrimitiveObjectData::BigInt(_)
+                | PrimitiveObjectData::SmallBigInt(_) => {
+                    let o = to_object(agent, this_value).unwrap();
+                    let tag = get(agent, o, WellKnownSymbolIndexes::ToStringTag.into())?;
+                    if let Ok(tag) = String::try_from(tag) {
+                        let str = format!("[object {}]", tag.as_str(agent));
+                        Ok(Value::from_string(agent, str))
+                    } else {
+                        let str =
+                            format!("[object {}]", BUILTIN_STRING_MEMORY.Object.as_str(agent));
+                        Ok(Value::from_string(agent, str))
+                    }
+                }
+            },
             _ => {
-                // 14. Else, let builtinTag be "Object".
-                let builtin_tag = BUILTIN_STRING_MEMORY.Object;
                 // 3. Let O be ! ToObject(this value).
                 // 15. Let tag be ? Get(O, @@toStringTag).
                 // 16. If tag is not a String, set tag to builtinTag.
@@ -186,7 +214,8 @@ impl ObjectPrototype {
                     let str = format!("[object {}]", tag.as_str(agent));
                     Ok(Value::from_string(agent, str))
                 } else {
-                    let str = format!("[object {}]", builtin_tag.as_str(agent));
+                    // 14. Else, let builtinTag be "Object".
+                    let str = format!("[object {}]", BUILTIN_STRING_MEMORY.Object.as_str(agent));
                     Ok(Value::from_string(agent, str))
                 }
             }

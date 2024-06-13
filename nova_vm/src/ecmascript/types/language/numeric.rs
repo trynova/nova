@@ -3,14 +3,12 @@ use crate::{
         abstract_operations::type_conversion::to_number,
         execution::{Agent, JsResult},
     },
-    heap::{
-        indexes::{BigIntIndex, NumberIndex},
-        GetHeapData,
-    },
     SmallInteger,
 };
 
 use super::{
+    bigint::{HeapBigInt, SmallBigInt},
+    number::HeapNumber,
     value::{
         BIGINT_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT,
         SMALL_BIGINT_DISCRIMINANT,
@@ -21,11 +19,11 @@ use super::{
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Numeric {
-    Number(NumberIndex) = NUMBER_DISCRIMINANT,
+    Number(HeapNumber) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     Float(f32) = FLOAT_DISCRIMINANT,
-    BigInt(BigIntIndex) = BIGINT_DISCRIMINANT,
-    SmallBigInt(SmallInteger) = SMALL_BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
 impl Numeric {
@@ -70,7 +68,7 @@ impl Numeric {
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
     pub fn to_real(self, agent: &mut Agent) -> JsResult<f64> {
         Ok(match self {
-            Self::Number(n) => *agent.heap.get(n),
+            Self::Number(n) => agent[n],
             Self::Integer(i) => i.into_i64() as f64,
             Self::Float(f) => f as f64,
             // NOTE: Converting to a number should give us a nice error message.

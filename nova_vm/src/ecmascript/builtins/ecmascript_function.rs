@@ -1,8 +1,10 @@
+use std::ops::{Index, IndexMut};
+
 use oxc_ast::{
     ast::{FormalParameters, FunctionBody},
     syntax_directed_operations::{BoundNames, IsSimpleParameterList},
 };
-use oxc_span::{Atom, Span};
+use oxc_span::Span;
 
 use crate::{
     ecmascript::{
@@ -11,7 +13,7 @@ use crate::{
         },
         execution::{
             agent::{
-                get_active_script_or_module,
+                get_active_script_or_module, resolve_binding,
                 ExceptionType::{self, SyntaxError},
             },
             new_declarative_environment, new_function_environment, Agent,
@@ -29,20 +31,24 @@ use crate::{
             },
         },
         types::{
-            ECMAScriptFunctionHeapData, Function, InternalMethods, IntoFunction, IntoObject,
-            IntoValue, Object, PropertyDescriptor, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            initialize_referenced_binding, put_value, ECMAScriptFunctionHeapData, Function,
+            InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
+            ObjectHeapData, PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{indexes::ECMAScriptFunctionIndex, CreateHeapData, GetHeapData},
+    heap::{
+        indexes::ECMAScriptFunctionIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+    },
 };
 
 use super::{
-    create_unmapped_arguments_object, ordinary::ordinary_object_create_with_intrinsics,
+    create_unmapped_arguments_object,
+    ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
     ArgumentsList,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ECMAScriptFunction(ECMAScriptFunctionIndex);
 
 impl From<ECMAScriptFunction> for ECMAScriptFunctionIndex {
@@ -77,26 +83,43 @@ impl IntoFunction for ECMAScriptFunction {
 
 impl From<ECMAScriptFunction> for Value {
     fn from(val: ECMAScriptFunction) -> Self {
-        Value::ECMAScriptFunction(val.0)
+        Value::ECMAScriptFunction(val)
     }
 }
 
 impl From<ECMAScriptFunction> for Object {
     fn from(val: ECMAScriptFunction) -> Self {
-        Object::ECMAScriptFunction(val.0)
+        Object::ECMAScriptFunction(val)
     }
 }
 
 impl From<ECMAScriptFunction> for Function {
     fn from(val: ECMAScriptFunction) -> Self {
-        Function::ECMAScriptFunction(val.0)
+        Function::ECMAScriptFunction(val)
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum ConstructorKind {
-    Base,
-    Derived,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConstructorStatus {
+    NonConstructor,
+    ConstructorFunction,
+    BaseClass,
+    DerivedClass,
+}
+
+impl ConstructorStatus {
+    pub fn is_constructor(self) -> bool {
+        self != ConstructorStatus::NonConstructor
+    }
+    pub fn is_class_constructor(self) -> bool {
+        matches!(
+            self,
+            ConstructorStatus::BaseClass | ConstructorStatus::DerivedClass
+        )
+    }
+    pub fn is_derived_class(self) -> bool {
+        self == ConstructorStatus::DerivedClass
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -128,7 +151,8 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     pub ecmascript_code: &'static FunctionBody<'static>,
 
     /// \[\[ConstructorKind]]
-    pub constructor_kind: ConstructorKind,
+    /// \[\[IsClassConstructor]]
+    pub constructor_status: ConstructorStatus,
 
     /// \[\[Realm]]
     pub realm: RealmIdentifier,
@@ -147,10 +171,7 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
 
     ///  [[SourceText]]
     pub source_text: Span,
-
     // TODO: [[Fields]],  [[PrivateMethods]], [[ClassFieldInitializerName]]
-    /// \[\[IsClassConstructor]]
-    pub is_class_constructor: bool,
 }
 
 pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
@@ -163,69 +184,232 @@ pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
     pub private_env: Option<PrivateEnvironmentIndex>,
 }
 
+impl Index<ECMAScriptFunction> for Agent {
+    type Output = ECMAScriptFunctionHeapData;
+
+    fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<ECMAScriptFunction> for Agent {
+    fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<ECMAScriptFunction> for Heap {
+    type Output = ECMAScriptFunctionHeapData;
+
+    fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
+        self.ecmascript_functions
+            .get(index.0.into_index())
+            .expect("ECMAScriptFunction out of bounds")
+            .as_ref()
+            .expect("ECMAScriptFunction slot empty")
+    }
+}
+
+impl IndexMut<ECMAScriptFunction> for Heap {
+    fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
+        self.ecmascript_functions
+            .get_mut(index.0.into_index())
+            .expect("ECMAScriptFunction out of bounds")
+            .as_mut()
+            .expect("ECMAScriptFunction slot empty")
+    }
+}
+
+impl ECMAScriptFunction {
+    pub(crate) const fn _def() -> Self {
+        ECMAScriptFunction(ECMAScriptFunctionIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
+
+impl InternalSlots for ECMAScriptFunction {
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
+
+    #[inline(always)]
+    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+        agent[self].object_index
+    }
+
+    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+        debug_assert!(self.get_backing_object(agent).is_none());
+        let prototype = self.internal_prototype(agent);
+        let length_entry = ObjectEntry {
+            key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+            value: ObjectEntryPropertyDescriptor::Data {
+                value: agent[self].length.into(),
+                writable: false,
+                enumerable: false,
+                configurable: true,
+            },
+        };
+        let name_entry = ObjectEntry {
+            key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+            value: ObjectEntryPropertyDescriptor::Data {
+                value: agent[self]
+                    .name
+                    .unwrap_or(String::EMPTY_STRING)
+                    .into_value(),
+                writable: false,
+                enumerable: false,
+                configurable: true,
+            },
+        };
+        let (keys, values) = agent
+            .heap
+            .elements
+            .create_object_entries(&[length_entry, name_entry]);
+        let backing_object = agent.heap.create(ObjectHeapData {
+            extensible: true,
+            prototype,
+            keys,
+            values,
+        });
+        agent[self].object_index = Some(backing_object);
+        backing_object
+    }
+
+    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+        if let Some(object_index) = self.get_backing_object(agent) {
+            object_index.internal_prototype(agent)
+        } else {
+            let realm = agent[self].ecmascript_function.realm;
+            Some(
+                agent
+                    .get_realm(realm)
+                    .intrinsics()
+                    .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE),
+            )
+        }
+    }
+}
+
 impl InternalMethods for ECMAScriptFunction {
-    fn get_prototype_of(self, _agent: &mut Agent) -> JsResult<Option<Object>> {
-        todo!()
-    }
-
-    fn set_prototype_of(self, _agent: &mut Agent, _prototype: Option<Object>) -> JsResult<bool> {
-        todo!()
-    }
-
-    fn is_extensible(self, _agent: &mut Agent) -> JsResult<bool> {
-        todo!()
-    }
-
-    fn prevent_extensions(self, _agent: &mut Agent) -> JsResult<bool> {
-        todo!()
-    }
-
-    fn get_own_property(
+    fn internal_get_own_property(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
+        agent: &mut Agent,
+        property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
-        todo!()
+        if let Some(object_index) = agent[self].object_index {
+            object_index.internal_get_own_property(agent, property_key)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
+            Ok(Some(PropertyDescriptor {
+                value: Some(agent[self].length.into()),
+                writable: Some(false),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            }))
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
+            Ok(Some(PropertyDescriptor {
+                value: Some(agent[self].name.unwrap_or(String::EMPTY_STRING).into()),
+                writable: Some(false),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
-    fn define_own_property(
+    fn internal_define_own_property(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _property_descriptor: PropertyDescriptor,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
-        todo!()
+        let object_index = agent[self]
+            .object_index
+            .unwrap_or_else(|| self.create_backing_object(agent));
+        object_index.internal_define_own_property(agent, property_key, property_descriptor)
     }
 
-    fn has_property(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
-        todo!()
+    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+        if let Some(object_index) = agent[self].object_index {
+            object_index.internal_has_property(agent, property_key)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
+            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
+        {
+            Ok(true)
+        } else {
+            let parent = self.internal_get_prototype_of(agent)?;
+            parent.map_or(Ok(false), |parent| {
+                parent.internal_has_property(agent, property_key)
+            })
+        }
     }
 
-    fn get(
+    fn internal_get(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _receiver: Value,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
     ) -> JsResult<Value> {
-        todo!()
+        if let Some(object_index) = agent[self].object_index {
+            object_index.internal_get(agent, property_key, receiver)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
+            Ok(agent[self].length.into())
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
+            Ok(agent[self].name.unwrap_or(String::EMPTY_STRING).into())
+        } else {
+            let parent = self.internal_get_prototype_of(agent)?;
+            parent.map_or(Ok(Value::Undefined), |parent| {
+                parent.internal_get(agent, property_key, receiver)
+            })
+        }
     }
 
-    fn set(
+    fn internal_set(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _value: Value,
-        _receiver: Value,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        value: Value,
+        receiver: Value,
     ) -> JsResult<bool> {
-        todo!()
+        if let Some(object_index) = agent[self].object_index {
+            object_index.internal_set(agent, property_key, value, receiver)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
+            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
+        {
+            // length and name are not writable
+            Ok(false)
+        } else {
+            let object_index = self.create_backing_object(agent);
+            object_index.internal_set(agent, property_key, value, receiver)
+        }
     }
 
-    fn delete(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
-        todo!()
+    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+        if let Some(object_index) = agent[self].object_index {
+            object_index.internal_delete(agent, property_key)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
+            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
+        {
+            let object_index = self.create_backing_object(agent);
+            object_index.internal_delete(agent, property_key)
+        } else {
+            // Non-existing property
+            Ok(true)
+        }
     }
 
-    fn own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        todo!()
+    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+        if let Some(object_index) = agent[self].object_index {
+            object_index.internal_own_property_keys(agent)
+        } else {
+            Ok(vec![
+                PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+                PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+            ])
+        }
     }
 
     /// ### [10.2.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-call)
@@ -235,7 +419,7 @@ impl InternalMethods for ECMAScriptFunction {
     /// `argumentsList` (a List of ECMAScript language values) and returns
     /// either a normal completion containing an ECMAScript language value or a
     /// throw completion.
-    fn call(
+    fn internal_call(
         self,
         agent: &mut Agent,
         this_argument: Value,
@@ -255,7 +439,11 @@ impl InternalMethods for ECMAScriptFunction {
         // 3. Assert: calleeContext is now the running execution context.
         // assert!(std::ptr::eq(agent.running_execution_context(), callee_context));
         // 4. If F.[[IsClassConstructor]] is true, then
-        if self.heap_data(agent).is_class_constructor {
+        if agent[self]
+            .ecmascript_function
+            .constructor_status
+            .is_class_constructor()
+        {
             // a. Let error be a newly created TypeError object.
             // b. NOTE: error is created in calleeContext with F's associated Realm Record.
             let error = agent.throw_exception(ExceptionType::TypeError, "fail");
@@ -278,19 +466,78 @@ impl InternalMethods for ECMAScriptFunction {
         result
     }
 
-    fn construct(
+    fn internal_construct(
         self,
-        _agent: &mut Agent,
-        _arguments_list: ArgumentsList,
-        _new_target: Function,
+        agent: &mut Agent,
+        arguments_list: ArgumentsList,
+        new_target: Function,
     ) -> JsResult<Object> {
-        todo!()
-    }
-}
+        // 2. Let kind be F.[[ConstructorKind]].
+        let is_base = !agent[self]
+            .ecmascript_function
+            .constructor_status
+            .is_derived_class();
+        // 3. If kind is BASE, then
+        let this_argument = if is_base {
+            // a. Let thisArgument be ? OrdinaryCreateFromConstructor(newTarget, "%Object.prototype%").
+            Some(ordinary_create_from_constructor(
+                agent,
+                new_target,
+                ProtoIntrinsics::Object,
+            )?)
+        } else {
+            None
+        };
 
-impl ECMAScriptFunction {
-    pub(crate) fn heap_data(self, agent: &Agent) -> &ECMAScriptFunctionObjectHeapData {
-        &agent.heap.get(self.0).ecmascript_function
+        // 4. Let calleeContext be PrepareForOrdinaryCall(F, newTarget).
+        let callee_context = prepare_for_ordinary_call(agent, self, Some(new_target.into_object()));
+        // 7. Let constructorEnv be the LexicalEnvironment of calleeContext.
+        let constructor_env = callee_context
+            .ecmascript_code
+            .as_ref()
+            .unwrap()
+            .lexical_environment;
+        // 5. Assert: calleeContext is now the running execution context.
+        // assert!(std::ptr::eq(agent.running_execution_context(), callee_context));
+
+        // 6. If kind is base, then
+        if is_base {
+            // a. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
+            ordinary_call_bind_this(
+                agent,
+                self,
+                constructor_env,
+                this_argument.unwrap().into_value(),
+            );
+            // b. Let initializeResult be Completion(InitializeInstanceElements(thisArgument, F)).
+            // c. If initializeResult is an abrupt completion, then
+            //    i. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
+            //    ii. Return ? initializeResult.
+            // TODO: Classes.
+        }
+
+        // 8. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
+        let result = ordinary_call_evaluate_body(agent, self, arguments_list);
+        // 9. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
+        agent.execution_context_stack.pop();
+        // 10. If result is a return completion, then
+        // 11. Else,
+        //   a. ReturnIfAbrupt(result).
+        let value = result?;
+        // 10. If result is a return completion, then
+        //   a. If result.[[Value]] is an Object, return result.[[Value]].
+        if let Ok(value) = Object::try_from(value) {
+            return Ok(value);
+        }
+        //   b. If kind is base, return thisArgument.
+        if is_base {
+            return Ok(this_argument.unwrap());
+        }
+        todo!("Derived classes");
+        //   c. If result.[[Value]] is not undefined, throw a TypeError exception.
+        // 12. Let thisBinding be ? constructorEnv.GetThisBinding().
+        // 13. Assert: thisBinding is an Object.
+        // 14. Return thisBinding.
     }
 }
 
@@ -304,7 +551,7 @@ pub(crate) fn prepare_for_ordinary_call(
     f: ECMAScriptFunction,
     new_target: Option<Object>,
 ) -> &ExecutionContext {
-    let ecmascript_function_object = f.heap_data(agent);
+    let ecmascript_function_object = &agent[f].ecmascript_function;
     let private_environment = ecmascript_function_object.private_environment;
     let script_or_module = ecmascript_function_object.script_or_module;
     // 1. Let callerContext be the running execution context.
@@ -352,7 +599,7 @@ pub(crate) fn ordinary_call_bind_this(
     local_env: EnvironmentIndex,
     this_argument: Value,
 ) {
-    let function_heap_data = f.heap_data(agent);
+    let function_heap_data = &agent[f].ecmascript_function;
     // 1. Let thisMode be F.[[ThisMode]].
     let this_mode = function_heap_data.this_mode;
     // 2. If thisMode is LEXICAL, return UNUSED.
@@ -408,7 +655,7 @@ pub(crate) fn evaluate_body(
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
-    let function_heap_data = function_object.heap_data(agent);
+    let function_heap_data = &agent[function_object].ecmascript_function;
     // SAFETY: Heap is self-referential: This
     let heap_data = function_heap_data;
     if heap_data.ecmascript_code.statements.is_empty()
@@ -504,7 +751,8 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
                 params.body,
             )
         },
-        constructor_kind: ConstructorKind::Base,
+        // 12. Set F.[[IsClassConstructor]] to false.
+        constructor_status: ConstructorStatus::NonConstructor,
         // 16. Set F.[[Realm]] to the current Realm Record.
         realm: agent.current_realm_id(),
         // 15. Set F.[[ScriptOrModule]] to GetActiveScriptOrModule().
@@ -520,8 +768,6 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
         home_object: None,
         // 4. Set F.[[SourceText]] to sourceText.
         source_text: params.source_text,
-        // 12. Set F.[[IsClassConstructor]] to false.
-        is_class_constructor: false,
     };
 
     let mut function = ECMAScriptFunctionHeapData {
@@ -541,7 +787,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
             function.object_index = Some(
                 agent
                     .heap
-                    .create_object_with_prototype(function_prototype, vec![]),
+                    .create_object_with_prototype(function_prototype, &[]),
             );
         }
     }
@@ -563,7 +809,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
     )
     .unwrap();
     // 23. Return F.
-    agent.heap.create(function)
+    agent.heap.create(function).into_function()
 }
 
 /// ### [10.2.5 MakeConstructor ( F \[ , writablePrototype \[ , prototype \] \] )](https://tc39.es/ecma262/#sec-makeconstructor)
@@ -583,15 +829,15 @@ pub(crate) fn make_constructor(
         Function::BoundFunction(_) => unreachable!(),
         // 1. If F is an ECMAScript function object, then
         Function::ECMAScriptFunction(idx) => {
+            let data = &mut agent[idx];
             // a. Assert: IsConstructor(F) is false.
-            // TODO: How do we separate constructors and non-constructors?
-            let data = agent.heap.get_mut(idx);
+            debug_assert!(!data.ecmascript_function.constructor_status.is_constructor());
             // b. Assert: F is an extensible object that does not have a "prototype" own property.
             // TODO: Handle Some() object indexes?
             assert!(data.object_index.is_none());
             // c. Set F.[[Construct]] to the definition specified in 10.2.2.
             // 3. Set F.[[ConstructorKind]] to BASE.
-            data.ecmascript_function.constructor_kind = ConstructorKind::Base;
+            data.ecmascript_function.constructor_status = ConstructorStatus::ConstructorFunction;
         }
         Function::BuiltinFunction(_) => {
             // 2. Else,
@@ -600,7 +846,7 @@ pub(crate) fn make_constructor(
         Function::BuiltinGeneratorFunction => todo!(),
         Function::BuiltinConstructorFunction => todo!(),
         Function::BuiltinPromiseResolveFunction => todo!(),
-        Function::BuiltinPromiseRejectFunction => todo!(),
+        Function::BuiltinPromiseRejectFunction(_) => todo!(),
         Function::BuiltinPromiseCollectorFunction => todo!(),
         Function::BuiltinProxyRevokerFunction => todo!(),
         Function::ECMAScriptAsyncFunction => todo!(),
@@ -612,7 +858,7 @@ pub(crate) fn make_constructor(
     let prototype = prototype.unwrap_or_else(|| {
         // a. Set prototype to OrdinaryObjectCreate(%Object.prototype%).
         let prototype =
-            ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object));
+            ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
         // b. Perform ! DefinePropertyOrThrow(prototype, "constructor", PropertyDescriptor { [[Value]]: F, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: true }).
         let key = PropertyKey::from(BUILTIN_STRING_MEMORY.constructor);
         define_property_or_throw(
@@ -634,13 +880,13 @@ pub(crate) fn make_constructor(
     let key = PropertyKey::from(BUILTIN_STRING_MEMORY.prototype);
     define_property_or_throw(
         agent,
-        prototype,
+        function.into_object(),
         key,
         PropertyDescriptor {
             value: Some(prototype.into_value()),
             writable: Some(writable_prototype),
             enumerable: Some(false),
-            configurable: Some(true),
+            configurable: Some(false),
             ..Default::default()
         },
     )
@@ -664,7 +910,7 @@ pub(crate) fn set_function_name(
             // a. Let description be name's [[Description]] value.
             // b. If description is undefined, set name to the empty String.
             // c. Else, set name to the string-concatenation of "[", description, and "]".
-            let symbol_data = agent.heap.get(idx);
+            let symbol_data = &agent[idx];
             symbol_data
                 .descriptor
                 .map_or(String::EMPTY_STRING, |descriptor| {
@@ -687,7 +933,7 @@ pub(crate) fn set_function_name(
         Function::BoundFunction(_idx) => todo!(),
         Function::BuiltinFunction(_idx) => todo!(),
         Function::ECMAScriptFunction(idx) => {
-            let function = agent.heap.get_mut(idx);
+            let function = &mut agent[idx];
             // 1. Assert: F is an extensible object that does not have a "name" own property.
             // TODO: Also potentially allow running this function with Some() object index if needed.
             assert!(function.object_index.is_none() && function.name.is_none());
@@ -698,7 +944,7 @@ pub(crate) fn set_function_name(
         Function::BuiltinGeneratorFunction => todo!(),
         Function::BuiltinConstructorFunction => todo!(),
         Function::BuiltinPromiseResolveFunction => todo!(),
-        Function::BuiltinPromiseRejectFunction => todo!(),
+        Function::BuiltinPromiseRejectFunction(_) => todo!(),
         Function::BuiltinPromiseCollectorFunction => todo!(),
         Function::BuiltinProxyRevokerFunction => todo!(),
         Function::ECMAScriptAsyncFunction => todo!(),
@@ -762,8 +1008,25 @@ pub(crate) fn function_declaration_instantiation(
         private_environment: callee_private_env,
     } = *callee_context.ecmascript_code.as_ref().unwrap();
     // 2. Let code be func.[[ECMAScriptCode]].
-    let heap_data = agent.heap.get(function_object.0);
-    let code = heap_data.ecmascript_function.ecmascript_code;
+    let (var_names, var_declarations, lexical_names, lex_declarations) = {
+        let code = agent[function_object].ecmascript_function.ecmascript_code;
+        // 9. Let varNames be the VarDeclaredNames of code.
+        let var_names = function_body_var_declared_names(code)
+            .iter()
+            .map(|atom| String::from_str(agent, atom.as_str()))
+            .collect::<Vec<_>>();
+        // 10. Let varDeclarations be the VarScopedDeclarations of code.
+        let var_declarations = function_body_var_scoped_declarations(code);
+        // 11. Let lexicalNames be the LexicallyDeclaredNames of code.
+        let lexical_names = function_body_lexically_declared_names(code)
+            .iter()
+            .map(|atom| String::from_str(agent, atom.as_str()))
+            .collect::<Vec<_>>();
+        // 33. Let lexDeclarations be the LexicallyScopedDeclarations of code.
+        let lex_declarations = function_body_lexically_scoped_decarations(code);
+        (var_names, var_declarations, lexical_names, lex_declarations)
+    };
+    let heap_data = &agent[function_object];
     // 3. Let strict be func.[[Strict]].
     let strict = heap_data.ecmascript_function.strict;
     // 4. Let formals be func.[[FormalParameters]].
@@ -780,7 +1043,7 @@ pub(crate) fn function_declaration_instantiation(
         .ecmascript_function
         .formal_parameters
         .bound_names(&mut |identifier| {
-            parameter_names.push(identifier.name.clone());
+            parameter_names.push(String::from_str(agent, identifier.name.as_str()));
         });
     // 6. If parameterNames has any duplicate entries, let hasDuplicates be true. Otherwise, let hasDuplicates be false.
     // TODO: Check duplicates
@@ -792,37 +1055,29 @@ pub(crate) fn function_declaration_instantiation(
     // TODO: impl ContainsExpression
     let has_parameter_expression = false;
 
-    // 9. Let varNames be the VarDeclaredNames of code.
-    let var_names = function_body_var_declared_names(code);
-    // 10. Let varDeclarations be the VarScopedDeclarations of code.
-    let var_declarations = function_body_var_scoped_declarations(code);
-    // 11. Let lexicalNames be the LexicallyDeclaredNames of code.
-    let lexical_names = function_body_lexically_declared_names(code);
-    // 33. Let lexDeclarations be the LexicallyScopedDeclarations of code.
-    let lex_declarations = function_body_lexically_scoped_decarations(code);
     // 12. Let functionNames be a new empty List.
     let mut function_names = vec![];
     // 13. Let functionsToInitialize be a new empty List.
-    let mut functions_to_initialize: Vec<&oxc_ast::ast::Function<'_>> = vec![];
+    let mut functions_to_initialize: Vec<(String, &oxc_ast::ast::Function<'_>)> = vec![];
     // 14. For each element d of varDeclarations, in reverse List order, do
     for d in var_declarations.iter().rev() {
         // a. If d is neither a VariableDeclaration nor a ForBinding nor a BindingIdentifier, then
         if let VarScopedDeclaration::Function(d) = d {
             // i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an AsyncGeneratorDeclaration.
             // ii. Let fn be the sole element of the BoundNames of d.
-            let f_name = d.id.clone().unwrap().name;
+            let f_name = String::from_str(agent, d.id.as_ref().unwrap().name.as_str());
             // iii. If functionNames does not contain fn, then
             if !function_names.contains(&f_name) {
                 // 1. Insert fn as the first element of functionNames.
                 function_names.push(f_name);
                 // 2. NOTE: If there are multiple function declarations for the same name, the last declaration is used.
                 // 3. Insert d as the first element of functionsToInitialize.
-                functions_to_initialize.push(d);
+                functions_to_initialize.push((f_name, d));
             }
         }
     }
     // 15. Let argumentsObjectNeeded be true.
-    let arguments_name = Atom::new_inline("arguments");
+    let arguments_name = BUILTIN_STRING_MEMORY.arguments;
     let mut arguments_object_needed = true;
     // 16. If func.[[ThisMode]] is lexical, then
     if this_mode == ThisMode::Lexical {
@@ -873,25 +1128,27 @@ pub(crate) fn function_declaration_instantiation(
     // 21. For each String paramName of parameterNames, do
     for param_name in &parameter_names {
         // a. Let alreadyDeclared be ! env.HasBinding(paramName).
-        let already_declared = env.has_binding(agent, param_name).unwrap();
+        let already_declared = env.has_binding(agent, *param_name).unwrap();
         // b. NOTE: Early errors ensure that duplicate parameter names can only occur
         // in non-strict functions that do not have parameter default values or rest parameters.
         // c. If alreadyDeclared is false, then
         if !already_declared {
             // i. Perform ! env.CreateMutableBinding(paramName, false).
-            env.create_mutable_binding(agent, param_name, false)
+            env.create_mutable_binding(agent, *param_name, false)
                 .unwrap();
         }
         // ii. If hasDuplicates is true, then
         if has_duplicates {
             // 1. Perform ! env.InitializeBinding(paramName, undefined).
-            env.initialize_binding(agent, param_name, Value::Undefined)
+            env.initialize_binding(agent, *param_name, Value::Undefined)
                 .unwrap();
         }
     }
 
     // 22. If argumentsObjectNeeded is true, then
-    let parameter_bindings = if arguments_object_needed {
+    // Note: parameter_names is a slice of parameter_bindings.
+    let parameter_bindings;
+    let parameter_names = if arguments_object_needed {
         // a. If strict is true or simpleParameterList is false, then
         let ao: Value = if strict || !simple_parameter_list {
             // i. Let ao be CreateUnmappedArgumentsObject(argumentsList).
@@ -907,24 +1164,26 @@ pub(crate) fn function_declaration_instantiation(
         // c. If strict is true, then
         if strict {
             // i. Perform ! env.CreateImmutableBinding("arguments", false).
-            env.create_immutable_binding(agent, &arguments_name, false)
+            env.create_immutable_binding(agent, arguments_name, false)
                 .unwrap();
         } else {
             // ii. NOTE: In strict mode code early errors prevent attempting to assign to this binding, so its mutability is not observable.
             // d. Else,
             // i. Perform ! env.CreateMutableBinding("arguments", false).
-            env.create_mutable_binding(agent, &arguments_name, false)
+            env.create_mutable_binding(agent, arguments_name, false)
                 .unwrap();
             // e. Perform ! env.InitializeBinding("arguments", ao).
-            env.initialize_binding(agent, &arguments_name, ao).unwrap();
+            env.initialize_binding(agent, arguments_name, ao).unwrap();
             // f. Let parameterBindings be the list-concatenation of parameterNames and « "arguments" ».
         }
         parameter_names.push(arguments_name);
-        parameter_names
+        parameter_bindings = parameter_names;
+        &parameter_bindings[..(parameter_bindings.len() - 1)]
     } else {
         // 23. Else,
         // a. Let parameterBindings be parameterNames.
-        parameter_names
+        parameter_bindings = parameter_names;
+        &parameter_bindings[..]
     };
 
     // 24. Let iteratorRecord be CreateListIteratorRecord(argumentsList).
@@ -939,6 +1198,36 @@ pub(crate) fn function_declaration_instantiation(
     // a. Perform ? IteratorBindingInitialization of formals with arguments iteratorRecord and env.
     // iterator_binding_initialization(agent, formals, iterator_record, env);
     // }
+    if simple_parameter_list {
+        for (i, param_name) in parameter_names.iter().enumerate() {
+            // Runtime Semantics: IteratorBindingInitialization
+            // SingleNameBinding : BindingIdentifier Initializer[opt]
+            // 1. Let bindingId be StringValue of BindingIdentifier.
+            // 2. Let lhs be ? ResolveBinding(bindingId, environment).
+            let lhs = if has_duplicates {
+                resolve_binding(agent, *param_name, None)?
+            } else {
+                resolve_binding(agent, *param_name, Some(env))?
+            };
+            // 3. Let v be undefined.
+            // 4. If iteratorRecord.[[Done]] is false, then
+            //   a. Let next be ? IteratorStepValue(iteratorRecord).
+            //   b. If next is not DONE, then
+            //     i. Set v to next.
+            let v = arguments_list.get(i);
+            // 5. If initializer is present and v is undefined, then ...
+            // TODO: Support function argument initializers.
+            // 6. If environment is undefined, return ? PutValue(lhs, v).
+            if has_duplicates {
+                put_value(agent, &lhs, v)?;
+            } else {
+                // 7. Return ? InitializeReferencedBinding(lhs, v).
+                initialize_referenced_binding(agent, lhs, v)?;
+            }
+        }
+    } else {
+        todo!()
+    }
 
     // 27. If hasParameterExpressions is false, then
     let var_env = if !has_parameter_expression {
@@ -950,11 +1239,11 @@ pub(crate) fn function_declaration_instantiation(
             // i. If instantiatedVarNames does not contain n, then
             if !instantiated_var_names.contains(n) {
                 // 1. Append n to instantiatedVarNames.
-                instantiated_var_names.push(n.clone());
+                instantiated_var_names.push(*n);
                 // 2. Perform ! env.CreateMutableBinding(n, false).
-                env.create_mutable_binding(agent, n, false).unwrap();
+                env.create_mutable_binding(agent, *n, false).unwrap();
                 // 3. Perform ! env.InitializeBinding(n, undefined).
-                env.initialize_binding(agent, n, Value::Undefined).unwrap();
+                env.initialize_binding(agent, *n, Value::Undefined).unwrap();
             }
         }
         // d. Let varEnv be env.
@@ -982,7 +1271,7 @@ pub(crate) fn function_declaration_instantiation(
                 // 1. Append n to instantiatedVarNames.
                 instantiated_var_names.push(n);
                 // 2. Perform ! varEnv.CreateMutableBinding(n, false).
-                var_env.create_mutable_binding(agent, n, false).unwrap();
+                var_env.create_mutable_binding(agent, *n, false).unwrap();
                 // 3. If parameterBindings does not contain n, or if functionNames contains n, then
                 let initial_value = if !parameter_bindings.contains(n) || function_names.contains(n)
                 {
@@ -991,10 +1280,12 @@ pub(crate) fn function_declaration_instantiation(
                 } else {
                     // 4. Else,
                     // a. Let initialValue be ! env.GetBindingValue(n, false).
-                    env.get_binding_value(agent, n, false).unwrap()
+                    env.get_binding_value(agent, *n, false).unwrap()
                 };
                 // 5. Perform ! varEnv.InitializeBinding(n, initialValue).
-                var_env.initialize_binding(agent, n, initial_value).unwrap();
+                var_env
+                    .initialize_binding(agent, *n, initial_value)
+                    .unwrap();
                 // 6. NOTE: A var with the same name as a formal parameter initially has
                 // the same value as the corresponding initialized parameter.
             }
@@ -1036,33 +1327,38 @@ pub(crate) fn function_declaration_instantiation(
                 if decl.kind.is_const() {
                     // 1. Perform ! lexEnv.CreateImmutableBinding(dn, true).
                     decl.id.bound_names(&mut |identifier| {
+                        let identifier = String::from_str(agent, identifier.name.as_str());
                         lex_env
-                            .create_immutable_binding(agent, &identifier.name, true)
+                            .create_immutable_binding(agent, identifier, true)
                             .unwrap();
                     });
                 } else {
                     decl.id.bound_names(&mut |identifier| {
                         // ii. Else,
                         // 1. Perform ! lexEnv.CreateMutableBinding(dn, false).
+                        let identifier = String::from_str(agent, identifier.name.as_str());
                         lex_env
-                            .create_mutable_binding(agent, &identifier.name, false)
+                            .create_mutable_binding(agent, identifier, false)
                             .unwrap();
                     });
                 }
             }
             LexicallyScopedDeclaration::Function(decl) => {
+                let identifier = String::from_str(agent, decl.id.as_ref().unwrap().name.as_str());
                 lex_env
-                    .create_mutable_binding(agent, &decl.id.as_ref().unwrap().name, false)
+                    .create_mutable_binding(agent, identifier, false)
                     .unwrap();
             }
             LexicallyScopedDeclaration::Class(decl) => {
+                let identifier = String::from_str(agent, decl.id.as_ref().unwrap().name.as_str());
                 lex_env
-                    .create_mutable_binding(agent, &decl.id.as_ref().unwrap().name, false)
+                    .create_mutable_binding(agent, identifier, false)
                     .unwrap();
             }
             LexicallyScopedDeclaration::DefaultExport => {
+                let identifier = BUILTIN_STRING_MEMORY._default_;
                 lex_env
-                    .create_mutable_binding(agent, &Atom::new_inline("*default*"), false)
+                    .create_mutable_binding(agent, identifier, false)
                     .unwrap();
             }
         }
@@ -1070,9 +1366,9 @@ pub(crate) fn function_declaration_instantiation(
     // 35. Let privateEnv be the PrivateEnvironment of calleeContext.
     let private_env = callee_private_env;
     // 36. For each Parse Node f of functionsToInitialize, do
-    for f in functions_to_initialize {
+    for (f_name, f) in functions_to_initialize {
         // a. Let fn be the sole element of the BoundNames of f.
-        let f_name = &f.id.as_ref().unwrap().name;
+        // We calculated this above already.
         // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
         let fo = instantiate_function_object(agent, f, lex_env, private_env);
         // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
@@ -1087,4 +1383,62 @@ pub(crate) fn function_declaration_instantiation(
 
     // B.3.2 provides an extension to the above algorithm that is necessary for backwards
     // compatibility with web browser implementations of ECMAScript that predate ECMAScript 2015.
+}
+
+impl HeapMarkAndSweep for ECMAScriptFunction {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.ecmascript_functions.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.0.into_u32();
+        self.0 = ECMAScriptFunctionIndex::from_u32(
+            self_index
+                - compactions
+                    .ecmascript_functions
+                    .get_shift_for_index(self_index),
+        );
+    }
+}
+
+impl CreateHeapData<ECMAScriptFunctionHeapData, ECMAScriptFunction> for Heap {
+    fn create(&mut self, data: ECMAScriptFunctionHeapData) -> ECMAScriptFunction {
+        self.ecmascript_functions.push(Some(data));
+        ECMAScriptFunction(ECMAScriptFunctionIndex::last(&self.ecmascript_functions))
+    }
+}
+
+impl HeapMarkAndSweep for ECMAScriptFunctionHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.name.mark_values(queues);
+        self.object_index.mark_values(queues);
+
+        self.ecmascript_function.environment.mark_values(queues);
+        self.ecmascript_function
+            .private_environment
+            .mark_values(queues);
+        self.ecmascript_function.realm.mark_values(queues);
+        self.ecmascript_function
+            .script_or_module
+            .mark_values(queues);
+        self.ecmascript_function.home_object.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.name.sweep_values(compactions);
+        self.object_index.sweep_values(compactions);
+        self.ecmascript_function
+            .environment
+            .sweep_values(compactions);
+        self.ecmascript_function
+            .private_environment
+            .sweep_values(compactions);
+        self.ecmascript_function.realm.sweep_values(compactions);
+        self.ecmascript_function
+            .script_or_module
+            .sweep_values(compactions);
+        self.ecmascript_function
+            .home_object
+            .sweep_values(compactions);
+    }
 }

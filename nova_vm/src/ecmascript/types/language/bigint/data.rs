@@ -1,4 +1,7 @@
-use crate::ecmascript::{execution::agent::JsError, types::Value};
+use crate::{
+    ecmascript::{execution::agent::JsError, types::Value},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+};
 use num_bigint::BigInt;
 // use num_traits::cast::ToPrimitive;
 
@@ -14,4 +17,12 @@ impl TryInto<f64> for BigIntHeapData {
         // self.data.to_f64()
         Err(JsError::new(Value::Undefined))
     }
+}
+
+impl HeapMarkAndSweep for BigIntHeapData {
+    #[inline(always)]
+    fn mark_values(&self, _queues: &mut WorkQueues) {}
+
+    #[inline(always)]
+    fn sweep_values(&mut self, _compactions: &CompactionLists) {}
 }

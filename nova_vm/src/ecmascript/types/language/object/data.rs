@@ -1,7 +1,7 @@
 use super::Object;
 use crate::{
     ecmascript::{execution::Agent, types::Value},
-    heap::element_array::ElementsVector,
+    heap::{element_array::ElementsVector, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -42,5 +42,19 @@ impl ObjectHeapData {
     pub fn has(&self, agent: &Agent, key: Value) -> bool {
         debug_assert!(key.is_string() || key.is_number() || key.is_symbol());
         agent.heap.elements.has(self.keys, key)
+    }
+}
+
+impl HeapMarkAndSweep for ObjectHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.keys.mark_values(queues);
+        self.values.mark_values(queues);
+        self.prototype.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.keys.sweep_values(compactions);
+        self.values.sweep_values(compactions);
+        self.prototype.sweep_values(compactions);
     }
 }

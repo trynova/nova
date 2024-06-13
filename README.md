@@ -14,48 +14,43 @@ more details.
 
 The core of our team is on our [Discord server](https://discord.gg/RTrgJzXKUM).
 
-## Heap structure
+## [Architecture](./ARCHITECTURE.md)
 
-If you find yourself interested in what on earth is going on in the Heap, take a
+The architecture of the engine follows the ECMAScript specification in spirit,
+but uses data-oriented design for the actual implementation. Records that are
+present in the specification are likely present in the Nova engine as well and
+they're likely found in an "equivalent" file / folder path as the specification
+defines them in.
+
+Where the engine differs from the specification is that most ECMAScript types
+and specification Record types are defined "twice": They have one "heap data"
+definition, and another "index" definition. The heap data definition generally
+corresponds to the specification's definition, in some degree at least. The
+index definition is either a wrapper around `u32` or a `NonZeroU32`. Most spec
+defined methods are defined on the index definitions (this avoids issues with
+borrowing).
+
+The only case when direct "Record type A contains Record type B" ownership is
+used is when there can be only one referrer to the Record type B.
+
+### Heap structure - Data-oriented design
+
+Reading the above, you might be wondering why the double-definitions and all
+that. The ultimate reason is two-fold:
+
+1. It is an interesting design.
+2. It helps the computer make frequently used things fast while allowing the
+   infrequently used things to become slow.
+
+Data-oriented design is all the rage on the Internet because of its
+cache-friendliness. This engine is one more attempt at seeing what sort of
+real-world benefits one might gain with this sort of architecture.
+
+If you find yourself interested in where the idea spawns from and why, take a
 look at [the Heap README.md](./nova_vm/src/heap/README.md). It gives a more
 thorough walkthrough of the Heap structure and what the idea there is.
 
-## List of active development ideas
+## [Contributing](./CONTRIBUTING.md)
 
-This list serves as a "this is where you were" for returning developers as well
-as a potential easy jumping-into point for newcompers.
-
-- Write implementations of more abstract operations
-  - See `nova_vm/src/ecmascript/abstract_operations`
-  - Specifically eg. `operations_on_objects.rs` is missing multiple operations,
-    even stubs.
-- Write implementations of class abstract operations
-  - String, Number, ...
-- Start `nova_vm/src/syntax` folder for
-  [8 Syntax-Directed Operations](https://tc39.es/ecma262/#sec-syntax-directed-operations)
-  - This will serve as the bridge between oxc AST, Bytecode, and Bytecode
-    interpretation
-
-Some more long-term prospects and/or wild ideas:
-
-- Reintroduce lifetimes to Heap if possible
-  - `Value<'gen>` lifetime that is "controlled" by a Heap generation number:
-    Heap Values are valid while we can guarantee that the Heap generation number
-    isn't mutably borrowed. This is basically completely equal to a scope based
-    `Local<'a, Value>` lifetime but the intended benefit is that the
-    `Value<'gen>` lifetimes can also be used during Heap compaction: When Heap
-    GC and compaction occurs it can be written as a transformation from
-    `Heap<'old>` to `Heap<'new>` and the borrow checker would then help to make
-    sure that any and all `T<'new>` structs within the heap are properly
-    transformed to `T<'new>`.
-- Add a `Reference` variant to `Value` (or create a `ValueOrReference` enum that
-  is the true root enum)
-  - ReferenceRecords would (maybe?) move to Heap directly. This might make some
-    syntax-directed operations simpler to implement.
-- Add `DISCRIMINANT + 0x80` variants that work as thrown values of type
-  `DISCRIMINANT`
-  - As a result, eg. a thrown String would be just a String with the top bit set
-    true. This would stop Result usage which is a darn shame (can be fixed with
-    Nightly features). But it would mean that returning a (sort of)
-    `Result<Value>` would fit in a register.
-- Consider a register based VM instead of going stack based
+So you wish to contribute, eh? You're very welcome to do so! Please take a look
+at [the CONTRIBUTING.md](./CONTRIBUTING.md).

@@ -4,6 +4,7 @@ use crate::ecmascript::builtins::ordinary::get_prototype_from_constructor;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
+use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
@@ -14,6 +15,7 @@ use crate::ecmascript::types::Object;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::heap::IntrinsicConstructorIndexes;
 
 pub struct StringConstructor;
 
@@ -21,6 +23,9 @@ impl Builtin for StringConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
     const NAME: String = BUILTIN_STRING_MEMORY.String;
+}
+impl BuiltinIntrinsicConstructor for StringConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::String;
 }
 
 struct StringFromCharCode;
@@ -56,8 +61,10 @@ impl StringConstructor {
         } else {
             // 2. Else,
             // a. If NewTarget is undefined and value is a Symbol, return SymbolDescriptiveString(value).
-            if new_target.is_none() && value.is_symbol() {
-                todo!("return SymbolDescriptiveString(value);");
+            if new_target.is_none() {
+                if let Value::Symbol(value) = value {
+                    return Ok(value.descriptive_string(agent).into_value());
+                }
             }
             // b. Let s be ? ToString(value).
             to_string(agent, value)?
@@ -98,20 +105,13 @@ impl StringConstructor {
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let string_prototype = intrinsics.string_prototype();
-        let this = intrinsics.string();
-        let this_object_index = intrinsics.string_base_object();
 
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<StringConstructor>(
-            agent,
-            realm,
-            this,
-            Some(this_object_index),
-        )
-        .with_property_capacity(4)
-        .with_builtin_function_property::<StringFromCharCode>()
-        .with_builtin_function_property::<StringFromCodePoint>()
-        .with_prototype_property(string_prototype.into_object())
-        .with_builtin_function_property::<StringRaw>()
-        .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<StringConstructor>(agent, realm)
+            .with_property_capacity(4)
+            .with_builtin_function_property::<StringFromCharCode>()
+            .with_builtin_function_property::<StringFromCodePoint>()
+            .with_prototype_property(string_prototype.into_object())
+            .with_builtin_function_property::<StringRaw>()
+            .build();
     }
 }

@@ -2,18 +2,18 @@
 
 use super::{
     testing_and_comparison::{is_callable, same_value},
-    type_conversion::to_object,
+    type_conversion::{to_length, to_object},
 };
 use crate::{
     ecmascript::{
-        builtins::{ArgumentsList, BuiltinFunction, ECMAScriptFunction},
+        builtins::{ArgumentsList, Array},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
-            Function, InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey, Value,
-            BUILTIN_STRING_MEMORY,
+            Function, InternalMethods, IntoObject, IntoValue, Object, PropertyDescriptor,
+            PropertyKey, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::GetHeapData,
+    engine::instanceof_operator,
 };
 
 /// ### [7.3.1 MakeBasicObject ( internalSlotsList )](https://tc39.es/ecma262/#sec-makebasicobject)
@@ -49,9 +49,9 @@ pub(crate) fn make_basic_object(_agent: &mut Agent, _internal_slots_list: ()) ->
 /// key) and returns either a normal completion containing an ECMAScript
 /// language value or a throw completion. It is used to retrieve the value of a
 /// specific property of an object.
-pub(crate) fn get(agent: &mut Agent, o: Object, p: PropertyKey) -> JsResult<Value> {
+pub(crate) fn get(agent: &mut Agent, o: impl IntoObject, p: PropertyKey) -> JsResult<Value> {
     // 1. Return ? O.[[Get]](P, O).
-    o.get(agent, p, o.into())
+    o.into_object().internal_get(agent, p, o.into_value())
 }
 
 /// ### [7.3.3 GetV ( V, P )](https://tc39.es/ecma262/#sec-getv)
@@ -66,7 +66,7 @@ pub(crate) fn get_v(agent: &mut Agent, v: Value, p: PropertyKey) -> JsResult<Val
     // 1. Let O be ? ToObject(V).
     let o = to_object(agent, v)?;
     // 2. Return ? O.[[Get]](P, V).
-    o.get(agent, p, o.into())
+    o.internal_get(agent, p, o.into())
 }
 
 /// ### [7.3.4 Set ( O, P, V, Throw )](https://tc39.es/ecma262/#sec-set-o-p-v-throw)
@@ -84,7 +84,7 @@ pub(crate) fn set(
     throw: bool,
 ) -> JsResult<()> {
     // 1. Let success be ? O.[[Set]](P, V, O).
-    let success = o.set(agent, p, v, o.into_value())?;
+    let success = o.internal_set(agent, p, v, o.into_value())?;
     // 2. If success is false and Throw is true, throw a TypeError exception.
     if !success && throw {
         return Err(agent.throw_exception(ExceptionType::TypeError, "Could not set property."));
@@ -101,10 +101,10 @@ pub(crate) fn set(
 /// create a new own property of an object.
 ///
 /// > NOTE: This abstract operation creates a property whose attributes are set
-/// to the same defaults used for properties created by the ECMAScript language
-/// assignment operator. Normally, the property will not already exist. If it
-/// does exist and is not configurable or if O is not extensible,
-/// \[\[DefineOwnProperty]] will return false.
+/// > to the same defaults used for properties created by the ECMAScript language
+/// > assignment operator. Normally, the property will not already exist. If it
+/// > does exist and is not configurable or if O is not extensible,
+/// > [\[DefineOwnProperty]] will return false.
 pub(crate) fn create_data_property(
     agent: &mut Agent,
     object: Object,
@@ -121,7 +121,7 @@ pub(crate) fn create_data_property(
         configurable: Some(true),
     };
     // 2. Return ? O.[[DefineOwnProperty]](P, newDesc).
-    object.define_own_property(agent, property_key, new_desc)
+    object.internal_define_own_property(agent, property_key, new_desc)
 }
 
 /// ### [7.3.7 CreateDataPropertyOrThrow ( O, P, V )](https://tc39.es/ecma262/#sec-createdatapropertyorthrow)
@@ -160,7 +160,7 @@ pub(crate) fn define_property_or_throw(
     desc: PropertyDescriptor,
 ) -> JsResult<()> {
     // 1. Let success be ? O.[[DefineOwnProperty]](P, desc).
-    let success = object.define_own_property(agent, property_key, desc)?;
+    let success = object.internal_define_own_property(agent, property_key, desc)?;
     // 2. If success is false, throw a TypeError exception.
     if !success {
         Err(agent.throw_exception(
@@ -214,7 +214,7 @@ pub(crate) fn get_method(
 /// inherited.
 pub(crate) fn has_property(agent: &mut Agent, o: Object, p: PropertyKey) -> JsResult<bool> {
     // 1. Return ? O.[[HasProperty]](P).
-    o.has_property(agent, p)
+    o.internal_has_property(agent, p)
 }
 
 /// ### [7.3.13 HasOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-hasownproperty)
@@ -225,7 +225,7 @@ pub(crate) fn has_property(agent: &mut Agent, o: Object, p: PropertyKey) -> JsRe
 /// has an own property with the specified property key.
 pub(crate) fn has_own_property(agent: &mut Agent, o: Object, p: PropertyKey) -> JsResult<bool> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let desc = o.get_own_property(agent, p)?;
+    let desc = o.internal_get_own_property(agent, p)?;
     // 2. If desc is undefined, return false.
     // 3. Return true.
     Ok(desc.is_some())
@@ -256,16 +256,31 @@ pub(crate) fn call(
     } else {
         // 3. Return ? F.[[Call]](V, argumentsList).
         match f {
-            Value::BoundFunction(idx) => Function::from(idx).call(agent, v, arguments_list),
-            Value::BuiltinFunction(idx) => {
-                BuiltinFunction::from(idx).call(agent, v, arguments_list)
+            Value::BoundFunction(idx) => {
+                Function::from(idx).internal_call(agent, v, arguments_list)
             }
-            Value::ECMAScriptFunction(idx) => {
-                ECMAScriptFunction::from(idx).call(agent, v, arguments_list)
-            }
+            Value::BuiltinFunction(idx) => idx.internal_call(agent, v, arguments_list),
+            Value::ECMAScriptFunction(idx) => idx.internal_call(agent, v, arguments_list),
             _ => unreachable!(),
         }
     }
+}
+
+/// ### [7.3.18 LengthOfArrayLike ( obj )](https://tc39.es/ecma262/#sec-lengthofarraylike)
+///
+/// The abstract operation LengthOfArrayLike takes argument obj (an Object) and
+/// returns either a normal completion containing a non-negative integer or a
+/// throw completion. It returns the value of the "length" property of an
+/// array-like object.
+pub(crate) fn length_of_array_like(agent: &mut Agent, obj: Object) -> JsResult<i64> {
+    // NOTE: Fast path for Array objects.
+    if let Ok(array) = Array::try_from(obj) {
+        return Ok(array.len(agent) as i64);
+    }
+
+    // 1. Return ℝ(? ToLength(? Get(obj, "length"))).
+    let property = get(agent, obj, PropertyKey::from(BUILTIN_STRING_MEMORY.length))?;
+    to_length(agent, property)
 }
 
 /// Abstract operation Call specialized for a Function.
@@ -276,7 +291,7 @@ pub(crate) fn call_function(
     arguments_list: Option<ArgumentsList>,
 ) -> JsResult<Value> {
     let arguments_list = arguments_list.unwrap_or_default();
-    f.call(agent, v, arguments_list)
+    f.internal_call(agent, v, arguments_list)
 }
 
 pub(crate) fn construct(
@@ -289,7 +304,7 @@ pub(crate) fn construct(
     let new_target = new_target.unwrap_or(f);
     // 2. If argumentsList is not present, set argumentsList to a new empty List.
     let arguments_list = arguments_list.unwrap_or_default();
-    f.construct(agent, arguments_list, new_target)
+    f.internal_construct(agent, arguments_list, new_target)
 }
 
 /// ### [7.3.20 Invoke ( V, P \[ , argumentsList \] )]()
@@ -323,21 +338,25 @@ pub(crate) fn invoke(
 /// normal completion containing a Boolean or a throw completion. It implements
 /// the default algorithm for determining if O inherits from the instance
 /// object inheritance path provided by C.
-pub(crate) fn ordinary_has_instance(agent: &mut Agent, c: Value, o: Value) -> JsResult<bool> {
+pub(crate) fn ordinary_has_instance(
+    agent: &mut Agent,
+    c: impl IntoValue,
+    o: impl IntoValue,
+) -> JsResult<bool> {
     // 1. If IsCallable(C) is false, return false.
     if !is_callable(c) {
         return Ok(false);
     }
-    let c = Object::try_from(c).unwrap();
+    let c = Function::try_from(c.into_value()).unwrap();
     // 2. If C has a [[BoundTargetFunction]] internal slot, then
-    if let Object::BoundFunction(idx) = c {
+    if let Function::BoundFunction(c) = c {
         // a. Let BC be C.[[BoundTargetFunction]].
+        let bc = agent[c].bound_target_function;
         // b. Return ? InstanceofOperator(O, BC).
-        let _bc = agent.heap.get(idx).function;
-        // return instance_of_operator(o, bc);
+        return instanceof_operator(agent, o, bc);
     }
     // 3. If O is not an Object, return false.
-    let Ok(mut o) = Object::try_from(o) else {
+    let Ok(mut o) = Object::try_from(o.into_value()) else {
         return Ok(false);
     };
     // 4. Let P be ? Get(C, "prototype").
@@ -350,7 +369,7 @@ pub(crate) fn ordinary_has_instance(agent: &mut Agent, c: Value, o: Value) -> Js
     // 6. Repeat,
     loop {
         // a. Set O to ? O.[[GetPrototypeOf]]().
-        let o_prototype = o.get_prototype_of(agent)?;
+        let o_prototype = o.internal_get_prototype_of(agent)?;
         if let Some(o_prototype) = o_prototype {
             o = o_prototype;
         } else {
@@ -377,13 +396,13 @@ pub(crate) fn get_function_realm(
     // a. Return obj.[[Realm]].
     let obj = obj.into_object();
     match obj {
-        Object::BuiltinFunction(idx) => Ok(agent.heap.get(idx).realm),
-        Object::ECMAScriptFunction(idx) => Ok(agent.heap.get(idx).ecmascript_function.realm),
+        Object::BuiltinFunction(idx) => Ok(agent[idx].realm),
+        Object::ECMAScriptFunction(idx) => Ok(agent[idx].ecmascript_function.realm),
         Object::BoundFunction(idx) => {
             // 2. If obj is a bound function exotic object, then
             // a. Let boundTargetFunction be obj.[[BoundTargetFunction]].
             // b. Return ? GetFunctionRealm(boundTargetFunction).
-            get_function_realm(agent, agent.heap.get(idx).function)
+            get_function_realm(agent, agent[idx].bound_target_function)
         }
         // 3. If obj is a Proxy exotic object, then
         // a. Perform ? ValidateNonRevokedProxy(obj).

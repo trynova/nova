@@ -130,8 +130,8 @@ use crate::{
     },
     heap::{
         indexes::{BuiltinFunctionIndex, ObjectIndex},
-        intrinsic_function_count, intrinsic_object_count, IntrinsicConstructorIndexes,
-        IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
+        intrinsic_function_count, intrinsic_object_count, CompactionLists, HeapMarkAndSweep,
+        IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes, WorkQueues,
     },
 };
 
@@ -146,24 +146,48 @@ pub(crate) struct Intrinsics {
 /// Enumeration of intrinsics intended to be used as the \[\[Prototype\]\] value of
 /// an object. Used in GetPrototypeFromConstructor.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ProtoIntrinsics {
+pub enum ProtoIntrinsics {
+    AggregateError,
     Array,
     ArrayBuffer,
+    AsyncFunction,
+    AsyncGeneratorFunction,
     BigInt,
+    BigInt64Array,
+    BigUint64Array,
     Boolean,
+    DataView,
     Date,
     Error,
     EvalError,
+    FinalizationRegistry,
+    Float32Array,
+    Float64Array,
     Function,
+    GeneratorFunction,
+    Int16Array,
+    Int32Array,
+    Int8Array,
+    Map,
     Number,
     Object,
+    Promise,
     RangeError,
     ReferenceError,
+    RegExp,
+    Set,
+    SharedArrayBuffer,
     String,
     Symbol,
     SyntaxError,
     TypeError,
+    Uint16Array,
+    Uint32Array,
+    Uint8Array,
     UriError,
+    WeakMap,
+    WeakRef,
+    WeakSet,
 }
 
 impl Intrinsics {
@@ -263,6 +287,9 @@ impl Intrinsics {
         ProxyConstructor::create_intrinsic(agent, realm);
     }
 
+    // Suggest to inline this: The intrinsic default proto is often statically
+    // known.
+    #[inline]
     pub(crate) fn get_intrinsic_default_proto(
         &self,
         intrinsic_default_proto: ProtoIntrinsics,
@@ -285,6 +312,32 @@ impl Intrinsics {
             ProtoIntrinsics::SyntaxError => self.syntax_error_prototype().into(),
             ProtoIntrinsics::TypeError => self.type_error_prototype().into(),
             ProtoIntrinsics::UriError => self.uri_error_prototype().into(),
+            ProtoIntrinsics::AggregateError => self.aggregate_error_prototype().into(),
+            ProtoIntrinsics::AsyncFunction => self.async_function_prototype().into(),
+            ProtoIntrinsics::AsyncGeneratorFunction => {
+                self.async_generator_function_prototype().into()
+            }
+            ProtoIntrinsics::BigInt64Array => self.big_int64_array_prototype().into(),
+            ProtoIntrinsics::BigUint64Array => self.big_int64_array_prototype().into(),
+            ProtoIntrinsics::DataView => self.data_view_prototype().into(),
+            ProtoIntrinsics::FinalizationRegistry => self.finalization_registry_prototype().into(),
+            ProtoIntrinsics::Float32Array => self.float32_array_prototype().into(),
+            ProtoIntrinsics::Float64Array => self.float64_array_prototype().into(),
+            ProtoIntrinsics::GeneratorFunction => self.generator_function_prototype().into(),
+            ProtoIntrinsics::Int16Array => self.int16_array_prototype().into(),
+            ProtoIntrinsics::Int32Array => self.int32_array_prototype().into(),
+            ProtoIntrinsics::Int8Array => self.int8_array_prototype().into(),
+            ProtoIntrinsics::Map => self.map_prototype().into(),
+            ProtoIntrinsics::Promise => self.promise_prototype().into(),
+            ProtoIntrinsics::RegExp => self.reg_exp_prototype().into(),
+            ProtoIntrinsics::Set => self.set_prototype().into(),
+            ProtoIntrinsics::SharedArrayBuffer => self.shared_array_buffer_prototype().into(),
+            ProtoIntrinsics::Uint16Array => self.uint16_array_prototype().into(),
+            ProtoIntrinsics::Uint32Array => self.uint32_array_prototype().into(),
+            ProtoIntrinsics::Uint8Array => self.uint8_array_prototype().into(),
+            ProtoIntrinsics::WeakMap => self.weak_map_prototype().into(),
+            ProtoIntrinsics::WeakRef => self.weak_ref_prototype().into(),
+            ProtoIntrinsics::WeakSet => self.weak_set_prototype().into(),
         }
     }
 
@@ -1372,5 +1425,145 @@ impl Intrinsics {
 
     pub(crate) fn weak_set_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::WeakSet.get_object_index(self.object_index_base)
+    }
+}
+
+impl HeapMarkAndSweep for Intrinsics {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.aggregate_error_prototype().mark_values(queues);
+        self.aggregate_error().mark_values(queues);
+        self.array_prototype_sort().mark_values(queues);
+        self.array_prototype_to_string().mark_values(queues);
+        self.array_prototype_values().mark_values(queues);
+        self.array_prototype().mark_values(queues);
+        self.array().mark_values(queues);
+        self.array_buffer_prototype().mark_values(queues);
+        self.array_buffer().mark_values(queues);
+        self.array_iterator_prototype().mark_values(queues);
+        self.async_from_sync_iterator_prototype()
+            .mark_values(queues);
+        self.async_function_prototype().mark_values(queues);
+        self.async_function().mark_values(queues);
+        self.async_generator_function_prototype()
+            .mark_values(queues);
+        self.async_generator_function().mark_values(queues);
+        self.async_generator_prototype().mark_values(queues);
+        self.async_iterator_prototype().mark_values(queues);
+        self.atomics().mark_values(queues);
+        self.big_int_prototype().mark_values(queues);
+        self.big_int().mark_values(queues);
+        self.big_int64_array().mark_values(queues);
+        self.big_int64_array_prototype().mark_values(queues);
+        self.big_uint64_array().mark_values(queues);
+        self.big_uint64_array_prototype().mark_values(queues);
+        self.boolean_prototype().mark_values(queues);
+        self.boolean().mark_values(queues);
+        self.data_view_prototype().mark_values(queues);
+        self.data_view().mark_values(queues);
+        self.date_prototype_to_utcstring().mark_values(queues);
+        self.date_prototype().mark_values(queues);
+        self.date().mark_values(queues);
+        self.decode_uri().mark_values(queues);
+        self.decode_uricomponent().mark_values(queues);
+        self.encode_uri().mark_values(queues);
+        self.encode_uri_component().mark_values(queues);
+        self.error_prototype().mark_values(queues);
+        self.error().mark_values(queues);
+        self.escape().mark_values(queues);
+        self.eval().mark_values(queues);
+        self.eval_error_prototype().mark_values(queues);
+        self.eval_error().mark_values(queues);
+        self.finalization_registry_prototype().mark_values(queues);
+        self.finalization_registry().mark_values(queues);
+        self.float32_array().mark_values(queues);
+        self.float32_array_prototype().mark_values(queues);
+        self.float64_array().mark_values(queues);
+        self.float64_array_prototype().mark_values(queues);
+        self.function_prototype().mark_values(queues);
+        self.function().mark_values(queues);
+        self.generator_function_prototype_prototype_next()
+            .mark_values(queues);
+        self.generator_function_prototype().mark_values(queues);
+        self.generator_function().mark_values(queues);
+        self.generator_prototype().mark_values(queues);
+        self.int16_array().mark_values(queues);
+        self.int16_array_prototype().mark_values(queues);
+        self.int32_array().mark_values(queues);
+        self.int32_array_prototype().mark_values(queues);
+        self.int8_array().mark_values(queues);
+        self.int8_array_prototype().mark_values(queues);
+        self.is_finite().mark_values(queues);
+        self.is_nan().mark_values(queues);
+        self.iterator_prototype().mark_values(queues);
+        self.json().mark_values(queues);
+        self.map_prototype_entries().mark_values(queues);
+        self.map_prototype().mark_values(queues);
+        self.map().mark_values(queues);
+        self.map_iterator_prototype().mark_values(queues);
+        self.math().mark_values(queues);
+        self.number_prototype().mark_values(queues);
+        self.number().mark_values(queues);
+        self.object_prototype_to_string().mark_values(queues);
+        self.object_prototype().mark_values(queues);
+        self.object().mark_values(queues);
+        self.parse_float().mark_values(queues);
+        self.parse_int().mark_values(queues);
+        self.promise_prototype().mark_values(queues);
+        self.promise().mark_values(queues);
+        self.proxy().mark_values(queues);
+        self.range_error_prototype().mark_values(queues);
+        self.range_error().mark_values(queues);
+        self.reference_error_prototype().mark_values(queues);
+        self.reference_error().mark_values(queues);
+        self.reflect().mark_values(queues);
+        self.reg_exp_prototype_exec().mark_values(queues);
+        self.reg_exp_prototype().mark_values(queues);
+        self.reg_exp().mark_values(queues);
+        self.reg_exp_string_iterator_prototype().mark_values(queues);
+        self.set_prototype_values().mark_values(queues);
+        self.set_prototype().mark_values(queues);
+        self.set().mark_values(queues);
+        self.set_iterator_prototype().mark_values(queues);
+        self.shared_array_buffer_prototype().mark_values(queues);
+        self.shared_array_buffer().mark_values(queues);
+        self.string_prototype_trim_end().mark_values(queues);
+        self.string_prototype_trim_start().mark_values(queues);
+        self.string_prototype().mark_values(queues);
+        self.string().mark_values(queues);
+        self.string_iterator_prototype().mark_values(queues);
+        self.symbol_prototype().mark_values(queues);
+        self.symbol().mark_values(queues);
+        self.syntax_error_prototype().mark_values(queues);
+        self.syntax_error().mark_values(queues);
+        self.throw_type_error().mark_values(queues);
+        self.typed_array_prototype_values().mark_values(queues);
+        self.typed_array_prototype().mark_values(queues);
+        self.typed_array().mark_values(queues);
+        self.typed_array_prototype().mark_values(queues);
+        self.type_error_prototype().mark_values(queues);
+        self.type_error().mark_values(queues);
+        self.type_error_prototype().mark_values(queues);
+        self.uint16_array().mark_values(queues);
+        self.uint16_array_prototype().mark_values(queues);
+        self.uint32_array().mark_values(queues);
+        self.uint32_array_prototype().mark_values(queues);
+        self.uint8_array().mark_values(queues);
+        self.uint8_array_prototype().mark_values(queues);
+        self.uint8_clamped_array().mark_values(queues);
+        self.uint8_clamped_array_prototype().mark_values(queues);
+        self.unescape().mark_values(queues);
+        self.uri_error_prototype().mark_values(queues);
+        self.uri_error().mark_values(queues);
+        self.weak_map_prototype().mark_values(queues);
+        self.weak_map().mark_values(queues);
+        self.weak_ref_prototype().mark_values(queues);
+        self.weak_ref().mark_values(queues);
+        self.weak_set_prototype().mark_values(queues);
+        self.weak_set().mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        OrdinaryObject(self.object_index_base).sweep_values(compactions);
+        BuiltinFunction(self.builtin_function_index_base).sweep_values(compactions);
     }
 }

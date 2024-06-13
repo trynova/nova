@@ -10,7 +10,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::{GetHeapData, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
     SmallInteger,
 };
 
@@ -530,7 +530,7 @@ impl DatePrototype {
 
     fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         let date_object = check_date_object(agent, this_value)?;
-        let data = &agent.heap.get(date_object.0).date;
+        let data = &agent[date_object].date;
         match data {
             Some(system_time) => {
                 let time_as_millis = system_time
@@ -576,11 +576,13 @@ impl DatePrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.date_prototype();
         let date_constructor = intrinsics.date();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(45)
+            .with_prototype(object_prototype)
             .with_constructor_property(date_constructor)
             .with_builtin_function_property::<DatePrototypeGetDate>()
             .with_builtin_function_property::<DatePrototypeGetDay>()
@@ -644,7 +646,7 @@ impl DatePrototype {
 #[inline(always)]
 fn check_date_object(agent: &mut Agent, this_value: Value) -> JsResult<Date> {
     match this_value {
-        Value::Date(idx) => Ok(Date(idx)),
+        Value::Date(date) => Ok(date),
         _ => Err(agent.throw_exception(ExceptionType::TypeError, "this is not a Date object.")),
     }
 }

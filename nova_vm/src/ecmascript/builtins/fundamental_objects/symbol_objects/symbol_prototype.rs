@@ -4,9 +4,11 @@ use crate::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        builtins::{ArgumentsList, Builtin},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, IntoValue, String, SymbolHeapData, Value, BUILTIN_STRING_MEMORY},
+        builtins::{ArgumentsList, Builtin, BuiltinGetter},
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{
+            IntoValue, PropertyKey, String, Symbol, SymbolHeapData, Value, BUILTIN_STRING_MEMORY,
+        },
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -21,6 +23,9 @@ impl Builtin for SymbolPrototypeGetDescription {
 
     const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
         crate::ecmascript::builtins::Behaviour::Regular(SymbolPrototype::get_description);
+}
+impl BuiltinGetter for SymbolPrototypeGetDescription {
+    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.description.to_property_key();
 }
 
 struct SymbolPrototypeToString;
@@ -66,12 +71,13 @@ impl SymbolPrototype {
         todo!();
     }
 
-    fn value_of(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!();
+    fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        this_symbol_value(agent, this_value).map(|res| res.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.symbol_prototype();
         let symbol_constructor = intrinsics.symbol();
 
@@ -122,18 +128,9 @@ impl SymbolPrototype {
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(6)
+            .with_prototype(object_prototype)
             .with_constructor_property(symbol_constructor)
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.description.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<SymbolPrototypeGetDescription>(agent, realm)
-                            .build()
-                            .into_function()
-                    })
-                    .with_enumerable(false)
-                    .build()
-            })
+            .with_builtin_function_getter_property::<SymbolPrototypeGetDescription>()
             .with_builtin_function_property::<SymbolPrototypeToString>()
             .with_builtin_function_property::<SymbolPrototypeValueOf>()
             .with_property(|builder| {
@@ -155,5 +152,17 @@ impl SymbolPrototype {
                     .build()
             })
             .build();
+    }
+}
+
+#[inline(always)]
+fn this_symbol_value(agent: &mut Agent, value: Value) -> JsResult<Symbol> {
+    match value {
+        Value::Symbol(symbol) => Ok(symbol),
+        Value::PrimitiveObject(object) if object.is_symbol_object(agent) => {
+            let s: Symbol = agent[object].data.try_into().unwrap();
+            Ok(s)
+        }
+        _ => Err(agent.throw_exception(ExceptionType::TypeError, "this is not a symbol")),
     }
 }

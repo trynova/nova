@@ -13,18 +13,25 @@ use crate::{
                 LexicallyScopedDeclaration, VarScopedDeclaration,
             },
         },
-        types::{IntoValue, Value},
+        types::{IntoValue, String, Value},
     },
     engine::{Executable, Vm},
+    heap::{CompactionLists, Heap, HeapMarkAndSweep, WorkQueues},
 };
 use oxc_allocator::Allocator;
 use oxc_ast::{
     ast::{BindingIdentifier, Program, VariableDeclarationKind},
     syntax_directed_operations::BoundNames,
 };
+use oxc_diagnostics::OxcDiagnostic;
 use oxc_parser::{Parser, ParserReturn};
-use oxc_span::{Atom, SourceType};
-use std::{any::Any, collections::HashSet, marker::PhantomData};
+use oxc_span::SourceType;
+use std::{
+    any::Any,
+    collections::HashSet,
+    marker::PhantomData,
+    ops::{Index, IndexMut},
+};
 
 pub type HostDefined = &'static mut dyn Any;
 
@@ -57,6 +64,53 @@ impl ScriptIdentifier {
 
     pub(crate) const fn into_u32(self) -> u32 {
         self.0
+    }
+}
+
+impl Index<ScriptIdentifier> for Agent {
+    type Output = Script;
+
+    fn index(&self, index: ScriptIdentifier) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<ScriptIdentifier> for Agent {
+    fn index_mut(&mut self, index: ScriptIdentifier) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<ScriptIdentifier> for Heap {
+    type Output = Script;
+
+    fn index(&self, index: ScriptIdentifier) -> &Self::Output {
+        self.scripts
+            .get(index.into_index())
+            .expect("ScriptIdentifier out of bounds")
+            .as_ref()
+            .expect("ScriptIdentifier slot empty")
+    }
+}
+
+impl IndexMut<ScriptIdentifier> for Heap {
+    fn index_mut(&mut self, index: ScriptIdentifier) -> &mut Self::Output {
+        self.scripts
+            .get_mut(index.into_index())
+            .expect("ScriptIdentifier out of bounds")
+            .as_mut()
+            .expect("ScriptIdentifier slot empty")
+    }
+}
+
+impl HeapMarkAndSweep for ScriptIdentifier {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.scripts.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.into_u32();
+        *self = Self::from_u32(self_index - compactions.scripts.get_shift_for_index(self_index));
     }
 }
 
@@ -98,7 +152,17 @@ pub struct Script {
 
 unsafe impl Send for Script {}
 
-pub type ScriptOrErrors = Result<Script, Vec<oxc_diagnostics::Error>>;
+pub type ScriptOrErrors = Result<Script, (Box<str>, Vec<OxcDiagnostic>)>;
+
+impl HeapMarkAndSweep for Script {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.realm.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.realm.sweep_values(compactions);
+    }
+}
 
 /// ### [16.1.5 ParseScript ( sourceText, realm, hostDefined )](https://tc39.es/ecma262/#sec-parse-script)
 ///
@@ -107,6 +171,9 @@ pub type ScriptOrErrors = Result<Script, Vec<oxc_diagnostics::Error>>;
 /// (anything) and returns a Script Record or a non-empty List of SyntaxError
 /// objects. It creates a Script Record based upon the result of parsing
 /// sourceText as a Script.
+///
+/// NOTE: If parsing fails, the `source_text` is returned so it can be used for
+/// diagnostics.
 pub fn parse_script(
     allocator: &Allocator,
     source_text: Box<str>,
@@ -121,7 +188,9 @@ pub fn parse_script(
 
     // 2. If script is a List of errors, return script.
     if !errors.is_empty() {
-        return Err(errors);
+        // Make sure `program` can't borrow `source_text` so we can return it.
+        drop(program);
+        return Err((source_text, errors));
     }
 
     // 3. Return Script Record {
@@ -237,19 +306,12 @@ pub(crate) fn global_declaration_instantiation(
     env: GlobalEnvironmentIndex,
 ) -> JsResult<()> {
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
-    let Script {
-        ecmascript_code: script,
-        ..
-    } = agent.heap.get_script(script);
     // SAFETY: Analysing the script cannot cause the environment to move even though we change other parts of the Heap.
-
-    // 1. Let lexNames be the LexicallyDeclaredNames of script.
-    let lex_names = script_lexically_declared_names(script);
-    // 2. Let varNames be the VarDeclaredNames of script.
-    let var_names = script_var_declared_names(script);
-
-    // 5. Let varDeclarations be the VarScopedDeclarations of script.
-    let var_declarations = {
+    let (lex_names, var_names, var_declarations, lex_declarations) = {
+        let Script {
+            ecmascript_code: script,
+            ..
+        } = &agent[script];
         // SAFETY: The borrow of Program is valid for the duration of this
         // block; the contents of Program are guaranteed to be valid for as
         // long as the Script is alive in the heap as they are not reallocated.
@@ -257,27 +319,28 @@ pub(crate) fn global_declaration_instantiation(
         // of the global_declaration_instantiation call.
         let script =
             unsafe { std::mem::transmute::<&Program<'_>, &'static Program<'static>>(script) };
-        script_var_scoped_declarations(script)
-    };
-    // 13. Let lexDeclarations be the LexicallyScopedDeclarations of script.
-    let lex_declarations = {
-        // SAFETY: As above, Program is valid in this block, declarations are
-        // valid for the duration of global_declaration_instantiation call.
-        let script =
-            unsafe { std::mem::transmute::<&Program<'_>, &'static Program<'static>>(script) };
-        script_lexically_scoped_declarations(script)
+        // 1. Let lexNames be the LexicallyDeclaredNames of script.
+        let lex_names = script_lexically_declared_names(script);
+        // 2. Let varNames be the VarDeclaredNames of script.
+        let var_names = script_var_declared_names(script);
+        // 5. Let varDeclarations be the VarScopedDeclarations of script.
+        let var_declarations = script_var_scoped_declarations(script);
+        // 13. Let lexDeclarations be the LexicallyScopedDeclarations of script.
+        let lex_declarations = script_lexically_scoped_declarations(script);
+        (lex_names, var_names, var_declarations, lex_declarations)
     };
 
     // 3. For each element name of lexNames, do
     for name in lex_names {
+        let name = String::from_str(agent, name.as_str());
         if
         // a. If env.HasVarDeclaration(name) is true, throw a SyntaxError exception.
-        env.has_var_declaration(agent, &name)
+        env.has_var_declaration(agent, name)
             // b. If env.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
-            || env.has_lexical_declaration(agent, &name)
+            || env.has_lexical_declaration(agent, name)
             // c. Let hasRestrictedGlobal be ? env.HasRestrictedGlobalProperty(name).
             // d. If hasRestrictedGlobal is true, throw a SyntaxError exception.
-            || env.has_restricted_global_property(agent, &name)?
+            || env.has_restricted_global_property(agent, name)?
         {
             return Err(
                 agent.throw_exception(ExceptionType::SyntaxError, "Variable already defined.")
@@ -288,6 +351,7 @@ pub(crate) fn global_declaration_instantiation(
     // 4. For each element name of varNames, do
     for name in &var_names {
         // a. If env.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
+        let name = String::from_str(agent, name.as_str());
         if env.has_lexical_declaration(agent, name) {
             return Err(
                 agent.throw_exception(ExceptionType::SyntaxError, "Variable already defined.")
@@ -315,8 +379,8 @@ pub(crate) fn global_declaration_instantiation(
             // iv. If declaredFunctionNames does not contain fn, then
             if declared_function_names.insert(function_name.clone()) {
                 // 1. Let fnDefinable be ? env.CanDeclareGlobalFunction(fn).
-                let fn_definable =
-                    env.can_declare_global_function(agent, function_name.as_str())?;
+                let function_name = String::from_str(agent, function_name.as_str());
+                let fn_definable = env.can_declare_global_function(agent, function_name)?;
                 // 2. If fnDefinable is false, throw a TypeError exception.
                 if !fn_definable {
                     return Err(agent.throw_exception(
@@ -346,7 +410,8 @@ pub(crate) fn global_declaration_instantiation(
                 // 1. If declaredFunctionNames does not contain vn, then
                 if !declared_function_names.contains(&vn) {
                     // a. Let vnDefinable be ? env.CanDeclareGlobalVar(vn).
-                    let vn_definable = env.can_declare_global_var(agent, &vn)?;
+                    let vn = String::from_str(agent, vn.as_str());
+                    let vn_definable = env.can_declare_global_var(agent, vn)?;
                     // b. If vnDefinable is false, throw a TypeError exception.
                     if !vn_definable {
                         return Err(agent.throw_exception(
@@ -356,7 +421,7 @@ pub(crate) fn global_declaration_instantiation(
                     }
                     // c. If declaredVarNames does not contain vn, then
                     // i. Append vn to declaredVarNames.
-                    declared_var_names.insert(vn.clone());
+                    declared_var_names.insert(vn);
                 }
             }
         }
@@ -376,13 +441,13 @@ pub(crate) fn global_declaration_instantiation(
         let mut bound_names = vec![];
         let mut const_bound_names = vec![];
         let mut closure = |identifier: &BindingIdentifier| {
-            bound_names.push(identifier.name.clone());
+            bound_names.push(String::from_str(agent, identifier.name.as_str()));
         };
         match d {
             LexicallyScopedDeclaration::Variable(decl) => {
                 if decl.kind == VariableDeclarationKind::Const {
                     decl.id.bound_names(&mut |identifier| {
-                        const_bound_names.push(identifier.name.clone())
+                        const_bound_names.push(String::from_str(agent, identifier.name.as_str()))
                     });
                 } else {
                     decl.id.bound_names(&mut closure)
@@ -391,19 +456,19 @@ pub(crate) fn global_declaration_instantiation(
             LexicallyScopedDeclaration::Function(decl) => decl.bound_names(&mut closure),
             LexicallyScopedDeclaration::Class(decl) => decl.bound_names(&mut closure),
             LexicallyScopedDeclaration::DefaultExport => {
-                bound_names.push(Atom::new_inline("*default*"))
+                bound_names.push(String::from_static_str(agent, "*default*"))
             }
         }
         // b. For each element dn of the BoundNames of d, do
         for dn in const_bound_names {
             // i. If IsConstantDeclaration of d is true, then
             // 1. Perform ? env.CreateImmutableBinding(dn, true).
-            env.create_immutable_binding(agent, &dn, true)?;
+            env.create_immutable_binding(agent, dn, true)?;
         }
         for dn in bound_names {
             // ii. Else,
             // 1. Perform ? env.CreateMutableBinding(dn, false).
-            env.create_mutable_binding(agent, &dn, false)?;
+            env.create_mutable_binding(agent, dn, false)?;
         }
     }
 
@@ -415,7 +480,7 @@ pub(crate) fn global_declaration_instantiation(
             assert!(function_name.is_none());
             function_name = Some(identifier.name.clone());
         });
-        let function_name = function_name.unwrap();
+        let function_name = String::from_str(agent, function_name.unwrap().as_str());
         // b. Let fo be InstantiateFunctionObject of f with arguments env and privateEnv.
         let fo = instantiate_function_object(agent, f, EnvironmentIndex::Global(env), private_env);
         // c. Perform ? env.CreateGlobalFunctionBinding(fn, fo, false).
@@ -433,19 +498,21 @@ pub(crate) fn global_declaration_instantiation(
 
 #[cfg(test)]
 mod test {
-    use crate::ecmascript::{
-        abstract_operations::operations_on_objects::create_data_property_or_throw,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{
-            agent::Options, create_realm, initialize_default_realm, set_realm_global_object, Agent,
-            DefaultHostHooks, ExecutionContext,
+    use crate::{
+        ecmascript::{
+            abstract_operations::operations_on_objects::create_data_property_or_throw,
+            builders::builtin_function_builder::BuiltinFunctionBuilder,
+            builtins::{ArgumentsList, Behaviour, Builtin},
+            execution::{
+                agent::Options, create_realm, initialize_default_realm, set_realm_global_object,
+                Agent, DefaultHostHooks, ExecutionContext,
+            },
+            scripts_and_modules::script::{parse_script, script_evaluation},
+            types::{InternalMethods, IntoValue, Number, Object, PropertyKey, String, Value},
         },
-        scripts_and_modules::script::{parse_script, script_evaluation},
-        types::{InternalMethods, IntoValue, Number, Object, PropertyKey, String, Value},
+        SmallInteger,
     };
     use oxc_allocator::Allocator;
-    use oxc_span::Atom;
 
     #[test]
     fn empty_script() {
@@ -641,14 +708,17 @@ mod test {
         let foo = agent
             .get_realm(realm)
             .global_object
-            .get_own_property(&mut agent, key)
+            .internal_get_own_property(&mut agent, key)
             .unwrap()
             .unwrap()
             .value
             .unwrap();
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
-        assert!(result.own_property_keys(&mut agent).unwrap().is_empty());
+        assert!(result
+            .internal_own_property_keys(&mut agent)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -666,7 +736,7 @@ mod test {
         let foo = agent
             .get_realm(realm)
             .global_object
-            .get_own_property(&mut agent, key)
+            .internal_get_own_property(&mut agent, key)
             .unwrap()
             .unwrap()
             .value
@@ -674,10 +744,10 @@ mod test {
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
         let key = PropertyKey::from_static_str(&mut agent, "a");
-        assert!(result.has_property(&mut agent, key).unwrap());
+        assert!(result.internal_has_property(&mut agent, key).unwrap());
         assert_eq!(
             result
-                .get_own_property(&mut agent, key)
+                .internal_get_own_property(&mut agent, key)
                 .unwrap()
                 .unwrap()
                 .value,
@@ -703,15 +773,19 @@ mod test {
         let script = parse_script(&allocator, "var foo = [];".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
+        let foo_key = String::from_static_str(&mut agent, "foo");
         let foo = agent
             .get_realm(realm)
             .global_env
             .unwrap()
-            .get_binding_value(&mut agent, &Atom::new_inline("foo"), true)
+            .get_binding_value(&mut agent, foo_key, true)
             .unwrap();
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
-        assert!(result.own_property_keys(&mut agent).unwrap().is_empty());
+        assert!(result
+            .internal_own_property_keys(&mut agent)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -725,29 +799,30 @@ mod test {
         let script = parse_script(&allocator, "var foo = [ 'a', 3 ];".into(), realm, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
+        let foo_key = String::from_static_str(&mut agent, "foo");
         let foo = agent
             .get_realm(realm)
             .global_env
             .unwrap()
-            .get_binding_value(&mut agent, &Atom::new_inline("foo"), true)
+            .get_binding_value(&mut agent, foo_key, true)
             .unwrap();
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
         let key = PropertyKey::Integer(0.into());
-        assert!(result.has_property(&mut agent, key).unwrap());
+        assert!(result.internal_has_property(&mut agent, key).unwrap());
         assert_eq!(
             result
-                .get_own_property(&mut agent, key)
+                .internal_get_own_property(&mut agent, key)
                 .unwrap()
                 .unwrap()
                 .value,
             Some(Value::from_static_str(&mut agent, "a"))
         );
         let key = PropertyKey::Integer(1.into());
-        assert!(result.has_property(&mut agent, key).unwrap());
+        assert!(result.internal_has_property(&mut agent, key).unwrap());
         assert_eq!(
             result
-                .get_own_property(&mut agent, key)
+                .internal_get_own_property(&mut agent, key)
                 .unwrap()
                 .unwrap()
                 .value,
@@ -801,6 +876,19 @@ mod test {
     }
 
     #[test]
+    fn empty_declared_function_call() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let realm = create_realm(&mut agent);
+        set_realm_global_object(&mut agent, realm, None, None);
+
+        let script = parse_script(&allocator, "function f() {}; f();".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert!(result.is_undefined());
+    }
+
+    #[test]
     fn non_empty_iife_function_call() {
         let allocator = Allocator::default();
 
@@ -826,7 +914,7 @@ mod test {
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
-        let global = agent.heap.get_realm(realm).global_object;
+        let global = agent[realm].global_object;
 
         agent.execution_context_stack.push(ExecutionContext {
             ecmascript_code: None,
@@ -989,7 +1077,7 @@ mod test {
         let i: Value = agent
             .get_realm(realm)
             .global_object
-            .get_own_property(&mut agent, key)
+            .internal_get_own_property(&mut agent, key)
             .unwrap()
             .unwrap()
             .value
@@ -1016,21 +1104,19 @@ mod test {
         assert_eq!(result, Value::Undefined);
 
         let global_env = agent.get_realm(realm).global_env.unwrap();
-        assert!(global_env
-            .has_binding(&mut agent, &Atom::new_inline("a"))
-            .unwrap());
-        assert!(global_env
-            .has_binding(&mut agent, &Atom::new_inline("i"))
-            .unwrap());
+        let a_key = String::from_static_str(&mut agent, "a");
+        let i_key = String::from_static_str(&mut agent, "i");
+        assert!(global_env.has_binding(&mut agent, a_key).unwrap());
+        assert!(global_env.has_binding(&mut agent, i_key).unwrap());
         assert_eq!(
             global_env
-                .get_binding_value(&mut agent, &Atom::new_inline("a"), true)
+                .get_binding_value(&mut agent, a_key, true)
                 .unwrap(),
             String::from_small_string("foo").into_value()
         );
         assert_eq!(
             global_env
-                .get_binding_value(&mut agent, &Atom::new_inline("i"), true)
+                .get_binding_value(&mut agent, i_key, true)
                 .unwrap(),
             Value::from(3)
         );
@@ -1054,8 +1140,450 @@ mod test {
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Undefined);
 
+        let a_key = String::from_static_str(&mut agent, "a");
+        let i_key = String::from_static_str(&mut agent, "i");
         let global_env = agent.get_realm(realm).global_env.unwrap();
-        assert!(!global_env.has_lexical_declaration(&agent, &Atom::new_inline("a")));
-        assert!(!global_env.has_lexical_declaration(&agent, &Atom::new_inline("i")));
+        assert!(!global_env.has_lexical_declaration(&agent, a_key));
+        assert!(!global_env.has_lexical_declaration(&agent, i_key));
+    }
+
+    #[test]
+    fn object_property_assignment() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "var foo = {}; foo.a = 42; foo".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        let object = Object::try_from(result).unwrap();
+
+        let pk = PropertyKey::from_static_str(&mut agent, "a");
+        assert_eq!(
+            object
+                .internal_get(&mut agent, pk, object.into_value())
+                .unwrap(),
+            Value::Integer(SmallInteger::from(42))
+        );
+    }
+
+    #[test]
+    fn try_catch_not_thrown() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "let a = 0; try { a++; } catch { a = 500; }; a++; a".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(2)));
+    }
+
+    #[test]
+    fn try_catch_thrown() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "let a = 0; try { throw null; a = 500 } catch { a++; }; a++; a".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(2)));
+    }
+
+    #[test]
+    fn catch_binding() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "let err; try { throw 'thrown'; } catch(e) { err = e; }; err".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_static_str(&mut agent, "thrown"));
+    }
+
+    #[test]
+    fn throwing_in_try_restores_lexical_environment() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "let a = 42; try { let a = 62; throw 'thrown'; } catch { }; a".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(42)));
+    }
+
+    #[test]
+    fn function_argument_bindings() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "const foo = function (a) { return a + 10; }; foo(32)".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(42)));
+    }
+
+    #[test]
+    fn logical_and() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(&allocator, "true && true".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Boolean(true));
+
+        let script = parse_script(&allocator, "true && false && true".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Boolean(false));
+    }
+
+    #[test]
+    fn logical_or() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(&allocator, "false || false".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Boolean(false));
+
+        let script = parse_script(&allocator, "true || false || true".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Boolean(true));
+    }
+
+    #[test]
+    fn nullish_coalescing() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(&allocator, "null ?? 42".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(42)));
+
+        let script = parse_script(&allocator, "'foo' ?? 12".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_static_str(&mut agent, "foo"));
+
+        let script = parse_script(&allocator, "undefined ?? null".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Null);
+    }
+
+    #[test]
+    fn string_concat() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(&allocator, "'foo' + '' + 'bar'".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_static_str(&mut agent, "foobar"));
+
+        let script =
+            parse_script(&allocator, "'foo' + ' a heap string'".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(
+            result,
+            Value::from_static_str(&mut agent, "foo a heap string")
+        );
+
+        let script = parse_script(
+            &allocator,
+            "'Concatenating ' + 'two heap strings'".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(
+            result,
+            Value::from_static_str(&mut agent, "Concatenating two heap strings")
+        );
+    }
+
+    #[test]
+    fn property_access_on_functions() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script =
+            parse_script(&allocator, "function foo() {}; foo.bar".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Undefined);
+
+        let script = parse_script(&allocator, "foo.bar = 42; foo.bar".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(42)));
+
+        let script = parse_script(&allocator, "foo.name".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_static_str(&mut agent, "foo"));
+
+        let script = parse_script(&allocator, "foo.length".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::zero()));
+
+        let script = parse_script(&allocator, "foo.prototype".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert!(result.is_object())
+    }
+
+    #[test]
+    fn name_and_length_on_builtin_functions() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(&allocator, "TypeError.name".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::from_static_str(&mut agent, "TypeError"));
+
+        let script = parse_script(&allocator, "TypeError.length".into(), realm, None).unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(1)));
+    }
+
+    #[test]
+    fn constructor() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "function foo() {}; foo.prototype".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        let foo_prototype = Object::try_from(result).unwrap();
+
+        let script = parse_script(&allocator, "new foo()".into(), realm, None).unwrap();
+        let result = match script_evaluation(&mut agent, script) {
+            Ok(result) => result,
+            Err(err) => panic!("{}", err.to_string(&mut agent).as_str(&agent)),
+        };
+        let instance = Object::try_from(result).unwrap();
+        assert_eq!(
+            instance.internal_get_prototype_of(&mut agent).unwrap(),
+            Some(foo_prototype)
+        );
+    }
+
+    #[test]
+    fn this_expression() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "function foo() { this.bar = 42; }; new foo().bar".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(42)));
+
+        let script = parse_script(
+            &allocator,
+            "foo.prototype.baz = function() { return this.bar + 10; }; (new foo()).baz()".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Integer(SmallInteger::from(52)));
+    }
+
+    #[test]
+    fn symbol_stringification() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(&allocator, "+Symbol()".into(), realm, None).unwrap();
+        assert!(script_evaluation(&mut agent, script).is_err());
+
+        let script = parse_script(&allocator, "+Symbol('foo')".into(), realm, None).unwrap();
+        assert!(script_evaluation(&mut agent, script).is_err());
+
+        let script = parse_script(&allocator, "String(Symbol())".into(), realm, None).unwrap();
+        let value = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(value, Value::from_static_str(&mut agent, "Symbol()"));
+
+        let script = parse_script(&allocator, "String(Symbol('foo'))".into(), realm, None).unwrap();
+        let value = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(value, Value::from_static_str(&mut agent, "Symbol(foo)"));
+    }
+
+    #[test]
+    fn instanceof() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(&allocator, "3 instanceof Number".into(), realm, None).unwrap();
+        assert_eq!(script_evaluation(&mut agent, script).unwrap(), false.into());
+
+        let script =
+            parse_script(&allocator, "'foo' instanceof String".into(), realm, None).unwrap();
+        assert_eq!(script_evaluation(&mut agent, script).unwrap(), false.into());
+
+        let script =
+            parse_script(&allocator, "({}) instanceof Object".into(), realm, None).unwrap();
+        assert_eq!(script_evaluation(&mut agent, script).unwrap(), true.into());
+
+        let script = parse_script(&allocator, "({}) instanceof Array".into(), realm, None).unwrap();
+        assert_eq!(script_evaluation(&mut agent, script).unwrap(), false.into());
+
+        let script =
+            parse_script(&allocator, "([]) instanceof Object".into(), realm, None).unwrap();
+        assert_eq!(script_evaluation(&mut agent, script).unwrap(), true.into());
+
+        let script = parse_script(&allocator, "([]) instanceof Array".into(), realm, None).unwrap();
+        assert_eq!(script_evaluation(&mut agent, script).unwrap(), true.into());
+    }
+
+    #[test]
+    fn array_binding_pattern() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "const [a, b, , c] = [1, 2, 3, 4];".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        script_evaluation(&mut agent, script).unwrap();
+        let a_key = String::from_static_str(&mut agent, "a");
+        let b_key = String::from_static_str(&mut agent, "b");
+        let c_key = String::from_static_str(&mut agent, "c");
+        let global_env = agent.get_realm(realm).global_env.unwrap();
+        assert!(global_env.has_lexical_declaration(&agent, a_key));
+        assert!(global_env.has_lexical_declaration(&agent, b_key));
+        assert!(global_env.has_lexical_declaration(&agent, c_key));
+        assert_eq!(
+            global_env
+                .get_binding_value(&mut agent, a_key, true)
+                .unwrap(),
+            1.into()
+        );
+        assert_eq!(
+            global_env
+                .get_binding_value(&mut agent, b_key, true)
+                .unwrap(),
+            2.into()
+        );
+        assert_eq!(
+            global_env
+                .get_binding_value(&mut agent, c_key, true)
+                .unwrap(),
+            4.into()
+        );
+    }
+
+    #[test]
+    fn do_while() {
+        let allocator = Allocator::default();
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "let i = 0; do { i++ } while(i < 10)".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        script_evaluation(&mut agent, script).unwrap();
+
+        let i_key = String::from_static_str(&mut agent, "i");
+        let global_env = agent.get_realm(realm).global_env.unwrap();
+        assert!(global_env.has_lexical_declaration(&agent, i_key));
+        assert_eq!(
+            global_env
+                .get_binding_value(&mut agent, i_key, true)
+                .unwrap(),
+            10.into()
+        );
     }
 }

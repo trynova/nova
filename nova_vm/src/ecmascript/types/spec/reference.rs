@@ -4,10 +4,13 @@ use crate::ecmascript::{
         agent::{self, ExceptionType},
         get_global_object, EnvironmentIndex,
     },
-    types::{InternalMethods, Object, PropertyKey, Symbol, Value},
+    types::{
+        HeapString, InternalMethods, IntoValue, Object, PropertyKey, String, Symbol, Value,
+        BUILTIN_STRING_MEMORY,
+    },
 };
 use agent::{Agent, JsResult};
-use oxc_span::Atom;
+use small_string::SmallString;
 
 /// ### [6.2.5 The Reference Record Specification Type](https://tc39.es/ecma262/#sec-reference-record-specification-type)
 ///
@@ -104,7 +107,8 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             // implementation might choose to avoid the actual
             // creation of the object.
             let referenced_name = match &reference.referenced_name {
-                ReferencedName::String(atom) => PropertyKey::from_str(agent, atom.as_str()),
+                ReferencedName::String(data) => PropertyKey::String(*data),
+                ReferencedName::SmallString(data) => PropertyKey::SmallString(*data),
                 ReferencedName::Symbol(symbol) => PropertyKey::from(*symbol),
                 ReferencedName::PrivateName => {
                     // b. If IsPrivateReference(V) is true, then
@@ -114,7 +118,7 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             };
             if let Ok(object) = Object::try_from(value) {
                 // c. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
-                Ok(object.get(agent, referenced_name, get_this_value(reference))?)
+                Ok(object.internal_get(agent, referenced_name, get_this_value(reference))?)
             } else {
                 // Primitive value. annoying stuff.
                 match value {
@@ -130,27 +134,25 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
                         .current_realm()
                         .intrinsics()
                         .boolean_prototype()
-                        .get(agent, referenced_name, value),
-                    Value::String(_) | Value::SmallString(_) => agent
+                        .internal_get(agent, referenced_name, value),
+                    Value::String(_) | Value::SmallString(_) => {
+                        get_string_value(agent, String::try_from(value).unwrap(), referenced_name)
+                    }
+                    Value::Symbol(_) => agent
                         .current_realm()
                         .intrinsics()
-                        .string_prototype()
-                        .get(agent, referenced_name, value),
-                    Value::Symbol(_) => agent.current_realm().intrinsics().symbol_prototype().get(
-                        agent,
-                        referenced_name,
-                        value,
-                    ),
+                        .symbol_prototype()
+                        .internal_get(agent, referenced_name, value),
                     Value::Number(_) | Value::Integer(_) | Value::Float(_) => agent
                         .current_realm()
                         .intrinsics()
                         .number_prototype()
-                        .get(agent, referenced_name, value),
+                        .internal_get(agent, referenced_name, value),
                     Value::BigInt(_) | Value::SmallBigInt(_) => agent
                         .current_realm()
                         .intrinsics()
                         .big_int_prototype()
-                        .get(agent, referenced_name, value),
+                        .internal_get(agent, referenced_name, value),
                     _ => unreachable!(),
                 }
             }
@@ -161,7 +163,8 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             // b. Assert: base is an Environment Record.
             // c. Return ? base.GetBindingValue(V.[[ReferencedName]], V.[[Strict]]) (see 9.1).
             let referenced_name = match &reference.referenced_name {
-                ReferencedName::String(atom) => atom,
+                ReferencedName::String(data) => String::String(*data),
+                ReferencedName::SmallString(data) => String::SmallString(*data),
                 _ => unreachable!(),
             };
             Ok(env.get_binding_value(agent, referenced_name, reference.strict)?)
@@ -173,6 +176,41 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
                 "Unable to resolve identifier.",
             ))
         }
+    }
+}
+
+fn get_string_value(
+    agent: &mut Agent,
+    string: String,
+    referenced_name: PropertyKey,
+) -> JsResult<Value> {
+    let string_length = string.len(agent);
+    if string_length > u32::MAX as usize {
+        panic!("String length over u32::MAX");
+    }
+    if referenced_name == BUILTIN_STRING_MEMORY.length.into() {
+        let string_length = string_length as u32;
+        Ok(string_length.into())
+    } else if let PropertyKey::Integer(index) = referenced_name {
+        let index = index.into_i64();
+        if index < 0 || (index as usize) >= string_length {
+            // Over-indexing, prototype chain it is.
+            agent
+                .current_realm()
+                .intrinsics()
+                .string_prototype()
+                .internal_get(agent, referenced_name, string.into_value())
+        } else {
+            let char_byte = string.as_str(agent).as_bytes()[index as usize];
+            let char = SmallString::from_str_unchecked(std::str::from_utf8(&[char_byte]).unwrap());
+            Ok(char.into_value())
+        }
+    } else {
+        agent
+            .current_realm()
+            .intrinsics()
+            .string_prototype()
+            .internal_get(agent, referenced_name, string.into_value())
     }
 }
 
@@ -195,7 +233,8 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
         let global_obj = get_global_object(agent);
         // c. Perform ? Set(globalObj, V.[[ReferencedName]], W, false).
         let referenced_name = match &v.referenced_name {
-            ReferencedName::String(atom) => PropertyKey::from_str(agent, atom.as_str()),
+            ReferencedName::String(data) => PropertyKey::String(*data),
+            ReferencedName::SmallString(data) => PropertyKey::SmallString(*data),
             ReferencedName::Symbol(_) => todo!(),
             ReferencedName::PrivateName => todo!(),
         };
@@ -218,11 +257,12 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
         // c. Let succeeded be ? baseObj.[[Set]](V.[[ReferencedName]], W, GetThisValue(V)).
         let this_value = get_this_value(v);
         let referenced_name = match &v.referenced_name {
-            ReferencedName::String(atom) => PropertyKey::from_str(agent, atom.as_str()),
+            ReferencedName::String(data) => PropertyKey::String(*data),
+            ReferencedName::SmallString(data) => PropertyKey::SmallString(*data),
             ReferencedName::Symbol(_) => todo!(),
             ReferencedName::PrivateName => todo!(),
         };
-        let succeeded = base_obj.set(agent, referenced_name, w, this_value)?;
+        let succeeded = base_obj.internal_set(agent, referenced_name, w, this_value)?;
         if !succeeded && v.strict {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
             return Err(
@@ -241,7 +281,8 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
         };
         // c. Return ? base.SetMutableBinding(V.[[ReferencedName]], W, V.[[Strict]]) (see 9.1).
         let referenced_name = match &v.referenced_name {
-            ReferencedName::String(atom) => atom,
+            ReferencedName::String(data) => String::String(*data),
+            ReferencedName::SmallString(data) => String::SmallString(*data),
             ReferencedName::Symbol(_) => todo!(),
             ReferencedName::PrivateName => todo!(),
         };
@@ -249,6 +290,32 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
     }
     // NOTE
     // The object that may be created in step 3.a is not accessible outside of the above abstract operation and the ordinary object [[Set]] internal method. An implementation might choose to avoid the actual creation of that object.
+}
+
+/// ### {6.2.5.8 InitializeReferencedBinding ( V, W )}(https://tc39.es/ecma262/#sec-initializereferencedbinding)
+/// The abstract operation InitializeReferencedBinding takes arguments V (a Reference Record) and W
+/// (an ECMAScript language value) and returns either a normal completion containing unused or an
+/// abrupt completion.
+pub(crate) fn initialize_referenced_binding(
+    agent: &mut Agent,
+    v: Reference,
+    w: Value,
+) -> JsResult<()> {
+    // 1. Assert: IsUnresolvableReference(V) is false.
+    debug_assert!(!is_unresolvable_reference(&v));
+    // 2. Let base be V.[[Base]].
+    let base = v.base;
+    // 3. Assert: base is an Environment Record.
+    let Base::Environment(base) = base else {
+        unreachable!()
+    };
+    let referenced_name = match v.referenced_name {
+        ReferencedName::String(data) => String::String(data),
+        ReferencedName::SmallString(data) => String::SmallString(data),
+        ReferencedName::Symbol(_) | ReferencedName::PrivateName => unreachable!(),
+    };
+    // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
+    base.initialize_binding(agent, referenced_name, w)
 }
 
 /// ### {6.2.5.7 GetThisValue ( V )}(https://tc39.es/ecma262/#sec-getthisvalue)
@@ -275,8 +342,18 @@ pub(crate) enum Base {
 
 #[derive(Debug)]
 pub enum ReferencedName {
-    String(Atom),
+    String(HeapString),
+    SmallString(SmallString),
     Symbol(Symbol),
     // TODO: implement private names
     PrivateName,
+}
+
+impl From<String> for ReferencedName {
+    fn from(value: String) -> Self {
+        match value {
+            String::String(data) => Self::String(data),
+            String::SmallString(data) => Self::SmallString(data),
+        }
+    }
 }

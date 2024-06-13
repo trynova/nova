@@ -3,7 +3,16 @@ use std::fs::File;
 use std::io::{self, prelude::*, BufReader};
 
 fn replace_invalid_key_characters(string: &str) -> String {
-    string.replace(['[', ']', ' ', '.', '-'], "_")
+    let mut string = string.to_owned();
+
+    // If the first character is a number or a hyphen, prefix the string with an underscore.
+    if let Some(first_char) = string.chars().next() {
+        if first_char.is_numeric() || first_char == '-' {
+            string = format!("_{}", string);
+        }
+    }
+
+    string.replace(['[', ']', ' ', '.', '-', '*'], "_")
 }
 
 fn gen_builtin_strings() -> io::Result<Vec<u8>> {
@@ -54,9 +63,11 @@ fn gen_builtin_strings() -> io::Result<Vec<u8>> {
             output.push_str(string.as_str());
             output.push_str("\")),\n");
         } else {
-            output.push_str(": crate::ecmascript::types::String::String(StringIndex::from_index(");
+            output.push_str(
+                ": crate::ecmascript::types::String::String(HeapString(StringIndex::from_index(",
+            );
             output.push_str(&format!("{}", i));
-            output.push_str(")),\n");
+            output.push_str("))),\n");
             i += 1;
         }
     }

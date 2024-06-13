@@ -1,12 +1,9 @@
 use crate::{
     ecmascript::{
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoFunction, String, Value, BUILTIN_STRING_MEMORY},
+        types::{PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -19,7 +16,9 @@ impl Builtin for AsyncIteratorPrototypeIterator {
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(AsyncIteratorPrototype::iterator);
 }
-
+impl BuiltinGetter for AsyncIteratorPrototypeIterator {
+    const KEY: PropertyKey = WellKnownSymbolIndexes::AsyncIterator.to_property_key();
+}
 impl AsyncIteratorPrototype {
     fn iterator(_agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         Ok(this_value)
@@ -27,22 +26,13 @@ impl AsyncIteratorPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.async_iterator_prototype();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(1)
-            .with_property(|builder| {
-                builder
-                    .with_key(WellKnownSymbolIndexes::AsyncIterator.into())
-                    .with_getter(|agent| {
-                        BuiltinFunctionBuilder::new::<AsyncIteratorPrototypeIterator>(agent, realm)
-                            .build()
-                            .into_function()
-                    })
-                    .with_enumerable(false)
-                    .with_configurable(true)
-                    .build()
-            })
+            .with_prototype(object_prototype)
+            .with_builtin_function_getter_property::<AsyncIteratorPrototypeIterator>()
             .build();
     }
 }

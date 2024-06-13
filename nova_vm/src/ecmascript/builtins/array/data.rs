@@ -1,6 +1,10 @@
-use crate::heap::{
-    element_array::{ElementArrayKey, ElementsVector},
-    indexes::{ElementIndex, ObjectIndex},
+use crate::{
+    ecmascript::types::OrdinaryObject,
+    heap::{
+        element_array::{ElementArrayKey, ElementsVector},
+        indexes::ElementIndex,
+        CompactionLists, HeapMarkAndSweep, WorkQueues,
+    },
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -31,6 +35,17 @@ impl SealableElementsVector {
     }
 }
 
+impl Default for SealableElementsVector {
+    fn default() -> Self {
+        Self {
+            elements_index: ElementIndex::from_u32_index(0),
+            cap: ElementArrayKey::Empty,
+            len: 0,
+            len_writable: true,
+        }
+    }
+}
+
 impl From<SealableElementsVector> for ElementsVector {
     #[inline(always)]
     fn from(value: SealableElementsVector) -> Self {
@@ -47,11 +62,38 @@ impl From<SealableElementsVector> for ElementsVector {
 /// is also called an element. Every Array has a non-configurable "**length**"
 /// property whose value is always a non-negative integral Number whose
 /// mathematical value is strictly less than 2**32.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct ArrayHeapData {
-    pub object_index: Option<ObjectIndex>,
+    pub object_index: Option<OrdinaryObject>,
     // TODO: Use enum { ElementsVector, SmallVec<[Value; 3]> }
     // to get some inline benefit together with a 32 byte size
     // for ArrayHeapData to fit two in one cache line.
     pub elements: SealableElementsVector,
+}
+
+impl HeapMarkAndSweep for SealableElementsVector {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let item = *self;
+        let elements: ElementsVector = item.into();
+        elements.mark_values(queues)
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let item = *self;
+        let mut elements: ElementsVector = item.into();
+        elements.sweep_values(compactions);
+        self.elements_index = elements.elements_index;
+    }
+}
+
+impl HeapMarkAndSweep for ArrayHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.object_index.mark_values(queues);
+        self.elements.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.object_index.sweep_values(compactions);
+        self.elements.sweep_values(compactions);
+    }
 }

@@ -282,6 +282,12 @@ pub(crate) enum WellKnownSymbolIndexes {
     Unscopables,
 }
 
+impl WellKnownSymbolIndexes {
+    pub const fn to_property_key(self) -> PropertyKey {
+        PropertyKey::Symbol(Symbol(SymbolIndex::from_u32_index(self as u32)))
+    }
+}
+
 impl From<WellKnownSymbolIndexes> for SymbolIndex {
     fn from(value: WellKnownSymbolIndexes) -> Self {
         SymbolIndex::from_u32_index(value as u32)

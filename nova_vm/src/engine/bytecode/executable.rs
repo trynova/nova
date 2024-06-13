@@ -1,15 +1,18 @@
 use super::{instructions::Instr, Instruction};
 use crate::{
     ecmascript::{
+        builtins::regexp::reg_exp_create,
         execution::Agent,
         scripts_and_modules::script::ScriptIdentifier,
         syntax_directed_operations::scope_analysis::{
             LexicallyScopedDeclaration, LexicallyScopedDeclarations,
         },
-        types::{BigIntHeapData, Reference, Value},
+        types::{BigIntHeapData, Reference, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::CreateHeapData,
 };
+use num_bigint::BigInt;
+use num_traits::Num;
 use oxc_ast::{
     ast::{self, CallExpression, FunctionBody, NewExpression, Statement},
     syntax_directed_operations::BoundNames,
@@ -24,6 +27,28 @@ pub(crate) struct CompileContext<'agent> {
     exe: Executable,
     /// NamedEvaluation name parameter
     name_identifier: Option<usize>,
+    /// If true, indicates that all bindings being created are lexical.
+    ///
+    /// Otherwise, all bindings being created are variable scoped.
+    lexical_binding_state: bool,
+    /// Place where to jump if a `continue;` is executed
+    current_continue: Option<JumpIndex>,
+    /// `break;` statement jumps that were present in the current loop
+    current_break: Option<Vec<JumpIndex>>,
+}
+
+impl CompileContext<'_> {
+    pub(crate) fn create_identifier(&mut self, atom: &Atom<'_>) -> String {
+        let existing =
+            self.exe.identifiers.iter().find(|existing_identifier| {
+                existing_identifier.as_str(self.agent) == atom.as_str()
+            });
+        if let Some(&existing) = existing {
+            existing
+        } else {
+            String::from_str(self.agent, atom.as_str())
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -41,7 +66,7 @@ pub(crate) struct FunctionExpression {
 pub(crate) struct Executable {
     pub instructions: Vec<u8>,
     pub(crate) constants: Vec<Value>,
-    pub(crate) identifiers: Vec<Atom>,
+    pub(crate) identifiers: Vec<String>,
     pub(crate) references: Vec<Reference>,
     pub(crate) function_expressions: Vec<FunctionExpression>,
 }
@@ -89,29 +114,25 @@ impl Executable {
     }
 
     pub(crate) fn compile_script(agent: &mut Agent, script: ScriptIdentifier) -> Executable {
-        eprintln!();
-        eprintln!("=== Compiling Script ===");
-        eprintln!();
+        if agent.options.print_internals {
+            eprintln!();
+            eprintln!("=== Compiling Script ===");
+            eprintln!();
+        }
         // SAFETY: Script uniquely owns the Program and the body buffer does
         // not move under any circumstances during heap operations.
-        let body: &[Statement] = unsafe {
-            std::mem::transmute(
-                agent
-                    .heap
-                    .get_script(script)
-                    .ecmascript_code
-                    .body
-                    .as_slice(),
-            )
-        };
+        let body: &[Statement] =
+            unsafe { std::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
 
         Self::_compile_statements(agent, body)
     }
 
     pub(crate) fn compile_function_body(agent: &mut Agent, body: &FunctionBody<'_>) -> Executable {
-        eprintln!();
-        eprintln!("=== Compiling Function ===");
-        eprintln!();
+        if agent.options.print_internals {
+            eprintln!();
+            eprintln!("=== Compiling Function ===");
+            eprintln!();
+        }
         // SAFETY: Script referred by the Function uniquely owns the Program
         // and the body buffer does not move under any circumstances during
         // heap operations.
@@ -131,6 +152,9 @@ impl Executable {
                 function_expressions: Vec::new(),
             },
             name_identifier: None,
+            lexical_binding_state: false,
+            current_continue: None,
+            current_break: None,
         };
 
         let iter = body.iter();
@@ -150,7 +174,7 @@ impl Executable {
 
     fn _push_instruction(&mut self, instruction: Instruction) {
         self.instructions
-            .push(unsafe { std::mem::transmute(instruction) });
+            .push(unsafe { std::mem::transmute::<Instruction, u8>(instruction) });
     }
 
     fn add_instruction(&mut self, instruction: Instruction) {
@@ -198,17 +222,17 @@ impl Executable {
         })
     }
 
-    fn add_identifier(&mut self, identifier: &Atom) -> usize {
+    fn add_identifier(&mut self, identifier: String) -> usize {
         let duplicate = self
             .identifiers
             .iter()
             .enumerate()
-            .find(|item| item.1 == identifier)
+            .find(|item| *item.1 == identifier)
             .map(|(idx, _)| idx);
 
         duplicate.unwrap_or_else(|| {
             let index = self.identifiers.len();
-            self.identifiers.push(identifier.clone());
+            self.identifiers.push(identifier);
             index
         })
     }
@@ -231,7 +255,7 @@ impl Executable {
         self.add_index(constant);
     }
 
-    fn add_instruction_with_identifier(&mut self, instruction: Instruction, identifier: &Atom) {
+    fn add_instruction_with_identifier(&mut self, instruction: Instruction, identifier: String) {
         debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_identifier_index());
         self._push_instruction(instruction);
@@ -242,7 +266,7 @@ impl Executable {
     fn add_instruction_with_identifier_and_constant(
         &mut self,
         instruction: Instruction,
-        identifier: &Atom,
+        identifier: String,
         constant: impl Into<Value>,
     ) {
         debug_assert_eq!(instruction.argument_count(), 2);
@@ -252,6 +276,18 @@ impl Executable {
         self.add_index(identifier);
         let constant = self.add_constant(constant.into());
         self.add_index(constant);
+    }
+
+    fn add_instruction_with_immediate_and_immediate(
+        &mut self,
+        instruction: Instruction,
+        immediate1: usize,
+        immediate2: usize,
+    ) {
+        debug_assert_eq!(instruction.argument_count(), 2);
+        self._push_instruction(instruction);
+        self.add_index(immediate1);
+        self.add_index(immediate2)
     }
 
     fn add_index(&mut self, index: usize) {
@@ -289,7 +325,8 @@ impl Executable {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[repr(transparent)]
 pub(crate) struct JumpIndex {
     pub(crate) index: usize,
 }
@@ -301,7 +338,9 @@ pub(crate) trait CompileEvaluation {
 fn is_reference(expression: &ast::Expression) -> bool {
     match expression {
         ast::Expression::Identifier(_)
-        | ast::Expression::MemberExpression(_)
+        | ast::Expression::ComputedMemberExpression(_)
+        | ast::Expression::StaticMemberExpression(_)
+        | ast::Expression::PrivateFieldExpression(_)
         | ast::Expression::Super(_) => true,
         ast::Expression::ParenthesizedExpression(parenthesized) => {
             is_reference(&parenthesized.expression)
@@ -310,7 +349,7 @@ fn is_reference(expression: &ast::Expression) -> bool {
     }
 }
 
-impl CompileEvaluation for ast::NumberLiteral<'_> {
+impl CompileEvaluation for ast::NumericLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let constant = ctx.agent.heap.create(self.value);
         ctx.exe
@@ -325,10 +364,20 @@ impl CompileEvaluation for ast::BooleanLiteral {
     }
 }
 
-impl CompileEvaluation for ast::BigintLiteral {
+impl CompileEvaluation for ast::BigIntLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        let radix = match self.base {
+            oxc_syntax::number::BigintBase::Decimal => 10,
+            oxc_syntax::number::BigintBase::Binary => 2,
+            oxc_syntax::number::BigintBase::Octal => 8,
+            oxc_syntax::number::BigintBase::Hex => 16,
+        };
+        // Drop out the trailing 'n' from BigInt literals.
+        let last_index = self.raw.len() - 1;
+        let big_int_str = &self.raw.as_str()[..last_index];
         let constant = ctx.agent.heap.create(BigIntHeapData {
-            data: self.value.clone(),
+            // Drop out the trailing 'n' from BigInt literals.
+            data: BigInt::from_str_radix(big_int_str, radix).unwrap(),
         });
         ctx.exe
             .add_instruction_with_constant(Instruction::StoreConstant, constant);
@@ -342,25 +391,27 @@ impl CompileEvaluation for ast::NullLiteral {
     }
 }
 
-impl CompileEvaluation for ast::StringLiteral {
+impl CompileEvaluation for ast::StringLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        let constant = Value::from_str(ctx.agent, self.value.as_str());
+        let constant = String::from_str(ctx.agent, self.value.as_str());
         ctx.exe
             .add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
 }
 
-impl CompileEvaluation for ast::IdentifierReference {
+impl CompileEvaluation for ast::IdentifierReference<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        let identifier = String::from_str(ctx.agent, self.name.as_str());
         ctx.exe
-            .add_instruction_with_identifier(Instruction::ResolveBinding, &self.name);
+            .add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
     }
 }
 
-impl CompileEvaluation for ast::BindingIdentifier {
+impl CompileEvaluation for ast::BindingIdentifier<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        let identifier = String::from_str(ctx.agent, self.name.as_str());
         ctx.exe
-            .add_instruction_with_identifier(Instruction::ResolveBinding, &self.name);
+            .add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
     }
 }
 
@@ -466,69 +517,6 @@ impl CompileEvaluation for ast::UnaryExpression<'_> {
 
 impl CompileEvaluation for ast::BinaryExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        match self.operator {
-            BinaryOperator::LessThan => {
-                // 13.10.1 Runtime Semantics: Evaluation
-                // RelationalExpression : RelationalExpression < ShiftExpression
-
-                // 1. Let lref be ? Evaluation of RelationalExpression.
-                self.left.compile(ctx);
-
-                // 2. Let lval be ? GetValue(lref).
-                if is_reference(&self.left) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                }
-                ctx.exe.add_instruction(Instruction::Load);
-
-                // 3. Let rref be ? Evaluation of ShiftExpression.
-                self.right.compile(ctx);
-
-                // 4. Let rval be ? GetValue(rref).
-                if is_reference(&self.right) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                }
-
-                // 5. Let r be ? IsLessThan(lval, rval, true).
-                // 6. If r is undefined, return false. Otherwise, return r.
-                ctx.exe.add_instruction(Instruction::LessThan);
-                return;
-            }
-            BinaryOperator::StrictEquality => {
-                self.left.compile(ctx);
-                if is_reference(&self.left) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                }
-                ctx.exe.add_instruction(Instruction::Load);
-
-                self.right.compile(ctx);
-                if is_reference(&self.right) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                }
-
-                ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
-                return;
-            }
-            BinaryOperator::StrictInequality => {
-                self.left.compile(ctx);
-                if is_reference(&self.left) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                }
-                ctx.exe.add_instruction(Instruction::Load);
-
-                self.right.compile(ctx);
-                if is_reference(&self.right) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                }
-
-                ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
-                ctx.exe.add_instruction(Instruction::LogicalNot);
-                return;
-            }
-            _ => {
-                // TODO(@carter): Figure out if this fallthrough is correct?
-            }
-        }
-
         // 1. Let lref be ? Evaluation of leftOperand.
         self.left.compile(ctx);
 
@@ -546,27 +534,108 @@ impl CompileEvaluation for ast::BinaryExpression<'_> {
             ctx.exe.add_instruction(Instruction::GetValue);
         }
 
-        ctx.exe.add_instruction(Instruction::Load);
+        match self.operator {
+            BinaryOperator::LessThan => {
+                ctx.exe.add_instruction(Instruction::LessThan);
+            }
+            BinaryOperator::LessEqualThan => {
+                ctx.exe.add_instruction(Instruction::LessThanEquals);
+            }
+            BinaryOperator::GreaterThan => {
+                ctx.exe.add_instruction(Instruction::GreaterThan);
+            }
+            BinaryOperator::GreaterEqualThan => {
+                ctx.exe.add_instruction(Instruction::GreaterThanEquals);
+            }
+            BinaryOperator::StrictEquality => {
+                ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
+            }
+            BinaryOperator::StrictInequality => {
+                ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
+                ctx.exe.add_instruction(Instruction::LogicalNot);
+            }
+            BinaryOperator::Equality => {
+                ctx.exe.add_instruction(Instruction::IsLooselyEqual);
+            }
+            BinaryOperator::Inequality => {
+                ctx.exe.add_instruction(Instruction::IsLooselyEqual);
+                ctx.exe.add_instruction(Instruction::LogicalNot);
+            }
+            BinaryOperator::In => {
+                ctx.exe.add_instruction(Instruction::HasProperty);
+            }
+            BinaryOperator::Instanceof => {
+                ctx.exe.add_instruction(Instruction::InstanceofOperator);
+            }
+            _ => {
+                // 5. Return ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
+                ctx.exe
+                    .add_instruction(Instruction::ApplyStringOrNumericBinaryOperator(
+                        self.operator,
+                    ));
+            }
+        }
+    }
+}
 
-        // 5. Return ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
-        ctx.exe
-            .add_instruction(Instruction::ApplyStringOrNumericBinaryOperator(
-                self.operator,
-            ));
+impl CompileEvaluation for ast::LogicalExpression<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        self.left.compile(ctx);
+        if is_reference(&self.left) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        // We store the left value on the stack, because we'll need to restore
+        // it later.
+        ctx.exe.add_instruction(Instruction::LoadCopy);
+
+        match self.operator {
+            oxc_syntax::operator::LogicalOperator::Or => {
+                ctx.exe.add_instruction(Instruction::LogicalNot);
+            }
+            oxc_syntax::operator::LogicalOperator::And => {}
+            oxc_syntax::operator::LogicalOperator::Coalesce => {
+                ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
+            }
+        }
+        let jump_to_return_left = ctx
+            .exe
+            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+
+        // We're returning the right expression, so we discard the left value
+        // at the top of the stack.
+        ctx.exe.add_instruction(Instruction::Store);
+
+        self.right.compile(ctx);
+        if is_reference(&self.right) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        let jump_to_end = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+
+        ctx.exe.set_jump_target_here(jump_to_return_left);
+        // Return the result of the left expression.
+        ctx.exe.add_instruction(Instruction::Store);
+        ctx.exe.set_jump_target_here(jump_to_end);
     }
 }
 
 impl CompileEvaluation for ast::AssignmentExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        let ast::AssignmentTarget::SimpleAssignmentTarget(target) = &self.left else {
-            todo!("{:?}", self.left);
-        };
+        match &self.left {
+            ast::AssignmentTarget::ArrayAssignmentTarget(_) => todo!(),
+            ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) => {
+                identifier.compile(ctx)
+            }
+            ast::AssignmentTarget::ComputedMemberExpression(expression) => expression.compile(ctx),
+            ast::AssignmentTarget::ObjectAssignmentTarget(_) => todo!(),
+            ast::AssignmentTarget::PrivateFieldExpression(_) => todo!(),
+            ast::AssignmentTarget::StaticMemberExpression(expression) => expression.compile(ctx),
+            ast::AssignmentTarget::TSAsExpression(_)
+            | ast::AssignmentTarget::TSSatisfiesExpression(_)
+            | ast::AssignmentTarget::TSNonNullExpression(_)
+            | ast::AssignmentTarget::TSTypeAssertion(_)
+            | ast::AssignmentTarget::TSInstantiationExpression(_) => unreachable!(),
+        }
 
-        let ast::SimpleAssignmentTarget::AssignmentTargetIdentifier(identifier) = &target else {
-            todo!("{target:?}");
-        };
-
-        identifier.compile(ctx);
         ctx.exe.add_instruction(Instruction::PushReference);
 
         self.right.compile(ctx);
@@ -586,7 +655,7 @@ impl CompileEvaluation for ast::ParenthesizedExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::ArrowExpression<'_> {
+impl CompileEvaluation for ast::ArrowFunctionExpression<'_> {
     fn compile(&self, _ctx: &mut CompileContext) {
         todo!()
     }
@@ -614,19 +683,82 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
             match property {
                 ast::ObjectPropertyKind::ObjectProperty(prop) => {
                     match &prop.key {
-                        ast::PropertyKey::Identifier(id) => {
-                            // TODO: If property key is __proto__ and it is not a shorthand ({ __proto__ })
-                            // then we should dispatch a SetPrototype instruction.
-                            let property_key = crate::ecmascript::types::PropertyKey::from_str(
-                                ctx.agent, &id.name,
-                            );
-                            ctx.exe.add_instruction_with_constant(
-                                Instruction::LoadConstant,
-                                property_key,
-                            );
+                        ast::PropertyKey::ArrayExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::ArrowFunctionExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::AssignmentExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::AwaitExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::BigintLiteral(init) => init.compile(ctx),
+                        ast::PropertyKey::BinaryExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::BooleanLiteral(init) => init.compile(ctx),
+                        ast::PropertyKey::CallExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::ChainExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::ClassExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::ComputedMemberExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::ConditionalExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::FunctionExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::Identifier(init) => init.compile(ctx),
+                        ast::PropertyKey::ImportExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::LogicalExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::MetaProperty(init) => init.compile(ctx),
+                        ast::PropertyKey::NewExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::NullLiteral(init) => init.compile(ctx),
+                        ast::PropertyKey::NumericLiteral(init) => init.compile(ctx),
+                        ast::PropertyKey::ObjectExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::ParenthesizedExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::PrivateFieldExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::PrivateIdentifier(_init) => todo!(),
+                        ast::PropertyKey::PrivateInExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::RegExpLiteral(init) => init.compile(ctx),
+                        ast::PropertyKey::SequenceExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::StaticIdentifier(id) => {
+                            if id.name == "__proto__" {
+                                // TODO: If property key is "__proto__" then we
+                                // should dispatch a SetPrototype instruction.
+                                todo!();
+                            } else {
+                                let property_key = crate::ecmascript::types::PropertyKey::from_str(
+                                    ctx.agent, &id.name,
+                                );
+                                ctx.exe.add_instruction_with_constant(
+                                    Instruction::LoadConstant,
+                                    property_key,
+                                );
+                            }
                         }
-                        ast::PropertyKey::PrivateIdentifier(_) => todo!(),
-                        ast::PropertyKey::Expression(_) => todo!(),
+                        ast::PropertyKey::StaticMemberExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::StringLiteral(init) => {
+                            if !prop.computed && init.value == "__proto__" {
+                                // TODO: If property key is "__proto__" then we
+                                // should dispatch a SetPrototype instruction.
+                                todo!();
+                            } else {
+                                let property_key = crate::ecmascript::types::PropertyKey::from_str(
+                                    ctx.agent,
+                                    &init.value,
+                                );
+                                ctx.exe.add_instruction_with_constant(
+                                    Instruction::LoadConstant,
+                                    property_key,
+                                );
+                            }
+                        }
+                        ast::PropertyKey::Super(init) => {
+                            init.compile(ctx);
+                            ctx.exe.add_instruction(Instruction::GetValue);
+                        }
+                        ast::PropertyKey::TaggedTemplateExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::TemplateLiteral(init) => init.compile(ctx),
+                        ast::PropertyKey::ThisExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::UnaryExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::UpdateExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::YieldExpression(init) => init.compile(ctx),
+                        ast::PropertyKey::JSXElement(_)
+                        | ast::PropertyKey::JSXFragment(_)
+                        | ast::PropertyKey::TSAsExpression(_)
+                        | ast::PropertyKey::TSSatisfiesExpression(_)
+                        | ast::PropertyKey::TSTypeAssertion(_)
+                        | ast::PropertyKey::TSNonNullExpression(_)
+                        | ast::PropertyKey::TSInstantiationExpression(_) => unreachable!(),
                     }
                     prop.value.compile(ctx);
                     if is_reference(&prop.value) {
@@ -652,19 +784,155 @@ impl CompileEvaluation for ast::ArrayExpression<'_> {
             .add_instruction_with_immediate(Instruction::ArrayCreate, elements_min_count);
         for ele in &self.elements {
             match ele {
-                ast::ArrayExpressionElement::SpreadElement(_) => todo!(),
-                ast::ArrayExpressionElement::Expression(expr) => {
-                    expr.compile(ctx);
-                    if is_reference(expr) {
+                ast::ArrayExpressionElement::ArrayExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::ArrowFunctionExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::AssignmentExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::AwaitExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::BigintLiteral(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::BinaryExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::BooleanLiteral(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::CallExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::ChainExpression(init) => {
+                    init.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ast::ArrayExpressionElement::ClassExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::ComputedMemberExpression(init) => {
+                    init.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ast::ArrayExpressionElement::ConditionalExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::Elision(_) => todo!(),
+                ast::ArrayExpressionElement::FunctionExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::Identifier(init) => {
+                    init.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ast::ArrayExpressionElement::ImportExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::LogicalExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::MetaProperty(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::NewExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::NullLiteral(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::NumericLiteral(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::ObjectExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::ParenthesizedExpression(init) => {
+                    init.compile(ctx);
+                    if is_reference(&init.expression) {
                         ctx.exe.add_instruction(Instruction::GetValue);
                     }
-
-                    ctx.exe.add_instruction(Instruction::ArrayPush);
                 }
-                ast::ArrayExpressionElement::Elision(_) => todo!(),
+                ast::ArrayExpressionElement::PrivateFieldExpression(init) => {
+                    init.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ast::ArrayExpressionElement::PrivateInExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::RegExpLiteral(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::SequenceExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::SpreadElement(_) => todo!(),
+                ast::ArrayExpressionElement::StaticMemberExpression(init) => {
+                    init.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ast::ArrayExpressionElement::StringLiteral(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::Super(init) => {
+                    init.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ast::ArrayExpressionElement::TaggedTemplateExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::TemplateLiteral(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::ThisExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::UnaryExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::UpdateExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::YieldExpression(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::JSXElement(_)
+                | ast::ArrayExpressionElement::JSXFragment(_)
+                | ast::ArrayExpressionElement::TSAsExpression(_)
+                | ast::ArrayExpressionElement::TSSatisfiesExpression(_)
+                | ast::ArrayExpressionElement::TSTypeAssertion(_)
+                | ast::ArrayExpressionElement::TSNonNullExpression(_)
+                | ast::ArrayExpressionElement::TSInstantiationExpression(_) => unreachable!(),
             }
+            ctx.exe.add_instruction(Instruction::ArrayPush);
         }
         ctx.exe.add_instruction(Instruction::Store);
+    }
+}
+
+impl CompileEvaluation for ast::Argument<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        match self {
+            ast::Argument::SpreadElement(_) => {
+                panic!("Cannot support SpreadElements currently")
+            }
+            _ => {
+                match self {
+                    ast::Argument::BooleanLiteral(x) => x.compile(ctx),
+                    ast::Argument::NullLiteral(x) => x.compile(ctx),
+                    ast::Argument::NumericLiteral(x) => x.compile(ctx),
+                    ast::Argument::BigintLiteral(x) => x.compile(ctx),
+                    ast::Argument::RegExpLiteral(x) => x.compile(ctx),
+                    ast::Argument::StringLiteral(x) => x.compile(ctx),
+                    ast::Argument::TemplateLiteral(x) => x.compile(ctx),
+                    ast::Argument::MetaProperty(x) => x.compile(ctx),
+                    ast::Argument::ArrayExpression(x) => x.compile(ctx),
+                    ast::Argument::ArrowFunctionExpression(x) => x.compile(ctx),
+                    ast::Argument::AssignmentExpression(x) => x.compile(ctx),
+                    ast::Argument::AwaitExpression(x) => x.compile(ctx),
+                    ast::Argument::BinaryExpression(x) => x.compile(ctx),
+                    ast::Argument::CallExpression(x) => x.compile(ctx),
+                    ast::Argument::ChainExpression(x) => x.compile(ctx),
+                    ast::Argument::ClassExpression(x) => x.compile(ctx),
+                    ast::Argument::ConditionalExpression(x) => x.compile(ctx),
+                    ast::Argument::FunctionExpression(x) => x.compile(ctx),
+                    ast::Argument::ImportExpression(x) => x.compile(ctx),
+                    ast::Argument::LogicalExpression(x) => x.compile(ctx),
+                    ast::Argument::NewExpression(x) => x.compile(ctx),
+                    ast::Argument::ObjectExpression(x) => x.compile(ctx),
+                    ast::Argument::SequenceExpression(x) => x.compile(ctx),
+                    ast::Argument::TaggedTemplateExpression(x) => x.compile(ctx),
+                    ast::Argument::ThisExpression(x) => x.compile(ctx),
+                    ast::Argument::UnaryExpression(x) => x.compile(ctx),
+                    ast::Argument::UpdateExpression(x) => x.compile(ctx),
+                    ast::Argument::YieldExpression(x) => x.compile(ctx),
+                    ast::Argument::PrivateInExpression(x) => x.compile(ctx),
+                    ast::Argument::Identifier(x) => {
+                        x.compile(ctx);
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    ast::Argument::Super(x) => {
+                        x.compile(ctx);
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    ast::Argument::ParenthesizedExpression(x) => {
+                        x.compile(ctx);
+                        if is_reference(&x.expression) {
+                            ctx.exe.add_instruction(Instruction::GetValue);
+                        }
+                    }
+                    ast::Argument::ComputedMemberExpression(x) => {
+                        x.compile(ctx);
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    ast::Argument::StaticMemberExpression(x) => {
+                        x.compile(ctx);
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    ast::Argument::PrivateFieldExpression(x) => {
+                        x.compile(ctx);
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    ast::Argument::SpreadElement(_)
+                    | ast::Argument::JSXElement(_)
+                    | ast::Argument::JSXFragment(_)
+                    | ast::Argument::TSAsExpression(_)
+                    | ast::Argument::TSSatisfiesExpression(_)
+                    | ast::Argument::TSTypeAssertion(_)
+                    | ast::Argument::TSNonNullExpression(_)
+                    | ast::Argument::TSInstantiationExpression(_) => unreachable!(),
+                }
+                ctx.exe.add_instruction(Instruction::Load);
+            }
+        }
     }
 }
 
@@ -676,18 +944,7 @@ impl CompileEvaluation for CallExpression<'_> {
         }
         ctx.exe.add_instruction(Instruction::Load);
         for ele in &self.arguments {
-            match ele {
-                ast::Argument::SpreadElement(_) => {
-                    panic!("Cannot support SpreadElements currently")
-                }
-                ast::Argument::Expression(expr) => {
-                    expr.compile(ctx);
-                    if is_reference(expr) {
-                        ctx.exe.add_instruction(Instruction::GetValue);
-                    }
-                    ctx.exe.add_instruction(Instruction::Load);
-                }
-            }
+            ele.compile(ctx);
         }
 
         ctx.exe
@@ -703,18 +960,7 @@ impl CompileEvaluation for NewExpression<'_> {
         }
         ctx.exe.add_instruction(Instruction::Load);
         for ele in &self.arguments {
-            match ele {
-                ast::Argument::SpreadElement(_) => {
-                    panic!("Cannot support SpreadElements currently")
-                }
-                ast::Argument::Expression(expr) => {
-                    expr.compile(ctx);
-                    if is_reference(expr) {
-                        ctx.exe.add_instruction(Instruction::GetValue);
-                    }
-                    ctx.exe.add_instruction(Instruction::Load);
-                }
-            }
+            ele.compile(ctx);
         }
 
         ctx.exe
@@ -766,9 +1012,10 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
         }
 
         // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
+        let identifier = String::from_str(ctx.agent, self.property.name.as_str());
         ctx.exe.add_instruction_with_identifier(
             Instruction::EvaluatePropertyAccessWithIdentifierKey,
-            &self.property.name,
+            identifier,
         );
     }
 }
@@ -779,27 +1026,145 @@ impl CompileEvaluation for ast::PrivateFieldExpression<'_> {
     }
 }
 
+impl CompileEvaluation for ast::AwaitExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::ChainExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::Class<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::ConditionalExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::ImportExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::MetaProperty<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::PrivateInExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::RegExpLiteral<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        let pattern = String::from_str(ctx.agent, self.regex.pattern.as_str());
+        let regexp =
+            reg_exp_create(ctx.agent, pattern.into_value(), Some(self.regex.flags)).unwrap();
+        ctx.exe
+            .add_instruction_with_constant(Instruction::StoreConstant, regexp);
+    }
+}
+
+impl CompileEvaluation for ast::SequenceExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::Super {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::TaggedTemplateExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::TemplateLiteral<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::ThisExpression {
+    fn compile(&self, ctx: &mut CompileContext) {
+        ctx.exe.add_instruction(Instruction::ResolveThisBinding);
+    }
+}
+
+impl CompileEvaluation for ast::UsingDeclaration<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
+impl CompileEvaluation for ast::YieldExpression<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!()
+    }
+}
+
 impl CompileEvaluation for ast::Expression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
-            ast::Expression::NumberLiteral(x) => x.compile(ctx),
-            ast::Expression::BooleanLiteral(x) => x.compile(ctx),
-            ast::Expression::Identifier(x) => x.compile(ctx),
-            ast::Expression::BigintLiteral(x) => x.compile(ctx),
-            ast::Expression::UnaryExpression(x) => x.compile(ctx),
-            ast::Expression::BinaryExpression(x) => x.compile(ctx),
-            ast::Expression::AssignmentExpression(x) => x.compile(ctx),
-            ast::Expression::ParenthesizedExpression(x) => x.compile(ctx),
-            ast::Expression::NullLiteral(x) => x.compile(ctx),
-            ast::Expression::StringLiteral(x) => x.compile(ctx),
-            ast::Expression::FunctionExpression(x) => x.compile(ctx),
-            ast::Expression::ObjectExpression(x) => x.compile(ctx),
-            ast::Expression::CallExpression(x) => x.compile(ctx),
-            ast::Expression::MemberExpression(x) => x.compile(ctx),
-            ast::Expression::UpdateExpression(x) => x.compile(ctx),
             ast::Expression::ArrayExpression(x) => x.compile(ctx),
+            ast::Expression::ArrowFunctionExpression(x) => x.compile(ctx),
+            ast::Expression::AssignmentExpression(x) => x.compile(ctx),
+            ast::Expression::AwaitExpression(x) => x.compile(ctx),
+            ast::Expression::BigintLiteral(x) => x.compile(ctx),
+            ast::Expression::BinaryExpression(x) => x.compile(ctx),
+            ast::Expression::BooleanLiteral(x) => x.compile(ctx),
+            ast::Expression::CallExpression(x) => x.compile(ctx),
+            ast::Expression::ChainExpression(x) => x.compile(ctx),
+            ast::Expression::ClassExpression(x) => x.compile(ctx),
+            ast::Expression::ComputedMemberExpression(x) => x.compile(ctx),
+            ast::Expression::ConditionalExpression(x) => x.compile(ctx),
+            ast::Expression::FunctionExpression(x) => x.compile(ctx),
+            ast::Expression::Identifier(x) => x.compile(ctx),
+            ast::Expression::ImportExpression(x) => x.compile(ctx),
+            ast::Expression::LogicalExpression(x) => x.compile(ctx),
+            ast::Expression::MetaProperty(x) => x.compile(ctx),
             ast::Expression::NewExpression(x) => x.compile(ctx),
-            other => todo!("{other:?}"),
+            ast::Expression::NullLiteral(x) => x.compile(ctx),
+            ast::Expression::NumericLiteral(x) => x.compile(ctx),
+            ast::Expression::ObjectExpression(x) => x.compile(ctx),
+            ast::Expression::ParenthesizedExpression(x) => x.compile(ctx),
+            ast::Expression::PrivateFieldExpression(x) => x.compile(ctx),
+            ast::Expression::PrivateInExpression(x) => x.compile(ctx),
+            ast::Expression::RegExpLiteral(x) => x.compile(ctx),
+            ast::Expression::SequenceExpression(x) => x.compile(ctx),
+            ast::Expression::StaticMemberExpression(x) => x.compile(ctx),
+            ast::Expression::StringLiteral(x) => x.compile(ctx),
+            ast::Expression::Super(x) => x.compile(ctx),
+            ast::Expression::TaggedTemplateExpression(x) => x.compile(ctx),
+            ast::Expression::TemplateLiteral(x) => x.compile(ctx),
+            ast::Expression::ThisExpression(x) => x.compile(ctx),
+            ast::Expression::UnaryExpression(x) => x.compile(ctx),
+            ast::Expression::UpdateExpression(x) => x.compile(ctx),
+            ast::Expression::YieldExpression(x) => x.compile(ctx),
+            ast::Expression::JSXElement(_)
+            | ast::Expression::JSXFragment(_)
+            | ast::Expression::TSAsExpression(_)
+            | ast::Expression::TSSatisfiesExpression(_)
+            | ast::Expression::TSTypeAssertion(_)
+            | ast::Expression::TSNonNullExpression(_)
+            | ast::Expression::TSInstantiationExpression(_) => unreachable!(),
         }
     }
 }
@@ -808,10 +1173,13 @@ impl CompileEvaluation for ast::UpdateExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match &self.argument {
             ast::SimpleAssignmentTarget::AssignmentTargetIdentifier(x) => x.compile(ctx),
-            ast::SimpleAssignmentTarget::MemberAssignmentTarget(_) => todo!(),
+            ast::SimpleAssignmentTarget::ComputedMemberExpression(x) => x.compile(ctx),
+            ast::SimpleAssignmentTarget::PrivateFieldExpression(_) => todo!(),
+            ast::SimpleAssignmentTarget::StaticMemberExpression(x) => x.compile(ctx),
             ast::SimpleAssignmentTarget::TSAsExpression(_)
-            | ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
+            | ast::SimpleAssignmentTarget::TSInstantiationExpression(_)
             | ast::SimpleAssignmentTarget::TSNonNullExpression(_)
+            | ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
             | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         }
         ctx.exe.add_instruction(Instruction::GetValueKeepReference);
@@ -874,6 +1242,402 @@ impl CompileEvaluation for ast::IfStatement<'_> {
     }
 }
 
+impl CompileEvaluation for ast::ArrayPattern<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        if self.elements.is_empty() {
+            return;
+        }
+
+        // TODO: Lift rest parameter restriction; it's eminently possible to
+        // handle those as well.
+        let simple = if self.rest.is_none()
+            && !self.elements.iter().any(|ele| {
+                // An array destructuring formed of only skipped values
+                !ele.is_none()
+                    // and binding identifier
+                        && !matches!(
+                            ele.as_ref().unwrap().kind,
+                            ast::BindingPatternKind::BindingIdentifier(_)
+                        )
+            }) {
+            // can be
+            ctx.exe.add_instruction_with_immediate_and_immediate(
+                Instruction::BeginSimpleArrayBindingPattern,
+                self.elements.len(),
+                ctx.lexical_binding_state.into(),
+            );
+            true
+        } else {
+            ctx.exe.add_instruction_with_immediate(
+                Instruction::BeginArrayBindingPattern,
+                ctx.lexical_binding_state.into(),
+            );
+            false
+        };
+        for ele in &self.elements {
+            let Some(ele) = ele else {
+                ctx.exe.add_instruction(Instruction::BindingPatternSkip);
+                continue;
+            };
+            match &ele.kind {
+                ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                    let identifier_string = ctx.create_identifier(&identifier.name);
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::BindingPatternBind,
+                        identifier_string,
+                    )
+                }
+                ast::BindingPatternKind::ObjectPattern(pattern) => {
+                    ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
+                    pattern.compile(ctx);
+                }
+                ast::BindingPatternKind::ArrayPattern(pattern) => {
+                    ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
+                    pattern.compile(ctx);
+                }
+                ast::BindingPatternKind::AssignmentPattern(pattern) => {
+                    pattern.compile(ctx);
+                }
+            }
+        }
+        if let Some(rest) = &self.rest {
+            match &rest.argument.kind {
+                ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                    let identifier_string = ctx.create_identifier(&identifier.name);
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::BindingPatternBindRest,
+                        identifier_string,
+                    );
+                }
+                ast::BindingPatternKind::ObjectPattern(pattern) => {
+                    ctx.exe
+                        .add_instruction(Instruction::BindingPatternGetRestValue);
+                    pattern.compile(ctx);
+                }
+                ast::BindingPatternKind::ArrayPattern(pattern) => {
+                    ctx.exe
+                        .add_instruction(Instruction::BindingPatternGetRestValue);
+                    pattern.compile(ctx);
+                }
+                ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
+            }
+        }
+        if !simple {
+            ctx.exe.add_instruction(Instruction::FinishBindingPattern);
+        }
+    }
+}
+
+impl CompileEvaluation for ast::ObjectPattern<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        ctx.exe.add_instruction_with_immediate(
+            Instruction::BeginObjectBindingPattern,
+            ctx.lexical_binding_state.into(),
+        );
+
+        for ele in &self.properties {
+            match &ele.key {
+                ast::PropertyKey::StaticIdentifier(identifier) => {
+                    let identifier_string = ctx.create_identifier(&identifier.name);
+                    if ele.shorthand {
+                        if let ast::BindingPatternKind::AssignmentPattern(_) = &ele.value.kind {
+                            todo!();
+                        } else {
+                            ctx.exe.add_instruction_with_identifier(
+                                Instruction::BindingPatternBind,
+                                identifier_string,
+                            );
+                        }
+                        // Skip the rest of the hard work.
+                        continue;
+                    }
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::EvaluatePropertyAccessWithIdentifierKey,
+                        identifier_string,
+                    );
+                }
+                ast::PropertyKey::PrivateIdentifier(_) => todo!(),
+                ast::PropertyKey::BooleanLiteral(boolean) => {
+                    // SAFETY: Keys use ToString, which special cases booleans.
+                    let identifier_string = if boolean.value {
+                        BUILTIN_STRING_MEMORY.r#true
+                    } else {
+                        BUILTIN_STRING_MEMORY.r#false
+                    };
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::EvaluatePropertyAccessWithIdentifierKey,
+                        identifier_string,
+                    );
+                }
+                ast::PropertyKey::NullLiteral(_) => {
+                    // SAFETY: Keys use ToString, which special cases null.
+                    let identifier_string = BUILTIN_STRING_MEMORY.null;
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::BindingPatternBind,
+                        identifier_string,
+                    );
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::EvaluatePropertyAccessWithIdentifierKey,
+                        identifier_string,
+                    );
+                }
+                ast::PropertyKey::NumericLiteral(numeric) => {
+                    // SAFETY: Keys use ToString, which special cases numbers
+                    // by calling Number::toString(argument, 10). The work is
+                    // inlined here.
+                    let mut buffer = ryu_js::Buffer::new();
+                    let identifier_string =
+                        String::from_string(ctx.agent, buffer.format(numeric.value).to_string());
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::EvaluatePropertyAccessWithIdentifierKey,
+                        identifier_string,
+                    );
+                }
+                ast::PropertyKey::StringLiteral(literal) => {
+                    let identifier_string = ctx.create_identifier(&literal.value);
+                    if let ast::BindingPatternKind::BindingIdentifier(binding) = &ele.value.kind {
+                        if binding.name == literal.value {
+                            // const { "asd": asd } = source;
+                            ctx.exe.add_instruction_with_identifier(
+                                Instruction::BindingPatternBind,
+                                identifier_string,
+                            );
+                            // Skip the rest of the hard stuff
+                            continue;
+                        }
+                    }
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::EvaluatePropertyAccessWithIdentifierKey,
+                        identifier_string,
+                    );
+                }
+                ast::PropertyKey::ArrayExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::ArrowFunctionExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::AssignmentExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::AwaitExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::BigintLiteral(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::BinaryExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::CallExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::ChainExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::ClassExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::ConditionalExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::FunctionExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::ImportExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::LogicalExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::MetaProperty(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::NewExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::ObjectExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::PrivateInExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::RegExpLiteral(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::SequenceExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::TaggedTemplateExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::TemplateLiteral(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::ThisExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::UnaryExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::UpdateExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::YieldExpression(expr) => {
+                    expr.compile(ctx);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::Identifier(x) => {
+                    x.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::Super(x) => {
+                    x.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::ParenthesizedExpression(x) => {
+                    x.compile(ctx);
+                    if is_reference(&x.expression) {
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                        ctx.exe
+                            .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                    }
+                }
+                ast::PropertyKey::ComputedMemberExpression(x) => {
+                    x.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::StaticMemberExpression(x) => {
+                    x.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::PrivateFieldExpression(x) => {
+                    x.compile(ctx);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                    ctx.exe
+                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                }
+                ast::PropertyKey::JSXElement(_)
+                | ast::PropertyKey::JSXFragment(_)
+                | ast::PropertyKey::TSAsExpression(_)
+                | ast::PropertyKey::TSSatisfiesExpression(_)
+                | ast::PropertyKey::TSTypeAssertion(_)
+                | ast::PropertyKey::TSNonNullExpression(_)
+                | ast::PropertyKey::TSInstantiationExpression(_) => unreachable!(),
+            }
+            // We have either evaluated the property access by identifier
+            // expression key. Now we need to assign resolve the access and
+            // bind the a value.
+            match &ele.value.kind {
+                ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                    let identifier_string = ctx.create_identifier(&identifier.name);
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::BindingPatternBind,
+                        identifier_string,
+                    );
+                }
+                // const { key: { a }} = value;
+                ast::BindingPatternKind::ObjectPattern(pattern) => {
+                    ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
+                    pattern.compile(ctx);
+                }
+                // const { key: [a] } = value;
+                ast::BindingPatternKind::ArrayPattern(pattern) => {
+                    ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
+                    pattern.compile(ctx);
+                }
+                // const { a = 3 } = value;
+                ast::BindingPatternKind::AssignmentPattern(_) => todo!(),
+            }
+        }
+        ctx.exe.add_instruction(Instruction::FinishBindingPattern);
+    }
+}
+
+impl CompileEvaluation for ast::AssignmentPattern<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        match &self.left.kind {
+            // const { a = 3 } = value;
+            // const [a = 3] = value;
+            ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                let identifier_string = ctx.create_identifier(&identifier.name);
+                ctx.exe.add_instruction_with_identifier(
+                    Instruction::BindingPatternBindWithInitializer,
+                    identifier_string,
+                );
+            }
+            // const {{ a } = right} = value;
+            ast::BindingPatternKind::ObjectPattern(_) => {
+                todo!();
+            }
+            // const [[ a ] = right] = value;
+            ast::BindingPatternKind::ArrayPattern(_) => {
+                todo!();
+            }
+            // Probably unreachable? Assignment into an assignment?
+            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
+        }
+        self.right.compile(ctx);
+    }
+}
+
 impl CompileEvaluation for ast::VariableDeclaration<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self.kind {
@@ -881,39 +1645,57 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
             ast::VariableDeclarationKind::Var => {
                 for decl in &self.declarations {
                     // VariableDeclaration : BindingIdentifier
-                    if decl.init.is_none() {
+                    let Some(init) = &decl.init else {
                         // 1. Return EMPTY.
                         return;
-                    }
+                    };
+                    // VariableDeclaration : BindingIdentifier Initializer
+
                     let ast::BindingPatternKind::BindingIdentifier(identifier) = &decl.id.kind
                     else {
-                        todo!("{:?}", decl.id.kind);
+                        //  VariableDeclaration : BindingPattern Initializer
+                        ctx.lexical_binding_state = false;
+                        // 1. Let rhs be ? Evaluation of Initializer.
+                        init.compile(ctx);
+                        // 2. Let rval be ? GetValue(rhs).
+                        if is_reference(init) {
+                            ctx.exe.add_instruction(Instruction::GetValue);
+                        }
+                        ctx.exe.add_instruction(Instruction::Load);
+                        // 3. Return ? BindingInitialization of BidingPattern with arguments rval and undefined.
+                        match &decl.id.kind {
+                            ast::BindingPatternKind::BindingIdentifier(_) => unreachable!(),
+                            ast::BindingPatternKind::ObjectPattern(pattern) => pattern.compile(ctx),
+                            ast::BindingPatternKind::ArrayPattern(pattern) => pattern.compile(ctx),
+                            ast::BindingPatternKind::AssignmentPattern(pattern) => {
+                                pattern.compile(ctx)
+                            }
+                        }
+                        return;
                     };
-
-                    // VariableDeclaration : BindingIdentifier Initializer
-                    let init = decl.init.as_ref().unwrap();
 
                     // 1. Let bindingId be StringValue of BindingIdentifier.
                     // 2. Let lhs be ? ResolveBinding(bindingId).
+                    let identifier_string = String::from_str(ctx.agent, identifier.name.as_str());
                     ctx.exe.add_instruction_with_identifier(
                         Instruction::ResolveBinding,
-                        &identifier.name,
+                        identifier_string,
                     );
                     ctx.exe.add_instruction(Instruction::PushReference);
 
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
                     match &init {
-                        ast::Expression::ArrowExpression(expr) => {
+                        ast::Expression::ArrowFunctionExpression(expr) => {
                             // Always anonymous
                             // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                            let name_identifier = ctx.exe.add_identifier(&identifier.name);
+                            let name_identifier = ctx.exe.add_identifier(identifier_string);
                             ctx.name_identifier = Some(name_identifier);
                             expr.compile(ctx);
                         }
                         ast::Expression::FunctionExpression(expr) => {
                             if expr.id.is_none() {
                                 // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                                let name_identifier = ctx.exe.add_identifier(&identifier.name);
+                                let name_identifier = ctx.exe.add_identifier(identifier_string);
                                 ctx.name_identifier = Some(name_identifier);
                             }
                             // 4. Else,
@@ -946,14 +1728,35 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                 for decl in &self.declarations {
                     let ast::BindingPatternKind::BindingIdentifier(identifier) = &decl.id.kind
                     else {
+                        ctx.lexical_binding_state = true;
+                        let init = decl.init.as_ref().unwrap();
+
                         //  LexicalBinding : BindingPattern Initializer
-                        todo!("{:?}", decl.id.kind);
+                        // 1. Let rhs be ? Evaluation of Initializer.
+                        init.compile(ctx);
+                        // 2. Let value be ? GetValue(rhs).
+                        if is_reference(init) {
+                            ctx.exe.add_instruction(Instruction::GetValue);
+                        }
+                        // 3. Let env be the running execution context's LexicalEnvironment.
+                        // 4. Return ? BindingInitialization of BindingPattern with arguments value and env.
+                        ctx.exe.add_instruction(Instruction::Load);
+                        match &decl.id.kind {
+                            ast::BindingPatternKind::BindingIdentifier(_) => unreachable!(),
+                            ast::BindingPatternKind::ObjectPattern(pattern) => pattern.compile(ctx),
+                            ast::BindingPatternKind::ArrayPattern(pattern) => pattern.compile(ctx),
+                            ast::BindingPatternKind::AssignmentPattern(pattern) => {
+                                pattern.compile(ctx)
+                            }
+                        }
+                        return;
                     };
 
                     // 1. Let lhs be ! ResolveBinding(StringValue of BindingIdentifier).
+                    let identifier_string = String::from_str(ctx.agent, identifier.name.as_str());
                     ctx.exe.add_instruction_with_identifier(
                         Instruction::ResolveBinding,
-                        &identifier.name,
+                        identifier_string,
                     );
 
                     let Some(init) = &decl.init else {
@@ -977,17 +1780,17 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     ctx.exe.add_instruction(Instruction::PushReference);
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
                     match &init {
-                        ast::Expression::ArrowExpression(expr) => {
+                        ast::Expression::ArrowFunctionExpression(expr) => {
                             // Always anonymous
                             // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                            let name_identifier = ctx.exe.add_identifier(&identifier.name);
+                            let name_identifier = ctx.exe.add_identifier(identifier_string);
                             ctx.name_identifier = Some(name_identifier);
                             expr.compile(ctx);
                         }
                         ast::Expression::FunctionExpression(expr) => {
                             if expr.id.is_none() {
                                 // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                                let name_identifier = ctx.exe.add_identifier(&identifier.name);
+                                let name_identifier = ctx.exe.add_identifier(identifier_string);
                                 ctx.name_identifier = Some(name_identifier);
                             }
                             // 4. Else,
@@ -1051,16 +1854,18 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
                 LexicallyScopedDeclaration::Variable(decl) => {
                     if decl.kind.is_const() {
                         decl.id.bound_names(&mut |name| {
+                            let identifier = String::from_str(ctx.agent, name.name.as_str());
                             ctx.exe.add_instruction_with_identifier(
                                 Instruction::CreateImmutableBinding,
-                                &name.name,
+                                identifier,
                             );
                         });
                     } else {
                         decl.id.bound_names(&mut |name| {
+                            let identifier = String::from_str(ctx.agent, name.name.as_str());
                             ctx.exe.add_instruction_with_identifier(
                                 Instruction::CreateMutableBinding,
-                                &name.name,
+                                identifier,
                             );
                         });
                     }
@@ -1068,17 +1873,19 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
                 LexicallyScopedDeclaration::Function(decl) => {
                     // TODO: InstantiateFunctionObject and InitializeBinding
                     decl.bound_names(&mut |name| {
+                        let identifier = String::from_str(ctx.agent, name.name.as_str());
                         ctx.exe.add_instruction_with_identifier(
                             Instruction::CreateMutableBinding,
-                            &name.name,
+                            identifier,
                         );
                     });
                 }
                 LexicallyScopedDeclaration::Class(decl) => {
                     decl.bound_names(&mut |name| {
+                        let identifier = String::from_str(ctx.agent, name.name.as_str());
                         ctx.exe.add_instruction_with_identifier(
                             Instruction::CreateMutableBinding,
-                            &name.name,
+                            identifier,
                         );
                     });
                 }
@@ -1105,9 +1912,50 @@ impl CompileEvaluation for ast::ForStatement<'_> {
                 todo!();
             }
             match init {
+                ast::ForStatementInit::ArrayExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::ArrowFunctionExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::AssignmentExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::AwaitExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::BigintLiteral(init) => init.compile(ctx),
+                ast::ForStatementInit::BinaryExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::BooleanLiteral(init) => init.compile(ctx),
+                ast::ForStatementInit::CallExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::ChainExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::ClassExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::ComputedMemberExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::ConditionalExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::FunctionExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::Identifier(init) => init.compile(ctx),
+                ast::ForStatementInit::ImportExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::LogicalExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::MetaProperty(init) => init.compile(ctx),
+                ast::ForStatementInit::NewExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::NullLiteral(init) => init.compile(ctx),
+                ast::ForStatementInit::NumericLiteral(init) => init.compile(ctx),
+                ast::ForStatementInit::ObjectExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::ParenthesizedExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::PrivateFieldExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::PrivateInExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::RegExpLiteral(init) => init.compile(ctx),
+                ast::ForStatementInit::SequenceExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::StaticMemberExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::StringLiteral(init) => init.compile(ctx),
+                ast::ForStatementInit::Super(init) => init.compile(ctx),
+                ast::ForStatementInit::TaggedTemplateExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::TemplateLiteral(init) => init.compile(ctx),
+                ast::ForStatementInit::ThisExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::UnaryExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::UpdateExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::UsingDeclaration(init) => init.compile(ctx),
                 ast::ForStatementInit::VariableDeclaration(init) => init.compile(ctx),
-                ast::ForStatementInit::Expression(init) => init.compile(ctx),
-                ast::ForStatementInit::UsingDeclaration(_) => todo!(),
+                ast::ForStatementInit::YieldExpression(init) => init.compile(ctx),
+                ast::ForStatementInit::JSXElement(_)
+                | ast::ForStatementInit::JSXFragment(_)
+                | ast::ForStatementInit::TSAsExpression(_)
+                | ast::ForStatementInit::TSSatisfiesExpression(_)
+                | ast::ForStatementInit::TSTypeAssertion(_)
+                | ast::ForStatementInit::TSNonNullExpression(_)
+                | ast::ForStatementInit::TSInstantiationExpression(_) => unreachable!(),
             }
         }
         let loop_jump = ctx.exe.get_jump_index_to_here();
@@ -1122,13 +1970,24 @@ impl CompileEvaluation for ast::ForStatement<'_> {
             .exe
             .add_instruction_with_jump_slot(Instruction::JumpIfNot);
         self.body.compile(ctx);
-        let _continue_jump = ctx.exe.get_jump_index_to_here();
+        let continue_jump = ctx.exe.get_jump_index_to_here();
+
+        let previous_continue = ctx.current_continue.replace(continue_jump.clone());
+        let previous_break = ctx.current_break.replace(vec![]);
+
         if let Some(update) = &self.update {
             update.compile(ctx);
         }
         ctx.exe
             .add_jump_instruction_to_index(Instruction::Jump, loop_jump);
         ctx.exe.set_jump_target_here(end_jump);
+
+        let own_breaks = ctx.current_break.take().unwrap();
+        for break_entry in own_breaks {
+            ctx.exe.set_jump_target_here(break_entry);
+        }
+        ctx.current_break = previous_break;
+        ctx.current_continue = previous_continue;
     }
 }
 
@@ -1142,18 +2001,133 @@ impl CompileEvaluation for ast::ThrowStatement<'_> {
     }
 }
 
+impl CompileEvaluation for ast::TryStatement<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        if self.finalizer.is_some() {
+            todo!();
+        }
+
+        let jump_to_catch = ctx
+            .exe
+            .add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget);
+        self.block.compile(ctx);
+        ctx.exe.add_instruction(Instruction::PopExceptionJumpTarget);
+        let jump_to_end = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+
+        let catch_clause = self.handler.as_ref().unwrap();
+        ctx.exe.set_jump_target_here(jump_to_catch);
+        if let Some(exception_param) = &catch_clause.param {
+            let ast::BindingPatternKind::BindingIdentifier(identifier) =
+                &exception_param.pattern.kind
+            else {
+                todo!("{:?}", exception_param.pattern.kind);
+            };
+            ctx.exe
+                .add_instruction(Instruction::EnterDeclarativeEnvironment);
+            let identifier_string = String::from_str(ctx.agent, identifier.name.as_str());
+            ctx.exe.add_instruction_with_identifier(
+                Instruction::CreateCatchBinding,
+                identifier_string,
+            );
+        }
+        catch_clause.body.compile(ctx);
+        if catch_clause.param.is_some() {
+            ctx.exe
+                .add_instruction(Instruction::ExitDeclarativeEnvironment);
+        }
+        ctx.exe.set_jump_target_here(jump_to_end);
+    }
+}
+
+impl CompileEvaluation for ast::DoWhileStatement<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        let continue_jump = ctx.exe.get_jump_index_to_here();
+
+        let previous_continue = ctx.current_continue.replace(continue_jump.clone());
+        let previous_break = ctx.current_break.replace(vec![]);
+
+        self.body.compile(ctx);
+        self.test.compile(ctx);
+        if is_reference(&self.test) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        // jump over loop jump if test fails
+        let end_jump = ctx
+            .exe
+            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+        ctx.exe
+            .add_jump_instruction_to_index(Instruction::Jump, continue_jump);
+        ctx.exe.set_jump_target_here(end_jump);
+
+        let own_breaks = ctx.current_break.take().unwrap();
+        for break_entry in own_breaks {
+            ctx.exe.set_jump_target_here(break_entry);
+        }
+        ctx.current_break = previous_break;
+        ctx.current_continue = previous_continue;
+    }
+}
+
+impl CompileEvaluation for ast::BreakStatement<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        if let Some(label) = &self.label {
+            let label = label.name.as_str();
+            todo!("break {};", label);
+        }
+        let break_jump = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+        ctx.current_break.as_mut().unwrap().push(break_jump);
+    }
+}
+
+impl CompileEvaluation for ast::ContinueStatement<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        if let Some(label) = &self.label {
+            let label = label.name.as_str();
+            todo!("continue {};", label);
+        }
+        ctx.exe.add_jump_instruction_to_index(
+            Instruction::Jump,
+            ctx.current_continue.clone().unwrap(),
+        );
+    }
+}
+
 impl CompileEvaluation for ast::Statement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
             ast::Statement::ExpressionStatement(x) => x.compile(ctx),
             ast::Statement::ReturnStatement(x) => x.compile(ctx),
             ast::Statement::IfStatement(x) => x.compile(ctx),
-            ast::Statement::Declaration(x) => x.compile(ctx),
+            ast::Statement::VariableDeclaration(x) => x.compile(ctx),
+            ast::Statement::FunctionDeclaration(x) => x.compile(ctx),
             ast::Statement::BlockStatement(x) => x.compile(ctx),
             ast::Statement::EmptyStatement(_) => {}
             ast::Statement::ForStatement(x) => x.compile(ctx),
             ast::Statement::ThrowStatement(x) => x.compile(ctx),
-            other => todo!("{other:?}"),
+            ast::Statement::TryStatement(x) => x.compile(ctx),
+            Statement::BreakStatement(statement) => statement.compile(ctx),
+            Statement::ContinueStatement(statement) => statement.compile(ctx),
+            Statement::DebuggerStatement(_) => todo!(),
+            Statement::DoWhileStatement(statement) => statement.compile(ctx),
+            Statement::ForInStatement(_) => todo!(),
+            Statement::ForOfStatement(_) => todo!(),
+            Statement::LabeledStatement(_) => todo!(),
+            Statement::SwitchStatement(_) => todo!(),
+            Statement::WhileStatement(_) => todo!(),
+            Statement::WithStatement(_) => todo!(),
+            Statement::ClassDeclaration(_) => todo!(),
+            Statement::UsingDeclaration(_) => todo!(),
+            Statement::ImportDeclaration(_) => todo!(),
+            Statement::ExportAllDeclaration(_) => todo!(),
+            Statement::ExportDefaultDeclaration(_) => todo!(),
+            Statement::ExportNamedDeclaration(_) => todo!(),
+            Statement::TSEnumDeclaration(_)
+            | Statement::TSExportAssignment(_)
+            | Statement::TSImportEqualsDeclaration(_)
+            | Statement::TSInterfaceDeclaration(_)
+            | Statement::TSModuleDeclaration(_)
+            | Statement::TSNamespaceExportDeclaration(_)
+            | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
         }
     }
 }

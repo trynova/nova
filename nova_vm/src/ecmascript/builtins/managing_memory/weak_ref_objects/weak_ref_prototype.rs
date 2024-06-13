@@ -24,11 +24,13 @@ impl WeakRefPrototype {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.weak_ref_prototype();
         let weak_ref_constructor = intrinsics.weak_ref();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(3)
+            .with_prototype(object_prototype)
             .with_constructor_property(weak_ref_constructor)
             .with_builtin_function_property::<WeakRefPrototypeDeref>()
             .with_property(|builder| {

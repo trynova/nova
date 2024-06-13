@@ -1,7 +1,15 @@
-use std::marker::PhantomData;
+use std::{
+    marker::PhantomData,
+    ops::{Index, IndexMut},
+};
+
+use crate::{
+    ecmascript::{builtins::module::data::ModuleHeapData, execution::Agent},
+    heap::Heap,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ModuleIdentifier(u32, PhantomData<Module>);
+pub struct ModuleIdentifier(u32, PhantomData<ModuleHeapData>);
 
 impl ModuleIdentifier {
     /// Creates a module identififer from a usize.
@@ -18,7 +26,7 @@ impl ModuleIdentifier {
         Self(value, PhantomData)
     }
 
-    pub(crate) fn last(modules: &[Option<Module>]) -> Self {
+    pub(crate) fn last(modules: &[Option<ModuleHeapData>]) -> Self {
         let index = modules.len() - 1;
         Self::from_index(index)
     }
@@ -32,5 +40,38 @@ impl ModuleIdentifier {
     }
 }
 
-#[derive(Debug)]
-pub struct Module {}
+impl Index<ModuleIdentifier> for Agent {
+    type Output = ModuleHeapData;
+
+    fn index(&self, index: ModuleIdentifier) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<ModuleIdentifier> for Agent {
+    fn index_mut(&mut self, index: ModuleIdentifier) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<ModuleIdentifier> for Heap {
+    type Output = ModuleHeapData;
+
+    fn index(&self, index: ModuleIdentifier) -> &Self::Output {
+        self.modules
+            .get(index.into_index())
+            .expect("ModuleIdentifier out of bounds")
+            .as_ref()
+            .expect("ModuleIdentifier slot empty")
+    }
+}
+
+impl IndexMut<ModuleIdentifier> for Heap {
+    fn index_mut(&mut self, index: ModuleIdentifier) -> &mut Self::Output {
+        self.modules
+            .get_mut(index.into_index())
+            .expect("ModuleIdentifier out of bounds")
+            .as_mut()
+            .expect("ModuleIdentifier slot empty")
+    }
+}

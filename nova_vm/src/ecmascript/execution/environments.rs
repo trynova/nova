@@ -25,6 +25,7 @@ use std::{marker::PhantomData, num::NonZeroU32};
 mod declarative_environment;
 mod function_environment;
 mod global_environment;
+mod module_environment;
 mod object_environment;
 mod private_environment;
 
@@ -34,10 +35,12 @@ pub(crate) use function_environment::{
 };
 pub(crate) use global_environment::GlobalEnvironment;
 pub(crate) use object_environment::ObjectEnvironment;
-use oxc_span::Atom;
 pub(crate) use private_environment::PrivateEnvironment;
 
-use crate::ecmascript::types::{Base, Object, Reference, ReferencedName, Value};
+use crate::{
+    ecmascript::types::{Base, Object, Reference, ReferencedName, String, Value},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+};
 
 use super::{Agent, JsResult};
 
@@ -99,6 +102,33 @@ create_environment_index!(GlobalEnvironment, GlobalEnvironmentIndex);
 create_environment_index!(ObjectEnvironment, ObjectEnvironmentIndex);
 create_environment_index!(PrivateEnvironment, PrivateEnvironmentIndex);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct ModuleEnvironmentIndex(NonZeroU32, PhantomData<DeclarativeEnvironment>);
+impl ModuleEnvironmentIndex {
+    /// Creates a new index from a u32.
+    ///
+    /// ## Panics
+    /// - If the value is equal to 0.
+    pub(crate) const fn from_u32(value: u32) -> Self {
+        assert!(value != 0);
+        // SAFETY: Number is not 0 and will not overflow to zero.
+        // This check is done manually to allow const context.
+        Self(unsafe { NonZeroU32::new_unchecked(value) }, PhantomData)
+    }
+
+    pub(crate) const fn into_index(self) -> usize {
+        self.0.get() as usize - 1
+    }
+
+    pub(crate) const fn into_u32(self) -> u32 {
+        self.0.get()
+    }
+
+    pub(crate) fn last(vec: &[Option<DeclarativeEnvironment>]) -> Self {
+        Self::from_u32(vec.len() as u32)
+    }
+}
+
 /// ### [9.1.1 The Environment Record Type Hierarchy](https://tc39.es/ecma262/#sec-the-environment-record-type-hierarchy)
 ///
 /// Environment Records can be thought of as existing in a simple
@@ -114,6 +144,7 @@ pub(crate) enum EnvironmentIndex {
     Declarative(DeclarativeEnvironmentIndex) = 1,
     Function(FunctionEnvironmentIndex),
     Global(GlobalEnvironmentIndex),
+    // Module(ModuleEnvironmentIndex),
     Object(ObjectEnvironmentIndex),
 }
 
@@ -137,7 +168,7 @@ impl EnvironmentIndex {
     ///
     /// Determine if an Environment Record has a binding for the String value
     /// N. Return true if it does and false if it does not.
-    pub(crate) fn has_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
+    pub(crate) fn has_binding(self, agent: &mut Agent, name: String) -> JsResult<bool> {
         match self {
             EnvironmentIndex::Declarative(idx) => Ok(idx.has_binding(agent, name)),
             EnvironmentIndex::Function(idx) => Ok(idx.has_binding(agent, name)),
@@ -154,7 +185,7 @@ impl EnvironmentIndex {
     pub(crate) fn create_mutable_binding(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         is_deletable: bool,
     ) -> JsResult<()> {
         match self {
@@ -181,7 +212,7 @@ impl EnvironmentIndex {
     pub(crate) fn create_immutable_binding(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         is_strict: bool,
     ) -> JsResult<()> {
         match self {
@@ -210,7 +241,7 @@ impl EnvironmentIndex {
     pub(crate) fn initialize_binding(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         value: Value,
     ) -> JsResult<()> {
         match self {
@@ -237,7 +268,7 @@ impl EnvironmentIndex {
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         value: Value,
         is_strict: bool,
     ) -> JsResult<()> {
@@ -265,7 +296,7 @@ impl EnvironmentIndex {
     pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,
-        name: &Atom,
+        name: String,
         is_strict: bool,
     ) -> JsResult<Value> {
         match self {
@@ -282,7 +313,7 @@ impl EnvironmentIndex {
     /// text of the bound name. If a binding for N exists, remove the binding
     /// and return true. If the binding exists but cannot be removed return
     /// false.
-    pub(crate) fn delete_binding(self, agent: &mut Agent, name: &Atom) -> JsResult<bool> {
+    pub(crate) fn delete_binding(self, agent: &mut Agent, name: String) -> JsResult<bool> {
         match self {
             EnvironmentIndex::Declarative(idx) => Ok(idx.delete_binding(agent, name)),
             EnvironmentIndex::Function(idx) => Ok(idx.delete_binding(agent, name)),
@@ -331,6 +362,26 @@ impl EnvironmentIndex {
     }
 }
 
+impl HeapMarkAndSweep for EnvironmentIndex {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            EnvironmentIndex::Declarative(idx) => idx.mark_values(queues),
+            EnvironmentIndex::Function(idx) => idx.mark_values(queues),
+            EnvironmentIndex::Global(idx) => idx.mark_values(queues),
+            EnvironmentIndex::Object(idx) => idx.mark_values(queues),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            EnvironmentIndex::Declarative(idx) => idx.sweep_values(compactions),
+            EnvironmentIndex::Function(idx) => idx.sweep_values(compactions),
+            EnvironmentIndex::Global(idx) => idx.sweep_values(compactions),
+            EnvironmentIndex::Object(idx) => idx.sweep_values(compactions),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Environments {
     pub(crate) declarative: Vec<Option<DeclarativeEnvironment>>,
@@ -359,7 +410,7 @@ impl Default for Environments {
 pub(crate) fn get_identifier_reference(
     agent: &mut Agent,
     env: Option<EnvironmentIndex>,
-    name: &Atom,
+    name: String,
     strict: bool,
 ) -> JsResult<Reference> {
     // 1. If env is null, then
@@ -369,7 +420,7 @@ pub(crate) fn get_identifier_reference(
             // [[Base]]: UNRESOLVABLE,
             base: Base::Unresolvable,
             // [[ReferencedName]]: name,
-            referenced_name: ReferencedName::String(name.clone()),
+            referenced_name: ReferencedName::from(name),
             // [[Strict]]: strict,
             strict,
             // [[ThisValue]]: EMPTY
@@ -388,7 +439,7 @@ pub(crate) fn get_identifier_reference(
             // [[Base]]: env,
             base: Base::Environment(env),
             // [[ReferencedName]]: name,
-            referenced_name: ReferencedName::String(name.clone()),
+            referenced_name: ReferencedName::from(name),
             // [[Strict]]: strict,
             strict,
             // [[ThisValue]]: EMPTY
@@ -525,5 +576,31 @@ impl Environments {
             .expect("ObjectEnvironmentIndex did not match to any vector index")
             .as_mut()
             .expect("ObjectEnvironmentIndex pointed to a None")
+    }
+}
+
+/// ### [9.4.3 GetThisEnvironment ( )](https://tc39.es/ecma262/#sec-getthisenvironment)
+/// The abstract operation GetThisEnvironment takes no arguments and returns an
+/// Environment Record. It finds the Environment Record that currently supplies
+/// the binding of the keyword this.
+pub(crate) fn get_this_environment(agent: &mut Agent) -> EnvironmentIndex {
+    // 1. Let env be the running execution context's LexicalEnvironment.
+    let mut env = agent
+        .running_execution_context()
+        .ecmascript_code
+        .as_ref()
+        .unwrap()
+        .lexical_environment;
+    // 2. Repeat,
+    loop {
+        // a. Let exists be env.HasThisBinding().
+        // b. If exists is true, return env.
+        if env.has_this_binding(agent) {
+            return env;
+        }
+        // c. Let outer be env.[[OuterEnv]].
+        // d. Assert: outer is not null.
+        // e. Set env to outer.
+        env = env.get_outer_env(agent).unwrap();
     }
 }

@@ -5,11 +5,15 @@ use crate::{
             testing_and_comparison::is_callable,
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, BuiltinIntrinsicConstructor,
+        },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{Function, IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        types::{
+            Function, IntoFunction, IntoObject, IntoValue, String, Value, BUILTIN_STRING_MEMORY,
+        },
     },
-    heap::{GetHeapData, WellKnownSymbolIndexes},
+    heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct FunctionPrototype;
@@ -19,6 +23,9 @@ impl Builtin for FunctionPrototype {
     const LENGTH: u8 = 0;
 
     const BEHAVIOUR: Behaviour = Behaviour::Regular(Self::behaviour);
+}
+impl BuiltinIntrinsicConstructor for FunctionPrototype {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::FunctionPrototype;
 }
 
 struct FunctionPrototypeApply;
@@ -143,7 +150,7 @@ impl FunctionPrototype {
             // HostHasSourceTextAvailable(func) is true, then
             Function::ECMAScriptFunction(idx) => {
                 // a. Return CodePointsToString(func.[[SourceText]]).
-                let data = &agent.heap.get(idx).ecmascript_function;
+                let data = &agent[idx].ecmascript_function;
                 let _span = data.source_text;
                 let _source = data.script_or_module;
                 todo!();
@@ -160,14 +167,13 @@ impl FunctionPrototype {
             // String that would be matched by NativeFunctionAccessor_opt
             // PropertyName must be the value of func.[[InitialName]].
             Function::BuiltinFunction(idx) => {
-                let data = agent.heap.get(idx);
+                let data = &agent[idx];
                 let initial_name = data.initial_name.map_or_else(
                     || "function () {{ [ native code ] }}".into(),
                     |initial_name| match initial_name {
-                        crate::ecmascript::types::String::String(idx) => format!(
-                            "function {}() {{ [ native code ] }}",
-                            agent.heap.get(idx).as_str()
-                        ),
+                        crate::ecmascript::types::String::String(idx) => {
+                            format!("function {}() {{ [ native code ] }}", agent[idx].as_str())
+                        }
                         crate::ecmascript::types::String::SmallString(string) => {
                             format!("function {}() {{ [ native code ] }}", string.as_str())
                         }
@@ -178,7 +184,7 @@ impl FunctionPrototype {
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
-            Function::BuiltinPromiseRejectFunction => todo!(),
+            Function::BuiltinPromiseRejectFunction(_) => todo!(),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
             Function::ECMAScriptAsyncFunction => todo!(),
@@ -202,60 +208,54 @@ impl FunctionPrototype {
         ThrowTypeError::create_intrinsic(agent, realm);
 
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let object_prototype = intrinsics.object_prototype().into_object();
         let throw_type_error = intrinsics.throw_type_error().into_function();
-        let this = intrinsics.function_prototype();
-        let this_object_index = intrinsics.function_prototype_base_object();
         let function_constructor = intrinsics.function();
 
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<FunctionPrototype>(
-            agent,
-            realm,
-            this,
-            Some(this_object_index),
-        )
-        .with_property_capacity(8)
-        .with_null_prototype()
-        // 10.2.4 AddRestrictedFunctionProperties ( F, realm )
-        .with_property(|builder| {
-            builder
-                .with_key(BUILTIN_STRING_MEMORY.caller.into())
-                .with_configurable(true)
-                .with_enumerable(false)
-                .with_getter_and_setter_functions(throw_type_error, throw_type_error)
-                .build()
-        })
-        .with_property(|builder| {
-            builder
-                .with_key(BUILTIN_STRING_MEMORY.arguments.into())
-                .with_configurable(true)
-                .with_enumerable(false)
-                .with_getter_and_setter_functions(throw_type_error, throw_type_error)
-                .build()
-        })
-        .with_builtin_function_property::<FunctionPrototypeApply>()
-        .with_builtin_function_property::<FunctionPrototypeBind>()
-        .with_builtin_function_property::<FunctionPrototypeCall>()
-        .with_property(|builder| {
-            builder
-                .with_key(BUILTIN_STRING_MEMORY.constructor.into())
-                .with_enumerable(false)
-                .with_value(function_constructor.into())
-                .build()
-        })
-        .with_builtin_function_property::<FunctionPrototypeToString>()
-        .with_property(|builder| {
-            builder
-                .with_key(WellKnownSymbolIndexes::HasInstance.into())
-                .with_value_creator_readonly(|agent| {
-                    BuiltinFunctionBuilder::new::<FunctionPrototypeHasInstance>(agent, realm)
-                        .build()
-                        .into_value()
-                })
-                .with_enumerable(false)
-                .with_configurable(false)
-                .build()
-        })
-        .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<FunctionPrototype>(agent, realm)
+            .with_property_capacity(8)
+            .with_prototype(object_prototype)
+            // 10.2.4 AddRestrictedFunctionProperties ( F, realm )
+            .with_property(|builder| {
+                builder
+                    .with_key(BUILTIN_STRING_MEMORY.caller.into())
+                    .with_configurable(true)
+                    .with_enumerable(false)
+                    .with_getter_and_setter_functions(throw_type_error, throw_type_error)
+                    .build()
+            })
+            .with_property(|builder| {
+                builder
+                    .with_key(BUILTIN_STRING_MEMORY.arguments.into())
+                    .with_configurable(true)
+                    .with_enumerable(false)
+                    .with_getter_and_setter_functions(throw_type_error, throw_type_error)
+                    .build()
+            })
+            .with_builtin_function_property::<FunctionPrototypeApply>()
+            .with_builtin_function_property::<FunctionPrototypeBind>()
+            .with_builtin_function_property::<FunctionPrototypeCall>()
+            .with_property(|builder| {
+                builder
+                    .with_key(BUILTIN_STRING_MEMORY.constructor.into())
+                    .with_enumerable(false)
+                    .with_value(function_constructor.into())
+                    .build()
+            })
+            .with_builtin_function_property::<FunctionPrototypeToString>()
+            .with_property(|builder| {
+                builder
+                    .with_key(WellKnownSymbolIndexes::HasInstance.into())
+                    .with_value_creator_readonly(|agent| {
+                        BuiltinFunctionBuilder::new::<FunctionPrototypeHasInstance>(agent, realm)
+                            .build()
+                            .into_value()
+                    })
+                    .with_enumerable(false)
+                    .with_configurable(false)
+                    .build()
+            })
+            .build();
     }
 }
 
@@ -267,6 +267,9 @@ impl Builtin for ThrowTypeError {
 
     const BEHAVIOUR: Behaviour = Behaviour::Regular(Self::behaviour);
 }
+impl BuiltinIntrinsic for ThrowTypeError {
+    const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::ThrowTypeError;
+}
 
 impl ThrowTypeError {
     fn behaviour(agent: &mut Agent, _: Value, _: ArgumentsList) -> JsResult<Value> {
@@ -274,12 +277,6 @@ impl ThrowTypeError {
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
-        let this = intrinsics.throw_type_error();
-
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<ThrowTypeError>(
-            agent, realm, this, None,
-        )
-        .build();
+        BuiltinFunctionBuilder::new_intrinsic_function::<ThrowTypeError>(agent, realm).build();
     }
 }

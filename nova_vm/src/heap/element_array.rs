@@ -1,13 +1,23 @@
 use super::{
     indexes::ElementIndex,
     object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor},
+    CompactionLists, Heap, HeapMarkAndSweep, WorkQueues,
 };
-use crate::ecmascript::types::{Function, PropertyKey, Value};
+use crate::ecmascript::{
+    builtins::SealableElementsVector,
+    execution::Agent,
+    types::{Function, PropertyDescriptor, PropertyKey, Value},
+};
 use core::panic;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    ops::{Index, IndexMut},
+};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub enum ElementArrayKey {
+    #[default]
+    Empty,
     /// up to 16 elements
     E4,
     /// up to 64 elements
@@ -28,7 +38,9 @@ pub enum ElementArrayKey {
 
 impl From<usize> for ElementArrayKey {
     fn from(value: usize) -> Self {
-        if value <= usize::pow(2, 4) {
+        if value == 0 {
+            ElementArrayKey::Empty
+        } else if value <= usize::pow(2, 4) {
             ElementArrayKey::E4
         } else if value <= usize::pow(2, 6) {
             ElementArrayKey::E6
@@ -50,7 +62,7 @@ impl From<usize> for ElementArrayKey {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct ElementsVector {
     pub(crate) elements_index: ElementIndex,
     pub(crate) cap: ElementArrayKey,
@@ -60,6 +72,7 @@ pub struct ElementsVector {
 impl ElementsVector {
     pub fn cap(&self) -> u32 {
         match self.cap {
+            ElementArrayKey::Empty => 0,
             ElementArrayKey::E4 => 2u32.pow(4),
             ElementArrayKey::E6 => 2u32.pow(6),
             ElementArrayKey::E8 => 2u32.pow(8),
@@ -85,6 +98,7 @@ impl ElementsVector {
 
     fn grow_inner(&mut self, elements: &mut ElementArrays) {
         let next_key = match self.cap {
+            ElementArrayKey::Empty => ElementArrayKey::E4,
             ElementArrayKey::E4 => ElementArrayKey::E6,
             ElementArrayKey::E6 => ElementArrayKey::E8,
             ElementArrayKey::E8 => ElementArrayKey::E10,
@@ -99,6 +113,7 @@ impl ElementsVector {
             let usize_index = elements_index.into_index();
             let len = self.len() as usize;
             match self.cap {
+                ElementArrayKey::Empty => (vec![], None),
                 ElementArrayKey::E4 => {
                     let descriptors = elements.e2pow4.descriptors.get(&elements_index).cloned();
                     let elements = elements
@@ -201,6 +216,7 @@ impl ElementsVector {
             self.grow_inner(elements);
         }
         let next_over_end = match self.cap {
+            ElementArrayKey::Empty => unreachable!(),
             ElementArrayKey::E4 => elements
                 .e2pow4
                 .values
@@ -275,10 +291,58 @@ impl ElementsVector {
                 .expect("Invalid ElementsVector: Length points beyond vector bounds"),
         };
         *next_over_end = value;
-        if let Some(_descriptor) = descriptor {
-            todo!("Descriptors");
+        if let Some(descriptor) = descriptor {
+            let descriptors_map = match self.cap {
+                ElementArrayKey::Empty => unreachable!(),
+                ElementArrayKey::E4 => &mut elements.e2pow4.descriptors,
+                ElementArrayKey::E6 => &mut elements.e2pow6.descriptors,
+                ElementArrayKey::E8 => &mut elements.e2pow8.descriptors,
+                ElementArrayKey::E10 => &mut elements.e2pow10.descriptors,
+                ElementArrayKey::E12 => &mut elements.e2pow12.descriptors,
+                ElementArrayKey::E16 => &mut elements.e2pow16.descriptors,
+                ElementArrayKey::E24 => &mut elements.e2pow24.descriptors,
+                ElementArrayKey::E32 => &mut elements.e2pow32.descriptors,
+            };
+            descriptors_map
+                .entry(self.elements_index)
+                .or_default()
+                .insert(self.len, descriptor);
         }
         self.len += 1;
+    }
+}
+
+impl HeapMarkAndSweep for ElementsVector {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self.cap {
+            ElementArrayKey::Empty => {}
+            ElementArrayKey::E4 => queues.e_2_4.push((self.elements_index, self.len)),
+            ElementArrayKey::E6 => queues.e_2_6.push((self.elements_index, self.len)),
+            ElementArrayKey::E8 => queues.e_2_8.push((self.elements_index, self.len)),
+            ElementArrayKey::E10 => queues.e_2_10.push((self.elements_index, self.len)),
+            ElementArrayKey::E12 => queues.e_2_12.push((self.elements_index, self.len)),
+            ElementArrayKey::E16 => queues.e_2_16.push((self.elements_index, self.len)),
+            ElementArrayKey::E24 => queues.e_2_24.push((self.elements_index, self.len)),
+            ElementArrayKey::E32 => queues.e_2_32.push((self.elements_index, self.len)),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let self_index = self.elements_index.into_u32();
+        let shift = match self.cap {
+            ElementArrayKey::Empty => {
+                return;
+            }
+            ElementArrayKey::E4 => compactions.e_2_4.get_shift_for_index(self_index),
+            ElementArrayKey::E6 => compactions.e_2_6.get_shift_for_index(self_index),
+            ElementArrayKey::E8 => compactions.e_2_8.get_shift_for_index(self_index),
+            ElementArrayKey::E10 => compactions.e_2_10.get_shift_for_index(self_index),
+            ElementArrayKey::E12 => compactions.e_2_12.get_shift_for_index(self_index),
+            ElementArrayKey::E16 => compactions.e_2_16.get_shift_for_index(self_index),
+            ElementArrayKey::E24 => compactions.e_2_24.get_shift_for_index(self_index),
+            ElementArrayKey::E32 => compactions.e_2_32.get_shift_for_index(self_index),
+        };
+        self.elements_index = ElementIndex::from_u32(self_index - shift);
     }
 }
 
@@ -416,7 +480,7 @@ impl ElementDescriptor {
     }
 
     pub(crate) fn from_property_descriptor(
-        desc: ObjectEntryPropertyDescriptor,
+        desc: &ObjectEntryPropertyDescriptor,
     ) -> (Option<ElementDescriptor>, Option<Value>) {
         match desc {
             ObjectEntryPropertyDescriptor::Data {
@@ -425,34 +489,34 @@ impl ElementDescriptor {
                 enumerable,
                 configurable,
             } => match (writable, enumerable, configurable) {
-                (true, true, true) => (None, Some(value)),
+                (true, true, true) => (None, Some(*value)),
                 (true, true, false) => (
                     Some(ElementDescriptor::WritableEnumerableUnconfigurableData),
-                    Some(value),
+                    Some(*value),
                 ),
                 (true, false, true) => (
                     Some(ElementDescriptor::WritableUnenumerableConfigurableData),
-                    Some(value),
+                    Some(*value),
                 ),
                 (true, false, false) => (
                     Some(ElementDescriptor::WritableUnenumerableUnconfigurableData),
-                    Some(value),
+                    Some(*value),
                 ),
                 (false, true, true) => (
                     Some(ElementDescriptor::ReadOnlyEnumerableConfigurableData),
-                    Some(value),
+                    Some(*value),
                 ),
                 (false, true, false) => (
                     Some(ElementDescriptor::ReadOnlyEnumerableUnconfigurableData),
-                    Some(value),
+                    Some(*value),
                 ),
                 (false, false, true) => (
                     Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
-                    Some(value),
+                    Some(*value),
                 ),
                 (false, false, false) => (
                     Some(ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData),
-                    Some(value),
+                    Some(*value),
                 ),
             },
             ObjectEntryPropertyDescriptor::Blocked { .. } => unreachable!(),
@@ -462,19 +526,21 @@ impl ElementDescriptor {
                 configurable,
             } => match (enumerable, configurable) {
                 (true, true) => (
-                    Some(ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }),
+                    Some(ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get: *get }),
                     None,
                 ),
                 (true, false) => (
-                    Some(ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }),
+                    Some(ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get: *get }),
                     None,
                 ),
                 (false, true) => (
-                    Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get }),
+                    Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get: *get }),
                     None,
                 ),
                 (false, false) => (
-                    Some(ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { get }),
+                    Some(
+                        ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { get: *get },
+                    ),
                     None,
                 ),
             },
@@ -484,19 +550,27 @@ impl ElementDescriptor {
                 configurable,
             } => match (enumerable, configurable) {
                 (true, true) => (
-                    Some(ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set }),
+                    Some(ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set: *set }),
                     None,
                 ),
                 (true, false) => (
-                    Some(ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set }),
+                    Some(
+                        ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set: *set },
+                    ),
                     None,
                 ),
                 (false, true) => (
-                    Some(ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { set }),
+                    Some(
+                        ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { set: *set },
+                    ),
                     None,
                 ),
                 (false, false) => (
-                    Some(ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor { set }),
+                    Some(
+                        ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor {
+                            set: *set,
+                        },
+                    ),
                     None,
                 ),
             },
@@ -507,24 +581,234 @@ impl ElementDescriptor {
                 configurable,
             } => match (enumerable, configurable) {
                 (true, true) => (
-                    Some(ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { get, set }),
+                    Some(ElementDescriptor::ReadWriteEnumerableConfigurableAccessor {
+                        get: *get,
+                        set: *set,
+                    }),
                     None,
                 ),
                 (true, false) => (
-                    Some(ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { get, set }),
+                    Some(
+                        ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor {
+                            get: *get,
+                            set: *set,
+                        },
+                    ),
                     None,
                 ),
                 (false, true) => (
-                    Some(ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { get, set }),
+                    Some(
+                        ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor {
+                            get: *get,
+                            set: *set,
+                        },
+                    ),
                     None,
                 ),
                 (false, false) => (
                     Some(
-                        ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { get, set },
+                        ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor {
+                            get: *get,
+                            set: *set,
+                        },
                     ),
                     None,
                 ),
             },
+        }
+    }
+
+    pub fn to_property_descriptor(
+        descriptor: Option<Self>,
+        value: Option<Value>,
+    ) -> PropertyDescriptor {
+        let descriptor =
+            descriptor.unwrap_or(ElementDescriptor::WritableEnumerableConfigurableData);
+        match descriptor {
+            ElementDescriptor::WritableEnumerableConfigurableData => PropertyDescriptor {
+                value,
+                configurable: Some(true),
+                enumerable: Some(true),
+                get: None,
+                set: None,
+                writable: Some(true),
+            },
+            ElementDescriptor::WritableEnumerableUnconfigurableData => PropertyDescriptor {
+                value,
+                configurable: Some(false),
+                enumerable: Some(true),
+                get: None,
+                set: None,
+                writable: Some(true),
+            },
+            ElementDescriptor::WritableUnenumerableConfigurableData => PropertyDescriptor {
+                value,
+                configurable: Some(true),
+                enumerable: Some(false),
+                get: None,
+                set: None,
+                writable: Some(true),
+            },
+            ElementDescriptor::WritableUnenumerableUnconfigurableData => PropertyDescriptor {
+                value,
+                configurable: Some(false),
+                enumerable: Some(false),
+                get: None,
+                set: None,
+                writable: Some(true),
+            },
+            ElementDescriptor::ReadOnlyEnumerableConfigurableData => PropertyDescriptor {
+                value,
+                configurable: Some(true),
+                enumerable: Some(true),
+                get: None,
+                set: None,
+                writable: Some(false),
+            },
+            ElementDescriptor::ReadOnlyEnumerableUnconfigurableData => PropertyDescriptor {
+                value,
+                configurable: Some(false),
+                enumerable: Some(true),
+                get: None,
+                set: None,
+                writable: Some(false),
+            },
+            ElementDescriptor::ReadOnlyUnenumerableConfigurableData => PropertyDescriptor {
+                value,
+                configurable: Some(true),
+                enumerable: Some(false),
+                get: None,
+                set: None,
+                writable: Some(false),
+            },
+            ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData => PropertyDescriptor {
+                value,
+                configurable: Some(false),
+                enumerable: Some(false),
+                get: None,
+                set: None,
+                writable: Some(false),
+            },
+            ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(true),
+                    enumerable: Some(true),
+                    get: Some(get),
+                    set: None,
+                    writable: None,
+                }
+            }
+            ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(false),
+                    enumerable: Some(true),
+                    get: Some(get),
+                    set: None,
+                    writable: None,
+                }
+            }
+            ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(true),
+                    enumerable: Some(false),
+                    get: Some(get),
+                    set: None,
+                    writable: None,
+                }
+            }
+            ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { get } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(false),
+                    enumerable: Some(false),
+                    get: Some(get),
+                    set: None,
+                    writable: None,
+                }
+            }
+            ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(true),
+                    enumerable: Some(true),
+                    get: None,
+                    set: Some(set),
+                    writable: None,
+                }
+            }
+            ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(false),
+                    enumerable: Some(true),
+                    get: None,
+                    set: Some(set),
+                    writable: None,
+                }
+            }
+            ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(true),
+                    enumerable: Some(false),
+                    get: None,
+                    set: Some(set),
+                    writable: None,
+                }
+            }
+            ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor { set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(false),
+                    enumerable: Some(false),
+                    get: None,
+                    set: Some(set),
+                    writable: None,
+                }
+            }
+            ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { get, set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(true),
+                    enumerable: Some(true),
+                    get: Some(get),
+                    set: Some(set),
+                    writable: None,
+                }
+            }
+            ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { get, set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(false),
+                    enumerable: Some(true),
+                    get: Some(get),
+                    set: Some(set),
+                    writable: None,
+                }
+            }
+            ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { get, set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(true),
+                    enumerable: Some(false),
+                    get: Some(get),
+                    set: Some(set),
+                    writable: None,
+                }
+            }
+            ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { get, set } => {
+                PropertyDescriptor {
+                    value: None,
+                    configurable: Some(false),
+                    enumerable: Some(false),
+                    get: Some(get),
+                    set: Some(set),
+                    writable: None,
+                }
+            }
         }
     }
 
@@ -709,6 +993,90 @@ pub struct ElementArrays {
     pub e2pow32: ElementArray2Pow32,
 }
 
+impl Index<ElementsVector> for ElementArrays {
+    type Output = [Option<Value>];
+
+    fn index(&self, index: ElementsVector) -> &Self::Output {
+        self.get(index)
+    }
+}
+
+impl IndexMut<ElementsVector> for ElementArrays {
+    fn index_mut(&mut self, index: ElementsVector) -> &mut Self::Output {
+        self.get_mut(index)
+    }
+}
+
+impl Index<ElementsVector> for Heap {
+    type Output = [Option<Value>];
+
+    fn index(&self, index: ElementsVector) -> &Self::Output {
+        &self.elements[index]
+    }
+}
+
+impl IndexMut<ElementsVector> for Heap {
+    fn index_mut(&mut self, index: ElementsVector) -> &mut Self::Output {
+        &mut self.elements[index]
+    }
+}
+
+impl Index<ElementsVector> for Agent {
+    type Output = [Option<Value>];
+
+    fn index(&self, index: ElementsVector) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<ElementsVector> for Agent {
+    fn index_mut(&mut self, index: ElementsVector) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<SealableElementsVector> for ElementArrays {
+    type Output = [Option<Value>];
+
+    fn index(&self, index: SealableElementsVector) -> &Self::Output {
+        self.get(index.into())
+    }
+}
+
+impl IndexMut<SealableElementsVector> for ElementArrays {
+    fn index_mut(&mut self, index: SealableElementsVector) -> &mut Self::Output {
+        self.get_mut(index.into())
+    }
+}
+
+impl Index<SealableElementsVector> for Heap {
+    type Output = [Option<Value>];
+
+    fn index(&self, index: SealableElementsVector) -> &Self::Output {
+        &self.elements[index]
+    }
+}
+
+impl IndexMut<SealableElementsVector> for Heap {
+    fn index_mut(&mut self, index: SealableElementsVector) -> &mut Self::Output {
+        &mut self.elements[index]
+    }
+}
+
+impl Index<SealableElementsVector> for Agent {
+    type Output = [Option<Value>];
+
+    fn index(&self, index: SealableElementsVector) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<SealableElementsVector> for Agent {
+    fn index_mut(&mut self, index: SealableElementsVector) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
 impl ElementArrays {
     fn push_with_key(
         &mut self,
@@ -721,6 +1089,7 @@ impl ElementArrays {
             std::mem::size_of::<[Option<Value>; 1]>()
         );
         match key {
+            ElementArrayKey::Empty => ElementIndex::from_u32_index(0),
             ElementArrayKey::E4 => {
                 let elements = &mut self.e2pow4;
                 const N: usize = usize::pow(2, 4);
@@ -744,7 +1113,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -773,7 +1142,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -802,7 +1171,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -831,7 +1200,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -860,7 +1229,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -889,7 +1258,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -918,7 +1287,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -947,7 +1316,7 @@ impl ElementArrays {
                     }
                     elements.values.set_len(elements.values.len() + 1);
                 }
-                let index = ElementIndex::last(&elements.values);
+                let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
                 }
@@ -1013,21 +1382,21 @@ impl ElementArrays {
 
     pub(crate) fn create_object_entries(
         &mut self,
-        mut entries: Vec<ObjectEntry>,
+        entries: &[ObjectEntry],
     ) -> (ElementsVector, ElementsVector) {
         let length = entries.len();
         let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut descriptors: Option<HashMap<u32, ElementDescriptor>> = None;
-        entries.drain(..).enumerate().for_each(|(index, entry)| {
+        entries.iter().enumerate().for_each(|(index, entry)| {
             let ObjectEntry { key, value } = entry;
             let (maybe_descriptor, maybe_value) =
                 ElementDescriptor::from_property_descriptor(value);
             let key = match key {
-                PropertyKey::Integer(data) => Value::Integer(data),
-                PropertyKey::SmallString(data) => Value::SmallString(data),
-                PropertyKey::String(data) => Value::String(data),
-                PropertyKey::Symbol(data) => Value::Symbol(data),
+                PropertyKey::Integer(data) => Value::Integer(*data),
+                PropertyKey::SmallString(data) => Value::SmallString(*data),
+                PropertyKey::String(data) => Value::String(*data),
+                PropertyKey::Symbol(data) => Value::Symbol(*data),
             };
             keys.push(Some(key));
             values.push(maybe_value);
@@ -1061,6 +1430,7 @@ impl ElementArrays {
 
     pub fn get(&self, vector: ElementsVector) -> &[Option<Value>] {
         match vector.cap {
+            ElementArrayKey::Empty => &[],
             ElementArrayKey::E4 => &self
                 .e2pow4
                 .values
@@ -1130,6 +1500,7 @@ impl ElementArrays {
 
     pub fn get_mut(&mut self, vector: ElementsVector) -> &mut [Option<Value>] {
         match vector.cap {
+            ElementArrayKey::Empty => &mut [],
             ElementArrayKey::E4 => &mut self
                 .e2pow4
                 .values
@@ -1197,13 +1568,67 @@ impl ElementArrays {
         }
     }
 
+    pub fn get_descriptor(
+        &self,
+        vector: ElementsVector,
+        index: usize,
+    ) -> Option<ElementDescriptor> {
+        let Ok(index) = u32::try_from(index) else {
+            return None;
+        };
+        let descriptors = match vector.cap {
+            ElementArrayKey::Empty => return None,
+            ElementArrayKey::E4 => &self.e2pow4.descriptors,
+            ElementArrayKey::E6 => &self.e2pow6.descriptors,
+            ElementArrayKey::E8 => &self.e2pow8.descriptors,
+            ElementArrayKey::E10 => &self.e2pow10.descriptors,
+            ElementArrayKey::E12 => &self.e2pow12.descriptors,
+            ElementArrayKey::E16 => &self.e2pow16.descriptors,
+            ElementArrayKey::E24 => &self.e2pow24.descriptors,
+            ElementArrayKey::E32 => &self.e2pow32.descriptors,
+        };
+        descriptors
+            .get(&vector.elements_index)?
+            .get(&index)
+            .copied()
+    }
+
+    pub fn set_descriptor(
+        &mut self,
+        vector: ElementsVector,
+        index: usize,
+        descriptor: Option<ElementDescriptor>,
+    ) {
+        let index: u32 = index.try_into().unwrap();
+        assert!(index < vector.len);
+        let descriptors = match vector.cap {
+            ElementArrayKey::Empty => unreachable!(),
+            ElementArrayKey::E4 => &mut self.e2pow4.descriptors,
+            ElementArrayKey::E6 => &mut self.e2pow6.descriptors,
+            ElementArrayKey::E8 => &mut self.e2pow8.descriptors,
+            ElementArrayKey::E10 => &mut self.e2pow10.descriptors,
+            ElementArrayKey::E12 => &mut self.e2pow12.descriptors,
+            ElementArrayKey::E16 => &mut self.e2pow16.descriptors,
+            ElementArrayKey::E24 => &mut self.e2pow24.descriptors,
+            ElementArrayKey::E32 => &mut self.e2pow32.descriptors,
+        };
+        let inner_map = descriptors.get_mut(&vector.elements_index).unwrap();
+        if let Some(descriptor) = descriptor {
+            inner_map.insert(index, descriptor);
+        } else {
+            inner_map.remove(&index);
+        }
+    }
+
     pub fn has(&self, vector: ElementsVector, element: Value) -> bool {
         match vector.cap {
+            ElementArrayKey::Empty => false,
             ElementArrayKey::E4 => self
                 .e2pow4
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),
@@ -1212,6 +1637,7 @@ impl ElementArrays {
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),
@@ -1220,6 +1646,7 @@ impl ElementArrays {
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),
@@ -1228,6 +1655,7 @@ impl ElementArrays {
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),
@@ -1236,6 +1664,7 @@ impl ElementArrays {
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),
@@ -1244,6 +1673,7 @@ impl ElementArrays {
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),
@@ -1252,6 +1682,7 @@ impl ElementArrays {
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),
@@ -1260,6 +1691,7 @@ impl ElementArrays {
                 .values
                 .get(vector.elements_index.into_index())
                 .unwrap()
+                .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len as usize]
                 .contains(&Some(element)),

@@ -1,7 +1,14 @@
 use crate::ecmascript::{
     builtins::{
-        date::data::DateHeapData, error::ErrorHeapData, regexp::RegExpHeapData,
-        ArrayBufferHeapData, ArrayHeapData,
+        data_view::data::DataViewHeapData, date::data::DateHeapData,
+        embedder_object::data::EmbedderObjectHeapData, error::ErrorHeapData,
+        finalization_registry::data::FinalizationRegistryHeapData, map::data::MapHeapData,
+        primitive_objects::PrimitiveObjectHeapData, promise::data::PromiseHeapData,
+        proxy::data::ProxyHeapData, regexp::RegExpHeapData, set::data::SetHeapData,
+        shared_array_buffer::data::SharedArrayBufferHeapData,
+        typed_array::data::TypedArrayHeapData, weak_map::data::WeakMapHeapData,
+        weak_ref::data::WeakRefHeapData, weak_set::data::WeakSetHeapData, ArrayBufferHeapData,
+        ArrayHeapData,
     },
     execution::Agent,
     types::{
@@ -11,8 +18,13 @@ use crate::ecmascript::{
 };
 
 use core::fmt::Debug;
-use std::hash::{Hash, Hasher};
+use std::{
+    hash::{Hash, Hasher},
+    ops::{Index, IndexMut},
+};
 use std::{marker::PhantomData, mem::size_of, num::NonZeroU32};
+
+use super::Heap;
 
 /// A struct containing a non-zero index into an array or
 /// vector of `T`s. Due to the non-zero value, the offset
@@ -114,9 +126,18 @@ impl<T: ?Sized> BaseIndex<T> {
         Self(unsafe { NonZeroU32::new_unchecked(value) }, PhantomData)
     }
 
-    pub fn last<U: Sized>(vec: &[Option<U>]) -> Self {
+    pub fn last(vec: &[Option<T>]) -> Self
+    where
+        T: Sized,
+    {
         assert!(!vec.is_empty());
         Self::from_usize(vec.len())
+    }
+}
+
+impl<T> Default for BaseIndex<T> {
+    fn default() -> Self {
+        Self::from_u32_index(0)
     }
 }
 
@@ -125,24 +146,76 @@ pub type ArrayIndex = BaseIndex<ArrayHeapData>;
 pub type BigIntIndex = BaseIndex<BigIntHeapData>;
 pub type BoundFunctionIndex = BaseIndex<BoundFunctionHeapData>;
 pub type BuiltinFunctionIndex = BaseIndex<BuiltinFunctionHeapData>;
+pub type DataViewIndex = BaseIndex<DataViewHeapData>;
 pub type DateIndex = BaseIndex<DateHeapData>;
 pub type ECMAScriptFunctionIndex = BaseIndex<ECMAScriptFunctionHeapData>;
+pub type ElementIndex = BaseIndex<[Option<Value>]>;
+pub type EmbedderObjectIndex = BaseIndex<EmbedderObjectHeapData>;
 pub type ErrorIndex = BaseIndex<ErrorHeapData>;
+pub type FinalizationRegistryIndex = BaseIndex<FinalizationRegistryHeapData>;
+pub type MapIndex = BaseIndex<MapHeapData>;
 pub type NumberIndex = BaseIndex<NumberHeapData>;
 pub type ObjectIndex = BaseIndex<ObjectHeapData>;
+pub type PrimitiveObjectIndex = BaseIndex<PrimitiveObjectHeapData>;
+pub type PromiseIndex = BaseIndex<PromiseHeapData>;
+pub type ProxyIndex = BaseIndex<ProxyHeapData>;
 pub type RegExpIndex = BaseIndex<RegExpHeapData>;
+pub type SetIndex = BaseIndex<SetHeapData>;
+pub type SharedArrayBufferIndex = BaseIndex<SharedArrayBufferHeapData>;
 pub type StringIndex = BaseIndex<StringHeapData>;
 pub type SymbolIndex = BaseIndex<SymbolHeapData>;
-pub type ElementIndex = BaseIndex<[Option<Value>]>;
+pub type TypedArrayIndex = BaseIndex<TypedArrayHeapData>;
+pub type WeakMapIndex = BaseIndex<WeakMapHeapData>;
+pub type WeakRefIndex = BaseIndex<WeakRefHeapData>;
+pub type WeakSetIndex = BaseIndex<WeakSetHeapData>;
 
-impl ObjectIndex {
-    pub fn get(self, agent: &Agent) -> &ObjectHeapData {
-        agent
-            .heap
-            .objects
-            .get(self.into_index())
-            .unwrap()
+// Implement Default for ElementIndex: This is done to support Default
+// constructor of ElementsVector.
+impl Default for ElementIndex {
+    fn default() -> Self {
+        Self(unsafe { NonZeroU32::new_unchecked(1) }, Default::default())
+    }
+}
+
+impl Index<ObjectIndex> for Agent {
+    type Output = ObjectHeapData;
+
+    fn index(&self, index: ObjectIndex) -> &Self::Output {
+        &self.heap[index]
+    }
+}
+
+impl IndexMut<ObjectIndex> for Agent {
+    fn index_mut(&mut self, index: ObjectIndex) -> &mut Self::Output {
+        &mut self.heap[index]
+    }
+}
+
+impl Index<ObjectIndex> for Heap {
+    type Output = ObjectHeapData;
+
+    fn index(&self, index: ObjectIndex) -> &Self::Output {
+        self.objects
+            .get(index.into_index())
+            .expect("ObjectIndex out of bounds")
             .as_ref()
-            .unwrap()
+            .expect("ObjectIndex slot empty")
+    }
+}
+
+impl IndexMut<ObjectIndex> for Heap {
+    fn index_mut(&mut self, index: ObjectIndex) -> &mut Self::Output {
+        self.objects
+            .get_mut(index.into_index())
+            .expect("ObjectIndex out of bounds")
+            .as_mut()
+            .expect("ObjectIndex slot empty")
+    }
+}
+
+impl ElementIndex {
+    pub fn last_element_index<const N: usize>(vec: &[Option<[Option<Value>; N]>]) -> Self {
+        assert!(!vec.is_empty());
+        Self::from_usize(vec.len())
     }
 }

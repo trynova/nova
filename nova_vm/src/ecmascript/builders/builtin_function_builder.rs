@@ -1,10 +1,13 @@
 use crate::{
     ecmascript::{
-        builtins::{Behaviour, Builtin, BuiltinFunction, BuiltinIntrinsic},
+        builtins::{
+            Behaviour, Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic,
+            BuiltinIntrinsicConstructor,
+        },
         execution::{Agent, RealmIdentifier},
         types::{
-            BuiltinFunctionHeapData, IntoObject, IntoValue, Object, ObjectHeapData, PropertyKey,
-            String, Value, BUILTIN_STRING_MEMORY,
+            BuiltinFunctionHeapData, IntoFunction, IntoObject, IntoValue, Object, ObjectHeapData,
+            OrdinaryObject, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -48,7 +51,7 @@ pub struct CreatorProperties(Vec<(PropertyKey, Option<ElementDescriptor>, Option
 pub struct BuiltinFunctionBuilder<'agent, P, L, N, B, Pr> {
     pub(crate) agent: &'agent mut Agent,
     this: BuiltinFunction,
-    object_index: Option<ObjectIndex>,
+    object_index: Option<OrdinaryObject>,
     realm: RealmIdentifier,
     prototype: P,
     length: L,
@@ -89,11 +92,9 @@ impl<'agent>
     }
 
     #[must_use]
-    pub(crate) fn new_intrinsic_constructor<T: Builtin>(
+    pub(crate) fn new_intrinsic_constructor<T: BuiltinIntrinsicConstructor>(
         agent: &'agent mut Agent,
         realm: RealmIdentifier,
-        this: BuiltinFunction,
-        base_object: Option<ObjectIndex>,
     ) -> BuiltinFunctionBuilder<
         'agent,
         NoPrototype,
@@ -102,11 +103,16 @@ impl<'agent>
         CreatorBehaviour,
         NoProperties,
     > {
+        let intrinsics = agent.get_realm(realm).intrinsics();
+        let this = intrinsics.intrinsic_constructor_index_to_builtin_function(T::INDEX);
+        let object_index = Some(OrdinaryObject(
+            intrinsics.intrinsic_constructor_index_to_object_index(T::INDEX),
+        ));
         let name = T::NAME;
         BuiltinFunctionBuilder {
             agent,
             this,
-            object_index: base_object,
+            object_index,
             realm,
             prototype: Default::default(),
             length: CreatorLength(T::LENGTH),
@@ -183,7 +189,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
             && self.object_index.is_none()
         {
             self.agent.heap.objects.push(None);
-            Some(ObjectIndex::last(&self.agent.heap.objects))
+            Some(ObjectIndex::last(&self.agent.heap.objects).into())
         } else {
             self.object_index
         };
@@ -206,7 +212,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
     ) -> BuiltinFunctionBuilder<'agent, CreatorPrototype, L, N, B, Pr> {
         let object_index = if self.object_index.is_none() {
             self.agent.heap.objects.push(None);
-            Some(ObjectIndex::last(&self.agent.heap.objects))
+            Some(ObjectIndex::last(&self.agent.heap.objects).into())
         } else {
             self.object_index
         };
@@ -270,16 +276,27 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, CreatorName, B, P
     }
 }
 
-impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties> {
+impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, NoProperties> {
     #[must_use]
     pub fn with_property_capacity(
         self,
         cap: usize,
-    ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
+    ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
-            ObjectIndex::last(&self.agent.heap.objects)
+            ObjectIndex::last(&self.agent.heap.objects).into()
         }));
+        let mut property_vector = Vec::with_capacity(cap + 2);
+        property_vector.push((
+            PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+            Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
+            Some(self.length.0.into()),
+        ));
+        property_vector.push((
+            PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+            Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
+            Some(self.name.0.into()),
+        ));
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
@@ -289,7 +306,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
             length: self.length,
             name: self.name,
             behaviour: self.behaviour,
-            properties: CreatorProperties(Vec::with_capacity(cap)),
+            properties: CreatorProperties(property_vector),
         }
     }
 
@@ -298,11 +315,24 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
         self,
         key: PropertyKey,
         value: Value,
-    ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
+    ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
-            ObjectIndex::last(&self.agent.heap.objects)
+            ObjectIndex::last(&self.agent.heap.objects).into()
         }));
+        let property_vector = vec![
+            (
+                PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+                Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
+                Some(self.length.0.into()),
+            ),
+            (
+                PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+                Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
+                Some(self.name.0.into()),
+            ),
+            (key, None, Some(value)),
+        ];
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
@@ -312,7 +342,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
             length: self.length,
             name: self.name,
             behaviour: self.behaviour,
-            properties: CreatorProperties(vec![(key, None, Some(value))]),
+            properties: CreatorProperties(property_vector),
         }
     }
 
@@ -322,15 +352,28 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
         creator: impl FnOnce(
             PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
         ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
-    ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
+    ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
-            ObjectIndex::last(&self.agent.heap.objects)
+            ObjectIndex::last(&self.agent.heap.objects).into()
         }));
         let property = {
             let builder = PropertyBuilder::new(self.agent);
             creator(builder)
         };
+        let property_vector = vec![
+            (
+                PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+                Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
+                Some(self.length.0.into()),
+            ),
+            (
+                PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+                Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
+                Some(self.name.0.into()),
+            ),
+            property,
+        ];
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
@@ -340,7 +383,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, NoProperties
             length: self.length,
             name: self.name,
             behaviour: self.behaviour,
-            properties: CreatorProperties(vec![property]),
+            properties: CreatorProperties(property_vector),
         }
     }
 }
@@ -440,6 +483,31 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
             properties: self.properties,
         }
     }
+
+    #[must_use]
+    pub fn with_builtin_function_getter_property<T: BuiltinGetter>(mut self) -> Self {
+        let getter_function = BuiltinFunctionBuilder::new::<T>(self.agent, self.realm)
+            .build()
+            .into_function();
+        let property = PropertyBuilder::new(self.agent)
+            .with_key(T::KEY)
+            .with_configurable(T::CONFIGURABLE)
+            .with_enumerable(T::ENUMERABLE)
+            .with_getter_function(getter_function)
+            .build();
+        self.properties.0.push(property);
+        BuiltinFunctionBuilder {
+            agent: self.agent,
+            this: self.this,
+            object_index: self.object_index,
+            realm: self.realm,
+            prototype: self.prototype,
+            length: self.length,
+            name: self.name,
+            behaviour: self.behaviour,
+            properties: self.properties,
+        }
+    }
 }
 
 impl<'agent>
@@ -495,6 +563,18 @@ impl<'agent>
             ..
         } = self;
         let properties = properties.0;
+        assert_eq!(properties.len(), properties.capacity());
+        {
+            let slice = properties.as_slice();
+            let duplicate = (1..slice.len()).find(|first_index| {
+                slice[*first_index..]
+                    .iter()
+                    .any(|(key, _, _)| *key == slice[first_index - 1].0)
+            });
+            if let Some(index) = duplicate {
+                panic!("Duplicate key found: {:?}", slice[index].0);
+            }
+        }
 
         let (keys, values) = agent.heap.elements.create_with_stuff(properties);
 
@@ -508,7 +588,7 @@ impl<'agent>
         let slot = agent
             .heap
             .objects
-            .get_mut(object_index.unwrap().into_index())
+            .get_mut(object_index.unwrap().get_index())
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(ObjectHeapData {
@@ -560,13 +640,25 @@ impl<'agent>
             ..
         } = self;
         let properties = properties.0;
+        assert_eq!(properties.len(), properties.capacity());
+        {
+            let slice = properties.as_slice();
+            let duplicate = (1..slice.len()).find(|first_index| {
+                slice[*first_index..]
+                    .iter()
+                    .any(|(key, _, _)| *key == slice[first_index - 1].0)
+            });
+            if let Some(index) = duplicate {
+                panic!("Duplicate key found: {:?}", slice[index].0);
+            }
+        }
 
         let (keys, values) = agent.heap.elements.create_with_stuff(properties);
 
         let slot = agent
             .heap
             .objects
-            .get_mut(object_index.unwrap().into_index())
+            .get_mut(object_index.unwrap().get_index())
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(ObjectHeapData {
