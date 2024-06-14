@@ -16,7 +16,8 @@ use crate::{
         },
         builtins::{
             array_create, ordinary::ordinary_object_create_with_intrinsics,
-            ordinary_function_create, ArgumentsList, Array, OrdinaryFunctionCreateParams, ThisMode,
+            ordinary_function_create, set_function_name, ArgumentsList, Array,
+            OrdinaryFunctionCreateParams, ThisMode,
         },
         execution::{
             agent::{resolve_binding, ExceptionType, JsError},
@@ -315,6 +316,46 @@ impl Vm {
                 );
                 vm.stack.push(object.into())
             }
+            Instruction::InstantiateArrowFunctionExpression => {
+                // ArrowFunction : ArrowParameters => ConciseBody
+                let function_expression = executable
+                    .arrow_function_expressions
+                    .get(instr.args[0].unwrap() as usize)
+                    .unwrap();
+                // 2. Let env be the LexicalEnvironment of the running execution context.
+                // 3. Let privateEnv be the running execution context's PrivateEnvironment.
+                // 4. Let sourceText be the source text matched by ArrowFunction.
+                // 5. Let closure be OrdinaryFunctionCreate(%Function.prototype%, sourceText, ArrowParameters, ConciseBody, LEXICAL-THIS, env, privateEnv).
+                // 6. Perform SetFunctionName(closure, name).
+                // 7. Return closure.
+                let ECMAScriptCodeEvaluationState {
+                    lexical_environment,
+                    private_environment,
+                    ..
+                } = *agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap();
+                // 1. If name is not present, set name to "".
+                let params = OrdinaryFunctionCreateParams {
+                    function_prototype: None,
+                    source_text: function_expression.expression.span,
+                    parameters_list: &function_expression.expression.params,
+                    body: &function_expression.expression.body,
+                    this_mode: ThisMode::Global,
+                    env: lexical_environment,
+                    private_env: private_environment,
+                };
+                let function = ordinary_function_create(agent, params);
+                let name = if let Some(identifier) = function_expression.identifier {
+                    vm.fetch_identifier(executable, identifier)
+                } else {
+                    String::EMPTY_STRING
+                };
+                set_function_name(agent, function, name.into(), None);
+                vm.result = Some(function.into_value());
+            }
             Instruction::InstantiateOrdinaryFunctionExpression => {
                 let function_expression = executable
                     .function_expressions
@@ -338,8 +379,14 @@ impl Vm {
                     env: lexical_environment,
                     private_env: private_environment,
                 };
-                let function = ordinary_function_create(agent, params).into_value();
-                vm.result = Some(function);
+                let function = ordinary_function_create(agent, params);
+                let name = if let Some(identifier) = function_expression.identifier {
+                    vm.fetch_identifier(executable, identifier)
+                } else {
+                    String::EMPTY_STRING
+                };
+                set_function_name(agent, function, name.into(), None);
+                vm.result = Some(function.into_value());
             }
             Instruction::EvaluateCall => {
                 let arg_count = instr.args[0].unwrap() as usize;

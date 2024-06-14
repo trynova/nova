@@ -58,6 +58,13 @@ pub(crate) struct FunctionExpression {
     pub(crate) home_object: Option<usize>,
 }
 
+#[derive(Debug)]
+pub(crate) struct ArrowFunctionExpression {
+    pub(crate) expression: &'static ast::ArrowFunctionExpression<'static>,
+    pub(crate) identifier: Option<usize>,
+    pub(crate) home_object: Option<usize>,
+}
+
 /// ## Notes
 ///
 /// - This is inspired by and/or copied from Kiesel engine:
@@ -69,6 +76,7 @@ pub(crate) struct Executable {
     pub(crate) identifiers: Vec<String>,
     pub(crate) references: Vec<Reference>,
     pub(crate) function_expressions: Vec<FunctionExpression>,
+    pub(crate) arrow_function_expressions: Vec<ArrowFunctionExpression>,
 }
 
 impl Executable {
@@ -150,6 +158,7 @@ impl Executable {
                 identifiers: Vec::new(),
                 references: Vec::new(),
                 function_expressions: Vec::new(),
+                arrow_function_expressions: Vec::new(),
             },
             name_identifier: None,
             lexical_binding_state: false,
@@ -303,6 +312,20 @@ impl Executable {
         self._push_instruction(instruction);
         self.function_expressions.push(function_expression);
         let index = self.function_expressions.len() - 1;
+        self.add_index(index);
+    }
+
+    fn add_arrow_function_expression(
+        &mut self,
+        arrow_function_expression: ArrowFunctionExpression,
+    ) {
+        let instruction = Instruction::InstantiateArrowFunctionExpression;
+        debug_assert_eq!(instruction.argument_count(), 1);
+        debug_assert!(instruction.has_function_expression_index());
+        self._push_instruction(instruction);
+        self.arrow_function_expressions
+            .push(arrow_function_expression);
+        let index = self.arrow_function_expressions.len() - 1;
         self.add_index(index);
     }
 
@@ -804,8 +827,19 @@ impl CompileEvaluation for ast::ParenthesizedExpression<'_> {
 }
 
 impl CompileEvaluation for ast::ArrowFunctionExpression<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!()
+    fn compile(&self, ctx: &mut CompileContext) {
+        ctx.exe
+            .add_arrow_function_expression(ArrowFunctionExpression {
+                expression: unsafe {
+                    std::mem::transmute::<
+                        &ast::ArrowFunctionExpression<'_>,
+                        &'static ast::ArrowFunctionExpression<'static>,
+                    >(self)
+                },
+                // CompileContext holds a name identifier for us if this is NamedEvaluation.
+                identifier: ctx.name_identifier.take(),
+                home_object: None,
+            });
     }
 }
 
