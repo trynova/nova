@@ -1,5 +1,19 @@
 # Nova - Your favorite javascript and wasm engine
 
+## :warning: This project is a Work In Progress, and is very far from being suitable for use :warning:
+
+Nova is a [JavaScript](https://tc39.es/ecma262) and
+[WebAssembly](https://webassembly.org) engine written in Rust.
+
+The engine is exposed as a library with an API for implementation in Rust
+projects which themselves must serve as a runtime for JavaScript code. The
+execution model is currently greatly inspired by
+[Kiesel](https://codeberg.org/kiesel-js/kiesel) and
+[SerenityOS's LibJS](https://github.com/SerenityOS/serenity). See the code for
+more details.
+
+The core of our team is on our [Discord server](https://discord.gg/RTrgJzXKUM).
+
 ## Talks
 
 ### [Nova Engine - Building a DOD JS Engine in Rust @ Finland Rust-lang meetup 1/2024](https://www.youtube.com/watch?v=WKGo1k47eYQ)
@@ -25,20 +39,6 @@ but the slightly modified slides are.
 
 TC39 slides:
 [Google Drive](https://docs.google.com/presentation/d/1Pv6Yn2sUWFIvlLwX9ViCjuyflsVdpEPQBbVlLJnFubM/edit?usp=drive_link)
-
-## :warning: This project is a Work In Progress, and is very far from being suitable for use :warning:
-
-Nova is a [JavaScript](https://tc39.es/ecma262) and
-[WebAssembly](https://webassembly.org) engine written in Rust.
-
-The engine is exposed as a library with an API for implementation in Rust
-projects which themselves must serve as a runtime for JavaScript code. The
-execution model is currently greatly inspired by
-[Kiesel](https://codeberg.org/kiesel-js/kiesel) and
-[SerenityOS's LibJS](https://github.com/SerenityOS/serenity). See the code for
-more details.
-
-The core of our team is on our [Discord server](https://discord.gg/RTrgJzXKUM).
 
 ## [Architecture](./ARCHITECTURE.md)
 
