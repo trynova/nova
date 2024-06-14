@@ -1,5 +1,31 @@
 # Nova - Your favorite javascript and wasm engine
 
+## Talks
+
+### [Nova Engine - Building a DOD JS Engine in Rust @ Finland Rust-lang meetup 1/2024](https://www.youtube.com/watch?v=WKGo1k47eYQ)
+
+Slides:
+[Google Drive](https://docs.google.com/presentation/d/1PRinuW2Zbw9c-FGArON3YHiCUP22qIeTpYvDRNbP5vc/edit?usp=drive_link)
+
+Presented at the Finland Rust-lang group's January meetup, 2024. Focus on how
+JavaScript engines work in general, and what sort of design choices Nova makes
+in this context.
+
+### [Nova JavaScript Engine - Exploring a Data-Oriented Engine Design @ Web Engines Hackfest 2024](https://www.youtube.com/live/r4tPJDj7nm0?si=OFOVaLkfM_gliuyY&t=11946)
+
+Slides:
+[Google Drive](https://docs.google.com/presentation/d/1YlHr67ZYCyMp_6uMMvCWOJNOUhleUtxOPlC0Gz8Bg7o/edit?usp=drive_link)
+
+Presented at the Web Engines Hackfest, 2024. Focus on the details of why a
+data-oriented engine design is interesting, what sort of benefits it gives and
+what sort of costs it has. Explores the engine at a slightly deeper level.
+
+The talk was revisited at the TC39 June meeting, 2024. No video is available,
+but the slightly modified slides are.
+
+TC39 slides:
+[Google Drive](https://docs.google.com/presentation/d/1Pv6Yn2sUWFIvlLwX9ViCjuyflsVdpEPQBbVlLJnFubM/edit?usp=drive_link)
+
 ## :warning: This project is a Work In Progress, and is very far from being suitable for use :warning:
 
 Nova is a [JavaScript](https://tc39.es/ecma262) and
