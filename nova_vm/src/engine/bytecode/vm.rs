@@ -16,7 +16,8 @@ use crate::{
         },
         builtins::{
             array_create, ordinary::ordinary_object_create_with_intrinsics,
-            ordinary_function_create, ArgumentsList, Array, OrdinaryFunctionCreateParams, ThisMode,
+            ordinary_function_create, set_function_name, ArgumentsList, Array,
+            OrdinaryFunctionCreateParams, ThisMode,
         },
         execution::{
             agent::{resolve_binding, ExceptionType, JsError},
@@ -346,8 +347,14 @@ impl Vm {
                     env: lexical_environment,
                     private_env: private_environment,
                 };
-                let function = ordinary_function_create(agent, params).into_value();
-                vm.result = Some(function);
+                let function = ordinary_function_create(agent, params);
+                let name = if let Some(identifier) = function_expression.identifier {
+                    vm.fetch_identifier(executable, identifier)
+                } else {
+                    String::EMPTY_STRING
+                };
+                set_function_name(agent, function, name.into(), None);
+                vm.result = Some(function.into_value());
             }
             Instruction::InstantiateOrdinaryFunctionExpression => {
                 let function_expression = executable
@@ -372,8 +379,14 @@ impl Vm {
                     env: lexical_environment,
                     private_env: private_environment,
                 };
-                let function = ordinary_function_create(agent, params).into_value();
-                vm.result = Some(function);
+                let function = ordinary_function_create(agent, params);
+                let name = if let Some(identifier) = function_expression.identifier {
+                    vm.fetch_identifier(executable, identifier)
+                } else {
+                    String::EMPTY_STRING
+                };
+                set_function_name(agent, function, name.into(), None);
+                vm.result = Some(function.into_value());
             }
             Instruction::EvaluateCall => {
                 let arg_count = instr.args[0].unwrap() as usize;
