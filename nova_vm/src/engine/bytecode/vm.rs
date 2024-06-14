@@ -343,7 +343,7 @@ impl Vm {
                     source_text: function_expression.expression.span,
                     parameters_list: &function_expression.expression.params,
                     body: &function_expression.expression.body,
-                    this_mode: ThisMode::Global,
+                    this_mode: ThisMode::Lexical,
                     env: lexical_environment,
                     private_env: private_environment,
                 };
