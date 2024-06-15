@@ -570,13 +570,20 @@ fn main() {
             runner.unexpected_results.len()
         );
 
-        let mut file = File::create(expectation_path).unwrap();
-        runner.expectations.extend(runner.unexpected_results);
+        let mut expectations = runner.expectations;
+        for (path, result) in runner.unexpected_results {
+            if result == TestExpectation::Pass {
+                expectations.remove(&path);
+            } else {
+                expectations.insert(path, result);
+            }
+        }
 
         // We convert to a JSON value first because that way the paths are
         // ordered alphabetically.
         // See https://stackoverflow.com/questions/67789198.
-        let json = serde_json::to_value(runner.expectations).unwrap();
+        let json = serde_json::to_value(expectations).unwrap();
+        let mut file = File::create(expectation_path).unwrap();
         serde_json::to_writer_pretty(&mut file, &json).unwrap();
     }
 }
