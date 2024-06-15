@@ -16,7 +16,7 @@ jobs:
     name: Build
     # TODO: Run CI on all three platforms.
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust toolchain
@@ -32,10 +32,22 @@ jobs:
       - name: Test
         run: cargo test
         timeout-minutes: 20
-      - name: Checkout test262 submodule
-        run: git submodule update --init
-      - name: Test262
-        run: cargo run --bin test262
-        timeout-minutes: 15
       - name: Build binaries and examples
         run: cargo build --bins --examples
+
+  test262:
+    name: Test262
+    # TODO: Run CI on all three platforms.
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Install Rust toolchain
+        run: rustup update stable
+      - name: Release build
+        run: cargo build --release
+      - name: Test262
+        run: cargo run --release --bin test262
+        timeout-minutes: 15
