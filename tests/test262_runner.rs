@@ -73,10 +73,10 @@ impl Test262Runner {
                 }
             }
 
-            if entry.file_type().unwrap().is_file() {
-                if Self::filter_file(filters, &entry.file_name()) {
-                    self.run_test(&entry.path());
-                }
+            if entry.file_type().unwrap().is_file()
+                && Self::filter_file(filters, &entry.file_name())
+            {
+                self.run_test(&entry.path());
             }
         }
     }
@@ -211,7 +211,7 @@ impl Test262Runner {
                     if e.kind() == ErrorKind::UnexpectedEof {
                         false
                     } else {
-                        Err(e).unwrap()
+                        panic!("{:?}", e);
                     }
                 }
             }
@@ -394,7 +394,7 @@ mod test_metadata {
             let read_bytes = match reader.read(&mut buffer) {
                 Ok(read_bytes) => read_bytes,
                 Err(error) if error.kind() == ErrorKind::Interrupted => continue,
-                Err(error) => Err(error).unwrap(),
+                Err(error) => panic!("{:?}", error),
             };
 
             assert_ne!(
@@ -420,7 +420,7 @@ mod test_metadata {
                 let read_bytes = match reader.read(&mut buffer) {
                     Ok(read_bytes) => read_bytes,
                     Err(error) if error.kind() == ErrorKind::Interrupted => continue,
-                    Err(error) => Err(error).unwrap(),
+                    Err(error) => panic!("{:?}", error),
                 };
 
                 assert_ne!(
@@ -571,9 +571,7 @@ fn main() {
         );
 
         let mut file = File::create(expectation_path).unwrap();
-        runner
-            .expectations
-            .extend(runner.unexpected_results.into_iter());
+        runner.expectations.extend(runner.unexpected_results);
 
         // We convert to a JSON value first because that way the paths are
         // ordered alphabetically.
