@@ -119,9 +119,9 @@ impl TryFrom<Value> for Function {
     type Error = ();
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::BoundFunction(d) => Ok(Function::from(d)),
-            Value::BuiltinFunction(d) => Ok(Function::from(d)),
-            Value::ECMAScriptFunction(d) => Ok(Function::from(d)),
+            Value::BoundFunction(d) => Ok(Function::BoundFunction(d)),
+            Value::BuiltinFunction(d) => Ok(Function::BuiltinFunction(d)),
+            Value::ECMAScriptFunction(d) => Ok(Function::ECMAScriptFunction(d)),
             Value::BuiltinGeneratorFunction => Ok(Function::BuiltinGeneratorFunction),
             Value::BuiltinConstructorFunction => Ok(Function::BuiltinConstructorFunction),
             Value::BuiltinPromiseResolveFunction => Ok(Function::BuiltinPromiseResolveFunction),
