@@ -1121,17 +1121,23 @@ impl CompileEvaluation for ast::Argument<'_> {
 impl CompileEvaluation for CallExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         self.callee.compile(ctx);
-        let is_ref = is_reference(&self.callee);
-        if is_ref {
+        let need_pop_reference = if is_reference(&self.callee) {
             ctx.exe.add_instruction(Instruction::GetValueKeepReference);
-            ctx.exe.add_instruction(Instruction::PushReference);
-        }
+            if !self.arguments.is_empty() {
+                ctx.exe.add_instruction(Instruction::PushReference);
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
         ctx.exe.add_instruction(Instruction::Load);
         for ele in &self.arguments {
             ele.compile(ctx);
         }
 
-        if is_ref {
+        if need_pop_reference {
             ctx.exe.add_instruction(Instruction::PopReference);
         }
         ctx.exe
