@@ -156,7 +156,7 @@ impl ArrayConstructor {
         debug_assert!(number_of_args >= 2);
 
         // b. Let array be ? ArrayCreate(numberOfArgs, proto).
-        let array = array_create(agent, number_of_args, 0, proto)?;
+        let array = array_create(agent, number_of_args, number_of_args, proto)?;
         // NOTE: `array_create` guarantees that it is less than `u32::MAX`
         let number_of_args = number_of_args as u32;
 
