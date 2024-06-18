@@ -1,7 +1,7 @@
 use crate::{
-    ecmascript::types::OrdinaryObject,
+    ecmascript::types::{OrdinaryObject, Value},
     heap::{
-        element_array::{ElementArrayKey, ElementsVector},
+        element_array::{ElementArrayKey, ElementArrays, ElementDescriptor, ElementsVector},
         indexes::ElementIndex,
         CompactionLists, HeapMarkAndSweep, WorkQueues,
     },
@@ -17,8 +17,21 @@ pub struct SealableElementsVector {
 }
 
 impl SealableElementsVector {
+    #[inline(always)]
+    pub fn cap(&self) -> u32 {
+        self.cap.cap()
+    }
+
     pub(crate) fn len(&self) -> u32 {
         self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.len == self.cap()
     }
 
     pub(crate) fn writable(&self) -> bool {
@@ -32,6 +45,26 @@ impl SealableElementsVector {
             len: elements.len,
             len_writable: true,
         }
+    }
+
+    pub fn reserve(&mut self, elements: &mut ElementArrays, new_len: u32) {
+        let mut elements_vector: ElementsVector = (*self).into();
+        elements_vector.reserve(elements, new_len);
+        self.cap = elements_vector.cap;
+        self.elements_index = elements_vector.elements_index;
+    }
+
+    pub fn push(
+        &mut self,
+        elements: &mut ElementArrays,
+        value: Option<Value>,
+        descriptor: Option<ElementDescriptor>,
+    ) {
+        let mut elements_vector: ElementsVector = (*self).into();
+        elements_vector.push(elements, value, descriptor);
+        self.cap = elements_vector.cap;
+        self.len = elements_vector.len;
+        self.elements_index = elements_vector.elements_index;
     }
 }
 

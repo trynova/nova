@@ -50,10 +50,11 @@ pub fn array_create(
     };
     // 3. Let A be MakeBasicObject(« [[Prototype]], [[Extensible]] »).
     // 5. Set A.[[DefineOwnProperty]] as specified in 10.4.2.1.
-    let elements = agent
+    let mut elements = agent
         .heap
         .elements
         .allocate_elements_with_capacity(capacity);
+    elements.len = length as u32;
     let data = ArrayHeapData {
         // 4. Set A.[[Prototype]] to proto.
         object_index,

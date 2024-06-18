@@ -36,6 +36,48 @@ pub enum ElementArrayKey {
     E32,
 }
 
+impl ElementArrayKey {
+    pub fn cap(self) -> u32 {
+        match self {
+            ElementArrayKey::Empty => 0,
+            ElementArrayKey::E4 => 2u32.pow(4),
+            ElementArrayKey::E6 => 2u32.pow(6),
+            ElementArrayKey::E8 => 2u32.pow(8),
+            ElementArrayKey::E10 => 2u32.pow(10),
+            ElementArrayKey::E12 => 2u32.pow(12),
+            ElementArrayKey::E16 => 2u32.pow(16),
+            ElementArrayKey::E24 => 2u32.pow(24),
+            ElementArrayKey::E32 => u32::MAX - 1,
+        }
+    }
+}
+
+impl From<u32> for ElementArrayKey {
+    fn from(value: u32) -> Self {
+        if value == 0 {
+            ElementArrayKey::Empty
+        } else if value <= u32::pow(2, 4) {
+            ElementArrayKey::E4
+        } else if value <= u32::pow(2, 6) {
+            ElementArrayKey::E6
+        } else if value <= u32::pow(2, 8) {
+            ElementArrayKey::E8
+        } else if value <= u32::pow(2, 10) {
+            ElementArrayKey::E10
+        } else if value <= u32::pow(2, 12) {
+            ElementArrayKey::E12
+        } else if value <= u32::pow(2, 16) {
+            ElementArrayKey::E16
+        } else if value <= u32::pow(2, 24) {
+            ElementArrayKey::E24
+        } else if value < u32::MAX - 1 {
+            ElementArrayKey::E32
+        } else {
+            panic!("Elements array length over 2 ** 32 - 1");
+        }
+    }
+}
+
 impl From<usize> for ElementArrayKey {
     fn from(value: usize) -> Self {
         if value == 0 {
@@ -54,7 +96,7 @@ impl From<usize> for ElementArrayKey {
             ElementArrayKey::E16
         } else if value <= usize::pow(2, 24) {
             ElementArrayKey::E24
-        } else if value < usize::pow(2, 32) {
+        } else if value < usize::pow(2, 32) - 1 {
             ElementArrayKey::E32
         } else {
             panic!("Elements array length over 2 ** 32 - 1");
@@ -71,17 +113,7 @@ pub struct ElementsVector {
 
 impl ElementsVector {
     pub fn cap(&self) -> u32 {
-        match self.cap {
-            ElementArrayKey::Empty => 0,
-            ElementArrayKey::E4 => 2u32.pow(4),
-            ElementArrayKey::E6 => 2u32.pow(6),
-            ElementArrayKey::E8 => 2u32.pow(8),
-            ElementArrayKey::E10 => 2u32.pow(10),
-            ElementArrayKey::E12 => 2u32.pow(12),
-            ElementArrayKey::E16 => 2u32.pow(16),
-            ElementArrayKey::E24 => 2u32.pow(24),
-            ElementArrayKey::E32 => 2u32.pow(32),
-        }
+        self.cap.cap()
     }
 
     pub fn len(&self) -> u32 {
@@ -96,18 +128,14 @@ impl ElementsVector {
         self.len == self.cap()
     }
 
-    fn grow_inner(&mut self, elements: &mut ElementArrays) {
-        let next_key = match self.cap {
-            ElementArrayKey::Empty => ElementArrayKey::E4,
-            ElementArrayKey::E4 => ElementArrayKey::E6,
-            ElementArrayKey::E6 => ElementArrayKey::E8,
-            ElementArrayKey::E8 => ElementArrayKey::E10,
-            ElementArrayKey::E10 => ElementArrayKey::E12,
-            ElementArrayKey::E12 => ElementArrayKey::E16,
-            ElementArrayKey::E16 => ElementArrayKey::E24,
-            ElementArrayKey::E24 => ElementArrayKey::E32,
-            ElementArrayKey::E32 => panic!("Attempted to grow a full array"),
-        };
+    pub fn reserve(&mut self, elements: &mut ElementArrays, new_len: u32) {
+        debug_assert!(new_len <= (u32::MAX - 1));
+        if new_len < self.cap() {
+            // Enough capacity present already
+            return;
+        }
+
+        let new_key = ElementArrayKey::from(new_len);
         let (values, descriptors) = {
             let elements_index = self.elements_index;
             let usize_index = elements_index.into_index();
@@ -201,9 +229,9 @@ impl ElementsVector {
                 ElementArrayKey::E32 => unreachable!(),
             }
         };
-        let next_index = elements.push_with_key(next_key, &values, descriptors);
-        self.cap = next_key;
-        self.elements_index = next_index;
+        let new_index = elements.push_with_key(new_key, &values, descriptors);
+        self.cap = new_key;
+        self.elements_index = new_index;
     }
 
     pub fn push(
@@ -213,7 +241,7 @@ impl ElementsVector {
         descriptor: Option<ElementDescriptor>,
     ) {
         if self.is_full() {
-            self.grow_inner(elements);
+            self.reserve(elements, self.len() + 1);
         }
         let next_over_end = match self.cap {
             ElementArrayKey::Empty => unreachable!(),

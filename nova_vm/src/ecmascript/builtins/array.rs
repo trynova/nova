@@ -17,8 +17,9 @@ use crate::{
         },
     },
     heap::{
-        element_array::ElementsVector, indexes::ArrayIndex, CreateHeapData, Heap, HeapMarkAndSweep,
-        WorkQueues,
+        element_array::{ElementDescriptor, ElementsVector},
+        indexes::ArrayIndex,
+        CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
 };
 
@@ -237,33 +238,54 @@ impl InternalMethods for Array {
             // b. Assert: IsDataDescriptor(lengthDesc) is true.
             // c. Assert: lengthDesc.[[Configurable]] is false.
             // d. Let length be lengthDesc.[[Value]].
-            let mut elements = agent[self].elements;
+            let elements = agent[self].elements;
             let length = elements.len();
+            let length_writable = elements.len_writable;
             // e. Assert: length is a non-negative integral Number.
             // f. Let index be ! ToUint32(P).
             let index = index as u32;
-            // g. If index ≥ length and lengthDesc.[[Writable]] is false, return false.
-            if index >= length && !agent[self].elements.len_writable {
-                return Ok(false);
-            }
-            // h. Let succeeded be ! OrdinaryDefineOwnProperty(A, P, Desc).
-            elements.len = index + 1;
-            let elements_data = &mut agent[elements];
-            *elements_data.get_mut(index as usize).unwrap() = property_descriptor.value;
-            // i. If succeeded is false, return false.
-            if false {
-                return Ok(false);
-            }
-            // j. If index ≥ length, then
             if index >= length {
-                // i. Set lengthDesc.[[Value]] to index + 1𝔽.
-                agent[self].elements.len = index + 1;
+                // g. If index ≥ length and lengthDesc.[[Writable]] is false, return false.
+                if !length_writable {
+                    return Ok(false);
+                }
+                let Heap {
+                    elements, arrays, ..
+                } = &mut agent.heap;
+                let array_heap_data = arrays
+                    .get_mut(self.into_index())
+                    .expect("Array out of bounds")
+                    .as_mut()
+                    .expect("Array out of bounds");
+                array_heap_data.elements.reserve(elements, index + 1);
+                let (element_descriptor, value) =
+                    ElementDescriptor::from_property_descriptor(&property_descriptor.into());
+                if index > length {
+                    // Elements backing store should be filled with Nones already
+                    array_heap_data.elements.len = index;
+                }
                 // ii. Set succeeded to ! OrdinaryDefineOwnProperty(A, "length", lengthDesc).
+                array_heap_data
+                    .elements
+                    .push(elements, value, element_descriptor);
+                // j. If index ≥ length, then
+                // i. Set lengthDesc.[[Value]] to index + 1𝔽.
+                // This should've already been handled by the push.
+                debug_assert_eq!(agent[self].elements.len(), index + 1);
                 // iii. Assert: succeeded is true.
+                Ok(true)
+            } else {
+                // h. Let succeeded be ! OrdinaryDefineOwnProperty(A, P, Desc).
+                // TODO: Handle property descriptors
+                *agent[elements].get_mut(index as usize).unwrap() = property_descriptor.value;
+                // i. If succeeded is false, return false.
+                if false {
+                    Ok(false)
+                } else {
+                    // k. Return true.
+                    Ok(true)
+                }
             }
-
-            // k. Return true.
-            Ok(true)
         } else {
             let backing_object = self
                 .get_backing_object(agent)
@@ -320,10 +342,16 @@ impl InternalMethods for Array {
             let elements = &agent[elements];
             // Index has been checked to be between 0 <= idx < len; unwrapping should never fail.
             let element = *elements.get(index as usize).unwrap();
-            let Some(element) = element else {
-                todo!("getters");
-            };
-            Ok(element)
+            if let Some(element) = element {
+                Ok(element)
+            } else {
+                // TODO: getters
+                if let Some(prototype) = self.internal_prototype(agent) {
+                    prototype.internal_get(agent, property_key, receiver)
+                } else {
+                    Ok(Value::Undefined)
+                }
+            }
         } else {
             self.internal_get_backing(agent, property_key, receiver)
         }
