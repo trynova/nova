@@ -1,10 +1,6 @@
 {
-  "built-ins/Array/S15.4.1_A1.1_T2.js": "CRASH",
-  "built-ins/Array/S15.4.1_A1.2_T1.js": "CRASH",
   "built-ins/Array/S15.4.1_A2.1_T1.js": "CRASH",
   "built-ins/Array/S15.4.1_A2.2_T1.js": "CRASH",
-  "built-ins/Array/S15.4.2.1_A1.1_T2.js": "CRASH",
-  "built-ins/Array/S15.4.2.1_A1.2_T1.js": "CRASH",
   "built-ins/Array/S15.4.2.1_A2.1_T1.js": "CRASH",
   "built-ins/Array/S15.4.2.1_A2.2_T1.js": "CRASH",
   "built-ins/Array/S15.4.3_A1.1_T1.js": "FAIL",
@@ -37243,7 +37239,6 @@
   "language/types/reference/S8.7.1_A2.js": "CRASH",
   "language/types/reference/S8.7_A1.js": "CRASH",
   "language/types/reference/S8.7_A2.js": "CRASH",
-  "language/types/reference/S8.7_A3.js": "CRASH",
   "language/types/reference/S8.7_A4.js": "CRASH",
   "language/types/reference/S8.7_A5_T1.js": "CRASH",
   "language/types/reference/S8.7_A5_T2.js": "CRASH",
