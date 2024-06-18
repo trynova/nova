@@ -1,0 +1,16 @@
+// Nova-specific test262 harness.
+
+// This file is run for every test262 test, before any imports. The reason its
+// contents aren't provided by test262 itself is because they are meant to
+// provide test262 access to host-specific capabilities that are not part of
+// the JS standard, such as creating realms and workers, triggering GC...
+// For more info, see
+// https://github.com/tc39/test262/blob/main/INTERPRETING.md#host-defined-functions
+//
+// However, since Nova's test262 runner uses nova_cli, which does not provide
+// access to any of those capabilities, this file currently only provides access
+// to `$262.global` (needed for old tests, since `globalThis` was only added in
+// ES2020).
+
+$262 = {};
+$262.global = globalThis;
