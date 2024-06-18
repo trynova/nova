@@ -133,7 +133,7 @@ impl FunctionPrototype {
         let func = Function::try_from(this_value).unwrap();
         // TODO: PrepareForTailCall
         let this_arg = args.get(0);
-        let args = ArgumentsList(&args[1..]);
+        let args = ArgumentsList(if args.len() > 0 { &args[1..] } else { &args });
         call_function(agent, func, this_arg, Some(args))
     }
 

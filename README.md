@@ -25,7 +25,7 @@ Presented at the Finland Rust-lang group's January meetup, 2024. Focus on how
 JavaScript engines work in general, and what sort of design choices Nova makes
 in this context.
 
-### [Nova JavaScript Engine - Exploring a Data-Oriented Engine Design @ Web Engines Hackfest 2024](https://www.youtube.com/live/r4tPJDj7nm0?si=OFOVaLkfM_gliuyY&t=11946)
+### [Nova JavaScript Engine - Exploring a Data-Oriented Engine Design @ Web Engines Hackfest 2024](https://www.youtube.com/watch?v=5olgPdqKZ84)
 
 Slides:
 [Google Drive](https://docs.google.com/presentation/d/1YlHr67ZYCyMp_6uMMvCWOJNOUhleUtxOPlC0Gz8Bg7o/edit?usp=drive_link)
