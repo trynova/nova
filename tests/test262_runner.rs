@@ -28,7 +28,7 @@ enum TestExpectation {
 ///   point we don't plan on implementing them.
 /// - `intl402`: Tests for ECMA-402, which defines the `Intl`
 ///   internationalization API. We currently have no plans to implement them.
-const SKIP_DIRS: &[&str] = &["annexB", "intl402", "staging"];
+const SKIP_DIRS: &[&str] = &["annexB", "intl402"];
 
 fn is_test_file(file_name: &str) -> bool {
     // File names containing the string "_FIXTURE" are JS modules which get
