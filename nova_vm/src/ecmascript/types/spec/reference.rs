@@ -5,8 +5,7 @@ use crate::ecmascript::{
         get_global_object, EnvironmentIndex,
     },
     types::{
-        HeapString, InternalMethods, IntoValue, Object, PropertyKey, String, Symbol, Value,
-        BUILTIN_STRING_MEMORY,
+        InternalMethods, IntoValue, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
     },
 };
 use agent::{Agent, JsResult};
@@ -30,7 +29,7 @@ pub struct Reference {
     ///
     /// The name of the binding. Always a String if \[\[Base]] value is an
     /// Environment Record.
-    pub(crate) referenced_name: ReferencedName,
+    pub(crate) referenced_name: PropertyKey,
 
     /// ### \[\[Strict]]
     ///
@@ -85,9 +84,10 @@ pub(crate) fn is_super_reference(reference: &Reference) -> bool {
 ///
 /// The abstract operation IsPrivateReference takes argument V (a Reference
 /// Record) and returns a Boolean.
-pub(crate) fn is_private_reference(reference: &Reference) -> bool {
+pub(crate) fn is_private_reference(_: &Reference) -> bool {
     // 1. If V.[[ReferencedName]] is a Private Name, return true; otherwise return false.
-    matches!(reference.referenced_name, ReferencedName::PrivateName)
+    // matches!(reference.referenced_name, PropertyKey::PrivateName)
+    false
 }
 
 /// ### [6.2.5.5 GetValue ( V )](https://tc39.es/ecma262/#sec-getvalue)
@@ -106,16 +106,7 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             // and the ordinary object [[Get]] internal method. An
             // implementation might choose to avoid the actual
             // creation of the object.
-            let referenced_name = match &reference.referenced_name {
-                ReferencedName::String(data) => PropertyKey::String(*data),
-                ReferencedName::SmallString(data) => PropertyKey::SmallString(*data),
-                ReferencedName::Symbol(symbol) => PropertyKey::from(*symbol),
-                ReferencedName::PrivateName => {
-                    // b. If IsPrivateReference(V) is true, then
-                    // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
-                    todo!()
-                }
-            };
+            let referenced_name = reference.referenced_name;
             if let Ok(object) = Object::try_from(value) {
                 // c. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
                 Ok(object.internal_get(agent, referenced_name, get_this_value(reference))?)
@@ -163,8 +154,8 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             // b. Assert: base is an Environment Record.
             // c. Return ? base.GetBindingValue(V.[[ReferencedName]], V.[[Strict]]) (see 9.1).
             let referenced_name = match &reference.referenced_name {
-                ReferencedName::String(data) => String::String(*data),
-                ReferencedName::SmallString(data) => String::SmallString(*data),
+                PropertyKey::String(data) => String::String(*data),
+                PropertyKey::SmallString(data) => String::SmallString(*data),
                 _ => unreachable!(),
             };
             Ok(env.get_binding_value(agent, referenced_name, reference.strict)?)
@@ -232,12 +223,7 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
         // b. Let globalObj be GetGlobalObject().
         let global_obj = get_global_object(agent);
         // c. Perform ? Set(globalObj, V.[[ReferencedName]], W, false).
-        let referenced_name = match &v.referenced_name {
-            ReferencedName::String(data) => PropertyKey::String(*data),
-            ReferencedName::SmallString(data) => PropertyKey::SmallString(*data),
-            ReferencedName::Symbol(_) => todo!(),
-            ReferencedName::PrivateName => todo!(),
-        };
+        let referenced_name = v.referenced_name;
         set(agent, global_obj, referenced_name, w, false)?;
         // d. Return UNUSED.
         Ok(())
@@ -256,12 +242,7 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
         }
         // c. Let succeeded be ? baseObj.[[Set]](V.[[ReferencedName]], W, GetThisValue(V)).
         let this_value = get_this_value(v);
-        let referenced_name = match &v.referenced_name {
-            ReferencedName::String(data) => PropertyKey::String(*data),
-            ReferencedName::SmallString(data) => PropertyKey::SmallString(*data),
-            ReferencedName::Symbol(_) => todo!(),
-            ReferencedName::PrivateName => todo!(),
-        };
+        let referenced_name = v.referenced_name;
         let succeeded = base_obj.internal_set(agent, referenced_name, w, this_value)?;
         if !succeeded && v.strict {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
@@ -281,10 +262,9 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
         };
         // c. Return ? base.SetMutableBinding(V.[[ReferencedName]], W, V.[[Strict]]) (see 9.1).
         let referenced_name = match &v.referenced_name {
-            ReferencedName::String(data) => String::String(*data),
-            ReferencedName::SmallString(data) => String::SmallString(*data),
-            ReferencedName::Symbol(_) => todo!(),
-            ReferencedName::PrivateName => todo!(),
+            PropertyKey::String(data) => String::String(*data),
+            PropertyKey::SmallString(data) => String::SmallString(*data),
+            _ => unreachable!(),
         };
         base.set_mutable_binding(agent, referenced_name, w, v.strict)
     }
@@ -310,9 +290,9 @@ pub(crate) fn initialize_referenced_binding(
         unreachable!()
     };
     let referenced_name = match v.referenced_name {
-        ReferencedName::String(data) => String::String(data),
-        ReferencedName::SmallString(data) => String::SmallString(data),
-        ReferencedName::Symbol(_) | ReferencedName::PrivateName => unreachable!(),
+        PropertyKey::String(data) => String::String(data),
+        PropertyKey::SmallString(data) => String::SmallString(data),
+        _ => unreachable!(),
     };
     // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
     base.initialize_binding(agent, referenced_name, w)
@@ -338,22 +318,4 @@ pub(crate) enum Base {
     Value(Value),
     Environment(EnvironmentIndex),
     Unresolvable,
-}
-
-#[derive(Debug)]
-pub enum ReferencedName {
-    String(HeapString),
-    SmallString(SmallString),
-    Symbol(Symbol),
-    // TODO: implement private names
-    PrivateName,
-}
-
-impl From<String> for ReferencedName {
-    fn from(value: String) -> Self {
-        match value {
-            String::String(data) => Self::String(data),
-            String::SmallString(data) => Self::SmallString(data),
-        }
-    }
 }
