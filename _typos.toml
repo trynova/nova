@@ -1,2 +1,5 @@
 [default.extend-words]
 fo = "fo"
+
+[files]
+extend-exclude = ["tests/expectations.json", "tests/test262/**/*"]
