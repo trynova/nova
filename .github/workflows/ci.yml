@@ -35,7 +35,7 @@ jobs:
       - name: Checkout test262 submodule
         run: git submodule update --init
       - name: Test262
-        run: cargo run --bin test262
+        run: cargo run --bin test262 -- --noprogress
         timeout-minutes: 15
       - name: Build binaries and examples
         run: cargo build --bins --examples

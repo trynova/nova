@@ -45,6 +45,7 @@ struct Test262Runner {
     nova_cli_path: PathBuf,
     expectations: HashMap<PathBuf, TestExpectation>,
     treat_crashes_as_failures: bool,
+    noprogress: bool,
 
     num_tests_run: usize,
     unexpected_results: HashMap<PathBuf, TestExpectation>,
@@ -63,7 +64,9 @@ impl Test262Runner {
         self.walk_dir(&self.tests_base.clone(), filters);
 
         // Clear the previous line.
-        print!("\x1B[2K\r");
+        if !self.noprogress {
+            print!("\x1B[2K\r");
+        }
     }
 
     /// If `filters` is empty, every test in this directory and its descendants
@@ -150,7 +153,9 @@ impl Test262Runner {
                 message.push_str("...");
             }
             // These escape codes make this line overwrite the previous line.
-            print!("{}\x1B[0K\r", message);
+            if !self.noprogress {
+                print!("{}\x1B[0K\r", message);
+            }
         }
 
         self.num_tests_run += 1;
@@ -497,6 +502,10 @@ struct Cli {
     )]
     treat_crashes_as_failures: bool,
 
+    #[arg(short, long)]
+    /// Don't print progress messages
+    noprogress: bool,
+
     /// Filters to apply to the tests to run.
     ///
     /// Can be absolute paths, or relative to the test folder.
@@ -575,6 +584,7 @@ fn main() {
         nova_cli_path,
         treat_crashes_as_failures: cli.treat_crashes_as_failures,
         expectations,
+        noprogress: cli.noprogress,
         num_tests_run: 0,
         unexpected_results: Default::default(),
     };
