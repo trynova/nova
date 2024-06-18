@@ -21,15 +21,19 @@ enum TestExpectation {
     Timeout,
 }
 
-/// These directory names are filtered out by default.
-const SKIP_DIRS: &[&str] = &[
-    "annexB", "intl402", "staging",
-    //
-    //"built-ins",
-    //"language",
-];
+/// Directory names to always filter out.
+///
+/// - `annexB`: Annex B of the ES specification defines legacy syntax, methods
+///   and other behaviors which are only needed for web compatibility. At this
+///   point we don't plan on implementing them.
+/// - `intl402`: Tests for ECMA-402, which defines the `Intl`
+///   internationalization API. We currently have no plans to implement them.
+const SKIP_DIRS: &[&str] = &["annexB", "intl402", "staging"];
 
 fn is_test_file(file_name: &str) -> bool {
+    // File names containing the string "_FIXTURE" are JS modules which get
+    // imported by module tests. They should not be run as standalone tests.
+    // See https://github.com/tc39/test262/blob/main/INTERPRETING.md#modules
     file_name.ends_with(".js") && !file_name.contains("_FIXTURE")
 }
 
@@ -84,20 +88,31 @@ impl Test262Runner {
         }
     }
 
-    fn filter_dir(filters: &[PathBuf], os_file_name: &OsStr) -> Option<Box<[PathBuf]>> {
-        if SKIP_DIRS.contains(&os_file_name.to_str().unwrap()) {
+    /// Checks if a directory should be filtered out, and if so, returns a list
+    /// of filters for its children.
+    fn filter_dir(filters: &[PathBuf], os_folder_name: &OsStr) -> Option<Box<[PathBuf]>> {
+        // Always skip SKIP_DIRS, regardless of filters.
+        if SKIP_DIRS.contains(&os_folder_name.to_str().unwrap()) {
             return None;
         }
+        // No filters means that all directories (and valid test files within
+        // them) should be visited.
         if filters.is_empty() {
             return Some(vec![].into_boxed_slice());
         }
 
         let mut child_filters = Vec::with_capacity(filters.len());
         for filter in filters {
-            if filter == OsStr::new("") || filter == os_file_name {
+            // If we find a filter that exactly matches this folder, it means
+            // all of its descendants should be visited, so we always return an
+            // empty filter list, ignoring the rest of the filters. We also do
+            // this if we happen to have an empty string as a filter (e.g.
+            // because the filter path ended with a slash), since that means all
+            // descendants of our parent directory should be visited.
+            if filter == OsStr::new("") || filter == os_folder_name {
                 return Some(vec![].into_boxed_slice());
             }
-            if let Ok(child_filter) = filter.strip_prefix(os_file_name) {
+            if let Ok(child_filter) = filter.strip_prefix(os_folder_name) {
                 child_filters.push(child_filter.to_path_buf());
             }
         }
@@ -161,9 +176,8 @@ impl Test262Runner {
         }
         command.arg(path);
 
-        let test_result = Self::handle_test_output(command, &metadata.negative);
+        let test_result = Self::run_test_command_and_parse_output(command, &metadata.negative);
 
-        let relpath = path.strip_prefix(&self.tests_base).unwrap();
         let expectation = self
             .expectations
             .get(relpath)
@@ -171,18 +185,21 @@ impl Test262Runner {
             .unwrap_or(TestExpectation::Pass);
 
         if test_result != expectation {
+            // If we're treating crashes as failures, ignore any mismatch where
+            // one side is a crash and the other a fail.
             if self.treat_crashes_as_failures
                 && matches!(test_result, TestExpectation::Fail | TestExpectation::Crash)
                 && matches!(expectation, TestExpectation::Fail | TestExpectation::Crash)
             {
                 return;
             }
+
             self.unexpected_results
                 .insert(relpath.to_path_buf(), test_result);
         }
     }
 
-    fn handle_test_output(
+    fn run_test_command_and_parse_output(
         mut command: Command,
         negative: &Option<test_metadata::NegativeExpectation>,
     ) -> TestExpectation {
@@ -404,6 +421,8 @@ mod test_metadata {
         loop {
             let read_bytes = match reader.read(&mut buffer) {
                 Ok(read_bytes) => read_bytes,
+                // ErrorKind::Interrupted errors are non-fatal, and the
+                // operation should be retried.
                 Err(error) if error.kind() == ErrorKind::Interrupted => continue,
                 Err(error) => panic!("{:?}", error),
             };
@@ -441,9 +460,12 @@ mod test_metadata {
 
                 let read_slice = &buffer[..read_bytes];
                 if let Some(idx) = matcher.run(read_slice) {
-                    if idx > YAML_END.len() {
+                    if idx >= YAML_END.len() {
                         bytes.extend_from_slice(&read_slice[..idx - YAML_END.len()]);
                     } else {
+                        // If idx < YAML_END.len(), the start of the YAML_END
+                        // was in the previous chunk, so we need to remove
+                        // already-consumed bytes.
                         bytes.truncate(bytes.len() + idx - YAML_END.len());
                     }
                     break;
@@ -461,10 +483,23 @@ mod test_metadata {
 #[command(name = "test262")]
 #[command(about = "A test262 runner for Nova.", long_about = None)]
 struct Cli {
+    /// Update the expectations file with the results of the test run.
     #[arg(short, long)]
     update_expectations: bool,
-    #[arg(long = "dont-treat-crashes-as-failures", action = clap::ArgAction::SetFalse)]
+
+    /// If true, crashes and failures are not distinguished as test
+    /// expectations, i.e. if a test should crash in the expectation file but it
+    /// fails instead, that is not counted as a test failure. True by default.
+    #[arg(
+        long = "dont-treat-crashes-as-failures",
+        action = clap::ArgAction::SetFalse,
+        help = "Don't treat failures as valid for crash test expectations and vice versa"
+    )]
     treat_crashes_as_failures: bool,
+
+    /// Filters to apply to the tests to run.
+    ///
+    /// Can be absolute paths, or relative to the test folder.
     filters: Vec<PathBuf>,
 }
 
@@ -546,7 +581,6 @@ fn main() {
     if filters_are_valid {
         runner.run(&cli.filters);
     }
-
 
     if runner.num_tests_run == 0 {
         println!("No tests found. Check your filters.");
