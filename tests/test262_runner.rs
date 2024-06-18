@@ -88,7 +88,7 @@ impl Test262Runner {
         }
     }
 
-    /// Checks if a directory should be filtered out, and if so, returns a list
+    /// Checks if a directory should be filtered out, and if not, returns a list
     /// of filters for its children.
     fn filter_dir(filters: &[PathBuf], os_folder_name: &OsStr) -> Option<Box<[PathBuf]>> {
         // Always skip SKIP_DIRS, regardless of filters.
