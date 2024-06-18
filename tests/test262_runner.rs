@@ -57,6 +57,9 @@ impl Test262Runner {
     /// which have one of the entries of `filters` as its prefix should run.
     pub fn run(&mut self, filters: &[PathBuf]) {
         self.walk_dir(&self.tests_base.clone(), filters);
+
+        // Clear the previous line.
+        print!("\x1B[2K\r");
     }
 
     /// If `filters` is empty, every test in this directory and its descendants
@@ -117,12 +120,22 @@ impl Test262Runner {
     }
 
     fn run_test(&mut self, path: &PathBuf) {
-        //println!("Running test {:?}", path);
         let metadata = test_metadata::parse(path);
 
         if metadata.flags.is_async || metadata.flags.module {
             // We don't yet support async or modules, skip any tests for them.
             return;
+        }
+
+        let relpath = path.strip_prefix(&self.tests_base).unwrap();
+        {
+            let mut message = format!("Running {}", relpath.to_string_lossy());
+            if message.len() > 80 {
+                message.truncate(80 - 3);
+                message.push_str("...");
+            }
+            // These escape codes make this line overwrite the previous line.
+            print!("{}\x1B[0K\r", message);
         }
 
         self.num_tests_run += 1;
@@ -147,8 +160,6 @@ impl Test262Runner {
             }
         }
         command.arg(path);
-
-        //println!("{:?}", command);
 
         let test_result = Self::handle_test_output(command, &metadata.negative);
 
@@ -536,8 +547,6 @@ fn main() {
         runner.run(&cli.filters);
     }
 
-    //println!();
-    //println!();
 
     if runner.num_tests_run == 0 {
         println!("No tests found. Check your filters.");
