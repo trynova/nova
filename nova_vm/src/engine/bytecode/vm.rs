@@ -932,7 +932,7 @@ fn apply_string_or_numeric_binary_operator(
             // *	Number	Number::multiply
             BinaryOperator::Multiplication => todo!(),
             // /	Number	Number::divide
-            BinaryOperator::Division => todo!(),
+            BinaryOperator::Division => Number::divide(agent, lnum, rnum).into_value(),
             // %	Number	Number::remainder
             BinaryOperator::Remainder => todo!(),
             // +	Number	Number::add
