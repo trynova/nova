@@ -38,7 +38,7 @@ pub(crate) use object_environment::ObjectEnvironment;
 pub(crate) use private_environment::PrivateEnvironment;
 
 use crate::{
-    ecmascript::types::{Base, Object, Reference, ReferencedName, String, Value},
+    ecmascript::types::{Base, Object, Reference, String, Value},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -420,7 +420,7 @@ pub(crate) fn get_identifier_reference(
             // [[Base]]: UNRESOLVABLE,
             base: Base::Unresolvable,
             // [[ReferencedName]]: name,
-            referenced_name: ReferencedName::from(name),
+            referenced_name: name.into(),
             // [[Strict]]: strict,
             strict,
             // [[ThisValue]]: EMPTY
@@ -439,7 +439,7 @@ pub(crate) fn get_identifier_reference(
             // [[Base]]: env,
             base: Base::Environment(env),
             // [[ReferencedName]]: name,
-            referenced_name: ReferencedName::from(name),
+            referenced_name: name.into(),
             // [[Strict]]: strict,
             strict,
             // [[ThisValue]]: EMPTY

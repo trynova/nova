@@ -5,7 +5,7 @@
 pub(crate) mod abstract_operations;
 mod data;
 
-use std::ops::{Deref, Index, IndexMut};
+use std::ops::{Deref, Index, IndexMut, RangeInclusive};
 
 use super::{array_set_length, ordinary::ordinary_define_own_property};
 use crate::{
@@ -26,6 +26,8 @@ pub use data::{ArrayHeapData, SealableElementsVector};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Array(ArrayIndex);
+
+static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
 impl Array {
     /// # Do not use this
@@ -176,9 +178,17 @@ impl InternalMethods for Array {
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         if let PropertyKey::Integer(index) = property_key {
+            let index = index.into_i64();
+            if !ARRAY_INDEX_RANGE.contains(&index) {
+                if let Some(backing_object) = self.get_backing_object(agent) {
+                    return backing_object.internal_get_own_property(agent, property_key);
+                } else {
+                    return Ok(None);
+                }
+            }
             let elements = agent[self].elements;
             let elements = &agent[elements];
-            if let Some(value) = elements.get(index.into_i64() as usize) {
+            if let Some(value) = elements.get(index as usize) {
                 return Ok(value.map(|value| PropertyDescriptor {
                     value: Some(value),
                     ..Default::default()
@@ -194,8 +204,8 @@ impl InternalMethods for Array {
                 writable: Some(array_data.elements.len_writable),
                 ..Default::default()
             }))
-        } else if let Some(object_index) = array_data.object_index {
-            Object::Object(object_index).internal_get_own_property(agent, property_key)
+        } else if let Some(backing_object) = array_data.object_index {
+            backing_object.internal_get_own_property(agent, property_key)
         } else {
             Ok(None)
         }
@@ -211,10 +221,14 @@ impl InternalMethods for Array {
             array_set_length(agent, self, property_descriptor)
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
-            if !(0..u32::MAX as i64).contains(&index) {
+            if !ARRAY_INDEX_RANGE.contains(&index) {
+                let backing_object = self
+                    .get_backing_object(agent)
+                    .unwrap_or_else(|| self.create_backing_object(agent))
+                    .into_object();
                 return ordinary_define_own_property(
                     agent,
-                    self.into_object(),
+                    backing_object,
                     property_key,
                     property_descriptor,
                 );
@@ -251,12 +265,11 @@ impl InternalMethods for Array {
             // k. Return true.
             Ok(true)
         } else {
-            ordinary_define_own_property(
-                agent,
-                self.into_object(),
-                property_key,
-                property_descriptor,
-            )
+            let backing_object = self
+                .get_backing_object(agent)
+                .unwrap_or_else(|| self.create_backing_object(agent))
+                .into_object();
+            ordinary_define_own_property(agent, backing_object, property_key, property_descriptor)
         }
     }
 
@@ -289,8 +302,8 @@ impl InternalMethods for Array {
             Ok(self.len(agent).into())
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
-            if index < 0 || index >= i64::pow(2, 32) {
-                // Negative indexes and indexes over 2^32 go into backing store
+            if !ARRAY_INDEX_RANGE.contains(&index) {
+                // Negative indexes and indexes over 2^32 - 2 go into backing store
                 return self.internal_get_backing(agent, property_key, receiver);
             }
             let elements = agent[self].elements;
@@ -321,10 +334,12 @@ impl InternalMethods for Array {
             Ok(true)
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
-            if index < 0 || index >= i64::pow(2, 32) {
-                return agent[self].object_index.map_or(Ok(true), |object_index| {
-                    object_index.internal_delete(agent, property_key)
-                });
+            if !ARRAY_INDEX_RANGE.contains(&index) {
+                return self
+                    .get_backing_object(agent)
+                    .map_or(Ok(true), |object_index| {
+                        object_index.internal_delete(agent, property_key)
+                    });
             }
             let elements = agent[self].elements;
             if index >= elements.len() as i64 {
@@ -336,9 +351,10 @@ impl InternalMethods for Array {
             *elements.get_mut(index as usize).unwrap() = None;
             Ok(true)
         } else {
-            agent[self].object_index.map_or(Ok(true), |object_index| {
-                object_index.internal_delete(agent, property_key)
-            })
+            self.get_backing_object(agent)
+                .map_or(Ok(true), |object_index| {
+                    object_index.internal_delete(agent, property_key)
+                })
         }
     }
 

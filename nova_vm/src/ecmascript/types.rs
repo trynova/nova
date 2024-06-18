@@ -7,5 +7,5 @@ pub use language::{
     IntoNumeric, IntoObject, IntoPrimitive, IntoValue, Number, Numeric, Object, OrdinaryObject,
     Primitive, PropertyKey, String, Symbol, Value,
 };
+pub use spec::PropertyDescriptor;
 pub(crate) use spec::*;
-pub use spec::{PropertyDescriptor, ReferencedName};

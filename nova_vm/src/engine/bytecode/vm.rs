@@ -26,8 +26,8 @@ use crate::{
         },
         types::{
             get_value, initialize_referenced_binding, put_value, Base, BigInt, Function,
-            IntoFunction, IntoValue, Number, Numeric, Object, PropertyKey, Reference,
-            ReferencedName, String, Value, BUILTIN_STRING_MEMORY,
+            IntoFunction, IntoValue, Number, Numeric, Object, PropertyKey, Reference, String,
+            Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::WellKnownSymbolIndexes,
@@ -444,12 +444,7 @@ impl Vm {
 
                 vm.reference = Some(Reference {
                     base: Base::Value(base_value),
-                    referenced_name: match property_key {
-                        PropertyKey::SmallString(s) => ReferencedName::SmallString(s),
-                        PropertyKey::String(s) => ReferencedName::String(s),
-                        PropertyKey::Symbol(s) => ReferencedName::Symbol(s),
-                        _ => todo!("Index properties in ReferencedName"),
-                    },
+                    referenced_name: property_key,
                     strict,
                     this_value: None,
                 });
@@ -462,7 +457,7 @@ impl Vm {
 
                 vm.reference = Some(Reference {
                     base: Base::Value(base_value),
-                    referenced_name: ReferencedName::from(property_name_string),
+                    referenced_name: property_name_string.into(),
                     strict,
                     this_value: None,
                 });
@@ -818,7 +813,7 @@ impl Vm {
 
                 let reference = Reference {
                     base: Base::Value(value),
-                    referenced_name: ReferencedName::from(property_name_string),
+                    referenced_name: property_name_string.into(),
                     strict,
                     this_value: None,
                 };
