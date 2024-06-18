@@ -115,11 +115,10 @@ impl ArrayConstructor {
             // a. Let len be values[0].
             let len = arguments.get(0);
 
-            // b. Let array be ! ArrayCreate(0, proto).
-            let array = array_create(agent, 0, 0, proto).unwrap();
-
             // c. If len is not a Number, then
-            let int_len = if !len.is_number() {
+            let array = if !len.is_number() {
+                // b. Let array be ! ArrayCreate(0, proto).
+                let array = array_create(agent, 1, 1, proto).unwrap();
                 // i. Perform ! CreateDataPropertyOrThrow(array, "0", len).
                 create_data_property_or_throw(
                     agent,
@@ -129,7 +128,9 @@ impl ArrayConstructor {
                 )
                 .unwrap();
                 // ii. Let intLen be 1𝔽.
-                1
+                // e. Perform ! Set(array, "length", intLen, true).
+                debug_assert_eq!(agent[array].elements.len(), 1);
+                array
             } else {
                 // d. Else,
                 // i. Let intLen be ! ToUint32(len).
@@ -140,18 +141,11 @@ impl ArrayConstructor {
                         agent.throw_exception(ExceptionType::RangeError, "Invalid array length")
                     );
                 }
-                int_len
+                let array = array_create(agent, int_len as usize, int_len as usize, proto).unwrap();
+                // e. Perform ! Set(array, "length", intLen, true).
+                debug_assert_eq!(agent[array].elements.len(), int_len);
+                array
             };
-
-            // e. Perform ! Set(array, "length", intLen, true).
-            set(
-                agent,
-                array.into(),
-                PropertyKey::from(BUILTIN_STRING_MEMORY.length),
-                int_len.into(),
-                true,
-            )
-            .unwrap();
 
             // f. Return array.
             return Ok(array.into_value());
