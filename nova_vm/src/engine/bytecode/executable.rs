@@ -2053,7 +2053,7 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
                                 identifier,
                             );
                         });
-                    } else {
+                    } else if decl.kind.is_lexical() {
                         decl.id.bound_names(&mut |name| {
                             let identifier = String::from_str(ctx.agent, name.name.as_str());
                             ctx.exe.add_instruction_with_identifier(

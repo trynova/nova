@@ -846,8 +846,9 @@ impl<'a> VarScopedDeclarations<'a> for Statement<'a> {
             }
             Statement::BlockStatement(st) => {
                 // Block : { }
-                if st.body.is_empty() {
-                    // 1. Return a new empty List.
+                // 1. Return a new empty List.
+                for ele in &st.body {
+                    ele.var_scoped_declarations(f);
                 }
             },
             // StatementListItem : Declaration
