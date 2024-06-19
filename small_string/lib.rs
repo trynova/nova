@@ -17,13 +17,10 @@ impl SmallString {
     };
 
     pub fn len(&self) -> usize {
-        // Find the last non-0xFF character and add one to its index to get length.
-        self.bytes
-            .as_slice()
-            .iter()
-            .rev()
-            .position(|&x| x != 0xFF)
-            .map_or(0, |i| 7 - i)
+        // Find the first 0xFF byte. Small strings must be valid UTF-8, and
+        // UTF-8 can never contain 0xFF, so that must mark the end of the
+        // string.
+        self.bytes.iter().position(|&x| x == 0xFF).unwrap_or(7)
     }
 
     #[inline]
