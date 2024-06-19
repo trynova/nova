@@ -1,5 +1,7 @@
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SmallString {
+    /// The string will be padded to 7 bytes with the 0xFF byte, which is never
+    /// contained in valid UTF-8 or WTF-8.
     bytes: [u8; 7],
 }
 
@@ -11,16 +13,16 @@ impl std::fmt::Debug for SmallString {
 
 impl SmallString {
     pub const EMPTY: SmallString = Self {
-        bytes: [0, 0, 0, 0, 0, 0, 0],
+        bytes: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF],
     };
 
     pub fn len(&self) -> usize {
-        // Find the last non-null character and add one to its index to get length.
+        // Find the last non-0xFF character and add one to its index to get length.
         self.bytes
             .as_slice()
             .iter()
             .rev()
-            .position(|&x| x != 0)
+            .position(|&x| x != 0xFF)
             .map_or(0, |i| 7 - i)
     }
 
@@ -42,39 +44,43 @@ impl SmallString {
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        matches!(self.bytes, [0, 0, 0, 0, 0, 0, 0])
+        matches!(self.bytes, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
     }
 
     pub const fn from_str_unchecked(string: &str) -> Self {
         let string_bytes = string.as_bytes();
 
-        // We have only 7 bytes to work with, and we cannot tell apart
-        // UTF-8 strings that end with a null byte from our null
-        // terminator so we must fail to convert on those.
-        debug_assert!(
-            string_bytes.len() < 8
-                && (string_bytes.is_empty() || string_bytes[string_bytes.len() - 1] != 0)
-        );
+        // We have only 7 bytes to work with, so we must fail to convert if the
+        // string is longer than that.
+        debug_assert!(string_bytes.len() < 8);
 
         match string_bytes.len() {
             0 => Self {
-                bytes: [0, 0, 0, 0, 0, 0, 0],
+                bytes: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF],
             },
             1 => Self {
-                bytes: [string_bytes[0], 0, 0, 0, 0, 0, 0],
+                bytes: [string_bytes[0], 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF],
             },
             2 => Self {
-                bytes: [string_bytes[0], string_bytes[1], 0, 0, 0, 0, 0],
+                bytes: [
+                    string_bytes[0],
+                    string_bytes[1],
+                    0xFF,
+                    0xFF,
+                    0xFF,
+                    0xFF,
+                    0xFF,
+                ],
             },
             3 => Self {
                 bytes: [
                     string_bytes[0],
                     string_bytes[1],
                     string_bytes[2],
-                    0,
-                    0,
-                    0,
-                    0,
+                    0xFF,
+                    0xFF,
+                    0xFF,
+                    0xFF,
                 ],
             },
             4 => Self {
@@ -83,9 +89,9 @@ impl SmallString {
                     string_bytes[1],
                     string_bytes[2],
                     string_bytes[3],
-                    0,
-                    0,
-                    0,
+                    0xFF,
+                    0xFF,
+                    0xFF,
                 ],
             },
             5 => Self {
@@ -95,8 +101,8 @@ impl SmallString {
                     string_bytes[2],
                     string_bytes[3],
                     string_bytes[4],
-                    0,
-                    0,
+                    0xFF,
+                    0xFF,
                 ],
             },
             6 => Self {
@@ -107,7 +113,7 @@ impl SmallString {
                     string_bytes[3],
                     string_bytes[4],
                     string_bytes[5],
-                    0,
+                    0xFF,
                 ],
             },
             7 => Self {
@@ -129,10 +135,9 @@ impl SmallString {
 impl TryFrom<&str> for SmallString {
     type Error = ();
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        // We have only 7 bytes to work with, and we cannot tell apart
-        // UTF-8 strings that end with a null byte from our null
-        // terminator so we must fail to convert on those.
-        if value.len() < 8 && value.as_bytes().last() != Some(&0) {
+        // We have only 7 bytes to work with, so we must fail to convert if the
+        // string is longer than that.
+        if value.len() < 8 {
             Ok(Self::from_str_unchecked(value))
         } else {
             Err(())
@@ -156,10 +161,11 @@ fn valid_stack_strings() {
     assert_eq!(SmallString::try_from("💩 ").unwrap().len(), 5);
     assert!(SmallString::try_from("asd\0foo").is_ok());
     assert_eq!(SmallString::try_from("asd\0foo").unwrap().len(), 7);
+    assert!(SmallString::try_from("asdfoo\0").is_ok());
+    assert_eq!(SmallString::try_from("asdfoo\0").unwrap().len(), 7);
 }
 
 #[test]
 fn not_valid_stack_strings() {
     assert!(SmallString::try_from("asd asd r 547 gdfg").is_err());
-    assert!(SmallString::try_from("asdfoo\0").is_err());
 }
