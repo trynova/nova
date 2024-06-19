@@ -270,7 +270,7 @@ impl Heap {
     }
 
     fn find_equal_string(&self, message: &str) -> Option<String> {
-        debug_assert!(message.len() > 7 || message.ends_with('\0'));
+        debug_assert!(message.len() > 7);
         self.strings
             .iter()
             .position(|opt| opt.as_ref().map_or(false, |data| data.as_str() == message))
