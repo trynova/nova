@@ -532,6 +532,93 @@ impl Number {
             .create(base.into_f64(agent).powf(exponent.into_f64(agent)))
     }
 
+    /// ### [6.1.6.1.5 Number::divide ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-divide)
+    ///
+    /// The abstract operation Number::divide takes arguments x (a Number) and
+    /// y (a Number) and returns a Number. It performs division according to
+    /// the rules of IEEE 754-2019 binary double-precision arithmetic,
+    /// producing the quotient of x and y where x is the dividend and y is the
+    /// divisor.
+    pub fn divide(agent: &mut Agent, x: Self, y: Self) -> Self {
+        // 1. If x is NaN or y is NaN, return NaN.
+        if x.is_nan(agent) || y.is_nan(agent) {
+            return Number::nan();
+        }
+        // 2. If x is either +∞𝔽 or -∞𝔽, then
+        if x.is_pos_infinity(agent) || x.is_neg_infinity(agent) {
+            // a. If y is either +∞𝔽 or -∞𝔽, return NaN.
+            if y.is_pos_infinity(agent) || y.is_neg_infinity(agent) {
+                return Number::nan();
+            }
+            // b. If y is +0𝔽 or y > +0𝔽, return x.
+            if y.is_pos_zero(agent) || y.to_real(agent) > 0.0 {
+                return x;
+            }
+            // c. Return -x.
+            return if x.is_pos_infinity(agent) {
+                Number::neg_inf()
+            } else {
+                Number::pos_inf()
+            };
+        }
+        // 3. If y is +∞𝔽, then
+        if y.is_pos_infinity(agent) {
+            // a. If x is +0𝔽 or x > +0𝔽, return +0𝔽. Otherwise, return -0𝔽.
+            if x.is_pos_zero(agent) || x.to_real(agent) > 0.0 {
+                return Number::pos_zero();
+            } else {
+                return Number::neg_zero();
+            }
+        }
+        // 4. If y is -∞𝔽, then
+        if y.is_neg_infinity(agent) {
+            // a. If x is +0𝔽 or x > +0𝔽, return -0𝔽. Otherwise, return +0𝔽.
+            if x.is_pos_zero(agent) || x.to_real(agent) > 0.0 {
+                return Number::neg_zero();
+            } else {
+                return Number::pos_zero();
+            }
+        }
+        // 5. If x is either +0𝔽 or -0𝔽, then
+        if x.is_pos_zero(agent) || x.is_neg_zero(agent) {
+            // a. If y is either +0𝔽 or -0𝔽, return NaN.
+            if y.is_pos_zero(agent) || y.is_neg_zero(agent) {
+                return Number::nan();
+            }
+            // b. If y > +0𝔽, return x.
+            if y.to_real(agent) > 0.0 {
+                return x;
+            }
+            // c. Return -x.
+            return if x.is_pos_zero(agent) {
+                Number::neg_zero()
+            } else {
+                Number::pos_zero()
+            };
+        }
+        // 6. If y is +0𝔽, then
+        if y.is_pos_zero(agent) {
+            // a. If x > +0𝔽, return +∞𝔽. Otherwise, return -∞𝔽.
+            return if x.to_real(agent) > 0.0 {
+                Number::pos_inf()
+            } else {
+                Number::neg_inf()
+            };
+        }
+        // 7. If y is -0𝔽, then
+        if y.is_neg_zero(agent) {
+            // a. If x > +0𝔽, return -∞𝔽. Otherwise, return +∞𝔽.
+            return if x.to_real(agent) > 0.0 {
+                Number::neg_inf()
+            } else {
+                Number::pos_inf()
+            };
+        }
+        // 8. Return 𝔽(ℝ(x) / ℝ(y)).
+        let result = x.to_real(agent) / y.to_real(agent);
+        Number::from_f64(agent, result)
+    }
+
     /// ### [6.1.6.1.7 Number::add ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-add)
     ///
     /// The abstract operation Number::add takes arguments x (a Number) and y
@@ -811,6 +898,15 @@ impl Number {
                 let mut buffer = ryu_js::Buffer::new();
                 Ok(String::from_string(agent, buffer.format(x).to_string()))
             }
+        }
+    }
+
+    /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
+    pub(crate) fn to_real(self, agent: &mut Agent) -> f64 {
+        match self {
+            Self::Number(n) => agent[n],
+            Self::Integer(i) => i.into_i64() as f64,
+            Self::Float(f) => f as f64,
         }
     }
 }
