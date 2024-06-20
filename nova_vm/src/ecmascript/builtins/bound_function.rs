@@ -108,8 +108,8 @@ impl InternalMethods for BoundFunction {
         agent: &mut Agent,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_get_own_property(agent, property_key)
+        if let Some(backing_object) = self.get_backing_object(agent) {
+            backing_object.internal_get_own_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(Some(PropertyDescriptor {
                 value: Some(agent[self].length.into()),
@@ -137,15 +137,15 @@ impl InternalMethods for BoundFunction {
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
-        let object_index = agent[self]
-            .object_index
+        let backing_object = self
+            .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent));
-        object_index.internal_define_own_property(agent, property_key, property_descriptor)
+        backing_object.internal_define_own_property(agent, property_key, property_descriptor)
     }
 
     fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_has_property(agent, property_key)
+        if let Some(backing_object) = self.get_backing_object(agent) {
+            backing_object.internal_has_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
@@ -164,8 +164,8 @@ impl InternalMethods for BoundFunction {
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_get(agent, property_key, receiver)
+        if let Some(backing_object) = self.get_backing_object(agent) {
+            backing_object.internal_get(agent, property_key, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(agent[self].length.into())
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
@@ -185,27 +185,27 @@ impl InternalMethods for BoundFunction {
         value: Value,
         receiver: Value,
     ) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_set(agent, property_key, value, receiver)
+        if let Some(backing_object) = self.get_backing_object(agent) {
+            backing_object.internal_set(agent, property_key, value, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
             // length and name are not writable
             Ok(false)
         } else {
-            let object_index = self.create_backing_object(agent);
-            object_index.internal_set(agent, property_key, value, receiver)
+            self.create_backing_object(agent)
+                .internal_set(agent, property_key, value, receiver)
         }
     }
 
     fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_delete(agent, property_key)
+        if let Some(backing_object) = self.get_backing_object(agent) {
+            backing_object.internal_delete(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
-            let object_index = self.create_backing_object(agent);
-            object_index.internal_delete(agent, property_key)
+            let backing_object = self.create_backing_object(agent);
+            backing_object.internal_delete(agent, property_key)
         } else {
             // Non-existing property
             Ok(true)
@@ -213,8 +213,8 @@ impl InternalMethods for BoundFunction {
     }
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_own_property_keys(agent)
+        if let Some(backing_object) = self.get_backing_object(agent) {
+            backing_object.internal_own_property_keys(agent)
         } else {
             Ok(vec![
                 PropertyKey::from(BUILTIN_STRING_MEMORY.length),

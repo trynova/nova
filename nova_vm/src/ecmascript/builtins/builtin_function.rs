@@ -240,7 +240,7 @@ impl InternalMethods for BuiltinFunction {
         agent: &mut Agent,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
-        if let Some(object_index) = agent[self].object_index {
+        if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_get_own_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(Some(PropertyDescriptor {
@@ -269,8 +269,8 @@ impl InternalMethods for BuiltinFunction {
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_has_property(agent, property_key)
+        if let Some(object_index) = self.get_backing_object(agent) {
+            object_index.internal_define_own_property(agent, property_key, property_descriptor)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             let prototype = agent
                 .current_realm()
@@ -353,7 +353,7 @@ impl InternalMethods for BuiltinFunction {
     }
 
     fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
+        if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_has_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
@@ -373,7 +373,7 @@ impl InternalMethods for BuiltinFunction {
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
-        if let Some(object_index) = agent[self].object_index {
+        if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_get(agent, property_key, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(agent[self].length.into())
@@ -394,24 +394,21 @@ impl InternalMethods for BuiltinFunction {
         value: Value,
         receiver: Value,
     ) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_set(agent, property_key, value, receiver)
+        if let Some(backing_object) = self.get_backing_object(agent) {
+            backing_object.internal_set(agent, property_key, value, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
             // length and name are not writable
             Ok(false)
         } else {
-            let prototype = agent
-                .current_realm()
-                .intrinsics()
-                .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
-            prototype.internal_set(agent, property_key, value, receiver)
+            self.create_backing_object(agent)
+                .internal_set(agent, property_key, value, receiver)
         }
     }
 
     fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
+        if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_delete(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
@@ -451,7 +448,7 @@ impl InternalMethods for BuiltinFunction {
     }
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        if let Some(object_index) = agent[self].object_index {
+        if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_own_property_keys(agent)
         } else {
             Ok(vec![
