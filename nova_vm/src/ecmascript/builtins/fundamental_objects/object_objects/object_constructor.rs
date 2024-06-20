@@ -1,8 +1,12 @@
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{define_property_or_throw, has_own_property},
-            testing_and_comparison::same_value,
+            operations_on_objects::{
+                define_property_or_throw, get, has_own_property,
+                integrity::{Frozen, Sealed},
+                set_integrity_level,
+            },
+            testing_and_comparison::{require_object_coercible, same_value},
             type_conversion::{to_object, to_property_key},
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
@@ -295,17 +299,27 @@ impl ObjectConstructor {
         };
         let properties = arguments.get(1);
         if properties != Value::Undefined {
-            todo!("ObjectDefineProperties");
+            object_define_properties(agent, obj, properties)?;
         }
         Ok(obj.into_value())
     }
 
-    fn define_properties(
-        _agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+    /// ### [20.1.2.3 Object.defineProperties ( O, Properties )](https://tc39.es/ecma262/#sec-object.defineproperties)
+    ///
+    /// This function adds own properties and/or updates the attributes of
+    /// existing own properties of an object.
+    fn define_properties(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let o = arguments.get(0);
+        let properties = arguments.get(1);
+        // 1. If O is not an Object, throw a TypeError exception.
+        let Ok(o) = Object::try_from(o) else {
+            return Err(
+                agent.throw_exception(ExceptionType::TypeError, "Argument is not an object")
+            );
+        };
+        // 2. Return ? ObjectDefineProperties(O, Properties).
+        let result = object_define_properties(agent, o, properties)?;
+        Ok(result.into_value())
     }
 
     /// ### [20.1.2.4 Object.defineProperty ( O, P, Attributes )](https://tc39.es/ecma262/#sec-object.defineproperty)
@@ -340,8 +354,22 @@ impl ObjectConstructor {
         Ok(arguments.get(0))
     }
 
-    fn freeze(_agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        Ok(arguments.get(0))
+    /// ### [20.1.2.6 Object.freeze ( O )](https://tc39.es/ecma262/#sec-object.freeze)
+    fn freeze(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        // 1. If O is not an Object, return O.
+        let o = arguments.get(0);
+        let Ok(o) = Object::try_from(o) else {
+            return Ok(o);
+        };
+        // 2. Let status be ? SetIntegrityLevel(O, FROZEN).
+        let status = set_integrity_level::<Frozen>(agent, o)?;
+        if !status {
+            // 3. If status is false, throw a TypeError exception.
+            Err(agent.throw_exception(ExceptionType::TypeError, "Could not freeze object"))
+        } else {
+            // 4. Return O.
+            Ok(o.into_value())
+        }
     }
 
     fn from_entries(
@@ -412,12 +440,13 @@ impl ObjectConstructor {
         Ok(same_value(agent, arguments.get(0), arguments.get(1)).into())
     }
 
-    fn is_extensible(
-        _agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+    fn is_extensible(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let o = arguments.get(0);
+        let Ok(o) = Object::try_from(o) else {
+            return Ok(o);
+        };
+        let result = o.internal_is_extensible(agent)?;
+        Ok(result.into())
     }
 
     fn is_frozen(
@@ -441,7 +470,6 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.20 Object.preventExtensions ( O )](https://tc39.es/ecma262/#sec-object.preventextensions)
-
     fn prevent_extensions(
         agent: &mut Agent,
         _: Value,
@@ -463,16 +491,50 @@ impl ObjectConstructor {
         }
     }
 
-    fn seal(_agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        Ok(arguments.get(0))
+    /// ### [20.1.2.22 Object.seal ( O )](https://tc39.es/ecma262/#sec-object.seal)
+    fn seal(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        // 1. If O is not an Object, return O.
+        let o = arguments.get(0);
+        let Ok(o) = Object::try_from(o) else {
+            return Ok(o);
+        };
+        // 2. Let status be ? SetIntegrityLevel(O, SEALED).
+        let status = set_integrity_level::<Sealed>(agent, o)?;
+        if !status {
+            // 3. If status is false, throw a TypeError exception.
+            Err(agent.throw_exception(ExceptionType::TypeError, "Could not seal object"))
+        } else {
+            // 4. Return O.
+            Ok(o.into_value())
+        }
     }
 
-    fn set_prototype_of(
-        _agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+    /// ### [20.1.2.23 Object.setPrototypeOf ( O, proto )](https://tc39.es/ecma262/#sec-object.setprototypeof)
+    fn set_prototype_of(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let o = arguments.get(0);
+        let proto = arguments.get(0);
+        // 1. Set O to ? RequireObjectCoercible(O).
+        let o = require_object_coercible(agent, o)?;
+        // 2. If proto is not an Object and proto is not null, throw a TypeError exception.
+        let proto = if let Ok(proto) = Object::try_from(proto) {
+            Some(proto)
+        } else if proto.is_null() {
+            None
+        } else {
+            return Err(agent.throw_exception(ExceptionType::TypeError, "Invalid prototype"));
+        };
+        // 3. If O is not an Object, return O.
+        let Ok(o) = Object::try_from(o) else {
+            return Ok(o);
+        };
+        // 4. Let status be ? O.[[SetPrototypeOf]](proto).
+        let status = o.internal_set_prototype_of(agent, proto)?;
+        // 5. If status is false, throw a TypeError exception.
+        if !status {
+            return Err(agent.throw_exception(ExceptionType::TypeError, "Could not set prototype"));
+        }
+        // 6. Return O.
+        Ok(o.into_value())
     }
 
     fn values(_agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
@@ -511,4 +573,48 @@ impl ObjectConstructor {
             .with_builtin_function_property::<ObjectValues>()
             .build();
     }
+}
+
+/// ### [20.1.2.3.1 ObjectDefineProperties ( O, Properties )](https://tc39.es/ecma262/#sec-objectdefineproperties)
+///
+/// The abstract operation ObjectDefineProperties takes arguments O (an Object)
+/// and Properties (an ECMAScript language value) and returns either a normal
+/// completion containing an Object or a throw completion.
+fn object_define_properties<T: IntoObject>(
+    agent: &mut Agent,
+    o: T,
+    properties: Value,
+) -> JsResult<T> {
+    // 1. Let props be ? ToObject(Properties).
+    let props = to_object(agent, properties)?;
+    // 2. Let keys be ? props.[[OwnPropertyKeys]]().
+    let keys = props.internal_own_property_keys(agent)?;
+    // 3. Let descriptors be a new empty List.
+    let mut descriptors = Vec::with_capacity(keys.len());
+    // 4. For each element nextKey of keys, do
+    for next_key in keys {
+        // a. Let propDesc be ? props.[[GetOwnProperty]](nextKey).
+        let prop_desc = props.internal_get_own_property(agent, next_key)?;
+        // b. If propDesc is not undefined and propDesc.[[Enumerable]] is true, then
+        let Some(prop_desc) = prop_desc else {
+            continue;
+        };
+        if prop_desc.enumerable != Some(true) {
+            continue;
+        }
+        // i. Let descObj be ? Get(props, nextKey).
+        let desc_obj = get(agent, props, next_key)?;
+        // ii. Let desc be ? ToPropertyDescriptor(descObj).
+        let desc = PropertyDescriptor::to_property_descriptor(agent, desc_obj)?;
+        // iii. Append the Record { [[Key]]: nextKey, [[Descriptor]]: desc } to descriptors.
+        descriptors.push((next_key, desc));
+    }
+    // 5. For each element property of descriptors, do
+    let o_obj = o.into_object();
+    for (property_key, property_descriptor) in descriptors {
+        // a. Perform ? DefinePropertyOrThrow(O, property.[[Key]], property.[[Descriptor]]).
+        define_property_or_throw(agent, o_obj, property_key, property_descriptor)?;
+    }
+    // 6. Return O.
+    Ok(o)
 }
