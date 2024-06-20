@@ -1640,11 +1640,16 @@ impl ElementArrays {
             ElementArrayKey::E24 => &mut self.e2pow24.descriptors,
             ElementArrayKey::E32 => &mut self.e2pow32.descriptors,
         };
-        let inner_map = descriptors.get_mut(&vector.elements_index).unwrap();
-        if let Some(descriptor) = descriptor {
+        if let Some(inner_map) = descriptors.get_mut(&vector.elements_index) {
+            if let Some(descriptor) = descriptor {
+                inner_map.insert(index, descriptor);
+            } else {
+                inner_map.remove(&index);
+            }
+        } else if let Some(descriptor) = descriptor {
+            let mut inner_map = HashMap::new();
             inner_map.insert(index, descriptor);
-        } else {
-            inner_map.remove(&index);
+            descriptors.insert(vector.elements_index, inner_map);
         }
     }
 

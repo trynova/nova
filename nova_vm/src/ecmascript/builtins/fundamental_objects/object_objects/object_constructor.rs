@@ -1,7 +1,7 @@
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::has_own_property,
+            operations_on_objects::{define_property_or_throw, has_own_property},
             testing_and_comparison::same_value,
             type_conversion::{to_object, to_property_key},
         },
@@ -12,8 +12,8 @@ use crate::{
         },
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, String, Value,
-            BUILTIN_STRING_MEMORY,
+            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
+            String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::IntrinsicConstructorIndexes,
@@ -308,12 +308,28 @@ impl ObjectConstructor {
         Ok(arguments.get(0))
     }
 
-    fn define_property(
-        _agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+    /// ### [20.1.2.4 Object.defineProperty ( O, P, Attributes )](https://tc39.es/ecma262/#sec-object.defineproperty)
+    ///
+    /// This function adds an own property and/or updates the attributes of an
+    /// existing own property of an object.
+    fn define_property(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let o = arguments.get(0);
+        let p = arguments.get(1);
+        let attributes = arguments.get(2);
+        // 1. If O is not an Object, throw a TypeError exception.
+        let Ok(o) = Object::try_from(o) else {
+            return Err(
+                agent.throw_exception(ExceptionType::TypeError, "Argument is not an object")
+            );
+        };
+        // 2. Let key be ? ToPropertyKey(P).
+        let key = to_property_key(agent, p)?;
+        // 3. Let desc be ? ToPropertyDescriptor(Attributes).
+        let desc = PropertyDescriptor::to_property_descriptor(agent, attributes)?;
+        // 4. Perform ? DefinePropertyOrThrow(O, key, desc).
+        define_property_or_throw(agent, o, key, desc)?;
+        // 5. Return O.
+        Ok(o.into_value())
     }
 
     fn entries(
@@ -424,12 +440,27 @@ impl ObjectConstructor {
         Ok(arguments.get(0))
     }
 
+    /// ### [20.1.2.20 Object.preventExtensions ( O )](https://tc39.es/ecma262/#sec-object.preventextensions)
+
     fn prevent_extensions(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+        // 1. If O is not an Object, return O.
+        let o = arguments.get(0);
+        let Ok(o) = Object::try_from(o) else {
+            return Ok(o);
+        };
+        // 2. Let status be ? O.[[PreventExtensions]]().
+        let status = o.internal_prevent_extensions(agent)?;
+        // 3. If status is false, throw a TypeError exception.
+        if !status {
+            Err(agent.throw_exception(ExceptionType::TypeError, "Could not prevent extensions"))
+        } else {
+            // 4. Return O.
+            Ok(o.into_value())
+        }
     }
 
     fn seal(_agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
