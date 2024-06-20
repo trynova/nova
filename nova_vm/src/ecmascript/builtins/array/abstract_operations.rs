@@ -1,9 +1,6 @@
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            testing_and_comparison::same_value_zero,
-            type_conversion::{to_number, to_uint32},
-        },
+        abstract_operations::type_conversion::{to_number, to_uint32},
         builtins::ordinary::ordinary_define_own_property,
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{
