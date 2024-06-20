@@ -235,16 +235,16 @@ impl InternalMethods for BuiltinPromiseRejectFunction {
         value: Value,
         receiver: Value,
     ) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_set(agent, property_key, value, receiver)
+        if let Some(backing_object) = self.get_backing_object(agent) {
+            backing_object.internal_set(agent, property_key, value, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
             // length and name are not writable
             Ok(false)
         } else {
-            let object_index = self.create_backing_object(agent);
-            object_index.internal_set(agent, property_key, value, receiver)
+            self.create_backing_object(agent)
+                .internal_set(agent, property_key, value, receiver)
         }
     }
 
