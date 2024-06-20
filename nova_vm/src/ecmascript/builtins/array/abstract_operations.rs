@@ -1,9 +1,6 @@
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            testing_and_comparison::same_value_zero,
-            type_conversion::{to_number, to_uint32},
-        },
+        abstract_operations::type_conversion::{to_number, to_uint32},
         builtins::ordinary::ordinary_define_own_property,
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{
@@ -87,7 +84,7 @@ pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -
     // 4. Let numberLen be ? ToNumber(Desc.[[Value]]).
     let number_len = to_number(agent, desc_value)?;
     // 5. If SameValueZero(newLen, numberLen) is false, throw a RangeError exception.
-    if same_value_zero(agent, new_len, number_len) {
+    if number_len != new_len.into() {
         return Err(agent.throw_exception(ExceptionType::RangeError, "invalid array length"));
     }
     // 6. Set newLenDesc.[[Value]] to newLen.
