@@ -34,7 +34,7 @@ impl HeapNumber {
 }
 
 /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Number {
     Number(HeapNumber) = NUMBER_DISCRIMINANT,
