@@ -1138,7 +1138,7 @@ impl<'a> TopLevelVarDeclaredNames<'a> for oxc_allocator::Vec<'a, Statement<'a>> 
         // 2. Let names2 be TopLevelVarDeclaredNames of StatementListItem.
         // 3. Return the list-concatenation of names1 and names2.
         for ele in self {
-            ele.top_level_lexically_declared_names(f);
+            ele.top_level_var_declared_names(f);
         }
     }
 }
