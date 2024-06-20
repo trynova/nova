@@ -203,6 +203,8 @@ impl InternalMethods for Array {
             Ok(Some(PropertyDescriptor {
                 value: Some(array_data.elements.len().into()),
                 writable: Some(array_data.elements.len_writable),
+                configurable: Some(false),
+                enumerable: Some(false),
                 ..Default::default()
             }))
         } else if let Some(backing_object) = array_data.object_index {
