@@ -2,7 +2,7 @@
   "built-ins/Array/S15.4.3_A1.1_T1.js": "FAIL",
   "built-ins/Array/S15.4.3_A1.1_T2.js": "FAIL",
   "built-ins/Array/S15.4.5.1_A1.2_T2.js": "CRASH",
-  "built-ins/Array/S15.4.5.2_A1_T1.js": "TIMEOUT",
+  "built-ins/Array/S15.4.5.2_A1_T1.js": "CRASH",
   "built-ins/Array/S15.4.5.2_A3_T1.js": "FAIL",
   "built-ins/Array/S15.4.5.2_A3_T2.js": "CRASH",
   "built-ins/Array/S15.4.5.2_A3_T3.js": "FAIL",
