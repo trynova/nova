@@ -155,7 +155,7 @@ pub(crate) fn create_data_property_or_throw(
 /// cannot be performed.
 pub(crate) fn define_property_or_throw(
     agent: &mut Agent,
-    object: Object,
+    object: impl InternalMethods,
     property_key: PropertyKey,
     desc: PropertyDescriptor,
 ) -> JsResult<()> {

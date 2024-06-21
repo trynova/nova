@@ -620,7 +620,7 @@ impl ObjectConstructor {
 /// The abstract operation ObjectDefineProperties takes arguments O (an Object)
 /// and Properties (an ECMAScript language value) and returns either a normal
 /// completion containing an Object or a throw completion.
-fn object_define_properties<T: IntoObject>(
+fn object_define_properties<T: InternalMethods>(
     agent: &mut Agent,
     o: T,
     properties: Value,
@@ -650,10 +650,9 @@ fn object_define_properties<T: IntoObject>(
         descriptors.push((next_key, desc));
     }
     // 5. For each element property of descriptors, do
-    let o_obj = o.into_object();
     for (property_key, property_descriptor) in descriptors {
         // a. Perform ? DefinePropertyOrThrow(O, property.[[Key]], property.[[Descriptor]]).
-        define_property_or_throw(agent, o_obj, property_key, property_descriptor)?;
+        define_property_or_throw(agent, o, property_key, property_descriptor)?;
     }
     // 6. Return O.
     Ok(o)
