@@ -2,7 +2,8 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                define_property_or_throw, get, has_own_property,
+                create_array_from_list, define_property_or_throw, enumerable_own_properties,
+                enumerable_properties_kind, get, has_own_property,
                 integrity::{Frozen, Sealed},
                 set_integrity_level,
             },
@@ -20,7 +21,7 @@ use crate::{
             String, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::IntrinsicConstructorIndexes,
+    heap::{IntrinsicConstructorIndexes, ObjectEntry},
 };
 
 pub(crate) struct ObjectConstructor;
@@ -346,12 +347,15 @@ impl ObjectConstructor {
         Ok(o.into_value())
     }
 
-    fn entries(
-        _agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+    fn entries(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let o = arguments.get(0);
+        // 1. Let obj be ? ToObject(O).
+        let obj = to_object(agent, o)?;
+        // 2. Let entryList be ? EnumerableOwnProperties(obj, KEY+VALUE).
+        let entry_list =
+            enumerable_own_properties::<enumerable_properties_kind::KeyValue>(agent, obj)?;
+        // 3. Return CreateArrayFromList(entryList).
+        Ok(create_array_from_list(agent, &entry_list).into_value())
     }
 
     /// ### [20.1.2.6 Object.freeze ( O )](https://tc39.es/ecma262/#sec-object.freeze)
@@ -380,20 +384,60 @@ impl ObjectConstructor {
         Ok(arguments.get(0))
     }
 
+    /// ### [20.1.2.8 Object.getOwnPropertyDescriptor ( O, P )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptor)
     fn get_own_property_descriptor(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+        let o = arguments.get(0);
+        let p = arguments.get(1);
+        // 1. Let obj be ? ToObject(O).
+        let obj = to_object(agent, o)?;
+        // 2. Let key be ? ToPropertyKey(P).
+        let key = to_property_key(agent, p)?;
+        // 3. Let desc be ? obj.[[GetOwnProperty]](key).
+        let desc = obj.internal_get_own_property(agent, key)?;
+        // 4. Return FromPropertyDescriptor(desc).
+        Ok(PropertyDescriptor::from_property_descriptor(desc, agent)
+            .map_or(Value::Undefined, |obj| obj.into_value()))
     }
 
+    /// ### [20.1.2.9 Object.getOwnPropertyDescriptors ( O )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptors)
     fn get_own_property_descriptors(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+        let o = arguments.get(0);
+        // 1. Let obj be ? ToObject(O).
+        let obj = to_object(agent, o)?;
+        // 2. Let ownKeys be ? obj.[[OwnPropertyKeys]]().
+        let own_keys = obj.internal_own_property_keys(agent)?;
+
+        let mut descriptors = Vec::with_capacity(own_keys.len());
+        // 4. For each element key of ownKeys, do
+        for key in own_keys {
+            // a. Let desc be ? obj.[[GetOwnProperty]](key).
+            let desc = obj.internal_get_own_property(agent, key)?;
+            // b. Let descriptor be FromPropertyDescriptor(desc).
+            let descriptor = PropertyDescriptor::from_property_descriptor(desc, agent);
+            // c. If descriptor is not undefined, perform ! CreateDataPropertyOrThrow(descriptors, key, descriptor).
+            if let Some(descriptor) = descriptor {
+                descriptors.push(ObjectEntry::new_data_entry(key, descriptor.into_value()));
+            }
+        }
+        // 3. Let descriptors be OrdinaryObjectCreate(%Object.prototype%).
+        let descriptors = agent.heap.create_object_with_prototype(
+            agent
+                .current_realm()
+                .intrinsics()
+                .object_prototype()
+                .into_object(),
+            &descriptors,
+        );
+        // 5. Return descriptors.
+        Ok(descriptors.into_value())
     }
 
     fn get_own_property_names(
@@ -465,8 +509,15 @@ impl ObjectConstructor {
         Ok(arguments.get(0))
     }
 
-    fn keys(_agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        Ok(arguments.get(0))
+    /// ### [20.1.2.19 Object.keys ( O )](https://tc39.es/ecma262/#sec-object.keys)
+    fn keys(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let o = arguments.get(0);
+        // 1. Let obj be ? ToObject(O).
+        let obj = to_object(agent, o)?;
+        // 2. Let keyList be ? EnumerableOwnProperties(obj, KEY).
+        let key_list = enumerable_own_properties::<enumerable_properties_kind::Key>(agent, obj)?;
+        // 3. Return CreateArrayFromList(keyList).
+        Ok(create_array_from_list(agent, &key_list).into_value())
     }
 
     /// ### [20.1.2.20 Object.preventExtensions ( O )](https://tc39.es/ecma262/#sec-object.preventextensions)
@@ -537,8 +588,15 @@ impl ObjectConstructor {
         Ok(o.into_value())
     }
 
-    fn values(_agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        Ok(arguments.get(0))
+    fn values(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let o = arguments.get(0);
+        // 1. Let obj be ? ToObject(O).
+        let obj = to_object(agent, o)?;
+        // 2. Let valueList be ? EnumerableOwnProperties(obj, VALUE).
+        let value_list =
+            enumerable_own_properties::<enumerable_properties_kind::Value>(agent, obj)?;
+        // 3. Return CreateArrayFromList(valueList).
+        Ok(create_array_from_list(agent, &value_list).into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -580,7 +638,7 @@ impl ObjectConstructor {
 /// The abstract operation ObjectDefineProperties takes arguments O (an Object)
 /// and Properties (an ECMAScript language value) and returns either a normal
 /// completion containing an Object or a throw completion.
-fn object_define_properties<T: IntoObject>(
+fn object_define_properties<T: InternalMethods>(
     agent: &mut Agent,
     o: T,
     properties: Value,
@@ -610,10 +668,9 @@ fn object_define_properties<T: IntoObject>(
         descriptors.push((next_key, desc));
     }
     // 5. For each element property of descriptors, do
-    let o_obj = o.into_object();
     for (property_key, property_descriptor) in descriptors {
         // a. Perform ? DefinePropertyOrThrow(O, property.[[Key]], property.[[Descriptor]]).
-        define_property_or_throw(agent, o_obj, property_key, property_descriptor)?;
+        define_property_or_throw(agent, o, property_key, property_descriptor)?;
     }
     // 6. Return O.
     Ok(o)

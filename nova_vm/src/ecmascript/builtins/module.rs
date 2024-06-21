@@ -413,9 +413,9 @@ impl InternalMethods for Module {
             .map(|string| PropertyKey::from(*string));
         let exports_count = exports.len();
         // 2. Let symbolKeys be OrdinaryOwnPropertyKeys(O).
-        let symbol_keys = self.get_backing_object(agent).map_or(vec![], |object| {
-            ordinary_own_property_keys(agent, object.into_object())
-        });
+        let symbol_keys = self
+            .get_backing_object(agent)
+            .map_or(vec![], |object| ordinary_own_property_keys(agent, object));
         let symbol_keys_count = symbol_keys.len();
         // 3. Return the list-concatenation of exports and symbolKeys.
         let mut own_property_keys = Vec::with_capacity(exports_count + symbol_keys_count);

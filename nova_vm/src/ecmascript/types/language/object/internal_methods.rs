@@ -211,10 +211,7 @@ where
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         // 1. Return OrdinaryOwnPropertyKeys(O).
         match self.get_backing_object(agent) {
-            Some(backing_object) => Ok(ordinary_own_property_keys(
-                agent,
-                backing_object.into_object(),
-            )),
+            Some(backing_object) => Ok(ordinary_own_property_keys(agent, backing_object)),
             None => Ok(vec![]),
         }
     }

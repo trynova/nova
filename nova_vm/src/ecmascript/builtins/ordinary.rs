@@ -1,4 +1,7 @@
-use std::ops::{Index, IndexMut};
+use std::{
+    ops::{Index, IndexMut},
+    vec,
+};
 
 use crate::{
     ecmascript::{
@@ -674,45 +677,56 @@ pub(crate) fn ordinary_delete(
 }
 
 /// ### [10.1.11.1 OrdinaryOwnPropertyKeys ( O )](https://tc39.es/ecma262/#sec-ordinaryownpropertykeys)
-pub(crate) fn ordinary_own_property_keys(_agent: &Agent, _object: Object) -> Vec<PropertyKey> {
+pub(crate) fn ordinary_own_property_keys(
+    agent: &Agent,
+    object: OrdinaryObject,
+) -> Vec<PropertyKey> {
+    let object_keys = agent[object].keys;
     // 1. Let keys be a new empty List.
-
-    // 2. For each own property key P of O such that P is an array index, in ascending numeric
-    //    index order, do
-    // for entry in object.property_storage().entries(agent) {
-    // 	if entry.key.is_array_index() {
-    // 		// a. Append P to keys.
-    // 		keys.push(entry.key);
-    // 	}
-    // }
-
-    // for (object.property_storage().hash_map.keys()) |property_key| {
-    //     if (property_key.is_array_index()) {
-    //         // a. Append P to keys.
-    //         keys.appendAssumeCapacity(property_key);
-    //     }
-    // }
+    let mut integer_keys = vec![];
+    let mut keys = Vec::with_capacity(object_keys.len() as usize);
+    let mut symbol_keys = vec![];
 
     // 3. For each own property key P of O such that P is a String and P is not an array index, in
     //    ascending chronological order of property creation, do
-    // for (object.propertyStorage().hash_map.keys()) |property_key| {
-    //     if (property_key == .string or (property_key == .integer_index and !property_key.isArrayIndex())) {
-    //         // a. Append P to keys.
-    //         keys.appendAssumeCapacity(property_key);
-    //     }
-    // }
+    for key in agent[object_keys].iter() {
+        // SAFETY: Keys are all property keys
+        let key = PropertyKey::try_from(key.unwrap()).unwrap();
+        match key {
+            PropertyKey::Integer(integer_key) => {
+                let key_value = integer_key.into_i64();
+                if (0..u32::MAX as i64).contains(&key_value) {
+                    // Integer property key! This requires sorting
+                    integer_keys.push(key_value as u32);
+                } else {
+                    keys.push(key);
+                }
+            }
+            PropertyKey::Symbol(symbol) => symbol_keys.push(symbol),
+            // a. Append P to keys.
+            _ => keys.push(key),
+        }
+    }
 
-    // 4. For each own property key P of O such that P is a Symbol, in ascending chronological
-    //    order of property creation, do
-    // for (object.propertyStorage().hash_map.keys()) |property_key| {
-    //     if (property_key == .symbol) {
-    //         // a. Append P to keys.
-    //         keys.appendAssumeCapacity(property_key);
-    //     }
-    // }
+    // 2. For each own property key P of O such that P is an array index,
+    if !integer_keys.is_empty() {
+        // in ascending numeric index order, do
+        integer_keys.sort();
+        // a. Append P to keys.
+        keys.splice(0..0, integer_keys.into_iter().map(|key| key.into()));
+    }
+
+    // 4. For each own property key P of O such that P is a Symbol,
+    if !symbol_keys.is_empty() {
+        // in ascending chronological order of property creation, do
+        // a. Append P to keys.
+        keys.extend(symbol_keys.iter().map(|key| PropertyKey::Symbol(*key)));
+    }
+
+    debug_assert_eq!(keys.len() as u32, object_keys.len());
 
     // 5. Return keys.
-    Vec::new()
+    keys
 }
 
 /// ### [10.1.12 OrdinaryObjectCreate ( proto \[ , additionalInternalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinaryobjectcreate)
