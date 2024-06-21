@@ -1,11 +1,16 @@
-use crate::ecmascript::{
-    abstract_operations::{
-        operations_on_objects::{get, has_property},
-        testing_and_comparison::is_callable,
-        type_conversion::to_boolean,
+use crate::{
+    ecmascript::{
+        abstract_operations::{
+            operations_on_objects::{get, has_property},
+            testing_and_comparison::is_callable,
+            type_conversion::to_boolean,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{
+            Function, IntoObject, IntoValue, Object, OrdinaryObject, Value, BUILTIN_STRING_MEMORY,
+        },
     },
-    execution::{agent::ExceptionType, Agent, JsResult},
-    types::{Function, Object, Value, BUILTIN_STRING_MEMORY},
+    heap::ObjectEntry,
 };
 
 /// ### [6.2.6 The Property Descriptor Specification Type](https://tc39.es/ecma262/#sec-property-descriptor-specification-type)
@@ -67,30 +72,89 @@ impl PropertyDescriptor {
     }
 
     /// ### [6.2.6.4 FromPropertyDescriptor ( Desc )](https://tc39.es/ecma262/#sec-frompropertydescriptor)
-    pub fn from_property_descriptor(&self, agent: &mut Agent) -> JsResult<Object> {
-        let _realm = agent.current_realm();
-
+    ///
+    /// The abstract operation FromPropertyDescriptor takes argument Desc (a
+    /// Property Descriptor or undefined) and returns an Object or undefined.
+    pub fn from_property_descriptor(
+        desc: Option<Self>,
+        agent: &mut Agent,
+    ) -> Option<OrdinaryObject> {
         // 1. If Desc is undefined, return undefined.
+        let Some(desc) = desc else {
+            return None;
+        };
+
+        let mut entries = Vec::with_capacity(4);
+
+        // 4. If Desc has a [[Value]] field, then
+        if let Some(value) = desc.value {
+            // a. Perform ! CreateDataPropertyOrThrow(obj, "value", Desc.[[Value]]).
+            entries.push(ObjectEntry::new_data_entry(
+                BUILTIN_STRING_MEMORY.value.into(),
+                value,
+            ));
+        }
+
+        // 5. If Desc has a [[Writable]] field, then
+        if let Some(writable) = desc.writable {
+            // a. Perform ! CreateDataPropertyOrThrow(obj, "writable", Desc.[[Writable]]).
+            entries.push(ObjectEntry::new_data_entry(
+                BUILTIN_STRING_MEMORY.writable.into(),
+                writable.into(),
+            ));
+        }
+
+        // 6. If Desc has a [[Get]] field, then
+        if let Some(get) = desc.get {
+            // a. Perform ! CreateDataPropertyOrThrow(obj, "get", Desc.[[Get]]).
+            entries.push(ObjectEntry::new_data_entry(
+                BUILTIN_STRING_MEMORY.get.into(),
+                get.into_value(),
+            ));
+        }
+
+        // 7. If Desc has a [[Set]] field, then
+        if let Some(set) = desc.set {
+            // a. Perform ! CreateDataPropertyOrThrow(obj, "set", Desc.[[Set]]).
+            entries.push(ObjectEntry::new_data_entry(
+                BUILTIN_STRING_MEMORY.set.into(),
+                set.into_value(),
+            ));
+        }
+
+        // 8. If Desc has an [[Enumerable]] field, then
+        if let Some(enumerable) = desc.enumerable {
+            // a. Perform ! CreateDataPropertyOrThrow(obj, "enumerable", Desc.[[Enumerable]]).
+            entries.push(ObjectEntry::new_data_entry(
+                BUILTIN_STRING_MEMORY.enumerable.into(),
+                enumerable.into(),
+            ));
+        }
+
+        // 9. If Desc has a [[Configurable]] field, then
+        if let Some(configurable) = desc.configurable {
+            // a. Perform ! CreateDataPropertyOrThrow(obj, "configurable", Desc.[[Configurable]]).
+            entries.push(ObjectEntry::new_data_entry(
+                BUILTIN_STRING_MEMORY.configurable.into(),
+                configurable.into(),
+            ));
+        }
+
+        debug_assert!(entries.len() <= 4);
 
         // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%).
         // 3. Assert: obj is an extensible ordinary object with no own properties.
+        let obj = agent.heap.create_object_with_prototype(
+            agent
+                .current_realm()
+                .intrinsics()
+                .object_prototype()
+                .into_object(),
+            &entries,
+        );
 
-        // 4. If Desc has a [[Value]] field, then
-        // a. Perform ! CreateDataPropertyOrThrow(obj, "value", Desc.[[Value]]).
-
-        // 5. If Desc has a [[Writable]] field, then
-
-        // 6. If Desc has a [[Get]] field, then
-        // a. Perform ! CreateDataPropertyOrThrow(obj, "get", Desc.[[Get]]).
-        // 7. If Desc has a [[Set]] field, then
-        // a. Perform ! CreateDataPropertyOrThrow(obj, "set", Desc.[[Set]]).
-        // 8. If Desc has an [[Enumerable]] field, then
-        // a. Perform ! CreateDataPropertyOrThrow(obj, "enumerable", Desc.[[Enumerable]]).
-
-        // 9. If Desc has a [[Configurable]] field, then
-        // a. Perform ! CreateDataPropertyOrThrow(obj, "configurable", Desc.[[Configurable]]).
         // 10. Return obj.
-        todo!()
+        Some(obj)
     }
 
     /// ### [6.2.6.5 ToPropertyDescriptor ( Obj )](https://tc39.es/ecma262/#sec-topropertydescriptor)

@@ -6,6 +6,20 @@ pub(crate) struct ObjectEntry {
     pub value: ObjectEntryPropertyDescriptor,
 }
 
+impl ObjectEntry {
+    pub(crate) fn new_data_entry(key: PropertyKey, value: Value) -> Self {
+        Self {
+            key,
+            value: ObjectEntryPropertyDescriptor::Data {
+                value,
+                writable: true,
+                enumerable: true,
+                configurable: true,
+            },
+        }
+    }
+}
+
 impl From<PropertyDescriptor> for ObjectEntryPropertyDescriptor {
     fn from(value: PropertyDescriptor) -> Self {
         let configurable = value.configurable.unwrap_or(true);
