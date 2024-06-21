@@ -2,7 +2,7 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{to_number, to_uint32},
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey},
+        types::{IntoObject, Object, PropertyDescriptor},
     },
     heap::indexes::ArrayIndex,
 };
@@ -124,14 +124,16 @@ pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -
         return Ok(true);
     }
     // 15. Let succeeded be ! OrdinaryDefineOwnProperty(A, "length", newLenDesc).
+    let old_elements = array_heap_data.elements;
     array_heap_data.elements.len = new_len;
     // 17. For each own property key P of A such that P is an array index and ! ToUint32(P) ≥ newLen, in descending numeric index order, do
     debug_assert!(old_len > new_len);
-    for i in old_len..new_len {
+    for i in new_len + 1..old_len {
         // a. Let deleteSucceeded be ! A.[[Delete]](P).
-        let delete_succeeded = a
-            .internal_delete(agent, PropertyKey::Integer(i.into()))
-            .unwrap();
+        let elements = &mut agent[old_elements];
+        // TODO: Handle unwritable properties and property descriptors.
+        *elements.get_mut(i as usize).unwrap() = None;
+        let delete_succeeded = true;
         // b. If deleteSucceeded is false, then
         if !delete_succeeded {
             let array_heap_data = &mut agent[a];
