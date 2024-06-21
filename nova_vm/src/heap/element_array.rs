@@ -70,10 +70,8 @@ impl From<u32> for ElementArrayKey {
             ElementArrayKey::E16
         } else if value <= u32::pow(2, 24) {
             ElementArrayKey::E24
-        } else if value <= u32::MAX {
-            ElementArrayKey::E32
         } else {
-            panic!("Elements array length over 2 ** 32 - 1");
+            ElementArrayKey::E32
         }
     }
 }
