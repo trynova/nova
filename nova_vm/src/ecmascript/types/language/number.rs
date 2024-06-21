@@ -565,8 +565,8 @@ impl Number {
             let y = y.into_i64();
             let result = x.checked_mul(y);
             if let Some(result) = result {
-                if let Ok(result) = Self::try_from(result) {
-                    return result;
+                if let Ok(result) = SmallInteger::try_from(result) {
+                    return result.into();
                 }
                 return Self::from_f64(agent, result as f64);
             }
