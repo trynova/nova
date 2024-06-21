@@ -255,7 +255,7 @@ impl Number {
         }
     }
 
-    pub fn is_finite(self, agent: &mut Agent) -> bool {
+    pub fn is_finite(self, agent: &Agent) -> bool {
         match self {
             Number::Number(n) => agent[n].is_finite(),
             Number::Integer(_) => true,
@@ -263,11 +263,27 @@ impl Number {
         }
     }
 
-    pub fn is_nonzero(self, agent: &mut Agent) -> bool {
+    pub fn is_nonzero(self, agent: &Agent) -> bool {
         match self {
             Number::Number(n) => 0.0 != agent[n],
             Number::Integer(n) => 0i64 != n.into(),
             Number::Float(n) => 0.0 != n,
+        }
+    }
+
+    pub fn is_sign_positive(self, agent: &Agent) -> bool {
+        match self {
+            Number::Number(n) => agent[n].is_sign_positive(),
+            Number::Integer(n) => n.into_i64().is_positive(),
+            Number::Float(n) => n.is_sign_positive(),
+        }
+    }
+
+    pub fn is_sign_negative(self, agent: &Agent) -> bool {
+        match self {
+            Number::Number(n) => agent[n].is_sign_negative(),
+            Number::Integer(n) => n.into_i64().is_negative(),
+            Number::Float(n) => n.is_sign_negative(),
         }
     }
 
@@ -530,6 +546,90 @@ impl Number {
         agent
             .heap
             .create(base.into_f64(agent).powf(exponent.into_f64(agent)))
+    }
+
+    /// ### [6.1.6.1.4 Number::multiply ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-multiply)
+    ///
+    /// The abstract operation Number::multiply takes arguments x (a Number)
+    /// and y (a Number) and returns a Number. It performs multiplication
+    /// according to the rules of IEEE 754-2019 binary double-precision
+    /// arithmetic, producing the product of x and y.
+    ///
+    /// > NOTE: Finite-precision multiplication is commutative, but not always
+    /// > associative.
+    pub fn multiply(agent: &mut Agent, x: Self, y: Self) -> Self {
+        // Nonstandard fast path: If both numbers are integers, use integer
+        // multiplication and try to return a safe integer as integer.
+        if let (Self::Integer(x), Self::Integer(y)) = (x, y) {
+            let x = x.into_i64();
+            let y = y.into_i64();
+            let result = x.checked_mul(y);
+            if let Some(result) = result {
+                if let Ok(result) = SmallInteger::try_from(result) {
+                    return result.into();
+                }
+                return Self::from_f64(agent, result as f64);
+            }
+            return Self::from_f64(agent, x as f64 * y as f64);
+        }
+        // 1. If x is NaN or y is NaN, return NaN.
+        if x.is_nan(agent) || y.is_nan(agent) {
+            return Self::nan();
+        }
+        // 2. If x is either +∞𝔽 or -∞𝔽, then
+        if x.is_pos_infinity(agent) || x.is_neg_infinity(agent) {
+            // a. If y is either +0𝔽 or -0𝔽, return NaN.
+            if y.is_pos_zero(agent) || y.is_neg_zero(agent) {
+                return Self::nan();
+            }
+            // b. If y > +0𝔽, return x.
+            if y.is_sign_positive(agent) {
+                return x;
+            }
+            // c. Return -x.
+            return if x.is_pos_infinity(agent) {
+                Self::neg_inf()
+            } else {
+                Self::pos_inf()
+            };
+        }
+        // 3. If y is either +∞𝔽 or -∞𝔽, then
+        if y.is_pos_infinity(agent) || y.is_neg_infinity(agent) {
+            // a. If x is either +0𝔽 or -0𝔽, return NaN.
+            if x.is_pos_zero(agent) || x.is_neg_zero(agent) {
+                return Self::nan();
+            }
+            // b. If x > +0𝔽, return y.
+            if x.is_sign_positive(agent) {
+                return y;
+            }
+            // c. Return -y.
+            return if y.is_pos_infinity(agent) {
+                Self::neg_inf()
+            } else {
+                Self::pos_inf()
+            };
+        }
+        // 4. If x is -0𝔽, then
+        if x.is_neg_zero(agent) {
+            // a. If y is -0𝔽 or y < -0𝔽, return +0𝔽.
+            if y.is_neg_zero(agent) || y.is_sign_negative(agent) {
+                return Self::pos_zero();
+            }
+            // b. Else, return -0𝔽.
+            return Self::neg_zero();
+        }
+        // 5. If y is -0𝔽, then
+        if y.is_neg_zero(agent) {
+            // a. If x < -0𝔽, return +0𝔽.
+            if x.is_sign_negative(agent) {
+                return Self::pos_zero();
+            }
+            // b. Else, return -0𝔽.
+            return Self::neg_zero();
+        }
+        // 6. Return 𝔽(ℝ(x) × ℝ(y)).
+        Self::from_f64(agent, x.to_real(agent) * y.to_real(agent))
     }
 
     /// ### [6.1.6.1.5 Number::divide ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-divide)
@@ -902,7 +1002,7 @@ impl Number {
     }
 
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
-    pub(crate) fn to_real(self, agent: &mut Agent) -> f64 {
+    pub(crate) fn to_real(self, agent: &Agent) -> f64 {
         match self {
             Self::Number(n) => agent[n],
             Self::Integer(i) => i.into_i64() as f64,

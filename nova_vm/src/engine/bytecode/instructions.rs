@@ -65,6 +65,7 @@ pub enum Instruction {
     /// Store HasProperty() as the result value.
     HasProperty,
     Increment,
+    Decrement,
     /// Store InstanceofOperator() as the result value.
     InstanceofOperator,
     /// Store InstantiateArrowFunctionExpression() as the result value.

@@ -1376,8 +1376,22 @@ impl CompileEvaluation for ast::UpdateExpression<'_> {
             | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         }
         ctx.exe.add_instruction(Instruction::GetValueKeepReference);
-        ctx.exe.add_instruction(Instruction::Increment);
+        if self.prefix {
+            ctx.exe.add_instruction(Instruction::LoadCopy);
+        }
+        match self.operator {
+            oxc_syntax::operator::UpdateOperator::Increment => {
+                ctx.exe.add_instruction(Instruction::Increment);
+            }
+            oxc_syntax::operator::UpdateOperator::Decrement => {
+                ctx.exe.add_instruction(Instruction::Decrement);
+            }
+        }
+        if !self.prefix {
+            ctx.exe.add_instruction(Instruction::LoadCopy);
+        }
         ctx.exe.add_instruction(Instruction::PutValue);
+        ctx.exe.add_instruction(Instruction::Store);
     }
 }
 

@@ -503,6 +503,18 @@ impl Vm {
                 };
                 vm.result = Some(new_value.into_value());
             }
+            Instruction::Decrement => {
+                let lhs = vm.result.take().unwrap();
+                let old_value = to_numeric(agent, lhs)?;
+                let new_value = if let Ok(old_value) = Number::try_from(old_value) {
+                    Number::subtract(agent, old_value, 1.into())
+                } else {
+                    todo!();
+                    // let old_value = BigInt::try_from(old_value).unwrap();
+                    // BigInt::subtract(agent, old_value, 1.into());
+                };
+                vm.result = Some(new_value.into_value());
+            }
             Instruction::LessThan => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
@@ -948,7 +960,7 @@ fn apply_string_or_numeric_binary_operator(
             // **	Number	Number::exponentiate
             BinaryOperator::Exponential => Number::exponentiate(agent, lnum, rnum).into_value(),
             // *	Number	Number::multiply
-            BinaryOperator::Multiplication => todo!(),
+            BinaryOperator::Multiplication => Number::multiply(agent, lnum, rnum).into_value(),
             // /	Number	Number::divide
             BinaryOperator::Division => Number::divide(agent, lnum, rnum).into_value(),
             // %	Number	Number::remainder
