@@ -31,9 +31,9 @@ pub(crate) struct CompileContext<'agent> {
     ///
     /// Otherwise, all bindings being created are variable scoped.
     lexical_binding_state: bool,
-    /// Place where to jump if a `continue;` is executed
-    current_continue: Option<JumpIndex>,
-    /// `break;` statement jumps that were present in the current loop
+    /// `continue;` statement jumps that were present in the current loop.
+    current_continue: Option<Vec<JumpIndex>>,
+    /// `break;` statement jumps that were present in the current loop.
     current_break: Option<Vec<JumpIndex>>,
 }
 
@@ -2100,6 +2100,9 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
 
 impl CompileEvaluation for ast::ForStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        let previous_continue = ctx.current_continue.replace(vec![]);
+        let previous_break = ctx.current_break.replace(vec![]);
+
         if let Some(init) = &self.init {
             if init.is_lexical_declaration() {
                 todo!();
@@ -2163,10 +2166,11 @@ impl CompileEvaluation for ast::ForStatement<'_> {
             .exe
             .add_instruction_with_jump_slot(Instruction::JumpIfNot);
         self.body.compile(ctx);
-        let continue_jump = ctx.exe.get_jump_index_to_here();
 
-        let previous_continue = ctx.current_continue.replace(continue_jump.clone());
-        let previous_break = ctx.current_break.replace(vec![]);
+        let own_continues = ctx.current_continue.take().unwrap();
+        for continue_entry in own_continues {
+            ctx.exe.set_jump_target_here(continue_entry);
+        }
 
         if let Some(update) = &self.update {
             update.compile(ctx);
@@ -2234,12 +2238,17 @@ impl CompileEvaluation for ast::TryStatement<'_> {
 
 impl CompileEvaluation for ast::DoWhileStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        let continue_jump = ctx.exe.get_jump_index_to_here();
-
-        let previous_continue = ctx.current_continue.replace(continue_jump.clone());
+        let previous_continue = ctx.current_continue.replace(vec![]);
         let previous_break = ctx.current_break.replace(vec![]);
 
+        let start_jump = ctx.exe.get_jump_index_to_here();
         self.body.compile(ctx);
+
+        let own_continues = ctx.current_continue.take().unwrap();
+        for continue_entry in own_continues {
+            ctx.exe.set_jump_target_here(continue_entry);
+        }
+
         self.test.compile(ctx);
         if is_reference(&self.test) {
             ctx.exe.add_instruction(Instruction::GetValue);
@@ -2249,7 +2258,7 @@ impl CompileEvaluation for ast::DoWhileStatement<'_> {
             .exe
             .add_instruction_with_jump_slot(Instruction::JumpIfNot);
         ctx.exe
-            .add_jump_instruction_to_index(Instruction::Jump, continue_jump);
+            .add_jump_instruction_to_index(Instruction::Jump, start_jump);
         ctx.exe.set_jump_target_here(end_jump);
 
         let own_breaks = ctx.current_break.take().unwrap();
@@ -2278,10 +2287,8 @@ impl CompileEvaluation for ast::ContinueStatement<'_> {
             let label = label.name.as_str();
             todo!("continue {};", label);
         }
-        ctx.exe.add_jump_instruction_to_index(
-            Instruction::Jump,
-            ctx.current_continue.clone().unwrap(),
-        );
+        let continue_jump = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+        ctx.current_continue.as_mut().unwrap().push(continue_jump);
     }
 }
 
