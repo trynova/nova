@@ -1,11 +1,19 @@
+use small_string::SmallString;
+
 use crate::{
     ecmascript::{
+        abstract_operations::{
+            operations_on_objects::{call_function, get, length_of_array_like},
+            testing_and_comparison::is_callable,
+            type_conversion::{to_object, to_string},
+        },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        types::{Function, IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    SmallInteger,
 };
 
 pub(crate) struct ArrayPrototype;
@@ -317,8 +325,60 @@ impl ArrayPrototype {
         todo!()
     }
 
-    fn join(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.18 Array.prototype.join ( separator )](https://tc39.es/ecma262/#sec-array.prototype.join)
+    ///
+    /// This method converts the elements of the array to Strings, and then
+    /// concatenates these Strings, separated by occurrences of the separator.
+    /// If no separator is provided, a single comma is used as the separator.
+    fn join(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let separator = arguments.get(0);
+
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        if len == 0 {
+            return Ok(String::EMPTY_STRING.into_value());
+        }
+        let len = len as usize;
+        // 3. If separator is undefined, let sep be ",".
+        let separator = if separator.is_undefined() {
+            SmallString::from_str_unchecked(",").into()
+        } else {
+            // 4. Else, let sep be ? ToString(separator).
+            to_string(agent, separator)?
+        };
+        // 5. Let R be the empty String.
+        let mut r = std::string::String::with_capacity(len * 10);
+        // 6. Let k be 0.
+        // 7. Repeat, while k < len,
+        // b. Let element be ? Get(O, ! ToString(𝔽(k))).
+        {
+            let element = get(agent, o, 0.into())?;
+            // c. If element is neither undefined nor null, then
+            if !element.is_undefined() && !element.is_null() {
+                // i. Let S be ? ToString(element).
+                let s = to_string(agent, element)?;
+                // ii. Set R to the string-concatenation of R and S.
+                r.push_str(s.as_str(agent));
+            }
+        }
+        for k in 1..len {
+            // a. If k > 0, set R to the string-concatenation of R and sep.
+            r.push_str(separator.as_str(agent));
+            // b. Let element be ? Get(O, ! ToString(𝔽(k))).
+            let element = get(agent, o, SmallInteger::try_from(k as u64).unwrap().into())?;
+            // c. If element is neither undefined nor null, then
+            if !element.is_undefined() && !element.is_null() {
+                // i. Let S be ? ToString(element).
+                let s = to_string(agent, element)?;
+                // ii. Set R to the string-concatenation of R and S.
+                r.push_str(s.as_str(agent));
+            }
+            // d. Set k to k + 1.
+        }
+        // 8. Return R.
+        Ok(Value::from_string(agent, r).into_value())
     }
 
     fn keys(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
@@ -401,8 +461,24 @@ impl ArrayPrototype {
         todo!();
     }
 
-    fn to_string(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!();
+    /// ### [23.1.3.36 Array.prototype.toString ( )](https://tc39.es/ecma262/#sec-array.prototype.tostring)
+    fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let array be ? ToObject(this value).
+        let array = to_object(agent, this_value)?;
+        // 2. Let func be ? Get(array, "join").
+        let func = get(agent, array, BUILTIN_STRING_MEMORY.join.into())?;
+        // 3. If IsCallable(func) is false, set func to the intrinsic function %Object.prototype.toString%.
+        let func = if !is_callable(func) {
+            agent
+                .current_realm()
+                .intrinsics()
+                .object_prototype_to_string()
+                .into_function()
+        } else {
+            Function::try_from(func).unwrap()
+        };
+        // 4. Return ? Call(func, array).
+        call_function(agent, func, array.into_value(), None)
     }
 
     fn unshift(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
