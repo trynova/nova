@@ -80,9 +80,7 @@ impl PropertyDescriptor {
         agent: &mut Agent,
     ) -> Option<OrdinaryObject> {
         // 1. If Desc is undefined, return undefined.
-        let Some(desc) = desc else {
-            return None;
-        };
+        let desc = desc?;
 
         let mut entries = Vec::with_capacity(4);
 
