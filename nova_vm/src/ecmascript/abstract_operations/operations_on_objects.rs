@@ -6,11 +6,11 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        builtins::{ArgumentsList, Array},
+        builtins::{array_create, ArgumentsList, Array},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
             Function, InternalMethods, IntoObject, IntoValue, Object, PropertyDescriptor,
-            PropertyKey, Value, BUILTIN_STRING_MEMORY,
+            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     engine::instanceof_operator,
@@ -355,6 +355,26 @@ pub(crate) fn set_integrity_level<T: Level>(agent: &mut Agent, o: Object) -> JsR
     Ok(true)
 }
 
+/// ### [7.3.17 CreateArrayFromList ( elements )](https://tc39.es/ecma262/#sec-createarrayfromlist)
+///
+/// The abstract operation CreateArrayFromList takes argument elements (a List
+/// of ECMAScript language values) and returns an Array. It is used to create
+/// an Array whose elements are provided by elements.
+pub(crate) fn create_array_from_list(agent: &mut Agent, elements: &[Value]) -> Array {
+    let len = elements.len();
+    // 1. Let array be ! ArrayCreate(0).
+    let array = array_create(agent, len, len, None).unwrap();
+    let array_elements = agent[array].elements;
+    agent[array_elements]
+        .copy_from_slice(unsafe { std::mem::transmute::<&[Value], &[Option<Value>]>(elements) });
+    // 2. Let n be 0.
+    // 3. For each element e of elements, do
+    // a. Perform ! CreateDataPropertyOrThrow(array, ! ToString(𝔽(n)), e).
+    // b. Set n to n + 1.
+    // 4. Return array.
+    array
+}
+
 /// ### [7.3.18 LengthOfArrayLike ( obj )](https://tc39.es/ecma262/#sec-lengthofarraylike)
 ///
 /// The abstract operation LengthOfArrayLike takes argument obj (an Object) and
@@ -470,6 +490,114 @@ pub(crate) fn ordinary_has_instance(
             return Ok(true);
         }
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum EnumPropKind {
+    Key,
+    Value,
+    KeyValue,
+}
+
+pub(crate) trait EnumerablePropertiesKind {
+    const KIND: EnumPropKind;
+}
+
+pub(crate) mod enumerable_properties_kind {
+    use super::{EnumPropKind, EnumerablePropertiesKind};
+
+    pub(crate) struct Key;
+    pub(crate) struct Value;
+    pub(crate) struct KeyValue;
+
+    impl EnumerablePropertiesKind for Key {
+        const KIND: EnumPropKind = EnumPropKind::Key;
+    }
+
+    impl EnumerablePropertiesKind for Value {
+        const KIND: EnumPropKind = EnumPropKind::Value;
+    }
+
+    impl EnumerablePropertiesKind for KeyValue {
+        const KIND: EnumPropKind = EnumPropKind::KeyValue;
+    }
+}
+
+/// ### [7.3.23 EnumerableOwnProperties ( O, kind )](https://tc39.es/ecma262/#sec-enumerableownproperties)
+///
+/// The abstract operation EnumerableOwnProperties takes arguments O (an
+/// Object) and kind (KEY, VALUE, or KEY+VALUE) and returns either a normal
+/// completion containing a List of ECMAScript language values or a throw
+/// completion.
+pub(crate) fn enumerable_own_properties<Kind: EnumerablePropertiesKind>(
+    agent: &mut Agent,
+    o: Object,
+) -> JsResult<Vec<Value>> {
+    // 1. Let ownKeys be ? O.[[OwnPropertyKeys]]().
+    let own_keys = o.internal_own_property_keys(agent)?;
+    // 2. Let results be a new empty List.
+    let mut results: Vec<Value> = Vec::with_capacity(own_keys.len());
+    // 3. For each element key of ownKeys, do
+    for key in own_keys {
+        if let PropertyKey::Symbol(_) = key {
+            continue;
+        }
+        // i. Let desc be ? O.[[GetOwnProperty]](key).
+        let desc = o.internal_get_own_property(agent, key)?;
+        // ii. If desc is not undefined and desc.[[Enumerable]] is true, then
+        let Some(desc) = desc else {
+            continue;
+        };
+        if desc.enumerable != Some(true) {
+            continue;
+        }
+        // 1. If kind is KEY, then
+        if Kind::KIND == EnumPropKind::Key {
+            // a. Append key to results.
+            let key_value = match key {
+                PropertyKey::Symbol(_) => {
+                    unreachable!();
+                }
+                PropertyKey::Integer(int) => {
+                    let int = int.into_i64();
+                    String::from_string(agent, format!("{}", int))
+                }
+                PropertyKey::SmallString(str) => str.into(),
+                PropertyKey::String(str) => str.into(),
+            };
+            results.push(key_value.into_value());
+        } else {
+            // 2. Else,
+            // a. Let value be ? Get(O, key).
+            let value = get(agent, o, key)?;
+            // b. If kind is VALUE, then
+            if Kind::KIND == EnumPropKind::Value {
+                // i. Append value to results.
+                results.push(value);
+            } else {
+                // c. Else,
+                // i. Assert: kind is KEY+VALUE.
+                debug_assert_eq!(Kind::KIND, EnumPropKind::KeyValue);
+                let key_value = match key {
+                    PropertyKey::Symbol(_) => {
+                        unreachable!();
+                    }
+                    PropertyKey::Integer(int) => {
+                        let int = int.into_i64();
+                        String::from_string(agent, format!("{}", int))
+                    }
+                    PropertyKey::SmallString(str) => str.into(),
+                    PropertyKey::String(str) => str.into(),
+                };
+                // ii. Let entry be CreateArrayFromList(« key, value »).
+                let entry = create_array_from_list(agent, &[key_value.into_value(), value]);
+                // iii. Append entry to results.
+                results.push(entry.into_value());
+            }
+        }
+    }
+    // 4. Return results.
+    Ok(results)
 }
 
 /// ### [7.3.25 GetFunctionRealm ( obj )](https://tc39.es/ecma262/#sec-getfunctionrealm)

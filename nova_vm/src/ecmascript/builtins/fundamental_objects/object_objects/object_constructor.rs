@@ -2,7 +2,8 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                define_property_or_throw, get, has_own_property,
+                create_array_from_list, define_property_or_throw, enumerable_own_properties,
+                enumerable_properties_kind, get, has_own_property,
                 integrity::{Frozen, Sealed},
                 set_integrity_level,
             },
@@ -346,12 +347,15 @@ impl ObjectConstructor {
         Ok(o.into_value())
     }
 
-    fn entries(
-        _agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+    fn entries(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let o = arguments.get(0);
+        // 1. Let obj be ? ToObject(O).
+        let obj = to_object(agent, o)?;
+        // 2. Let entryList be ? EnumerableOwnProperties(obj, KEY+VALUE).
+        let entry_list =
+            enumerable_own_properties::<enumerable_properties_kind::KeyValue>(agent, obj)?;
+        // 3. Return CreateArrayFromList(entryList).
+        Ok(create_array_from_list(agent, &entry_list).into_value())
     }
 
     /// ### [20.1.2.6 Object.freeze ( O )](https://tc39.es/ecma262/#sec-object.freeze)
@@ -505,8 +509,15 @@ impl ObjectConstructor {
         Ok(arguments.get(0))
     }
 
-    fn keys(_agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        Ok(arguments.get(0))
+    /// ### [20.1.2.19 Object.keys ( O )](https://tc39.es/ecma262/#sec-object.keys)
+    fn keys(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let o = arguments.get(0);
+        // 1. Let obj be ? ToObject(O).
+        let obj = to_object(agent, o)?;
+        // 2. Let keyList be ? EnumerableOwnProperties(obj, KEY).
+        let key_list = enumerable_own_properties::<enumerable_properties_kind::Key>(agent, obj)?;
+        // 3. Return CreateArrayFromList(keyList).
+        Ok(create_array_from_list(agent, &key_list).into_value())
     }
 
     /// ### [20.1.2.20 Object.preventExtensions ( O )](https://tc39.es/ecma262/#sec-object.preventextensions)
@@ -577,8 +588,15 @@ impl ObjectConstructor {
         Ok(o.into_value())
     }
 
-    fn values(_agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        Ok(arguments.get(0))
+    fn values(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let o = arguments.get(0);
+        // 1. Let obj be ? ToObject(O).
+        let obj = to_object(agent, o)?;
+        // 2. Let valueList be ? EnumerableOwnProperties(obj, VALUE).
+        let value_list =
+            enumerable_own_properties::<enumerable_properties_kind::Value>(agent, obj)?;
+        // 3. Return CreateArrayFromList(valueList).
+        Ok(create_array_from_list(agent, &value_list).into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
