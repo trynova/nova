@@ -299,19 +299,23 @@ pub(crate) fn set_default_global_bindings(
     let global = agent[realm_id].global_object;
 
     // 2. For each property of the Global Object specified in clause 19, do
-    // TODO: Actually do other properties aside from globalThis.
+    // a. Let name be the String value of the property name.
+    // b. Let desc be the fully populated data Property Descriptor for the
+    //    property, containing the specified attributes for the property. For
+    //    properties listed in 19.2, 19.3, or 19.4 the value of the [[Value]]
+    //    attribute is the corresponding intrinsic object from realmRec.
+    // c. Perform ? DefinePropertyOrThrow(global, name, desc).
+    
+    // 19.1 Value Properties of the Global Object
     {
-        // a. Let name be the String value of the property name.
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.globalThis);
 
-        // b. Let desc be the fully populated data Property Descriptor for the property, containing the specified attributes for the property. For properties listed in 19.2, 19.3, or 19.4 the value of the [[Value]] attribute is the corresponding intrinsic object from realmRec.
         let global_env = agent[realm_id].global_env;
         let desc = PropertyDescriptor {
             value: Some(global_env.unwrap().get_this_binding(agent).into_value()),
             ..Default::default()
         };
 
-        // c. Perform ? DefinePropertyOrThrow(global, name, desc).
         define_property_or_throw(agent, global, name, desc)?;
 
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Infinity);
@@ -345,7 +349,121 @@ pub(crate) fn set_default_global_bindings(
             ..Default::default()
         };
         define_property_or_throw(agent, global, name, desc)?;
+    }
 
+    // 19.2 Function Properties of the Global Object
+    {
+        // 19.2.1 eval ( x )
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.eval);
+        let value = agent.get_realm(realm_id).intrinsics().eval();
+        let desc = PropertyDescriptor {
+            value: Some(value.into_value()),
+            writable: Some(true),
+            enumerable: Some(false),
+            configurable: Some(true),
+            ..Default::default()
+        };
+        define_property_or_throw(agent, global, name, desc)?;
+
+        // 19.2.2 isFinite ( number )
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.isFinite);
+        let value = agent.get_realm(realm_id).intrinsics().is_finite();
+        let desc = PropertyDescriptor {
+            value: Some(value.into_value()),
+            writable: Some(true),
+            enumerable: Some(false),
+            configurable: Some(true),
+            ..Default::default()
+        };
+        define_property_or_throw(agent, global, name, desc)?;
+
+        // 19.2.3 isNaN ( number )
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.isNaN);
+        let value = agent.get_realm(realm_id).intrinsics().is_nan();
+        let desc = PropertyDescriptor {
+            value: Some(value.into_value()),
+            writable: Some(true),
+            enumerable: Some(false),
+            configurable: Some(true),
+            ..Default::default()
+        };
+        define_property_or_throw(agent, global, name, desc)?;
+
+        // 19.2.4 parseFloat ( string )
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.parseFloat);
+        let value = agent.get_realm(realm_id).intrinsics().parse_float();
+        let desc = PropertyDescriptor {
+            value: Some(value.into_value()),
+            writable: Some(true),
+            enumerable: Some(false),
+            configurable: Some(true),
+            ..Default::default()
+        };
+        define_property_or_throw(agent, global, name, desc)?;
+
+        // 19.2.5 parseInt ( string, radix )
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.parseInt);
+        let value = agent.get_realm(realm_id).intrinsics().parse_int();
+        let desc = PropertyDescriptor {
+            value: Some(value.into_value()),
+            writable: Some(true),
+            enumerable: Some(false),
+            configurable: Some(true),
+            ..Default::default()
+        };
+        define_property_or_throw(agent, global, name, desc)?;
+
+        // 19.2.6.1 decodeURI ( . . . )
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.decodeURI);
+        let value = agent.get_realm(realm_id).intrinsics().decode_uri();
+        let desc = PropertyDescriptor {
+            value: Some(value.into_value()),
+            writable: Some(true),
+            enumerable: Some(false),
+            configurable: Some(true),
+            ..Default::default()
+        };
+        define_property_or_throw(agent, global, name, desc)?;
+
+        // 19.2.6.2 decodeURIComponent ( . . . )
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.decodeURIComponent);
+        let value = agent.get_realm(realm_id).intrinsics().decode_uri_component();
+        let desc = PropertyDescriptor {
+            value: Some(value.into_value()),
+            writable: Some(true),
+            enumerable: Some(false),
+            configurable: Some(true),
+            ..Default::default()
+        };
+        define_property_or_throw(agent, global, name, desc)?;
+
+        // 19.2.6.3 encodeURI ( . . . )
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.encodeURI);
+        let value = agent.get_realm(realm_id).intrinsics().encode_uri();
+        let desc = PropertyDescriptor {
+            value: Some(value.into_value()),
+            writable: Some(true),
+            enumerable: Some(false),
+            configurable: Some(true),
+            ..Default::default()
+        };
+        define_property_or_throw(agent, global, name, desc)?;
+
+        // 19.2.6.4 encodeURIComponent ( . . . )
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.encodeURIComponent);
+        let value = agent.get_realm(realm_id).intrinsics().encode_uri_component();
+        let desc = PropertyDescriptor {
+            value: Some(value.into_value()),
+            writable: Some(true),
+            enumerable: Some(false),
+            configurable: Some(true),
+            ..Default::default()
+        };
+        define_property_or_throw(agent, global, name, desc)?;
+    }
+
+    // 19.3 Constructor Properties of the Global Object
+    {
         // 19.3.1 AggregateError ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.AggregateError);
         let value = agent.get_realm(realm_id).intrinsics().aggregate_error();
@@ -820,6 +938,57 @@ pub(crate) fn set_default_global_bindings(
         // 19.3.40 WeakSet ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.WeakSet);
         let value = agent.get_realm(realm_id).intrinsics().weak_set();
+        let desc = PropertyDescriptor {
+            value: Some(value.into_value()),
+            writable: Some(true),
+            enumerable: Some(false),
+            configurable: Some(true),
+            ..Default::default()
+        };
+        define_property_or_throw(agent, global, name, desc)?;
+    }
+
+    // 19.4 Other Properties of the Global Object
+    {
+        // 19.4.1 Atomics
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Atomics);
+        let value = agent.get_realm(realm_id).intrinsics().atomics();
+        let desc = PropertyDescriptor {
+            value: Some(value.into_value()),
+            writable: Some(true),
+            enumerable: Some(false),
+            configurable: Some(true),
+            ..Default::default()
+        };
+        define_property_or_throw(agent, global, name, desc)?;
+
+        // 19.4.2 JSON
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.JSON);
+        let value = agent.get_realm(realm_id).intrinsics().json();
+        let desc = PropertyDescriptor {
+            value: Some(value.into_value()),
+            writable: Some(true),
+            enumerable: Some(false),
+            configurable: Some(true),
+            ..Default::default()
+        };
+        define_property_or_throw(agent, global, name, desc)?;
+
+        // 19.4.3 Math
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Math);
+        let value = agent.get_realm(realm_id).intrinsics().math();
+        let desc = PropertyDescriptor {
+            value: Some(value.into_value()),
+            writable: Some(true),
+            enumerable: Some(false),
+            configurable: Some(true),
+            ..Default::default()
+        };
+        define_property_or_throw(agent, global, name, desc)?;
+
+        // 19.4.4 Reflect
+        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Reflect);
+        let value = agent.get_realm(realm_id).intrinsics().reflect();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
             writable: Some(true),
