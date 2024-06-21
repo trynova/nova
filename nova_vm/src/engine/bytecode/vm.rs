@@ -948,7 +948,7 @@ fn apply_string_or_numeric_binary_operator(
             // **	Number	Number::exponentiate
             BinaryOperator::Exponential => Number::exponentiate(agent, lnum, rnum).into_value(),
             // *	Number	Number::multiply
-            BinaryOperator::Multiplication => todo!(),
+            BinaryOperator::Multiplication => Number::multiply(agent, lnum, rnum).into_value(),
             // /	Number	Number::divide
             BinaryOperator::Division => Number::divide(agent, lnum, rnum).into_value(),
             // %	Number	Number::remainder

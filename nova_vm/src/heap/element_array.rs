@@ -47,7 +47,7 @@ impl ElementArrayKey {
             ElementArrayKey::E12 => 2u32.pow(12),
             ElementArrayKey::E16 => 2u32.pow(16),
             ElementArrayKey::E24 => 2u32.pow(24),
-            ElementArrayKey::E32 => u32::MAX - 1,
+            ElementArrayKey::E32 => u32::MAX,
         }
     }
 }
@@ -70,7 +70,7 @@ impl From<u32> for ElementArrayKey {
             ElementArrayKey::E16
         } else if value <= u32::pow(2, 24) {
             ElementArrayKey::E24
-        } else if value < u32::MAX - 1 {
+        } else if value <= u32::MAX {
             ElementArrayKey::E32
         } else {
             panic!("Elements array length over 2 ** 32 - 1");
@@ -129,8 +129,7 @@ impl ElementsVector {
     }
 
     pub fn reserve(&mut self, elements: &mut ElementArrays, new_len: u32) {
-        debug_assert!(new_len <= (u32::MAX - 1));
-        if new_len < self.cap() {
+        if new_len <= self.cap() {
             // Enough capacity present already
             return;
         }
