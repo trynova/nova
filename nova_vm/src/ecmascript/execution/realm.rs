@@ -305,7 +305,7 @@ pub(crate) fn set_default_global_bindings(
     //    properties listed in 19.2, 19.3, or 19.4 the value of the [[Value]]
     //    attribute is the corresponding intrinsic object from realmRec.
     // c. Perform ? DefinePropertyOrThrow(global, name, desc).
-    
+
     // 19.1 Value Properties of the Global Object
     {
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.globalThis);
@@ -427,7 +427,10 @@ pub(crate) fn set_default_global_bindings(
 
         // 19.2.6.2 decodeURIComponent ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.decodeURIComponent);
-        let value = agent.get_realm(realm_id).intrinsics().decode_uri_component();
+        let value = agent
+            .get_realm(realm_id)
+            .intrinsics()
+            .decode_uri_component();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
             writable: Some(true),
@@ -451,7 +454,10 @@ pub(crate) fn set_default_global_bindings(
 
         // 19.2.6.4 encodeURIComponent ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.encodeURIComponent);
-        let value = agent.get_realm(realm_id).intrinsics().encode_uri_component();
+        let value = agent
+            .get_realm(realm_id)
+            .intrinsics()
+            .encode_uri_component();
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
             writable: Some(true),
