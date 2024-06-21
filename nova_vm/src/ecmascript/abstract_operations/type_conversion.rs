@@ -554,6 +554,28 @@ pub(crate) fn to_object(agent: &mut Agent, argument: Value) -> JsResult<Object> 
 
 /// ### [7.1.19 ToPropertyKey ( argument )](https://tc39.es/ecma262/#sec-topropertykey)
 pub(crate) fn to_property_key(agent: &mut Agent, argument: Value) -> JsResult<PropertyKey> {
+    // NOTE: Non-standard extension. Nova internally considers integer
+    // property keys to be different from others. As such, we try to detect if
+    // a value given to us is a stringified integer value.
+    let maybe_str = match &argument {
+        Value::String(x) => Some(agent[*x].as_str()),
+        Value::SmallString(x) => Some(x.as_str()),
+        _ => None,
+    };
+    if let Some(str) = maybe_str {
+        // i64::from_string will accept eg. 0123 as 123 but JS property keys do
+        // not agree. Hence, only "0" can start with "0", all other integer
+        // keys must start with one of "1".."9".
+        if str == "0" {
+            return Ok(0.into());
+        } else if !str.is_empty() && (b'1'..b'9').contains(&str.as_bytes()[0]) {
+            if let Ok(result) = str.parse::<i64>() {
+                if let Ok(result) = SmallInteger::try_from(result) {
+                    return Ok(result.into());
+                }
+            }
+        }
+    }
     // 1. Let key be ? ToPrimitive(argument, hint String).
     let key = to_primitive(agent, argument, Some(PreferredType::String))?;
 

@@ -642,7 +642,7 @@ impl Intrinsics {
     }
 
     /// %decodeURIComponent%
-    pub(crate) fn decode_uricomponent(&self) -> BuiltinFunction {
+    pub(crate) fn decode_uri_component(&self) -> BuiltinFunction {
         IntrinsicFunctionIndexes::DecodeURIComponent
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1464,7 +1464,7 @@ impl HeapMarkAndSweep for Intrinsics {
         self.date_prototype().mark_values(queues);
         self.date().mark_values(queues);
         self.decode_uri().mark_values(queues);
-        self.decode_uricomponent().mark_values(queues);
+        self.decode_uri_component().mark_values(queues);
         self.encode_uri().mark_values(queues);
         self.encode_uri_component().mark_values(queues);
         self.error_prototype().mark_values(queues);

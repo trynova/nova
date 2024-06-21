@@ -266,6 +266,95 @@ pub(crate) fn call(
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum IntegrityLevel {
+    Sealed,
+    Frozen,
+}
+
+pub(crate) trait Level {
+    const LEVEL: IntegrityLevel;
+}
+
+pub(crate) mod integrity {
+    use super::{IntegrityLevel, Level};
+
+    pub(crate) struct Sealed {}
+    pub(crate) struct Frozen {}
+
+    impl Level for Sealed {
+        const LEVEL: IntegrityLevel = IntegrityLevel::Sealed;
+    }
+
+    impl Level for Frozen {
+        const LEVEL: IntegrityLevel = IntegrityLevel::Frozen;
+    }
+}
+
+/// ### [7.3.15 SetIntegrityLevel ( O, level )](https://tc39.es/ecma262/#sec-setintegritylevel)
+///
+/// The abstract operation SetIntegrityLevel takes arguments O (an Object) and
+/// level (SEALED or FROZEN) and returns either a normal completion containing
+/// a Boolean or a throw completion. It is used to fix the set of own
+/// properties of an object.
+pub(crate) fn set_integrity_level<T: Level>(agent: &mut Agent, o: Object) -> JsResult<bool> {
+    // 1. Let status be ? O.[[PreventExtensions]]().
+    let status = o.internal_prevent_extensions(agent)?;
+    // 2. If status is false, return false.
+    if !status {
+        return Ok(false);
+    }
+    // 3. Let keys be ? O.[[OwnPropertyKeys]]().
+    let keys = o.internal_own_property_keys(agent)?;
+    // 4. If level is SEALED, then
+    if T::LEVEL == IntegrityLevel::Sealed {
+        // a. For each element k of keys, do
+        for k in keys {
+            // i. Perform ? DefinePropertyOrThrow(O, k, PropertyDescriptor { [[Configurable]]: false }).
+            define_property_or_throw(
+                agent,
+                o,
+                k,
+                PropertyDescriptor {
+                    configurable: Some(false),
+                    ..Default::default()
+                },
+            )?;
+        }
+    } else {
+        // 5. Else,
+        // a. Assert: level is FROZEN.
+        // b. For each element k of keys, do
+        for k in keys {
+            // i. Let currentDesc be ? O.[[GetOwnProperty]](k).
+            let current_desc = o.internal_get_own_property(agent, k)?;
+            // ii. If currentDesc is not undefined, then
+            if let Some(current_desc) = current_desc {
+                // 1. If IsAccessorDescriptor(currentDesc) is true, then
+                let desc = if current_desc.is_accessor_descriptor() {
+                    // a. Let desc be the PropertyDescriptor { [[Configurable]]: false }.
+                    PropertyDescriptor {
+                        configurable: Some(false),
+                        ..Default::default()
+                    }
+                } else {
+                    // 2. Else,
+                    // a. Let desc be the PropertyDescriptor { [[Configurable]]: false, [[Writable]]: false }.
+                    PropertyDescriptor {
+                        configurable: Some(false),
+                        writable: Some(false),
+                        ..Default::default()
+                    }
+                };
+                // 3. Perform ? DefinePropertyOrThrow(O, k, desc).
+                define_property_or_throw(agent, o, k, desc)?;
+            }
+        }
+    }
+    // 6. Return true.
+    Ok(true)
+}
+
 /// ### [7.3.18 LengthOfArrayLike ( obj )](https://tc39.es/ecma262/#sec-lengthofarraylike)
 ///
 /// The abstract operation LengthOfArrayLike takes argument obj (an Object) and

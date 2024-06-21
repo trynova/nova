@@ -15,7 +15,7 @@ use crate::{
             },
         },
         builtins::{
-            array_create, ordinary::ordinary_object_create_with_intrinsics,
+            array_create, make_constructor, ordinary::ordinary_object_create_with_intrinsics,
             ordinary_function_create, set_function_name, ArgumentsList, Array,
             OrdinaryFunctionCreateParams, ThisMode,
         },
@@ -370,22 +370,40 @@ impl Vm {
                     .ecmascript_code
                     .as_ref()
                     .unwrap();
+
+                let (name, env, init_binding) = if let Some(identifier) =
+                    function_expression.identifier
+                {
+                    debug_assert!(function_expression.expression.id.is_none());
+                    (
+                        vm.fetch_identifier(executable, identifier),
+                        lexical_environment,
+                        false,
+                    )
+                } else if let Some(binding_identifier) = &function_expression.expression.id {
+                    let name = String::from_str(agent, &binding_identifier.name);
+                    let func_env = new_declarative_environment(agent, Some(lexical_environment));
+                    func_env.create_immutable_binding(agent, name, false);
+                    (name, EnvironmentIndex::Declarative(func_env), true)
+                } else {
+                    (String::EMPTY_STRING, lexical_environment, false)
+                };
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
                     source_text: function_expression.expression.span,
                     parameters_list: &function_expression.expression.params,
                     body: function_expression.expression.body.as_ref().unwrap(),
                     this_mode: ThisMode::Global,
-                    env: lexical_environment,
+                    env,
                     private_env: private_environment,
                 };
                 let function = ordinary_function_create(agent, params);
-                let name = if let Some(identifier) = function_expression.identifier {
-                    vm.fetch_identifier(executable, identifier)
-                } else {
-                    String::EMPTY_STRING
-                };
                 set_function_name(agent, function, name.into(), None);
+                make_constructor(agent, function, None, None);
+                if init_binding {
+                    env.initialize_binding(agent, name, function.into_value())
+                        .unwrap();
+                }
                 vm.result = Some(function.into_value());
             }
             Instruction::EvaluateCall => {

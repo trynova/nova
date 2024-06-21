@@ -1,12 +1,8 @@
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{to_number, to_uint32},
-        builtins::ordinary::ordinary_define_own_property,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{
-            InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey,
-            BUILTIN_STRING_MEMORY,
-        },
+        types::{InternalMethods, IntoObject, Object, PropertyDescriptor, PropertyKey},
     },
     heap::indexes::ArrayIndex,
 };
@@ -68,12 +64,27 @@ pub fn array_create(
 /// The abstract operation ArraySetLength takes arguments A (an Array) and Desc (a Property Descriptor) and returns either a normal completion containing a Boolean or a throw completion.
 pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -> JsResult<bool> {
     // 1. If Desc does not have a [[Value]] field, then
-    let length_key = PropertyKey::from(BUILTIN_STRING_MEMORY.length);
-    if desc.value.is_none() {
+    let Some(desc_value) = desc.value else {
         // a. Return ! OrdinaryDefineOwnProperty(A, "length", Desc).
-        return Ok(ordinary_define_own_property(agent, a.into(), length_key, desc).unwrap());
-    }
-    let desc_value = desc.value.unwrap();
+        if !desc.has_fields() {
+            return Ok(true);
+        }
+        if desc.configurable == Some(true) || desc.enumerable == Some(true) {
+            return Ok(false);
+        }
+        if !desc.is_generic_descriptor() && desc.is_accessor_descriptor() {
+            return Ok(false);
+        }
+        if !agent[a].elements.len_writable {
+            // Length is already frozen.
+            if desc.writable == Some(true) {
+                return Ok(false);
+            }
+        } else if desc.writable == Some(false) {
+            agent[a].elements.len_writable = false;
+        }
+        return Ok(true);
+    };
     // 2. Let newLenDesc be a copy of Desc.
     // 13. If newLenDesc does not have a [[Writable]] field or newLenDesc.[[Writable]] is true, then
     // a. Let newLenDesc.[[Writable]] be true
