@@ -12,14 +12,17 @@
 
 use crate::{
     ecmascript::{
-        builtins::ArgumentsList,
+        builtins::{
+            primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
+            ArgumentsList,
+        },
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{
-            BigInt, IntoNumeric, Number, Numeric, Object, Primitive, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            BigInt, IntoNumeric, IntoObject, Number, Numeric, Object, Primitive, PropertyKey,
+            String, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{CreateHeapData, WellKnownSymbolIndexes},
     SmallInteger,
 };
 
@@ -535,19 +538,73 @@ pub(crate) fn to_object(agent: &mut Agent, argument: Value) -> JsResult<Object> 
             "Argument cannot be converted into an object",
         )),
         // Return a new Boolean object whose [[BooleanData]] internal slot is set to argument.
-        Value::Boolean(_) => todo!("BooleanObject"),
+        Value::Boolean(bool) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::Boolean(bool),
+            })
+            .into_object()),
         // Return a new String object whose [[StringData]] internal slot is set to argument.
-        Value::String(_) => todo!("StringObject"),
-        Value::SmallString(_) => todo!("StringObject"),
+        Value::String(str) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::String(str),
+            })
+            .into_object()),
+        Value::SmallString(str) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::SmallString(str),
+            })
+            .into_object()),
         // Return a new Symbol object whose [[SymbolnData]] internal slot is set to argument.
-        Value::Symbol(_) => todo!("SymbolObject"),
+        Value::Symbol(symbol) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::Symbol(symbol),
+            })
+            .into_object()),
         // Return a new Number object whose [[NumberData]] internal slot is set to argument.
-        Value::Number(_) => todo!("NumberObject"),
-        Value::Integer(_) => todo!("NumberObject"),
-        Value::Float(_) => todo!("NumberObject"),
+        Value::Number(number) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::Number(number),
+            })
+            .into_object()),
+        Value::Integer(integer) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::Integer(integer),
+            })
+            .into_object()),
+        Value::Float(float) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::Float(float),
+            })
+            .into_object()),
         // Return a new BigInt object whose [[BigIntData]] internal slot is set to argument.
-        Value::BigInt(_) => todo!("BigIntObject"),
-        Value::SmallBigInt(_) => todo!("BigIntObject"),
+        Value::BigInt(bigint) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::BigInt(bigint),
+            })
+            .into_object()),
+        Value::SmallBigInt(bigint) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::SmallBigInt(bigint),
+            })
+            .into_object()),
         _ => Ok(Object::try_from(argument).unwrap()),
     }
 }
