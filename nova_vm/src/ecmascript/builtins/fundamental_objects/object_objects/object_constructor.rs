@@ -5,7 +5,7 @@ use crate::{
                 create_array_from_list, define_property_or_throw, enumerable_own_properties,
                 enumerable_properties_kind, get, has_own_property,
                 integrity::{Frozen, Sealed},
-                set_integrity_level,
+                set, set_integrity_level,
             },
             testing_and_comparison::{require_object_coercible, same_value},
             type_conversion::{to_object, to_property_key},
@@ -285,8 +285,48 @@ impl ObjectConstructor {
         }
     }
 
-    fn assign(_agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        Ok(arguments.get(0))
+    /// ### [20.1.2.1 Object.assign ( target, ...sources )](https://tc39.es/ecma262/#sec-object.assign)
+    ///
+    /// This function copies the values of all of the enumerable own properties
+    /// from one or more source objects to a target object.
+    fn assign(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let target = arguments.get(0);
+        // 1. Let to be ? ToObject(target).
+        let to = to_object(agent, target)?;
+        // 2. If only one argument was passed, return to.
+        if arguments.len() <= 1 {
+            return Ok(to.into_value());
+        }
+        let sources = &arguments[1..];
+        // 3. For each element nextSource of sources, do
+        for next_source in sources {
+            // a. If nextSource is neither undefined nor null, then
+            if next_source.is_undefined() || next_source.is_null() {
+                continue;
+            }
+            // i. Let from be ! ToObject(nextSource).
+            let from = to_object(agent, *next_source)?;
+            // ii. Let keys be ? from.[[OwnPropertyKeys]]().
+            let keys = from.internal_own_property_keys(agent)?;
+            // iii. For each element nextKey of keys, do
+            for next_key in keys {
+                // 1. Let desc be ? from.[[GetOwnProperty]](nextKey).
+                let desc = from.internal_get_own_property(agent, next_key)?;
+                // 2. If desc is not undefined and desc.[[Enumerable]] is true, then
+                let Some(desc) = desc else {
+                    continue;
+                };
+                if desc.enumerable != Some(true) {
+                    continue;
+                }
+                // a. Let propValue be ? Get(from, nextKey).
+                let prop_value = get(agent, from, next_key)?;
+                // b. Perform ? Set(to, nextKey, propValue, true).
+                set(agent, to, next_key, prop_value, true)?;
+            }
+        }
+        // 4. Return to.
+        Ok(to.into_value())
     }
 
     fn create(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
