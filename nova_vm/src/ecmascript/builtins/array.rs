@@ -40,6 +40,14 @@ impl Array {
         agent[*self].elements.len()
     }
 
+    pub fn is_dense(self, agent: &Agent) -> bool {
+        agent[self].elements.is_dense(agent)
+    }
+
+    pub(crate) fn is_simple(self, agent: &Agent) -> bool {
+        agent[self].elements.is_simple(agent)
+    }
+
     #[inline]
     fn internal_get_backing(
         self,

@@ -12,14 +12,17 @@
 
 use crate::{
     ecmascript::{
-        builtins::ArgumentsList,
+        builtins::{
+            primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
+            ArgumentsList,
+        },
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{
-            BigInt, IntoNumeric, Number, Numeric, Object, Primitive, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            BigInt, IntoNumeric, IntoObject, Number, Numeric, Object, Primitive, PropertyKey,
+            String, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{CreateHeapData, WellKnownSymbolIndexes},
     SmallInteger,
 };
 
@@ -535,19 +538,73 @@ pub(crate) fn to_object(agent: &mut Agent, argument: Value) -> JsResult<Object> 
             "Argument cannot be converted into an object",
         )),
         // Return a new Boolean object whose [[BooleanData]] internal slot is set to argument.
-        Value::Boolean(_) => todo!("BooleanObject"),
+        Value::Boolean(bool) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::Boolean(bool),
+            })
+            .into_object()),
         // Return a new String object whose [[StringData]] internal slot is set to argument.
-        Value::String(_) => todo!("StringObject"),
-        Value::SmallString(_) => todo!("StringObject"),
+        Value::String(str) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::String(str),
+            })
+            .into_object()),
+        Value::SmallString(str) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::SmallString(str),
+            })
+            .into_object()),
         // Return a new Symbol object whose [[SymbolnData]] internal slot is set to argument.
-        Value::Symbol(_) => todo!("SymbolObject"),
+        Value::Symbol(symbol) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::Symbol(symbol),
+            })
+            .into_object()),
         // Return a new Number object whose [[NumberData]] internal slot is set to argument.
-        Value::Number(_) => todo!("NumberObject"),
-        Value::Integer(_) => todo!("NumberObject"),
-        Value::Float(_) => todo!("NumberObject"),
+        Value::Number(number) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::Number(number),
+            })
+            .into_object()),
+        Value::Integer(integer) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::Integer(integer),
+            })
+            .into_object()),
+        Value::Float(float) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::Float(float),
+            })
+            .into_object()),
         // Return a new BigInt object whose [[BigIntData]] internal slot is set to argument.
-        Value::BigInt(_) => todo!("BigIntObject"),
-        Value::SmallBigInt(_) => todo!("BigIntObject"),
+        Value::BigInt(bigint) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::BigInt(bigint),
+            })
+            .into_object()),
+        Value::SmallBigInt(bigint) => Ok(agent
+            .heap
+            .create(PrimitiveObjectHeapData {
+                object_index: None,
+                data: PrimitiveObjectData::SmallBigInt(bigint),
+            })
+            .into_object()),
         _ => Ok(Object::try_from(argument).unwrap()),
     }
 }
@@ -607,6 +664,55 @@ pub(crate) fn to_property_key(agent: &mut Agent, argument: Value) -> JsResult<Pr
             // 3. Return ! ToString(key).
             Ok(to_string(agent, key).unwrap().into())
         }
+    }
+}
+
+/// ### [7.1.19 ToPropertyKey ( argument )](https://tc39.es/ecma262/#sec-topropertykey)
+///
+/// This method does not require mutable access to Agent but only handles
+/// simple property key cases. If a complex case is found, the caller should
+/// fall back to a generic algorithm.
+pub(crate) fn to_property_key_simple(agent: &Agent, argument: Value) -> Option<PropertyKey> {
+    let maybe_str = match &argument {
+        Value::String(x) => Some(agent[*x].as_str()),
+        Value::SmallString(x) => Some(x.as_str()),
+        _ => None,
+    };
+    if let Some(str) = maybe_str {
+        // i64::from_string will accept eg. 0123 as 123 but JS property keys do
+        // not agree. Hence, only "0" can start with "0", all other integer
+        // keys must start with one of "1".."9".
+        if str == "0" {
+            return Some(0.into());
+        } else if !str.is_empty() && (b'1'..b'9').contains(&str.as_bytes()[0]) {
+            if let Ok(result) = str.parse::<i64>() {
+                if let Ok(result) = SmallInteger::try_from(result) {
+                    return Some(result.into());
+                }
+            }
+        }
+    }
+    match argument {
+        Value::Integer(x) => Some(PropertyKey::Integer(x)),
+        Value::Float(x) if x == -0.0 => Some(PropertyKey::Integer(0.into())),
+        Value::SmallString(x) => Some(PropertyKey::SmallString(x)),
+        Value::String(x) => Some(PropertyKey::String(x)),
+        Value::Symbol(x) => Some(PropertyKey::Symbol(x)),
+        Value::SmallBigInt(x)
+            if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&x.into_i64()) =>
+        {
+            Some(PropertyKey::Integer(x.into_inner()))
+        }
+        Value::Undefined => Some(PropertyKey::from(BUILTIN_STRING_MEMORY.undefined)),
+        Value::Null => Some(PropertyKey::from(BUILTIN_STRING_MEMORY.null)),
+        Value::Boolean(bool) => {
+            if bool {
+                Some(PropertyKey::from(BUILTIN_STRING_MEMORY.r#true))
+            } else {
+                Some(PropertyKey::from(BUILTIN_STRING_MEMORY.r#false))
+            }
+        }
+        _ => None,
     }
 }
 

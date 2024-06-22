@@ -36,6 +36,17 @@ pub struct PropertyDescriptor {
 }
 
 impl PropertyDescriptor {
+    pub fn new_data_descriptor(value: Value) -> Self {
+        Self {
+            value: Some(value),
+            writable: Some(true),
+            get: None,
+            set: None,
+            enumerable: Some(true),
+            configurable: Some(true),
+        }
+    }
+
     /// ### [6.2.6.1 IsAccessorDescriptor ( Desc )](https://tc39.es/ecma262/#sec-isaccessordescriptor)
     pub fn is_accessor_descriptor(&self) -> bool {
         // 1. If Desc is undefined, return false.
