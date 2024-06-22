@@ -1,5 +1,8 @@
 use crate::{
-    ecmascript::types::{OrdinaryObject, Value},
+    ecmascript::{
+        execution::Agent,
+        types::{OrdinaryObject, Value},
+    },
     heap::{
         element_array::{ElementArrayKey, ElementArrays, ElementDescriptor, ElementsVector},
         indexes::ElementIndex,
@@ -36,6 +39,17 @@ impl SealableElementsVector {
 
     pub(crate) fn writable(&self) -> bool {
         self.len_writable
+    }
+
+    /// A sealable elements vector is simple if it contains no getters.
+    pub(crate) fn is_simple(&self, agent: &Agent) -> bool {
+        let elements_vector: ElementsVector = (*self).into();
+        elements_vector.is_simple(agent)
+    }
+
+    pub(crate) fn is_dense(&self, agent: &Agent) -> bool {
+        let elements_vector: ElementsVector = (*self).into();
+        elements_vector.is_dense(agent)
     }
 
     pub(crate) fn from_elements_vector(elements: ElementsVector) -> Self {

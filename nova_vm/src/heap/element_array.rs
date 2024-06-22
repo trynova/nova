@@ -126,6 +126,42 @@ impl ElementsVector {
         self.len == self.cap()
     }
 
+    /// An elements vector is simple if it contains no getters.
+    pub(crate) fn is_simple(&self, agent: &Agent) -> bool {
+        let backing_store = agent.heap.elements.get_full(*self);
+        backing_store.0.map_or(true, |hashmap| {
+            !hashmap.iter().any(|desc| desc.1.has_getter())
+        })
+    }
+
+    pub(crate) fn is_dense(&self, agent: &Agent) -> bool {
+        let (descriptors, elements) = agent.heap.elements.get_full(*self);
+        if let Some(descriptors) = descriptors {
+            for (index, ele) in elements.iter().enumerate() {
+                let index = index as u32;
+                if ele.is_none() {
+                    let ele_descriptor = descriptors.get(&index);
+                    let Some(ele_descriptor) = ele_descriptor else {
+                        // No value, no descriptor: That's a hole.
+                        return false;
+                    };
+                    if !ele_descriptor.has_getter() {
+                        // No value, no getter: That's effectively a hole.
+                        return false;
+                    }
+                }
+            }
+        } else {
+            for ele in elements {
+                if ele.is_none() {
+                    // No descriptors, no value: That's a hole.
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     pub fn reserve(&mut self, elements: &mut ElementArrays, new_len: u32) {
         if new_len <= self.cap() {
             // Enough capacity present already
@@ -459,6 +495,20 @@ pub enum ElementDescriptor {
 }
 
 impl ElementDescriptor {
+    pub(crate) fn has_getter(&self) -> bool {
+        matches!(
+            self,
+            ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { .. }
+                | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { .. }
+        )
+    }
+
     pub(crate) const fn new_with_wec(w: bool, e: bool, c: bool) -> Option<Self> {
         match (w, e, c) {
             (true, true, true) => None,
@@ -1590,6 +1640,119 @@ impl ElementArrays {
                 .as_mut()
                 .unwrap()
                 .as_mut_slice()[0..vector.len as usize],
+        }
+    }
+
+    pub fn get_full(
+        &self,
+        vector: ElementsVector,
+    ) -> (Option<&HashMap<u32, ElementDescriptor>>, &[Option<Value>]) {
+        match vector.cap {
+            ElementArrayKey::Empty => (None, &[]),
+            ElementArrayKey::E4 => {
+                let epow = &self.e2pow4;
+                (
+                    epow.descriptors.get(&vector.elements_index),
+                    &epow
+                        .values
+                        .get(vector.elements_index.into_index())
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice()[0..vector.len as usize],
+                )
+            }
+            ElementArrayKey::E6 => {
+                let epow = &self.e2pow6;
+                (
+                    epow.descriptors.get(&vector.elements_index),
+                    &epow
+                        .values
+                        .get(vector.elements_index.into_index())
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice()[0..vector.len as usize],
+                )
+            }
+            ElementArrayKey::E8 => {
+                let epow = &self.e2pow8;
+                (
+                    epow.descriptors.get(&vector.elements_index),
+                    &epow
+                        .values
+                        .get(vector.elements_index.into_index())
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice()[0..vector.len as usize],
+                )
+            }
+            ElementArrayKey::E10 => {
+                let epow = &self.e2pow10;
+                (
+                    epow.descriptors.get(&vector.elements_index),
+                    &epow
+                        .values
+                        .get(vector.elements_index.into_index())
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice()[0..vector.len as usize],
+                )
+            }
+            ElementArrayKey::E12 => {
+                let epow = &self.e2pow12;
+                (
+                    epow.descriptors.get(&vector.elements_index),
+                    &epow
+                        .values
+                        .get(vector.elements_index.into_index())
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice()[0..vector.len as usize],
+                )
+            }
+            ElementArrayKey::E16 => {
+                let epow = &self.e2pow16;
+                (
+                    epow.descriptors.get(&vector.elements_index),
+                    &epow
+                        .values
+                        .get(vector.elements_index.into_index())
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice()[0..vector.len as usize],
+                )
+            }
+            ElementArrayKey::E24 => {
+                let epow = &self.e2pow24;
+                (
+                    epow.descriptors.get(&vector.elements_index),
+                    &epow
+                        .values
+                        .get(vector.elements_index.into_index())
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice()[0..vector.len as usize],
+                )
+            }
+            ElementArrayKey::E32 => {
+                let epow = &self.e2pow32;
+                (
+                    epow.descriptors.get(&vector.elements_index),
+                    &epow
+                        .values
+                        .get(vector.elements_index.into_index())
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_slice()[0..vector.len as usize],
+                )
+            }
         }
     }
 
