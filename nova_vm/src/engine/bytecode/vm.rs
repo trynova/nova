@@ -25,9 +25,9 @@ use crate::{
             ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult, ProtoIntrinsics,
         },
         types::{
-            get_value, initialize_referenced_binding, put_value, Base, BigInt, Function,
-            IntoFunction, IntoValue, Number, Numeric, Object, PropertyKey, Reference, String,
-            Value, BUILTIN_STRING_MEMORY,
+            get_this_value, get_value, initialize_referenced_binding, put_value, Base, BigInt,
+            Function, IntoFunction, IntoValue, Number, Numeric, Object, PropertyKey, Reference,
+            String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::WellKnownSymbolIndexes,
@@ -415,7 +415,7 @@ impl Vm {
                     // a. If IsPropertyReference(ref) is true, then
                     match reference.base {
                         // i. Let thisValue be GetThisValue(ref).
-                        Base::Value(value) => value,
+                        Base::Value(_) => get_this_value(&reference),
                         // b. Else,
                         Base::Environment(ref_env) => {
                             // i. Let refEnv be ref.[[Base]].
@@ -432,7 +432,6 @@ impl Vm {
                     // a. Let thisValue be undefined.
                     Value::Undefined
                 };
-                // let this_arg = vm.stack.pop();
                 let func = vm.stack.pop().unwrap();
                 vm.result = Some(call(agent, func, this_value, Some(ArgumentsList(&args)))?);
             }
