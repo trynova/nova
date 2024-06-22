@@ -266,11 +266,11 @@ pub(crate) fn iterator_close(
 ///
 /// IfAbruptCloseIterator is a shorthand for a sequence of algorithm steps that
 /// use an Iterator Record.
-pub(crate) fn if_abrupt_close_iterator(
+pub(crate) fn if_abrupt_close_iterator<T>(
     _agent: &mut Agent,
-    _value: JsResult<Value>,
+    _value: JsResult<T>,
     _iterator_record: &IteratorRecord,
-) -> JsResult<Value> {
+) -> JsResult<T> {
     // 1. Assert: value is a Completion Record.
     // 2. If value is an abrupt completion, return ? IteratorClose(iteratorRecord, value).
     // 3. Else, set value to value.[[Value]].

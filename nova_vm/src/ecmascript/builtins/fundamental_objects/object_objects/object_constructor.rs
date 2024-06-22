@@ -12,6 +12,7 @@ use crate::{
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
+            keyed_collections::map_objects::map_constructor::add_entries_from_iterable,
             ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
         },
@@ -416,12 +417,37 @@ impl ObjectConstructor {
         }
     }
 
-    fn from_entries(
-        _agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+    /// ### [20.1.2.7 Object.fromEntries ( iterable )](https://tc39.es/ecma262/#sec-object.fromentries)
+    fn from_entries(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let iterable = arguments.get(0);
+        // 1. Perform ? RequireObjectCoercible(iterable).
+        require_object_coercible(agent, iterable)?;
+        // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%).
+        let obj =
+            ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
+        // 3. Assert: obj is an extensible ordinary object with no own properties.
+        let obj = OrdinaryObject::try_from(obj).unwrap();
+        debug_assert!(obj.internal_own_property_keys(agent).unwrap().is_empty());
+        // 4. Let closure be a new Abstract Closure with parameters (key,
+        //    value) that captures obj and performs the following steps when
+        //    called:
+        let adder =
+            |agent: &mut Agent, _: OrdinaryObject, key: Value, value: Value| -> JsResult<()> {
+                // a. Let propertyKey be ? ToPropertyKey(key).
+                let property_key = to_property_key(agent, key)?;
+                // b. Perform ! CreateDataPropertyOrThrow(obj, propertyKey, value).
+                obj.internal_define_own_property(
+                    agent,
+                    property_key,
+                    PropertyDescriptor::new_data_descriptor(value),
+                )
+                .unwrap();
+                // c. Return undefined.
+                Ok(())
+            };
+        // 5. Let adder be CreateBuiltinFunction(closure, 2, "", « »).
+        // 6. Return ? AddEntriesFromIterable(obj, iterable, adder).
+        add_entries_from_iterable(agent, obj, iterable, adder).map(|obj| obj.into_value())
     }
 
     /// ### [20.1.2.8 Object.getOwnPropertyDescriptor ( O, P )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptor)
