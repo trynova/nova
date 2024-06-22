@@ -1,11 +1,11 @@
-use clap::Parser as ClapParser;
+use clap::{Args, Parser as ClapParser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
     collections::HashMap,
     ffi::OsStr,
     fs::{read_dir, File},
-    io::{ErrorKind, Read},
+    io::{ErrorKind, Read, Write},
     path::PathBuf,
     process::{Command, Stdio},
     time::Duration,
@@ -38,33 +38,168 @@ fn is_test_file(file_name: &str) -> bool {
 }
 
 #[derive(Debug)]
-struct Test262Runner {
+struct BaseTest262Runner {
     runner_base_path: PathBuf,
     tests_base: PathBuf,
     nova_harness_path: PathBuf,
     nova_cli_path: PathBuf,
-    expectations: HashMap<PathBuf, TestExpectation>,
-    treat_crashes_as_failures: bool,
-    noprogress: bool,
-
-    num_tests_run: usize,
-    unexpected_results: HashMap<PathBuf, TestExpectation>,
+    print_progress: bool,
+    in_test_eval: bool,
 }
 
-impl Test262Runner {
+impl BaseTest262Runner {
     const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 
     /// This error code denotes a parse error or an uncaught exception, all
     /// others are treated as crashes.
     const FAILURE_ERROR_CODE: i32 = 1;
 
+    fn run_test(&self, path: &PathBuf) -> Option<TestExpectation> {
+        let metadata = test_metadata::parse(path);
+
+        if metadata.flags.is_async || metadata.flags.module {
+            // We don't yet support async or modules, skip any tests for them.
+            return None;
+        }
+
+        if self.print_progress {
+            let relpath = path.strip_prefix(&self.tests_base).unwrap();
+            let mut message = format!("Running {}", relpath.to_string_lossy());
+            if message.len() > 80 {
+                message.truncate(80 - 3);
+                message.push_str("...");
+            }
+            // These escape codes make this line overwrite the previous line.
+            print!("{}\x1B[0K\r", message);
+        }
+
+        let mut command = Command::new(&self.nova_cli_path);
+        command.arg("eval");
+
+        command.arg(&self.nova_harness_path);
+        if metadata.flags.raw {
+            assert!(metadata.includes.is_empty());
+        } else {
+            let mut harness = self.runner_base_path.clone();
+            harness.push("test262/harness");
+            let includes_iter = ["assert.js", "sta.js"]
+                .iter()
+                .map(PathBuf::from)
+                .chain(metadata.includes.iter().cloned());
+            for include_relpath in includes_iter {
+                let mut include = harness.clone();
+                include.push(include_relpath);
+                command.arg(include);
+            }
+        }
+        command.arg(path);
+
+        if self.in_test_eval {
+            println!("Running: {:?}", command);
+            println!();
+        }
+
+        Some(self.run_command_and_parse_output(command, &metadata.negative))
+    }
+
+    fn run_command_and_parse_output(
+        &self,
+        mut command: Command,
+        negative: &Option<test_metadata::NegativeExpectation>,
+    ) -> TestExpectation {
+        if self.in_test_eval {
+            command.stdout(Stdio::inherit());
+        } else {
+            command.stdout(Stdio::null());
+        }
+        command.stderr(Stdio::piped());
+
+        let mut child = command.spawn().unwrap();
+
+        let Some(status) = child.wait_timeout(Self::TEST_TIMEOUT).unwrap() else {
+            child.kill().unwrap();
+            child.wait().unwrap();
+            if self.in_test_eval {
+                std::io::copy(&mut child.stderr.unwrap(), &mut std::io::stderr()).unwrap();
+                std::io::stderr().flush().unwrap();
+            }
+            return TestExpectation::Timeout;
+        };
+
+        if !status.success() && status.code() != Some(Self::FAILURE_ERROR_CODE) {
+            if self.in_test_eval {
+                std::io::copy(&mut child.stderr.unwrap(), &mut std::io::stderr()).unwrap();
+                std::io::stderr().flush().unwrap();
+            }
+            return TestExpectation::Crash;
+        }
+
+        let pass = if status.success() {
+            negative.is_none()
+        } else if let Some(negative) = negative {
+            let expected_stderr_prefix: Cow<str> = match negative.phase {
+                test_metadata::TestFailurePhase::Parse => "Parse errors:".into(),
+                test_metadata::TestFailurePhase::Runtime => {
+                    format!("Uncaught exception: {}", negative.error_type).into()
+                }
+                test_metadata::TestFailurePhase::Resolution => {
+                    // Module tests should have bailed out earlier, so we
+                    // shouldn't ever reach this point.
+                    unreachable!()
+                }
+            };
+
+            let mut buffer = vec![0u8; expected_stderr_prefix.len()];
+            match child.stderr.as_mut().unwrap().read_exact(&mut buffer) {
+                Ok(_) => {
+                    if self.in_test_eval {
+                        std::io::stderr().write_all(&buffer).unwrap();
+                    }
+                    buffer == expected_stderr_prefix.as_bytes()
+                },
+                Err(e) => {
+                    if e.kind() == ErrorKind::UnexpectedEof {
+                        false
+                    } else {
+                        panic!("{:?}", e);
+                    }
+                }
+            }
+        } else {
+            false
+        };
+
+        if self.in_test_eval {
+            std::io::copy(&mut child.stderr.unwrap(), &mut std::io::stderr()).unwrap();
+            std::io::stderr().flush().unwrap();
+        }
+
+        if pass {
+            TestExpectation::Pass
+        } else {
+            TestExpectation::Fail
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Test262Runner {
+    inner: BaseTest262Runner,
+    expectations: HashMap<PathBuf, TestExpectation>,
+    treat_crashes_as_failures: bool,
+
+    num_tests_run: usize,
+    unexpected_results: HashMap<PathBuf, TestExpectation>,
+}
+
+impl Test262Runner {
     /// If `filters` is empty, it means run every test. Otherwise, only tests
     /// which have one of the entries of `filters` as its prefix should run.
     pub fn run(&mut self, filters: &[PathBuf]) {
-        self.walk_dir(&self.tests_base.clone(), filters);
+        self.walk_dir(&self.inner.tests_base.clone(), filters);
 
         // Clear the previous line.
-        if !self.noprogress {
+        if self.inner.print_progress {
             print!("\x1B[2K\r");
         }
     }
@@ -138,50 +273,13 @@ impl Test262Runner {
     }
 
     fn run_test(&mut self, path: &PathBuf) {
-        let metadata = test_metadata::parse(path);
-
-        if metadata.flags.is_async || metadata.flags.module {
-            // We don't yet support async or modules, skip any tests for them.
+        let Some(test_result) = self.inner.run_test(path) else {
             return;
-        }
-
-        let relpath = path.strip_prefix(&self.tests_base).unwrap();
-        {
-            let mut message = format!("Running {}", relpath.to_string_lossy());
-            if message.len() > 80 {
-                message.truncate(80 - 3);
-                message.push_str("...");
-            }
-            // These escape codes make this line overwrite the previous line.
-            if !self.noprogress {
-                print!("{}\x1B[0K\r", message);
-            }
-        }
+        };
 
         self.num_tests_run += 1;
 
-        let mut command = Command::new(&self.nova_cli_path);
-        command.arg("eval");
-
-        command.arg(&self.nova_harness_path);
-        if metadata.flags.raw {
-            assert!(metadata.includes.is_empty());
-        } else {
-            let mut harness = self.runner_base_path.clone();
-            harness.push("test262/harness");
-            let includes_iter = ["assert.js", "sta.js"]
-                .iter()
-                .map(PathBuf::from)
-                .chain(metadata.includes);
-            for include_relpath in includes_iter {
-                let mut include = harness.clone();
-                include.push(include_relpath);
-                command.arg(include);
-            }
-        }
-        command.arg(path);
-
-        let test_result = Self::run_test_command_and_parse_output(command, &metadata.negative);
+        let relpath = path.strip_prefix(&self.inner.tests_base).unwrap();
 
         let expectation = self
             .expectations
@@ -201,61 +299,6 @@ impl Test262Runner {
 
             self.unexpected_results
                 .insert(relpath.to_path_buf(), test_result);
-        }
-    }
-
-    fn run_test_command_and_parse_output(
-        mut command: Command,
-        negative: &Option<test_metadata::NegativeExpectation>,
-    ) -> TestExpectation {
-        command.stdout(Stdio::null()).stderr(Stdio::piped());
-
-        let mut child = command.spawn().unwrap();
-
-        let Some(status) = child.wait_timeout(Self::TEST_TIMEOUT).unwrap() else {
-            child.kill().unwrap();
-            child.wait().unwrap();
-            return TestExpectation::Timeout;
-        };
-
-        if !status.success() && status.code() != Some(Self::FAILURE_ERROR_CODE) {
-            return TestExpectation::Crash;
-        }
-
-        let pass = if status.success() {
-            negative.is_none()
-        } else if let Some(negative) = negative {
-            let expected_stderr_prefix: Cow<str> = match negative.phase {
-                test_metadata::TestFailurePhase::Parse => "Parse errors:".into(),
-                test_metadata::TestFailurePhase::Runtime => {
-                    format!("Uncaught exception: {}", negative.error_type).into()
-                }
-                test_metadata::TestFailurePhase::Resolution => {
-                    // Module tests should have bailed out earlier, so we
-                    // shouldn't ever reach this point.
-                    unreachable!()
-                }
-            };
-
-            let mut buffer = vec![0u8; expected_stderr_prefix.len()];
-            match child.stderr.unwrap().read_exact(&mut buffer) {
-                Ok(_) => buffer == expected_stderr_prefix.as_bytes(),
-                Err(e) => {
-                    if e.kind() == ErrorKind::UnexpectedEof {
-                        false
-                    } else {
-                        panic!("{:?}", e);
-                    }
-                }
-            }
-        } else {
-            false
-        };
-
-        if pass {
-            TestExpectation::Pass
-        } else {
-            TestExpectation::Fail
         }
     }
 }
@@ -487,7 +530,22 @@ mod test_metadata {
 #[derive(Debug, ClapParser)]
 #[command(name = "test262")]
 #[command(about = "A test262 runner for Nova.", long_about = None)]
+#[command(args_conflicts_with_subcommands = true)]
 struct Cli {
+    #[command(subcommand)]
+    command: Option<CliCommands>,
+
+    #[command(flatten)]
+    run_tests: RunTestsArgs,
+}
+
+#[derive(Debug, Subcommand)]
+enum CliCommands {
+    EvalTest { path: PathBuf },
+}
+
+#[derive(Debug, Args)]
+struct RunTestsArgs {
     /// Update the expectations file with the results of the test run.
     #[arg(short, long)]
     update_expectations: bool,
@@ -513,7 +571,7 @@ struct Cli {
 }
 
 fn main() {
-    let mut cli = Cli::parse();
+    let cli = Cli::parse();
 
     // We're expecting this binary to always be run in the same machine at
     // the same time as the repo checkout exists.
@@ -534,17 +592,65 @@ fn main() {
         path
     };
 
-    let expectation_path = runner_base_path.join("expectations.json");
+    let base_runner = BaseTest262Runner {
+        runner_base_path,
+        tests_base,
+        nova_harness_path,
+        nova_cli_path,
+        print_progress: false,
+        in_test_eval: false,
+    };
+
+    match cli.command {
+        Some(CliCommands::EvalTest { path }) => eval_test(base_runner, path),
+        None => run_tests(base_runner, cli.run_tests),
+    }
+}
+
+fn eval_test(mut base_runner: BaseTest262Runner, path: PathBuf) {
+    base_runner.print_progress = false;
+    base_runner.in_test_eval = true;
+
+    let canonical_path = base_runner.tests_base.join(&path).canonicalize().unwrap();
+    assert!(canonical_path.is_absolute());
+
+    if !canonical_path.starts_with(&base_runner.tests_base)
+        || !is_test_file(canonical_path.file_name().unwrap().to_str().unwrap())
+    {
+        eprintln!("{:?} is not a valid test file", canonical_path);
+        std::process::exit(1);
+    }
+
+    let Some(result) = base_runner.run_test(&canonical_path) else {
+        eprintln!(
+            "{:?} is a module or async test, which aren't yet supported by the test runner.",
+            path
+        );
+        std::process::exit(1);
+    };
+
+    println!();
+    println!("Test result: {:?}", result);
+    if result != TestExpectation::Pass {
+        std::process::exit(1);
+    }
+}
+
+fn run_tests(mut base_runner: BaseTest262Runner, mut args: RunTestsArgs) {
+    base_runner.print_progress = !args.noprogress;
+    base_runner.in_test_eval = false;
+
+    let expectation_path = base_runner.runner_base_path.join("expectations.json");
     let expectations = {
-        if cli.update_expectations && !expectation_path.is_file() {
+        if args.update_expectations && !expectation_path.is_file() {
             Default::default()
         } else {
             let file = File::open(&expectation_path).unwrap();
-            if cli.update_expectations && file.metadata().unwrap().len() == 0 {
+            if args.update_expectations && file.metadata().unwrap().len() == 0 {
                 Default::default()
             } else {
                 let read_result = serde_json::from_reader(&file);
-                if cli.update_expectations
+                if args.update_expectations
                     && read_result.is_err()
                     && !read_result.as_ref().unwrap_err().is_io()
                 {
@@ -560,15 +666,15 @@ fn main() {
 
     // Preprocess filters
     let mut filters_are_valid = true;
-    for filter in cli.filters.iter_mut() {
-        let absolute = tests_base.join(&*filter);
+    for filter in args.filters.iter_mut() {
+        let absolute = base_runner.tests_base.join(&*filter);
         assert!(absolute.is_absolute());
         let Ok(canonical) = absolute.canonicalize() else {
             filters_are_valid = false;
             break;
         };
         assert!(canonical.is_absolute());
-        let Ok(relative) = canonical.strip_prefix(&tests_base) else {
+        let Ok(relative) = canonical.strip_prefix(&base_runner.tests_base) else {
             filters_are_valid = false;
             break;
         };
@@ -578,18 +684,15 @@ fn main() {
     }
 
     let mut runner = Test262Runner {
-        runner_base_path,
-        tests_base,
-        nova_harness_path,
-        nova_cli_path,
-        treat_crashes_as_failures: cli.treat_crashes_as_failures,
+        inner: base_runner,
+        treat_crashes_as_failures: args.treat_crashes_as_failures,
         expectations,
-        noprogress: cli.noprogress,
+
         num_tests_run: 0,
         unexpected_results: Default::default(),
     };
     if filters_are_valid {
-        runner.run(&cli.filters);
+        runner.run(&args.filters);
     }
 
     if runner.num_tests_run == 0 {
@@ -599,7 +702,7 @@ fn main() {
 
     if runner.unexpected_results.is_empty() {
         println!("No unexpected test results");
-    } else if !cli.update_expectations {
+    } else if !args.update_expectations {
         println!(
             "Found {} unexpected test results:",
             runner.unexpected_results.len()
