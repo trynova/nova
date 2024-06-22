@@ -45,7 +45,12 @@ impl BooleanConstructor {
             return Ok(b.into());
         };
         let new_target = Function::try_from(new_target).unwrap();
-        let o = PrimitiveObject::try_from(ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::Boolean)?).unwrap();
+        let o = PrimitiveObject::try_from(ordinary_create_from_constructor(
+            agent,
+            new_target,
+            ProtoIntrinsics::Boolean,
+        )?)
+        .unwrap();
         agent[o].data = PrimitiveObjectData::Boolean(b);
         Ok(o.into_value())
     }
