@@ -21,7 +21,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
         types::{
             InternalMethods, IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyDescriptor, String, Value, BUILTIN_STRING_MEMORY,
+            PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
@@ -569,20 +569,28 @@ impl ObjectConstructor {
         Ok(descriptors.into_value())
     }
 
+    /// ### [20.1.2.10 Object.getOwnPropertyNames ( O )](https://tc39.es/ecma262/#sec-object.getownpropertynames)
     fn get_own_property_names(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+        let o = arguments.get(0);
+        // 1. Return CreateArrayFromList(? GetOwnPropertyKeys(O, STRING)).
+        let keys = get_own_string_property_keys(agent, o)?;
+        Ok(create_array_from_list(agent, &keys).into_value())
     }
 
+    /// ### [20.1.2.11 Object.getOwnPropertySymbols ( O )](https://tc39.es/ecma262/#sec-object.getownpropertysymbols)
     fn get_own_property_symbols(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+        let o = arguments.get(0);
+        // 1. Return CreateArrayFromList(? GetOwnPropertyKeys(O, SYMBOL)).
+        let keys = get_own_symbol_property_keys(agent, o)?;
+        Ok(create_array_from_list(agent, &keys).into_value())
     }
 
     fn get_prototype_of(
@@ -598,9 +606,9 @@ impl ObjectConstructor {
     fn group_by(
         _agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        _arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+        todo!()
     }
 
     fn has_own(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
@@ -875,4 +883,52 @@ pub fn add_entries_from_iterable_from_entries(
             // c. Return undefined.
         }
     }
+}
+
+/// ### [20.1.2.11.1 GetOwnPropertyKeys ( O, type )](https://tc39.es/ecma262/#sec-getownpropertykeys)
+///
+/// The abstract operation GetOwnPropertyKeys takes arguments O (an ECMAScript
+/// language value) and type (STRING or SYMBOL) and returns either a normal
+/// completion containing a List of property keys or a throw completion.
+fn get_own_string_property_keys(agent: &mut Agent, o: Value) -> JsResult<Vec<Value>> {
+    // 1. Let obj be ? ToObject(O).
+    let obj = to_object(agent, o)?;
+    // 2. Let keys be ? obj.[[OwnPropertyKeys]]().
+    let keys = obj.internal_own_property_keys(agent)?;
+    // 3. Let nameList be a new empty List.
+    let mut name_list = Vec::with_capacity(keys.len());
+    // 4. For each element nextKey of keys, do
+    for next_key in keys {
+        // a. If nextKey is a Symbol and type is SYMBOL, or if nextKey is a String and type is STRING, then
+        match next_key {
+            // i. Append nextKey to nameList.
+            PropertyKey::Integer(next_key) => {
+                let next_key = format!("{}", next_key.into_i64());
+                name_list.push(Value::from_string(agent, next_key));
+            }
+            PropertyKey::SmallString(next_key) => name_list.push(Value::SmallString(next_key)),
+            PropertyKey::String(next_key) => name_list.push(Value::String(next_key)),
+            PropertyKey::Symbol(_) => {}
+        }
+    }
+    // 5. Return nameList.
+    Ok(name_list)
+}
+
+fn get_own_symbol_property_keys(agent: &mut Agent, o: Value) -> JsResult<Vec<Value>> {
+    // 1. Let obj be ? ToObject(O).
+    let obj = to_object(agent, o)?;
+    // 2. Let keys be ? obj.[[OwnPropertyKeys]]().
+    let keys = obj.internal_own_property_keys(agent)?;
+    // 3. Let nameList be a new empty List.
+    let mut name_list = Vec::with_capacity(keys.len());
+    // 4. For each element nextKey of keys, do
+    for next_key in keys {
+        // a. If nextKey is a Symbol and type is SYMBO then
+        if let PropertyKey::Symbol(next_key) = next_key {
+            name_list.push(next_key.into_value())
+        }
+    }
+    // 5. Return nameList.
+    Ok(name_list)
 }
