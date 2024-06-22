@@ -41,7 +41,7 @@ impl SealableElementsVector {
         self.len_writable
     }
 
-    /// A sealable elements vector is simple if it contains no getters.
+    /// A sealable elements vector is simple if it contains no accessir descriptors.
     pub(crate) fn is_simple(&self, agent: &Agent) -> bool {
         let elements_vector: ElementsVector = (*self).into();
         elements_vector.is_simple(agent)

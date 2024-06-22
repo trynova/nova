@@ -126,11 +126,13 @@ impl ElementsVector {
         self.len == self.cap()
     }
 
-    /// An elements vector is simple if it contains no getters.
+    /// An elements vector is simple if it contains no accessor descriptors.
     pub(crate) fn is_simple(&self, agent: &Agent) -> bool {
         let backing_store = agent.heap.elements.get_full(*self);
         backing_store.0.map_or(true, |hashmap| {
-            !hashmap.iter().any(|desc| desc.1.has_getter())
+            !hashmap
+                .iter()
+                .any(|desc| desc.1.has_getter() || desc.1.has_setter())
         })
     }
 
@@ -502,6 +504,20 @@ impl ElementDescriptor {
                 | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { .. }
                 | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { .. }
                 | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { .. }
+        )
+    }
+
+    pub(crate) fn has_setter(&self) -> bool {
+        matches!(
+            self,
+            ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { .. }
+                | ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { .. }
+                | ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor { .. }
                 | ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { .. }
                 | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { .. }
                 | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { .. }

@@ -1,28 +1,30 @@
 use crate::{
     ecmascript::{
         abstract_operations::{
+            operations_on_iterator_objects::{
+                get_iterator, if_abrupt_close_iterator, iterator_close, iterator_step_value,
+            },
             operations_on_objects::{
                 create_array_from_list, define_property_or_throw, enumerable_own_properties,
-                enumerable_properties_kind, get, has_own_property,
+                enumerable_properties_kind, get, get_method, has_own_property,
                 integrity::{Frozen, Sealed},
                 set, set_integrity_level,
             },
             testing_and_comparison::{require_object_coercible, same_value},
-            type_conversion::{to_object, to_property_key},
+            type_conversion::{to_object, to_property_key, to_property_key_simple},
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            keyed_collections::map_objects::map_constructor::add_entries_from_iterable,
             ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
         },
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
         types::{
-            InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
-            String, Value, BUILTIN_STRING_MEMORY,
+            InternalMethods, IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject,
+            PropertyDescriptor, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{IntrinsicConstructorIndexes, ObjectEntry},
+    heap::{IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct ObjectConstructor;
@@ -420,6 +422,81 @@ impl ObjectConstructor {
     /// ### [20.1.2.7 Object.fromEntries ( iterable )](https://tc39.es/ecma262/#sec-object.fromentries)
     fn from_entries(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
         let iterable = arguments.get(0);
+        // Fast path: Simple, dense array of N simple, dense arrays.
+        if let Value::Array(entries_array) = iterable {
+            let array_prototype = agent.current_realm().intrinsics().array_prototype();
+            let intrinsic_array_iterator = agent
+                .current_realm()
+                .intrinsics()
+                .array_prototype_values()
+                .into_function();
+            let array_iterator = get_method(
+                agent,
+                array_prototype.into_value(),
+                WellKnownSymbolIndexes::Iterator.into(),
+            )?;
+            // SAFETY: If the iterator of the array is the intrinsic array
+            // values iterator and the array is simple and dense, then we know
+            // the behaviour of the iterator (access elements one by one) and
+            // we know that accessing the elements will not trigger calls into
+            // JavaScript. Hence, we can access the elements directly.
+            if array_iterator == Some(intrinsic_array_iterator)
+                && entries_array.is_simple(agent)
+                && entries_array.is_dense(agent)
+            {
+                let entries_elements = &agent[agent[entries_array].elements];
+                let mut object_entries = Vec::with_capacity(entries_elements.len());
+                // Fast path is valid if each entry in the array is itself a
+                // simple and dense array that contains a valid property key
+                // and value.
+                // If these expectations are invalidated, we must go back to
+                // the generic iterator path.
+                let mut valid = true;
+                for entry_element in entries_elements {
+                    // SAFETY: Array is a simple, dense array. All values are
+                    // defined.
+                    let entry_element = entry_element.unwrap();
+                    let entry_element_array =
+                        if let Value::Array(entry_element_array) = entry_element {
+                            // Note: We check length to equal 2 because it's
+                            // the common case and it ensures simple and dense
+                            // checking does not iterate a uselessly long
+                            // array.
+                            if entry_element_array.len(agent) == 2
+                                || !entry_element_array.is_simple(agent)
+                                || !entry_element_array.is_dense(agent)
+                            {
+                                valid = false;
+                                break;
+                            }
+                            entry_element_array
+                        } else {
+                            valid = false;
+                            break;
+                        };
+                    let key_value_elements = &agent[agent[entry_element_array].elements];
+                    let key = key_value_elements.first().unwrap().unwrap();
+                    let key = to_property_key_simple(agent, key);
+                    let Some(key) = key else {
+                        valid = false;
+                        break;
+                    };
+                    let value = key_value_elements.last().unwrap().unwrap();
+                    object_entries.push(ObjectEntry::new_data_entry(key, value));
+                }
+                if valid {
+                    let object = agent.heap.create_object_with_prototype(
+                        agent
+                            .current_realm()
+                            .intrinsics()
+                            .object_prototype()
+                            .into_object(),
+                        &object_entries,
+                    );
+                    return Ok(object.into_value());
+                }
+            }
+        }
         // 1. Perform ? RequireObjectCoercible(iterable).
         require_object_coercible(agent, iterable)?;
         // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%).
@@ -431,23 +508,9 @@ impl ObjectConstructor {
         // 4. Let closure be a new Abstract Closure with parameters (key,
         //    value) that captures obj and performs the following steps when
         //    called:
-        let adder =
-            |agent: &mut Agent, _: OrdinaryObject, key: Value, value: Value| -> JsResult<()> {
-                // a. Let propertyKey be ? ToPropertyKey(key).
-                let property_key = to_property_key(agent, key)?;
-                // b. Perform ! CreateDataPropertyOrThrow(obj, propertyKey, value).
-                obj.internal_define_own_property(
-                    agent,
-                    property_key,
-                    PropertyDescriptor::new_data_descriptor(value),
-                )
-                .unwrap();
-                // c. Return undefined.
-                Ok(())
-            };
         // 5. Let adder be CreateBuiltinFunction(closure, 2, "", « »).
         // 6. Return ? AddEntriesFromIterable(obj, iterable, adder).
-        add_entries_from_iterable(agent, obj, iterable, adder).map(|obj| obj.into_value())
+        add_entries_from_iterable_from_entries(agent, obj, iterable).map(|obj| obj.into_value())
     }
 
     /// ### [20.1.2.8 Object.getOwnPropertyDescriptor ( O, P )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptor)
@@ -740,4 +803,76 @@ fn object_define_properties<T: InternalMethods>(
     }
     // 6. Return O.
     Ok(o)
+}
+
+/// ### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
+///
+/// The abstract operation AddEntriesFromIterable takes arguments target (an
+/// Object), iterable (an ECMAScript language value, but not undefined or
+/// null), and adder (a function object) and returns either a normal completion
+/// containing an ECMAScript language value or a throw completion. adder will
+/// be invoked, with target as the receiver.
+///
+/// > NOTE: The parameter iterable is expected to be an object that implements
+/// > an @@iterator method that returns an iterator object that produces a two
+/// > element array-like object whose first element is a value that will be used
+/// > as a Map key and whose second element is the value to associate with that
+/// > key.
+///
+/// #### Unspecified specialization
+///
+/// This is a specialization for the `Object.fromEntries` use case where we
+/// know what adder does and that it is never seen from JavaScript: As such it
+/// does not need to be defined as a JavaScript function.
+pub fn add_entries_from_iterable_from_entries(
+    agent: &mut Agent,
+    target: OrdinaryObject,
+    iterable: Value,
+) -> JsResult<OrdinaryObject> {
+    // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
+    let iterator_record = get_iterator(agent, iterable, false)?;
+    // 2. Repeat,
+    loop {
+        // a. Let next be ? IteratorStepValue(iteratorRecord).
+        let next = iterator_step_value(agent, &iterator_record)?;
+        // b. If next is DONE, return target.
+        let Some(next) = next else {
+            return Ok(target);
+        };
+        // c. If next is not an Object, then
+        let Ok(next) = Object::try_from(next) else {
+            // i. Let error be ThrowCompletion(a newly created TypeError object).
+            let error = agent.throw_exception(
+                ExceptionType::TypeError,
+                "Invalid iterator next return value",
+            );
+            // ii. Return ? IteratorClose(iteratorRecord, error).
+            iterator_close(agent, &iterator_record, Err(error))?;
+            return Ok(target);
+        };
+        // d. Let k be Completion(Get(next, "0")).
+        let k = get(agent, next, 0.into());
+        // e. IfAbruptCloseIterator(k, iteratorRecord).
+        let k = if_abrupt_close_iterator(agent, k, &iterator_record)?;
+        // f. Let v be Completion(Get(next, "1")).
+        let v = get(agent, next, 1.into());
+        // g. IfAbruptCloseIterator(v, iteratorRecord).
+        let v = if_abrupt_close_iterator(agent, v, &iterator_record)?;
+        // h. Let status be Completion(Call(adder, target, « k, v »)).
+        {
+            // a. Let propertyKey be ? ToPropertyKey(key).
+            let property_key = to_property_key(agent, k);
+            // i. IfAbruptCloseIterator(status, iteratorRecord).
+            let property_key = if_abrupt_close_iterator(agent, property_key, &iterator_record)?;
+            // b. Perform ! CreateDataPropertyOrThrow(obj, propertyKey, value).
+            target
+                .internal_define_own_property(
+                    agent,
+                    property_key,
+                    PropertyDescriptor::new_data_descriptor(v),
+                )
+                .unwrap();
+            // c. Return undefined.
+        }
+    }
 }

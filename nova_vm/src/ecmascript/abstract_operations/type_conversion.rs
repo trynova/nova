@@ -610,6 +610,55 @@ pub(crate) fn to_property_key(agent: &mut Agent, argument: Value) -> JsResult<Pr
     }
 }
 
+/// ### [7.1.19 ToPropertyKey ( argument )](https://tc39.es/ecma262/#sec-topropertykey)
+///
+/// This method does not require mutable access to Agent but only handles
+/// simple property key cases. If a complex case is found, the caller should
+/// fall back to a generic algorithm.
+pub(crate) fn to_property_key_simple(agent: &Agent, argument: Value) -> Option<PropertyKey> {
+    let maybe_str = match &argument {
+        Value::String(x) => Some(agent[*x].as_str()),
+        Value::SmallString(x) => Some(x.as_str()),
+        _ => None,
+    };
+    if let Some(str) = maybe_str {
+        // i64::from_string will accept eg. 0123 as 123 but JS property keys do
+        // not agree. Hence, only "0" can start with "0", all other integer
+        // keys must start with one of "1".."9".
+        if str == "0" {
+            return Some(0.into());
+        } else if !str.is_empty() && (b'1'..b'9').contains(&str.as_bytes()[0]) {
+            if let Ok(result) = str.parse::<i64>() {
+                if let Ok(result) = SmallInteger::try_from(result) {
+                    return Some(result.into());
+                }
+            }
+        }
+    }
+    match argument {
+        Value::Integer(x) => Some(PropertyKey::Integer(x)),
+        Value::Float(x) if x == -0.0 => Some(PropertyKey::Integer(0.into())),
+        Value::SmallString(x) => Some(PropertyKey::SmallString(x)),
+        Value::String(x) => Some(PropertyKey::String(x)),
+        Value::Symbol(x) => Some(PropertyKey::Symbol(x)),
+        Value::SmallBigInt(x)
+            if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&x.into_i64()) =>
+        {
+            Some(PropertyKey::Integer(x.into_inner()))
+        }
+        Value::Undefined => Some(PropertyKey::from(BUILTIN_STRING_MEMORY.undefined)),
+        Value::Null => Some(PropertyKey::from(BUILTIN_STRING_MEMORY.null)),
+        Value::Boolean(bool) => {
+            if bool {
+                Some(PropertyKey::from(BUILTIN_STRING_MEMORY.r#true))
+            } else {
+                Some(PropertyKey::from(BUILTIN_STRING_MEMORY.r#false))
+            }
+        }
+        _ => None,
+    }
+}
+
 /// ### [7.1.20 ToLength ( argument )](https://tc39.es/ecma262/#sec-tolength)
 pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<i64> {
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.

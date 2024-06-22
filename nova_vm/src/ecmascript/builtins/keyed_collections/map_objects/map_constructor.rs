@@ -1,12 +1,6 @@
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{
-                get_iterator, if_abrupt_close_iterator, iterator_close, iterator_step_value,
-            },
-            operations_on_objects::get,
-            testing_and_comparison::is_callable,
-        },
+        abstract_operations::{operations_on_objects::get, testing_and_comparison::is_callable},
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             map::Map, ordinary::ordinary_create_from_constructor, ArgumentsList, Behaviour,
@@ -14,7 +8,7 @@ use crate::{
         },
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
         types::{
-            Function, InternalMethods, IntoObject, IntoValue, Object, PropertyKey, String, Value,
+            Function, IntoObject, IntoValue, Object, PropertyKey, String, Value,
             BUILTIN_STRING_MEMORY,
         },
     },
@@ -128,60 +122,5 @@ impl MapConstructor {
             .with_prototype_property(map_prototype.into_object())
             .with_builtin_function_getter_property::<MapGetSpecies>()
             .build();
-    }
-}
-
-/// ### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
-///
-/// The abstract operation AddEntriesFromIterable takes arguments target (an
-/// Object), iterable (an ECMAScript language value, but not undefined or
-/// null), and adder (a function object) and returns either a normal completion
-/// containing an ECMAScript language value or a throw completion. adder will
-/// be invoked, with target as the receiver.
-///
-/// > NOTE: The parameter iterable is expected to be an object that implements
-/// > an @@iterator method that returns an iterator object that produces a two
-/// > element array-like object whose first element is a value that will be used
-/// > as a Map key and whose second element is the value to associate with that
-/// > key.
-pub(crate) fn add_entries_from_iterable<Target: InternalMethods>(
-    agent: &mut Agent,
-    target: Target,
-    iterable: Value,
-    mut adder: impl FnMut(&mut Agent, Target, Value, Value) -> JsResult<()>,
-) -> JsResult<Target> {
-    // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-    let iterator_record = get_iterator(agent, iterable, false)?;
-    // 2. Repeat,
-    loop {
-        // a. Let next be ? IteratorStepValue(iteratorRecord).
-        let next = iterator_step_value(agent, &iterator_record)?;
-        // b. If next is DONE, return target.
-        let Some(next) = next else {
-            return Ok(target);
-        };
-        // c. If next is not an Object, then
-        let Ok(next) = Object::try_from(next) else {
-            // i. Let error be ThrowCompletion(a newly created TypeError object).
-            let error = agent.throw_exception(
-                ExceptionType::TypeError,
-                "Invalid iterator next return value",
-            );
-            // ii. Return ? IteratorClose(iteratorRecord, error).
-            iterator_close(agent, &iterator_record, Err(error))?;
-            return Ok(target);
-        };
-        // d. Let k be Completion(Get(next, "0")).
-        let k = get(agent, next, 0.into());
-        // e. IfAbruptCloseIterator(k, iteratorRecord).
-        let k = if_abrupt_close_iterator(agent, k, &iterator_record)?;
-        // f. Let v be Completion(Get(next, "1")).
-        let v = get(agent, next, 1.into());
-        // g. IfAbruptCloseIterator(v, iteratorRecord).
-        let v = if_abrupt_close_iterator(agent, v, &iterator_record)?;
-        // h. Let status be Completion(Call(adder, target, « k, v »)).
-        let status = adder(agent, target, k, v);
-        // i. IfAbruptCloseIterator(status, iteratorRecord).
-        let _ = if_abrupt_close_iterator(agent, status, &iterator_record);
     }
 }
