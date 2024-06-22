@@ -445,7 +445,12 @@ impl ObjectConstructor {
                 && entries_array.is_dense(agent)
             {
                 let entries_elements = &agent[agent[entries_array].elements];
-                let mut object_entries = Vec::with_capacity(entries_elements.len());
+                // Note: Separate vector for keys to detect duplicates.
+                // This is optimal until ~20 keys, after which a HashMap would
+                // be better.
+                let mut entry_keys: Vec<PropertyKey> = Vec::with_capacity(entries_elements.len());
+                let mut object_entries: Vec<ObjectEntry> =
+                    Vec::with_capacity(entries_elements.len());
                 // Fast path is valid if each entry in the array is itself a
                 // simple and dense array that contains a valid property key
                 // and value.
@@ -482,7 +487,17 @@ impl ObjectConstructor {
                         break;
                     };
                     let value = key_value_elements.last().unwrap().unwrap();
-                    object_entries.push(ObjectEntry::new_data_entry(key, value));
+                    let entry = ObjectEntry::new_data_entry(key, value);
+                    let existing = entry_keys
+                        .iter()
+                        .enumerate()
+                        .find(|(_, entry)| **entry == key);
+                    if let Some((index, _)) = existing {
+                        object_entries[index] = entry;
+                    } else {
+                        object_entries.push(entry);
+                        entry_keys.push(key);
+                    }
                 }
                 if valid {
                     let object = agent.heap.create_object_with_prototype(
