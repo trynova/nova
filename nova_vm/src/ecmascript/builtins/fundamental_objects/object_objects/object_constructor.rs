@@ -914,7 +914,7 @@ fn get_own_string_property_keys(agent: &mut Agent, o: Value) -> JsResult<Vec<Val
     let mut name_list = Vec::with_capacity(keys.len());
     // 4. For each element nextKey of keys, do
     for next_key in keys {
-        // a. If nextKey is a Symbol and type is SYMBOL, or if nextKey is a String and type is STRING, then
+        // a. If nextKey is a String and type is STRING then
         match next_key {
             // i. Append nextKey to nameList.
             PropertyKey::Integer(next_key) => {
@@ -939,7 +939,7 @@ fn get_own_symbol_property_keys(agent: &mut Agent, o: Value) -> JsResult<Vec<Val
     let mut name_list = Vec::with_capacity(keys.len());
     // 4. For each element nextKey of keys, do
     for next_key in keys {
-        // a. If nextKey is a Symbol and type is SYMBO then
+        // a. If nextKey is a Symbol and type is SYMBOL then
         if let PropertyKey::Symbol(next_key) = next_key {
             name_list.push(next_key.into_value())
         }
