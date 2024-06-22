@@ -1,6 +1,8 @@
 use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
 use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
+use crate::ecmascript::builtins::primitive_objects::PrimitiveObject;
+use crate::ecmascript::builtins::primitive_objects::PrimitiveObjectData;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
@@ -11,6 +13,7 @@ use crate::ecmascript::execution::ProtoIntrinsics;
 use crate::ecmascript::execution::RealmIdentifier;
 use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoObject;
+use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
@@ -42,8 +45,9 @@ impl BooleanConstructor {
             return Ok(b.into());
         };
         let new_target = Function::try_from(new_target).unwrap();
-        let _ = ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::Boolean)?;
-        todo!();
+        let o = PrimitiveObject::try_from(ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::Boolean)?).unwrap();
+        agent[o].data = PrimitiveObjectData::Boolean(b);
+        Ok(o.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
