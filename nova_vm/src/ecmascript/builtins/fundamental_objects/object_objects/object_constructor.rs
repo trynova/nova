@@ -462,7 +462,7 @@ impl ObjectConstructor {
                             // the common case and it ensures simple and dense
                             // checking does not iterate a uselessly long
                             // array.
-                            if entry_element_array.len(agent) == 2
+                            if entry_element_array.len(agent) != 2
                                 || !entry_element_array.is_simple(agent)
                                 || !entry_element_array.is_dense(agent)
                             {
