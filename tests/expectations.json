@@ -1,7 +1,6 @@
 {
   "built-ins/Array/S15.4.5.2_A1_T1.js": "CRASH",
   "built-ins/Array/S15.4_A1.1_T10.js": "CRASH",
-  "built-ins/Array/S15.4_A1.1_T7.js": "CRASH",
   "built-ins/Array/S15.4_A1.1_T8.js": "CRASH",
   "built-ins/Array/Symbol.species/length.js": "CRASH",
   "built-ins/Array/Symbol.species/symbol-species-name.js": "CRASH",
@@ -7115,9 +7114,7 @@
   "built-ins/Object/defineProperties/not-a-constructor.js": "CRASH",
   "built-ins/Object/defineProperties/proxy-no-ownkeys-returned-keys-order.js": "CRASH",
   "built-ins/Object/defineProperty/15.2.3.6-0-2.js": "FAIL",
-  "built-ins/Object/defineProperty/15.2.3.6-2-10.js": "FAIL",
   "built-ins/Object/defineProperty/15.2.3.6-2-40.js": "CRASH",
-  "built-ins/Object/defineProperty/15.2.3.6-2-42.js": "FAIL",
   "built-ins/Object/defineProperty/15.2.3.6-3-1.js": "CRASH",
   "built-ins/Object/defineProperty/15.2.3.6-3-100.js": "CRASH",
   "built-ins/Object/defineProperty/15.2.3.6-3-101.js": "CRASH",
