@@ -701,7 +701,7 @@ pub(crate) fn to_property_key_simple(
     }
 }
 
-fn parse_string_to_integer_property_key(str: &str) -> Option<PropertyKey> {
+pub(crate) fn parse_string_to_integer_property_key(str: &str) -> Option<PropertyKey> {
     // i64::from_string will accept eg. 0123 as 123 but JS property keys do
     // not agree. Hence, only "0" can start with "0", all other integer
     // keys must start with one of "1".."9".

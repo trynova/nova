@@ -1,5 +1,6 @@
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::parse_string_to_integer_property_key,
         execution::Agent,
         types::{
             language::{
@@ -28,15 +29,18 @@ pub enum PropertyKey {
 impl PropertyKey {
     // FIXME: This API is not necessarily in the right place.
     pub fn from_str(agent: &mut Agent, str: &str) -> Self {
-        String::from_str(agent, str).into()
+        parse_string_to_integer_property_key(str)
+            .unwrap_or_else(|| String::from_str(agent, str).into())
     }
 
     pub fn from_static_str(agent: &mut Agent, str: &'static str) -> Self {
-        String::from_static_str(agent, str).into()
+        parse_string_to_integer_property_key(str)
+            .unwrap_or_else(|| String::from_static_str(agent, str).into())
     }
 
     pub fn from_string(agent: &mut Agent, string: std::string::String) -> Self {
-        String::from_string(agent, string).into()
+        parse_string_to_integer_property_key(&string)
+            .unwrap_or_else(|| String::from_string(agent, string).into())
     }
 
     pub fn into_value(self) -> Value {
