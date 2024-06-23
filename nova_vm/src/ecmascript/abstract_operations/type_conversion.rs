@@ -18,8 +18,8 @@ use crate::{
         },
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{
-            BigInt, IntoNumeric, IntoObject, Number, Numeric, Object, Primitive, PropertyKey,
-            String, Value, BUILTIN_STRING_MEMORY,
+            BigInt, IntoNumeric, IntoObject, IntoValue, Number, Numeric, Object, Primitive,
+            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{CreateHeapData, WellKnownSymbolIndexes},
@@ -611,92 +611,77 @@ pub(crate) fn to_object(agent: &mut Agent, argument: Value) -> JsResult<Object> 
 
 /// ### [7.1.19 ToPropertyKey ( argument )](https://tc39.es/ecma262/#sec-topropertykey)
 pub(crate) fn to_property_key(agent: &mut Agent, argument: Value) -> JsResult<PropertyKey> {
-    // NOTE: Non-standard extension. Nova internally considers integer
-    // property keys to be different from others. As such, we try to detect if
-    // a value given to us is a stringified integer value.
-    let maybe_str = match &argument {
-        Value::String(x) => Some(agent[*x].as_str()),
-        Value::SmallString(x) => Some(x.as_str()),
-        _ => None,
-    };
-    if let Some(str) = maybe_str {
-        // i64::from_string will accept eg. 0123 as 123 but JS property keys do
-        // not agree. Hence, only "0" can start with "0", all other integer
-        // keys must start with one of "1".."9".
-        if str == "0" {
-            return Ok(0.into());
-        } else if !str.is_empty() && (b'1'..b'9').contains(&str.as_bytes()[0]) {
-            if let Ok(result) = str.parse::<i64>() {
-                if let Ok(result) = SmallInteger::try_from(result) {
-                    return Ok(result.into());
-                }
-            }
-        }
+    // Note: Fast path and non-standard special case combined. Usually the
+    // argument is already a valid property key. We also need to parse integer
+    // strings back into integer property keys.
+    if let Some(simple_result) = to_property_key_simple(agent, argument) {
+        return Ok(simple_result);
     }
+
+    // If the argument is not a simple property key, it means that we may need
+    // to call JavaScript or at least allocate a string on the heap.
+    // We call ToPrimitive in case we're dealing with an object.
+
     // 1. Let key be ? ToPrimitive(argument, hint String).
     let key = to_primitive(agent, argument, Some(PreferredType::String))?;
 
     // 2. If Type(key) is Symbol, then
     //    a. Return key.
-    // NOTE: This handles Symbols and other primitives because we use niche
-    // specializations for PropertyKey (e.g. integer indexes for arrays).
-    match key {
-        Primitive::Integer(x) => Ok(PropertyKey::Integer(x)),
-        Primitive::Float(x) if x == -0.0 => Ok(PropertyKey::Integer(0.into())),
-        Primitive::SmallString(x) => Ok(PropertyKey::SmallString(x)),
-        Primitive::String(x) => Ok(PropertyKey::String(x)),
-        Primitive::Symbol(x) => Ok(PropertyKey::Symbol(x)),
-        Primitive::SmallBigInt(x)
-            if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&x.into_i64()) =>
-        {
-            Ok(PropertyKey::Integer(x.into_inner()))
-        }
-        Primitive::Undefined => Ok(PropertyKey::from(BUILTIN_STRING_MEMORY.undefined)),
-        Primitive::Null => Ok(PropertyKey::from(BUILTIN_STRING_MEMORY.null)),
-        Primitive::Boolean(bool) => {
-            if bool {
-                Ok(PropertyKey::from(BUILTIN_STRING_MEMORY.r#true))
-            } else {
-                Ok(PropertyKey::from(BUILTIN_STRING_MEMORY.r#false))
-            }
-        }
-        _ => {
-            // 3. Return ! ToString(key).
-            Ok(to_string(agent, key).unwrap().into())
-        }
-    }
+    // Note: We can reuse the fast path and non-standard special case handler:
+    // If the property key was an object, it is now a primitive. We need to do
+    // our non-standard parsing of integer strings back into integer property
+    // keys here as well.
+    Ok(to_property_key_simple(agent, key).unwrap_or_else(|| {
+        // Key was still not simple: This mean it's a heap allocated f64,
+        // BigInt, or non-negative-zero f32: These should never be safe
+        // integers and thus will never be PropertyKey::Integer after
+        // stringifying.
+
+        // 3. Return ! ToString(key).
+        to_string(agent, key).unwrap().into()
+    }))
 }
 
 /// ### [7.1.19 ToPropertyKey ( argument )](https://tc39.es/ecma262/#sec-topropertykey)
 ///
-/// This method does not require mutable access to Agent but only handles
-/// simple property key cases. If a complex case is found, the caller should
-/// fall back to a generic algorithm.
-pub(crate) fn to_property_key_simple(agent: &Agent, argument: Value) -> Option<PropertyKey> {
-    let maybe_str = match &argument {
-        Value::String(x) => Some(agent[*x].as_str()),
-        Value::SmallString(x) => Some(x.as_str()),
-        _ => None,
-    };
-    if let Some(str) = maybe_str {
-        // i64::from_string will accept eg. 0123 as 123 but JS property keys do
-        // not agree. Hence, only "0" can start with "0", all other integer
-        // keys must start with one of "1".."9".
-        if str == "0" {
-            return Some(0.into());
-        } else if !str.is_empty() && (b'1'..b'9').contains(&str.as_bytes()[0]) {
-            if let Ok(result) = str.parse::<i64>() {
-                if let Ok(result) = SmallInteger::try_from(result) {
-                    return Some(result.into());
-                }
+/// This method handles Nova's special case of PropertyKey containing all safe
+/// integers as PropertyKey::Integer values. Additionally, this only handles
+/// cases that do not require calling any JavaScript code or allocating on the
+/// heap. The cases that are handled are:
+///
+/// - Safe integer numbers
+/// - Safe integet bigints
+/// - Negative zero
+/// - Stringified safe integers
+/// - Strings
+/// - Symbols
+/// - undefined
+/// - null
+/// - true
+/// - false
+///
+/// If a complex case is found, the function returns None to indicate that the
+/// caller should handle the uncommon case.
+pub(crate) fn to_property_key_simple(
+    agent: &Agent,
+    argument: impl IntoValue,
+) -> Option<PropertyKey> {
+    let argument = argument.into_value();
+    match argument {
+        Value::String(_) | Value::SmallString(_) => {
+            let (str, string_key) = match &argument {
+                Value::String(x) => (agent[*x].as_str(), PropertyKey::String(*x)),
+                Value::SmallString(x) => (x.as_str(), PropertyKey::SmallString(*x)),
+                _ => unreachable!(),
+            };
+            if let Some(key) = parse_string_to_integer_property_key(str) {
+                Some(key)
+            } else {
+                Some(string_key)
             }
         }
-    }
-    match argument {
         Value::Integer(x) => Some(PropertyKey::Integer(x)),
         Value::Float(x) if x == -0.0 => Some(PropertyKey::Integer(0.into())),
-        Value::SmallString(x) => Some(PropertyKey::SmallString(x)),
-        Value::String(x) => Some(PropertyKey::String(x)),
         Value::Symbol(x) => Some(PropertyKey::Symbol(x)),
         Value::SmallBigInt(x)
             if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&x.into_i64()) =>
@@ -714,6 +699,24 @@ pub(crate) fn to_property_key_simple(agent: &Agent, argument: Value) -> Option<P
         }
         _ => None,
     }
+}
+
+pub(crate) fn parse_string_to_integer_property_key(str: &str) -> Option<PropertyKey> {
+    // i64::from_string will accept eg. 0123 as 123 but JS property keys do
+    // not agree. Hence, only "0" can start with "0", all other integer
+    // keys must start with one of "1".."9".
+    if str == "0" {
+        return Some(0.into());
+    } else if !str.is_empty()
+        && (str.starts_with('-') || (b'1'..=b'9').contains(&str.as_bytes()[0]))
+    {
+        if let Ok(result) = str.parse::<i64>() {
+            if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&result) {
+                return Some(SmallInteger::try_from(result).unwrap().into());
+            }
+        }
+    }
+    None
 }
 
 /// ### [7.1.20 ToLength ( argument )](https://tc39.es/ecma262/#sec-tolength)

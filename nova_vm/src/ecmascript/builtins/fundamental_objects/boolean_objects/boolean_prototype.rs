@@ -1,6 +1,6 @@
 use crate::ecmascript::{
     builders::ordinary_object_builder::OrdinaryObjectBuilder,
-    builtins::{ArgumentsList, Builtin},
+    builtins::{primitive_objects::PrimitiveObjectData, ArgumentsList, Builtin},
     execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
     types::{String, Value, BUILTIN_STRING_MEMORY},
 };
@@ -66,12 +66,15 @@ fn this_boolean_value(agent: &mut Agent, value: Value) -> JsResult<bool> {
     // 1. If value is a Boolean, return value.
     if let Value::Boolean(value) = value {
         return Ok(value);
+    } else if let Value::PrimitiveObject(value) = value {
+        // 2. If value is an Object and value has a [[BooleanData]] internal slot, then
+        if let PrimitiveObjectData::Boolean(b) = agent[value].data {
+            // a. Let b be value.[[BooleanData]].
+            // b. Assert: b is a Boolean.
+            // c. Return b.
+            return Ok(b);
+        }
     }
-    // TODO: Boolean objects
-    // 2. If value is an Object and value has a [[BooleanData]] internal slot, then
-    // a. Let b be value.[[BooleanData]].
-    // b. Assert: b is a Boolean.
-    // c. Return b.
     // 3. Throw a TypeError exception.
     Err(agent.throw_exception(ExceptionType::TypeError, "Not a Boolean or Boolean object"))
 }
