@@ -2,6 +2,7 @@
 name = "nova_cli"
 version = "0.1.0"
 edition = "2021"
+default-run = "nova_cli"
 
 [dependencies]
 clap = { version = "4.5.0", features = ["derive"] }
