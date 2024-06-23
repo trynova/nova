@@ -1,6 +1,9 @@
 use crate::ecmascript::abstract_operations::type_conversion::to_string;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
 use crate::ecmascript::builtins::ordinary::get_prototype_from_constructor;
+use crate::ecmascript::builtins::ordinary::ordinary_object_create_with_intrinsics;
+use crate::ecmascript::builtins::primitive_objects::PrimitiveObject;
+use crate::ecmascript::builtins::primitive_objects::PrimitiveObjectData;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
@@ -11,6 +14,7 @@ use crate::ecmascript::execution::ProtoIntrinsics;
 use crate::ecmascript::execution::RealmIdentifier;
 use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoObject;
+use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
@@ -74,12 +78,34 @@ impl StringConstructor {
             return Ok(s.into_value());
         };
         // 4. Return StringCreate(s, ? GetPrototypeFromConstructor(NewTarget, "%String.prototype%")).
-        let _prototype = get_prototype_from_constructor(
+        let value = s;
+        let prototype = get_prototype_from_constructor(
             agent,
             Function::try_from(new_target).unwrap(),
             ProtoIntrinsics::String,
         )?;
-        todo!("StringCreate(s, ? GetPrototypeFromConstructor(NewTarget, \"%String.prototype%\"))");
+        // StringCreate: Returns a String exotic object.
+        // 1. Let S be MakeBasicObject(« [[Prototype]], [[Extensible]], [[StringData]] »).
+        let s = PrimitiveObject::try_from(ordinary_object_create_with_intrinsics(
+            agent,
+            Some(ProtoIntrinsics::String),
+            prototype,
+        ))
+        .unwrap();
+
+        // 2. Set S.[[Prototype]] to prototype.
+        // 3. Set S.[[StringData]] to value.
+        agent[s].data = match value {
+            String::String(data) => PrimitiveObjectData::String(data),
+            String::SmallString(data) => PrimitiveObjectData::SmallString(data),
+        };
+        // 4. Set S.[[GetOwnProperty]] as specified in 10.4.3.1.
+        // 5. Set S.[[DefineOwnProperty]] as specified in 10.4.3.2.
+        // 6. Set S.[[OwnPropertyKeys]] as specified in 10.4.3.3.
+        // 7. Let length be the length of value.
+        // 8. Perform ! DefinePropertyOrThrow(S, "length", PropertyDescriptor { [[Value]]: 𝔽(length), [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }).
+        // 9. Return S.
+        Ok(s.into_value())
     }
 
     fn from_char_code(
