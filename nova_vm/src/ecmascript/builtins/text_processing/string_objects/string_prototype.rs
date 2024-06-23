@@ -4,8 +4,11 @@ use crate::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
-        execution::{Agent, JsResult, RealmIdentifier},
+        builtins::{
+            primitive_objects::PrimitiveObjectData, ArgumentsList, Behaviour, Builtin,
+            BuiltinIntrinsic,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
@@ -179,7 +182,7 @@ struct StringPrototypeToString;
 impl Builtin for StringPrototypeToString {
     const NAME: String = BUILTIN_STRING_MEMORY.toString;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::to_string);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::value_of);
 }
 struct StringPrototypeToUpperCase;
 impl Builtin for StringPrototypeToUpperCase {
@@ -351,10 +354,6 @@ impl StringPrototype {
         todo!()
     }
 
-    fn to_string(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
-    }
-
     fn to_upper_case(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         todo!()
     }
@@ -375,8 +374,14 @@ impl StringPrototype {
         todo!()
     }
 
-    fn value_of(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!();
+    /// ### [22.1.3.29 String.prototype.toString ( )](https://tc39.es/ecma262/#sec-string.prototype.tostring)
+    /// ### [22.1.3.35 String.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-string.prototype.valueof)
+    ///
+    /// > NOTE: `String.prototype.toString` and `String.prototype.valueOf` are
+    /// > different functions but have the exact same steps.
+    fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Return ? ThisStringValue(this value).
+        this_string_value(agent, this_value).map(|string| string.into_value())
     }
 
     fn iterator(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
@@ -440,5 +445,33 @@ impl StringPrototype {
                     .build()
             })
             .build();
+    }
+}
+
+/// ### [22.1.3.35.1 ThisStringValue ( value )](https://tc39.es/ecma262/#sec-thisstringvalue)
+///
+/// The abstract operation ThisStringValue takes argument value (an ECMAScript
+/// language value) and returns either a normal completion containing a String
+/// or a throw completion.
+fn this_string_value(agent: &mut Agent, value: Value) -> JsResult<String> {
+    match value {
+        // 1. If value is a String, return value.
+        Value::String(data) => Ok(data.into()),
+        Value::SmallString(data) => Ok(data.into()),
+        // 2. If value is an Object and value has a [[StringData]] internal slot, then
+        Value::PrimitiveObject(obj) if obj.is_string_object(agent) => {
+            // a. Let s be value.[[StringData]].
+            // b. Assert: s is a String.
+            // c. Return s.
+            match agent[obj].data {
+                PrimitiveObjectData::String(data) => Ok(data.into()),
+                PrimitiveObjectData::SmallString(data) => Ok(data.into()),
+                _ => unreachable!(),
+            }
+        }
+        _ => {
+            // 3. Throw a TypeError exception.
+            Err(agent.throw_exception(ExceptionType::TypeError, "Not a string value"))
+        }
     }
 }
