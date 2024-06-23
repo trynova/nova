@@ -1,11 +1,14 @@
 use clap::{Args, Parser as ClapParser, Subcommand};
+use rayon::iter::{ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
+    cell::RefCell,
     collections::HashMap,
     ffi::OsStr,
     fs::{read_dir, File},
     io::{ErrorKind, Read, Write},
+    num::NonZeroUsize,
     path::PathBuf,
     process::{Command, Stdio},
     time::Duration,
@@ -187,29 +190,62 @@ struct Test262Runner {
     inner: BaseTest262Runner,
     expectations: HashMap<PathBuf, TestExpectation>,
     treat_crashes_as_failures: bool,
+}
 
+#[derive(Debug, Default)]
+struct Test262RunnerState {
     num_tests_run: usize,
     unexpected_results: HashMap<PathBuf, TestExpectation>,
+}
+
+thread_local! {
+    static RUNNER_STATE: RefCell<Test262RunnerState> = Default::default();
 }
 
 impl Test262Runner {
     /// If `filters` is empty, it means run every test. Otherwise, only tests
     /// which have one of the entries of `filters` as its prefix should run.
-    pub fn run(&mut self, filters: &[PathBuf]) {
-        self.walk_dir(&self.inner.tests_base.clone(), filters);
+    pub fn run(
+        &self,
+        filters: &[PathBuf],
+        num_threads: Option<NonZeroUsize>,
+    ) -> Test262RunnerState {
+        let thread_pool = {
+            let mut builder = rayon::ThreadPoolBuilder::new();
+            if let Some(num_threads) = num_threads {
+                builder = builder.num_threads(num_threads.get());
+            };
+            builder.use_current_thread().build().unwrap()
+        };
+
+        thread_pool.install(|| {
+            self.walk_dir(&self.inner.tests_base.clone(), filters);
+        });
 
         // Clear the previous line.
         if self.inner.print_progress {
             print!("\x1B[2K\r");
         }
+
+        // Get the runner state for each thread, and merge them together.
+        thread_pool
+            .broadcast(|_| RUNNER_STATE.take())
+            .into_iter()
+            .reduce(|mut acc, el| {
+                acc.num_tests_run += el.num_tests_run;
+                acc.unexpected_results.extend(el.unexpected_results);
+                acc
+            })
+            .unwrap()
     }
 
     /// If `filters` is empty, every test in this directory and its descendants
     /// should be run. Otherwise, only tests which have one of the entries of
     /// `filters` as its prefix (considering their relative path to the `path`
     /// directory) will be run.
-    fn walk_dir(&mut self, path: &PathBuf, filters: &[PathBuf]) {
-        for entry in read_dir(path).unwrap() {
+    fn walk_dir(&self, path: &PathBuf, filters: &[PathBuf]) {
+        // Iterate through every entry in this directory in parallel.
+        read_dir(path).unwrap().par_bridge().for_each(|entry| {
             let entry = entry.unwrap();
 
             if entry.file_type().unwrap().is_dir() {
@@ -223,7 +259,7 @@ impl Test262Runner {
             {
                 self.run_test(&entry.path());
             }
-        }
+        })
     }
 
     /// Checks if a directory should be filtered out, and if not, returns a list
@@ -272,12 +308,12 @@ impl Test262Runner {
         filters.iter().any(|filter| filter == os_file_name)
     }
 
-    fn run_test(&mut self, path: &PathBuf) {
+    fn run_test(&self, path: &PathBuf) {
         let Some(test_result) = self.inner.run_test(path) else {
             return;
         };
 
-        self.num_tests_run += 1;
+        RUNNER_STATE.with_borrow_mut(|state| state.num_tests_run += 1);
 
         let relpath = path.strip_prefix(&self.inner.tests_base).unwrap();
 
@@ -297,8 +333,11 @@ impl Test262Runner {
                 return;
             }
 
-            self.unexpected_results
-                .insert(relpath.to_path_buf(), test_result);
+            RUNNER_STATE.with_borrow_mut(|state| {
+                state
+                    .unexpected_results
+                    .insert(relpath.to_path_buf(), test_result)
+            });
         }
     }
 }
@@ -546,6 +585,9 @@ enum CliCommands {
 
 #[derive(Debug, Args)]
 struct RunTestsArgs {
+    #[arg(short = 'j', long)]
+    num_threads: Option<NonZeroUsize>,
+
     /// Update the expectations file with the results of the test run.
     #[arg(short, long)]
     update_expectations: bool,
@@ -683,31 +725,30 @@ fn run_tests(mut base_runner: BaseTest262Runner, mut args: RunTestsArgs) {
         }
     }
 
-    let mut runner = Test262Runner {
+    let runner = Test262Runner {
         inner: base_runner,
         treat_crashes_as_failures: args.treat_crashes_as_failures,
         expectations,
-
-        num_tests_run: 0,
-        unexpected_results: Default::default(),
     };
-    if filters_are_valid {
-        runner.run(&args.filters);
-    }
+    let run_result = if filters_are_valid {
+        runner.run(&args.filters, args.num_threads)
+    } else {
+        Default::default()
+    };
 
-    if runner.num_tests_run == 0 {
+    if run_result.num_tests_run == 0 {
         println!("No tests found. Check your filters.");
         std::process::exit(1);
     }
 
-    if runner.unexpected_results.is_empty() {
+    if run_result.unexpected_results.is_empty() {
         println!("No unexpected test results");
     } else if !args.update_expectations {
         println!(
             "Found {} unexpected test results:",
-            runner.unexpected_results.len()
+            run_result.unexpected_results.len()
         );
-        for (path, result) in &runner.unexpected_results {
+        for (path, result) in &run_result.unexpected_results {
             let expectation = runner
                 .expectations
                 .get(path)
@@ -723,11 +764,11 @@ fn run_tests(mut base_runner: BaseTest262Runner, mut args: RunTestsArgs) {
     } else {
         println!(
             "Updating the expectations file with {} unexpected test results.",
-            runner.unexpected_results.len()
+            run_result.unexpected_results.len()
         );
 
         let mut expectations = runner.expectations;
-        for (path, result) in runner.unexpected_results {
+        for (path, result) in run_result.unexpected_results {
             if result == TestExpectation::Pass {
                 expectations.remove(&path);
             } else {
