@@ -156,7 +156,7 @@ impl BaseTest262Runner {
                         std::io::stderr().write_all(&buffer).unwrap();
                     }
                     buffer == expected_stderr_prefix.as_bytes()
-                },
+                }
                 Err(e) => {
                     if e.kind() == ErrorKind::UnexpectedEof {
                         false
