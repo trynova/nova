@@ -1302,8 +1302,10 @@ impl CompileEvaluation for ast::RegExpLiteral<'_> {
 }
 
 impl CompileEvaluation for ast::SequenceExpression<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!()
+    fn compile(&self, ctx: &mut CompileContext) {
+        for expr in &self.expressions {
+            expr.compile(ctx);
+        }
     }
 }
 
