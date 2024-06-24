@@ -1444,6 +1444,9 @@ impl CompileEvaluation for ast::ReturnStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         if let Some(expr) = &self.argument {
             expr.compile(ctx);
+            if is_reference(expr) {
+                ctx.exe.add_instruction(Instruction::GetValue);
+            }
         } else {
             ctx.exe
                 .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
