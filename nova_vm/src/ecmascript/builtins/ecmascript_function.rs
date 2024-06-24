@@ -1172,10 +1172,10 @@ pub(crate) fn function_declaration_instantiation(
             // i. Perform ! env.CreateMutableBinding("arguments", false).
             env.create_mutable_binding(agent, arguments_name, false)
                 .unwrap();
-            // e. Perform ! env.InitializeBinding("arguments", ao).
-            env.initialize_binding(agent, arguments_name, ao).unwrap();
-            // f. Let parameterBindings be the list-concatenation of parameterNames and « "arguments" ».
         }
+        // e. Perform ! env.InitializeBinding("arguments", ao).
+        env.initialize_binding(agent, arguments_name, ao).unwrap();
+        // f. Let parameterBindings be the list-concatenation of parameterNames and « "arguments" ».
         parameter_names.push(arguments_name);
         parameter_bindings = parameter_names;
         &parameter_bindings[..(parameter_bindings.len() - 1)]

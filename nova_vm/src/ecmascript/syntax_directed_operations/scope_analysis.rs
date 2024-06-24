@@ -303,9 +303,13 @@ pub(crate) fn function_body_lexically_scoped_decarations<'body>(
     body: &'body FunctionBody<'body>,
 ) -> Vec<LexicallyScopedDeclaration<'body>> {
     let mut lexically_scoped_declarations = vec![];
-    body.statements.lexically_scoped_declarations(&mut |decl| {
-        lexically_scoped_declarations.push(decl);
-    });
+    //  FunctionStatementList : StatementList
+
+    // 1. Return the TopLevelLexicallyScopedDeclarations of StatementList.
+    body.statements
+        .top_level_lexically_scoped_declarations(&mut |decl| {
+            lexically_scoped_declarations.push(decl);
+        });
     lexically_scoped_declarations
 }
 
@@ -360,7 +364,7 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
             // StatementListItem : Declaration
             Statement::VariableDeclaration(decl) => {
                 // VariableStatement
-                if decl.kind == VariableDeclarationKind::Var {
+                if decl.kind.is_var() {
                     // 2. Return a new empty List.
                 }
                 // 1. Return a List whose sole element is DeclarationPart of Declaration.
@@ -388,7 +392,7 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                 // export VariableStatement
                 // 1. Return a new empty List.
                 if let Some(Declaration::VariableDeclaration(decl)) = &decl.declaration {
-                    if decl.kind == VariableDeclarationKind::Var {
+                    if decl.kind.is_var() {
                         return;
                     }
                     // ExportDeclaration : export Declaration
@@ -578,10 +582,20 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
                 // 1. Return a new empty List.
             }
             Statement::BlockStatement(st) => {
-                if st.body.is_empty() {
-                    // Block : { }
-                    // 1. Return a new empty List.
-                }
+                // Block : { }
+                // 1. Return a new empty List.
+                st.body.var_declared_names(f);
+            }
+            // StatementListItem : Declaration
+            // 1. Return a new empty List.
+            Statement::FunctionDeclaration(_) |
+            Statement::ClassDeclaration(_) |
+            Statement::UsingDeclaration(_) => {}
+            Statement::VariableDeclaration(decl) if decl.kind.is_lexical() => {}
+            // VariableStatement : var VariableDeclarationList ;
+            Statement::VariableDeclaration(decl) => {
+                // 1. Return the BoundNames of VariableDeclarationList
+                decl.bound_names(f);
             }
             Statement::DoWhileStatement(st) => {
                 // DoWhileStatement : do Statement while ( Expression ) ;
@@ -628,7 +642,7 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
                 // ForStatement : for ( LexicalDeclaration Expressionopt ; Expressionopt ) Statement
                 // 1. Return the VarDeclaredNames of Statement.
                 if let Some(ForStatementInit::VariableDeclaration(decl)) = &st.init {
-                    if decl.kind == VariableDeclarationKind::Var {
+                    if decl.kind.is_var() {
                         // 1. Let names1 be BoundNames of VariableDeclarationList.
                         decl.bound_names(f);
                     }
@@ -716,20 +730,11 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
             // 2. Return a new empty List.
             Statement::ExportNamedDeclaration(decl) => {
                 if let Some(Declaration::VariableDeclaration(decl)) = &decl.declaration {
-                    decl.bound_names(f);
+                    if decl.kind.is_var() {
+                        decl.bound_names(f);
+                    }
                 }
             },
-            Statement::VariableDeclaration(var_decl) => {
-                // VariableStatement : var VariableDeclarationList ;
-                // 1. Return BoundNames of VariableDeclarationList.
-                var_decl.bound_names(f);
-            },
-            Statement::FunctionDeclaration(_) |
-            Statement::ClassDeclaration(_) => {
-                // StatementListItem : Declaration
-                // 1. Return a new empty List
-            }
-            Statement::UsingDeclaration(_) => todo!(),
             Statement::TSEnumDeclaration(_) |
             Statement::TSExportAssignment(_) |
             Statement::TSImportEqualsDeclaration(_) |
@@ -737,8 +742,6 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
             Statement::TSModuleDeclaration(_) |
             Statement::TSNamespaceExportDeclaration(_) |
             Statement::TSTypeAliasDeclaration(_) => unreachable!(),
-            // StatementListItem : Declaration
-            // 1. Return a new empty List.
         }
     }
 }
@@ -1032,30 +1035,57 @@ impl<'a> TopLevelLexicallyDeclaredNames<'a> for oxc_allocator::Vec<'a, Statement
         // 2. Let names2 be TopLevelLexicallyDeclaredNames of StatementListItem.
         // 3. Return the list-concatenation of names1 and names2.
         for ele in self {
-            ele.lexically_declared_names(f);
+            ele.top_level_lexically_declared_names(f);
         }
     }
 }
 
 impl<'a> TopLevelLexicallyDeclaredNames<'a> for Statement<'a> {
     fn top_level_lexically_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
-        // StatementListItem : Statement
-        // 1. Return a new empty List.
         // NOTE
         // At the top level of a function, or script, function declarations are treated like var declarations rather than like lexical declarations.
         match self {
+            // StatementListItem : Statement
+            // 1. Return a new empty List.
+            Statement::VariableDeclaration(decl) if decl.kind.is_var() => {
+                // Note: This is VariableStatement.
+            }
+            Statement::BlockStatement(_)
+            | Statement::BreakStatement(_)
+            | Statement::ContinueStatement(_)
+            | Statement::DebuggerStatement(_)
+            | Statement::DoWhileStatement(_)
+            | Statement::EmptyStatement(_)
+            | Statement::ExpressionStatement(_)
+            | Statement::ForInStatement(_)
+            | Statement::ForOfStatement(_)
+            | Statement::ForStatement(_)
+            | Statement::IfStatement(_)
+            | Statement::LabeledStatement(_)
+            | Statement::ReturnStatement(_)
+            | Statement::SwitchStatement(_)
+            | Statement::ThrowStatement(_)
+            | Statement::TryStatement(_)
+            | Statement::WhileStatement(_)
+            | Statement::WithStatement(_) => {}
             // 1. If Declaration is Declaration : HoistableDeclaration , then
             // a. Return a new empty List.
             Statement::FunctionDeclaration(_) => {}
             // 2. Return the BoundNames of Declaration.
-            Statement::VariableDeclaration(decl) => decl.bound_names(f),
             Statement::ClassDeclaration(decl) => decl.bound_names(f),
+            Statement::VariableDeclaration(decl) => decl.bound_names(f),
             Statement::UsingDeclaration(decl) => decl.bound_names(f),
-            Statement::ImportDeclaration(_)
-            | Statement::ExportAllDeclaration(_)
-            | Statement::ExportDefaultDeclaration(_)
-            | Statement::ExportNamedDeclaration(_) => {}
-            _ => {}
+            Statement::ImportDeclaration(decl) => decl.bound_names(f),
+            Statement::ExportNamedDeclaration(decl) => decl.bound_names(f),
+            // Note: No bounds names for export all and export default declarations.
+            Statement::ExportAllDeclaration(_) | Statement::ExportDefaultDeclaration(_) => {}
+            Statement::TSTypeAliasDeclaration(_)
+            | Statement::TSInterfaceDeclaration(_)
+            | Statement::TSEnumDeclaration(_)
+            | Statement::TSModuleDeclaration(_)
+            | Statement::TSImportEqualsDeclaration(_)
+            | Statement::TSExportAssignment(_)
+            | Statement::TSNamespaceExportDeclaration(_) => unreachable!(),
         }
     }
 }
@@ -1093,16 +1123,33 @@ impl<'a> TopLevelLexicallyScopedDeclarations<'a> for Statement<'a> {
     ) {
         // StatementListItem : Declaration
         match self {
+            // StatementListItem : Statement
+            // 1. Return a new empty List.
+            Statement::VariableDeclaration(decl) if decl.kind.is_var() => {}
+            Statement::BlockStatement(_)
+            | Statement::BreakStatement(_)
+            | Statement::ContinueStatement(_)
+            | Statement::DebuggerStatement(_)
+            | Statement::DoWhileStatement(_)
+            | Statement::EmptyStatement(_)
+            | Statement::ExpressionStatement(_)
+            | Statement::ForInStatement(_)
+            | Statement::ForOfStatement(_)
+            | Statement::ForStatement(_)
+            | Statement::IfStatement(_)
+            | Statement::LabeledStatement(_)
+            | Statement::ReturnStatement(_)
+            | Statement::SwitchStatement(_)
+            | Statement::ThrowStatement(_)
+            | Statement::TryStatement(_)
+            | Statement::WhileStatement(_)
+            | Statement::WithStatement(_) => {}
             // 1. If Declaration is Declaration : HoistableDeclaration , then
             Statement::FunctionDeclaration(_) => {
                 // a. Return a new empty List.
             }
             // 2. Return « Declaration ».
             Statement::VariableDeclaration(decl) => {
-                if decl.kind == VariableDeclarationKind::Var {
-                    // This is a VariableStatement, not Declaration at all.
-                    return;
-                }
                 for decl in &decl.declarations {
                     f(LexicallyScopedDeclaration::Variable(decl));
                 }
@@ -1116,9 +1163,13 @@ impl<'a> TopLevelLexicallyScopedDeclarations<'a> for Statement<'a> {
             | Statement::TSModuleDeclaration(_)
             | Statement::TSNamespaceExportDeclaration(_)
             | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
-            // StatementListItem : Statement
-            // 1. Return a new empty List.
-            _ => {}
+            // Note: TopLevelLexicallScopedDeclarations should only be reached
+            // from Function body, Class static fields, and Script body. Module
+            // declarations should never be reached.
+            Statement::ImportDeclaration(_)
+            | Statement::ExportAllDeclaration(_)
+            | Statement::ExportDefaultDeclaration(_)
+            | Statement::ExportNamedDeclaration(_) => unreachable!(),
         }
     }
 }
@@ -1146,17 +1197,48 @@ impl<'a> TopLevelVarDeclaredNames<'a> for oxc_allocator::Vec<'a, Statement<'a>> 
 impl<'a> TopLevelVarDeclaredNames<'a> for Statement<'a> {
     fn top_level_var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
         match self {
+            // StatementListItem : Declaration
+            // 1. If Declaration is Declaration : HoistableDeclaration , then
+            Statement::FunctionDeclaration(decl) => {
+                // a. Return the BoundNames of HoistableDeclaration.
+                decl.bound_names(f)
+            }
+            // 2. Return a new empty List.
+            Statement::VariableDeclaration(decl) if decl.kind.is_lexical() => {
+                // LexicalDeclaration : LetOrConst BindingList
+            }
+            Statement::ClassDeclaration(_)
+            | Statement::ExportAllDeclaration(_)
+            | Statement::ExportDefaultDeclaration(_)
+            | Statement::ExportNamedDeclaration(_)
+            | Statement::ImportDeclaration(_)
+            | Statement::UsingDeclaration(_) => {}
+            // StatementListItem : Statement
             Statement::LabeledStatement(st) => {
-                // StatementListItem : Statement
                 // 1. If Statement is Statement : LabelledStatement , return TopLevelVarDeclaredNames of Statement.
                 st.top_level_var_declared_names(f);
                 // NOTE
                 // At the top level of a function or script, inner function declarations are treated like var declarations.
             }
-            // StatementListItem : Declaration
-            // 1. If Declaration is Declaration : HoistableDeclaration , then
-            // a. Return the BoundNames of HoistableDeclaration.
-            Statement::FunctionDeclaration(decl) => decl.bound_names(f),
+            // 2. Return the VarDeclaredNames of Statement
+            Statement::BlockStatement(_)
+            | Statement::BreakStatement(_)
+            | Statement::ContinueStatement(_)
+            | Statement::DebuggerStatement(_)
+            | Statement::DoWhileStatement(_)
+            | Statement::EmptyStatement(_)
+            | Statement::ExpressionStatement(_)
+            | Statement::ForInStatement(_)
+            | Statement::ForOfStatement(_)
+            | Statement::ForStatement(_)
+            | Statement::IfStatement(_)
+            | Statement::ReturnStatement(_)
+            | Statement::SwitchStatement(_)
+            | Statement::ThrowStatement(_)
+            | Statement::TryStatement(_)
+            | Statement::VariableDeclaration(_)
+            | Statement::WhileStatement(_)
+            | Statement::WithStatement(_) => self.var_declared_names(f),
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)
@@ -1164,7 +1246,6 @@ impl<'a> TopLevelVarDeclaredNames<'a> for Statement<'a> {
             | Statement::TSModuleDeclaration(_)
             | Statement::TSNamespaceExportDeclaration(_)
             | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
-            _ => {} // 2. Return a new empty List.
         }
     }
 }
@@ -1239,6 +1320,10 @@ impl<'a> TopLevelVarScopedDeclarations<'a> for Statement<'a> {
                 st.top_level_var_scoped_declarations(f);
             }
             // 2. Return VarScopedDeclarations of Statement.
+            Statement::VariableDeclaration(decl) if decl.kind.is_var() => {
+                // VariableStatement
+                decl.var_scoped_declarations(f);
+            }
             Statement::BlockStatement(_)
             | Statement::BreakStatement(_)
             | Statement::ContinueStatement(_)
@@ -1258,28 +1343,25 @@ impl<'a> TopLevelVarScopedDeclarations<'a> for Statement<'a> {
             | Statement::WithStatement(_) => {
                 self.var_scoped_declarations(f);
             }
+            Statement::VariableDeclaration(decl) if decl.kind.is_var() => {
+                // VariableStatements:
+                // 2. Return VarScopedDeclarations of Statement.
+                decl.var_scoped_declarations(f);
+            }
             // StatementListItem : Declaration
             // 1. If Declaration is Declaration : HoistableDeclaration , then
-            Statement::VariableDeclaration(decl) => {
-                if decl.kind == VariableDeclarationKind::Var {
-                    // var declarations are actually VariableStatements and
-                    // fall into the above statement default case of:
-                    // 2. Return VarScopedDeclarations of Statement.
-                    decl.var_scoped_declarations(f);
-                }
-                // otherwise they're declarations and go below:
-                // 2. Return a new empty List.
-            }
             Statement::FunctionDeclaration(decl) => {
                 // a. Let declaration be DeclarationPart of HoistableDeclaration.
                 // b. Return « declaration ».
                 f(VarScopedDeclaration::Function(decl));
             }
+            // 2. Return a new empty List.
             Statement::ClassDeclaration(_)
             | Statement::ImportDeclaration(_)
             | Statement::ExportAllDeclaration(_)
             | Statement::ExportDefaultDeclaration(_)
-            | Statement::ExportNamedDeclaration(_) => {
+            | Statement::ExportNamedDeclaration(_)
+            | Statement::VariableDeclaration(_) => {
                 // 2. Return a new empty List.
             }
             Statement::UsingDeclaration(_) => todo!(),
