@@ -263,7 +263,6 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
 
     // 3. If px is a String and py is a String, then
     if px.is_string() && py.is_string() {
-        todo!("Finish this")
         // a. Let lx be the length of px.
         // b. Let ly be the length of py.
         // c. For each integer i such that 0 ≤ i < min(lx, ly), in ascending order, do
@@ -272,6 +271,13 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
         // iii. If cx < cy, return true.
         // iv. If cx > cy, return false.
         // d. If lx < ly, return true. Otherwise, return false.
+        // NOTE: For UTF-8 strings (i.e. strings with no lone surrogates), this
+        // should be equivalent to regular byte-by-byte string comparison.
+        // TODO: WTF-8 strings with lone surrogates will probably need special
+        // handling.
+        let sx = String::try_from(px).unwrap();
+        let sy = String::try_from(py).unwrap();
+        Ok(Some(sx.as_str(agent) < sy.as_str(agent)))
     }
     // 4. Else,
     else {
