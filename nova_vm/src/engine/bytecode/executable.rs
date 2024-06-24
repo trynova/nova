@@ -1238,8 +1238,38 @@ impl CompileEvaluation for ast::Class<'_> {
 }
 
 impl CompileEvaluation for ast::ConditionalExpression<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!()
+    /// ## [13.14 Conditional Operator ( ? : )](https://tc39.es/ecma262/#sec-conditional-operator)
+    /// ### [13.14.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-conditional-operator-runtime-semantics-evaluation)
+    fn compile(&self, ctx: &mut CompileContext) {
+        // 1. Let lref be ? Evaluation of ShortCircuitExpression.
+        self.test.compile(ctx);
+        // 2. Let lval be ToBoolean(? GetValue(lref)).
+        if is_reference(&self.test) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        // Jump over first AssignmentExpression (consequent) if test fails.
+        // Note: JumpIfNot performs ToBoolean from above step.
+        let jump_to_second = ctx
+            .exe
+            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+        // 3. If lval is true, then
+        // a. Let trueRef be ? Evaluation of the first AssignmentExpression.
+        self.consequent.compile(ctx);
+        // b. Return ? GetValue(trueRef).
+        if is_reference(&self.consequent) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        // Jump over second AssignmentExpression (alternate).
+        let jump_over_second = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+        // 4. Else,
+        ctx.exe.set_jump_target_here(jump_to_second);
+        // a. Let falseRef be ? Evaluation of the second AssignmentExpression.
+        self.alternate.compile(ctx);
+        // b. Return ? GetValue(falseRef).
+        if is_reference(&self.alternate) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        ctx.exe.set_jump_target_here(jump_over_second);
     }
 }
 
@@ -1272,8 +1302,10 @@ impl CompileEvaluation for ast::RegExpLiteral<'_> {
 }
 
 impl CompileEvaluation for ast::SequenceExpression<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!()
+    fn compile(&self, ctx: &mut CompileContext) {
+        for expr in &self.expressions {
+            expr.compile(ctx);
+        }
     }
 }
 
@@ -1412,6 +1444,9 @@ impl CompileEvaluation for ast::ReturnStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         if let Some(expr) = &self.argument {
             expr.compile(ctx);
+            if is_reference(expr) {
+                ctx.exe.add_instruction(Instruction::GetValue);
+            }
         } else {
             ctx.exe
                 .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
