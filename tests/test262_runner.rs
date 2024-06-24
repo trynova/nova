@@ -218,6 +218,12 @@ impl Test262Runner {
             builder.use_current_thread().build().unwrap()
         };
 
+        println!(
+            "Running tests in {} parallel threads.",
+            thread_pool.current_num_threads()
+        );
+        println!();
+
         thread_pool.install(|| {
             self.walk_dir(&self.inner.tests_base.clone(), filters);
         });
