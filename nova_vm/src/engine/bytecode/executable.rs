@@ -1322,8 +1322,48 @@ impl CompileEvaluation for ast::TaggedTemplateExpression<'_> {
 }
 
 impl CompileEvaluation for ast::TemplateLiteral<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!()
+    fn compile(&self, ctx: &mut CompileContext) {
+        if self.is_no_substitution_template() {
+            let constant = String::from_str(
+                ctx.agent,
+                self.quasi()
+                    .as_ref()
+                    .expect("Invalid escape sequence in template literal")
+                    .as_str(),
+            );
+            ctx.exe
+                .add_instruction_with_constant(Instruction::StoreConstant, constant);
+        } else {
+            let mut count = 0;
+            let mut quasis = self.quasis.as_slice();
+            let mut expressions = self.expressions.as_slice();
+            while let Some((head, rest)) = quasis.split_first() {
+                quasis = rest;
+                // 1. Let head be the TV of TemplateHead as defined in 12.9.6.
+                let head =
+                    String::from_str(ctx.agent, head.value.cooked.as_ref().unwrap().as_str());
+                ctx.exe
+                    .add_instruction_with_constant(Instruction::LoadConstant, head);
+                count += 1;
+                if let Some((expression, rest)) = expressions.split_first() {
+                    expressions = rest;
+                    // 2. Let subRef be ? Evaluation of Expression.
+                    expression.compile(ctx);
+                    if is_reference(expression) {
+                        // 3. Let sub be ? GetValue(subRef).
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    // 4. Let middle be ? ToString(sub).
+                    // Note: This is done by StringConcat.
+                    ctx.exe.add_instruction(Instruction::Load);
+                    count += 1;
+                }
+                // 5. Let tail be ? Evaluation of TemplateSpans.
+            }
+            // 6. Return the string-concatenation of head, middle, and tail.
+            ctx.exe
+                .add_instruction_with_immediate(Instruction::StringConcat, count);
+        }
     }
 }
 

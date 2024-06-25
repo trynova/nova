@@ -734,6 +734,25 @@ impl Vm {
             | Instruction::FinishBindingPattern => {
                 unreachable!("BeginArrayBindingPattern should take care of stepping over these");
             }
+            Instruction::StringConcat => {
+                let argument_count = instr.args[0].unwrap();
+                let last_item = vm.stack.len() - argument_count as usize;
+                let mut length = 0;
+                for ele in vm.stack[last_item..].iter_mut() {
+                    if !ele.is_string() {
+                        *ele = to_string(agent, *ele)?.into_value();
+                    }
+                    let string = String::try_from(*ele).unwrap();
+                    length += string.len(agent);
+                }
+                let mut result_string = std::string::String::with_capacity(length);
+                for ele in vm.stack[last_item..].iter() {
+                    let string = String::try_from(*ele).unwrap();
+                    result_string.push_str(string.as_str(agent));
+                }
+                vm.stack.truncate(last_item);
+                vm.result = Some(String::from_string(agent, result_string).into_value());
+            }
             other => todo!("{other:?}"),
         }
 

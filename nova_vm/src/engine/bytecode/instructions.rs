@@ -128,12 +128,16 @@ pub enum Instruction {
     Store,
     /// Store a constant as the result value.
     StoreConstant,
+    /// Take N items from the stack and string-concatenate them together.
+    StringConcat,
     /// Throw the result value as an exception.
     Throw,
     /// Store ToNumber() as the result value.
     ToNumber,
     /// Store ToNumeric() as the result value.
     ToNumeric,
+    /// Store ToString() as the result value.
+    ToString,
     /// Apply the typeof operation to the evaluated expression and set it as
     /// the result value.
     Typeof,
@@ -231,7 +235,13 @@ impl Instruction {
             Self::ArrayCreate
             | Self::ArraySetLength
             | Self::ArraySetValue
+            | Self::BeginArrayBindingPattern
+            | Self::BeginObjectBindingPattern
+            | Self::BindingPatternBind
+            | Self::BindingPatternBindWithInitializer
             | Self::CreateCatchBinding
+            | Self::CreateImmutableBinding
+            | Self::CreateMutableBinding
             | Self::EvaluateCall
             | Self::EvaluateNew
             | Self::EvaluatePropertyAccessWithIdentifierKey
@@ -241,14 +251,9 @@ impl Instruction {
             | Self::JumpIfNot
             | Self::LoadConstant
             | Self::PushExceptionJumpTarget
-            | Self::StoreConstant
             | Self::ResolveBinding
-            | Self::CreateImmutableBinding
-            | Self::CreateMutableBinding
-            | Self::BeginArrayBindingPattern
-            | Self::BeginObjectBindingPattern
-            | Self::BindingPatternBind
-            | Self::BindingPatternBindWithInitializer => 1,
+            | Self::StoreConstant
+            | Self::StringConcat => 1,
             _ => 0,
         }
     }
