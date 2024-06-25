@@ -533,7 +533,17 @@ impl CompileEvaluation for ast::UnaryExpression<'_> {
             // 13.5.1 The delete operator
             // https://tc39.es/ecma262/#sec-delete-operator-runtime-semantics-evaluation
             // UnaryExpression : delete UnaryExpression
-            UnaryOperator::Delete => todo!(),
+            UnaryOperator::Delete => {
+                // Let ref be ? Evaluation of UnaryExpression.
+                self.argument.compile(ctx);
+                // 2. If ref is not a Reference Record, return true.
+                if !is_reference(&self.argument) {
+                    ctx.exe
+                        .add_instruction_with_constant(Instruction::StoreConstant, true);
+                    return;
+                }
+                ctx.exe.add_instruction(Instruction::Delete);
+            }
         }
     }
 }
