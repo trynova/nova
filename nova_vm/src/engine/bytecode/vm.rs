@@ -11,7 +11,8 @@ use crate::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
             },
             type_conversion::{
-                to_boolean, to_number, to_numeric, to_primitive, to_property_key, to_string,
+                to_boolean, to_number, to_numeric, to_object, to_primitive, to_property_key,
+                to_string,
             },
         },
         builtins::{
@@ -25,9 +26,10 @@ use crate::{
             ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult, ProtoIntrinsics,
         },
         types::{
-            get_this_value, get_value, initialize_referenced_binding, put_value, Base, BigInt,
-            Function, IntoFunction, IntoValue, Number, Numeric, Object, PropertyKey, Reference,
-            String, Value, BUILTIN_STRING_MEMORY,
+            get_this_value, get_value, initialize_referenced_binding, is_private_reference,
+            is_super_reference, put_value, Base, BigInt, Function, InternalMethods, IntoFunction,
+            IntoValue, Number, Numeric, Object, PropertyKey, Reference, String, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::WellKnownSymbolIndexes,
@@ -752,6 +754,76 @@ impl Vm {
                 }
                 vm.stack.truncate(last_item);
                 vm.result = Some(String::from_string(agent, result_string).into_value());
+            }
+            Instruction::Delete => {
+                let refer = vm.reference.take().unwrap();
+                match refer.base {
+                    // 3. If IsUnresolvableReference(ref) is true, then
+                    Base::Unresolvable => {
+                        // a. Assert: ref.[[Strict]] is false.
+                        debug_assert!(!refer.strict);
+                        // b. Return true.
+                        vm.result = Some(true.into());
+                    }
+                    // 4. If IsPropertyReference(ref) is true, then
+                    Base::Value(base) => {
+                        // a. Assert: IsPrivateReference(ref) is false.
+                        debug_assert!(!is_private_reference(&refer));
+                        // b. If IsSuperReference(ref) is true, throw a ReferenceError exception.
+                        if is_super_reference(&refer) {
+                            return Err(agent.throw_exception(
+                                ExceptionType::ReferenceError,
+                                "Cannot delete super reference",
+                            ));
+                        }
+                        // c. Let baseObj be ? ToObject(ref.[[Base]]).
+                        let base_obj = to_object(agent, base)?;
+                        // d. If ref.[[ReferencedName]] is not a property key, then
+                        // TODO: Is this relevant?
+                        // i. Set ref.[[ReferencedName]] to ? ToPropertyKey(ref.[[ReferencedName]]).
+                        // e. Let deleteStatus be ? baseObj.[[Delete]](ref.[[ReferencedName]]).
+                        let delete_status =
+                            base_obj.internal_delete(agent, refer.referenced_name)?;
+                        // f. If deleteStatus is false and ref.[[Strict]] is true, throw a TypeError exception.
+                        if !delete_status && refer.strict {
+                            return Err(agent.throw_exception(
+                                ExceptionType::TypeError,
+                                "Cannot delete property",
+                            ));
+                        }
+                        // g. Return deleteStatus.
+                        vm.result = Some(delete_status.into());
+                    }
+                    // 5. Else,
+                    Base::Environment(base) => {
+                        // a. Let base be ref.[[Base]].
+                        // b. Assert: base is an Environment Record.
+                        let referenced_name = match refer.referenced_name {
+                            PropertyKey::SmallString(data) => String::SmallString(data),
+                            PropertyKey::String(data) => String::String(data),
+                            _ => unreachable!(),
+                        };
+                        // c. Return ? base.DeleteBinding(ref.[[ReferencedName]]).
+                        vm.result = Some(base.delete_binding(agent, referenced_name)?.into());
+                    }
+                }
+
+                // Note 1
+
+                // When a delete operator occurs within strict mode code, a
+                // SyntaxError exception is thrown if its UnaryExpression is a
+                // direct reference to a variable, function argument, or
+                // function name. In addition, if a delete operator occurs
+                // within strict mode code and the property to be deleted has
+                // the attribute { [[Configurable]]: false } (or otherwise
+                // cannot be deleted), a TypeError exception is thrown.
+
+                // Note 2
+
+                // The object that may be created in step 4.c is not accessible
+                // outside of the above abstract operation and the ordinary
+                // object [[Delete]] internal method. An implementation might
+                // choose to avoid the actual creation of that object.
             }
             other => todo!("{other:?}"),
         }
