@@ -1328,7 +1328,7 @@ impl CompileEvaluation for ast::TemplateLiteral<'_> {
                 ctx.agent,
                 self.quasi()
                     .as_ref()
-                    .expect("Invalid escape seqeuence in template literal")
+                    .expect("Invalid escape sequence in template literal")
                     .as_str(),
             );
             ctx.exe
