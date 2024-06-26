@@ -198,6 +198,9 @@ impl InternalMethods for PrimitiveObject {
     ) -> JsResult<Option<PropertyDescriptor>> {
         // For non-string primitive objects:
         // 1. Return OrdinaryGetOwnProperty(O, P).
+        // For string exotic objects:
+        // 1. Let desc be OrdinaryGetOwnProperty(S, P).
+        // 2. If desc is not undefined, return desc.
         if let Some(backing_object) = self.get_backing_object(agent) {
             if let Some(property_descriptor) =
                 ordinary_get_own_property(agent, backing_object.into_object(), property_key)
@@ -207,9 +210,6 @@ impl InternalMethods for PrimitiveObject {
         }
 
         if let Ok(string) = String::try_from(agent[self].data) {
-            // For string exotic objects:
-            // 1. Let desc be OrdinaryGetOwnProperty(S, P).
-            // 2. If desc is not undefined, return desc.
             // 3. Return StringGetOwnProperty(S, P).
             Ok(string.get_property_descriptor(agent, property_key))
         } else {
