@@ -2,14 +2,19 @@ use std::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics},
+        builtins::ordinary::{
+            is_compatible_property_descriptor, ordinary_define_own_property, ordinary_delete,
+            ordinary_get, ordinary_get_own_property, ordinary_has_property, ordinary_set,
+        },
+        execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             bigint::{HeapBigInt, SmallBigInt},
             BigInt, HeapNumber, HeapString, InternalMethods, InternalSlots, IntoObject, IntoValue,
-            Number, Object, ObjectHeapData, OrdinaryObject, String, Symbol, Value,
-            BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT,
-            NUMBER_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT,
-            STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
+            Number, Object, ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey,
+            String, Symbol, Value, BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT,
+            BUILTIN_STRING_MEMORY, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT,
+            SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
+            SYMBOL_DISCRIMINANT,
         },
     },
     heap::{
@@ -19,6 +24,8 @@ use crate::{
     SmallInteger,
 };
 use small_string::SmallString;
+
+use super::ordinary::ordinary_own_property_keys;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -183,7 +190,212 @@ impl InternalSlots for PrimitiveObject {
     }
 }
 
-impl InternalMethods for PrimitiveObject {}
+impl InternalMethods for PrimitiveObject {
+    fn internal_get_own_property(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+    ) -> JsResult<Option<PropertyDescriptor>> {
+        // For non-string primitive objects:
+        // 1. Return OrdinaryGetOwnProperty(O, P).
+        // For string exotic objects:
+        // 1. Let desc be OrdinaryGetOwnProperty(S, P).
+        // 2. If desc is not undefined, return desc.
+        if let Some(backing_object) = self.get_backing_object(agent) {
+            if let Some(property_descriptor) =
+                ordinary_get_own_property(agent, backing_object.into_object(), property_key)
+            {
+                return Ok(Some(property_descriptor));
+            }
+        }
+
+        if let Ok(string) = String::try_from(agent[self].data) {
+            // 3. Return StringGetOwnProperty(S, P).
+            Ok(string.get_property_descriptor(agent, property_key))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn internal_define_own_property(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        property_descriptor: PropertyDescriptor,
+    ) -> JsResult<bool> {
+        if let Ok(string) = String::try_from(agent[self].data) {
+            // For string exotic objects:
+            // 1. Let stringDesc be StringGetOwnProperty(S, P).
+            // 2. If stringDesc is not undefined, then
+            if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
+                // a. Let extensible be S.[[Extensible]].
+                // b. Return IsCompatiblePropertyDescriptor(extensible, Desc, stringDesc).
+                return is_compatible_property_descriptor(
+                    agent,
+                    self.internal_extensible(agent),
+                    property_descriptor,
+                    Some(string_desc),
+                );
+            }
+            // 3. Return ! OrdinaryDefineOwnProperty(S, P, Desc).
+        }
+
+        let backing_object = self
+            .get_backing_object(agent)
+            .unwrap_or_else(|| self.create_backing_object(agent))
+            .into_object();
+        ordinary_define_own_property(agent, backing_object, property_key, property_descriptor)
+    }
+
+    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+        if let Ok(string) = String::try_from(agent[self].data) {
+            if string
+                .get_property_descriptor(agent, property_key)
+                .is_some()
+            {
+                return Ok(true);
+            }
+        }
+
+        // 1. Return ? OrdinaryHasProperty(O, P).
+        match self.get_backing_object(agent) {
+            Some(backing_object) => {
+                ordinary_has_property(agent, backing_object.into_object(), property_key)
+            }
+            None => {
+                // 3. Let parent be ? O.[[GetPrototypeOf]]().
+                let parent = self.internal_get_prototype_of(agent)?;
+
+                // 4. If parent is not null, then
+                if let Some(parent) = parent {
+                    // a. Return ? parent.[[HasProperty]](P).
+                    parent.internal_has_property(agent, property_key)
+                } else {
+                    // 5. Return false.
+                    Ok(false)
+                }
+            }
+        }
+    }
+
+    fn internal_get(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
+    ) -> JsResult<Value> {
+        if let Ok(string) = String::try_from(agent[self].data) {
+            if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
+                return Ok(string_desc.value.unwrap());
+            }
+        }
+
+        // 1. Return ? OrdinaryGet(O, P, Receiver).
+        match self.get_backing_object(agent) {
+            Some(backing_object) => {
+                ordinary_get(agent, backing_object.into_object(), property_key, receiver)
+            }
+            None => {
+                // a. Let parent be ? O.[[GetPrototypeOf]]().
+                let Some(parent) = self.internal_get_prototype_of(agent)? else {
+                    // b. If parent is null, return undefined.
+                    return Ok(Value::Undefined);
+                };
+
+                // c. Return ? parent.[[Get]](P, Receiver).
+                parent.internal_get(agent, property_key, receiver)
+            }
+        }
+    }
+
+    fn internal_set(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        value: Value,
+        receiver: Value,
+    ) -> JsResult<bool> {
+        if let Ok(string) = String::try_from(agent[self].data) {
+            if string
+                .get_property_descriptor(agent, property_key)
+                .is_some()
+            {
+                return Ok(false);
+            }
+        }
+
+        // 1. Return ? OrdinarySet(O, P, V, Receiver).
+        let backing_object = self
+            .get_backing_object(agent)
+            .unwrap_or_else(|| self.create_backing_object(agent))
+            .into_object();
+        ordinary_set(agent, backing_object, property_key, value, receiver)
+    }
+
+    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+        if let Ok(string) = String::try_from(agent[self].data) {
+            if string
+                .get_property_descriptor(agent, property_key)
+                .is_some()
+            {
+                return Ok(false);
+            }
+        }
+
+        // 1. Return ? OrdinaryDelete(O, P).
+        match self.get_backing_object(agent) {
+            Some(backing_object) => {
+                ordinary_delete(agent, backing_object.into_object(), property_key)
+            }
+            None => Ok(true),
+        }
+    }
+
+    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+        if let Ok(string) = String::try_from(agent[self].data) {
+            let len = string.len(agent);
+            let mut keys = Vec::with_capacity(len + 1);
+
+            // Insert keys for every index into the string.
+            keys.extend(
+                (0..len)
+                    .map(|idx| PropertyKey::Integer(SmallInteger::try_from(idx as u64).unwrap())),
+            );
+
+            let backing_object_keys;
+            let (integer_keys, other_keys) = match self.get_backing_object(agent) {
+                Some(backing_object) => {
+                    backing_object_keys = ordinary_own_property_keys(agent, backing_object);
+                    if let Some(PropertyKey::Integer(smi)) = backing_object_keys.first() {
+                        debug_assert!(smi.into_i64() >= len as i64);
+                    }
+                    let split_idx = backing_object_keys
+                        .iter()
+                        .position(|pk| !pk.is_array_index());
+                    if let Some(idx) = split_idx {
+                        backing_object_keys.split_at(idx)
+                    } else {
+                        (&backing_object_keys[..], &[][..])
+                    }
+                }
+                None => (&[][..], &[][..]),
+            };
+
+            // Insert the `length` key as the first non-array index key.
+            keys.extend(integer_keys);
+            keys.push(BUILTIN_STRING_MEMORY.length.into());
+            keys.extend(other_keys);
+
+            return Ok(keys);
+        }
+
+        // 1. Return OrdinaryOwnPropertyKeys(O).
+        match self.get_backing_object(agent) {
+            Some(backing_object) => Ok(ordinary_own_property_keys(agent, backing_object)),
+            None => Ok(vec![]),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]

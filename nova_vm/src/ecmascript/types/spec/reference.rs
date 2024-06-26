@@ -4,12 +4,9 @@ use crate::ecmascript::{
         agent::{self, ExceptionType},
         get_global_object, EnvironmentIndex,
     },
-    types::{
-        InternalMethods, IntoValue, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
-    },
+    types::{InternalMethods, Object, PropertyKey, String, Value},
 };
 use agent::{Agent, JsResult};
-use small_string::SmallString;
 
 /// ### [6.2.5 The Reference Record Specification Type](https://tc39.es/ecma262/#sec-reference-record-specification-type)
 ///
@@ -127,7 +124,18 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
                         .boolean_prototype()
                         .internal_get(agent, referenced_name, value),
                     Value::String(_) | Value::SmallString(_) => {
-                        get_string_value(agent, String::try_from(value).unwrap(), referenced_name)
+                        let string = String::try_from(value).unwrap();
+                        if let Some(prop_desc) =
+                            string.get_property_descriptor(agent, referenced_name)
+                        {
+                            Ok(prop_desc.value.unwrap())
+                        } else {
+                            agent
+                                .current_realm()
+                                .intrinsics()
+                                .string_prototype()
+                                .internal_get(agent, referenced_name, value)
+                        }
                     }
                     Value::Symbol(_) => agent
                         .current_realm()
@@ -167,41 +175,6 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
                 "Unable to resolve identifier.",
             ))
         }
-    }
-}
-
-fn get_string_value(
-    agent: &mut Agent,
-    string: String,
-    referenced_name: PropertyKey,
-) -> JsResult<Value> {
-    let string_length = string.len(agent);
-    if string_length > u32::MAX as usize {
-        panic!("String length over u32::MAX");
-    }
-    if referenced_name == BUILTIN_STRING_MEMORY.length.into() {
-        let string_length = string_length as u32;
-        Ok(string_length.into())
-    } else if let PropertyKey::Integer(index) = referenced_name {
-        let index = index.into_i64();
-        if index < 0 || (index as usize) >= string_length {
-            // Over-indexing, prototype chain it is.
-            agent
-                .current_realm()
-                .intrinsics()
-                .string_prototype()
-                .internal_get(agent, referenced_name, string.into_value())
-        } else {
-            let char_byte = string.as_str(agent).as_bytes()[index as usize];
-            let char = SmallString::from_str_unchecked(std::str::from_utf8(&[char_byte]).unwrap());
-            Ok(char.into_value())
-        }
-    } else {
-        agent
-            .current_realm()
-            .intrinsics()
-            .string_prototype()
-            .internal_get(agent, referenced_name, string.into_value())
     }
 }
 

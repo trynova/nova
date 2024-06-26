@@ -5,11 +5,11 @@ use std::ops::{Index, IndexMut};
 
 use super::{IntoPrimitive, IntoValue, Primitive, PropertyKey, Value};
 use crate::{
-    ecmascript::execution::Agent,
+    ecmascript::{execution::Agent, types::PropertyDescriptor},
     heap::{
         indexes::StringIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
-    SmallString,
+    SmallInteger, SmallString,
 };
 
 pub use data::StringHeapData;
@@ -307,6 +307,44 @@ impl String {
             // The string heap guarantees that small strings must never equal
             // heap strings.
             _ => false,
+        }
+    }
+
+    pub(crate) fn get_property_descriptor(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+    ) -> Option<PropertyDescriptor> {
+        if property_key == BUILTIN_STRING_MEMORY.length.into() {
+            let smi = SmallInteger::try_from(self.len(agent) as u64)
+                .expect("String length is over MAX_SAFE_INTEGER");
+            Some(PropertyDescriptor {
+                value: Some(super::Number::from(smi).into_value()),
+                writable: Some(false),
+                get: None,
+                set: None,
+                enumerable: Some(false),
+                configurable: Some(false),
+            })
+        } else if let PropertyKey::Integer(index) = property_key {
+            let index = index.into_i64();
+            if index >= 0 && (index as usize) < self.len(agent) {
+                let char_byte = self.as_str(agent).as_bytes()[index as usize];
+                let char =
+                    SmallString::from_str_unchecked(std::str::from_utf8(&[char_byte]).unwrap());
+                Some(PropertyDescriptor {
+                    value: Some(char.into_value()),
+                    writable: Some(false),
+                    get: None,
+                    set: None,
+                    enumerable: Some(true),
+                    configurable: Some(false),
+                })
+            } else {
+                None
+            }
+        } else {
+            None
         }
     }
 
