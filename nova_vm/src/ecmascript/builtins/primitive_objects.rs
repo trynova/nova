@@ -366,7 +366,7 @@ impl InternalMethods for PrimitiveObject {
             let (integer_keys, other_keys) = match self.get_backing_object(agent) {
                 Some(backing_object) => {
                     backing_object_keys = ordinary_own_property_keys(agent, backing_object);
-                    if let Some(PropertyKey::Integer(smi)) = backing_object_keys.get(0) {
+                    if let Some(PropertyKey::Integer(smi)) = backing_object_keys.first() {
                         debug_assert!(smi.into_i64() >= len as i64);
                     }
                     let split_idx = backing_object_keys
