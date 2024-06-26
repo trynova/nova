@@ -234,6 +234,24 @@ pub(crate) fn ordinary_define_own_property(
     )
 }
 
+/// ### [10.1.6.2 IsCompatiblePropertyDescriptor ( Extensible, Desc, Current )](https://tc39.es/ecma262/#sec-iscompatiblepropertydescriptor)
+pub(crate) fn is_compatible_property_descriptor(
+    agent: &mut Agent,
+    extensible: bool,
+    descriptor: PropertyDescriptor,
+    current: Option<PropertyDescriptor>,
+) -> JsResult<bool> {
+    let property_key = PropertyKey::from_str(agent, "");
+    validate_and_apply_property_descriptor(
+        agent,
+        None,
+        property_key,
+        extensible,
+        descriptor,
+        current,
+    )
+}
+
 /// ### [10.1.6.3 ValidateAndApplyPropertyDescriptor ( O, P, extensible, Desc, current )](https://tc39.es/ecma262/#sec-validateandapplypropertydescriptor)
 fn validate_and_apply_property_descriptor(
     agent: &mut Agent,
