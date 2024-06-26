@@ -310,7 +310,7 @@ impl String {
         }
     }
 
-    pub fn get_property_descriptor(
+    pub(crate) fn get_property_descriptor(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
