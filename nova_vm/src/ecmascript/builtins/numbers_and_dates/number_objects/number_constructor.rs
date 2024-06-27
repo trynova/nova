@@ -163,7 +163,7 @@ impl NumberConstructor {
 
     /// ### [21.1.2.5 Number.isSafeInteger ( number )](https://tc39.es/ecma262/#sec-number.issafeinteger)
     fn is_safe_integer(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -172,8 +172,9 @@ impl NumberConstructor {
         // 1. If IsIntegralNumber(number) is true, then
         //    a. If abs(ℝ(number)) ≤ 2**53 - 1, return true.
         // 2. Return false.
-        // NOTE: Integers must be stored in `Value::Integer`.
-        Ok(matches!(maybe_number, Value::Integer(_)).into())
+        // NOTE: Integers must be stored in `Value::Integer`, but negative zero
+        // is also a safe integer.
+        Ok((matches!(maybe_number, Value::Integer(_)) || maybe_number.is_neg_zero(agent)).into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

@@ -96,12 +96,10 @@ impl NumberPrototype {
         let f = f as usize;
 
         // 6. Set x to ℝ(x).
-        let x = x.into_f64(agent);
+        let mut x = x.into_f64(agent);
         // This gets rid of -0.0
         if x == 0.0 {
-            0.0
-        } else {
-            x
+            x = 0.0;
         };
         if f == 0 {
             Ok(f64_to_exponential(agent, x))
