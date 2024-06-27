@@ -219,9 +219,7 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
         let succeeded = base_obj.internal_set(agent, referenced_name, w, this_value)?;
         if !succeeded && v.strict {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
-            return Err(
-                agent.throw_exception(ExceptionType::ReferenceError, "Could not set property")
-            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, "Could not set property"));
         }
         // e. Return UNUSED.
         Ok(())
