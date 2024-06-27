@@ -47,6 +47,12 @@ enum ContinuationKind {
     Await,
 }
 
+#[derive(Debug)]
+pub(crate) enum ExecutionResult {
+    Return(Value),
+    EvalResult(Option<Value>),
+}
+
 /// Indicates a place to jump after an exception is thrown.
 #[derive(Debug)]
 struct ExceptionJumpTarget {
@@ -94,7 +100,7 @@ impl Vm {
     }
 
     /// Executes an executable using the virtual machine.
-    pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> JsResult<Option<Value>> {
+    pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> JsResult<ExecutionResult> {
         let mut vm = Vm::new();
 
         if agent.options.print_internals {
@@ -129,7 +135,11 @@ impl Vm {
         while let Some(instr) = executable.get_instruction(&mut vm.ip) {
             match Self::execute_instruction(agent, &mut vm, executable, &instr) {
                 Ok(ContinuationKind::Normal) => {}
-                Ok(ContinuationKind::Return) => return Ok(vm.result),
+                Ok(ContinuationKind::Return) => {
+                    return Ok(ExecutionResult::Return(
+                        vm.result.unwrap_or(Value::Undefined),
+                    ))
+                }
                 Ok(ContinuationKind::Yield) => todo!(),
                 Ok(ContinuationKind::Await) => todo!(),
                 Err(err) => {
@@ -149,7 +159,7 @@ impl Vm {
             }
         }
 
-        Ok(vm.result)
+        Ok(ExecutionResult::EvalResult(vm.result))
     }
 
     fn execute_instruction(
@@ -345,6 +355,7 @@ impl Vm {
                     source_text: function_expression.expression.span,
                     parameters_list: &function_expression.expression.params,
                     body: &function_expression.expression.body,
+                    is_concise_arrow_function: function_expression.expression.expression,
                     this_mode: ThisMode::Lexical,
                     env: lexical_environment,
                     private_env: private_environment,
@@ -395,6 +406,7 @@ impl Vm {
                     source_text: function_expression.expression.span,
                     parameters_list: &function_expression.expression.params,
                     body: function_expression.expression.body.as_ref().unwrap(),
+                    is_concise_arrow_function: false,
                     this_mode: ThisMode::Global,
                     env,
                     private_env: private_environment,

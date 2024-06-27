@@ -15,7 +15,7 @@ use crate::{
         },
         types::{IntoValue, String, Value},
     },
-    engine::{Executable, Vm},
+    engine::{Executable, ExecutionResult, Vm},
     heap::{CompactionLists, Heap, HeapMarkAndSweep, WorkQueues},
 };
 use oxc_allocator::Allocator;
@@ -262,17 +262,17 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
     let result: JsResult<Value> = if result.is_ok() {
         let exe = Executable::compile_script(agent, script);
         // a. Set result to Completion(Evaluation of script).
-        let result = Vm::execute(agent, &exe);
         // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
-        if let Ok(result) = result {
-            if let Some(result) = result {
-                Ok(result)
-            } else {
-                // i. Set result to NormalCompletion(undefined).
-                Ok(Value::Undefined)
+        //   i. Set result to NormalCompletion(undefined).
+        match Vm::execute(agent, &exe) {
+            Ok(ExecutionResult::EvalResult(Some(value))) => Ok(value),
+            Ok(ExecutionResult::EvalResult(None)) => Ok(Value::Undefined),
+            Ok(ExecutionResult::Return(_)) => {
+                // The script is not a function body, so any `return` statements
+                // should be parse errors.
+                unreachable!()
             }
-        } else {
-            Err(result.err().unwrap())
+            Err(err) => Err(err),
         }
     } else {
         Err(result.err().unwrap())
@@ -1585,5 +1585,24 @@ mod test {
                 .unwrap(),
             10.into()
         );
+    }
+
+    #[test]
+    fn no_implicit_return() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "function foo() { 42; }; foo()".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Undefined);
     }
 }

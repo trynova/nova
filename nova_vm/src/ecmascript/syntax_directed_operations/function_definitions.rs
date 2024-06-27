@@ -11,7 +11,7 @@ use crate::{
         },
         types::{Function, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
-    engine::{Executable, FunctionExpression, Vm},
+    engine::{Executable, ExecutionResult, FunctionExpression, Vm},
 };
 use oxc_ast::ast::{self};
 
@@ -38,6 +38,7 @@ pub(crate) fn instantiate_ordinary_function_object(
             source_text,
             parameters_list: &function.params,
             body: function.body.as_deref().unwrap(),
+            is_concise_arrow_function: false,
             this_mode: crate::ecmascript::builtins::ThisMode::Global,
             env,
             private_env,
@@ -61,6 +62,7 @@ pub(crate) fn instantiate_ordinary_function_object(
             source_text,
             parameters_list: &function.params,
             body: function.body.as_ref().unwrap(),
+            is_concise_arrow_function: false,
             this_mode: crate::ecmascript::builtins::ThisMode::Global,
             env,
             private_env,
@@ -111,6 +113,7 @@ pub(crate) fn instantiate_ordinary_function_expression(
             source_text,
             parameters_list: &function.expression.params,
             body: function.expression.body.as_ref().unwrap(),
+            is_concise_arrow_function: false,
             this_mode: ThisMode::Global,
             env: lexical_environment,
             private_env: private_environment,
@@ -140,6 +143,14 @@ pub(crate) fn evaluate_function_body(
     function_declaration_instantiation(agent, function_object, arguments_list)?;
     // 2. Return ? Evaluation of FunctionStatementList.
     let body = agent[function_object].ecmascript_function.ecmascript_code;
+    let is_concise_arrow_function = agent[function_object]
+        .ecmascript_function
+        .is_concise_arrow_function;
     let exe = Executable::compile_function_body(agent, body);
-    Ok(Vm::execute(agent, &exe)?.unwrap_or(Value::Undefined))
+    match Vm::execute(agent, &exe) {
+        Ok(ExecutionResult::Return(value)) => Ok(value),
+        Ok(ExecutionResult::EvalResult(Some(value))) if is_concise_arrow_function => Ok(value),
+        Ok(_) => Ok(Value::Undefined),
+        Err(err) => Err(err),
+    }
 }

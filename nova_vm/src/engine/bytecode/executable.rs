@@ -172,12 +172,6 @@ impl Executable {
             stmt.compile(&mut ctx);
         }
 
-        if ctx.exe.instructions.last() != Some(&Instruction::Return.as_u8()) {
-            // If code did not end with a return statement, add it manually
-            ctx.exe.add_instruction(Instruction::Return);
-            return ctx.exe;
-        }
-
         ctx.exe
     }
 
