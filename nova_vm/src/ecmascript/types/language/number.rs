@@ -342,7 +342,9 @@ impl Number {
                 false
             }
             (Number::Integer(x), Number::Float(y)) => {
-                debug_assert!((x.into_i64() as f64) != y as f64);
+                debug_assert!(
+                    y.to_bits() == (-0f32).to_bits() || (x.into_i64() as f64) != y as f64
+                );
                 false
             }
             (Number::Float(x), Number::Number(y)) => {
@@ -351,7 +353,9 @@ impl Number {
                 false
             }
             (Number::Float(x), Number::Integer(y)) => {
-                debug_assert!((x as f64) != y.into_i64() as f64);
+                debug_assert!(
+                    x.to_bits() == (-0f32).to_bits() || (x as f64) != y.into_i64() as f64
+                );
                 false
             }
         }
@@ -379,7 +383,15 @@ impl Number {
                 let n = n.into_i64();
                 Number::Integer(SmallInteger::try_from(n.abs()).unwrap())
             }
-            Number::Float(n) => Number::Float(n.abs()),
+            Number::Float(n) => {
+                if n == 0.0 {
+                    // Negative zero needs to be turned into a Number::Integer
+                    debug_assert!(n.is_sign_negative());
+                    Number::Integer(SmallInteger::zero())
+                } else {
+                    Number::Float(n.abs())
+                }
+            }
         }
     }
 
@@ -398,8 +410,22 @@ impl Number {
                 let value = agent[n];
                 agent.heap.create(-value)
             }
-            Number::Integer(n) => SmallInteger::try_from(-n.into_i64()).unwrap().into(),
-            Number::Float(n) => (-n).into(),
+            Number::Integer(n) => {
+                let n = n.into_i64();
+                if n == 0 {
+                    Number::Float(-0.0)
+                } else {
+                    SmallInteger::try_from(-n).unwrap().into()
+                }
+            }
+            Number::Float(n) => {
+                if n == 0.0 {
+                    debug_assert!(n.is_sign_negative());
+                    SmallInteger::zero().into()
+                } else {
+                    (-n).into()
+                }
+            }
         }
     }
 

@@ -9,7 +9,6 @@ use crate::{
         types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
-    SmallInteger,
 };
 
 pub(crate) struct MathObject;
@@ -334,27 +333,7 @@ impl Builtin for MathObjectTrunc {
 impl MathObject {
     fn abs(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         let n = to_number(agent, arguments.get(0))?;
-        match n {
-            Number::Number(idx) => {
-                let data = agent[idx];
-                // NaN, -0, and infinites should be handled in Float
-                debug_assert!(!data.is_nan() && data != -0.0 && !data.is_infinite());
-                if data.is_sign_negative() {
-                    Ok(Number::from_f64(agent, data.abs()).into_value())
-                } else {
-                    Ok(n.into_value())
-                }
-            }
-            Number::Integer(int) => {
-                let int = int.into_i64();
-                if int.is_negative() {
-                    Ok(Number::from(SmallInteger::try_from(int.abs()).unwrap()).into_value())
-                } else {
-                    Ok(n.into_value())
-                }
-            }
-            Number::Float(_) => todo!(),
-        }
+        Ok(n.abs(agent).into_value())
     }
 
     fn acos(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
