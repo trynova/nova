@@ -487,8 +487,34 @@ impl ArrayPrototype {
         todo!()
     }
 
-    fn find(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.9 Array.prototype.find ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.find)
+    ///
+    /// > #### Note 1
+    /// >
+    /// > This method calls predicate once for each element of the array, in
+    /// > ascending index order, until it finds one where predicate returns a
+    /// > value that coerces to true. If such an element is found, find
+    /// > immediately returns that element value. Otherwise, find returns
+    /// > undefined.
+    /// >
+    /// > See FindViaPredicate for additional information.
+    ///
+    /// > #### Note 2
+    /// >
+    /// > This method is intentionally generic; it does not require that its
+    /// > this value be an Array. Therefore it can be transferred to other
+    /// > kinds of objects for use as a method.
+    fn find(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        let predicate = arguments.get(0);
+        let this_arg = arguments.get(1);
+        // 3. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
+        let find_rec = find_via_predicate(agent, o, len, true, predicate, this_arg)?;
+        // 4. Return findRec.[[Value]].
+        Ok(find_rec.1)
     }
 
     fn find_index(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
@@ -827,4 +853,102 @@ fn is_concat_spreadable(agent: &mut Agent, o: Value) -> JsResult<Option<Object>>
     } else {
         Ok(None)
     }
+}
+
+/// ### [23.1.3.12.1 FindViaPredicate ( O, len, direction, predicate, thisArg )](https://tc39.es/ecma262/#sec-findviapredicate)
+///
+/// The abstract operation FindViaPredicate takes arguments O (an Object), len
+/// (a non-negative integer), direction (ascending or descending), predicate
+/// (an ECMAScript language value), and thisArg (an ECMAScript language value)
+/// and returns either a normal completion containing a Record with fields
+/// \[\[Index]] (an integral Number) and \[\[Value]] (an ECMAScript language
+/// value) or a throw completion.
+///
+/// O should be an array-like object or a TypedArray. This operation calls
+/// predicate once for each element of O, in either ascending index order or
+/// descending index order (as indicated by direction), until it finds one
+/// where predicate returns a value that coerces to true. At that point, this
+/// operation returns a Record that gives the index and value of the element
+/// found. If no such element is found, this operation returns a Record that
+/// specifies -1𝔽 for the index and undefined for the value.
+///
+/// predicate should be a function. When called for an element of the array, it
+/// is passed three arguments: the value of the element, the index of the
+/// element, and the object being traversed. Its return value will be coerced
+/// to a Boolean value.
+///
+/// thisArg will be used as the this value for each invocation of predicate.
+///
+/// This operation does not directly mutate the object on which it is called,
+/// but the object may be mutated by the calls to predicate.
+///
+/// The range of elements processed is set before the first call to predicate,
+/// just before the traversal begins. Elements that are appended to the array
+/// after this will not be visited by predicate. If existing elements of the
+/// array are changed, their value as passed to predicate will be the value at
+/// the time that this operation visits them. Elements that are deleted after
+/// traversal begins and before being visited are still visited and are either
+/// looked up from the prototype or are undefined.
+fn find_via_predicate(
+    agent: &mut Agent,
+    o: Object,
+    len: i64,
+    ascending: bool,
+    predicate: Value,
+    this_arg: Value,
+) -> JsResult<(i64, Value)> {
+    // 1. If IsCallable(predicate) is false, throw a TypeError exception.
+    if !is_callable(predicate) {
+        return Err(agent.throw_exception(ExceptionType::TypeError, "Predicate is not a function"));
+    }
+    let predicate = Function::try_from(predicate).unwrap();
+    // 4. For each integer k of indices, do
+    let check = |agent: &mut Agent,
+                 o: Object,
+                 predicate: Function,
+                 this_arg: Value,
+                 k: i64|
+     -> JsResult<Option<(i64, Value)>> {
+        // a. Let Pk be ! ToString(𝔽(k)).
+        let pk = PropertyKey::Integer(k.try_into().unwrap());
+        // b. NOTE: If O is a TypedArray, the following invocation of Get will return a normal completion.
+        // c. Let kValue be ? Get(O, Pk).
+        let k_value = get(agent, o, pk)?;
+        // d. Let testResult be ? Call(predicate, thisArg, « kValue, 𝔽(k), O »).
+        let test_result = call_function(
+            agent,
+            predicate,
+            this_arg,
+            Some(ArgumentsList(&[
+                Number::from(k).into_value(),
+                o.into_value(),
+            ])),
+        )?;
+        // e. If ToBoolean(testResult) is true, return the Record { [[Index]]: 𝔽(k), [[Value]]: kValue }.
+        if to_boolean(agent, test_result) {
+            Ok(Some((k, k_value)))
+        } else {
+            Ok(None)
+        }
+    };
+
+    // 2. If direction is ascending, then
+    if ascending {
+        // a. Let indices be a List of the integers in the interval from 0 (inclusive) to len (exclusive), in ascending order.
+        for k in 0..len {
+            if let Some(result) = check(agent, o, predicate, this_arg, k)? {
+                return Ok(result);
+            }
+        }
+    } else {
+        // 3. Else,
+        // a. Let indices be a List of the integers in the interval from 0 (inclusive) to len (exclusive), in descending order.
+        for k in (0..len).rev() {
+            if let Some(result) = check(agent, o, predicate, this_arg, k)? {
+                return Ok(result);
+            }
+        }
+    };
+    // 5. Return the Record { [[Index]]: -1𝔽, [[Value]]: undefined }.
+    return Ok((-1, Value::Undefined));
 }
