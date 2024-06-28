@@ -5,12 +5,12 @@ use crate::{
         abstract_operations::{
             operations_on_objects::{call_function, get, length_of_array_like},
             testing_and_comparison::is_callable,
-            type_conversion::{to_object, to_string},
+            type_conversion::{to_integer_or_infinity, to_object, to_string},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{Function, IntoFunction, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        types::{Function, IntoFunction, IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
     SmallInteger,
@@ -257,8 +257,40 @@ impl Builtin for ArrayPrototypeWith {
 }
 
 impl ArrayPrototype {
-    fn at(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.1 Array.prototype.at ( index )](https://tc39.es/ecma262/#sec-array.prototype.at)
+    fn at(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        let index = arguments.get(0);
+        // 3. Let relativeIndex be ? ToIntegerOrInfinity(index).
+        let relative_index = to_integer_or_infinity(agent, index)?;
+        let relative_index = match relative_index {
+            Number::Float(_) |
+            Number::Number(_) => {
+                // Heap number or f32 here means that the value is over the
+                // safe integer limit, which is necessarily >= len
+                return Ok(Value::Undefined);
+            },
+            Number::Integer(int) => int.into_i64(),
+        };
+        // 4. If relativeIndex ≥ 0, then
+        let k = if relative_index >= 0 {
+            // a. Let k be relativeIndex.
+            relative_index
+        } else {
+            // 5. Else,
+            // a. Let k be len + relativeIndex.
+            len + relative_index
+        };
+        // 6. If k < 0 or k ≥ len, return undefined.
+        if k < 0 || k >= len {
+            Ok(Value::Undefined)
+        } else {
+            // 7. Return ? Get(O, ! ToString(𝔽(k))).
+            get(agent, o, PropertyKey::Integer(k.try_into().unwrap()))
+        }
     }
 
     fn concat(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
