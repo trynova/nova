@@ -3,14 +3,20 @@ use small_string::SmallString;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, get, length_of_array_like},
-            testing_and_comparison::is_callable,
-            type_conversion::{to_integer_or_infinity, to_object, to_string},
+            operations_on_objects::{
+                call_function, create_data_property_or_throw, get, has_property,
+                length_of_array_like, set,
+            },
+            testing_and_comparison::{is_array, is_callable},
+            type_conversion::{to_boolean, to_integer_or_infinity, to_object, to_string},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{Function, IntoFunction, IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        builtins::{array_species_create, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{
+            Function, IntoFunction, IntoValue, Number, Object, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
     SmallInteger,
@@ -267,12 +273,11 @@ impl ArrayPrototype {
         // 3. Let relativeIndex be ? ToIntegerOrInfinity(index).
         let relative_index = to_integer_or_infinity(agent, index)?;
         let relative_index = match relative_index {
-            Number::Float(_) |
-            Number::Number(_) => {
+            Number::Float(_) | Number::Number(_) => {
                 // Heap number or f32 here means that the value is over the
                 // safe integer limit, which is necessarily >= len
                 return Ok(Value::Undefined);
-            },
+            }
             Number::Integer(int) => int.into_i64(),
         };
         // 4. If relativeIndex ≥ 0, then
@@ -293,8 +298,94 @@ impl ArrayPrototype {
         }
     }
 
-    fn concat(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.2 Array.prototype.concat ( ...items )](https://tc39.es/ecma262/#sec-array.prototype.concat)
+    ///
+    /// This method returns an array containing the array elements of the
+    /// object followed by the array elements of each argument.
+    ///
+    /// > Note 1: The explicit setting of the "length" property in step 6 is
+    /// > intended to ensure the length is correct when the final non-empty
+    /// > element of items has trailing holes or when A is not a built-in
+    /// > Array.
+    ///
+    /// > Note 2: This method is intentionally generic; it does not require
+    /// > that its this value be an Array. Therefore it can be transferred to
+    /// > other kinds of objects for use as a method.
+    fn concat(agent: &mut Agent, this_value: Value, items: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let A be ? ArraySpeciesCreate(O, 0).
+        let a = array_species_create(agent, o, 0)?;
+        // 3. Let n be 0.
+        let mut n = 0;
+        // 4. Prepend O to items.
+        let mut items = Vec::from(items.0);
+        items.insert(0, o.into_value());
+        // 5. For each element E of items, do
+        for e in items {
+            // a. Let spreadable be ? IsConcatSpreadable(E).
+            let e_is_spreadable = is_concat_spreadable(agent, e)?;
+            // b. If spreadable is true, then
+            if let Some(e) = e_is_spreadable {
+                // i. Let len be ? LengthOfArrayLike(E).
+                let len = length_of_array_like(agent, e)?;
+                // ii. If n + len > 2**53 - 1, throw a TypeError exception.
+                if (n + len) > SmallInteger::MAX_NUMBER {
+                    return Err(agent.throw_exception(ExceptionType::TypeError, "Array overflow"));
+                }
+                // iii. Let k be 0.
+                let mut k = 0;
+                // iv. Repeat, while k < len,
+                while k < len {
+                    // 1. Let Pk be ! ToString(𝔽(k)).
+                    let pk = PropertyKey::Integer(k.try_into().unwrap());
+                    // 2. Let exists be ? HasProperty(E, Pk).
+                    let exists = has_property(agent, e, pk)?;
+                    // 3. If exists is true, then
+                    if exists {
+                        // a. Let subElement be ? Get(E, Pk).
+                        let sub_element = get(agent, e, pk)?;
+                        // b. Perform ? CreateDataPropertyOrThrow(A, ! ToString(𝔽(n)), subElement).
+                        create_data_property_or_throw(
+                            agent,
+                            a,
+                            PropertyKey::Integer(n.try_into().unwrap()),
+                            sub_element,
+                        )?;
+                    }
+                    // 4. Set n to n + 1.
+                    n = n + 1;
+                    // 5. Set k to k + 1.
+                    k = k + 1;
+                }
+            } else {
+                // c. Else,
+                // i. NOTE: E is added as a single item rather than spread.
+                // ii. If n ≥ 2**53 - 1, throw a TypeError exception.
+                if n >= SmallInteger::MAX_NUMBER {
+                    return Err(agent.throw_exception(ExceptionType::TypeError, "Array overflow"));
+                }
+                // iii. Perform ? CreateDataPropertyOrThrow(A, ! ToString(𝔽(n)), E).
+                create_data_property_or_throw(
+                    agent,
+                    a,
+                    PropertyKey::Integer(n.try_into().unwrap()),
+                    e,
+                )?;
+                // iv. Set n to n + 1.
+                n = n + 1;
+            }
+        }
+        // 6. Perform ? Set(A, "length", 𝔽(n), true).
+        set(
+            agent,
+            a,
+            BUILTIN_STRING_MEMORY.length.into(),
+            Value::try_from(n).unwrap(),
+            true,
+        )?;
+        // 7. Return A.
+        Ok(a.into_value())
     }
 
     fn copy_within(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
@@ -621,5 +712,40 @@ impl ArrayPrototype {
                     .build()
             })
             .build();
+    }
+}
+
+/// ### [23.1.3.2.1 IsConcatSpreadable ( O )](https://tc39.es/ecma262/#sec-isconcatspreadable)
+///
+/// The abstract operation IsConcatSpreadable takes argument O (an ECMAScript
+/// language value) and returns either a normal completion containing a Boolean
+/// or a throw completion.
+///
+/// > Note: Instead of returning a bool, Nova returns an Option<Object>.
+
+fn is_concat_spreadable(agent: &mut Agent, o: Value) -> JsResult<Option<Object>> {
+    // 1. If O is not an Object, return false.
+    if let Ok(o) = Object::try_from(o) {
+        // 2. Let spreadable be ? Get(O, @@isConcatSpreadable).
+        let spreadable = get(agent, o, WellKnownSymbolIndexes::IsConcatSpreadable.into())?;
+        // 3. If spreadable is not undefined, return ToBoolean(spreadable).
+        if !spreadable.is_undefined() {
+            let spreadable = to_boolean(agent, spreadable);
+            if spreadable {
+                Ok(Some(o))
+            } else {
+                Ok(None)
+            }
+        } else {
+            // 4. Return ? IsArray(O).
+            let o_is_array = is_array(agent, o.into_value())?;
+            if o_is_array {
+                Ok(Some(o))
+            } else {
+                Ok(None)
+            }
+        }
+    } else {
+        Ok(None)
     }
 }
