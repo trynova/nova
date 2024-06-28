@@ -517,20 +517,74 @@ impl ArrayPrototype {
         Ok(find_rec.1)
     }
 
-    fn find_index(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
-    }
-
-    fn find_last(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
-    }
-
-    fn find_last_index(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
+    /// ### [23.1.3.10 Array.prototype.findIndex ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findindex)
+    ///
+    /// > #### Note 1
+    /// >
+    /// > This method calls predicate once for each element of the array, in
+    /// > ascending index order, until it finds one where predicate returns a
+    /// > value that coerces to true. If such an element is found, findIndex
+    /// > immediately returns the index of that element value. Otherwise,
+    /// > findIndex returns -1.
+    /// >
+    /// > See FindViaPredicate for additional information.
+    /// >
+    /// > #### Note 2
+    /// >
+    /// > This method is intentionally generic; it does not require that its
+    /// > this value be an Array. Therefore it can be transferred to other
+    /// > kinds of objects for use as a method.
+    fn find_index(
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        let predicate = arguments.get(0);
+        let this_arg = arguments.get(1);
+        // 3. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
+        let find_rec = find_via_predicate(agent, o, len, true, predicate, this_arg)?;
+        // 4. Return findRec.[[Index]].
+        Ok(Number::from(find_rec.0).into_value())
+    }
+
+    /// ### [23.1.3.11 Array.prototype.findLast ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findlast)
+    fn find_last(
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        let predicate = arguments.get(0);
+        let this_arg = arguments.get(1);
+        // 3. Let findRec be ? FindViaPredicate(O, len, descending, predicate, thisArg).
+        let find_rec = find_via_predicate(agent, o, len, false, predicate, this_arg)?;
+        // 4. Return findRec.[[Value]].
+        Ok(find_rec.1)
+    }
+
+    /// ### [23.1.3.12 Array.prototype.findLastIndex ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findlastindex)
+    fn find_last_index(
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        let predicate = arguments.get(0);
+        let this_arg = arguments.get(1);
+        // 3. Let findRec be ? FindViaPredicate(O, len, descending, predicate, thisArg).
+        let find_rec = find_via_predicate(agent, o, len, false, predicate, this_arg)?;
+        // 4. Return findRec.[[Index]].
+        Ok(Number::from(find_rec.0).into_value())
     }
 
     fn flat(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
