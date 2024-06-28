@@ -772,6 +772,17 @@ pub(crate) fn canonical_numeric_index_string(
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
 pub(crate) fn to_index(agent: &mut Agent, argument: Value) -> JsResult<i64> {
+    match argument {
+        // Fast path: A safe integer is already an integer.
+        Value::Integer(integer) => {
+            let integer = integer.into_i64();
+            if !(0..=(SmallInteger::MAX_NUMBER)).contains(&integer) {
+                return Err(agent.throw_exception(ExceptionType::RangeError, "Result is out of range"));
+            }
+            return Ok(integer)
+        }
+        _ => {},
+    }
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
     // 1. Let integer be ? ToIntegerOrInfinity(value).
