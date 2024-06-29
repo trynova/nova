@@ -1128,14 +1128,23 @@ impl ArrayPrototype {
                 0
             };
             let data = &array.as_slice(agent)[k..];
+            let mut found_hole = false;
             for (index, element_k) in data.iter().enumerate() {
                 if let Some(element_k) = element_k {
                     if is_strictly_equal(agent, search_element, *element_k) {
                         return Ok((k as u32 + index as u32).into());
                     }
+                } else {
+                    // A hole would require looking through the prototype
+                    // chain. We're not going to do that.
+                    found_hole = true;
+                    break;
                 }
             }
-            return Ok((-1).into());
+            if !found_hole {
+                // No holes found so we can trust the result.
+                return Ok((-1).into());
+            }
         };
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
@@ -1314,14 +1323,23 @@ impl ArrayPrototype {
                 last
             };
             let data = &array.as_slice(agent)[..=k];
+            let mut found_hole = false;
             for (index, element_k) in data.iter().enumerate().rev() {
                 if let Some(element_k) = element_k {
                     if is_strictly_equal(agent, search_element, *element_k) {
                         return Ok((index as u32).into());
                     }
+                } else {
+                    // A hole would require looking through the prototype
+                    // chain. We're not going to do that.
+                    found_hole = true;
+                    break;
                 }
             }
-            return Ok((-1).into());
+            if !found_hole {
+                // No holes found so we can trust the result.
+                return Ok((-1).into());
+            }
         };
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
