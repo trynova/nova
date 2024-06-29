@@ -868,7 +868,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.13 Number::equal ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-equal)
-    pub fn equal(agent: &mut Agent, x: Self, y: Self) -> bool {
+    pub fn equal(agent: &Agent, x: Self, y: Self) -> bool {
         // 1. If x is NaN, return false.
         if x.is_nan(agent) {
             return false;

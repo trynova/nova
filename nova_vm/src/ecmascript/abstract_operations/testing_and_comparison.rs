@@ -461,7 +461,7 @@ pub(crate) fn is_loosely_equal(
 /// language value) and y (an ECMAScript language value) and returns a Boolean.
 /// It provides the semantics for the === operator.
 pub(crate) fn is_strictly_equal(
-    agent: &mut Agent,
+    agent: &Agent,
     x: impl Into<Value> + Copy,
     y: impl Into<Value> + Copy,
 ) -> bool {
