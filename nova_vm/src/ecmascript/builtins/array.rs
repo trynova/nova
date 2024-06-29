@@ -44,10 +44,12 @@ impl Array {
         agent[self].elements.is_dense(agent)
     }
 
+    /// An array is simple if it contains no element accessor descriptors.
     pub(crate) fn is_simple(self, agent: &Agent) -> bool {
         agent[self].elements.is_simple(agent)
     }
 
+    /// An array is trivial if it contains no element descriptors.
     pub(crate) fn is_trivial(self, agent: &Agent) -> bool {
         agent[self].elements.is_trivial(agent)
     }

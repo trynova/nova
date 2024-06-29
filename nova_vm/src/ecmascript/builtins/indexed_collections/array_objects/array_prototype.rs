@@ -1457,8 +1457,87 @@ impl ArrayPrototype {
         Ok(a.into_value())
     }
 
-    fn pop(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.22 Array.prototype.pop ( )](https://tc39.es/ecma262/#sec-array.prototype.pop)
+    ///
+    /// > #### Note 1
+    /// >
+    /// > This method removes the last element of the array and returns it.
+    ///
+    /// > #### Note 2
+    /// >
+    /// > This method is intentionally generic; it does not require that
+    /// > its this value be an Array. Therefore it can be transferred to
+    /// > other kinds of objects for use as a method.
+    fn pop(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        if let Value::Array(array) = this_value {
+            // Fast path: Trivial (no descriptors) array means mutating
+            // elements is direct.
+            if array.is_trivial(agent) {
+                let len = array.len(agent);
+                let length_writable = agent[array].elements.len_writable;
+                if len == 0 {
+                    return if !length_writable {
+                        Err(agent
+                            .throw_exception(ExceptionType::TypeError, "Could not set property."))
+                    } else {
+                        Ok(Value::Undefined)
+                    };
+                }
+                let element = array.as_mut_slice(agent).last_mut().unwrap();
+                if let Some(last_element) = *element {
+                    // Empty the last value.
+                    *element = None;
+                    if length_writable {
+                        agent[array].elements.len -= 1;
+                    } else {
+                        return Err(agent
+                            .throw_exception(ExceptionType::TypeError, "Could not set property."));
+                    }
+                    return Ok(last_element);
+                }
+                // Last element was a hole; this means we'd need to look into
+                // the prototype chain. We're not going to do that.
+            }
+        }
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        // 3. If len = 0, then
+        if len == 0 {
+            // a. Perform ? Set(O, "length", +0𝔽, true).
+            set(
+                agent,
+                o,
+                BUILTIN_STRING_MEMORY.length.into(),
+                0.into(),
+                true,
+            )?;
+            // b. Return undefined.
+            Ok(Value::Undefined)
+        } else {
+            // 4. Else,
+            // a. Assert: len > 0.
+            assert!(len > 0);
+            // b. Let newLen be 𝔽(len - 1).
+            let new_len = len - 1;
+            // c. Let index be ! ToString(newLen).
+            let index = PropertyKey::Integer(new_len.try_into().unwrap());
+            // d. Let element be ? Get(O, index).
+            let element = get(agent, o, index)?;
+            // e. Perform ? DeletePropertyOrThrow(O, index).
+            delete_property_or_throw(agent, o, index)?;
+            // f. Perform ? Set(O, "length", newLen, true).
+            set(
+                agent,
+                o,
+                BUILTIN_STRING_MEMORY.length.into(),
+                new_len.try_into().unwrap(),
+                true,
+            )?;
+            // g. Return element.
+            Ok(element)
+        }
     }
 
     fn push(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
