@@ -48,6 +48,10 @@ impl Array {
         agent[self].elements.is_simple(agent)
     }
 
+    pub(crate) fn is_trivial(self, agent: &Agent) -> bool {
+        agent[self].elements.is_trivial(agent)
+    }
+
     #[inline]
     fn internal_get_backing(
         self,

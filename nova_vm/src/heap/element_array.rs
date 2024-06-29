@@ -136,6 +136,12 @@ impl ElementsVector {
         })
     }
 
+    /// An elements vector is trivial if it contains no descriptors.
+    pub(crate) fn is_trivial(&self, agent: &Agent) -> bool {
+        let backing_store = agent.heap.elements.get_full(*self);
+        backing_store.0.is_none()
+    }
+
     pub(crate) fn is_dense(&self, agent: &Agent) -> bool {
         let (descriptors, elements) = agent.heap.elements.get_full(*self);
         if let Some(descriptors) = descriptors {
