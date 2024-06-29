@@ -647,8 +647,116 @@ impl ArrayPrototype {
         Ok(true.into())
     }
 
-    fn fill(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.7 Array.prototype.fill ( value \[ , start \[ , end \] \] )](https://tc39.es/ecma262/#sec-array.prototype.fill)
+    ///
+    /// > #### Note 1
+    /// >
+    /// > The start argument is optional. If it is not provided, +0𝔽 is used.
+    /// >
+    /// > The end argument is optional. If it is not provided, the length of
+    /// > the this value is used.
+    ///
+    /// > #### Note 2
+    /// >
+    /// > If start is negative, it is treated as length + start where length is
+    /// > the length of the array. If end is negative, it is treated as
+    /// > length + end.
+    ///
+    /// > #### Note 3
+    /// >
+    /// > This method is intentionally generic; it does not require that its
+    /// > this value be an Array. Therefore it can be transferred to other
+    /// > kinds of objects for use as a method.
+    fn fill(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let value = arguments.get(0);
+        let start = arguments.get(1);
+        let end = arguments.get(2);
+        if let (
+            Value::Array(array),
+            Value::Undefined | Value::Integer(_),
+            Value::Undefined | Value::Integer(_),
+        ) = (this_value, start, end)
+        {
+            // Fast path: If the array is simple (no descriptors) and dense (no
+            // holes) then we can write directly into the backing memory.
+            if array.is_simple(agent) && array.is_dense(agent) {
+                let len = array.len(agent) as usize;
+
+                let relative_start = if let Value::Integer(start) = start {
+                    let start = start.into_i64();
+                    if start < 0 {
+                        (len as i64 + start).max(0) as usize
+                    } else {
+                        (start as usize).min(len)
+                    }
+                } else {
+                    0
+                };
+
+                let k = relative_start.min(len);
+
+                let final_end = if let Value::Integer(end) = end {
+                    let relative_end = end.into_i64();
+                    if relative_end < 0 {
+                        (len as i64 + relative_end).max(0) as usize
+                    } else {
+                        (relative_end as usize).min(len)
+                    }
+                } else {
+                    len
+                };
+
+                let data = array.as_mut_slice(agent);
+                data[k..final_end].fill(Some(value));
+                return Ok(value.into_value());
+            }
+        };
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
+        let relative_start = to_integer_or_infinity(agent, start)?.to_real(agent);
+
+        // 4. If relativeStart = -∞, let k be 0.
+        let mut k = if relative_start == f64::NEG_INFINITY {
+            0
+        } else if relative_start < 0.0 {
+            // 5. Else if relativeStart < 0, let k be max(len + relativeStart, 0).
+            (len + relative_start as i64).max(0)
+        } else {
+            // 6. Else, let k be min(relativeStart, len).
+            len.min(relative_start as i64)
+        };
+
+        // 7. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
+        let final_end = if end.is_undefined() {
+            len
+        } else {
+            let relative_end = to_integer_or_infinity(agent, end)?.to_real(agent);
+            // 8. If relativeEnd = -∞, let final be 0.
+            if relative_end == f64::NEG_INFINITY {
+                0
+            } else if relative_end < 0.0 {
+                // 9. Else if relativeEnd < 0, let final be max(len + relativeEnd, 0).
+                (len + relative_end as i64).max(0)
+            } else {
+                // 10. Else, let final be min(relativeEnd, len).
+                len.min(relative_end as i64)
+            }
+        };
+
+        // 11. Repeat, while k < final,
+        while k < final_end {
+            // a. Let Pk be ! ToString(𝔽(k)).
+            let pk = PropertyKey::Integer(k.try_into().unwrap());
+            // b. Perform ? Set(O, Pk, value, true).
+            set(agent, o, pk, value, true)?;
+            // c. Set k to k + 1.
+            k += 1;
+        }
+        // 12. Return O.
+        Ok(o.into_value())
     }
 
     fn filter(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
