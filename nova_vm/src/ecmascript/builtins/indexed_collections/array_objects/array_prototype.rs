@@ -1264,14 +1264,6 @@ impl ArrayPrototype {
         todo!()
     }
 
-    fn to_locale_lower_case(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
-        todo!()
-    }
-
     fn pop(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         todo!()
     }
