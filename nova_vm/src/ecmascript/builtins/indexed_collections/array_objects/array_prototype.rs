@@ -4,8 +4,8 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call_function, create_data_property_or_throw, get, has_property,
-                length_of_array_like, set,
+                call_function, create_data_property_or_throw, delete_property_or_throw, get,
+                has_property, length_of_array_like, set,
             },
             testing_and_comparison::{is_array, is_callable},
             type_conversion::{to_boolean, to_integer_or_infinity, to_object, to_string},
@@ -354,9 +354,9 @@ impl ArrayPrototype {
                         )?;
                     }
                     // 4. Set n to n + 1.
-                    n = n + 1;
+                    n += 1;
                     // 5. Set k to k + 1.
-                    k = k + 1;
+                    k += 1;
                 }
             } else {
                 // c. Else,
@@ -373,7 +373,7 @@ impl ArrayPrototype {
                     e,
                 )?;
                 // iv. Set n to n + 1.
-                n = n + 1;
+                n += 1;
             }
         }
         // 6. Perform ? Set(A, "length", 𝔽(n), true).
@@ -473,7 +473,7 @@ impl ArrayPrototype {
                 }
             }
             // d. Set k to k + 1.
-            k = k + 1;
+            k += 1;
         }
         // 6. Return true.
         Ok(true.into())
@@ -1004,5 +1004,5 @@ fn find_via_predicate(
         }
     };
     // 5. Return the Record { [[Index]]: -1𝔽, [[Value]]: undefined }.
-    return Ok((-1, Value::Undefined));
+    Ok((-1, Value::Undefined))
 }

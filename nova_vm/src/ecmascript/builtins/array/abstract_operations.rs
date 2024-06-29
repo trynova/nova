@@ -8,8 +8,7 @@ use crate::{
         builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{
-            Function, IntoObject, IntoValue, Number, Object, PropertyDescriptor, Value,
-            BUILTIN_STRING_MEMORY,
+            Function, IntoObject, Number, Object, PropertyDescriptor, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{indexes::ArrayIndex, WellKnownSymbolIndexes},
