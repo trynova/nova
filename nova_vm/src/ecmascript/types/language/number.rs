@@ -215,7 +215,7 @@ impl Number {
         Self::from(f32::NEG_INFINITY)
     }
 
-    pub fn is_nan(self, agent: &mut Agent) -> bool {
+    pub fn is_nan(self, agent: &Agent) -> bool {
         match self {
             Number::Number(n) => agent[n].is_nan(),
             Number::Integer(_) => false,
@@ -223,7 +223,7 @@ impl Number {
         }
     }
 
-    pub fn is_pos_zero(self, agent: &mut Agent) -> bool {
+    pub fn is_pos_zero(self, agent: &Agent) -> bool {
         match self {
             Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(agent[n]),
             Number::Integer(n) => 0i64 == n.into(),
@@ -231,7 +231,7 @@ impl Number {
         }
     }
 
-    pub fn is_neg_zero(self, agent: &mut Agent) -> bool {
+    pub fn is_neg_zero(self, agent: &Agent) -> bool {
         match self {
             Number::Number(n) => f64::to_bits(-0.0) == f64::to_bits(agent[n]),
             Number::Integer(_) => false,
@@ -239,7 +239,7 @@ impl Number {
         }
     }
 
-    pub fn is_pos_infinity(self, agent: &mut Agent) -> bool {
+    pub fn is_pos_infinity(self, agent: &Agent) -> bool {
         match self {
             Number::Number(n) => agent[n] == f64::INFINITY,
             Number::Integer(_) => false,
@@ -247,7 +247,7 @@ impl Number {
         }
     }
 
-    pub fn is_neg_infinity(self, agent: &mut Agent) -> bool {
+    pub fn is_neg_infinity(self, agent: &Agent) -> bool {
         match self {
             Number::Number(n) => agent[n] == f64::NEG_INFINITY,
             Number::Integer(_) => false,
@@ -320,7 +320,7 @@ impl Number {
     /// NaN and non-zero checks, depending on which spec algorithm is being
     /// used.
     #[inline(always)]
-    fn is(agent: &mut Agent, x: Self, y: Self) -> bool {
+    fn is(agent: &Agent, x: Self, y: Self) -> bool {
         match (x, y) {
             // Optimisation: First compare by-reference; only read from heap if needed.
             (Number::Number(x), Number::Number(y)) => x == y || agent[x] == agent[y],
@@ -925,7 +925,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.15 Number::sameValueZero ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValueZero)
-    pub fn same_value_zero(agent: &mut Agent, x: Self, y: Self) -> bool {
+    pub fn same_value_zero(agent: &Agent, x: Self, y: Self) -> bool {
         // 1. If x is NaN and y is NaN, return true.
         if x.is_nan(agent) && y.is_nan(agent) {
             return true;

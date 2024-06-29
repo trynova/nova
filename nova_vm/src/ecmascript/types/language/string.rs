@@ -296,7 +296,7 @@ impl String {
 
     /// If x and y have the same length and the same code units in the same
     /// positions, return true; otherwise, return false.
-    pub fn eq(agent: &mut Agent, x: String, y: String) -> bool {
+    pub fn eq(agent: &Agent, x: String, y: String) -> bool {
         match (x, y) {
             (String::String(x), String::String(y)) => {
                 let x = &agent[x];
