@@ -986,7 +986,7 @@ impl ArrayPrototype {
     /// > them as undefined.
     fn includes(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         let search_element = arguments.get(0);
-        let from_index = arguments.get(0);
+        let from_index = arguments.get(1);
         if let (Value::Array(array), Value::Undefined | Value::Integer(_)) =
             (this_value, from_index)
         {
@@ -1104,13 +1104,13 @@ impl ArrayPrototype {
     /// > other kinds of objects for use as a method.
     fn index_of(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         let search_element = arguments.get(0);
-        let from_index = arguments.get(0);
+        let from_index = arguments.get(1);
         if let (Value::Array(array), Value::Undefined | Value::Integer(_)) =
             (this_value, from_index)
         {
             let len = array.len(agent);
             if len == 0 {
-                return Ok(false.into());
+                return Ok((-1).into());
             }
             let k = if let Value::Integer(n) = from_index {
                 let n = n.into_i64();
@@ -1256,8 +1256,121 @@ impl ArrayPrototype {
         todo!()
     }
 
-    fn last_index_of(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.20 Array.prototype.lastIndexOf ( searchElement \[ , fromIndex \] )](https://tc39.es/ecma262/#sec-array.prototype.lastindexof)
+    ///
+    /// > Note 1
+    /// >
+    /// > This method compares searchElement to the elements of the array in
+    /// > descending order using the IsStrictlyEqual algorithm, and if found at
+    /// > one or more indices, returns the largest such index; otherwise, it
+    /// > returns -1𝔽.
+    /// >
+    /// > The optional second argument fromIndex defaults to the array's length
+    /// > minus one (i.e. the whole array is searched). If it is greater than
+    /// > or equal to the length of the array, the whole array will be
+    /// > searched. If it is less than -0𝔽, it is used as the offset from the
+    /// > end of the array to compute fromIndex. If the computed index is less
+    /// > than or equal to +0𝔽, -1𝔽 is returned.
+    ///
+    /// > Note 2
+    /// >
+    /// > This method is intentionally generic; it does not require that its
+    /// > this value be an Array. Therefore it can be transferred to other
+    /// > kinds of objects for use as a method.
+    fn last_index_of(
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let search_element = arguments.get(0);
+        let from_index = if arguments.len() > 1 {
+            Some(arguments.get(1))
+        } else {
+            None
+        };
+        if let (Value::Array(array), None | Some(Value::Undefined) | Some(Value::Integer(_))) =
+            (this_value, from_index)
+        {
+            let len = array.len(agent);
+            if len == 0 {
+                return Ok((-1).into());
+            }
+            let last = (len - 1) as usize;
+            let k = if let Some(Value::Integer(n)) = from_index {
+                let n = n.into_i64();
+                if n >= 0 {
+                    (n as usize).min(last)
+                } else {
+                    let result = len as i64 + n;
+                    if result < 0 {
+                        0
+                    } else {
+                        result as usize
+                    }
+                }
+            } else if from_index == Some(Value::Undefined) {
+                0
+            } else {
+                last
+            };
+            let data = &array.as_slice(agent)[..=k];
+            for (index, element_k) in data.iter().enumerate().rev() {
+                if let Some(element_k) = element_k {
+                    if is_strictly_equal(agent, search_element, *element_k) {
+                        return Ok((index as u32).into());
+                    }
+                }
+            }
+            return Ok((-1).into());
+        };
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        // 3. If len = 0, return -1𝔽.
+        if len == 0 {
+            return Ok((-1).into());
+        }
+        // 4. If fromIndex is present, let n be ? ToIntegerOrInfinity(fromIndex); else let n be len - 1.
+        let n = if let Some(from_index) = from_index {
+            to_integer_or_infinity(agent, from_index)?.into_f64(agent)
+        } else {
+            (len - 1) as f64
+        };
+
+        // 5. If n = -∞, return -1𝔽.
+        if n == f64::NEG_INFINITY {
+            return Ok((-1).into());
+        }
+        // 6. If n ≥ 0, then
+        let mut k = if n >= 0.0 {
+            // a. Let k be min(n, len - 1).
+            n.min(len as f64 - 1.0) as i64
+        } else {
+            // 7. Else,
+            // a. Let k be len + n.
+            (len as f64 + n) as i64
+        };
+        // 8. Repeat, while k ≥ 0,
+        while k >= 0 {
+            // a. Let Pk be ! ToString(𝔽(k)).
+            let pk = PropertyKey::Integer(k.try_into().unwrap());
+            // b. Let kPresent be ? HasProperty(O, Pk).
+            let k_present = has_property(agent, o, pk)?;
+            // c. If kPresent is true, then
+            if k_present {
+                // i. Let elementK be ? Get(O, Pk).
+                let element_k = get(agent, o, pk)?;
+                // ii. If IsStrictlyEqual(searchElement, elementK) is true, return 𝔽(k).
+                if is_strictly_equal(agent, search_element, element_k) {
+                    return Ok(k.try_into().unwrap());
+                }
+            }
+            // d. Set k to k - 1.
+            k -= 1;
+        }
+        // 9. Return -1𝔽.
+        Ok((-1).into())
     }
 
     fn map(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
