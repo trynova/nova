@@ -269,7 +269,8 @@ impl PropertyDescriptor {
 
     pub fn is_fully_populated(&self) -> bool {
         ((self.value.is_some() && self.writable.is_some())
-            || (self.get.is_some() && self.set.is_some()))
+            // A property descriptor can contain just get or set.
+            || self.get.is_some() || self.set.is_some())
             && self.enumerable.is_some()
             && self.configurable.is_some()
     }
