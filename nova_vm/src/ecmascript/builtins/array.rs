@@ -70,6 +70,18 @@ impl Array {
                 .internal_get(agent, property_key, receiver)
         }
     }
+
+    #[inline]
+    pub(crate) fn as_slice(self, agent: &Agent) -> &[Option<Value>] {
+        let elements = agent[self].elements;
+        &agent[elements]
+    }
+
+    #[inline]
+    pub(crate) fn as_mut_slice(self, agent: &mut Agent) -> &mut [Option<Value>] {
+        let elements = agent[self].elements;
+        &mut agent[elements]
+    }
 }
 
 impl IntoValue for Array {
