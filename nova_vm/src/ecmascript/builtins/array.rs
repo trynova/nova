@@ -44,8 +44,14 @@ impl Array {
         agent[self].elements.is_dense(agent)
     }
 
+    /// An array is simple if it contains no element accessor descriptors.
     pub(crate) fn is_simple(self, agent: &Agent) -> bool {
         agent[self].elements.is_simple(agent)
+    }
+
+    /// An array is trivial if it contains no element descriptors.
+    pub(crate) fn is_trivial(self, agent: &Agent) -> bool {
+        agent[self].elements.is_trivial(agent)
     }
 
     #[inline]
@@ -65,6 +71,18 @@ impl Array {
                 .unwrap()
                 .internal_get(agent, property_key, receiver)
         }
+    }
+
+    #[inline]
+    pub(crate) fn as_slice(self, agent: &Agent) -> &[Option<Value>] {
+        let elements = agent[self].elements;
+        &agent[elements]
+    }
+
+    #[inline]
+    pub(crate) fn as_mut_slice(self, agent: &mut Agent) -> &mut [Option<Value>] {
+        let elements = agent[self].elements;
+        &mut agent[elements]
     }
 }
 

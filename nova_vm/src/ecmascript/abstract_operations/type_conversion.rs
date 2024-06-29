@@ -228,6 +228,10 @@ pub(crate) fn to_number(agent: &mut Agent, argument: impl Into<Value> + Copy) ->
 /// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
 // TODO: Should we add another [`Value`] newtype for IntegerOrInfinity?
 pub(crate) fn to_integer_or_infinity(agent: &mut Agent, argument: Value) -> JsResult<Number> {
+    // Fast path: A safe integer is already an integer.
+    if let Value::Integer(int) = argument {
+        return Ok(int.into());
+    }
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, argument)?;
 
@@ -767,6 +771,14 @@ pub(crate) fn canonical_numeric_index_string(
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
 pub(crate) fn to_index(agent: &mut Agent, argument: Value) -> JsResult<i64> {
+    // Fast path: A safe integer is already an integer.
+    if let Value::Integer(integer) = argument {
+        let integer = integer.into_i64();
+        if !(0..=(SmallInteger::MAX_NUMBER)).contains(&integer) {
+            return Err(agent.throw_exception(ExceptionType::RangeError, "Result is out of range"));
+        }
+        return Ok(integer);
+    }
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
     // 1. Let integer be ? ToIntegerOrInfinity(value).

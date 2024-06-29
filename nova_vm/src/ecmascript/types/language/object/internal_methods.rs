@@ -64,7 +64,7 @@ where
                     return Ok(false);
                 }
 
-                if ordinary_set_prototype_of_check_loop(agent, self.into(), prototype) {
+                if !ordinary_set_prototype_of_check_loop(agent, self.into(), prototype) {
                     return Ok(false);
                 }
 

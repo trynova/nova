@@ -1,10 +1,17 @@
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{to_number, to_uint32},
+        abstract_operations::{
+            operations_on_objects::{construct, get, get_function_realm},
+            testing_and_comparison::{is_array, is_constructor, same_value},
+            type_conversion::{to_number, to_uint32},
+        },
+        builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{IntoObject, Number, Object, PropertyDescriptor},
+        types::{
+            Function, IntoObject, Number, Object, PropertyDescriptor, Value, BUILTIN_STRING_MEMORY,
+        },
     },
-    heap::indexes::ArrayIndex,
+    heap::{indexes::ArrayIndex, WellKnownSymbolIndexes},
 };
 
 use super::{data::SealableElementsVector, Array, ArrayHeapData};
@@ -57,6 +64,77 @@ pub fn array_create(
 
     // 7. Return A.
     Ok(Array(ArrayIndex::last(&agent.heap.arrays)))
+}
+
+/// ### [10.4.2.3 ArraySpeciesCreate ( originalArray, length )](https://tc39.es/ecma262/#sec-arrayspeciescreate)
+///
+/// The abstract operation ArraySpeciesCreate takes arguments originalArray (an
+/// Object) and length (a non-negative integer) and returns either a normal
+/// completion containing an Object or a throw completion. It is used to
+/// specify the creation of a new Array or similar object using a constructor
+/// function that is derived from originalArray. It does not enforce that the
+/// constructor function returns an Array.
+///
+/// > Note: If originalArray was created using the standard built-in Array
+/// > constructor for a realm that is not the realm of the running execution
+/// > context, then a new Array is created using the realm of the running
+/// > execution context. This maintains compatibility with Web browsers that
+/// > have historically had that behaviour for the Array.prototype methods
+/// > that now are defined using ArraySpeciesCreate.
+pub(crate) fn array_species_create(
+    agent: &mut Agent,
+    original_array: Object,
+    length: usize,
+) -> JsResult<Object> {
+    // 1. Let isArray be ? IsArray(originalArray).
+    let original_is_array = is_array(agent, original_array.into_value())?;
+    // 2. If isArray is false, return ? ArrayCreate(length).
+    if !original_is_array {
+        let new_array = array_create(agent, length, length, None)?;
+        return Ok(new_array.into_object());
+    }
+    // 3. Let C be ? Get(originalArray, "constructor").
+    let mut c = get(
+        agent,
+        original_array,
+        BUILTIN_STRING_MEMORY.constructor.into(),
+    )?;
+    // 4. If IsConstructor(C) is true, then
+    if is_constructor(agent, c) {
+        let c_func = Function::try_from(c).unwrap();
+        // a. Let thisRealm be the current Realm Record.
+        let this_realm = agent.current_realm_id();
+        // b. Let realmC be ? GetFunctionRealm(C).
+        let realm_c = get_function_realm(agent, c_func)?;
+        // c. If thisRealm and realmC are not the same Realm Record, then
+        if this_realm != realm_c {
+            // i. If SameValue(C, realmC.[[Intrinsics]].[[%Array%]]) is true, set C to undefined.
+            if same_value(agent, c, agent.get_realm(realm_c).intrinsics().array()) {
+                c = Value::Undefined;
+            }
+        }
+    }
+    // 5. If C is an Object, then
+    if let Ok(c_obj) = Object::try_from(c) {
+        // a. Set C to ? Get(C, @@species).
+        c = get(agent, c_obj, WellKnownSymbolIndexes::Species.into())?;
+    } else if c.is_null() {
+        // b. If C is null, set C to undefined.
+        c = Value::Undefined;
+    }
+    // 6. If C is undefined, return ? ArrayCreate(length).
+    if c.is_undefined() {
+        let new_array = array_create(agent, length, length, None)?;
+        return Ok(new_array.into_object());
+    }
+    // 7. If IsConstructor(C) is false, throw a TypeError exception.
+    if !is_constructor(agent, c) {
+        return Err(agent.throw_exception(ExceptionType::TypeError, "Not a constructor"));
+    }
+    let c = Function::try_from(c).unwrap();
+    // 8. Return ? Construct(C, « 𝔽(length) »).
+    let length = Value::from_f64(agent, length as f64);
+    construct(agent, c, Some(ArgumentsList(&[length])), None)
 }
 
 /// ### [10.4.2.4 ArraySetLength ( A, Desc )](https://tc39.es/ecma262/#sec-arraysetlength)
