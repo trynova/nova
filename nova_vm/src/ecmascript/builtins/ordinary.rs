@@ -80,7 +80,7 @@ pub(crate) fn ordinary_get_prototype_of(agent: &mut Agent, object: Object) -> Op
 
 /// Implements steps 5 through 7 of OrdinarySetPrototypeOf
 ///
-/// Returns true if a loop is detected, corresponding to substep 7.b.i. of the
+/// Returns false if a loop is detected, corresponding to substep 7.b.i. of the
 /// abstract operation.
 pub(crate) fn ordinary_set_prototype_of_check_loop(
     agent: &mut Agent,
@@ -90,30 +90,35 @@ pub(crate) fn ordinary_set_prototype_of_check_loop(
     // 5. Let p be V.
     let mut p = v;
     // 6. Let done be false.
+    let mut done = false;
+
     // 7. Repeat, while done is false,
-    while let Some(p_inner) = p {
-        // a. If p is null, then
-        //     i. Set done to true.
-
-        // b. Else if SameValue(p, O) is true, then
-        if same_value(agent, p_inner, o) {
-            // i. Return false.
-            return false;
+    while !done {
+        if let Some(p_inner) = p {
+            // b. Else if SameValue(p, O) is true, then
+            if same_value(agent, p_inner, o) {
+                // i. Return false.
+                return false;
+            } else {
+                // c. Else,
+                // i. If p.[[GetPrototypeOf]] is not the ordinary object internal method defined in 10.1.1,
+                //    set done to true.
+                // NOTE: At present there are two exotic objects that define their own [[GetPrototypeOf]]
+                // methods. Those are Proxy and Module.
+                if matches!(p_inner, Object::Module(_) | Object::Proxy(_)) {
+                    done = true;
+                } else {
+                    // ii. Else, set p to p.[[Prototype]].
+                    p = p_inner.internal_prototype(agent);
+                }
+            }
+        } else {
+            // a. If p is null, then
+            // i. Set done to true.
+            done = true;
         }
-
-        // c. Else,
-        // i. If p.[[GetPrototypeOf]] is not the ordinary object internal method defined in 10.1.1,
-        //    set done to true.
-        // NOTE: At present there are two exotic objects that define their own [[GetPrototypeOf]]
-        // methods. Those are Proxy and Module.
-
-        // if parent_prototype.get_prototype_of != get_prototype_of {
-        //     break;
-        // }
-
-        // ii. Else, set p to p.[[Prototype]].
-        p = p_inner.internal_prototype(agent);
     }
+    o.internal_set_prototype(agent, v);
     true
 }
 
@@ -142,7 +147,7 @@ pub(crate) fn ordinary_set_prototype_of(
         return false;
     }
 
-    if ordinary_set_prototype_of_check_loop(agent, object, prototype) {
+    if !ordinary_set_prototype_of_check_loop(agent, object, prototype) {
         return false;
     }
 

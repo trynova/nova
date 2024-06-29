@@ -457,7 +457,7 @@ impl MathObject {
 
     fn pow(_agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         let _base = arguments.get(0);
-        let _exponent = arguments.get(0);
+        let _exponent = arguments.get(1);
         todo!();
     }
 
