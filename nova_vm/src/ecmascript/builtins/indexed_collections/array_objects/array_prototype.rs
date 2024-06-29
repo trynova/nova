@@ -19,7 +19,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{Heap, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
     SmallInteger,
 };
 
@@ -1540,8 +1540,61 @@ impl ArrayPrototype {
         }
     }
 
-    fn push(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// #### [23.1.3.23 Array.prototype.push ( ...items )](https://tc39.es/ecma262/#sec-array.prototype.push)
+    ///
+    /// > Note 1
+    /// >
+    /// > This method appends the arguments to the end of the array, in the
+    /// > order in which they appear. It returns the new length of the
+    /// > array.
+    ///
+    /// > Note 2
+    /// >
+    /// > This method is intentionally generic; it does not require that
+    /// > its this value be an Array. Therefore it can be transferred to
+    /// > other kinds of objects for use as a method.
+    fn push(agent: &mut Agent, this_value: Value, items: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let mut len = length_of_array_like(agent, o)?;
+        // 3. Let argCount be the number of elements in items.
+        let arg_count = items.len();
+        // 4. If len + argCount > 2**53 - 1, throw a TypeError exception.
+        if (len + arg_count as i64) > SmallInteger::MAX_NUMBER {
+            return Err(agent.throw_exception(ExceptionType::TypeError, "Array length overflow"));
+        }
+        if let Object::Array(array) = o {
+            // Fast path: Reserve enough room in the array.
+            let Heap {
+                arrays, elements, ..
+            } = &mut agent.heap;
+            arrays
+                .get_mut(array.into_index())
+                .unwrap()
+                .unwrap()
+                .elements
+                .reserve(elements, len as u32 + arg_count as u32);
+        }
+        // 5. For each element E of items, do
+        for e in items.iter() {
+            // a. Perform ? Set(O, ! ToString(𝔽(len)), E, true).
+            set(
+                agent,
+                o,
+                PropertyKey::Integer(len.try_into().unwrap()),
+                *e,
+                true,
+            )?;
+            // b. Set len to len + 1.
+            len += 1;
+        }
+        // 6. Perform ? Set(O, "length", 𝔽(len), true).
+        let len: Value = len.try_into().unwrap();
+        set(agent, o, BUILTIN_STRING_MEMORY.length.into(), len, true)?;
+
+        // 7. Return 𝔽(len).
+        Ok(len)
     }
 
     fn reduce(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
