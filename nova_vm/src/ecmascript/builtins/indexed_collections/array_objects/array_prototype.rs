@@ -1373,8 +1373,88 @@ impl ArrayPrototype {
         Ok((-1).into())
     }
 
-    fn map(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.21 Array.prototype.map ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.map)
+    ///
+    /// > #### Note 1
+    /// >
+    /// > callbackfn should be a function that accepts three arguments. map
+    /// > calls callbackfn once for each element in the array, in ascending
+    /// > order, and constructs a new Array from the results. callbackfn is
+    /// > called only for elements of the array which actually exist; it is
+    /// > not called for missing elements of the array.
+    /// >
+    /// > If a thisArg parameter is provided, it will be used as the this value
+    /// > for each invocation of callbackfn. If it is not provided, undefined
+    /// > is used instead.
+    /// >
+    /// > callbackfn is called with three arguments: the value of the element,
+    /// > the index of the element, and the object being traversed.
+    /// >
+    /// > map does not directly mutate the object on which it is called but the
+    /// > object may be mutated by the calls to callbackfn.
+    /// >
+    /// > The range of elements processed by map is set before the first call
+    /// > to callbackfn. Elements which are appended to the array after the
+    /// > call to map begins will not be visited by callbackfn. If existing
+    /// > elements of the array are changed, their value as passed to
+    /// > callbackfn will be the value at the time map visits them; elements
+    /// > that are deleted after the call to map begins and before being
+    /// > visited are not visited.
+    ///        
+    /// > #### Note 2
+    /// >
+    /// > This method is intentionally generic; it does not require that its
+    /// > this value be an Array. Therefore it can be transferred to other
+    /// > kinds of objects for use as a method.
+    fn map(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let callback_fn = arguments.get(0);
+        let this_arg = arguments.get(1);
+
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
+        if !is_callable(callback_fn) {
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                "Callback function is not a function",
+            ));
+        }
+        let callback_fn = Function::try_from(callback_fn).unwrap();
+        // 4. Let A be ? ArraySpeciesCreate(O, len).
+        let a = array_species_create(agent, o, len as usize)?;
+        // 5. Let k be 0.
+        let mut k = 0;
+        // 6. Repeat, while k < len,
+        while k < len {
+            // a. Let Pk be ! ToString(𝔽(k)).
+            let pk = PropertyKey::Integer(k.try_into().unwrap());
+            // b. Let kPresent be ? HasProperty(O, Pk).
+            let k_present = has_property(agent, o, pk)?;
+            // c. If kPresent is true, then
+            if k_present {
+                // i. Let kValue be ? Get(O, Pk).
+                let k_value = get(agent, o, pk)?;
+                // ii. Let mappedValue be ? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »).
+                let mapped_value = call_function(
+                    agent,
+                    callback_fn,
+                    this_arg,
+                    Some(ArgumentsList(&[
+                        k_value,
+                        k.try_into().unwrap(),
+                        o.into_value(),
+                    ])),
+                )?;
+                // iii. Perform ? CreateDataPropertyOrThrow(A, Pk, mappedValue).
+                create_data_property_or_throw(agent, a, pk, mapped_value)?;
+            }
+            // d. Set k to k + 1.
+            k += 1;
+        }
+        // 7. Return A.
+        Ok(a.into_value())
     }
 
     fn pop(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
