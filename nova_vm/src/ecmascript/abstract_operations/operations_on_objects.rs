@@ -145,7 +145,7 @@ pub(crate) fn create_data_property_or_throw(
     }
 }
 
-/// ### [7.3.9 DefinePropertyOrThrow ( O, P, desc )](https://tc39.es/ecma262/#sec-definepropertyorthrow)
+/// ### [7.3.8 DefinePropertyOrThrow ( O, P, desc )](https://tc39.es/ecma262/#sec-definepropertyorthrow)
 ///
 /// The abstract operation DefinePropertyOrThrow takes arguments O (an Object),
 /// P (a property key), and desc (a Property Descriptor) and returns either a
@@ -169,6 +169,28 @@ pub(crate) fn define_property_or_throw(
         ))
     } else {
         // 3. Return UNUSED.
+        Ok(())
+    }
+}
+
+/// ### [7.3.9 DeletePropertyOrThrow ( O, P )](https://tc39.es/ecma262/#sec-deletepropertyorthrow)
+///
+/// The abstract operation DeletePropertyOrThrow takes arguments O (an Object)
+/// and P (a property key) and returns either a normal completion containing
+/// unused or a throw completion. It is used to remove a specific own property
+/// of an object. It throws an exception if the property is not configurable.
+pub(crate) fn delete_property_or_throw(
+    agent: &mut Agent,
+    o: Object,
+    p: PropertyKey,
+) -> JsResult<()> {
+    // 1. Let success be ? O.[[Delete]](P).
+    let success = o.internal_delete(agent, p)?;
+    // 2. If success is false, throw a TypeError exception.
+    if !success {
+        Err(agent.throw_exception(ExceptionType::TypeError, "Failed to delete property"))
+    } else {
+        // 3. Return unused.
         Ok(())
     }
 }
