@@ -1,3 +1,4 @@
+use num_traits::Zero;
 use small_string::SmallString;
 
 use crate::{
@@ -7,7 +8,7 @@ use crate::{
                 call_function, create_data_property_or_throw, delete_property_or_throw, get,
                 has_property, length_of_array_like, set,
             },
-            testing_and_comparison::{is_array, is_callable, same_value_zero},
+            testing_and_comparison::{is_array, is_callable, is_strictly_equal, same_value_zero},
             type_conversion::{to_boolean, to_integer_or_infinity, to_object, to_string},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -1080,8 +1081,119 @@ impl ArrayPrototype {
         Ok(false.into())
     }
 
-    fn index_of(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.17 Array.prototype.indexOf ( searchElement \[ , fromIndex \] )](https://tc39.es/ecma262/#sec-array.prototype.indexof)
+    ///
+    /// This method compares searchElement to the elements of the array, in
+    /// ascending order, using the IsStrictlyEqual algorithm, and if found
+    /// at one or more indices, returns the smallest such index; otherwise,
+    /// it returns -1𝔽.
+    ///
+    /// > #### Note 1
+    /// >
+    /// > The optional second argument fromIndex defaults to +0𝔽 (i.e. the
+    /// > whole array is searched). If it is greater than or equal to the
+    /// > length of the array, -1𝔽 is returned, i.e. the array will not be
+    /// > searched. If it is less than -0𝔽, it is used as the offset from
+    /// > the end of the array to compute fromIndex. If the computed index
+    /// > is less than or equal to +0𝔽, the whole array will be searched.
+    ///
+    /// > #### Note 2
+    /// >
+    /// > This method is intentionally generic; it does not require that
+    /// > its this value be an Array. Therefore it can be transferred to
+    /// > other kinds of objects for use as a method.
+    fn index_of(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let search_element = arguments.get(0);
+        let from_index = arguments.get(0);
+        if let (Value::Array(array), Value::Undefined | Value::Integer(_)) =
+            (this_value, from_index)
+        {
+            let len = array.len(agent);
+            if len == 0 {
+                return Ok(false.into());
+            }
+            let k = if let Value::Integer(n) = from_index {
+                let n = n.into_i64();
+                if n >= 0 {
+                    n as usize
+                } else {
+                    let result = len as i64 + n;
+                    if result < 0 {
+                        0
+                    } else {
+                        result as usize
+                    }
+                }
+            } else {
+                0
+            };
+            let data = &array.as_slice(agent)[k..];
+            for (index, element_k) in data.iter().enumerate() {
+                if let Some(element_k) = element_k {
+                    if is_strictly_equal(agent, search_element, *element_k) {
+                        return Ok((k as u32 + index as u32).into());
+                    }
+                }
+            }
+            return Ok((-1).into());
+        };
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        // 3. If len = 0, return -1𝔽.
+        if len.is_zero() {
+            return Ok((-1).into());
+        }
+        // 4. Let n be ? ToIntegerOrInfinity(fromIndex).
+        let n = to_integer_or_infinity(agent, from_index)?;
+        // 5. Assert: If fromIndex is undefined, then n is 0.
+        assert_eq!(from_index.is_undefined(), n.is_pos_zero(agent));
+        // 6. If n = +∞, return -1𝔽.
+        let n = if n.is_pos_infinity(agent) {
+            return Ok((-1).into());
+        } else if n.is_neg_infinity(agent) {
+            // 7. Else if n = -∞, set n to 0.
+            0
+        } else {
+            n.into_i64(agent)
+        };
+
+        // 8. If n ≥ 0, then
+        let mut k = if n >= 0 {
+            // a. Let k be n.
+            n
+        } else {
+            // 9. Else,
+            // a. Let k be len + n.
+            let k = len + n;
+            // b. If k < 0, set k to 0.
+            if k < 0 {
+                0
+            } else {
+                k
+            }
+        };
+        // 10. Repeat, while k < len,
+        while k < len {
+            // a. Let Pk be ! ToString(𝔽(k)).
+            let pk = PropertyKey::Integer(k.try_into().unwrap());
+            // b. Let kPresent be ? HasProperty(O, Pk).
+            let k_present = has_property(agent, o, pk)?;
+            // c. If kPresent is true, then
+            if k_present {
+                // i. Let elementK be ? Get(O, Pk).
+                let element_k = get(agent, o, pk)?;
+                // ii. If IsStrictlyEqual(searchElement, elementK) is true, return 𝔽(k).
+                if is_strictly_equal(agent, search_element, element_k) {
+                    return Ok(k.try_into().unwrap());
+                }
+            }
+            // d. Set k to k + 1.
+            k += 1;
+        }
+        // 11. Return -1𝔽.
+        Ok((-1).into())
     }
 
     /// ### [23.1.3.18 Array.prototype.join ( separator )](https://tc39.es/ecma262/#sec-array.prototype.join)
