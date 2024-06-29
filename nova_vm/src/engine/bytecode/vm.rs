@@ -35,7 +35,11 @@ use crate::{
     heap::WellKnownSymbolIndexes,
 };
 
-use super::{instructions::Instr, Executable, Instruction, InstructionIter};
+use super::{
+    instructions::Instr,
+    iterator::{ObjectPropertiesIterator, VmIterator},
+    Executable, Instruction, InstructionIter,
+};
 
 /// Indicates how the execution of an instruction should affect the remainder of
 /// execution that contains it.
@@ -72,6 +76,7 @@ pub(crate) struct Vm {
     ip: usize,
     stack: Vec<Value>,
     reference_stack: Vec<Reference>,
+    iterator_stack: Vec<VmIterator>,
     exception_jump_target_stack: Vec<ExceptionJumpTarget>,
     result: Option<Value>,
     exception: Option<Value>,
@@ -84,6 +89,7 @@ impl Vm {
             ip: 0,
             stack: Vec::with_capacity(32),
             reference_stack: Vec::new(),
+            iterator_stack: Vec::new(),
             exception_jump_target_stack: Vec::new(),
             result: None,
             exception: None,
@@ -837,6 +843,45 @@ impl Vm {
                 // object [[Delete]] internal method. An implementation might
                 // choose to avoid the actual creation of that object.
             }
+            Instruction::EnumerateObjectProperties => {
+                let object = to_object(agent, vm.result.take().unwrap()).unwrap();
+                vm.iterator_stack
+                    .push(VmIterator::ObjectProperties(ObjectPropertiesIterator::new(
+                        object,
+                    )))
+            }
+            Instruction::IteratorComplete => {
+                if vm.result.is_none() {
+                    vm.ip = instr.args[0].unwrap() as usize;
+                }
+            }
+            Instruction::IteratorNext => {
+                let iterator = vm.iterator_stack.last_mut().unwrap();
+                match iterator {
+                    VmIterator::ObjectProperties(iter) => {
+                        let result = iter.next(agent);
+                        if result.is_err() {
+                            vm.iterator_stack.pop();
+                            result?;
+                        }
+                        let result = result.unwrap();
+                        if let Some(result) = result {
+                            vm.result = Some(match result {
+                                PropertyKey::Integer(int) => {
+                                    Value::from_string(agent, format!("{}", int.into_i64()))
+                                }
+                                PropertyKey::SmallString(data) => Value::SmallString(data),
+                                PropertyKey::String(data) => Value::String(data),
+                                _ => unreachable!(),
+                            });
+                        } else {
+                            vm.iterator_stack.pop();
+                            vm.result = None;
+                        }
+                    }
+                }
+            }
+            Instruction::IteratorValue => {}
             other => todo!("{other:?}"),
         }
 

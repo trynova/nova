@@ -161,11 +161,11 @@ pub(crate) fn same_value<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(
 /// the difference between +0𝔽 and -0𝔽). It performs the following steps when
 /// called:
 pub(crate) fn same_value_zero(
-    agent: &mut Agent,
+    agent: &Agent,
     x: impl Copy + Into<Value>,
     y: impl Copy + Into<Value>,
 ) -> bool {
-    let (x, y) = (x.into(), y.into());
+    let (x, y) = (Into::<Value>::into(x), Into::<Value>::into(y));
 
     // 1. If Type(x) is not Type(y), return false.
     if !is_same_type(x, y) {
@@ -175,7 +175,7 @@ pub(crate) fn same_value_zero(
     // 2. If x is a Number, then
     // NOTE: We need to convert both to a number because we use number
     // type-safety.
-    if let (Ok(x), Ok(y)) = (x.to_number(agent), y.to_number(agent)) {
+    if let (Ok(x), Ok(y)) = (Number::try_from(x), Number::try_from(y)) {
         // a. Return Number::sameValueZero(x, y).
         return Number::same_value_zero(agent, x, y);
     }
@@ -185,7 +185,7 @@ pub(crate) fn same_value_zero(
 }
 
 /// ### [7.2.12 SameValueNonNumber ( x, y )](https://tc39.es/ecma262/#sec-samevaluenonnumber)
-pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(agent: &mut Agent, x: T, y: T) -> bool {
+pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(agent: &Agent, x: T, y: T) -> bool {
     let x: Value = x.into();
     let y: Value = y.into();
 
@@ -461,7 +461,7 @@ pub(crate) fn is_loosely_equal(
 /// language value) and y (an ECMAScript language value) and returns a Boolean.
 /// It provides the semantics for the === operator.
 pub(crate) fn is_strictly_equal(
-    agent: &mut Agent,
+    agent: &Agent,
     x: impl Into<Value> + Copy,
     y: impl Into<Value> + Copy,
 ) -> bool {

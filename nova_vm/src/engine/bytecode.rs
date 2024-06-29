@@ -1,5 +1,6 @@
 mod executable;
 mod instructions;
+pub(super) mod iterator;
 mod vm;
 
 pub(crate) use executable::{Executable, FunctionExpression, IndexType};

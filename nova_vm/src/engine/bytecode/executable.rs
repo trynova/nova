@@ -906,7 +906,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                                     ctx.agent, &id.name,
                                 );
                                 ctx.exe.add_instruction_with_constant(
-                                    Instruction::LoadConstant,
+                                    Instruction::StoreConstant,
                                     property_key,
                                 );
                             }
@@ -923,7 +923,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                                     &init.value,
                                 );
                                 ctx.exe.add_instruction_with_constant(
-                                    Instruction::LoadConstant,
+                                    Instruction::StoreConstant,
                                     property_key,
                                 );
                             }
@@ -946,6 +946,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         | ast::PropertyKey::TSNonNullExpression(_)
                         | ast::PropertyKey::TSInstantiationExpression(_) => unreachable!(),
                     }
+                    ctx.exe.add_instruction(Instruction::Load);
                     prop.value.compile(ctx);
                     if is_reference(&prop.value) {
                         ctx.exe.add_instruction(Instruction::GetValue);
@@ -2385,6 +2386,290 @@ impl CompileEvaluation for ast::ContinueStatement<'_> {
     }
 }
 
+impl CompileEvaluation for ast::ForInStatement<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        let previous_continue = ctx.current_continue.replace(vec![]);
+        let previous_break = ctx.current_break.replace(vec![]);
+
+        // Note: ForIn means iterationKind is always ENUMERATE.
+
+        let mut entered_declarative_environment = false;
+        let mut bindings = Vec::with_capacity(1);
+        let mut destructuring = false;
+        let mut is_assignment = false;
+        let mut is_var_binding = false;
+        let mut is_lex_binding = false;
+        match &self.left {
+            ast::ForStatementLeft::VariableDeclaration(decl) => {
+                assert_eq!(decl.declarations.len(), 1);
+                if decl.kind.is_var() {
+                    is_var_binding = true;
+                } else {
+                    is_lex_binding = true;
+                }
+                // 1. Let oldEnv be the running execution context's LexicalEnvironment.
+                // 2. If uninitializedBoundNames is not empty, then
+
+                //     a. Assert: uninitializedBoundNames has no duplicate entries.
+                //     b. Let newEnv be NewDeclarativeEnvironment(oldEnv).
+                //     c. For each String name of uninitializedBoundNames, do
+                //         i. Perform ! newEnv.CreateMutableBinding(name, false).
+                //     d. Set the running execution context's LexicalEnvironment to newEnv.
+                ctx.exe
+                    .add_instruction(Instruction::EnterDeclarativeEnvironment);
+                entered_declarative_environment = true;
+                decl.bound_names(&mut |binding_id| {
+                    let identifier = String::from_str(ctx.agent, binding_id.name.as_str());
+                    bindings.push(identifier);
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::CreateMutableBinding,
+                        identifier,
+                    );
+                });
+                // ForIn/OfBodyEvaluation
+                // 4. Let destructuring be IsDestructuring of lhs.
+                // Note: lhsKind is VAR-BINDING
+                destructuring = decl
+                    .declarations
+                    .first()
+                    .unwrap()
+                    .id
+                    .kind
+                    .is_destructuring_pattern();
+            }
+            ast::ForStatementLeft::UsingDeclaration(_) => todo!(),
+            ast::ForStatementLeft::AssignmentTargetIdentifier(_) => {
+                is_assignment = true;
+            }
+            ast::ForStatementLeft::ComputedMemberExpression(_) => todo!(),
+            ast::ForStatementLeft::StaticMemberExpression(_) => todo!(),
+            ast::ForStatementLeft::PrivateFieldExpression(_) => todo!(),
+
+            // If destructuring is true and lhsKind is assignment, then
+            // a. Assert: lhs is a LeftHandSideExpression.
+            // b. Let assignmentPattern be the AssignmentPattern that is covered by lhs.
+            ast::ForStatementLeft::ArrayAssignmentTarget(_)
+            | ast::ForStatementLeft::ObjectAssignmentTarget(_) => {
+                destructuring = true;
+                is_assignment = true;
+            }
+
+            // TS stuff: unreachable
+            ast::ForStatementLeft::TSAsExpression(_)
+            | ast::ForStatementLeft::TSInstantiationExpression(_)
+            | ast::ForStatementLeft::TSNonNullExpression(_)
+            | ast::ForStatementLeft::TSSatisfiesExpression(_)
+            | ast::ForStatementLeft::TSTypeAssertion(_) => unreachable!(),
+        }
+
+        // 3. Let exprRef be Completion(Evaluation of expr)
+        self.right.compile(ctx);
+        // 4. Set the running execution context's LexicalEnvironment to oldEnv.
+        if entered_declarative_environment {
+            ctx.exe
+                .add_instruction(Instruction::ExitDeclarativeEnvironment);
+        }
+        // 5. Let exprValue be ? GetValue(? exprRef).
+        if is_reference(&self.right) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        // 6. If iterationKind is enumerate, then
+        ctx.exe.add_instruction(Instruction::LoadCopy);
+        // a. If exprValue is either undefined or null, then
+        ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
+        let jump_over_undefined_or_null = ctx
+            .exe
+            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+        // i. Return Completion Record { [[Type]]: break, [[Value]]: empty, [[Target]]: empty }.
+        // Remove the copy added above.
+        ctx.exe.add_instruction(Instruction::Store);
+        ctx.exe
+            .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        let jump_to_end_from_undefined_or_null =
+            ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+        ctx.exe.set_jump_target_here(jump_over_undefined_or_null);
+        // Load back the copy from above.
+        ctx.exe.add_instruction(Instruction::Store);
+        // b. Let obj be ! ToObject(exprValue).
+        // c. Let iterator be EnumerateObjectProperties(obj).
+        // d. Let nextMethod be ! GetV(iterator, "next").
+        // e. Return the Iterator Record { [[Iterator]]: iterator, [[NextMethod]]: nextMethod, [[Done]]: false }.
+        ctx.exe
+            .add_instruction(Instruction::EnumerateObjectProperties);
+        // Note: iteratorKind is SYNC
+
+        // 3. Let V be undefined
+        ctx.exe
+            .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+
+        // 6. Repeat,
+        let repeat_jump = ctx.exe.get_jump_index_to_here();
+        // a. Let nextResult be ? Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]]).
+        // c. If nextResult is not an Object, throw a TypeError exception.
+        ctx.exe.add_instruction(Instruction::IteratorNext);
+        // d. Let done be ? IteratorComplete(nextResult).
+        // e. If done is true, return V.
+        let jump_to_end = ctx
+            .exe
+            .add_instruction_with_jump_slot(Instruction::IteratorComplete);
+        // f. Let nextValue be ? IteratorValue(nextResult).
+        ctx.exe.add_instruction(Instruction::IteratorValue);
+        // g. If lhsKind is either assignment or var-binding, then
+        if is_assignment || is_var_binding {
+            // i. If destructuring is true, then
+            if destructuring {
+                // 1. If lhsKind is assignment, then
+                if is_assignment {
+                    // a. Let status be Completion(DestructuringAssignmentEvaluation of assignmentPattern with argument nextValue).
+                    todo!();
+                } else {
+                    // 2. Else,
+                    // a. Assert: lhsKind is var-binding.
+                    assert!(is_var_binding);
+                    // b. Assert: lhs is a ForBinding.
+                    assert!(self.left.is_lexical_declaration());
+                    // c. Let status be Completion(BindingInitialization of lhs with arguments nextValue and undefined).
+                    todo!();
+                }
+            } else {
+                // ii. Else,
+                // 1. Let lhsRef be Completion(Evaluation of lhs). (It may be evaluated repeatedly.)
+                match &self.left {
+                    ast::ForStatementLeft::VariableDeclaration(decl) => {
+                        assert_eq!(decl.declarations.len(), 1);
+                        let declaration = decl.declarations.first().unwrap();
+                        match &declaration.id.kind {
+                            ast::BindingPatternKind::BindingIdentifier(_) => {
+                                ctx.exe.add_instruction_with_identifier(
+                                    Instruction::ResolveBinding,
+                                    *bindings.first().unwrap(),
+                                );
+                            }
+                            ast::BindingPatternKind::AssignmentPattern(_) => todo!(),
+                            ast::BindingPatternKind::ObjectPattern(_)
+                            | ast::BindingPatternKind::ArrayPattern(_) => unreachable!(),
+                        }
+                    }
+                    ast::ForStatementLeft::UsingDeclaration(_) => todo!(),
+                    ast::ForStatementLeft::AssignmentTargetIdentifier(_) => {
+                        ctx.exe.add_instruction_with_identifier(
+                            Instruction::ResolveBinding,
+                            *bindings.first().unwrap(),
+                        );
+                    }
+
+                    // Assignment to property members.
+                    ast::ForStatementLeft::ComputedMemberExpression(_) => todo!(),
+                    ast::ForStatementLeft::StaticMemberExpression(_) => todo!(),
+                    ast::ForStatementLeft::PrivateFieldExpression(_) => todo!(),
+                    ast::ForStatementLeft::ArrayAssignmentTarget(_) => todo!(),
+                    ast::ForStatementLeft::ObjectAssignmentTarget(_) => todo!(),
+
+                    // TS stuff, unreachable
+                    ast::ForStatementLeft::TSAsExpression(_)
+                    | ast::ForStatementLeft::TSInstantiationExpression(_)
+                    | ast::ForStatementLeft::TSNonNullExpression(_)
+                    | ast::ForStatementLeft::TSSatisfiesExpression(_)
+                    | ast::ForStatementLeft::TSTypeAssertion(_) => unreachable!(),
+                }
+                //     2. If lhsRef is an abrupt completion, then
+                //         a. Let status be lhsRef.
+                //     3. Else,
+                //         a. Let status be Completion(PutValue(lhsRef.[[Value]], nextValue)).
+                ctx.exe.add_instruction(Instruction::PutValue);
+            }
+        } else {
+            // h. Else,
+            // i. Assert: lhsKind is lexical-binding.
+            assert!(is_lex_binding);
+            // ii. Assert: lhs is a ForDeclaration.
+            let ast::ForStatementLeft::VariableDeclaration(decl) = &self.left else {
+                unreachable!()
+            };
+            // iii. Let iterationEnv be NewDeclarativeEnvironment(oldEnv).
+            ctx.exe
+                .add_instruction(Instruction::EnterDeclarativeEnvironment);
+            // iv. Perform ForDeclarationBindingInstantiation of lhs with argument iterationEnv.
+            assert_eq!(decl.declarations.len(), 1);
+            if decl.kind.is_const() {
+                for binding_name in &bindings {
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::CreateImmutableBinding,
+                        *binding_name,
+                    );
+                }
+            } else {
+                for binding_name in &bindings {
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::CreateMutableBinding,
+                        *binding_name,
+                    );
+                }
+            }
+            // v. Set the running execution context's LexicalEnvironment to iterationEnv.
+            // vi. If destructuring is true, then
+            if destructuring {
+                // 1. Let status be Completion(ForDeclarationBindingInitialization of lhs with arguments nextValue and iterationEnv).
+                todo!();
+            } else {
+                // vii. Else,
+                // 1. Assert: lhs binds a single name.
+                assert_eq!(bindings.len(), 1);
+                // 2. Let lhsName be the sole element of the BoundNames of lhs.
+                let lhs_name = *bindings.first().unwrap();
+                // 3. Let lhsRef be ! ResolveBinding(lhsName).
+                ctx.exe
+                    .add_instruction_with_identifier(Instruction::ResolveBinding, lhs_name);
+                // 4. Let status be Completion(InitializeReferencedBinding(lhsRef, nextValue)).
+                ctx.exe
+                    .add_instruction(Instruction::InitializeReferencedBinding);
+            }
+        }
+        // TODO: How to do abrupt completion?
+        // i. If status is an abrupt completion, then
+        //     i. Set the running execution context's LexicalEnvironment to oldEnv.
+        //     ii. If iteratorKind is async, return ? AsyncIteratorClose(iteratorRecord, status).
+        //     iii. If iterationKind is enumerate, then
+        //         1. Return ? status.
+        //     iv. Else,
+        //         1. Assert: iterationKind is iterate.
+        //         2. Return ? IteratorClose(iteratorRecord, status).
+        // j. Let result be Completion(Evaluation of stmt).
+        self.body.compile(ctx);
+        // k. Set the running execution context's LexicalEnvironment to oldEnv.
+        if is_lex_binding {
+            ctx.exe
+                .add_instruction(Instruction::ExitDeclarativeEnvironment);
+        }
+        let own_continues = ctx.current_continue.take().unwrap();
+        for continue_entry in own_continues {
+            ctx.exe.set_jump_target_here(continue_entry);
+        }
+        // m. If result.[[Value]] is not empty, set V to result.[[Value]].
+        // TODO: Load V back from stack and compare with result, store.
+        ctx.exe
+            .add_jump_instruction_to_index(Instruction::Jump, repeat_jump);
+        // l. If LoopContinues(result, labelSet) is false, then
+        let own_breaks = ctx.current_break.take().unwrap();
+        for break_entry in own_breaks {
+            ctx.exe.set_jump_target_here(break_entry);
+        }
+        // TODO: UpdateEmpty
+        //     i. If iterationKind is enumerate, then
+        //         1. Return ? UpdateEmpty(result, V).
+        //     ii. Else,
+        //         1. Assert: iterationKind is iterate.
+        //         2. Set status to Completion(UpdateEmpty(result, V)).
+        //         3. If iteratorKind is async, return ? AsyncIteratorClose(iteratorRecord, status).
+        //         4. Return ? IteratorClose(iteratorRecord, status).
+        ctx.exe.set_jump_target_here(jump_to_end);
+        ctx.exe
+            .set_jump_target_here(jump_to_end_from_undefined_or_null);
+        ctx.current_break = previous_break;
+        ctx.current_continue = previous_continue;
+    }
+}
+
 impl CompileEvaluation for ast::Statement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
@@ -2402,7 +2687,7 @@ impl CompileEvaluation for ast::Statement<'_> {
             Statement::ContinueStatement(statement) => statement.compile(ctx),
             Statement::DebuggerStatement(_) => todo!(),
             Statement::DoWhileStatement(statement) => statement.compile(ctx),
-            Statement::ForInStatement(_) => todo!(),
+            Statement::ForInStatement(statement) => statement.compile(ctx),
             Statement::ForOfStatement(_) => todo!(),
             Statement::LabeledStatement(_) => todo!(),
             Statement::SwitchStatement(_) => todo!(),

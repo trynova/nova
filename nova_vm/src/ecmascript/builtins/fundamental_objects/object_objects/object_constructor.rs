@@ -715,7 +715,7 @@ impl ObjectConstructor {
     /// ### [20.1.2.23 Object.setPrototypeOf ( O, proto )](https://tc39.es/ecma262/#sec-object.setprototypeof)
     fn set_prototype_of(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
         let o = arguments.get(0);
-        let proto = arguments.get(0);
+        let proto = arguments.get(1);
         // 1. Set O to ? RequireObjectCoercible(O).
         let o = require_object_coercible(agent, o)?;
         // 2. If proto is not an Object and proto is not null, throw a TypeError exception.

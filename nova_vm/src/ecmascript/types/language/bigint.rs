@@ -274,7 +274,7 @@ impl BigInt {
     ///
     /// The abstract operation BigInt::equal takes arguments x (a BigInt) and y
     /// (a BigInt) and returns a Boolean.
-    pub(crate) fn equal(agent: &mut Agent, x: BigInt, y: BigInt) -> bool {
+    pub(crate) fn equal(agent: &Agent, x: BigInt, y: BigInt) -> bool {
         // 1. If ℝ(x) = ℝ(y), return true; otherwise return false.
         match (x, y) {
             (BigInt::BigInt(x), BigInt::BigInt(y)) => {

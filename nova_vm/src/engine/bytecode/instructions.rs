@@ -225,6 +225,13 @@ pub enum Instruction {
     ///
     /// This stops
     FinishBindingPattern,
+    /// Take the current result and begin iterating it according to
+    /// EnumerateObjectProperties.
+    EnumerateObjectProperties,
+    /// Call [[NextMethod]] of current iterator
+    IteratorNext,
+    IteratorComplete,
+    IteratorValue,
 }
 
 impl Instruction {
@@ -247,6 +254,7 @@ impl Instruction {
             | Self::EvaluatePropertyAccessWithIdentifierKey
             | Self::InstantiateArrowFunctionExpression
             | Self::InstantiateOrdinaryFunctionExpression
+            | Self::IteratorComplete
             | Self::Jump
             | Self::JumpIfNot
             | Self::LoadConstant
@@ -285,7 +293,7 @@ impl Instruction {
     pub fn has_jump_slot(self) -> bool {
         matches!(
             self,
-            Self::Jump | Self::JumpIfNot | Self::PushExceptionJumpTarget
+            Self::Jump | Self::JumpIfNot | Self::PushExceptionJumpTarget | Self::IteratorComplete
         )
     }
 
