@@ -7,7 +7,7 @@ use crate::{
                 call_function, create_data_property_or_throw, delete_property_or_throw, get,
                 has_property, length_of_array_like, set,
             },
-            testing_and_comparison::{is_array, is_callable},
+            testing_and_comparison::{is_array, is_callable, same_value_zero},
             type_conversion::{to_boolean, to_integer_or_infinity, to_object, to_string},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -954,8 +954,130 @@ impl ArrayPrototype {
         Ok(Value::Undefined)
     }
 
-    fn includes(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.16 Array.prototype.includes ( searchElement \[ , fromIndex \] )](https://tc39.es/ecma262/#sec-array.prototype.includes)
+    ///
+    /// > #### Note 1
+    /// >
+    /// > This method compares searchElement to the elements of the array,
+    /// > in ascending order, using the SameValueZero algorithm, and if
+    /// > found at any position, returns true; otherwise, it returns false.
+    /// >
+    /// > The optional second argument fromIndex defaults to +0𝔽 (i.e. the
+    /// > whole array is searched). If it is greater than or equal to the
+    /// > length of the array, false is returned, i.e. the array will not
+    /// > be searched. If it is less than -0𝔽, it is used as the offset
+    /// > from the end of the array to compute fromIndex. If the computed
+    /// > index is less than or equal to +0𝔽, the whole array will be
+    /// > searched.
+    ///
+    /// > #### Note 2
+    /// >
+    /// > This method is intentionally generic; it does not require that
+    /// > its this value be an Array. Therefore it can be transferred to
+    /// > other kinds of objects for use as a method.
+    ///
+    /// > #### Note 3
+    /// >
+    /// > This method intentionally differs from the similar indexOf method
+    /// > in two ways. First, it uses the SameValueZero algorithm, instead
+    /// > of IsStrictlyEqual, allowing it to detect NaN array elements.
+    /// > Second, it does not skip missing array elements, instead treating
+    /// > them as undefined.
+    fn includes(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let search_element = arguments.get(0);
+        let from_index = arguments.get(0);
+        if let (Value::Array(array), Value::Undefined | Value::Integer(_)) =
+            (this_value, from_index)
+        {
+            let len = array.len(agent);
+            if len == 0 {
+                return Ok(false.into());
+            }
+            let k = if let Value::Integer(n) = from_index {
+                let n = n.into_i64();
+                if n >= 0 {
+                    n as usize
+                } else {
+                    let result = len as i64 + n;
+                    if result < 0 {
+                        0
+                    } else {
+                        result as usize
+                    }
+                }
+            } else {
+                0
+            };
+            let data = &array.as_slice(agent)[k..];
+            let mut found_hole = false;
+            for element_k in data {
+                if let Some(element_k) = element_k {
+                    if same_value_zero(agent, search_element, *element_k) {
+                        return Ok(true.into());
+                    }
+                } else {
+                    // A hole would require looking through the prototype
+                    // chain. We're not going to do that.
+                    found_hole = true;
+                    break;
+                }
+            }
+            if !found_hole {
+                // No holes found so we can trust the result.
+                return Ok(false.into());
+            }
+        };
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        // 3. If len = 0, return false.
+        if len == 0 {
+            return Ok(false.into());
+        }
+        // 4. Let n be ? ToIntegerOrInfinity(fromIndex).
+        let n = to_integer_or_infinity(agent, from_index)?;
+        // 5. Assert: If fromIndex is undefined, then n is 0.
+        assert_eq!(from_index.is_undefined(), n.is_pos_zero(agent));
+        // 6. If n = +∞, return false.
+        let n = if n.is_pos_infinity(agent) {
+            return Ok(false.into());
+        } else if n.is_neg_infinity(agent) {
+            // 7. Else if n = -∞, set n to 0.
+            0
+        } else {
+            n.into_i64(agent)
+        };
+
+        // 8. If n ≥ 0, then
+        let mut k = if n >= 0 {
+            // a. Let k be n.
+            n
+        } else {
+            // 9. Else,
+            // a. Let k be len + n.
+            let k = len + n;
+            // b. If k < 0, set k to 0.
+            if k < 0 {
+                0
+            } else {
+                k
+            }
+        };
+        // 10. Repeat, while k < len,
+        while k < len {
+            // a. Let elementK be ? Get(O, ! ToString(𝔽(k))).
+            let pk = PropertyKey::Integer(k.try_into().unwrap());
+            let element_k = get(agent, o, pk)?;
+            // b. If SameValueZero(searchElement, elementK) is true, return true.
+            if same_value_zero(agent, search_element, element_k) {
+                return Ok(true.into());
+            }
+            // c. Set k to k + 1.
+            k += 1;
+        }
+        // 11. Return false.
+        Ok(false.into())
     }
 
     fn index_of(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
