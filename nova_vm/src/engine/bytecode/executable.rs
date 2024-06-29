@@ -912,7 +912,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                                     ctx.agent, &id.name,
                                 );
                                 ctx.exe.add_instruction_with_constant(
-                                    Instruction::LoadConstant,
+                                    Instruction::StoreConstant,
                                     property_key,
                                 );
                             }
@@ -929,7 +929,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                                     &init.value,
                                 );
                                 ctx.exe.add_instruction_with_constant(
-                                    Instruction::LoadConstant,
+                                    Instruction::StoreConstant,
                                     property_key,
                                 );
                             }
@@ -952,6 +952,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         | ast::PropertyKey::TSNonNullExpression(_)
                         | ast::PropertyKey::TSInstantiationExpression(_) => unreachable!(),
                     }
+                    ctx.exe.add_instruction(Instruction::Load);
                     prop.value.compile(ctx);
                     if is_reference(&prop.value) {
                         ctx.exe.add_instruction(Instruction::GetValue);
