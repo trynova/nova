@@ -15,7 +15,7 @@ use crate::{
         },
         types::{IntoValue, String, Value},
     },
-    engine::{Executable, ExecutionResult, Vm},
+    engine::{Executable, Vm},
     heap::{CompactionLists, Heap, HeapMarkAndSweep, WorkQueues},
 };
 use oxc_allocator::Allocator;
@@ -262,17 +262,17 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
     let result: JsResult<Value> = if result.is_ok() {
         let exe = Executable::compile_script(agent, script);
         // a. Set result to Completion(Evaluation of script).
+        let result = Vm::execute(agent, &exe);
         // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
-        //   i. Set result to NormalCompletion(undefined).
-        match Vm::execute(agent, &exe) {
-            Ok(ExecutionResult::EvalResult(Some(value))) => Ok(value),
-            Ok(ExecutionResult::EvalResult(None)) => Ok(Value::Undefined),
-            Ok(ExecutionResult::Return(_)) => {
-                // The script is not a function body, so any `return` statements
-                // should be parse errors.
-                unreachable!()
+        if let Ok(result) = result {
+            if let Some(result) = result {
+                Ok(result)
+            } else {
+                // i. Set result to NormalCompletion(undefined).
+                Ok(Value::Undefined)
             }
-            Err(err) => Err(err),
+        } else {
+            Err(result.err().unwrap())
         }
     } else {
         Err(result.err().unwrap())

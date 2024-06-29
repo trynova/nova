@@ -11,7 +11,7 @@ use crate::{
         },
         types::{Function, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
-    engine::{Executable, ExecutionResult, FunctionExpression, Vm},
+    engine::{Executable, FunctionExpression, Vm},
 };
 use oxc_ast::ast::{self};
 
@@ -146,11 +146,6 @@ pub(crate) fn evaluate_function_body(
     let is_concise_arrow_function = agent[function_object]
         .ecmascript_function
         .is_concise_arrow_function;
-    let exe = Executable::compile_function_body(agent, body);
-    match Vm::execute(agent, &exe) {
-        Ok(ExecutionResult::Return(value)) => Ok(value),
-        Ok(ExecutionResult::EvalResult(Some(value))) if is_concise_arrow_function => Ok(value),
-        Ok(_) => Ok(Value::Undefined),
-        Err(err) => Err(err),
-    }
+    let exe = Executable::compile_function_body(agent, body, is_concise_arrow_function);
+    Ok(Vm::execute(agent, &exe)?.unwrap_or(Value::Undefined))
 }
