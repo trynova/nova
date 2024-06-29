@@ -388,8 +388,176 @@ impl ArrayPrototype {
         Ok(a.into_value())
     }
 
-    fn copy_within(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.4 Array.prototype.copyWithin ( target, start \[ , end \] )](https://tc39.es/ecma262/#sec-array.prototype.copywithin)
+    ///
+    /// > Note 1
+    /// >
+    /// > The end argument is optional. If it is not provided, the length of
+    /// > the this value is used.
+    ///
+    /// > Note 2
+    /// >
+    /// > If target is negative, it is treated as length + target where length
+    /// > is the length of the array. If start is negative, it is treated as
+    /// > length + start. If end is negative, it is treated as length + end.
+    ///
+    /// > Note 3
+    /// >
+    /// > This method is intentionally generic; it does not require that its
+    /// > this value be an Array. Therefore it can be transferred to other
+    /// > kinds of objects for use as a method.
+    fn copy_within(
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let target = arguments.get(0);
+        let start = arguments.get(1);
+        let end = if arguments.len() >= 3 {
+            Some(arguments.get(2))
+        } else {
+            None
+        };
+        if let (
+            Value::Array(array),
+            Value::Integer(target),
+            Value::Integer(start),
+            None | Some(Value::Undefined) | Some(Value::Integer(_)),
+        ) = (this_value, target, start, end)
+        {
+            // Fast path: Array with integer parameters, array is trivial
+            // (no descriptors). Holes can exist, we'll just copy them
+            // equivalently.
+            if array.is_trivial(agent) {
+                let len = array.len(agent) as i64;
+
+                let relative_target = target.into_i64();
+                let to = if relative_target < 0 {
+                    (len + relative_target).max(0) as isize
+                } else {
+                    (relative_target as u64).min(len as u64) as isize
+                };
+
+                let relative_start = start.into_i64();
+                let from = if relative_start < 0 {
+                    (len + relative_start).max(0) as isize
+                } else {
+                    (relative_start as u64).min(len as u64) as isize
+                };
+
+                let final_end = if let Some(Value::Integer(end)) = end {
+                    let relative_end = end.into_i64();
+                    if relative_end < 0 {
+                        (len + relative_end).max(0) as isize
+                    } else {
+                        (relative_end as u64).min(len as u64) as isize
+                    }
+                } else {
+                    len as isize
+                };
+
+                let count = (final_end - from).min(len as isize - to);
+                let data = array.as_mut_slice(agent);
+                data.copy_within((from as usize)..((from + count) as usize), to as usize);
+
+                return Ok(array.into_value());
+            }
+        }
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len: i64 = length_of_array_like(agent, o)?;
+        let len_f64 = len as f64;
+
+        // 3. Let relativeTarget be ? ToIntegerOrInfinity(target).
+        let relative_target = to_integer_or_infinity(agent, target)?;
+
+        let to = if relative_target.is_neg_infinity(agent) {
+            // 4. If relativeTarget = -∞, let to be 0.
+            0
+        } else if relative_target.is_sign_negative(agent) {
+            // 5. Else if relativeTarget < 0, let to be max(len + relativeTarget, 0).
+            (len_f64 + relative_target.to_real(agent)).max(0.0) as i64
+        } else {
+            // 6. Else, let to be min(relativeTarget, len).
+            relative_target.to_real(agent).min(len_f64) as i64
+        };
+
+        // 7. Let relativeStart be ? ToIntegerOrInfinity(start).
+        let relative_start = to_integer_or_infinity(agent, start)?;
+
+        let from = if relative_start.is_neg_infinity(agent) {
+            // 8. If relativeStart = -∞, let from be 0.
+            0
+        } else if relative_start.is_sign_negative(agent) {
+            // 9. Else if relativeStart < 0, let from be max(len + relativeStart, 0).
+            (len_f64 + relative_start.to_real(agent)).max(0.0) as i64
+        } else {
+            // 10. Else, let from be min(relativeStart, len).
+            relative_start.to_real(agent).min(len_f64) as i64
+        };
+
+        // 11. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
+        let relative_end = if end.is_none() || end.unwrap().is_undefined() {
+            len_f64
+        } else {
+            to_integer_or_infinity(agent, end.unwrap())?.to_real(agent)
+        };
+        // 12. If relativeEnd = -∞, let final be 0.
+        let final_end = if relative_end == f64::NEG_INFINITY {
+            0
+        } else if relative_end < 0.0 {
+            // 13. Else if relativeEnd < 0, let final be max(len + relativeEnd, 0).
+            (len_f64 + relative_end).max(0.0) as i64
+        } else {
+            // 14. Else, let final be min(relativeEnd, len).
+            relative_end.min(len_f64) as i64
+        };
+
+        // 15. Let count be min(final - from, len - to).
+        let mut count = (final_end - from).min(len - to);
+        // 16. If from < to and to < from + count, then
+        let (direction, from, to) = if from < to && to < from + count {
+            // a. Let direction be -1.
+            // b. Set from to from + count - 1.
+            // c. Set to to to + count - 1.
+            (-1, from + count - 1, to + count - 1)
+        } else {
+            // 17. Else,
+            // a. Let direction be 1.
+            (1, from, to)
+        };
+        let mut from = from;
+        let mut to = to;
+        // 18. Repeat, while count > 0,
+        while count > 0 {
+            // a. Let fromKey be ! ToString(𝔽(from)).
+            let from_key = PropertyKey::Integer(from.try_into().unwrap());
+            // b. Let toKey be ! ToString(𝔽(to)).
+            let to_key = PropertyKey::Integer(to.try_into().unwrap());
+            // c. Let fromPresent be ? HasProperty(O, fromKey).
+            let from_present = has_property(agent, o, from_key)?;
+            // d. If fromPresent is true, then
+            if from_present {
+                // i. Let fromValue be ? Get(O, fromKey).
+                let from_value = get(agent, o, from_key)?;
+                // ii. Perform ? Set(O, toKey, fromValue, true).
+                set(agent, o, to_key, from_value, true)?;
+            } else {
+                // e. Else,
+                // i. Assert: fromPresent is false.
+                // ii. Perform ? DeletePropertyOrThrow(O, toKey).
+                delete_property_or_throw(agent, o, to_key)?;
+            }
+            // f. Set from to from + direction.
+            from += direction;
+            // g. Set to to to + direction.
+            to += direction;
+            // h. Set count to count - 1.
+            count -= 1;
+        }
+        // 19. Return O.
+        Ok(o.into_value())
     }
 
     fn entries(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
