@@ -59,6 +59,11 @@ impl Array {
         agent[self].elements.is_trivial(agent)
     }
 
+    pub fn slice(self, agent: &Agent) -> &[Option<Value>] {
+        let elements_array = agent[self].elements;
+        &agent[elements_array]
+    }
+
     #[inline]
     fn internal_get_backing(
         self,
