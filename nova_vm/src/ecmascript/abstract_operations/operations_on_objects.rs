@@ -465,11 +465,6 @@ pub(crate) fn length_of_array_like(agent: &mut Agent, obj: Object) -> JsResult<i
 ///
 /// NOTE: This implementation doesn't yet support `elementTypes`.
 pub(crate) fn create_list_from_array_like(agent: &mut Agent, obj: Value) -> JsResult<Vec<Value>> {
-    // TODO: Are there any cases where we might want to return a `Cow<[Value]>` (borrowing the
-    // underlying slice for dense arrays)? For function arguments this doesn't work because the
-    // lifetime of the borrowed slice is the agent's  lifetime, which wouldn't let us pass the slice
-    // to `call()`.
-
     match obj {
         Value::Array(array) => Ok(array
             .as_slice(agent)
