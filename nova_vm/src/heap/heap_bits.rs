@@ -345,6 +345,7 @@ impl WorkQueues {
     }
 
     pub fn push_elements_vector(&mut self, vec: &ElementsVector) {
+        println!("Pushing vector: {:?}", vec);
         match vec.cap {
             ElementArrayKey::Empty => {}
             ElementArrayKey::E4 => self.e_2_4.push((vec.elements_index, vec.len)),
@@ -722,19 +723,17 @@ where
     }
 }
 
-pub(crate) fn mark_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
+pub(crate) fn mark_array_with_u32_length<T: HeapMarkAndSweep + std::fmt::Debug, const N: usize>(
     array: &Option<[T; N]>,
     queues: &mut WorkQueues,
     length: u32,
 ) {
     let length: u32 = *length.borrow();
 
-    array.as_slice()[..length as usize]
+    array.as_ref().unwrap()[..length as usize]
         .iter()
         .for_each(|value| {
-            for ele in value {
-                ele.mark_values(queues);
-            }
+            value.mark_values(queues);
         });
 }
 
@@ -747,12 +746,10 @@ fn sweep_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
     if length == 0 {
         return;
     }
-    array.as_mut_slice()[..length as usize]
+    array.as_mut().unwrap()[..length as usize]
         .iter_mut()
         .for_each(|value| {
-            for ele in value {
-                ele.sweep_values(compactions);
-            }
+            value.sweep_values(compactions);
         });
 }
 

@@ -229,6 +229,16 @@ impl IndexMut<Proxy> for Vec<Option<ProxyHeapData>> {
     }
 }
 
+impl HeapMarkAndSweep for Proxy {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.proxys.push(*self);
+    }
+
+    fn sweep_values(&mut self, _compactions: &crate::heap::CompactionLists) {
+        todo!()
+    }
+}
+
 impl CreateHeapData<ProxyHeapData, Proxy> for Heap {
     fn create(&mut self, data: ProxyHeapData) -> Proxy {
         self.proxys.push(Some(data));

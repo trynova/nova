@@ -18,7 +18,7 @@ use crate::{
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Reference, String, Symbol, Value},
     },
-    heap::CreateHeapData,
+    heap::{heap_gc::heap_gc, CreateHeapData},
     Heap,
 };
 use std::collections::HashMap;
@@ -188,6 +188,10 @@ impl Agent {
 
     pub(crate) fn running_execution_context_mut(&mut self) -> &mut ExecutionContext {
         self.execution_context_stack.last_mut().unwrap()
+    }
+
+    pub fn gc(&mut self, realm_roots: &mut [RealmIdentifier], value_roots: &mut [Value]) {
+        heap_gc(&mut self.heap, realm_roots, value_roots);
     }
 }
 

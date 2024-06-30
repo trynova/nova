@@ -131,6 +131,16 @@ impl IndexMut<FinalizationRegistry> for Vec<Option<FinalizationRegistryHeapData>
     }
 }
 
+impl HeapMarkAndSweep for FinalizationRegistry {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.finalization_registrys.push(*self);
+    }
+
+    fn sweep_values(&mut self, _compactions: &crate::heap::CompactionLists) {
+        todo!()
+    }
+}
+
 impl CreateHeapData<FinalizationRegistryHeapData, FinalizationRegistry> for Heap {
     fn create(&mut self, data: FinalizationRegistryHeapData) -> FinalizationRegistry {
         self.finalization_registrys.push(Some(data));

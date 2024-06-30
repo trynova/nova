@@ -1727,6 +1727,8 @@ mod test {
         .unwrap();
         script_evaluation(&mut agent, script).unwrap();
 
+        agent.gc(&mut [realm], &mut []);
+
         let i_key = String::from_static_str(&mut agent, "i");
         let global_env = agent.get_realm(realm).global_env.unwrap();
         assert!(global_env.has_lexical_declaration(&agent, i_key));
