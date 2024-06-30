@@ -1587,10 +1587,7 @@ impl ArrayPrototype {
             let Heap {
                 arrays, elements, ..
             } = &mut agent.heap;
-            arrays
-                .get_mut(array.into_index())
-                .unwrap()
-                .unwrap()
+            arrays[array]
                 .elements
                 .reserve(elements, len as u32 + arg_count as u32);
         }

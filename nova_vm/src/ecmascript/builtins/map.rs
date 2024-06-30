@@ -134,20 +134,30 @@ impl Index<Map> for Agent {
     type Output = MapHeapData;
 
     fn index(&self, index: Map) -> &Self::Output {
-        self.heap
-            .maps
-            .get(index.get_index())
+        &self.heap.maps[index]
+    }
+}
+
+impl IndexMut<Map> for Agent {
+    fn index_mut(&mut self, index: Map) -> &mut Self::Output {
+        &mut self.heap.maps[index]
+    }
+}
+
+impl Index<Map> for Vec<Option<MapHeapData>> {
+    type Output = MapHeapData;
+
+    fn index(&self, index: Map) -> &Self::Output {
+        self.get(index.get_index())
             .expect("Map out of bounds")
             .as_ref()
             .expect("Map slot empty")
     }
 }
 
-impl IndexMut<Map> for Agent {
+impl IndexMut<Map> for Vec<Option<MapHeapData>> {
     fn index_mut(&mut self, index: Map) -> &mut Self::Output {
-        self.heap
-            .maps
-            .get_mut(index.get_index())
+        self.get_mut(index.get_index())
             .expect("Map out of bounds")
             .as_mut()
             .expect("Map slot empty")

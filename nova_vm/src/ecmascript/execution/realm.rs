@@ -11,7 +11,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{CompactionLists, Heap, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 pub(crate) use intrinsics::Intrinsics;
 pub(crate) use intrinsics::ProtoIntrinsics;
@@ -57,32 +57,30 @@ impl Index<RealmIdentifier> for Agent {
     type Output = Realm;
 
     fn index(&self, index: RealmIdentifier) -> &Self::Output {
-        &self.heap[index]
+        &self.heap.realms[index]
     }
 }
 
 impl IndexMut<RealmIdentifier> for Agent {
     fn index_mut(&mut self, index: RealmIdentifier) -> &mut Self::Output {
-        &mut self.heap[index]
+        &mut self.heap.realms[index]
     }
 }
 
-impl Index<RealmIdentifier> for Heap {
+impl Index<RealmIdentifier> for Vec<Option<Realm>> {
     type Output = Realm;
 
     fn index(&self, index: RealmIdentifier) -> &Self::Output {
-        self.realms
-            .get(index.into_index())
+        self.get(index.into_index())
             .expect("RealmIdentifier out of bounds")
             .as_ref()
             .expect("RealmIdentifier slot empty")
     }
 }
 
-impl IndexMut<RealmIdentifier> for Heap {
+impl IndexMut<RealmIdentifier> for Vec<Option<Realm>> {
     fn index_mut(&mut self, index: RealmIdentifier) -> &mut Self::Output {
-        self.realms
-            .get_mut(index.into_index())
+        self.get_mut(index.into_index())
             .expect("RealmIdentifier out of bounds")
             .as_mut()
             .expect("RealmIdentifier slot empty")

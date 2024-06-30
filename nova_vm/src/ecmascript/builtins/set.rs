@@ -124,20 +124,30 @@ impl Index<Set> for Agent {
     type Output = SetHeapData;
 
     fn index(&self, index: Set) -> &Self::Output {
-        self.heap
-            .sets
-            .get(index.get_index())
+        &self.heap.sets[index]
+    }
+}
+
+impl IndexMut<Set> for Agent {
+    fn index_mut(&mut self, index: Set) -> &mut Self::Output {
+        &mut self.heap.sets[index]
+    }
+}
+
+impl Index<Set> for Vec<Option<SetHeapData>> {
+    type Output = SetHeapData;
+
+    fn index(&self, index: Set) -> &Self::Output {
+        self.get(index.get_index())
             .expect("Set out of bounds")
             .as_ref()
             .expect("Set slot empty")
     }
 }
 
-impl IndexMut<Set> for Agent {
+impl IndexMut<Set> for Vec<Option<SetHeapData>> {
     fn index_mut(&mut self, index: Set) -> &mut Self::Output {
-        self.heap
-            .sets
-            .get_mut(index.get_index())
+        self.get_mut(index.get_index())
             .expect("Set out of bounds")
             .as_mut()
             .expect("Set slot empty")

@@ -214,7 +214,7 @@ pub fn heap_gc(heap: &mut Heap) {
         let mut array_marks: Box<[Array]> = queues.arrays.drain(..).collect();
         array_marks.sort();
         array_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.arrays.get_mut(index) {
                 if *marked {
                     // Already marked, ignore

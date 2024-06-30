@@ -106,20 +106,30 @@ impl Index<Date> for Agent {
     type Output = DateHeapData;
 
     fn index(&self, index: Date) -> &Self::Output {
-        self.heap
-            .dates
-            .get(index.get_index())
+        &self.heap.dates[index]
+    }
+}
+
+impl IndexMut<Date> for Agent {
+    fn index_mut(&mut self, index: Date) -> &mut Self::Output {
+        &mut self.heap.dates[index]
+    }
+}
+
+impl Index<Date> for Vec<Option<DateHeapData>> {
+    type Output = DateHeapData;
+
+    fn index(&self, index: Date) -> &Self::Output {
+        self.get(index.get_index())
             .expect("Date out of bounds")
             .as_ref()
             .expect("Date slot empty")
     }
 }
 
-impl IndexMut<Date> for Agent {
+impl IndexMut<Date> for Vec<Option<DateHeapData>> {
     fn index_mut(&mut self, index: Date) -> &mut Self::Output {
-        self.heap
-            .dates
-            .get_mut(index.get_index())
+        self.get_mut(index.get_index())
             .expect("Date out of bounds")
             .as_mut()
             .expect("Date slot empty")

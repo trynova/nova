@@ -278,20 +278,30 @@ impl Index<BuiltinPromiseRejectFunction> for Agent {
     type Output = PromiseRejectFunctionHeapData;
 
     fn index(&self, index: BuiltinPromiseRejectFunction) -> &Self::Output {
-        self.heap
-            .promise_reject_functions
-            .get(index.get_index())
+        &self.heap.promise_reject_functions[index]
+    }
+}
+
+impl IndexMut<BuiltinPromiseRejectFunction> for Agent {
+    fn index_mut(&mut self, index: BuiltinPromiseRejectFunction) -> &mut Self::Output {
+        &mut self.heap.promise_reject_functions[index]
+    }
+}
+
+impl Index<BuiltinPromiseRejectFunction> for Vec<Option<PromiseRejectFunctionHeapData>> {
+    type Output = PromiseRejectFunctionHeapData;
+
+    fn index(&self, index: BuiltinPromiseRejectFunction) -> &Self::Output {
+        self.get(index.get_index())
             .expect("BuiltinPromiseRejectFunction out of bounds")
             .as_ref()
             .expect("BuiltinPromiseRejectFunction slot empty")
     }
 }
 
-impl IndexMut<BuiltinPromiseRejectFunction> for Agent {
+impl IndexMut<BuiltinPromiseRejectFunction> for Vec<Option<PromiseRejectFunctionHeapData>> {
     fn index_mut(&mut self, index: BuiltinPromiseRejectFunction) -> &mut Self::Output {
-        self.heap
-            .promise_reject_functions
-            .get_mut(index.get_index())
+        self.get_mut(index.get_index())
             .expect("BuiltinPromiseRejectFunction out of bounds")
             .as_mut()
             .expect("BuiltinPromiseRejectFunction slot empty")

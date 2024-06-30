@@ -16,7 +16,7 @@ use crate::{
         types::{IntoValue, String, Value},
     },
     engine::{Executable, Vm},
-    heap::{CompactionLists, Heap, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 use oxc_allocator::Allocator;
 use oxc_ast::{
@@ -71,32 +71,30 @@ impl Index<ScriptIdentifier> for Agent {
     type Output = Script;
 
     fn index(&self, index: ScriptIdentifier) -> &Self::Output {
-        &self.heap[index]
+        &self.heap.scripts[index]
     }
 }
 
 impl IndexMut<ScriptIdentifier> for Agent {
     fn index_mut(&mut self, index: ScriptIdentifier) -> &mut Self::Output {
-        &mut self.heap[index]
+        &mut self.heap.scripts[index]
     }
 }
 
-impl Index<ScriptIdentifier> for Heap {
+impl Index<ScriptIdentifier> for Vec<Option<Script>> {
     type Output = Script;
 
     fn index(&self, index: ScriptIdentifier) -> &Self::Output {
-        self.scripts
-            .get(index.into_index())
+        self.get(index.into_index())
             .expect("ScriptIdentifier out of bounds")
             .as_ref()
             .expect("ScriptIdentifier slot empty")
     }
 }
 
-impl IndexMut<ScriptIdentifier> for Heap {
+impl IndexMut<ScriptIdentifier> for Vec<Option<Script>> {
     fn index_mut(&mut self, index: ScriptIdentifier) -> &mut Self::Output {
-        self.scripts
-            .get_mut(index.into_index())
+        self.get_mut(index.into_index())
             .expect("ScriptIdentifier out of bounds")
             .as_mut()
             .expect("ScriptIdentifier slot empty")

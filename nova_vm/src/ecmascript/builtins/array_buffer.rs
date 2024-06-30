@@ -67,32 +67,30 @@ impl Index<ArrayBuffer> for Agent {
     type Output = ArrayBufferHeapData;
 
     fn index(&self, index: ArrayBuffer) -> &Self::Output {
-        &self.heap[index]
+        &self.heap.array_buffers[index]
     }
 }
 
 impl IndexMut<ArrayBuffer> for Agent {
     fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
-        &mut self.heap[index]
+        &mut self.heap.array_buffers[index]
     }
 }
 
-impl Index<ArrayBuffer> for Heap {
+impl Index<ArrayBuffer> for Vec<Option<ArrayBufferHeapData>> {
     type Output = ArrayBufferHeapData;
 
     fn index(&self, index: ArrayBuffer) -> &Self::Output {
-        self.array_buffers
-            .get(index.0.into_index())
+        self.get(index.get_index())
             .expect("ArrayBuffer out of bounds")
             .as_ref()
             .expect("ArrayBuffer slot empty")
     }
 }
 
-impl IndexMut<ArrayBuffer> for Heap {
+impl IndexMut<ArrayBuffer> for Vec<Option<ArrayBufferHeapData>> {
     fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
-        self.array_buffers
-            .get_mut(index.0.into_index())
+        self.get_mut(index.get_index())
             .expect("ArrayBuffer out of bounds")
             .as_mut()
             .expect("ArrayBuffer slot empty")
