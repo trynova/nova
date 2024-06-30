@@ -23,6 +23,24 @@ impl SmallString {
         self.bytes.iter().position(|&x| x == 0xFF).unwrap_or(7)
     }
 
+    pub fn utf16_len(&self) -> usize {
+        self.as_str().chars().map(char::len_utf16).sum()
+    }
+
+    // TODO: This should return a wtf8::CodePoint.
+    pub fn utf16_char(&self, idx: usize) -> char {
+        let mut u16_i = 0;
+        for ch in self.as_str().chars() {
+            if idx == u16_i {
+                // TODO: Deal with surrogates.
+                assert_eq!(ch.len_utf16(), 1);
+                return ch;
+            }
+            u16_i += ch.len_utf16();
+        }
+        panic!("Index out of bounds");
+    }
+
     #[inline]
     pub fn as_str(&self) -> &str {
         // SAFETY: Guaranteed to be UTF-8.
