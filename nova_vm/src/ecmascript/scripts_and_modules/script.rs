@@ -1586,4 +1586,23 @@ mod test {
             10.into()
         );
     }
+
+    #[test]
+    fn no_implicit_return() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "function foo() { 42; }; foo()".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Undefined);
+    }
 }

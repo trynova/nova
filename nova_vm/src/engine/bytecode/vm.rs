@@ -155,7 +155,7 @@ impl Vm {
             }
         }
 
-        Ok(vm.result)
+        Ok(None)
     }
 
     fn execute_instruction(
@@ -351,6 +351,7 @@ impl Vm {
                     source_text: function_expression.expression.span,
                     parameters_list: &function_expression.expression.params,
                     body: &function_expression.expression.body,
+                    is_concise_arrow_function: function_expression.expression.expression,
                     this_mode: ThisMode::Lexical,
                     env: lexical_environment,
                     private_env: private_environment,
@@ -401,6 +402,7 @@ impl Vm {
                     source_text: function_expression.expression.span,
                     parameters_list: &function_expression.expression.params,
                     body: function_expression.expression.body.as_ref().unwrap(),
+                    is_concise_arrow_function: false,
                     this_mode: ThisMode::Global,
                     env,
                     private_env: private_environment,
