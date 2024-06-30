@@ -103,6 +103,7 @@ pub fn heap_gc(heap: &mut Heap) {
             function: function_environments,
             global: global_environments,
             object: object_environments,
+            private: _private_environments,
         } = environments;
         let ElementArrays {
             e2pow4,
@@ -795,6 +796,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
         function,
         global,
         object,
+        private: _private_environments,
     } = environments;
     let ElementArrays {
         e2pow4,

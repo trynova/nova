@@ -78,13 +78,6 @@ impl HeapMarkAndSweep for FunctionEnvironment {
     }
 }
 
-impl std::ops::Deref for FunctionEnvironment {
-    type Target = DeclarativeEnvironmentIndex;
-    fn deref(&self) -> &Self::Target {
-        &self.declarative_environment
-    }
-}
-
 /// ### [9.1.2.4 NewFunctionEnvironment ( F, newTarget )](https://tc39.es/ecma262/#sec-newfunctionenvironment)
 ///
 /// The abstract operation NewFunctionEnvironment takes arguments F (an
@@ -129,16 +122,8 @@ pub(crate) fn new_function_environment(
 }
 
 impl FunctionEnvironmentIndex {
-    pub(super) fn heap_data(self, agent: &Agent) -> &FunctionEnvironment {
-        agent.heap.environments.get_function_environment(self)
-    }
-
-    fn heap_data_mut(self, agent: &mut Agent) -> &mut FunctionEnvironment {
-        agent.heap.environments.get_function_environment_mut(self)
-    }
-
     pub(crate) fn get_this_binding_status(self, agent: &Agent) -> ThisBindingStatus {
-        self.heap_data(agent).this_binding_status
+        agent[self].this_binding_status
     }
 
     /// ### [9.1.1.3.4 GetThisBinding ( )](https://tc39.es/ecma262/#sec-function-environment-records-getthisbinding)
@@ -149,7 +134,7 @@ impl FunctionEnvironmentIndex {
         // 1. Assert: envRec.[[ThisBindingStatus]] is not lexical.
         // 2. If envRec.[[ThisBindingStatus]] is uninitialized, throw a ReferenceError exception.
         // 3. Return envRec.[[ThisValue]].
-        let env_rec = self.heap_data(agent);
+        let env_rec = &agent[self];
         match env_rec.this_binding_status {
             ThisBindingStatus::Lexical => unreachable!(),
             ThisBindingStatus::Initialized => Ok(env_rec.this_value.unwrap()),
@@ -162,8 +147,7 @@ impl FunctionEnvironmentIndex {
 
     /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
     pub(crate) fn has_binding(self, agent: &Agent, name: String) -> bool {
-        let env_rec = self.heap_data(agent);
-        env_rec.has_binding(agent, name)
+        agent[self].declarative_environment.has_binding(agent, name)
     }
 
     /// ### [9.1.1.1.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-declarative-environment-records-createmutablebinding-n-d)
@@ -173,20 +157,23 @@ impl FunctionEnvironmentIndex {
         name: String,
         is_deletable: bool,
     ) {
-        let env_rec = self.heap_data_mut(agent);
-        env_rec.create_mutable_binding(agent, name, is_deletable);
+        agent[self]
+            .declarative_environment
+            .create_mutable_binding(agent, name, is_deletable)
     }
 
     /// ### [9.1.1.1.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-createimmutablebinding-n-s)
     pub(crate) fn create_immutable_binding(self, agent: &mut Agent, name: String, is_strict: bool) {
-        let env_rec = self.heap_data_mut(agent);
-        env_rec.create_immutable_binding(agent, name, is_strict);
+        agent[self]
+            .declarative_environment
+            .create_immutable_binding(agent, name, is_strict)
     }
 
     /// ### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
     pub(crate) fn initialize_binding(self, agent: &mut Agent, name: String, value: Value) {
-        let env_rec = self.heap_data_mut(agent);
-        env_rec.initialize_binding(agent, name, value)
+        agent[self]
+            .declarative_environment
+            .initialize_binding(agent, name, value)
     }
 
     /// ### [9.1.1.1.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-setmutablebinding-n-v-s)
@@ -197,7 +184,7 @@ impl FunctionEnvironmentIndex {
         value: Value,
         mut is_strict: bool,
     ) -> JsResult<()> {
-        let env_rec = self.heap_data(agent);
+        let env_rec = &agent[self];
         let dcl_rec = env_rec.declarative_environment;
         // 1. If envRec does not have a binding for N, then
         if !dcl_rec.has_binding(agent, name) {
@@ -217,11 +204,7 @@ impl FunctionEnvironmentIndex {
             return Ok(());
         };
 
-        let binding = dcl_rec
-            .heap_data_mut(agent)
-            .bindings
-            .get_mut(&name)
-            .unwrap();
+        let binding = agent[dcl_rec].bindings.get_mut(&name).unwrap();
 
         // 2. If the binding for N in envRec is a strict binding, set S to true.
         if binding.strict {
@@ -265,14 +248,16 @@ impl FunctionEnvironmentIndex {
         name: String,
         is_strict: bool,
     ) -> JsResult<Value> {
-        let env_rec = self.heap_data(agent);
-        env_rec.get_binding_value(agent, name, is_strict)
+        agent[self]
+            .declarative_environment
+            .get_binding_value(agent, name, is_strict)
     }
 
     /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
     pub(crate) fn delete_binding(self, agent: &mut Agent, name: String) -> bool {
-        let env_rec = self.heap_data(agent);
-        env_rec.delete_binding(agent, name)
+        agent[self]
+            .declarative_environment
+            .delete_binding(agent, name)
     }
 
     /// ### [9.1.1.1.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-declarative-environment-records-withbaseobject)
@@ -288,7 +273,7 @@ impl FunctionEnvironmentIndex {
     /// either a normal completion containing an ECMAScript language value or a
     /// throw completion.
     pub(crate) fn bind_this_value(self, agent: &mut Agent, value: Value) -> JsResult<Value> {
-        let env_rec = self.heap_data_mut(agent);
+        let env_rec = &mut agent[self];
         // 1. Assert: envRec.[[ThisBindingStatus]] is not LEXICAL.
         debug_assert!(env_rec.this_binding_status != ThisBindingStatus::Lexical);
 
@@ -316,7 +301,7 @@ impl FunctionEnvironmentIndex {
     /// The HasThisBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns a Boolean.
     pub(crate) fn has_this_binding(self, agent: &Agent) -> bool {
-        let env_rec = self.heap_data(agent);
+        let env_rec = &agent[self];
         // 1. If envRec.[[ThisBindingStatus]] is LEXICAL, return false;
         // otherwise, return true.
         env_rec.this_binding_status != ThisBindingStatus::Lexical
@@ -327,7 +312,7 @@ impl FunctionEnvironmentIndex {
     /// The HasSuperBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns a Boolean.
     pub(crate) fn has_super_binding(self, agent: &Agent) -> bool {
-        let env_rec = self.heap_data(agent);
+        let env_rec = &agent[self];
         // 1. If envRec.[[ThisBindingStatus]] is LEXICAL, return false.
         if env_rec.this_binding_status == ThisBindingStatus::Lexical {
             return false;
@@ -337,15 +322,8 @@ impl FunctionEnvironmentIndex {
         match env_rec.function_object {
             Function::BoundFunction(_) => todo!(),
             Function::BuiltinFunction(_) => unreachable!(),
-            Function::ECMAScriptFunction(idx) => {
-                let data = agent
-                    .heap
-                    .ecmascript_functions
-                    .get(idx.get_index())
-                    .unwrap()
-                    .as_ref()
-                    .unwrap();
-                data.ecmascript_function.home_object.is_some()
+            Function::ECMAScriptFunction(func) => {
+                agent[func].ecmascript_function.home_object.is_some()
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
@@ -366,22 +344,13 @@ impl FunctionEnvironmentIndex {
     /// envRec takes no arguments and returns either a normal completion
     /// containing either an Object, null, or undefined, or a throw completion.
     pub(crate) fn get_super_base(self, agent: &mut Agent) -> JsResult<Value> {
-        let env_rec = self.heap_data(agent);
+        let env_rec: &FunctionEnvironment = &agent[self];
 
         // 1. Let home be envRec.[[FunctionObject]].[[HomeObject]].
         let home = match env_rec.function_object {
             Function::BoundFunction(_) => todo!(),
             Function::BuiltinFunction(_) => unreachable!(),
-            Function::ECMAScriptFunction(idx) => {
-                let data = agent
-                    .heap
-                    .ecmascript_functions
-                    .get(idx.get_index())
-                    .unwrap()
-                    .as_ref()
-                    .unwrap();
-                data.ecmascript_function.home_object
-            }
+            Function::ECMAScriptFunction(func) => agent[func].ecmascript_function.home_object,
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseResolveFunction => todo!(),
