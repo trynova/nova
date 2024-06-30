@@ -1,3 +1,5 @@
+use std::{cell::OnceCell, num::NonZeroUsize};
+
 use wtf8::{Wtf8, Wtf8Buf};
 
 use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
@@ -5,7 +7,7 @@ use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 #[derive(Debug, Clone)]
 pub struct StringHeapData {
     pub(crate) data: StringBuffer,
-    pub(crate) mapping: IndexMapping,
+    pub(crate) mapping: OnceCell<IndexMapping>,
 }
 
 impl PartialEq for StringHeapData {
@@ -31,7 +33,7 @@ pub(crate) enum IndexMapping {
         /// When the UTF-16 character would be the second character in a
         /// surrogate pair, it maps to None because there is no corresponding
         /// UTF-8 index.
-        mapping: Box<[Option<usize>]>,
+        mapping: Box<[Option<NonZeroUsize>]>,
     },
 }
 
@@ -49,8 +51,40 @@ impl StringHeapData {
         }
     }
 
+    fn index_mapping(&self) -> &IndexMapping {
+        self.mapping.get_or_init(|| {
+            let mut iter = self.as_str().char_indices();
+
+            let Some((idx, ch)) = iter.find(|(_, ch)| !ch.is_ascii()) else {
+                return IndexMapping::Ascii;
+            };
+
+            // All indices less than `idx` map to ASCII bytes, so all UTF-16
+            // indices less *or equal* than `idx` map to that same UTF-8 index
+            let mut mapping: Vec<Option<NonZeroUsize>> = (0..=idx).map(NonZeroUsize::new).collect();
+
+            if ch.len_utf16() != 1 {
+                debug_assert_eq!(ch.len_utf16(), 2);
+                mapping.push(None);
+            }
+
+            for (idx, ch) in iter {
+                assert_ne!(idx, 0);
+                mapping.push(NonZeroUsize::new(idx));
+                if ch.len_utf16() != 1 {
+                    debug_assert_eq!(ch.len_utf16(), 2);
+                    mapping.push(None);
+                }
+            }
+
+            IndexMapping::NonAscii {
+                mapping: mapping.into_boxed_slice(),
+            }
+        })
+    }
+
     pub fn utf16_len(&self) -> usize {
-        match &self.mapping {
+        match self.index_mapping() {
             IndexMapping::Ascii => self.len(),
             IndexMapping::NonAscii { mapping } => mapping.len(),
         }
@@ -58,12 +92,16 @@ impl StringHeapData {
 
     // TODO: This should return a wtf8::CodePoint.
     pub fn utf16_char(&self, idx: usize) -> char {
-        let utf8_idx = match &self.mapping {
-            IndexMapping::Ascii => idx,
-            IndexMapping::NonAscii { mapping } => {
-                // TODO: Deal with surrogates.
-                mapping[idx].unwrap()
+        let utf8_idx = if idx != 0 {
+            match self.index_mapping() {
+                IndexMapping::Ascii => idx,
+                IndexMapping::NonAscii { mapping } => {
+                    // TODO: Deal with surrogates.
+                    mapping[idx].unwrap().get()
+                }
             }
+        } else {
+            0
         };
         let ch = self.as_str()[utf8_idx..].chars().next().unwrap();
         // TODO: Deal with surrogates.
@@ -82,7 +120,7 @@ impl StringHeapData {
         debug_assert!(str.len() > 7);
         StringHeapData {
             data: StringBuffer::Owned(Wtf8Buf::from_str(str)),
-            mapping: build_mapping(str),
+            mapping: OnceCell::new(),
         }
     }
 
@@ -90,46 +128,16 @@ impl StringHeapData {
         debug_assert!(str.len() > 7);
         StringHeapData {
             data: StringBuffer::Static(Wtf8::from_str(str)),
-            mapping: build_mapping(str),
+            mapping: OnceCell::new(),
         }
     }
 
     pub fn from_string(str: String) -> Self {
         debug_assert!(str.len() > 7);
-        let mapping = build_mapping(&str);
         StringHeapData {
             data: StringBuffer::Owned(Wtf8Buf::from_string(str)),
-            mapping,
+            mapping: OnceCell::new(),
         }
-    }
-}
-
-fn build_mapping(str: &str) -> IndexMapping {
-    let mut iter = str.char_indices();
-
-    let Some((idx, ch)) = iter.find(|(_, ch)| !ch.is_ascii()) else {
-        return IndexMapping::Ascii;
-    };
-
-    // All indices less than `idx` map to ASCII bytes, so all UTF-16
-    // indices less *or equal* than `idx` map to that same UTF-8 index
-    let mut mapping: Vec<Option<usize>> = (0..=idx).map(Some).collect();
-
-    if ch.len_utf16() != 1 {
-        debug_assert_eq!(ch.len_utf16(), 2);
-        mapping.push(None);
-    }
-
-    for (idx, ch) in iter {
-        mapping.push(Some(idx));
-        if ch.len_utf16() != 1 {
-            debug_assert_eq!(ch.len_utf16(), 2);
-            mapping.push(None);
-        }
-    }
-
-    IndexMapping::NonAscii {
-        mapping: mapping.into_boxed_slice(),
     }
 }
 
