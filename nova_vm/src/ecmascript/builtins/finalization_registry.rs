@@ -9,7 +9,7 @@ use crate::{
     },
     heap::{
         indexes::{BaseIndex, FinalizationRegistryIndex},
-        CreateHeapData, Heap,
+        CreateHeapData, Heap, HeapMarkAndSweep,
     },
 };
 
@@ -124,6 +124,16 @@ impl IndexMut<FinalizationRegistry> for Vec<Option<FinalizationRegistryHeapData>
             .expect("FinalizationRegistry out of bounds")
             .as_mut()
             .expect("FinalizationRegistry slot empty")
+    }
+}
+
+impl HeapMarkAndSweep for FinalizationRegistry {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.finalization_registrys.push(*self);
+    }
+
+    fn sweep_values(&mut self, _compactions: &crate::heap::CompactionLists) {
+        todo!()
     }
 }
 

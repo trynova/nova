@@ -12,7 +12,7 @@ use crate::{
             UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
         },
     },
-    heap::{indexes::TypedArrayIndex, CreateHeapData, Heap},
+    heap::{indexes::TypedArrayIndex, CreateHeapData, Heap, HeapMarkAndSweep},
 };
 
 use self::data::TypedArrayHeapData;
@@ -189,6 +189,16 @@ impl InternalSlots for TypedArray {
 }
 
 impl InternalMethods for TypedArray {}
+
+impl HeapMarkAndSweep for TypedArrayIndex {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.typed_arrays.push(*self);
+    }
+
+    fn sweep_values(&mut self, _compactions: &crate::heap::CompactionLists) {
+        todo!()
+    }
+}
 
 impl CreateHeapData<TypedArrayHeapData, TypedArray> for Heap {
     fn create(&mut self, data: TypedArrayHeapData) -> TypedArray {

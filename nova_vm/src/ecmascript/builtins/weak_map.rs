@@ -9,7 +9,7 @@ use crate::{
     },
     heap::{
         indexes::{BaseIndex, WeakMapIndex},
-        CreateHeapData,
+        CreateHeapData, HeapMarkAndSweep,
     },
     Heap,
 };
@@ -126,6 +126,16 @@ impl IndexMut<WeakMap> for Vec<Option<WeakMapHeapData>> {
             .expect("WeakMap out of bounds")
             .as_mut()
             .expect("WeakMap slot empty")
+    }
+}
+
+impl HeapMarkAndSweep for WeakMap {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.weak_maps.push(*self);
+    }
+
+    fn sweep_values(&mut self, _compactions: &crate::heap::CompactionLists) {
+        todo!()
     }
 }
 
