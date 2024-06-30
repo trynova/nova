@@ -6324,7 +6324,6 @@
   "built-ins/Reflect/isExtensible/return-abrupt-from-result.js": "CRASH",
   "built-ins/Reflect/ownKeys/length.js": "CRASH",
   "built-ins/Reflect/ownKeys/name.js": "CRASH",
-  "built-ins/Reflect/ownKeys/order-after-define-property.js": "CRASH",
   "built-ins/Reflect/ownKeys/return-abrupt-from-result.js": "CRASH",
   "built-ins/Reflect/ownKeys/return-non-enumerable-keys.js": "CRASH",
   "built-ins/Reflect/ownKeys/return-on-corresponding-order-large-index.js": "CRASH",
