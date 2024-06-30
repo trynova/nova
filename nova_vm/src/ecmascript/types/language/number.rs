@@ -859,7 +859,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.9 Number::leftShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-leftShift)
-    /// 
+    ///
     /// The abstract operation Number::signedRightShift takes arguments x
     /// (a Number) and y (a Number) and returns an integral Number.
     pub fn left_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
@@ -874,7 +874,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.10 Number::signedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-signedRightShift)
-    /// 
+    ///
     /// The abstract operation Number::unsignedRightShift takes arguments x
     /// (a Number) and y (a Number) and returns an integral Number.
     pub fn signed_right_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
@@ -889,7 +889,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.11 Number::unsignedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-unsignedRightShift)
-    /// 
+    ///
     /// The abstract operation Number::lessThan takes arguments x (a Number)
     /// and y (a Number) and returns a Boolean or undefined.
     pub fn unsigned_right_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
@@ -902,7 +902,6 @@ impl Number {
         // 4. Return the result of performing a zero-filling right shift of lnum by shiftCount bits. Vacated bits are filled with zero. The mathematical value of the result is exactly representable as a 32-bit unsigned bit string.
         Number::from(lnum.unsigned_shr(shift_count))
     }
-
 
     /// ### [6.1.6.1.12 Number::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-lessThan)
     pub fn less_than(agent: &mut Agent, x: Self, y: Self) -> Option<bool> {
