@@ -697,8 +697,12 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
                 ctx.exe.add_instruction(Instruction::GetValue);
             }
 
+            ctx.exe.add_instruction(Instruction::LoadCopy);
             ctx.exe.add_instruction(Instruction::PopReference);
             ctx.exe.add_instruction(Instruction::PutValue);
+
+            // ... Return rval.
+            ctx.exe.add_instruction(Instruction::Store);
         } else if matches!(
             self.operator,
             oxc_syntax::operator::AssignmentOperator::LogicalAnd
