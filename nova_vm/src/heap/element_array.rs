@@ -331,6 +331,67 @@ impl ElementsVector {
         }
         self.len += 1;
     }
+
+    pub fn remove(&mut self, elements: &mut ElementArrays, index: usize) {
+        let len = usize::try_from(self.len()).unwrap();
+        assert!(index < len);
+
+        let (values, descriptors) = match self.cap {
+            ElementArrayKey::Empty => unreachable!(),
+            ElementArrayKey::E4 => (
+                &mut elements.e2pow4.values[self.elements_index][..],
+                elements.e2pow4.descriptors.get_mut(&self.elements_index),
+            ),
+            ElementArrayKey::E6 => (
+                &mut elements.e2pow6.values[self.elements_index][..],
+                elements.e2pow6.descriptors.get_mut(&self.elements_index),
+            ),
+            ElementArrayKey::E8 => (
+                &mut elements.e2pow8.values[self.elements_index][..],
+                elements.e2pow8.descriptors.get_mut(&self.elements_index),
+            ),
+            ElementArrayKey::E10 => (
+                &mut elements.e2pow10.values[self.elements_index][..],
+                elements.e2pow10.descriptors.get_mut(&self.elements_index),
+            ),
+            ElementArrayKey::E12 => (
+                &mut elements.e2pow12.values[self.elements_index][..],
+                elements.e2pow12.descriptors.get_mut(&self.elements_index),
+            ),
+            ElementArrayKey::E16 => (
+                &mut elements.e2pow16.values[self.elements_index][..],
+                elements.e2pow16.descriptors.get_mut(&self.elements_index),
+            ),
+            ElementArrayKey::E24 => (
+                &mut elements.e2pow24.values[self.elements_index][..],
+                elements.e2pow24.descriptors.get_mut(&self.elements_index),
+            ),
+            ElementArrayKey::E32 => (
+                &mut elements.e2pow32.values[self.elements_index][..],
+                elements.e2pow32.descriptors.get_mut(&self.elements_index),
+            ),
+        };
+
+        values.copy_within((index + 1)..len, index);
+        values[len - 1] = None;
+        self.len -= 1;
+
+        if let Some(descriptor_map) = descriptors {
+            let mut new_map = HashMap::new();
+            for (k, v) in descriptor_map.drain() {
+                match usize::try_from(k).unwrap().cmp(&index) {
+                    std::cmp::Ordering::Less => {
+                        new_map.insert(k, v);
+                    }
+                    std::cmp::Ordering::Equal => {}
+                    std::cmp::Ordering::Greater => {
+                        new_map.insert(k - 1, v);
+                    }
+                }
+            }
+            *descriptor_map = new_map;
+        }
+    }
 }
 
 impl HeapMarkAndSweep for ElementsVector {
