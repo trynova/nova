@@ -135,8 +135,34 @@ impl PropertyStorage {
         }
     }
 
-    pub fn remove(self, _agent: &mut Agent, _property_key: PropertyKey) {
-        todo!()
+    pub fn remove(self, agent: &mut Agent, property_key: PropertyKey) {
+        match self.0 {
+            Object::Object(object) => {
+                let property_key = property_key.into_value();
+
+                let result = agent
+                    .heap
+                    .elements
+                    .get(agent[object].keys)
+                    .iter()
+                    .enumerate()
+                    .find(|(_, element_key)| element_key.unwrap() == property_key)
+                    .map(|res| res.0);
+                if let Some(index) = result {
+                    let Heap {
+                        elements, objects, ..
+                    } = &mut agent.heap;
+                    let object_heap_data = objects
+                        .get_mut(object.get_index())
+                        .expect("Invalid ObjectIndex")
+                        .as_mut()
+                        .expect("Invalid ObjectIndex");
+                    object_heap_data.keys.remove(elements, index);
+                    object_heap_data.values.remove(elements, index);
+                }
+            }
+            _ => todo!(),
+        }
     }
 
     pub fn entries(self, _agent: &Agent) -> Entries {
