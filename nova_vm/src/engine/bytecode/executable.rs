@@ -132,10 +132,14 @@ impl Executable {
         let body: &[Statement] =
             unsafe { std::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
 
-        Self::_compile_statements(agent, body)
+        Self::_compile_statements(agent, body, true)
     }
 
-    pub(crate) fn compile_function_body(agent: &mut Agent, body: &FunctionBody<'_>) -> Executable {
+    pub(crate) fn compile_function_body(
+        agent: &mut Agent,
+        body: &FunctionBody<'_>,
+        is_concise_body: bool,
+    ) -> Executable {
         if agent.options.print_internals {
             eprintln!();
             eprintln!("=== Compiling Function ===");
@@ -146,10 +150,14 @@ impl Executable {
         // heap operations.
         let body: &[Statement] = unsafe { std::mem::transmute(body.statements.as_slice()) };
 
-        Self::_compile_statements(agent, body)
+        Self::_compile_statements(agent, body, is_concise_body)
     }
 
-    fn _compile_statements(agent: &mut Agent, body: &[Statement]) -> Executable {
+    fn _compile_statements(
+        agent: &mut Agent,
+        body: &[Statement],
+        implicit_return: bool,
+    ) -> Executable {
         let mut ctx = CompileContext {
             agent,
             exe: Executable {
@@ -172,10 +180,9 @@ impl Executable {
             stmt.compile(&mut ctx);
         }
 
-        if ctx.exe.instructions.last() != Some(&Instruction::Return.as_u8()) {
+        if implicit_return && ctx.exe.instructions.last() != Some(&Instruction::Return.as_u8()) {
             // If code did not end with a return statement, add it manually
             ctx.exe.add_instruction(Instruction::Return);
-            return ctx.exe;
         }
 
         ctx.exe
@@ -690,8 +697,12 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
                 ctx.exe.add_instruction(Instruction::GetValue);
             }
 
+            ctx.exe.add_instruction(Instruction::LoadCopy);
             ctx.exe.add_instruction(Instruction::PopReference);
             ctx.exe.add_instruction(Instruction::PutValue);
+
+            // ... Return rval.
+            ctx.exe.add_instruction(Instruction::Store);
         } else if matches!(
             self.operator,
             oxc_syntax::operator::AssignmentOperator::LogicalAnd

@@ -173,20 +173,30 @@ impl Index<EmbedderObject> for Agent {
     type Output = EmbedderObjectHeapData;
 
     fn index(&self, index: EmbedderObject) -> &Self::Output {
-        self.heap
-            .embedder_objects
-            .get(index.0.into_index())
+        &self.heap.embedder_objects[index]
+    }
+}
+
+impl IndexMut<EmbedderObject> for Agent {
+    fn index_mut(&mut self, index: EmbedderObject) -> &mut Self::Output {
+        &mut self.heap.embedder_objects[index]
+    }
+}
+
+impl Index<EmbedderObject> for Vec<Option<EmbedderObjectHeapData>> {
+    type Output = EmbedderObjectHeapData;
+
+    fn index(&self, index: EmbedderObject) -> &Self::Output {
+        self.get(index.get_index())
             .expect("EmbedderObject out of bounds")
             .as_ref()
             .expect("EmbedderObject slot empty")
     }
 }
 
-impl IndexMut<EmbedderObject> for Agent {
+impl IndexMut<EmbedderObject> for Vec<Option<EmbedderObjectHeapData>> {
     fn index_mut(&mut self, index: EmbedderObject) -> &mut Self::Output {
-        self.heap
-            .embedder_objects
-            .get_mut(index.0.into_index())
+        self.get_mut(index.get_index())
             .expect("EmbedderObject out of bounds")
             .as_mut()
             .expect("EmbedderObject slot empty")

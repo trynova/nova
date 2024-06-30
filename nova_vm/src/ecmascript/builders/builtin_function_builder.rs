@@ -533,7 +533,7 @@ impl<'agent>
             .agent
             .heap
             .builtin_functions
-            .get_mut(self.this.0.into_index())
+            .get_mut(self.this.get_index())
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(data);
@@ -609,7 +609,7 @@ impl<'agent>
         let slot = agent
             .heap
             .builtin_functions
-            .get_mut(self.this.0.into_index())
+            .get_mut(self.this.get_index())
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(data);
@@ -679,7 +679,7 @@ impl<'agent>
         let slot = agent
             .heap
             .builtin_functions
-            .get_mut(self.this.0.into_index())
+            .get_mut(self.this.get_index())
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(data);

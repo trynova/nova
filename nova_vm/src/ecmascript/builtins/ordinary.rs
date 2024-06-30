@@ -18,7 +18,7 @@ use crate::{
         },
     },
     heap::{
-        indexes::ObjectIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        indexes::ObjectIndex, CompactionLists, CreateHeapData, HeapMarkAndSweep,
         WellKnownSymbolIndexes, WorkQueues,
     },
 };
@@ -37,35 +37,33 @@ impl Index<OrdinaryObject> for Agent {
     type Output = ObjectHeapData;
 
     fn index(&self, index: OrdinaryObject) -> &Self::Output {
-        &self.heap[index]
+        &self.heap.objects[index]
     }
 }
 
 impl IndexMut<OrdinaryObject> for Agent {
     fn index_mut(&mut self, index: OrdinaryObject) -> &mut Self::Output {
-        &mut self.heap[index]
+        &mut self.heap.objects[index]
     }
 }
 
-impl Index<OrdinaryObject> for Heap {
+impl Index<OrdinaryObject> for Vec<Option<ObjectHeapData>> {
     type Output = ObjectHeapData;
 
     fn index(&self, index: OrdinaryObject) -> &Self::Output {
-        self.objects
-            .get(index.0.into_index())
-            .expect("OrdinaryObject out of bounds")
+        self.get(index.get_index())
+            .expect("Object out of bounds")
             .as_ref()
-            .expect("OrdinaryObject slot empty")
+            .expect("Object slot empty")
     }
 }
 
-impl IndexMut<OrdinaryObject> for Heap {
+impl IndexMut<OrdinaryObject> for Vec<Option<ObjectHeapData>> {
     fn index_mut(&mut self, index: OrdinaryObject) -> &mut Self::Output {
-        self.objects
-            .get_mut(index.0.into_index())
-            .expect("OrdinaryObject out of bounds")
+        self.get_mut(index.get_index())
+            .expect("Object out of bounds")
             .as_mut()
-            .expect("OrdinaryObject slot empty")
+            .expect("Object slot empty")
     }
 }
 

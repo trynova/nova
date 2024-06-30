@@ -16,7 +16,7 @@ use crate::{
         types::{IntoValue, String, Value},
     },
     engine::{Executable, Vm},
-    heap::{CompactionLists, Heap, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 use oxc_allocator::Allocator;
 use oxc_ast::{
@@ -71,32 +71,30 @@ impl Index<ScriptIdentifier> for Agent {
     type Output = Script;
 
     fn index(&self, index: ScriptIdentifier) -> &Self::Output {
-        &self.heap[index]
+        &self.heap.scripts[index]
     }
 }
 
 impl IndexMut<ScriptIdentifier> for Agent {
     fn index_mut(&mut self, index: ScriptIdentifier) -> &mut Self::Output {
-        &mut self.heap[index]
+        &mut self.heap.scripts[index]
     }
 }
 
-impl Index<ScriptIdentifier> for Heap {
+impl Index<ScriptIdentifier> for Vec<Option<Script>> {
     type Output = Script;
 
     fn index(&self, index: ScriptIdentifier) -> &Self::Output {
-        self.scripts
-            .get(index.into_index())
+        self.get(index.into_index())
             .expect("ScriptIdentifier out of bounds")
             .as_ref()
             .expect("ScriptIdentifier slot empty")
     }
 }
 
-impl IndexMut<ScriptIdentifier> for Heap {
+impl IndexMut<ScriptIdentifier> for Vec<Option<Script>> {
     fn index_mut(&mut self, index: ScriptIdentifier) -> &mut Self::Output {
-        self.scripts
-            .get_mut(index.into_index())
+        self.get_mut(index.into_index())
             .expect("ScriptIdentifier out of bounds")
             .as_mut()
             .expect("ScriptIdentifier slot empty")
@@ -1100,8 +1098,7 @@ mod test {
             None,
         )
         .unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
-        assert_eq!(result, Value::Undefined);
+        script_evaluation(&mut agent, script).unwrap();
 
         let global_env = agent.get_realm(realm).global_env.unwrap();
         let a_key = String::from_static_str(&mut agent, "a");
@@ -1585,5 +1582,24 @@ mod test {
                 .unwrap(),
             10.into()
         );
+    }
+
+    #[test]
+    fn no_implicit_return() {
+        let allocator = Allocator::default();
+
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent);
+        let realm = agent.current_realm_id();
+
+        let script = parse_script(
+            &allocator,
+            "function foo() { 42; }; foo()".into(),
+            realm,
+            None,
+        )
+        .unwrap();
+        let result = script_evaluation(&mut agent, script).unwrap();
+        assert_eq!(result, Value::Undefined);
     }
 }

@@ -1065,10 +1065,22 @@ impl Index<HeapNumber> for Agent {
     type Output = f64;
 
     fn index(&self, index: HeapNumber) -> &Self::Output {
+        &self.heap.numbers[index]
+    }
+}
+
+impl IndexMut<HeapNumber> for Agent {
+    fn index_mut(&mut self, index: HeapNumber) -> &mut Self::Output {
+        &mut self.heap.numbers[index]
+    }
+}
+
+impl Index<HeapNumber> for Vec<Option<NumberHeapData>> {
+    type Output = f64;
+
+    fn index(&self, index: HeapNumber) -> &Self::Output {
         &self
-            .heap
-            .numbers
-            .get(index.0.into_index())
+            .get(index.get_index())
             .expect("HeapNumber out of bounds")
             .as_ref()
             .expect("HeapNumber slot empty")
@@ -1076,12 +1088,10 @@ impl Index<HeapNumber> for Agent {
     }
 }
 
-impl IndexMut<HeapNumber> for Agent {
+impl IndexMut<HeapNumber> for Vec<Option<NumberHeapData>> {
     fn index_mut(&mut self, index: HeapNumber) -> &mut Self::Output {
         &mut self
-            .heap
-            .numbers
-            .get_mut(index.0.into_index())
+            .get_mut(index.get_index())
             .expect("HeapNumber out of bounds")
             .as_mut()
             .expect("HeapNumber slot empty")

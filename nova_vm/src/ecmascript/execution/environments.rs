@@ -60,7 +60,7 @@ use super::{Agent, JsResult};
 pub(super) type OuterEnv = Option<EnvironmentIndex>;
 
 macro_rules! create_environment_index {
-    ($name: ident, $index: ident) => {
+    ($name: ident, $index: ident, $entry: ident) => {
         /// An index used to access an environment from [`Environments`].
         /// Internally, we store the index in a [`NonZeroU32`] with the index
         /// plus one. This allows us to not use an empty value in storage for
@@ -93,14 +93,52 @@ macro_rules! create_environment_index {
                 Self::from_u32(vec.len() as u32)
             }
         }
+
+        impl std::ops::Index<$index> for Agent {
+            type Output = $name;
+
+            fn index(&self, index: $index) -> &Self::Output {
+                &self.heap.environments.$entry[index]
+            }
+        }
+
+        impl std::ops::IndexMut<$index> for Agent {
+            fn index_mut(&mut self, index: $index) -> &mut Self::Output {
+                &mut self.heap.environments.$entry[index]
+            }
+        }
+
+        impl std::ops::Index<$index> for Vec<Option<$name>> {
+            type Output = $name;
+
+            fn index(&self, index: $index) -> &Self::Output {
+                self.get(index.into_index())
+                    .expect("Environment out of bounds")
+                    .as_ref()
+                    .expect("Environment slot empty")
+            }
+        }
+
+        impl std::ops::IndexMut<$index> for Vec<Option<$name>> {
+            fn index_mut(&mut self, index: $index) -> &mut Self::Output {
+                self.get_mut(index.into_index())
+                    .expect("Environment out of bounds")
+                    .as_mut()
+                    .expect("Environment slot empty")
+            }
+        }
     };
 }
 
-create_environment_index!(DeclarativeEnvironment, DeclarativeEnvironmentIndex);
-create_environment_index!(FunctionEnvironment, FunctionEnvironmentIndex);
-create_environment_index!(GlobalEnvironment, GlobalEnvironmentIndex);
-create_environment_index!(ObjectEnvironment, ObjectEnvironmentIndex);
-create_environment_index!(PrivateEnvironment, PrivateEnvironmentIndex);
+create_environment_index!(
+    DeclarativeEnvironment,
+    DeclarativeEnvironmentIndex,
+    declarative
+);
+create_environment_index!(FunctionEnvironment, FunctionEnvironmentIndex, function);
+create_environment_index!(GlobalEnvironment, GlobalEnvironmentIndex, global);
+create_environment_index!(ObjectEnvironment, ObjectEnvironmentIndex, object);
+create_environment_index!(PrivateEnvironment, PrivateEnvironmentIndex, private);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct ModuleEnvironmentIndex(NonZeroU32, PhantomData<DeclarativeEnvironment>);
@@ -151,16 +189,12 @@ pub(crate) enum EnvironmentIndex {
 impl EnvironmentIndex {
     pub(crate) fn get_outer_env(self, agent: &Agent) -> OuterEnv {
         match self {
-            EnvironmentIndex::Declarative(index) => index.heap_data(agent).outer_env,
+            EnvironmentIndex::Declarative(index) => agent[index].outer_env,
             EnvironmentIndex::Function(index) => {
-                index
-                    .heap_data(agent)
-                    .declarative_environment
-                    .heap_data(agent)
-                    .outer_env
+                agent[agent[index].declarative_environment].outer_env
             }
             EnvironmentIndex::Global(_) => None,
-            EnvironmentIndex::Object(index) => index.heap_data(agent).outer_env,
+            EnvironmentIndex::Object(index) => agent[index].outer_env,
         }
     }
 
@@ -388,6 +422,7 @@ pub struct Environments {
     pub(crate) function: Vec<Option<FunctionEnvironment>>,
     pub(crate) global: Vec<Option<GlobalEnvironment>>,
     pub(crate) object: Vec<Option<ObjectEnvironment>>,
+    pub(crate) private: Vec<Option<PrivateEnvironment>>,
 }
 
 impl Default for Environments {
@@ -397,6 +432,7 @@ impl Default for Environments {
             function: Vec::with_capacity(1024),
             global: Vec::with_capacity(1),
             object: Vec::with_capacity(1024),
+            private: Vec::with_capacity(0),
         }
     }
 }

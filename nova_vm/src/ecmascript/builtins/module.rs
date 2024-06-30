@@ -12,7 +12,6 @@ use crate::{
         },
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
-    Heap,
 };
 
 use self::data::ModuleHeapData;
@@ -67,32 +66,30 @@ impl Index<Module> for Agent {
     type Output = ModuleHeapData;
 
     fn index(&self, index: Module) -> &Self::Output {
-        &self.heap[index]
+        &self.heap.modules[index]
     }
 }
 
 impl IndexMut<Module> for Agent {
     fn index_mut(&mut self, index: Module) -> &mut Self::Output {
-        &mut self.heap[index]
+        &mut self.heap.modules[index]
     }
 }
 
-impl Index<Module> for Heap {
+impl Index<Module> for Vec<Option<ModuleHeapData>> {
     type Output = ModuleHeapData;
 
     fn index(&self, index: Module) -> &Self::Output {
-        self.modules
-            .get(index.0.into_index())
+        self.get(index.get_index())
             .expect("Module out of bounds")
             .as_ref()
             .expect("Module slot empty")
     }
 }
 
-impl IndexMut<Module> for Heap {
+impl IndexMut<Module> for Vec<Option<ModuleHeapData>> {
     fn index_mut(&mut self, index: Module) -> &mut Self::Output {
-        self.modules
-            .get_mut(index.0.into_index())
+        self.get_mut(index.get_index())
             .expect("Module out of bounds")
             .as_mut()
             .expect("Module slot empty")

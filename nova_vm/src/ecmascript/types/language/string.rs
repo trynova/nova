@@ -32,20 +32,30 @@ impl Index<HeapString> for Agent {
     type Output = StringHeapData;
 
     fn index(&self, index: HeapString) -> &Self::Output {
-        self.heap
-            .strings
-            .get(index.0.into_index())
+        &self.heap.strings[index]
+    }
+}
+
+impl IndexMut<HeapString> for Agent {
+    fn index_mut(&mut self, index: HeapString) -> &mut Self::Output {
+        &mut self.heap.strings[index]
+    }
+}
+
+impl Index<HeapString> for Vec<Option<StringHeapData>> {
+    type Output = StringHeapData;
+
+    fn index(&self, index: HeapString) -> &Self::Output {
+        self.get(index.get_index())
             .expect("HeapString out of bounds")
             .as_ref()
             .expect("HeapString slot empty")
     }
 }
 
-impl IndexMut<HeapString> for Agent {
+impl IndexMut<HeapString> for Vec<Option<StringHeapData>> {
     fn index_mut(&mut self, index: HeapString) -> &mut Self::Output {
-        self.heap
-            .strings
-            .get_mut(index.0.into_index())
+        self.get_mut(index.get_index())
             .expect("HeapString out of bounds")
             .as_mut()
             .expect("HeapString slot empty")

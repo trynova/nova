@@ -266,20 +266,30 @@ impl Index<Error> for Agent {
     type Output = ErrorHeapData;
 
     fn index(&self, index: Error) -> &Self::Output {
-        self.heap
-            .errors
-            .get(index.get_index())
+        &self.heap.errors[index]
+    }
+}
+
+impl IndexMut<Error> for Agent {
+    fn index_mut(&mut self, index: Error) -> &mut Self::Output {
+        &mut self.heap.errors[index]
+    }
+}
+
+impl Index<Error> for Vec<Option<ErrorHeapData>> {
+    type Output = ErrorHeapData;
+
+    fn index(&self, index: Error) -> &Self::Output {
+        self.get(index.get_index())
             .expect("Error out of bounds")
             .as_ref()
             .expect("Error slot empty")
     }
 }
 
-impl IndexMut<Error> for Agent {
+impl IndexMut<Error> for Vec<Option<ErrorHeapData>> {
     fn index_mut(&mut self, index: Error) -> &mut Self::Output {
-        self.heap
-            .errors
-            .get_mut(index.get_index())
+        self.get_mut(index.get_index())
             .expect("Error out of bounds")
             .as_mut()
             .expect("Error slot empty")

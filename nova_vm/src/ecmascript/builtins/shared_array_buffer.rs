@@ -71,32 +71,30 @@ impl Index<SharedArrayBuffer> for Agent {
     type Output = SharedArrayBufferHeapData;
 
     fn index(&self, index: SharedArrayBuffer) -> &Self::Output {
-        &self.heap[index]
+        &self.heap.shared_array_buffers[index]
     }
 }
 
 impl IndexMut<SharedArrayBuffer> for Agent {
     fn index_mut(&mut self, index: SharedArrayBuffer) -> &mut Self::Output {
-        &mut self.heap[index]
+        &mut self.heap.shared_array_buffers[index]
     }
 }
 
-impl Index<SharedArrayBuffer> for Heap {
+impl Index<SharedArrayBuffer> for Vec<Option<SharedArrayBufferHeapData>> {
     type Output = SharedArrayBufferHeapData;
 
     fn index(&self, index: SharedArrayBuffer) -> &Self::Output {
-        self.shared_array_buffers
-            .get(index.0.into_index())
+        self.get(index.get_index())
             .expect("SharedArrayBuffer out of bounds")
             .as_ref()
             .expect("SharedArrayBuffer slot empty")
     }
 }
 
-impl IndexMut<SharedArrayBuffer> for Heap {
+impl IndexMut<SharedArrayBuffer> for Vec<Option<SharedArrayBufferHeapData>> {
     fn index_mut(&mut self, index: SharedArrayBuffer) -> &mut Self::Output {
-        self.shared_array_buffers
-            .get_mut(index.0.into_index())
+        self.get_mut(index.get_index())
             .expect("SharedArrayBuffer out of bounds")
             .as_mut()
             .expect("SharedArrayBuffer slot empty")

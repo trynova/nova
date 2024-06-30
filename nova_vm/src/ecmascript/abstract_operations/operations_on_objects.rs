@@ -14,6 +14,7 @@ use crate::{
         },
     },
     engine::instanceof_operator,
+    SmallInteger,
 };
 
 /// ### [7.3.1 MakeBasicObject ( internalSlotsList )](https://tc39.es/ecma262/#sec-makebasicobject)
@@ -377,6 +378,45 @@ pub(crate) fn set_integrity_level<T: Level>(agent: &mut Agent, o: Object) -> JsR
     Ok(true)
 }
 
+/// ### [7.3.16 TestIntegrityLevel ( O, level )](https://tc39.es/ecma262/#sec-testintegritylevel)
+///
+/// The abstract operation TestIntegrityLevel takes arguments O (an Object) and
+/// level (SEALED or FROZEN) and returns either a normal completion containing a
+/// Boolean or a throw completion. It is used to determine if the set of own
+/// properties of an object are fixed.
+pub(crate) fn test_integrity_level<T: Level>(agent: &mut Agent, o: Object) -> JsResult<bool> {
+    // 1. Let extensible be ? IsExtensible(O).
+    // 2. If extensible is true, return false.
+    // 3. NOTE: If the object is extensible, none of its properties are examined.
+    if o.internal_is_extensible(agent)? {
+        return Ok(false);
+    }
+
+    // 4. Let keys be ? O.[[OwnPropertyKeys]]().
+    let keys = o.internal_own_property_keys(agent)?;
+    // 5. For each element k of keys, do
+    for k in keys {
+        // a. Let currentDesc be ? O.[[GetOwnProperty]](k).
+        // b. If currentDesc is not undefined, then
+        if let Some(current_desc) = o.internal_get_own_property(agent, k)? {
+            // i. If currentDesc.[[Configurable]] is true, return false.
+            if current_desc.configurable == Some(true) {
+                return Ok(false);
+            }
+            // ii. If level is frozen and IsDataDescriptor(currentDesc) is true, then
+            if T::LEVEL == IntegrityLevel::Frozen && current_desc.is_data_descriptor() {
+                // 1. If currentDesc.[[Writable]] is true, return false.
+                if current_desc.writable == Some(true) {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+
+    // 6. Return true.
+    Ok(true)
+}
+
 /// ### [7.3.17 CreateArrayFromList ( elements )](https://tc39.es/ecma262/#sec-createarrayfromlist)
 ///
 /// The abstract operation CreateArrayFromList takes argument elements (a List
@@ -412,6 +452,53 @@ pub(crate) fn length_of_array_like(agent: &mut Agent, obj: Object) -> JsResult<i
     // 1. Return ℝ(? ToLength(? Get(obj, "length"))).
     let property = get(agent, obj, PropertyKey::from(BUILTIN_STRING_MEMORY.length))?;
     to_length(agent, property)
+}
+
+/// ### [7.3.19 CreateListFromArrayLike ( obj [ , elementTypes ] )](https://tc39.es/ecma262/#sec-createlistfromarraylike)
+///
+/// The abstract operation CreateListFromArrayLike takes argument obj (an ECMAScript language value)
+/// and optional argument elementTypes (a List of names of ECMAScript Language Types) and returns
+/// either a normal completion containing a List of ECMAScript language values or a throw
+/// completion. It is used to create a List value whose elements are provided by the indexed
+/// properties of obj. elementTypes contains the names of ECMAScript Language Types that are allowed
+/// for element values of the List that is created.
+///
+/// NOTE: This implementation doesn't yet support `elementTypes`.
+pub(crate) fn create_list_from_array_like(agent: &mut Agent, obj: Value) -> JsResult<Vec<Value>> {
+    match obj {
+        Value::Array(array) => Ok(array
+            .as_slice(agent)
+            .iter()
+            .map(|el| el.unwrap_or(Value::Undefined))
+            .collect()),
+        // TODO: TypedArrays
+        _ if obj.is_object() => {
+            let object = Object::try_from(obj).unwrap();
+            // 3. Let len be ? LengthOfArrayLike(obj).
+            let len = length_of_array_like(agent, object)?;
+            let len = usize::try_from(len).unwrap();
+            // 4. Let list be a new empty list.
+            let mut list = Vec::with_capacity(len);
+            // 5. Let index be 0.
+            // 6. Repeat, while index < len,
+            for i in 0..len {
+                // a. Let indexName be ! ToString(𝔽(index)).
+                // b. Let next be ? Get(obj, indexName).
+                let next = get(
+                    agent,
+                    object,
+                    PropertyKey::Integer(SmallInteger::try_from(i as u64).unwrap()),
+                )?;
+                // d. Append next to list.
+                list.push(next);
+                // e. Set index to index + 1.
+            }
+            // 7. Return list.
+            Ok(list)
+        }
+        // 2. If obj is not an Object, throw a TypeError exception.
+        _ => Err(agent.throw_exception(ExceptionType::TypeError, "Not an object")),
+    }
 }
 
 /// Abstract operation Call specialized for a Function.

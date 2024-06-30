@@ -104,20 +104,30 @@ impl Index<Promise> for Agent {
     type Output = PromiseHeapData;
 
     fn index(&self, index: Promise) -> &Self::Output {
-        self.heap
-            .promises
-            .get(index.get_index())
+        &self.heap.promises[index]
+    }
+}
+
+impl IndexMut<Promise> for Agent {
+    fn index_mut(&mut self, index: Promise) -> &mut Self::Output {
+        &mut self.heap.promises[index]
+    }
+}
+
+impl Index<Promise> for Vec<Option<PromiseHeapData>> {
+    type Output = PromiseHeapData;
+
+    fn index(&self, index: Promise) -> &Self::Output {
+        self.get(index.get_index())
             .expect("Promise out of bounds")
             .as_ref()
             .expect("Promise slot empty")
     }
 }
 
-impl IndexMut<Promise> for Agent {
+impl IndexMut<Promise> for Vec<Option<PromiseHeapData>> {
     fn index_mut(&mut self, index: Promise) -> &mut Self::Output {
-        self.heap
-            .promises
-            .get_mut(index.get_index())
+        self.get_mut(index.get_index())
             .expect("Promise out of bounds")
             .as_mut()
             .expect("Promise slot empty")

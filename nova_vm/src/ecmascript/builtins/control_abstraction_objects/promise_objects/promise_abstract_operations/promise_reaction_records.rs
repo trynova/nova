@@ -67,20 +67,30 @@ impl Index<PromiseReaction> for Agent {
     type Output = PromiseReactionRecord;
 
     fn index(&self, index: PromiseReaction) -> &Self::Output {
-        self.heap
-            .promise_reaction_records
-            .get(index.get_index())
+        &self.heap.promise_reaction_records[index]
+    }
+}
+
+impl IndexMut<PromiseReaction> for Agent {
+    fn index_mut(&mut self, index: PromiseReaction) -> &mut Self::Output {
+        &mut self.heap.promise_reaction_records[index]
+    }
+}
+
+impl Index<PromiseReaction> for Vec<Option<PromiseReactionRecord>> {
+    type Output = PromiseReactionRecord;
+
+    fn index(&self, index: PromiseReaction) -> &Self::Output {
+        self.get(index.get_index())
             .expect("PromiseReaction out of bounds")
             .as_ref()
             .expect("PromiseReaction slot empty")
     }
 }
 
-impl IndexMut<PromiseReaction> for Agent {
+impl IndexMut<PromiseReaction> for Vec<Option<PromiseReactionRecord>> {
     fn index_mut(&mut self, index: PromiseReaction) -> &mut Self::Output {
-        self.heap
-            .promise_reaction_records
-            .get_mut(index.get_index())
+        self.get_mut(index.get_index())
             .expect("PromiseReaction out of bounds")
             .as_mut()
             .expect("PromiseReaction slot empty")

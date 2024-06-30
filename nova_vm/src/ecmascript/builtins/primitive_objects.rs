@@ -81,20 +81,30 @@ impl Index<PrimitiveObject> for Agent {
     type Output = PrimitiveObjectHeapData;
 
     fn index(&self, index: PrimitiveObject) -> &Self::Output {
-        self.heap
-            .primitive_objects
-            .get(index.0.into_index())
+        &self.heap.primitive_objects[index]
+    }
+}
+
+impl IndexMut<PrimitiveObject> for Agent {
+    fn index_mut(&mut self, index: PrimitiveObject) -> &mut Self::Output {
+        &mut self.heap.primitive_objects[index]
+    }
+}
+
+impl Index<PrimitiveObject> for Vec<Option<PrimitiveObjectHeapData>> {
+    type Output = PrimitiveObjectHeapData;
+
+    fn index(&self, index: PrimitiveObject) -> &Self::Output {
+        self.get(index.get_index())
             .expect("PrimitiveObject out of bounds")
             .as_ref()
             .expect("PrimitiveObject slot empty")
     }
 }
 
-impl IndexMut<PrimitiveObject> for Agent {
+impl IndexMut<PrimitiveObject> for Vec<Option<PrimitiveObjectHeapData>> {
     fn index_mut(&mut self, index: PrimitiveObject) -> &mut Self::Output {
-        self.heap
-            .primitive_objects
-            .get_mut(index.0.into_index())
+        self.get_mut(index.get_index())
             .expect("PrimitiveObject out of bounds")
             .as_mut()
             .expect("PrimitiveObject slot empty")

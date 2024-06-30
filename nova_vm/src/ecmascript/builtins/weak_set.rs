@@ -109,20 +109,30 @@ impl Index<WeakSet> for Agent {
     type Output = WeakSetHeapData;
 
     fn index(&self, index: WeakSet) -> &Self::Output {
-        self.heap
-            .weak_sets
-            .get(index.get_index())
+        &self.heap.weak_sets[index]
+    }
+}
+
+impl IndexMut<WeakSet> for Agent {
+    fn index_mut(&mut self, index: WeakSet) -> &mut Self::Output {
+        &mut self.heap.weak_sets[index]
+    }
+}
+
+impl Index<WeakSet> for Vec<Option<WeakSetHeapData>> {
+    type Output = WeakSetHeapData;
+
+    fn index(&self, index: WeakSet) -> &Self::Output {
+        self.get(index.get_index())
             .expect("WeakSet out of bounds")
             .as_ref()
             .expect("WeakSet slot empty")
     }
 }
 
-impl IndexMut<WeakSet> for Agent {
+impl IndexMut<WeakSet> for Vec<Option<WeakSetHeapData>> {
     fn index_mut(&mut self, index: WeakSet) -> &mut Self::Output {
-        self.heap
-            .weak_sets
-            .get_mut(index.get_index())
+        self.get_mut(index.get_index())
             .expect("WeakSet out of bounds")
             .as_mut()
             .expect("WeakSet slot empty")

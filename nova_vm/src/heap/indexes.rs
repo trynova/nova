@@ -10,7 +10,6 @@ use crate::ecmascript::{
         weak_ref::data::WeakRefHeapData, weak_set::data::WeakSetHeapData, ArrayBufferHeapData,
         ArrayHeapData,
     },
-    execution::Agent,
     types::{
         BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
         NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData, Value,
@@ -23,8 +22,6 @@ use std::{
     ops::{Index, IndexMut},
 };
 use std::{marker::PhantomData, mem::size_of, num::NonZeroU32};
-
-use super::Heap;
 
 /// A struct containing a non-zero index into an array or
 /// vector of `T`s. Due to the non-zero value, the offset
@@ -177,45 +174,29 @@ impl Default for ElementIndex {
     }
 }
 
-impl Index<ObjectIndex> for Agent {
-    type Output = ObjectHeapData;
-
-    fn index(&self, index: ObjectIndex) -> &Self::Output {
-        &self.heap[index]
-    }
-}
-
-impl IndexMut<ObjectIndex> for Agent {
-    fn index_mut(&mut self, index: ObjectIndex) -> &mut Self::Output {
-        &mut self.heap[index]
-    }
-}
-
-impl Index<ObjectIndex> for Heap {
-    type Output = ObjectHeapData;
-
-    fn index(&self, index: ObjectIndex) -> &Self::Output {
-        self.objects
-            .get(index.into_index())
-            .expect("ObjectIndex out of bounds")
-            .as_ref()
-            .expect("ObjectIndex slot empty")
-    }
-}
-
-impl IndexMut<ObjectIndex> for Heap {
-    fn index_mut(&mut self, index: ObjectIndex) -> &mut Self::Output {
-        self.objects
-            .get_mut(index.into_index())
-            .expect("ObjectIndex out of bounds")
-            .as_mut()
-            .expect("ObjectIndex slot empty")
-    }
-}
-
 impl ElementIndex {
     pub fn last_element_index<const N: usize>(vec: &[Option<[Option<Value>; N]>]) -> Self {
         assert!(!vec.is_empty());
         Self::from_usize(vec.len())
+    }
+}
+
+impl<const N: usize> Index<ElementIndex> for Vec<Option<[Option<Value>; N]>> {
+    type Output = [Option<Value>; N];
+
+    fn index(&self, index: ElementIndex) -> &Self::Output {
+        self.get(index.into_index())
+            .expect("Invalid ElementsVector: No item at index")
+            .as_ref()
+            .expect("Invalid ElementsVector: Found None at index")
+    }
+}
+
+impl<const N: usize> IndexMut<ElementIndex> for Vec<Option<[Option<Value>; N]>> {
+    fn index_mut(&mut self, index: ElementIndex) -> &mut Self::Output {
+        self.get_mut(index.into_index())
+            .expect("Invalid ElementsVector: No item at index")
+            .as_mut()
+            .expect("Invalid ElementsVector: Found None at index")
     }
 }

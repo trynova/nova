@@ -94,32 +94,30 @@ impl Index<Symbol> for Agent {
     type Output = SymbolHeapData;
 
     fn index(&self, index: Symbol) -> &Self::Output {
-        &self.heap[index]
+        &self.heap.symbols[index]
     }
 }
 
 impl IndexMut<Symbol> for Agent {
     fn index_mut(&mut self, index: Symbol) -> &mut Self::Output {
-        &mut self.heap[index]
+        &mut self.heap.symbols[index]
     }
 }
 
-impl Index<Symbol> for Heap {
+impl Index<Symbol> for Vec<Option<SymbolHeapData>> {
     type Output = SymbolHeapData;
 
     fn index(&self, index: Symbol) -> &Self::Output {
-        self.symbols
-            .get(index.0.into_index())
+        self.get(index.get_index())
             .expect("Symbol out of bounds")
             .as_ref()
             .expect("Symbol slot empty")
     }
 }
 
-impl IndexMut<Symbol> for Heap {
+impl IndexMut<Symbol> for Vec<Option<SymbolHeapData>> {
     fn index_mut(&mut self, index: Symbol) -> &mut Self::Output {
-        self.symbols
-            .get_mut(index.0.into_index())
+        self.get_mut(index.get_index())
             .expect("Symbol out of bounds")
             .as_mut()
             .expect("Symbol slot empty")

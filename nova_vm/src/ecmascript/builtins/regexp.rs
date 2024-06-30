@@ -92,20 +92,30 @@ impl Index<RegExp> for Agent {
     type Output = RegExpHeapData;
 
     fn index(&self, index: RegExp) -> &Self::Output {
-        self.heap
-            .regexps
-            .get(index.get_index())
+        &self.heap.regexps[index]
+    }
+}
+
+impl IndexMut<RegExp> for Agent {
+    fn index_mut(&mut self, index: RegExp) -> &mut Self::Output {
+        &mut self.heap.regexps[index]
+    }
+}
+
+impl Index<RegExp> for Vec<Option<RegExpHeapData>> {
+    type Output = RegExpHeapData;
+
+    fn index(&self, index: RegExp) -> &Self::Output {
+        self.get(index.get_index())
             .expect("RegExp out of bounds")
             .as_ref()
             .expect("RegExp slot empty")
     }
 }
 
-impl IndexMut<RegExp> for Agent {
+impl IndexMut<RegExp> for Vec<Option<RegExpHeapData>> {
     fn index_mut(&mut self, index: RegExp) -> &mut Self::Output {
-        self.heap
-            .regexps
-            .get_mut(index.get_index())
+        self.get_mut(index.get_index())
             .expect("RegExp out of bounds")
             .as_mut()
             .expect("RegExp slot empty")

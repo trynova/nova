@@ -150,6 +150,13 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     /// Our GC algorithm keeps it alive as long as this function is alive.
     pub ecmascript_code: &'static FunctionBody<'static>,
 
+    /// True if the function body is a ConciseBody (can only be true for arrow
+    /// functions).
+    ///
+    /// This is used to know whether to treat the function as having an implicit
+    /// return or not.
+    pub is_concise_arrow_function: bool,
+
     /// \[\[ConstructorKind]]
     /// \[\[IsClassConstructor]]
     pub constructor_status: ConstructorStatus,
@@ -179,6 +186,7 @@ pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
     pub source_text: Span,
     pub parameters_list: &'agent FormalParameters<'program>,
     pub body: &'agent FunctionBody<'program>,
+    pub is_concise_arrow_function: bool,
     pub this_mode: ThisMode,
     pub env: EnvironmentIndex,
     pub private_env: Option<PrivateEnvironmentIndex>,
@@ -188,32 +196,30 @@ impl Index<ECMAScriptFunction> for Agent {
     type Output = ECMAScriptFunctionHeapData;
 
     fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
-        &self.heap[index]
+        &self.heap.ecmascript_functions[index]
     }
 }
 
 impl IndexMut<ECMAScriptFunction> for Agent {
     fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
-        &mut self.heap[index]
+        &mut self.heap.ecmascript_functions[index]
     }
 }
 
-impl Index<ECMAScriptFunction> for Heap {
+impl Index<ECMAScriptFunction> for Vec<Option<ECMAScriptFunctionHeapData>> {
     type Output = ECMAScriptFunctionHeapData;
 
     fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
-        self.ecmascript_functions
-            .get(index.0.into_index())
+        self.get(index.get_index())
             .expect("ECMAScriptFunction out of bounds")
             .as_ref()
             .expect("ECMAScriptFunction slot empty")
     }
 }
 
-impl IndexMut<ECMAScriptFunction> for Heap {
+impl IndexMut<ECMAScriptFunction> for Vec<Option<ECMAScriptFunctionHeapData>> {
     fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
-        self.ecmascript_functions
-            .get_mut(index.0.into_index())
+        self.get_mut(index.get_index())
             .expect("ECMAScriptFunction out of bounds")
             .as_mut()
             .expect("ECMAScriptFunction slot empty")
@@ -751,6 +757,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
                 params.body,
             )
         },
+        is_concise_arrow_function: params.is_concise_arrow_function,
         // 12. Set F.[[IsClassConstructor]] to false.
         constructor_status: ConstructorStatus::NonConstructor,
         // 16. Set F.[[Realm]] to the current Realm Record.

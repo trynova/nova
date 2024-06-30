@@ -153,32 +153,30 @@ impl Index<BuiltinFunction> for Agent {
     type Output = BuiltinFunctionHeapData;
 
     fn index(&self, index: BuiltinFunction) -> &Self::Output {
-        &self.heap[index]
+        &self.heap.builtin_functions[index]
     }
 }
 
 impl IndexMut<BuiltinFunction> for Agent {
     fn index_mut(&mut self, index: BuiltinFunction) -> &mut Self::Output {
-        &mut self.heap[index]
+        &mut self.heap.builtin_functions[index]
     }
 }
 
-impl Index<BuiltinFunction> for Heap {
+impl Index<BuiltinFunction> for Vec<Option<BuiltinFunctionHeapData>> {
     type Output = BuiltinFunctionHeapData;
 
     fn index(&self, index: BuiltinFunction) -> &Self::Output {
-        self.builtin_functions
-            .get(index.0.into_index())
+        self.get(index.get_index())
             .expect("BuiltinFunction out of bounds")
             .as_ref()
             .expect("BuiltinFunction slot empty")
     }
 }
 
-impl IndexMut<BuiltinFunction> for Heap {
+impl IndexMut<BuiltinFunction> for Vec<Option<BuiltinFunctionHeapData>> {
     fn index_mut(&mut self, index: BuiltinFunction) -> &mut Self::Output {
-        self.builtin_functions
-            .get_mut(index.0.into_index())
+        self.get_mut(index.get_index())
             .expect("BuiltinFunction out of bounds")
             .as_mut()
             .expect("BuiltinFunction slot empty")
@@ -513,11 +511,13 @@ pub(crate) fn builtin_call_or_construct(
     caller_context.suspend();
     // 5. Let calleeRealm be F.[[Realm]].
     let Agent {
-        heap,
+        heap: Heap {
+            builtin_functions, ..
+        },
         execution_context_stack,
         ..
     } = agent;
-    let heap_data = &heap[f];
+    let heap_data = &builtin_functions[f];
     let callee_realm = heap_data.realm;
     // 3. Let calleeContext be a new execution context.
     let callee_context = ExecutionContext {

@@ -195,20 +195,30 @@ impl Index<Proxy> for Agent {
     type Output = ProxyHeapData;
 
     fn index(&self, index: Proxy) -> &Self::Output {
-        self.heap
-            .proxys
-            .get(index.get_index())
+        &self.heap.proxys[index]
+    }
+}
+
+impl IndexMut<Proxy> for Agent {
+    fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
+        &mut self.heap.proxys[index]
+    }
+}
+
+impl Index<Proxy> for Vec<Option<ProxyHeapData>> {
+    type Output = ProxyHeapData;
+
+    fn index(&self, index: Proxy) -> &Self::Output {
+        self.get(index.get_index())
             .expect("Proxy out of bounds")
             .as_ref()
             .expect("Proxy slot empty")
     }
 }
 
-impl IndexMut<Proxy> for Agent {
+impl IndexMut<Proxy> for Vec<Option<ProxyHeapData>> {
     fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
-        self.heap
-            .proxys
-            .get_mut(index.get_index())
+        self.get_mut(index.get_index())
             .expect("Proxy out of bounds")
             .as_mut()
             .expect("Proxy slot empty")

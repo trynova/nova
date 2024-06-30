@@ -36,6 +36,24 @@ pub enum TypedArray {
     Float64Array(TypedArrayIndex) = FLOAT_64_ARRAY_DISCRIMINANT,
 }
 
+impl TypedArray {
+    pub(crate) fn get_index(self) -> usize {
+        match self {
+            TypedArray::Int8Array(index)
+            | TypedArray::Uint8Array(index)
+            | TypedArray::Uint8ClampedArray(index)
+            | TypedArray::Int16Array(index)
+            | TypedArray::Uint16Array(index)
+            | TypedArray::Int32Array(index)
+            | TypedArray::Uint32Array(index)
+            | TypedArray::BigInt64Array(index)
+            | TypedArray::BigUint64Array(index)
+            | TypedArray::Float32Array(index)
+            | TypedArray::Float64Array(index) => index.into_index(),
+        }
+    }
+}
+
 impl From<TypedArray> for TypedArrayIndex {
     fn from(val: TypedArray) -> Self {
         match val {
@@ -106,34 +124,30 @@ impl Index<TypedArray> for Agent {
     type Output = TypedArrayHeapData;
 
     fn index(&self, index: TypedArray) -> &Self::Output {
-        &self.heap[index]
+        &self.heap.typed_arrays[index]
     }
 }
 
 impl IndexMut<TypedArray> for Agent {
     fn index_mut(&mut self, index: TypedArray) -> &mut Self::Output {
-        &mut self.heap[index]
+        &mut self.heap.typed_arrays[index]
     }
 }
 
-impl Index<TypedArray> for Heap {
+impl Index<TypedArray> for Vec<Option<TypedArrayHeapData>> {
     type Output = TypedArrayHeapData;
 
     fn index(&self, index: TypedArray) -> &Self::Output {
-        let index = TypedArrayIndex::from(index).into_index();
-        self.typed_arrays
-            .get(index)
+        self.get(index.get_index())
             .expect("TypedArray out of bounds")
             .as_ref()
             .expect("TypedArray slot empty")
     }
 }
 
-impl IndexMut<TypedArray> for Heap {
+impl IndexMut<TypedArray> for Vec<Option<TypedArrayHeapData>> {
     fn index_mut(&mut self, index: TypedArray) -> &mut Self::Output {
-        let index = TypedArrayIndex::from(index).into_index();
-        self.typed_arrays
-            .get_mut(index)
+        self.get_mut(index.get_index())
             .expect("TypedArray out of bounds")
             .as_mut()
             .expect("TypedArray slot empty")
@@ -175,30 +189,6 @@ impl InternalSlots for TypedArray {
 }
 
 impl InternalMethods for TypedArray {}
-
-impl Index<TypedArrayIndex> for Agent {
-    type Output = TypedArrayHeapData;
-
-    fn index(&self, index: TypedArrayIndex) -> &Self::Output {
-        self.heap
-            .typed_arrays
-            .get(index.into_index())
-            .expect("TypedArrayIndex out of bounds")
-            .as_ref()
-            .expect("TypedArrayIndex slot empty")
-    }
-}
-
-impl IndexMut<TypedArrayIndex> for Agent {
-    fn index_mut(&mut self, index: TypedArrayIndex) -> &mut Self::Output {
-        self.heap
-            .typed_arrays
-            .get_mut(index.into_index())
-            .expect("TypedArrayIndex out of bounds")
-            .as_mut()
-            .expect("TypedArrayIndex slot empty")
-    }
-}
 
 impl CreateHeapData<TypedArrayHeapData, TypedArray> for Heap {
     fn create(&mut self, data: TypedArrayHeapData) -> TypedArray {
