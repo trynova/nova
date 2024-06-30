@@ -103,6 +103,7 @@ pub fn heap_gc(heap: &mut Heap) {
             function: function_environments,
             global: global_environments,
             object: object_environments,
+            private: _private_environments,
         } = environments;
         let ElementArrays {
             e2pow4,
@@ -214,7 +215,7 @@ pub fn heap_gc(heap: &mut Heap) {
         let mut array_marks: Box<[Array]> = queues.arrays.drain(..).collect();
         array_marks.sort();
         array_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
+            let index = idx.get_index();
             if let Some(marked) = bits.arrays.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
@@ -795,6 +796,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
         function,
         global,
         object,
+        private: _private_environments,
     } = environments;
     let ElementArrays {
         e2pow4,

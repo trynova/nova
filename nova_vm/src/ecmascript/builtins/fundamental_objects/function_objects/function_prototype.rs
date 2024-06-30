@@ -96,23 +96,13 @@ impl FunctionPrototype {
         }
         // TODO: let arg_list = create_list_from_array_like(arg_array);
         let elements = match arg_array {
-            Value::Array(idx) => {
-                agent
-                    .heap
-                    .arrays
-                    .get(idx.into_index())
-                    .unwrap()
-                    .as_ref()
-                    .unwrap()
-                    .elements
-            }
+            Value::Array(array) => array.as_slice(agent),
             _ => {
                 return Err(
                     agent.throw_exception(ExceptionType::TypeError, "Not a valid arguments array")
                 );
             }
         };
-        let elements = agent.heap.elements.get(elements.into());
         let args: Vec<Value> = elements
             .iter()
             .map(|value| value.unwrap_or(Value::Undefined))

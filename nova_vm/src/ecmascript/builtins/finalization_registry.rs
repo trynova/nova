@@ -97,20 +97,30 @@ impl Index<FinalizationRegistry> for Agent {
     type Output = FinalizationRegistryHeapData;
 
     fn index(&self, index: FinalizationRegistry) -> &Self::Output {
-        self.heap
-            .finalization_registrys
-            .get(index.get_index())
+        &self.heap.finalization_registrys[index]
+    }
+}
+
+impl IndexMut<FinalizationRegistry> for Agent {
+    fn index_mut(&mut self, index: FinalizationRegistry) -> &mut Self::Output {
+        &mut self.heap.finalization_registrys[index]
+    }
+}
+
+impl Index<FinalizationRegistry> for Vec<Option<FinalizationRegistryHeapData>> {
+    type Output = FinalizationRegistryHeapData;
+
+    fn index(&self, index: FinalizationRegistry) -> &Self::Output {
+        self.get(index.get_index())
             .expect("FinalizationRegistry out of bounds")
             .as_ref()
             .expect("FinalizationRegistry slot empty")
     }
 }
 
-impl IndexMut<FinalizationRegistry> for Agent {
+impl IndexMut<FinalizationRegistry> for Vec<Option<FinalizationRegistryHeapData>> {
     fn index_mut(&mut self, index: FinalizationRegistry) -> &mut Self::Output {
-        self.heap
-            .finalization_registrys
-            .get_mut(index.get_index())
+        self.get_mut(index.get_index())
             .expect("FinalizationRegistry out of bounds")
             .as_mut()
             .expect("FinalizationRegistry slot empty")

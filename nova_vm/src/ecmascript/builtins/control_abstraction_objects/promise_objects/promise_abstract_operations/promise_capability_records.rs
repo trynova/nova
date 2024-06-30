@@ -76,20 +76,30 @@ impl Index<PromiseCapability> for Agent {
     type Output = PromiseCapabilityRecord;
 
     fn index(&self, index: PromiseCapability) -> &Self::Output {
-        self.heap
-            .promise_capability_records
-            .get(index.get_index())
+        &self.heap.promise_capability_records[index]
+    }
+}
+
+impl IndexMut<PromiseCapability> for Agent {
+    fn index_mut(&mut self, index: PromiseCapability) -> &mut Self::Output {
+        &mut self.heap.promise_capability_records[index]
+    }
+}
+
+impl Index<PromiseCapability> for Vec<Option<PromiseCapabilityRecord>> {
+    type Output = PromiseCapabilityRecord;
+
+    fn index(&self, index: PromiseCapability) -> &Self::Output {
+        self.get(index.get_index())
             .expect("PromiseCapability out of bounds")
             .as_ref()
             .expect("PromiseCapability slot empty")
     }
 }
 
-impl IndexMut<PromiseCapability> for Agent {
+impl IndexMut<PromiseCapability> for Vec<Option<PromiseCapabilityRecord>> {
     fn index_mut(&mut self, index: PromiseCapability) -> &mut Self::Output {
-        self.heap
-            .promise_capability_records
-            .get_mut(index.get_index())
+        self.get_mut(index.get_index())
             .expect("PromiseCapability out of bounds")
             .as_mut()
             .expect("PromiseCapability slot empty")

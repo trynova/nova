@@ -5,7 +5,7 @@
 pub(crate) mod abstract_operations;
 mod data;
 
-use std::ops::{Deref, Index, IndexMut, RangeInclusive};
+use std::ops::{Index, IndexMut, RangeInclusive};
 
 use super::{array_set_length, ordinary::ordinary_define_own_property};
 use crate::{
@@ -36,6 +36,11 @@ impl Array {
     pub(crate) const fn _def() -> Self {
         Self(ArrayIndex::from_u32_index(0))
     }
+
+    pub(crate) fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+
     pub fn len(&self, agent: &Agent) -> u32 {
         agent[*self].elements.len()
     }
@@ -135,14 +140,6 @@ impl TryFrom<Object> for Array {
             Object::Array(data) => Ok(data),
             _ => Err(()),
         }
-    }
-}
-
-impl Deref for Array {
-    type Target = ArrayIndex;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 
@@ -280,11 +277,7 @@ impl InternalMethods for Array {
                 let Heap {
                     elements, arrays, ..
                 } = &mut agent.heap;
-                let array_heap_data = arrays
-                    .get_mut(self.into_index())
-                    .expect("Array out of bounds")
-                    .as_mut()
-                    .expect("Array out of bounds");
+                let array_heap_data = &mut arrays[self];
                 array_heap_data.elements.reserve(elements, index + 1);
                 let (element_descriptor, value) =
                     ElementDescriptor::from_property_descriptor(&property_descriptor.into());
@@ -441,20 +434,30 @@ impl Index<Array> for Agent {
     type Output = ArrayHeapData;
 
     fn index(&self, index: Array) -> &Self::Output {
-        self.heap
-            .arrays
-            .get(index.0.into_index())
+        &self.heap.arrays[index]
+    }
+}
+
+impl IndexMut<Array> for Agent {
+    fn index_mut(&mut self, index: Array) -> &mut Self::Output {
+        &mut self.heap.arrays[index]
+    }
+}
+
+impl Index<Array> for Vec<Option<ArrayHeapData>> {
+    type Output = ArrayHeapData;
+
+    fn index(&self, index: Array) -> &Self::Output {
+        self.get(index.get_index())
             .expect("Array out of bounds")
             .as_ref()
             .expect("Array slot empty")
     }
 }
 
-impl IndexMut<Array> for Agent {
+impl IndexMut<Array> for Vec<Option<ArrayHeapData>> {
     fn index_mut(&mut self, index: Array) -> &mut Self::Output {
-        self.heap
-            .arrays
-            .get_mut(index.0.into_index())
+        self.get_mut(index.get_index())
             .expect("Array out of bounds")
             .as_mut()
             .expect("Array slot empty")

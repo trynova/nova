@@ -62,32 +62,30 @@ impl Index<DataView> for Agent {
     type Output = DataViewHeapData;
 
     fn index(&self, index: DataView) -> &Self::Output {
-        &self.heap[index]
+        &self.heap.data_views[index]
     }
 }
 
 impl IndexMut<DataView> for Agent {
     fn index_mut(&mut self, index: DataView) -> &mut Self::Output {
-        &mut self.heap[index]
+        &mut self.heap.data_views[index]
     }
 }
 
-impl Index<DataView> for Heap {
+impl Index<DataView> for Vec<Option<DataViewHeapData>> {
     type Output = DataViewHeapData;
 
     fn index(&self, index: DataView) -> &Self::Output {
-        self.data_views
-            .get(index.0.into_index())
+        self.get(index.get_index())
             .expect("DataView out of bounds")
             .as_ref()
             .expect("DataView slot empty")
     }
 }
 
-impl IndexMut<DataView> for Heap {
+impl IndexMut<DataView> for Vec<Option<DataViewHeapData>> {
     fn index_mut(&mut self, index: DataView) -> &mut Self::Output {
-        self.data_views
-            .get_mut(index.0.into_index())
+        self.get_mut(index.get_index())
             .expect("DataView out of bounds")
             .as_mut()
             .expect("DataView slot empty")
@@ -119,30 +117,6 @@ impl InternalSlots for DataView {
 }
 
 impl InternalMethods for DataView {}
-
-impl Index<DataViewIndex> for Agent {
-    type Output = DataViewHeapData;
-
-    fn index(&self, index: DataViewIndex) -> &Self::Output {
-        self.heap
-            .data_views
-            .get(index.into_index())
-            .expect("DataViewIndex out of bounds")
-            .as_ref()
-            .expect("DataViewIndex slot empty")
-    }
-}
-
-impl IndexMut<DataViewIndex> for Agent {
-    fn index_mut(&mut self, index: DataViewIndex) -> &mut Self::Output {
-        self.heap
-            .data_views
-            .get_mut(index.into_index())
-            .expect("DataViewIndex out of bounds")
-            .as_mut()
-            .expect("DataViewIndex slot empty")
-    }
-}
 
 impl CreateHeapData<DataViewHeapData, DataView> for Heap {
     fn create(&mut self, data: DataViewHeapData) -> DataView {

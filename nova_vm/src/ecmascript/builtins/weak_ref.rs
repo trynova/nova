@@ -98,20 +98,30 @@ impl Index<WeakRef> for Agent {
     type Output = WeakRefHeapData;
 
     fn index(&self, index: WeakRef) -> &Self::Output {
-        self.heap
-            .weak_refs
-            .get(index.get_index())
+        &self.heap.weak_refs[index]
+    }
+}
+
+impl IndexMut<WeakRef> for Agent {
+    fn index_mut(&mut self, index: WeakRef) -> &mut Self::Output {
+        &mut self.heap.weak_refs[index]
+    }
+}
+
+impl Index<WeakRef> for Vec<Option<WeakRefHeapData>> {
+    type Output = WeakRefHeapData;
+
+    fn index(&self, index: WeakRef) -> &Self::Output {
+        self.get(index.get_index())
             .expect("WeakRef out of bounds")
             .as_ref()
             .expect("WeakRef slot empty")
     }
 }
 
-impl IndexMut<WeakRef> for Agent {
+impl IndexMut<WeakRef> for Vec<Option<WeakRefHeapData>> {
     fn index_mut(&mut self, index: WeakRef) -> &mut Self::Output {
-        self.heap
-            .weak_refs
-            .get_mut(index.get_index())
+        self.get_mut(index.get_index())
             .expect("WeakRef out of bounds")
             .as_mut()
             .expect("WeakRef slot empty")

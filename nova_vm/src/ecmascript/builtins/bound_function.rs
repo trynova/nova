@@ -305,20 +305,30 @@ impl Index<BoundFunction> for Agent {
     type Output = BoundFunctionHeapData;
 
     fn index(&self, index: BoundFunction) -> &Self::Output {
-        self.heap
-            .bound_functions
-            .get(index.0.into_index())
+        &self.heap.bound_functions[index]
+    }
+}
+
+impl IndexMut<BoundFunction> for Agent {
+    fn index_mut(&mut self, index: BoundFunction) -> &mut Self::Output {
+        &mut self.heap.bound_functions[index]
+    }
+}
+
+impl Index<BoundFunction> for Vec<Option<BoundFunctionHeapData>> {
+    type Output = BoundFunctionHeapData;
+
+    fn index(&self, index: BoundFunction) -> &Self::Output {
+        self.get(index.get_index())
             .expect("BoundFunction out of bounds")
             .as_ref()
             .expect("BoundFunction slot empty")
     }
 }
 
-impl IndexMut<BoundFunction> for Agent {
+impl IndexMut<BoundFunction> for Vec<Option<BoundFunctionHeapData>> {
     fn index_mut(&mut self, index: BoundFunction) -> &mut Self::Output {
-        self.heap
-            .bound_functions
-            .get_mut(index.0.into_index())
+        self.get_mut(index.get_index())
             .expect("BoundFunction out of bounds")
             .as_mut()
             .expect("BoundFunction slot empty")

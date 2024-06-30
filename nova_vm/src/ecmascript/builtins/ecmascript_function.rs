@@ -196,32 +196,30 @@ impl Index<ECMAScriptFunction> for Agent {
     type Output = ECMAScriptFunctionHeapData;
 
     fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
-        &self.heap[index]
+        &self.heap.ecmascript_functions[index]
     }
 }
 
 impl IndexMut<ECMAScriptFunction> for Agent {
     fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
-        &mut self.heap[index]
+        &mut self.heap.ecmascript_functions[index]
     }
 }
 
-impl Index<ECMAScriptFunction> for Heap {
+impl Index<ECMAScriptFunction> for Vec<Option<ECMAScriptFunctionHeapData>> {
     type Output = ECMAScriptFunctionHeapData;
 
     fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
-        self.ecmascript_functions
-            .get(index.0.into_index())
+        self.get(index.get_index())
             .expect("ECMAScriptFunction out of bounds")
             .as_ref()
             .expect("ECMAScriptFunction slot empty")
     }
 }
 
-impl IndexMut<ECMAScriptFunction> for Heap {
+impl IndexMut<ECMAScriptFunction> for Vec<Option<ECMAScriptFunctionHeapData>> {
     fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
-        self.ecmascript_functions
-            .get_mut(index.0.into_index())
+        self.get_mut(index.get_index())
             .expect("ECMAScriptFunction out of bounds")
             .as_mut()
             .expect("ECMAScriptFunction slot empty")

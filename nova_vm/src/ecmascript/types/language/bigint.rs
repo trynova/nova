@@ -376,20 +376,30 @@ impl Index<HeapBigInt> for Agent {
     type Output = BigIntHeapData;
 
     fn index(&self, index: HeapBigInt) -> &Self::Output {
-        self.heap
-            .bigints
-            .get(index.0.into_index())
+        &self.heap.bigints[index]
+    }
+}
+
+impl IndexMut<HeapBigInt> for Agent {
+    fn index_mut(&mut self, index: HeapBigInt) -> &mut Self::Output {
+        &mut self.heap.bigints[index]
+    }
+}
+
+impl Index<HeapBigInt> for Vec<Option<BigIntHeapData>> {
+    type Output = BigIntHeapData;
+
+    fn index(&self, index: HeapBigInt) -> &Self::Output {
+        self.get(index.get_index())
             .expect("BigInt out of bounds")
             .as_ref()
             .expect("BigInt slot empty")
     }
 }
 
-impl IndexMut<HeapBigInt> for Agent {
+impl IndexMut<HeapBigInt> for Vec<Option<BigIntHeapData>> {
     fn index_mut(&mut self, index: HeapBigInt) -> &mut Self::Output {
-        self.heap
-            .bigints
-            .get_mut(index.0.into_index())
+        self.get_mut(index.get_index())
             .expect("BigInt out of bounds")
             .as_mut()
             .expect("BigInt slot empty")
