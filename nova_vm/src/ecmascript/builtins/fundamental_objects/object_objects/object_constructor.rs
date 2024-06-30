@@ -8,7 +8,7 @@ use crate::{
                 create_array_from_list, define_property_or_throw, enumerable_own_properties,
                 enumerable_properties_kind, get, get_method, has_own_property,
                 integrity::{Frozen, Sealed},
-                set, set_integrity_level,
+                set, set_integrity_level, test_integrity_level,
             },
             testing_and_comparison::{require_object_coercible, same_value},
             type_conversion::{to_object, to_property_key, to_property_key_simple},
@@ -638,27 +638,37 @@ impl ObjectConstructor {
 
     fn is_extensible(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
         let o = arguments.get(0);
-        let Ok(o) = Object::try_from(o) else {
-            return Ok(o);
+        let result = match Object::try_from(o) {
+            Ok(o) => o.internal_is_extensible(agent)?,
+            Err(_) => false,
         };
-        let result = o.internal_is_extensible(agent)?;
         Ok(result.into())
     }
 
     fn is_frozen(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+        let o = arguments.get(0);
+        let result = match Object::try_from(o) {
+            Ok(o) => test_integrity_level::<Frozen>(agent, o)?,
+            Err(_) => true,
+        };
+        Ok(result.into())
     }
 
     fn is_sealed(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+        let o = arguments.get(0);
+        let result = match Object::try_from(o) {
+            Ok(o) => test_integrity_level::<Sealed>(agent, o)?,
+            Err(_) => true,
+        };
+        Ok(result.into())
     }
 
     /// ### [20.1.2.19 Object.keys ( O )](https://tc39.es/ecma262/#sec-object.keys)
