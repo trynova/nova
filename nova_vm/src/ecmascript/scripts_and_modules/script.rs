@@ -1098,8 +1098,7 @@ mod test {
             None,
         )
         .unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
-        assert_eq!(result, Value::Undefined);
+        script_evaluation(&mut agent, script).unwrap();
 
         let global_env = agent.get_realm(realm).global_env.unwrap();
         let a_key = String::from_static_str(&mut agent, "a");

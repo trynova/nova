@@ -378,6 +378,45 @@ pub(crate) fn set_integrity_level<T: Level>(agent: &mut Agent, o: Object) -> JsR
     Ok(true)
 }
 
+/// ### [7.3.16 TestIntegrityLevel ( O, level )](https://tc39.es/ecma262/#sec-testintegritylevel)
+///
+/// The abstract operation TestIntegrityLevel takes arguments O (an Object) and
+/// level (SEALED or FROZEN) and returns either a normal completion containing a
+/// Boolean or a throw completion. It is used to determine if the set of own
+/// properties of an object are fixed.
+pub(crate) fn test_integrity_level<T: Level>(agent: &mut Agent, o: Object) -> JsResult<bool> {
+    // 1. Let extensible be ? IsExtensible(O).
+    // 2. If extensible is true, return false.
+    // 3. NOTE: If the object is extensible, none of its properties are examined.
+    if o.internal_is_extensible(agent)? {
+        return Ok(false);
+    }
+
+    // 4. Let keys be ? O.[[OwnPropertyKeys]]().
+    let keys = o.internal_own_property_keys(agent)?;
+    // 5. For each element k of keys, do
+    for k in keys {
+        // a. Let currentDesc be ? O.[[GetOwnProperty]](k).
+        // b. If currentDesc is not undefined, then
+        if let Some(current_desc) = o.internal_get_own_property(agent, k)? {
+            // i. If currentDesc.[[Configurable]] is true, return false.
+            if current_desc.configurable == Some(true) {
+                return Ok(false);
+            }
+            // ii. If level is frozen and IsDataDescriptor(currentDesc) is true, then
+            if T::LEVEL == IntegrityLevel::Frozen && current_desc.is_data_descriptor() {
+                // 1. If currentDesc.[[Writable]] is true, return false.
+                if current_desc.writable == Some(true) {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+
+    // 6. Return true.
+    Ok(true)
+}
+
 /// ### [7.3.17 CreateArrayFromList ( elements )](https://tc39.es/ecma262/#sec-createarrayfromlist)
 ///
 /// The abstract operation CreateArrayFromList takes argument elements (a List
