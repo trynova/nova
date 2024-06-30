@@ -1101,7 +1101,7 @@ fn apply_string_or_numeric_binary_operator(
             // /	Number	Number::divide
             BinaryOperator::Division => Number::divide(agent, lnum, rnum).into_value(),
             // %	Number	Number::remainder
-            BinaryOperator::Remainder => todo!(),
+            BinaryOperator::Remainder => Number::remainder(agent, lnum, rnum).into_value(),
             // +	Number	Number::add
             BinaryOperator::Addition => Number::add(agent, lnum, rnum).into_value(),
             // -	Number	Number::subtract

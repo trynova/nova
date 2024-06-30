@@ -745,6 +745,62 @@ impl Number {
         Number::from_f64(agent, result)
     }
 
+    /// ### [6.1.6.1.6 Number::remainder ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-remainder)
+    ///
+    /// The abstract operation Number::remainder takes arguments n (a Number)
+    /// and d (a Number) and returns a Number. It yields the remainder from an
+    /// implied division of its operands where n is the dividend and d is the
+    /// divisor.
+    pub fn remainder(agent: &mut Agent, n: Self, d: Self) -> Self {
+        // 1. If n is NaN or d is NaN, return NaN.
+        if n.is_nan(agent) || d.is_nan(agent) {
+            return Self::nan();
+        }
+
+        // 2. If n is either +∞𝔽 or -∞𝔽, return NaN.
+        if n.is_pos_infinity(agent) || n.is_neg_infinity(agent) {
+            return Self::nan();
+        }
+
+        // 3. If d is either +∞𝔽 or -∞𝔽, return n.
+        if d.is_pos_infinity(agent) || d.is_neg_infinity(agent) {
+            return n;
+        }
+
+        // 4. If d is either +0𝔽 or -0𝔽, return NaN.
+        if d.is_pos_zero(agent) || d.is_neg_zero(agent) {
+            return Self::nan();
+        }
+
+        // 5. If n is either +0𝔽 or -0𝔽, return n.
+        if n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+            return n;
+        }
+
+        // 6. Assert: n and d are finite and non-zero.
+        debug_assert!(n.is_finite(agent) && n.is_nonzero(agent));
+
+        let n = n.into_f64(agent);
+        let d = d.into_f64(agent);
+
+        // 7. Let quotient be ℝ(n) / ℝ(d).
+        let quotient = n / d;
+
+        // 8. Let q be truncate(quotient).
+        let q = quotient.trunc();
+
+        // 9. Let r be ℝ(n) - (ℝ(d) × q).
+        let r = n - (d * q);
+
+        // 10. If r = 0 and n < -0𝔽, return -0𝔽.
+        if r == 0.0 && n.is_sign_negative() {
+            return Self::neg_zero();
+        }
+
+        // 11. Return 𝔽(r).
+        Self::from_f64(agent, r)
+    }
+
     /// ### [6.1.6.1.7 Number::add ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-add)
     ///
     /// The abstract operation Number::add takes arguments x (a Number) and y
