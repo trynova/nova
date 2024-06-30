@@ -2,7 +2,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call, construct, create_array_from_list, create_list_from_array_like,
+                call_function, construct, create_array_from_list, create_list_from_array_like,
             },
             testing_and_comparison::{is_callable, is_constructor},
             type_conversion::to_property_key,
@@ -141,6 +141,7 @@ impl Builtin for ReflectObjectSetPrototypeOf {
 }
 
 impl ReflectObject {
+    /// [28.1.1 Reflect.apply ( target, thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-reflect.apply)
     fn apply(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         let target = arguments.get(0);
         let this_argument = arguments.get(1);
@@ -150,13 +151,15 @@ impl ReflectObject {
         if !is_callable(target) {
             return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not callable"));
         }
+        let target = Function::try_from(target).unwrap();
         // 2. Let args be ? CreateListFromArrayLike(argumentsList).
         let args = create_list_from_array_like(agent, arguments_list)?;
         // TODO: 3. Perform PrepareForTailCall().
         // 4. Return ? Call(target, thisArgument, args)
-        call(agent, target, this_argument, Some(ArgumentsList(&args)))
+        call_function(agent, target, this_argument, Some(ArgumentsList(&args)))
     }
 
+    /// [28.1.2 Reflect.construct ( target, argumentsList \[ , newTarget \] )](https://tc39.es/ecma262/#sec-reflect.construct)
     fn construct(
         agent: &mut Agent,
         _this_value: Value,
@@ -194,6 +197,7 @@ impl ReflectObject {
         Ok(ret.into_value())
     }
 
+    /// [28.1.3 Reflect.defineProperty ( target, propertyKey, attributes )](https://tc39.es/ecma262/#sec-reflect.defineproperty)
     fn define_property(
         agent: &mut Agent,
         _this_value: Value,
@@ -214,6 +218,7 @@ impl ReflectObject {
         Ok(ret.into())
     }
 
+    /// [28.1.4 Reflect.deleteProperty ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.deleteproperty)
     fn delete_property(
         agent: &mut Agent,
         _this_value: Value,
@@ -232,6 +237,7 @@ impl ReflectObject {
         Ok(ret.into())
     }
 
+    /// [28.1.5 Reflect.get ( target, propertyKey \[ , receiver \] )](https://tc39.es/ecma262/#sec-reflect.get)
     fn get(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
@@ -252,6 +258,7 @@ impl ReflectObject {
         target.internal_get(agent, key, receiver)
     }
 
+    /// [28.1.6 Reflect.getOwnPropertyDescriptor ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.getownpropertydescriptor)
     fn get_own_property_descriptor(
         agent: &mut Agent,
         _this_value: Value,
@@ -274,6 +281,7 @@ impl ReflectObject {
         }
     }
 
+    /// [28.1.7 Reflect.getPrototypeOf ( target )](https://tc39.es/ecma262/#sec-reflect.getprototypeof)
     fn get_prototype_of(
         agent: &mut Agent,
         _this_value: Value,
@@ -291,6 +299,7 @@ impl ReflectObject {
         }
     }
 
+    /// [28.1.8 Reflect.has ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.has)
     fn has(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
@@ -305,6 +314,7 @@ impl ReflectObject {
         Ok(ret.into())
     }
 
+    /// [28.1.9 Reflect.isExtensible ( target )](https://tc39.es/ecma262/#sec-reflect.isextensible)
     fn is_extensible(
         agent: &mut Agent,
         _this_value: Value,
@@ -320,18 +330,20 @@ impl ReflectObject {
         Ok(ret.into())
     }
 
+    /// [28.1.10 Reflect.ownKeys ( target )](https://tc39.es/ecma262/#sec-reflect.ownkeys)
     fn own_keys(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
-        if !arguments.get(0).is_object() {
+        let Ok(target) = Object::try_from(arguments.get(0)) else {
             return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not an object"));
-        }
-        let target = Object::try_from(arguments.get(0)).unwrap();
+        };
 
         // 2. Let keys be ? target.[[OwnPropertyKeys]]().
+        // TODO: `PropertyKey::into_value` might not do the right thing for
+        // integer keys.
         let keys: Vec<Value> = target
             .internal_own_property_keys(agent)?
             .into_iter()
@@ -341,6 +353,7 @@ impl ReflectObject {
         Ok(create_array_from_list(agent, &keys).into_value())
     }
 
+    /// [28.1.11 Reflect.preventExtensions ( target )](https://tc39.es/ecma262/#sec-reflect.preventextensions)
     fn prevent_extensions(
         agent: &mut Agent,
         _this_value: Value,
@@ -356,6 +369,7 @@ impl ReflectObject {
         Ok(ret.into())
     }
 
+    /// [28.1.12 Reflect.set ( target, propertyKey, V \[ , receiver \] )](https://tc39.es/ecma262/#sec-reflect.set)
     fn set(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
@@ -380,6 +394,7 @@ impl ReflectObject {
         Ok(ret.into())
     }
 
+    /// [28.1.13 Reflect.setPrototypeOf ( target, proto )](https://tc39.es/ecma262/#sec-reflect.setprototypeof)
     fn set_prototype_of(
         agent: &mut Agent,
         _this_value: Value,

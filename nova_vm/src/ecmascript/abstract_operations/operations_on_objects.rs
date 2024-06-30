@@ -472,7 +472,7 @@ pub(crate) fn create_list_from_array_like(agent: &mut Agent, obj: Value) -> JsRe
 
     match obj {
         Value::Array(array) => Ok(array
-            .slice(agent)
+            .as_slice(agent)
             .iter()
             .map(|el| el.unwrap_or(Value::Undefined))
             .collect()),
