@@ -1107,11 +1107,11 @@ fn apply_string_or_numeric_binary_operator(
             // -	Number	Number::subtract
             BinaryOperator::Subtraction => Number::subtract(agent, lnum, rnum).into_value(),
             // <<	Number	Number::leftShift
-            BinaryOperator::ShiftLeft => todo!(),
+            BinaryOperator::ShiftLeft => Number::left_shift(agent, lnum, rnum).into_value(),
             // >>	Number	Number::signedRightShift
-            BinaryOperator::ShiftRight => todo!(),
+            BinaryOperator::ShiftRight => Number::signed_right_shift(agent, lnum, rnum).into_value(),
             // >>>	Number	Number::unsignedRightShift
-            BinaryOperator::ShiftRightZeroFill => todo!(),
+            BinaryOperator::ShiftRightZeroFill => Number::unsigned_right_shift(agent, lnum, rnum).into_value(),
             // |	Number	Number::bitwiseOR
             BinaryOperator::BitwiseOR => Number::bitwise_or(agent, lnum, rnum)?.into(),
             // ^	Number	Number::bitwiseXOR

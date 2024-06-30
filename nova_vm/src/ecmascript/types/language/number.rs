@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_int32,
+        abstract_operations::type_conversion::{to_int32, to_uint32},
         execution::{Agent, JsResult},
     },
     heap::{
@@ -18,6 +18,7 @@ use crate::{
 };
 
 pub use data::NumberHeapData;
+use num_traits::PrimInt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -857,7 +858,51 @@ impl Number {
         Number::add(agent, x, negated_y)
     }
 
-    // ...
+    /// ### [6.1.6.1.9 Number::leftShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-leftShift)
+    /// 
+    /// The abstract operation Number::signedRightShift takes arguments x
+    /// (a Number) and y (a Number) and returns an integral Number.
+    pub fn left_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
+        // 1. Let lnum be ! ToInt32(x).
+        let lnum = to_int32(agent, x.into_value()).unwrap();
+        // 2. Let rnum be ! ToUint32(y).
+        let rnum = to_uint32(agent, y.into_value()).unwrap();
+        // 3. Let shiftCount be ℝ(rnum) modulo 32.
+        let shift_count = rnum % 32;
+        // 4. Return the result of left shifting lnum by shiftCount bits. The mathematical value of the result is exactly representable as a 32-bit two's complement bit string.
+        Number::from(lnum.signed_shl(shift_count))
+    }
+
+    /// ### [6.1.6.1.10 Number::signedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-signedRightShift)
+    /// 
+    /// The abstract operation Number::unsignedRightShift takes arguments x
+    /// (a Number) and y (a Number) and returns an integral Number.
+    pub fn signed_right_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
+        // 1. Let lnum be ! ToInt32(x).
+        let lnum = to_int32(agent, x.into_value()).unwrap();
+        // 2. Let rnum be ! ToUint32(y).
+        let rnum = to_uint32(agent, y.into_value()).unwrap();
+        // 3. Let shiftCount be ℝ(rnum) modulo 32.
+        let shift_count = rnum % 32;
+        // 4. Return the result of performing a sign-extending right shift of lnum by shiftCount bits. The most significant bit is propagated. The mathematical value of the result is exactly representable as a 32-bit two's complement bit string.
+        Number::from(lnum.signed_shr(shift_count))
+    }
+
+    /// ### [6.1.6.1.11 Number::unsignedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-unsignedRightShift)
+    /// 
+    /// The abstract operation Number::lessThan takes arguments x (a Number)
+    /// and y (a Number) and returns a Boolean or undefined.
+    pub fn unsigned_right_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
+        // 1. Let lnum be ! ToUint32(x).
+        let lnum = to_int32(agent, x.into_value()).unwrap();
+        // 2. Let rnum be ! ToUint32(y).
+        let rnum = to_uint32(agent, y.into_value()).unwrap();
+        // 3. Let shiftCount be ℝ(rnum) modulo 32.
+        let shift_count = rnum % 32;
+        // 4. Return the result of performing a zero-filling right shift of lnum by shiftCount bits. Vacated bits are filled with zero. The mathematical value of the result is exactly representable as a 32-bit unsigned bit string.
+        Number::from(lnum.unsigned_shr(shift_count))
+    }
+
 
     /// ### [6.1.6.1.12 Number::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-lessThan)
     pub fn less_than(agent: &mut Agent, x: Self, y: Self) -> Option<bool> {
