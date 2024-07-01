@@ -18934,7 +18934,6 @@
   "language/expressions/addition/bigint-errors.js": "CRASH",
   "language/expressions/addition/bigint-toprimitive.js": "CRASH",
   "language/expressions/addition/bigint-wrapped-values.js": "FAIL",
-  "language/expressions/addition/coerce-bigint-to-string.js": "CRASH",
   "language/expressions/array/11.1.4-0.js": "CRASH",
   "language/expressions/array/S11.1.4_A1.2.js": "CRASH",
   "language/expressions/array/S11.1.4_A1.4.js": "CRASH",
