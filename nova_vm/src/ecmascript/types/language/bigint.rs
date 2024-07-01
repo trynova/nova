@@ -6,7 +6,7 @@ use super::{
     into_numeric::IntoNumeric,
     numeric::Numeric,
     value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT},
-    IntoPrimitive, IntoValue, Primitive, Value,
+    IntoPrimitive, IntoValue, Primitive, String, Value,
 };
 use crate::{
     ecmascript::execution::{agent::ExceptionType, Agent, JsResult},
@@ -284,6 +284,17 @@ impl BigInt {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => x == y,
             _ => false,
         }
+    }
+
+    // ### [6.1.6.2.21 BigInt::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-bigint-tostring)
+    pub(crate) fn to_string_radix_10(agent: &mut Agent, x: Self) -> JsResult<String> {
+        Ok(String::from_string(
+            agent,
+            match x {
+                BigInt::SmallBigInt(x) => x.into_i64().to_string(),
+                BigInt::BigInt(x) => agent[x].data.to_string(),
+            },
+        ))
     }
 }
 
