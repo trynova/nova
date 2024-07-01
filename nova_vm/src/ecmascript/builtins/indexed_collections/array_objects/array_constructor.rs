@@ -71,7 +71,7 @@ struct ArrayOf;
 impl Builtin for ArrayOf {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::of);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.fromCodePoint;
+    const NAME: String = BUILTIN_STRING_MEMORY.of;
 }
 struct ArrayGetSpecies;
 impl Builtin for ArrayGetSpecies {
