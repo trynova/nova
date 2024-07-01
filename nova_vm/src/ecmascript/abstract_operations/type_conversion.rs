@@ -256,8 +256,20 @@ pub(crate) fn to_integer_or_infinity(agent: &mut Agent, argument: Value) -> JsRe
 
 /// ### [7.1.6 ToInt32 ( argument )](https://tc39.es/ecma262/#sec-toint32)
 pub(crate) fn to_int32(agent: &mut Agent, argument: Value) -> JsResult<i32> {
+    if let Value::Integer(int) = argument {
+        // Fast path: Integer value is very nearly int32 already.
+        let int = int.into_i64();
+        return Ok(int as i32);
+    }
+
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, argument)?;
+
+    if let Number::Integer(int) = number {
+        // Fast path: Integer value is very nearly int32 already.
+        let int = int.into_i64();
+        return Ok(int as i32);
+    }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
     if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
@@ -265,14 +277,14 @@ pub(crate) fn to_int32(agent: &mut Agent, argument: Value) -> JsResult<i32> {
     }
 
     // 3. Let int be truncate(ℝ(number)).
-    let int = number.truncate(agent).into_f64(agent);
+    let int = number.truncate(agent).into_i64(agent);
 
     // 4. Let int32bit be int modulo 2^32.
-    let int32bit = int % 2f64.powi(32);
+    let int32bit = int % 2i64.pow(32);
 
     // 5. If int32bit ≥ 2^31, return 𝔽(int32bit - 2^32); otherwise return 𝔽(int32bit).
-    Ok(if int32bit >= 2f64.powi(32) {
-        int32bit - 2f64.powi(32)
+    Ok(if int32bit >= 2i64.pow(32) {
+        int32bit - 2i64.pow(32)
     } else {
         int32bit
     } as i32)
@@ -280,8 +292,19 @@ pub(crate) fn to_int32(agent: &mut Agent, argument: Value) -> JsResult<i32> {
 
 /// ### [7.1.7 ToUint32 ( argument )](https://tc39.es/ecma262/#sec-touint32)
 pub(crate) fn to_uint32(agent: &mut Agent, argument: Value) -> JsResult<u32> {
+    if let Value::Integer(int) = argument {
+        // Fast path: Integer value is very nearly uint32 already.
+        let int = int.into_i64();
+        return Ok(int as u32);
+    }
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, argument)?;
+
+    if let Number::Integer(int) = number {
+        // Fast path: Integer value is very nearly uint32 already.
+        let int = int.into_i64();
+        return Ok(int as u32);
+    }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
     if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
@@ -289,10 +312,10 @@ pub(crate) fn to_uint32(agent: &mut Agent, argument: Value) -> JsResult<u32> {
     }
 
     // 3. Let int be truncate(ℝ(number)).
-    let int = number.truncate(agent).into_f64(agent);
+    let int = number.truncate(agent).into_i64(agent);
 
     // 4. Let int32bit be int modulo 2^32.
-    let int32bit = int % 2f64.powi(32);
+    let int32bit = int % 2i64.pow(32);
 
     // 5. Return 𝔽(int32bit).
     Ok(int32bit as u32)
@@ -300,8 +323,20 @@ pub(crate) fn to_uint32(agent: &mut Agent, argument: Value) -> JsResult<u32> {
 
 /// ### [7.1.8 ToInt16 ( argument )](https://tc39.es/ecma262/#sec-toint16)
 pub(crate) fn to_int16(agent: &mut Agent, argument: Value) -> JsResult<i16> {
+    if let Value::Integer(int) = argument {
+        // Fast path: Integer value is very nearly int16 already.
+        let int = int.into_i64();
+        return Ok(int as i16);
+    }
+
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, argument)?;
+
+    if let Number::Integer(int) = number {
+        // Fast path: Integer value is very nearly int16 already.
+        let int = int.into_i64();
+        return Ok(int as i16);
+    }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
     if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
@@ -309,23 +344,35 @@ pub(crate) fn to_int16(agent: &mut Agent, argument: Value) -> JsResult<i16> {
     }
 
     // 3. Let int be truncate(ℝ(number)).
-    let int = number.truncate(agent).into_f64(agent);
+    let int = number.truncate(agent).into_i64(agent);
 
     // 4. Let int16bit be int modulo 2^16.
-    let int16bit = int % 2f64.powi(16);
+    let int16bit = int % 2i64.pow(16);
 
     // 5. If int16bit ≥ 2^15, return 𝔽(int16bit - 2^16); otherwise return 𝔽(int16bit).
-    Ok(if int16bit >= 2f64.powi(15) {
-        int16bit - 2f64.powi(16)
+    Ok(if int16bit >= 2i64.pow(15) {
+        int16bit - 2i64.pow(16)
     } else {
         int16bit
     } as i16)
 }
 
 /// ### [7.1.9 ToUint16 ( argument )](https://tc39.es/ecma262/#sec-touint16)
-pub(crate) fn to_uint16(agent: &mut Agent, argument: Value) -> JsResult<i16> {
+pub(crate) fn to_uint16(agent: &mut Agent, argument: Value) -> JsResult<u16> {
+    if let Value::Integer(int) = argument {
+        // Fast path: Integer value is very nearly uint16 already.
+        let int = int.into_i64();
+        return Ok(int as u16);
+    }
+
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, argument)?;
+
+    if let Number::Integer(int) = number {
+        // Fast path: Integer value is very nearly uin16 already.
+        let int = int.into_i64();
+        return Ok(int as u16);
+    }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
     if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
@@ -333,19 +380,31 @@ pub(crate) fn to_uint16(agent: &mut Agent, argument: Value) -> JsResult<i16> {
     }
 
     // 3. Let int be truncate(ℝ(number)).
-    let int = number.truncate(agent).into_f64(agent);
+    let int = number.truncate(agent).into_i64(agent);
 
     // 4. Let int16bit be int modulo 2^16.
-    let int16bit = int % 2f64.powi(16);
+    let int16bit = int % 2i64.pow(16);
 
     // Return 𝔽(int16bit).
-    Ok(int16bit as i16)
+    Ok(int16bit as u16)
 }
 
 /// ### [7.1.10 ToInt8 ( argument )](https://tc39.es/ecma262/#sec-toint8)
 pub(crate) fn to_int8(agent: &mut Agent, argument: Value) -> JsResult<i8> {
+    if let Value::Integer(int) = argument {
+        // Fast path: Integer value is very nearly int8 already.
+        let int = int.into_i64();
+        return Ok(int as i8);
+    }
+
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, argument)?;
+
+    if let Number::Integer(int) = number {
+        // Fast path: Integer value is very nearly uint32 already.
+        let int = int.into_i64();
+        return Ok(int as i8);
+    }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
     if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
@@ -353,14 +412,14 @@ pub(crate) fn to_int8(agent: &mut Agent, argument: Value) -> JsResult<i8> {
     }
 
     // 3. Let int be truncate(ℝ(number)).
-    let int = number.truncate(agent).into_f64(agent);
+    let int = number.truncate(agent).into_i64(agent);
 
     // 4. Let int8bit be int modulo 2^8.
-    let int8bit = int % 2f64.powi(8);
+    let int8bit = int % 2i64.pow(8);
 
     // 5. If int8bit ≥ 2^7, return 𝔽(int8bit - 2^8); otherwise return 𝔽(int8bit).
-    Ok(if int8bit >= 2f64.powi(7) {
-        int8bit - 2f64.powi(8)
+    Ok(if int8bit >= 2i64.pow(7) {
+        int8bit - 2i64.pow(8)
     } else {
         int8bit
     } as i8)
@@ -368,8 +427,20 @@ pub(crate) fn to_int8(agent: &mut Agent, argument: Value) -> JsResult<i8> {
 
 /// ### [7.1.11 ToUint8 ( argument )](https://tc39.es/ecma262/#sec-touint8)
 pub(crate) fn to_uint8(agent: &mut Agent, argument: Value) -> JsResult<u8> {
+    if let Value::Integer(int) = argument {
+        // Fast path: Integer value is very nearly uint32 already.
+        let int = int.into_i64();
+        return Ok(int as u8);
+    }
+
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, argument)?;
+
+    if let Number::Integer(int) = number {
+        // Fast path: Integer value is very nearly uint32 already.
+        let int = int.into_i64();
+        return Ok(int as u8);
+    }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
     if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
@@ -377,10 +448,10 @@ pub(crate) fn to_uint8(agent: &mut Agent, argument: Value) -> JsResult<u8> {
     }
 
     // 3. Let int be truncate(ℝ(number)).
-    let int = number.truncate(agent).into_f64(agent);
+    let int = number.truncate(agent).into_i64(agent);
 
     // 4. Let int8bit be int modulo 2^8.
-    let int8bit = int % 2f64.powi(8);
+    let int8bit = int % 2i64.pow(8);
 
     // 5. Return 𝔽(int8bit).
     Ok(int8bit as u8)
@@ -388,8 +459,20 @@ pub(crate) fn to_uint8(agent: &mut Agent, argument: Value) -> JsResult<u8> {
 
 /// ### [7.1.12 ToUint8Clamp ( argument )](https://tc39.es/ecma262/#sec-touint8clamp)
 pub(crate) fn to_uint8_clamp(agent: &mut Agent, argument: Value) -> JsResult<u8> {
+    if let Value::Integer(int) = argument {
+        // Fast path: Integer value is very nearly uint8 already.
+        let int = int.into_i64().clamp(0, 255);
+        return Ok(int as u8);
+    }
+
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, argument)?;
+
+    if let Number::Integer(int) = number {
+        // Fast path: Integer value is very nearly uint8 already.
+        let int = int.into_i64().clamp(0, 255);
+        return Ok(int as u8);
+    }
 
     // 2. If number is NaN, return +0𝔽.
     if number.is_nan(agent) {
