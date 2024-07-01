@@ -363,7 +363,7 @@ impl InternalMethods for PrimitiveObject {
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
         if let Ok(string) = String::try_from(agent[self].data) {
-            let len = string.len(agent);
+            let len = string.utf16_len(agent);
             let mut keys = Vec::with_capacity(len + 1);
 
             // Insert keys for every index into the string.
