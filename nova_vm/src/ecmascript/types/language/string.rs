@@ -297,6 +297,22 @@ impl String {
         }
     }
 
+    /// UTF-16 length of the string.
+    pub fn utf16_len(self, agent: &Agent) -> usize {
+        match self {
+            String::String(s) => agent[s].utf16_len(),
+            String::SmallString(s) => s.utf16_len(),
+        }
+    }
+
+    // TODO: This should return a wtf8::CodePoint.
+    pub fn utf16_char(self, agent: &Agent, idx: usize) -> char {
+        match self {
+            String::String(s) => agent[s].utf16_char(idx),
+            String::SmallString(s) => s.utf16_char(idx),
+        }
+    }
+
     pub fn as_str<'string, 'agent: 'string>(&'string self, agent: &'agent Agent) -> &'string str {
         match self {
             String::String(s) => agent[*s].as_str(),
@@ -326,7 +342,7 @@ impl String {
         property_key: PropertyKey,
     ) -> Option<PropertyDescriptor> {
         if property_key == BUILTIN_STRING_MEMORY.length.into() {
-            let smi = SmallInteger::try_from(self.len(agent) as u64)
+            let smi = SmallInteger::try_from(self.utf16_len(agent) as u64)
                 .expect("String length is over MAX_SAFE_INTEGER");
             Some(PropertyDescriptor {
                 value: Some(super::Number::from(smi).into_value()),
@@ -338,10 +354,10 @@ impl String {
             })
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
-            if index >= 0 && (index as usize) < self.len(agent) {
-                let char_byte = self.as_str(agent).as_bytes()[index as usize];
-                let char =
-                    SmallString::from_str_unchecked(std::str::from_utf8(&[char_byte]).unwrap());
+            if index >= 0 && (index as usize) < self.utf16_len(agent) {
+                let ch = self.utf16_char(agent, index as usize);
+                let mut buf = [0u8; 4];
+                let char = SmallString::from_str_unchecked(ch.encode_utf8(&mut buf));
                 Some(PropertyDescriptor {
                     value: Some(char.into_value()),
                     writable: Some(false),

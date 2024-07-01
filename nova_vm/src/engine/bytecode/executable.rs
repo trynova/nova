@@ -697,8 +697,12 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
                 ctx.exe.add_instruction(Instruction::GetValue);
             }
 
+            ctx.exe.add_instruction(Instruction::LoadCopy);
             ctx.exe.add_instruction(Instruction::PopReference);
             ctx.exe.add_instruction(Instruction::PutValue);
+
+            // ... Return rval.
+            ctx.exe.add_instruction(Instruction::Store);
         } else if matches!(
             self.operator,
             oxc_syntax::operator::AssignmentOperator::LogicalAnd
@@ -1521,11 +1525,10 @@ impl CompileEvaluation for ast::IfStatement<'_> {
             ctx.exe.add_instruction(Instruction::GetValue);
         }
         // jump over consequent if test fails
-        let jump = ctx
+        let jump_to_else = ctx
             .exe
             .add_instruction_with_jump_slot(Instruction::JumpIfNot);
         self.consequent.compile(ctx);
-        ctx.exe.set_jump_target_here(jump);
         let mut jump_over_else: Option<JumpIndex> = None;
         if let Some(alternate) = &self.alternate {
             // Optimisation: If the an else branch exists, the consequent
@@ -1534,8 +1537,17 @@ impl CompileEvaluation for ast::IfStatement<'_> {
             if ctx.exe.peek_last_instruction() != Some(Instruction::Return.as_u8()) {
                 jump_over_else = Some(ctx.exe.add_instruction_with_jump_slot(Instruction::Jump));
             }
+
+            // Jump to else-branch when if test fails.
+            ctx.exe.set_jump_target_here(jump_to_else);
             alternate.compile(ctx);
+        } else {
+            // Jump over if-branch when if test fails.
+            ctx.exe.set_jump_target_here(jump_to_else);
         }
+
+        // Jump over else-branch at the end of if-branch if necessary.
+        // (See optimisation above for when it is not needed.)
         if let Some(jump_over_else) = jump_over_else {
             ctx.exe.set_jump_target_here(jump_over_else);
         }
