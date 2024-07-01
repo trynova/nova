@@ -31,7 +31,7 @@ pub(crate) fn instantiate_ordinary_function_object(
         // 1. Let name be StringValue of BindingIdentifier.
         let name = &id.name;
         // 2. Let sourceText be the source text matched by FunctionDeclaration.
-        let source_text = function.body.as_ref().unwrap().span;
+        let source_text = function.span;
         // 3. Let F be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
         let params = OrdinaryFunctionCreateParams {
             function_prototype: None,
@@ -55,7 +55,7 @@ pub(crate) fn instantiate_ordinary_function_object(
     } else {
         // FunctionDeclaration : function ( FormalParameters ) { FunctionBody }
         // 1. Let sourceText be the source text matched by FunctionDeclaration.
-        let source_text = function.body.as_ref().unwrap().span;
+        let source_text = function.span;
         // 2. Let F be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
         let params = OrdinaryFunctionCreateParams {
             function_prototype: None,

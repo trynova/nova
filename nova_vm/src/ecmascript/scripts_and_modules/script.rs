@@ -145,7 +145,7 @@ pub struct Script {
     /// Source text of the script
     ///
     /// Parsing a script takes ownership of the text.
-    source_text: Box<str>,
+    pub(crate) source_text: Box<str>,
 }
 
 unsafe impl Send for Script {}
