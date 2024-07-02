@@ -598,8 +598,9 @@ pub(crate) fn to_string(agent: &mut Agent, argument: impl Into<Value> + Copy) ->
             Number::to_string_radix_10(agent, Number::try_from(argument).unwrap())
         }
         // 8. If argument is a BigInt, return BigInt::toString(argument, 10).
-        Value::BigInt(_) => todo!(),
-        Value::SmallBigInt(_) => todo!(),
+        Value::BigInt(_) | Value::SmallBigInt(_) => {
+            BigInt::to_string_radix_10(agent, BigInt::try_from(argument).unwrap())
+        }
         _ => {
             // 9. Assert: argument is an Object.
             assert!(Object::try_from(argument).is_ok());
