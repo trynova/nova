@@ -1333,8 +1333,6 @@ impl HeapMarkAndSweep for HeapNumber {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.0.into_u32();
-        self.0 =
-            NumberIndex::from_u32(self_index - compactions.numbers.get_shift_for_index(self_index));
+        compactions.numbers.shift_index(&mut self.0);
     }
 }

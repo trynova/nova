@@ -520,8 +520,7 @@ impl HeapMarkAndSweep for Array {
     }
 
     fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
-        let idx = self.0.into_u32_index();
-        self.0 = ArrayIndex::from_u32_index(idx - compactions.arrays.get_shift_for_index(idx));
+        compactions.arrays.shift_index(&mut self.0);
     }
 }
 

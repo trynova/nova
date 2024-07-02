@@ -1470,13 +1470,7 @@ impl HeapMarkAndSweep for ECMAScriptFunction {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.0.into_u32();
-        self.0 = ECMAScriptFunctionIndex::from_u32(
-            self_index
-                - compactions
-                    .ecmascript_functions
-                    .get_shift_for_index(self_index),
-        );
+        compactions.ecmascript_functions.shift_index(&mut self.0);
     }
 }
 

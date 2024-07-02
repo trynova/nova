@@ -21,10 +21,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{
-        indexes::ObjectIndex, CompactionLists, CreateHeapData, HeapMarkAndSweep,
-        WellKnownSymbolIndexes, WorkQueues,
-    },
+    heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
 use super::{
@@ -1109,9 +1106,6 @@ impl HeapMarkAndSweep for OrdinaryObject {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.0.into_u32();
-        self.0 = ObjectIndex::from_u32_index(
-            self_index - compactions.objects.get_shift_for_index(self_index),
-        );
+        compactions.objects.shift_index(&mut self.0);
     }
 }

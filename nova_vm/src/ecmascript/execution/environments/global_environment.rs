@@ -111,6 +111,14 @@ impl HeapMarkAndSweep for GlobalEnvironment {
         self.declarative_record.sweep_values(compactions);
         self.global_this_value.sweep_values(compactions);
         self.object_record.sweep_values(compactions);
+        for key in self.var_names.clone() {
+            let mut new_key = key;
+            new_key.sweep_values(compactions);
+            if key != new_key {
+                self.var_names.remove(&key);
+                self.var_names.insert(new_key);
+            }
+        }
     }
 }
 
@@ -608,8 +616,8 @@ impl HeapMarkAndSweep for GlobalEnvironmentIndex {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(
+        let self_index = self.into_u32_index();
+        *self = Self::from_u32_index(
             self_index
                 - compactions
                     .global_environments

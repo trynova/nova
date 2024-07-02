@@ -319,8 +319,8 @@ impl HeapMarkAndSweep for ObjectEnvironmentIndex {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(
+        let self_index = self.into_u32_index();
+        *self = Self::from_u32_index(
             self_index
                 - compactions
                     .object_environments

@@ -162,6 +162,16 @@ impl HeapMarkAndSweep for DeclarativeEnvironment {
         for binding in self.bindings.values_mut() {
             binding.value.sweep_values(compactions);
         }
+        let keys = self.bindings.keys().copied().collect::<Box<[_]>>();
+        for key in keys.iter() {
+            let mut new_key = *key;
+            new_key.sweep_values(compactions);
+            if *key != new_key {
+                let mut binding = self.bindings.remove(key).unwrap();
+                binding.value.sweep_values(compactions);
+                self.bindings.insert(new_key, binding);
+            }
+        }
     }
 }
 
@@ -364,8 +374,8 @@ impl HeapMarkAndSweep for DeclarativeEnvironmentIndex {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(
+        let self_index = self.into_u32_index();
+        *self = Self::from_u32_index(
             self_index
                 - compactions
                     .declarative_environments

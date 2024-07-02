@@ -316,7 +316,7 @@ impl HeapMarkAndSweep for ElementsVector {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.elements_index.into_u32();
+        let self_index = self.elements_index.into_u32_index();
         let shift = match self.cap {
             ElementArrayKey::Empty => {
                 return;
@@ -330,7 +330,7 @@ impl HeapMarkAndSweep for ElementsVector {
             ElementArrayKey::E24 => compactions.e_2_24.get_shift_for_index(self_index),
             ElementArrayKey::E32 => compactions.e_2_32.get_shift_for_index(self_index),
         };
-        self.elements_index = ElementIndex::from_u32(self_index - shift);
+        self.elements_index = ElementIndex::from_u32_index(self_index - shift);
     }
 }
 

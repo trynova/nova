@@ -11,8 +11,8 @@ use cliclack::{input, intro, set_theme};
 use helper::{exit_with_parse_errors, initialize_global_object};
 use nova_vm::ecmascript::{
     execution::{
-        agent::{HostHooks, Job, Options},
-        initialize_host_defined_realm, Agent, Realm,
+        agent::{BoxedAgent, Options},
+        initialize_host_defined_realm, Agent, DefaultHostHooks, Realm,
     },
     scripts_and_modules::script::{parse_script, script_evaluation},
     types::{Object, Value},
@@ -115,64 +115,65 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let allocator = Default::default();
 
             let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
-            let mut agent = Agent::new(
+            let mut agent = BoxedAgent::new(
                 Options {
                     disable_gc: false,
                     print_internals: verbose,
                 },
                 host_hooks,
             );
-            {
+            assert!(!paths.is_empty());
+            agent.with(|agent, root_realms| {
                 let create_global_object: Option<fn(&mut Realm) -> Object> = None;
                 let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
                 initialize_host_defined_realm(
-                    &mut agent,
+                    agent,
                     create_global_object,
                     create_global_this_value,
                     Some(initialize_global_object),
                 );
-            }
-            let realm = agent.current_realm_id();
-
-            // `final_result` will always be overwritten in the paths loop, but
-            // we populate it with a dummy value here so rustc won't complain.
-            let mut final_result = Ok(Value::Undefined);
-
-            assert!(!paths.is_empty());
+                let realm = agent.current_realm_id();
+                root_realms.push(realm);
+            });
+            agent.gc();
             for path in paths {
-                let file = std::fs::read_to_string(&path)?;
-                let script = match parse_script(&allocator, file.into(), realm, !no_strict, None) {
-                    Ok(script) => script,
-                    Err((file, errors)) => exit_with_parse_errors(errors, &path, &file),
-                };
-                final_result = script_evaluation(&mut agent, script);
-                if final_result.is_err() {
-                    break;
-                }
-            }
+                agent.with(
+                    |agent, root_realms| -> Result<(), Box<dyn std::error::Error>> {
+                        let realm = *root_realms.first().unwrap();
+                        let file = std::fs::read_to_string(&path)?;
+                        let script = match parse_script(&allocator, file.into(), realm, !no_strict, None) {
+                            Ok(script) => script,
+                            Err((file, errors)) => exit_with_parse_errors(errors, &path, &file),
+                        };
+                        let result = script_evaluation(agent, script);
 
-            if final_result.is_ok() {
-                while let Some(job) = host_hooks.pop_promise_job() {
-                    if let Err(err) = job.run(&mut agent) {
-                        final_result = Err(err);
-                        break;
-                    }
-                }
-            }
+                        if result.is_ok() {
+                            while let Some(job) = host_hooks.pop_promise_job() {
+                                if let Err(err) = job.run(&mut agent) {
+                                    result = Err(err);
+                                    break;
+                                }
+                            }
+                        }
 
-            match final_result {
-                Ok(result) => {
-                    if verbose {
-                        println!("{:?}", result);
-                    }
-                }
-                Err(error) => {
-                    eprintln!(
-                        "Uncaught exception: {}",
-                        error.value().string_repr(&mut agent).as_str(&agent)
-                    );
-                    std::process::exit(1);
-                }
+                        match result {
+                            Ok(result) => {
+                                if verbose {
+                                    println!("{:?}", result);
+                                }
+                            }
+                            Err(error) => {
+                                eprintln!(
+                                    "Uncaught exception: {}",
+                                    error.value().string_repr(agent).as_str(agent)
+                                );
+                                std::process::exit(1);
+                            }
+                        }
+                        Ok(())
+                    },
+                )?;
+                agent.gc();
             }
         }
         Command::Repl {} => {

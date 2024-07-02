@@ -55,15 +55,11 @@ fn collect_values(queues: &mut WorkQueues, values: &[Option<Value>]) {
     });
 }
 
-pub fn heap_gc(heap: &mut Heap, realm_roots: &mut [RealmIdentifier], value_roots: &mut [Value]) {
+pub fn heap_gc(heap: &mut Heap, realm_roots: &mut [RealmIdentifier]) {
     let mut bits = HeapBits::new(heap);
     let mut queues = WorkQueues::new(heap);
 
     queues.realms.extend_from_slice(realm_roots);
-
-    value_roots.iter().for_each(|&value| {
-        queues.push_value(value);
-    });
 
     heap.globals.iter().for_each(|&value| {
         queues.push_value(value);
@@ -742,23 +738,14 @@ pub fn heap_gc(heap: &mut Heap, realm_roots: &mut [RealmIdentifier], value_roots
         });
     }
 
-    sweep(heap, &bits, realm_roots, value_roots);
+    sweep(heap, &bits, realm_roots);
 }
 
-fn sweep(
-    heap: &mut Heap,
-    bits: &HeapBits,
-    realm_roots: &mut [RealmIdentifier],
-    value_roots: &mut [Value],
-) {
+fn sweep(heap: &mut Heap, bits: &HeapBits, realm_roots: &mut [RealmIdentifier]) {
     let compactions = CompactionLists::create_from_bits(bits);
 
     for realm in realm_roots {
         realm.sweep_values(&compactions);
-    }
-
-    for value in value_roots {
-        value.sweep_values(&compactions);
     }
 
     let Heap {
@@ -980,7 +967,7 @@ fn test_heap_gc() {
     let obj = Value::Object(heap.create_null_object(&[]));
     println!("Object: {:#?}", obj);
     heap.globals.push(obj);
-    heap_gc(&mut heap, &mut [], &mut []);
+    heap_gc(&mut heap, &mut []);
     println!("Objects: {:#?}", heap.objects);
     assert_eq!(heap.objects.len(), 1);
     assert_eq!(heap.elements.e2pow4.values.len(), 0);

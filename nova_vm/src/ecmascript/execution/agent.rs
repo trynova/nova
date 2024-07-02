@@ -124,6 +124,31 @@ pub trait HostHooks: std::fmt::Debug {
     }
 }
 
+pub struct BoxedAgent {
+    agent: Box<Agent>,
+    root_realms: Vec<RealmIdentifier>,
+}
+
+impl BoxedAgent {
+    pub fn new(options: Options, host_hooks: &'static dyn HostHooks) -> Self {
+        Self {
+            agent: Box::new(Agent::new(options, host_hooks)),
+            root_realms: Vec::with_capacity(1),
+        }
+    }
+
+    pub fn with<'agent, F, R>(&'agent mut self, func: F) -> R
+    where
+        F: FnOnce(&'agent mut Agent, &'agent mut Vec<RealmIdentifier>) -> R,
+    {
+        func(&mut self.agent, &mut self.root_realms)
+    }
+
+    pub fn gc(&mut self) {
+        self.agent.gc(&mut self.root_realms);
+    }
+}
+
 /// ### [9.7 Agents](https://tc39.es/ecma262/#sec-agents)
 #[derive(Debug)]
 pub struct Agent {
@@ -138,7 +163,7 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub fn new(options: Options, host_hooks: &'static dyn HostHooks) -> Self {
+    pub(crate) fn new(options: Options, host_hooks: &'static dyn HostHooks) -> Self {
         Self {
             heap: Heap::new(),
             options,
@@ -190,8 +215,8 @@ impl Agent {
         self.execution_context_stack.last_mut().unwrap()
     }
 
-    pub fn gc(&mut self, realm_roots: &mut [RealmIdentifier], value_roots: &mut [Value]) {
-        heap_gc(&mut self.heap, realm_roots, value_roots);
+    fn gc(&mut self, realm_roots: &mut [RealmIdentifier]) {
+        heap_gc(&mut self.heap, realm_roots);
     }
 }
 

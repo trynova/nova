@@ -101,9 +101,20 @@ impl HeapMarkAndSweep for PromiseHeapData {
             }
             _ => {}
         }
+        self.promise_fulfill_reactions.mark_values(queues);
+        self.promise_reject_reactions.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.object_index.sweep_values(compactions);
+        match &mut self.promise_state {
+            PromiseState::Fulfilled { promise_result }
+            | PromiseState::Rejected { promise_result } => {
+                promise_result.sweep_values(compactions);
+            }
+            _ => {}
+        }
+        self.promise_fulfill_reactions.sweep_values(compactions);
+        self.promise_reject_reactions.sweep_values(compactions);
     }
 }

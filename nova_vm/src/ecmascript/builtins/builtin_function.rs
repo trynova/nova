@@ -706,23 +706,20 @@ impl HeapMarkAndSweep for BuiltinFunction {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.0.into_u32();
-        self.0 = BuiltinFunctionIndex::from_u32(
-            self_index
-                - compactions
-                    .builtin_functions
-                    .get_shift_for_index(self_index),
-        );
+        compactions.builtin_functions.shift_index(&mut self.0);
     }
 }
 
 impl HeapMarkAndSweep for BuiltinFunctionHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
+        // Note: Builtin functions cannot keep their realm alive.
+        // self.realm.mark_values(queues);
         self.initial_name.mark_values(queues);
         self.object_index.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.realm.sweep_values(compactions);
         self.initial_name.sweep_values(compactions);
         self.object_index.sweep_values(compactions);
     }

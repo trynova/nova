@@ -85,12 +85,22 @@ macro_rules! create_environment_index {
                 Self(unsafe { NonZeroU32::new_unchecked(value) }, PhantomData)
             }
 
+            pub(crate) const fn from_u32_index(value: u32) -> Self {
+                // SAFETY: Number is not 0 and will not overflow to zero.
+                // This check is done manually to allow const context.
+                Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
+            }
+
             pub(crate) const fn into_index(self) -> usize {
                 self.0.get() as usize - 1
             }
 
             pub(crate) const fn into_u32(self) -> u32 {
                 self.0.get()
+            }
+
+            pub(crate) const fn into_u32_index(self) -> u32 {
+                self.0.get() - 1
             }
 
             pub(crate) fn last(vec: &[Option<$name>]) -> Self {

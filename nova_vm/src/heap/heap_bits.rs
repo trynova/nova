@@ -345,7 +345,6 @@ impl WorkQueues {
     }
 
     pub fn push_elements_vector(&mut self, vec: &ElementsVector) {
-        println!("Pushing vector: {:?}", vec);
         match vec.cap {
             ElementArrayKey::Empty => {}
             ElementArrayKey::E4 => self.e_2_4.push((vec.elements_index, vec.len)),
@@ -417,8 +416,8 @@ impl CompactionList {
     }
 
     pub(crate) fn shift_index<T>(&self, index: &mut BaseIndex<T>) {
-        let base_index = index.into_u32();
-        *index = BaseIndex::from_u32(base_index - self.get_shift_for_index(base_index));
+        let base_index = index.into_u32_index();
+        *index = BaseIndex::from_u32_index(base_index - self.get_shift_for_index(base_index));
     }
 
     fn build(indexes: Vec<u32>, shifts: Vec<u32>) -> Self {
