@@ -755,7 +755,7 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
             skip: Vec<PathBuf>,
         }
         let skipped_tests_path = base_runner.runner_base_path.join("skip.json");
-        let file = File::open(&skipped_tests_path).unwrap();
+        let file = File::open(skipped_tests_path).unwrap();
         let skip_json: SkipJson = serde_json::from_reader(&file).unwrap();
         filters.denylist.extend(skip_json.skip);
     }
