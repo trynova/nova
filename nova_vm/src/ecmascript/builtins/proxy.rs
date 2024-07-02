@@ -10,7 +10,7 @@ use crate::{
     },
     heap::{
         indexes::{BaseIndex, ProxyIndex},
-        CreateHeapData, Heap,
+        CreateHeapData, Heap, HeapMarkAndSweep,
     },
 };
 
@@ -222,6 +222,16 @@ impl IndexMut<Proxy> for Vec<Option<ProxyHeapData>> {
             .expect("Proxy out of bounds")
             .as_mut()
             .expect("Proxy slot empty")
+    }
+}
+
+impl HeapMarkAndSweep for Proxy {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.proxys.push(*self);
+    }
+
+    fn sweep_values(&mut self, _compactions: &crate::heap::CompactionLists) {
+        todo!()
     }
 }
 

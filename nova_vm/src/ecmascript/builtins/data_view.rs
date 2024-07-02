@@ -7,7 +7,7 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData, Value,
         },
     },
-    heap::{indexes::DataViewIndex, CreateHeapData, Heap},
+    heap::{indexes::DataViewIndex, CreateHeapData, Heap, HeapMarkAndSweep},
 };
 
 use self::data::DataViewHeapData;
@@ -117,6 +117,16 @@ impl InternalSlots for DataView {
 }
 
 impl InternalMethods for DataView {}
+
+impl HeapMarkAndSweep for DataView {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.data_views.push(*self);
+    }
+
+    fn sweep_values(&mut self, _compactions: &crate::heap::CompactionLists) {
+        todo!()
+    }
+}
 
 impl CreateHeapData<DataViewHeapData, DataView> for Heap {
     fn create(&mut self, data: DataViewHeapData) -> DataView {
