@@ -69,10 +69,7 @@ fn garbage_collection_tests() {
 
     let allocator = Allocator::default();
     let mut agent = BoxedAgent::new(
-        Options {
-            disable_gc: false,
-            print_internals: true,
-        },
+        Options::default(),
         &DefaultHostHooks,
     );
     agent.with(|agent, root_realms| {
