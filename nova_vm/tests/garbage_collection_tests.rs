@@ -68,10 +68,7 @@ fn garbage_collection_tests() {
         fs::read_to_string(d.clone()).expect("Should have been able to read the file");
 
     let allocator = Allocator::default();
-    let mut agent = BoxedAgent::new(
-        Options::default(),
-        &DefaultHostHooks,
-    );
+    let mut agent = BoxedAgent::new(Options::default(), &DefaultHostHooks);
     agent.with(|agent, root_realms| {
         let create_global_object: Option<fn(&mut Realm) -> Object> = None;
         let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
