@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_int32,
+        abstract_operations::type_conversion::{to_int32, to_uint32},
         execution::{Agent, JsResult},
     },
     heap::{
@@ -18,6 +18,7 @@ use crate::{
 };
 
 pub use data::NumberHeapData;
+use num_traits::PrimInt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -745,6 +746,62 @@ impl Number {
         Number::from_f64(agent, result)
     }
 
+    /// ### [6.1.6.1.6 Number::remainder ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-remainder)
+    ///
+    /// The abstract operation Number::remainder takes arguments n (a Number)
+    /// and d (a Number) and returns a Number. It yields the remainder from an
+    /// implied division of its operands where n is the dividend and d is the
+    /// divisor.
+    pub fn remainder(agent: &mut Agent, n: Self, d: Self) -> Self {
+        // 1. If n is NaN or d is NaN, return NaN.
+        if n.is_nan(agent) || d.is_nan(agent) {
+            return Self::nan();
+        }
+
+        // 2. If n is either +∞𝔽 or -∞𝔽, return NaN.
+        if n.is_pos_infinity(agent) || n.is_neg_infinity(agent) {
+            return Self::nan();
+        }
+
+        // 3. If d is either +∞𝔽 or -∞𝔽, return n.
+        if d.is_pos_infinity(agent) || d.is_neg_infinity(agent) {
+            return n;
+        }
+
+        // 4. If d is either +0𝔽 or -0𝔽, return NaN.
+        if d.is_pos_zero(agent) || d.is_neg_zero(agent) {
+            return Self::nan();
+        }
+
+        // 5. If n is either +0𝔽 or -0𝔽, return n.
+        if n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+            return n;
+        }
+
+        // 6. Assert: n and d are finite and non-zero.
+        debug_assert!(n.is_finite(agent) && n.is_nonzero(agent));
+
+        let n = n.into_f64(agent);
+        let d = d.into_f64(agent);
+
+        // 7. Let quotient be ℝ(n) / ℝ(d).
+        let quotient = n / d;
+
+        // 8. Let q be truncate(quotient).
+        let q = quotient.trunc();
+
+        // 9. Let r be ℝ(n) - (ℝ(d) × q).
+        let r = n - (d * q);
+
+        // 10. If r = 0 and n < -0𝔽, return -0𝔽.
+        if r == 0.0 && n.is_sign_negative() {
+            return Self::neg_zero();
+        }
+
+        // 11. Return 𝔽(r).
+        Self::from_f64(agent, r)
+    }
+
     /// ### [6.1.6.1.7 Number::add ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-add)
     ///
     /// The abstract operation Number::add takes arguments x (a Number) and y
@@ -801,7 +858,50 @@ impl Number {
         Number::add(agent, x, negated_y)
     }
 
-    // ...
+    /// ### [6.1.6.1.9 Number::leftShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-leftShift)
+    ///
+    /// The abstract operation Number::signedRightShift takes arguments x
+    /// (a Number) and y (a Number) and returns an integral Number.
+    pub fn left_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
+        // 1. Let lnum be ! ToInt32(x).
+        let lnum = to_int32(agent, x.into_value()).unwrap();
+        // 2. Let rnum be ! ToUint32(y).
+        let rnum = to_uint32(agent, y.into_value()).unwrap();
+        // 3. Let shiftCount be ℝ(rnum) modulo 32.
+        let shift_count = rnum % 32;
+        // 4. Return the result of left shifting lnum by shiftCount bits. The mathematical value of the result is exactly representable as a 32-bit two's complement bit string.
+        Number::from(lnum.signed_shl(shift_count))
+    }
+
+    /// ### [6.1.6.1.10 Number::signedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-signedRightShift)
+    ///
+    /// The abstract operation Number::unsignedRightShift takes arguments x
+    /// (a Number) and y (a Number) and returns an integral Number.
+    pub fn signed_right_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
+        // 1. Let lnum be ! ToInt32(x).
+        let lnum = to_int32(agent, x.into_value()).unwrap();
+        // 2. Let rnum be ! ToUint32(y).
+        let rnum = to_uint32(agent, y.into_value()).unwrap();
+        // 3. Let shiftCount be ℝ(rnum) modulo 32.
+        let shift_count = rnum % 32;
+        // 4. Return the result of performing a sign-extending right shift of lnum by shiftCount bits. The most significant bit is propagated. The mathematical value of the result is exactly representable as a 32-bit two's complement bit string.
+        Number::from(lnum.signed_shr(shift_count))
+    }
+
+    /// ### [6.1.6.1.11 Number::unsignedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-unsignedRightShift)
+    ///
+    /// The abstract operation Number::lessThan takes arguments x (a Number)
+    /// and y (a Number) and returns a Boolean or undefined.
+    pub fn unsigned_right_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
+        // 1. Let lnum be ! ToUint32(x).
+        let lnum = to_uint32(agent, x.into_value()).unwrap();
+        // 2. Let rnum be ! ToUint32(y).
+        let rnum = to_uint32(agent, y.into_value()).unwrap();
+        // 3. Let shiftCount be ℝ(rnum) modulo 32.
+        let shift_count = rnum % 32;
+        // 4. Return the result of performing a zero-filling right shift of lnum by shiftCount bits. Vacated bits are filled with zero. The mathematical value of the result is exactly representable as a 32-bit unsigned bit string.
+        Number::from(lnum.unsigned_shr(shift_count))
+    }
 
     /// ### [6.1.6.1.12 Number::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-lessThan)
     pub fn less_than(agent: &mut Agent, x: Self, y: Self) -> Option<bool> {
