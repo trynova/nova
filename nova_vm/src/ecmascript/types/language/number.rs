@@ -894,7 +894,7 @@ impl Number {
     /// and y (a Number) and returns a Boolean or undefined.
     pub fn unsigned_right_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
         // 1. Let lnum be ! ToUint32(x).
-        let lnum = to_int32(agent, x.into_value()).unwrap();
+        let lnum = to_uint32(agent, x.into_value()).unwrap();
         // 2. Let rnum be ! ToUint32(y).
         let rnum = to_uint32(agent, y.into_value()).unwrap();
         // 3. Let shiftCount be ℝ(rnum) modulo 32.
