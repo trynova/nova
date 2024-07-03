@@ -137,9 +137,9 @@ impl BoxedAgent {
         }
     }
 
-    pub fn with<'agent, F, R>(&'agent mut self, func: F) -> R
+    pub fn with<F, R>(& mut self, func: F) -> R
     where
-        F: FnOnce(&'agent mut Agent, &'agent mut Vec<RealmIdentifier>) -> R,
+        F: for<'agent> FnOnce(&'agent mut Agent, &'agent mut Vec<RealmIdentifier>) -> R,
     {
         func(&mut self.agent, &mut self.root_realms)
     }
