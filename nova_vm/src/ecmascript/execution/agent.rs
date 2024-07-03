@@ -145,7 +145,7 @@ impl BoxedAgent {
     }
 
     pub fn gc(&mut self) {
-        self.agent.gc(&mut self.root_realms);
+        heap_gc(&mut self.agent.heap, &mut self.root_realms);
     }
 }
 
@@ -213,10 +213,6 @@ impl Agent {
 
     pub(crate) fn running_execution_context_mut(&mut self) -> &mut ExecutionContext {
         self.execution_context_stack.last_mut().unwrap()
-    }
-
-    fn gc(&mut self, realm_roots: &mut [RealmIdentifier]) {
-        heap_gc(&mut self.heap, realm_roots);
     }
 }
 
