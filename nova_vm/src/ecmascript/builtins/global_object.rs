@@ -588,7 +588,9 @@ pub fn eval_declaration_instantiation(
             } else {
                 // iii. Else,
                 // 1. Perform ! varEnv.SetMutableBinding(fn, fo, false).
-                var_env.set_mutable_binding(agent, function_name, fo, false).unwrap();
+                var_env
+                    .set_mutable_binding(agent, function_name, fo, false)
+                    .unwrap();
             }
         }
     }

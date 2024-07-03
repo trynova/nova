@@ -484,7 +484,7 @@ pub(crate) fn global_declaration_instantiation(
         // c. Perform ? env.CreateGlobalFunctionBinding(fn, fo, false).
         env.create_global_function_binding(agent, function_name, fo.into_value(), false)?;
     }
-    
+
     // 17. For each String vn of declaredVarNames, do
     for vn in declared_var_names {
         // a. Perform ? env.CreateGlobalVarBinding(vn, false).

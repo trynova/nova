@@ -159,7 +159,7 @@ impl Executable {
             eprintln!("=== Compiling Eval Body ===");
             eprintln!();
         }
-        
+
         Self::_compile_statements(agent, body, true)
     }
 
