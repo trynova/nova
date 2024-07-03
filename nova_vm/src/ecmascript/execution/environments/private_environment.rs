@@ -41,7 +41,7 @@ pub struct PrivateEnvironment {
     /// ### \[\[Names\]\]
     ///
     /// The Private Names declared by this class.
-    pub names: HashMap<String, PrivateName>,
+    pub(crate) names: HashMap<String, PrivateName>,
 }
 
 impl HeapMarkAndSweep for PrivateEnvironment {
