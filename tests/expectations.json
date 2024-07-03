@@ -18794,7 +18794,6 @@
   "language/eval-code/direct/this-value-func-strict-caller.js": "CRASH",
   "language/eval-code/direct/var-env-func-init-local-new.js": "CRASH",
   "language/eval-code/direct/var-env-func-init-local-update.js": "CRASH",
-  "language/eval-code/direct/var-env-func-init-multi.js": "CRASH",
   "language/eval-code/direct/var-env-func-non-strict.js": "CRASH",
   "language/eval-code/direct/var-env-func-strict-caller-2.js": "CRASH",
   "language/eval-code/direct/var-env-func-strict-caller.js": "CRASH",
