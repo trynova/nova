@@ -164,11 +164,11 @@ pub fn perform_eval(
         .host_ensure_can_compile_strings(&mut agent[eval_realm])?;
 
     // 6. Let inFunction be false.
-    let mut in_function = false;
+    let mut _in_function = false;
     // 7. Let inMethod be false.
-    let mut in_method = false;
+    let mut _in_method = false;
     // 8. Let inDerivedConstructor be false.
-    let mut in_derived_constructor = false;
+    let mut _in_derived_constructor = false;
     // 9. Let inClassFieldInitializer be false.
     let _in_class_field_initializer = false;
 
@@ -181,11 +181,11 @@ pub fn perform_eval(
             // i. Let F be thisEnvRec.[[FunctionObject]].
             let f = agent[this_env_rec].function_object;
             // ii. Set inFunction to true.
-            in_function = true;
+            _in_function = true;
             // iii. Set inMethod to thisEnvRec.HasSuperBinding().
-            in_method = this_env_rec.has_super_binding(agent);
+            _in_method = this_env_rec.has_super_binding(agent);
             // iv. If F.[[ConstructorKind]] is derived, set inDerivedConstructor to true.
-            in_derived_constructor = match f {
+            _in_derived_constructor = match f {
                 Function::ECMAScriptFunction(idx) => agent[idx]
                     .ecmascript_function
                     .constructor_status
@@ -223,8 +223,9 @@ pub fn perform_eval(
         return Ok(Value::Undefined);
     }
 
-    // TODO:
     // d. Let body be the ScriptBody of script.
+
+    // TODO:
     // e. If inFunction is false and body Contains NewTarget, throw a SyntaxError exception.
     // f. If inMethod is false and body Contains SuperProperty, throw a SyntaxError exception.
     // g. If inDerivedConstructor is false and body Contains SuperCall, throw a SyntaxError exception.
