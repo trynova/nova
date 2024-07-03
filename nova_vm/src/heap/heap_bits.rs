@@ -2,10 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::borrow::Borrow;
+use std::collections::HashMap;
 
 use super::{
-    element_array::{ElementArrayKey, ElementsVector},
+    element_array::{ElementArrayKey, ElementDescriptor, ElementsVector},
     indexes::{BaseIndex, ElementIndex, TypedArrayIndex},
     Heap,
 };
@@ -39,7 +39,10 @@ use crate::ecmascript::{
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
     },
     scripts_and_modules::script::ScriptIdentifier,
-    types::{bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value},
+    types::{
+        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
+        BUILTIN_STRINGS_LIST,
+    },
 };
 
 #[derive(Debug)]
@@ -271,8 +274,8 @@ impl WorkQueues {
             scripts: Vec::with_capacity(heap.scripts.len() / 4),
             sets: Vec::with_capacity(heap.sets.len() / 4),
             shared_array_buffers: Vec::with_capacity(heap.shared_array_buffers.len() / 4),
-            strings: Vec::with_capacity(heap.strings.len() / 4),
-            symbols: Vec::with_capacity(heap.symbols.len() / 4),
+            strings: Vec::with_capacity((heap.strings.len() / 4).max(BUILTIN_STRINGS_LIST.len())),
+            symbols: Vec::with_capacity((heap.symbols.len() / 4).max(13)),
             typed_arrays: Vec::with_capacity(heap.typed_arrays.len() / 4),
             weak_maps: Vec::with_capacity(heap.weak_maps.len() / 4),
             weak_refs: Vec::with_capacity(heap.weak_refs.len() / 4),
@@ -415,7 +418,7 @@ impl CompactionList {
             .unwrap_or(0)
     }
 
-    pub(crate) fn shift_index<T>(&self, index: &mut BaseIndex<T>) {
+    pub(crate) fn shift_index<T: ?Sized>(&self, index: &mut BaseIndex<T>) {
         let base_index = index.into_u32_index();
         *index = BaseIndex::from_u32_index(base_index - self.get_shift_for_index(base_index));
     }
@@ -722,13 +725,11 @@ where
     }
 }
 
-pub(crate) fn mark_array_with_u32_length<T: HeapMarkAndSweep + std::fmt::Debug, const N: usize>(
+pub(crate) fn mark_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
     array: &Option<[T; N]>,
     queues: &mut WorkQueues,
     length: u32,
 ) {
-    let length: u32 = *length.borrow();
-
     array.as_ref().unwrap()[..length as usize]
         .iter()
         .for_each(|value| {
@@ -736,12 +737,20 @@ pub(crate) fn mark_array_with_u32_length<T: HeapMarkAndSweep + std::fmt::Debug, 
         });
 }
 
+pub(crate) fn mark_descriptors(
+    descriptors: &HashMap<u32, ElementDescriptor>,
+    queues: &mut WorkQueues,
+) {
+    for descriptor in descriptors.values() {
+        descriptor.mark_values(queues);
+    }
+}
+
 fn sweep_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
     array: &mut Option<[T; N]>,
     compactions: &CompactionLists,
     length: u32,
 ) {
-    let length: u32 = *length.borrow();
     if length == 0 {
         return;
     }
@@ -752,7 +761,7 @@ fn sweep_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
         });
 }
 
-pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep>(
+pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep + std::fmt::Debug>(
     vec: &mut Vec<T>,
     compactions: &CompactionLists,
     bits: &[bool],
@@ -760,7 +769,8 @@ pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep>(
     assert_eq!(vec.len(), bits.len());
     let mut iter = bits.iter();
     vec.retain_mut(|item| {
-        if *iter.next().unwrap() {
+        let do_retain = iter.next().unwrap();
+        if *do_retain {
             item.sweep_values(compactions);
             true
         } else {
@@ -821,4 +831,42 @@ pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
             false
         }
     });
+}
+
+pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
+    descriptors: &mut HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+    compactions: &CompactionLists,
+    self_compactions: &CompactionList,
+    marks: &[(bool, T)],
+) {
+    let mut keys_to_remove = Vec::with_capacity(marks.len() / 4);
+    let mut keys_to_reassign = Vec::with_capacity(marks.len() / 4);
+    for (key, descriptor) in descriptors.iter_mut() {
+        let old_key = *key;
+        if !marks.get(key.into_index()).unwrap().0 {
+            keys_to_remove.push(old_key);
+        } else {
+            for descriptor in descriptor.values_mut() {
+                descriptor.sweep_values(compactions);
+            }
+            let mut new_key = old_key;
+            self_compactions.shift_index(&mut new_key);
+            if new_key != old_key {
+                keys_to_reassign.push((old_key, new_key));
+            }
+        }
+    }
+    keys_to_remove.sort();
+    keys_to_reassign.sort();
+    for old_key in keys_to_remove.iter() {
+        // println!("Dropping descriptors at key {:?}: {:?}", old_key, descriptors.get(old_key).unwrap());
+        descriptors.remove(old_key);
+    }
+    for (old_key, new_key) in keys_to_reassign {
+        // SAFETY: The old key came from iterating descriptors, and the same
+        // key cannot appear in both keys to remove and keys to reassign. Thus
+        // the key must necessarily exist in the descriptors hash map.
+        let descriptor = unsafe { descriptors.remove(&old_key).unwrap_unchecked() };
+        descriptors.insert(new_key, descriptor);
+    }
 }

@@ -2256,3 +2256,69 @@ impl ElementArrays {
         }
     }
 }
+
+impl HeapMarkAndSweep for ElementDescriptor {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            ElementDescriptor::WritableEnumerableConfigurableData
+            | ElementDescriptor::WritableEnumerableUnconfigurableData
+            | ElementDescriptor::WritableUnenumerableConfigurableData
+            | ElementDescriptor::WritableUnenumerableUnconfigurableData
+            | ElementDescriptor::ReadOnlyEnumerableConfigurableData
+            | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
+            | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData => {}
+            ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }
+            | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }
+            | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get }
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { get } => {
+                get.mark_values(queues)
+            }
+            ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set }
+            | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set }
+            | ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { set }
+            | ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor { set } => {
+                set.mark_values(queues)
+            }
+            ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { get, set }
+            | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { get, set }
+            | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { get, set }
+            | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { get, set } => {
+                get.mark_values(queues);
+                set.mark_values(queues);
+            }
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            ElementDescriptor::WritableEnumerableConfigurableData
+            | ElementDescriptor::WritableEnumerableUnconfigurableData
+            | ElementDescriptor::WritableUnenumerableConfigurableData
+            | ElementDescriptor::WritableUnenumerableUnconfigurableData
+            | ElementDescriptor::ReadOnlyEnumerableConfigurableData
+            | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
+            | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData => {}
+            ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }
+            | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }
+            | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get }
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { get } => {
+                get.sweep_values(compactions)
+            }
+            ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set }
+            | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set }
+            | ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { set }
+            | ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor { set } => {
+                set.sweep_values(compactions)
+            }
+            ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { get, set }
+            | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { get, set }
+            | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { get, set }
+            | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { get, set } => {
+                get.sweep_values(compactions);
+                set.sweep_values(compactions);
+            }
+        }
+    }
+}
