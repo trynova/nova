@@ -7,7 +7,6 @@ use oxc_span::SourceType;
 
 use crate::{
     ecmascript::{
-        self,
         abstract_operations::type_conversion::to_number,
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         execution::{
@@ -16,7 +15,7 @@ use crate::{
             RealmIdentifier,
         },
         syntax_directed_operations::scope_analysis::{
-            script_lexically_scoped_declarations, script_var_declared_names, script_var_scoped_declarations, LexicallyScopedDeclaration, VarDeclaredNames, VarScopedDeclaration
+            script_lexically_scoped_declarations, script_var_declared_names, script_var_scoped_declarations, LexicallyScopedDeclaration, VarScopedDeclaration
         },
         types::{Function, String, Value, BUILTIN_STRING_MEMORY},
     },
@@ -163,7 +162,7 @@ pub fn perform_eval(
     // 8. Let inDerivedConstructor be false.
     let mut in_derived_constructor = false;
     // 9. Let inClassFieldInitializer be false.
-    let mut in_class_field_initializer = false;
+    let _in_class_field_initializer = false;
 
     // 10. If direct is true, then
     if direct {
@@ -280,7 +279,7 @@ pub fn perform_eval(
     agent.running_execution_context().suspend();
 
     // 20. Let evalContext be a new ECMAScript code execution context.
-    let mut eval_context = ExecutionContext {
+    let eval_context = ExecutionContext {
         // 21. Set evalContext's Function to null.
         function: None,
         // 22. Set evalContext's Realm to evalRealm.
@@ -400,7 +399,7 @@ pub fn eval_declaration_instantiation(
         let env = &agent[index];
 
         // a. For each Private Name binding of pointer.[[Names]], do
-        for (_, name) in &env.names {
+        for name in env.names.values() {
             // i. If privateIdentifiers does not contain binding.[[Description]], append binding.[[Description]] to privateIdentifiers.
             if private_identifiers.contains(&name.description()) {
                 private_identifiers.push(name.description());
