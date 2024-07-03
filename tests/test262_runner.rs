@@ -40,6 +40,91 @@ fn is_test_file(file_name: &str) -> bool {
     file_name.ends_with(".js") && !file_name.contains("_FIXTURE")
 }
 
+#[derive(Default)]
+struct TestFilters {
+    allowlist: Vec<PathBuf>,
+    denylist: Vec<PathBuf>,
+}
+
+impl TestFilters {
+    /// Checks if a directory should be filtered out, and if not, returns the
+    /// [`TestFilters`] object for its children.
+    fn filter_dir(&self, os_folder_name: &OsStr) -> Option<TestFilters> {
+        // No filters means that all directories (and valid test files within
+        // them) should be visited.
+        if self.allowlist.is_empty() && self.denylist.is_empty() {
+            return Some(TestFilters::default());
+        }
+
+        let mut child_denylist = Vec::with_capacity(self.denylist.len());
+        for filter in self.denylist.iter() {
+            // If a denylist filter exactly matches this folder, it should be
+            // filtered out. We also do this is we happen to have an empty
+            // string as a filter (e.g. because the filter path ended with a
+            // slash), since that means our parent directory should have been
+            // filtered out.
+            if filter == OsStr::new("") || filter == os_folder_name {
+                return None;
+            }
+            if let Ok(child_filter) = filter.strip_prefix(os_folder_name) {
+                child_denylist.push(child_filter.to_path_buf());
+            }
+        }
+
+        // An empty allowlist means that everything that isn't explicitly denied
+        // is allowed.
+        if self.allowlist.is_empty() {
+            return Some(TestFilters {
+                allowlist: vec![],
+                denylist: child_denylist,
+            });
+        }
+
+        let mut child_allowlist = Vec::with_capacity(self.allowlist.len());
+        for filter in self.allowlist.iter() {
+            // If we find a filter that exactly matches this folder, then all of
+            // its descendants should be visited, unless they're explicitly in
+            // the denylist. This is also the case if the filter is an empty
+            // string, see above on the denylist for why.
+            if filter == OsStr::new("") || filter == os_folder_name {
+                return Some(TestFilters {
+                    allowlist: vec![],
+                    denylist: child_denylist,
+                });
+            }
+            if let Ok(child_filter) = filter.strip_prefix(os_folder_name) {
+                child_allowlist.push(child_filter.to_path_buf());
+            }
+        }
+
+        if child_allowlist.is_empty() {
+            // We used to have allowlist filters, but none of them apply to this
+            // folder or to any of its descendants, so we're denied.
+            None
+        } else {
+            Some(TestFilters {
+                allowlist: child_allowlist,
+                denylist: child_denylist,
+            })
+        }
+    }
+
+    fn filter_file(&self, os_file_name: &OsStr) -> bool {
+        if let Some(str_file_name) = os_file_name.to_str() {
+            if !is_test_file(str_file_name) {
+                return false;
+            }
+        }
+        if self.denylist.iter().any(|path| path == os_file_name) {
+            return false;
+        }
+        if self.allowlist.is_empty() {
+            return true;
+        }
+        self.allowlist.iter().any(|path| path == os_file_name)
+    }
+}
+
 #[derive(Debug)]
 struct BaseTest262Runner {
     runner_base_path: PathBuf,
@@ -207,7 +292,7 @@ impl Test262Runner {
     /// which have one of the entries of `filters` as its prefix should run.
     pub fn run(
         &self,
-        filters: &[PathBuf],
+        filters: &TestFilters,
         num_threads: Option<NonZeroUsize>,
     ) -> Test262RunnerState {
         let thread_pool = {
@@ -243,69 +328,21 @@ impl Test262Runner {
     /// should be run. Otherwise, only tests which have one of the entries of
     /// `filters` as its prefix (considering their relative path to the `path`
     /// directory) will be run.
-    fn walk_dir(&self, path: &PathBuf, filters: &[PathBuf]) {
+    fn walk_dir(&self, path: &PathBuf, filters: &TestFilters) {
         // Iterate through every entry in this directory in parallel.
         read_dir(path).unwrap().par_bridge().for_each(|entry| {
             let entry = entry.unwrap();
 
             if entry.file_type().unwrap().is_dir() {
-                if let Some(child_filters) = Self::filter_dir(filters, &entry.file_name()) {
+                if let Some(child_filters) = filters.filter_dir(&entry.file_name()) {
                     self.walk_dir(&entry.path(), &child_filters);
                 }
             }
 
-            if entry.file_type().unwrap().is_file()
-                && Self::filter_file(filters, &entry.file_name())
-            {
+            if entry.file_type().unwrap().is_file() && filters.filter_file(&entry.file_name()) {
                 self.run_test(&entry.path());
             }
         })
-    }
-
-    /// Checks if a directory should be filtered out, and if not, returns a list
-    /// of filters for its children.
-    fn filter_dir(filters: &[PathBuf], os_folder_name: &OsStr) -> Option<Box<[PathBuf]>> {
-        // Always skip SKIP_DIRS, regardless of filters.
-        if SKIP_DIRS.contains(&os_folder_name.to_str().unwrap()) {
-            return None;
-        }
-        // No filters means that all directories (and valid test files within
-        // them) should be visited.
-        if filters.is_empty() {
-            return Some(vec![].into_boxed_slice());
-        }
-
-        let mut child_filters = Vec::with_capacity(filters.len());
-        for filter in filters {
-            // If we find a filter that exactly matches this folder, it means
-            // all of its descendants should be visited, so we always return an
-            // empty filter list, ignoring the rest of the filters. We also do
-            // this if we happen to have an empty string as a filter (e.g.
-            // because the filter path ended with a slash), since that means all
-            // descendants of our parent directory should be visited.
-            if filter == OsStr::new("") || filter == os_folder_name {
-                return Some(vec![].into_boxed_slice());
-            }
-            if let Ok(child_filter) = filter.strip_prefix(os_folder_name) {
-                child_filters.push(child_filter.to_path_buf());
-            }
-        }
-
-        if child_filters.is_empty() {
-            None
-        } else {
-            Some(child_filters.into_boxed_slice())
-        }
-    }
-
-    fn filter_file(filters: &[PathBuf], os_file_name: &OsStr) -> bool {
-        if !is_test_file(os_file_name.to_str().unwrap()) {
-            return false;
-        }
-        if filters.is_empty() {
-            return true;
-        }
-        filters.iter().any(|filter| filter == os_file_name)
     }
 
     fn run_test(&self, path: &PathBuf) {
@@ -678,7 +715,7 @@ fn eval_test(mut base_runner: BaseTest262Runner, path: PathBuf) {
     }
 }
 
-fn run_tests(mut base_runner: BaseTest262Runner, mut args: RunTestsArgs) {
+fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
     base_runner.print_progress = !args.noprogress;
     base_runner.in_test_eval = false;
 
@@ -706,24 +743,41 @@ fn run_tests(mut base_runner: BaseTest262Runner, mut args: RunTestsArgs) {
         }
     };
 
+    let mut filters = TestFilters {
+        allowlist: vec![],
+        denylist: SKIP_DIRS.iter().map(PathBuf::from).collect(),
+    };
+
+    // Skip tests (skip.json)
+    {
+        #[derive(Deserialize)]
+        struct SkipJson {
+            skip: Vec<PathBuf>,
+        }
+        let skipped_tests_path = base_runner.runner_base_path.join("skip.json");
+        let file = File::open(skipped_tests_path).unwrap();
+        let skip_json: SkipJson = serde_json::from_reader(&file).unwrap();
+        filters.denylist.extend(skip_json.skip);
+    }
+
     // Preprocess filters
     let mut filters_are_valid = true;
-    for filter in args.filters.iter_mut() {
-        let absolute = base_runner.tests_base.join(&*filter);
-        assert!(absolute.is_absolute());
-        let Ok(canonical) = absolute.canonicalize() else {
-            filters_are_valid = false;
-            break;
-        };
-        assert!(canonical.is_absolute());
-        let Ok(relative) = canonical.strip_prefix(&base_runner.tests_base) else {
-            filters_are_valid = false;
-            break;
-        };
-        if *filter != relative {
-            *filter = relative.to_path_buf();
-        }
-    }
+    filters
+        .allowlist
+        .extend(args.filters.into_iter().map_while(|filter| {
+            let absolute = base_runner.tests_base.join(filter);
+            assert!(absolute.is_absolute());
+            let Ok(canonical) = absolute.canonicalize() else {
+                filters_are_valid = false;
+                return None;
+            };
+            assert!(canonical.is_absolute());
+            let Ok(relative) = canonical.strip_prefix(&base_runner.tests_base) else {
+                filters_are_valid = false;
+                return None;
+            };
+            Some(relative.to_path_buf())
+        }));
 
     let runner = Test262Runner {
         inner: base_runner,
@@ -731,7 +785,7 @@ fn run_tests(mut base_runner: BaseTest262Runner, mut args: RunTestsArgs) {
         expectations,
     };
     let run_result = if filters_are_valid {
-        runner.run(&args.filters, args.num_threads)
+        runner.run(&filters, args.num_threads)
     } else {
         Default::default()
     };
