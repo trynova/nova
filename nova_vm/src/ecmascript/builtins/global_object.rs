@@ -201,7 +201,10 @@ pub fn perform_eval(
 
     // 11. Perform the following substeps in an implementation-defined order, possibly interleaving parsing and error detection:
     // a. Let script be ParseText(x, Script).
-    let allocator = Allocator::default();
+    // HACK: Because we rely on the allocator outliving the Agent we leak the
+    // allocator here . See https://github.com/trynova/nova/pull/278#discussion_r1663233064
+    // for more information.
+    let allocator = Box::leak(Box::new(Allocator::default()));
     let source_text = x.as_str(agent).to_owned();
     let parser = Parser::new(&allocator, &source_text, SourceType::default());
     let ParserReturn {
@@ -223,9 +226,8 @@ pub fn perform_eval(
         return Ok(Value::Undefined);
     }
 
-    // d. Let body be the ScriptBody of script.
-
     // TODO:
+    // d. Let body be the ScriptBody of script.
     // e. If inFunction is false and body Contains NewTarget, throw a SyntaxError exception.
     // f. If inMethod is false and body Contains SuperProperty, throw a SyntaxError exception.
     // g. If inDerivedConstructor is false and body Contains SuperCall, throw a SyntaxError exception.
