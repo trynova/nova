@@ -204,9 +204,9 @@ pub fn perform_eval(
     // HACK: Because we rely on the allocator outliving the Agent we leak the
     // allocator here . See https://github.com/trynova/nova/pull/278#discussion_r1663233064
     // for more information.
-    let allocator = Box::leak(Box::new(Allocator::default()));
+    let allocator: &mut Allocator = Box::leak(Box::default());
     let source_text = x.as_str(agent).to_owned();
-    let parser = Parser::new(&allocator, &source_text, SourceType::default());
+    let parser = Parser::new(allocator, &source_text, SourceType::default());
     let ParserReturn {
         errors,
         program: script,
