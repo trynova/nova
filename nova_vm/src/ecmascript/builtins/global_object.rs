@@ -1,7 +1,10 @@
 use std::collections::HashSet;
 
 use oxc_allocator::Allocator;
-use oxc_ast::{ast::{BindingIdentifier, Program, VariableDeclarationKind}, syntax_directed_operations::BoundNames};
+use oxc_ast::{
+    ast::{BindingIdentifier, Program, VariableDeclarationKind},
+    syntax_directed_operations::BoundNames,
+};
 use oxc_parser::{Parser, ParserReturn};
 use oxc_span::SourceType;
 
@@ -14,11 +17,16 @@ use crate::{
             ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult,
             RealmIdentifier,
         },
-        syntax_directed_operations::scope_analysis::{
-            script_lexically_scoped_declarations, script_var_declared_names, script_var_scoped_declarations, LexicallyScopedDeclaration, VarScopedDeclaration
+        syntax_directed_operations::{
+            miscellaneous::instantiate_function_object,
+            scope_analysis::{
+                script_lexically_scoped_declarations, script_var_declared_names,
+                script_var_scoped_declarations, LexicallyScopedDeclaration, VarScopedDeclaration,
+            },
         },
-        types::{Function, String, Value, BUILTIN_STRING_MEMORY},
+        types::{Function, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
+    engine::{Executable, Vm},
     heap::IntrinsicFunctionIndexes,
 };
 
@@ -296,10 +304,18 @@ pub fn perform_eval(
 
     // 28. Let result be Completion(EvalDeclarationInstantiation(body, varEnv, lexEnv, privateEnv, strictEval)).
     let result = eval_declaration_instantiation(agent, &script, strict_eval);
+
     // 29. If result is a normal completion, then
-    // a. Set result to Completion(Evaluation of body).
-    // 30. If result is a normal completion and result.[[Value]] is empty, then
-    // a. Set result to NormalCompletion(undefined).
+    let result = if result.is_ok() {
+        let exe = Executable::compile_eval_body(agent, &script.body);
+        // a. Set result to Completion(Evaluation of body).
+        // 30. If result is a normal completion and result.[[Value]] is empty, then
+        // a. Set result to NormalCompletion(undefined).
+        Vm::execute(agent, &exe).map(|value| value.unwrap_or(Value::Undefined))
+    } else {
+        Err(result.err().unwrap())
+    };
+
     // 31. Suspend evalContext and remove it from the execution context stack.
     agent.execution_context_stack.pop().unwrap().suspend();
 
@@ -316,12 +332,12 @@ pub fn perform_eval(
 /// (a ScriptBody Parse Node), varEnv (an Environment Record), lexEnv (a
 /// Declarative Environment Record), privateEnv (a PrivateEnvironment Record or
 /// null), and strict (a Boolean) and returns either a normal completion
-/// containing unused or a throw completion.
+/// containing UNUSED or a throw completion.
 pub fn eval_declaration_instantiation(
     agent: &mut Agent,
     script: &Program,
     strict_eval: bool,
-) -> JsResult<Value> {
+) -> JsResult<()> {
     let ECMAScriptCodeEvaluationState {
         lexical_environment: lex_env,
         variable_environment: var_env,
@@ -534,33 +550,74 @@ pub fn eval_declaration_instantiation(
             // 1. Perform ? lexEnv.CreateMutableBinding(dn, false).
             lex_env.create_mutable_binding(agent, dn, false)?;
         }
-
     }
 
     // 17. For each Parse Node f of functionsToInitialize, do
-    // a. Let fn be the sole element of the BoundNames of f.
-    // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
-    // c. If varEnv is a Global Environment Record, then
-    // i. Perform ? varEnv.CreateGlobalFunctionBinding(fn, fo, true).
-    // d. Else,
-    // i. Let bindingExists be ! varEnv.HasBinding(fn).
-    // ii. If bindingExists is false, then
-    // 1. NOTE: The following invocation cannot return an abrupt completion because of the validation preceding step 14.
-    // 2. Perform ! varEnv.CreateMutableBinding(fn, true).
-    // 3. Perform ! varEnv.InitializeBinding(fn, fo).
-    // iii. Else,
-    // 1. Perform ! varEnv.SetMutableBinding(fn, fo, false).
+    for f in functions_to_initialize {
+        // a. Let fn be the sole element of the BoundNames of f.
+        let mut function_name = None;
+        f.bound_names(&mut |identifier| {
+            assert!(function_name.is_none());
+            function_name = Some(identifier.name.clone());
+        });
+        let function_name = String::from_str(agent, function_name.unwrap().as_str());
+
+        // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
+        let fo = instantiate_function_object(agent, f, lex_env, private_env).into_value();
+
+        // c. If varEnv is a Global Environment Record, then
+        if let EnvironmentIndex::Global(var_env) = var_env {
+            // i. Perform ? varEnv.CreateGlobalFunctionBinding(fn, fo, true).
+            var_env.create_global_function_binding(agent, function_name, fo, true)?;
+        } else {
+            // d. Else,
+            // i. Let bindingExists be ! varEnv.HasBinding(fn).
+            let binding_exists = var_env.has_binding(agent, function_name).unwrap();
+
+            // ii. If bindingExists is false, then
+            if !binding_exists {
+                // 1. NOTE: The following invocation cannot return an abrupt completion because of the validation preceding step 14.
+                // 2. Perform ! varEnv.CreateMutableBinding(fn, true).
+                var_env
+                    .create_mutable_binding(agent, function_name, true)
+                    .unwrap();
+                // 3. Perform ! varEnv.InitializeBinding(fn, fo).
+                var_env
+                    .initialize_binding(agent, function_name, fo)
+                    .unwrap();
+            } else {
+                // iii. Else,
+                // 1. Perform ! varEnv.SetMutableBinding(fn, fo, false).
+                var_env.set_mutable_binding(agent, function_name, fo, false).unwrap();
+            }
+        }
+    }
     // 18. For each String vn of declaredVarNames, do
-    // a. If varEnv is a Global Environment Record, then
-    // i. Perform ? varEnv.CreateGlobalVarBinding(vn, true).
-    // b. Else,
-    // i. Let bindingExists be ! varEnv.HasBinding(vn).
-    // ii. If bindingExists is false, then
-    // 1. NOTE: The following invocation cannot return an abrupt completion because of the validation preceding step 14.
-    // 2. Perform ! varEnv.CreateMutableBinding(vn, true).
-    // 3. Perform ! varEnv.InitializeBinding(vn, undefined).
-    // 19. Return unused.
-    todo!()
+    for vn in declared_var_names {
+        // a. If varEnv is a Global Environment Record, then
+        if let EnvironmentIndex::Global(var_env) = var_env {
+            // i. Perform ? varEnv.CreateGlobalVarBinding(vn, true).
+            var_env.create_global_var_binding(agent, vn, true)?;
+        } else {
+            // b. Else,
+            // i. Let bindingExists be ! varEnv.HasBinding(vn).
+            let binding_exists = var_env.has_binding(agent, vn).unwrap();
+
+            // ii. If bindingExists is false, then
+            if !binding_exists {
+                // 1. NOTE: The following invocation cannot return an abrupt completion because of the validation preceding step 14.
+                // 2. Perform ! varEnv.CreateMutableBinding(vn, true).
+                var_env.create_mutable_binding(agent, vn, true).unwrap();
+                // 3. Perform ! varEnv.InitializeBinding(vn, undefined).
+                var_env
+                    .initialize_binding(agent, vn, Value::Undefined)
+                    .unwrap();
+            }
+        }
+    }
+
+    // 19. Return UNUSED.
+    Ok(())
 }
 
 impl GlobalObject {
