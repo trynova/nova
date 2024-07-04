@@ -13,7 +13,7 @@ use crate::{
                 LexicallyScopedDeclaration, VarScopedDeclaration,
             },
         },
-        types::{IntoValue, String, Value},
+        types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
     engine::{Executable, Vm},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -454,7 +454,7 @@ pub(crate) fn global_declaration_instantiation(
             LexicallyScopedDeclaration::Function(decl) => decl.bound_names(&mut closure),
             LexicallyScopedDeclaration::Class(decl) => decl.bound_names(&mut closure),
             LexicallyScopedDeclaration::DefaultExport => {
-                bound_names.push(String::from_static_str(agent, "*default*"))
+                bound_names.push(BUILTIN_STRING_MEMORY._default_)
             }
         }
         // b. For each element dn of the BoundNames of d, do

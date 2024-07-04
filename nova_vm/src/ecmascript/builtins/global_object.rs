@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use oxc_allocator::Allocator;
 use oxc_ast::{
     ast::{BindingIdentifier, Program, VariableDeclarationKind},
     syntax_directed_operations::BoundNames,
@@ -15,7 +14,7 @@ use crate::{
         execution::{
             agent::ExceptionType, get_this_environment, new_declarative_environment, Agent,
             ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult,
-            RealmIdentifier,
+            PrivateEnvironmentIndex, RealmIdentifier,
         },
         syntax_directed_operations::{
             miscellaneous::instantiate_function_object,
@@ -204,7 +203,7 @@ pub fn perform_eval(
     // HACK: Because we rely on the allocator outliving the Agent we leak the
     // allocator here . See https://github.com/trynova/nova/pull/278#discussion_r1663233064
     // for more information.
-    let allocator: &mut Allocator = Box::leak(Box::default());
+    let allocator = Box::leak(Box::default());
     let source_text = x.as_str(agent).to_owned();
     let parser = Parser::new(allocator, &source_text, SourceType::default());
     let ParserReturn {
@@ -217,12 +216,18 @@ pub fn perform_eval(
     if !errors.is_empty() {
         // Make sure `script` can't borrow `source_text` so we can return it.
         drop(script);
+        // SAFETY: It is safe to drop the leaked allocator here because it is known to be unused.
+        drop(unsafe { Box::from_raw(allocator) });
         // TODO: Include error messages in the exception.
         return Err(agent.throw_exception(ExceptionType::SyntaxError, "Invalid eval source text."));
     }
 
     // c. If script Contains ScriptBody is false, return undefined.
     if script.is_empty() {
+        // Make sure `script` can't borrow `source_text` so we can drop the allocator. Because the script is empty this is fine.
+        drop(script);
+        // SAFETY: It is safe to drop the leaked allocator here because it is known to be unused.
+        drop(unsafe { Box::from_raw(allocator) });
         return Ok(Value::Undefined);
     }
 
@@ -293,7 +298,7 @@ pub fn perform_eval(
         // 21. Set evalContext's Function to null.
         function: None,
         // 22. Set evalContext's Realm to evalRealm.
-        realm: agent.current_realm_id(),
+        realm: eval_realm,
         // 23. Set evalContext's ScriptOrModule to runningContext's ScriptOrModule.
         script_or_module: agent.running_execution_context().script_or_module,
         // 24. Set evalContext's VariableEnvironment to varEnv.
@@ -305,7 +310,14 @@ pub fn perform_eval(
     agent.execution_context_stack.push(eval_context);
 
     // 28. Let result be Completion(EvalDeclarationInstantiation(body, varEnv, lexEnv, privateEnv, strictEval)).
-    let result = eval_declaration_instantiation(agent, &script, strict_eval);
+    let result = eval_declaration_instantiation(
+        agent,
+        &script,
+        ecmascript_code.variable_environment,
+        ecmascript_code.lexical_environment,
+        ecmascript_code.private_environment,
+        strict_eval,
+    );
 
     // 29. If result is a normal completion, then
     let result = if result.is_ok() {
@@ -338,18 +350,11 @@ pub fn perform_eval(
 pub fn eval_declaration_instantiation(
     agent: &mut Agent,
     script: &Program,
+    var_env: EnvironmentIndex,
+    lex_env: EnvironmentIndex,
+    private_env: Option<PrivateEnvironmentIndex>,
     strict_eval: bool,
 ) -> JsResult<()> {
-    let ECMAScriptCodeEvaluationState {
-        lexical_environment: lex_env,
-        variable_environment: var_env,
-        private_environment: private_env,
-    } = *agent
-        .running_execution_context()
-        .ecmascript_code
-        .as_ref()
-        .unwrap();
-
     // 1. Let varNames be the VarDeclaredNames of body.
     let var_names = script_var_declared_names(script);
 
@@ -531,7 +536,7 @@ pub fn eval_declaration_instantiation(
             LexicallyScopedDeclaration::Function(decl) => decl.bound_names(&mut closure),
             LexicallyScopedDeclaration::Class(decl) => decl.bound_names(&mut closure),
             LexicallyScopedDeclaration::DefaultExport => {
-                bound_names.push(String::from_static_str(agent, "*default*"))
+                bound_names.push(BUILTIN_STRING_MEMORY._default_)
             }
         }
         // b. For each element dn of the BoundNames of d, do
