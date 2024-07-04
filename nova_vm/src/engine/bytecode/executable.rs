@@ -153,6 +153,16 @@ impl Executable {
         Self::_compile_statements(agent, body, is_concise_body)
     }
 
+    pub(crate) fn compile_eval_body(agent: &mut Agent, body: &[Statement]) -> Executable {
+        if agent.options.print_internals {
+            eprintln!();
+            eprintln!("=== Compiling Eval Body ===");
+            eprintln!();
+        }
+
+        Self::_compile_statements(agent, body, true)
+    }
+
     fn _compile_statements(
         agent: &mut Agent,
         body: &[Statement],

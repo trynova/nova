@@ -36,12 +36,12 @@ pub struct PrivateEnvironment {
     /// The PrivateEnvironment Record of the nearest containing class. null if
     /// the class with which this PrivateEnvironment Record is associated is
     /// not contained in any other class.
-    outer_private_environment: Option<PrivateEnvironmentIndex>,
+    pub(crate) outer_private_environment: Option<PrivateEnvironmentIndex>,
 
     /// ### \[\[Names\]\]
     ///
     /// The Private Names declared by this class.
-    names: HashMap<String, PrivateName>,
+    pub(crate) names: HashMap<String, PrivateName>,
 }
 
 impl HeapMarkAndSweep for PrivateEnvironment {

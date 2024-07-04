@@ -8,7 +8,7 @@ pub(crate) type ECMAScriptCode = ECMAScriptCodeEvaluationState;
 ///
 /// ECMAScript code execution contexts have the additional state components
 /// listed in Table 26.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct ECMAScriptCodeEvaluationState {
     /// ### LexicalEnvironment
     ///
