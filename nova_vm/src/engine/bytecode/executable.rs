@@ -1152,6 +1152,20 @@ impl CompileEvaluation for ast::Argument<'_> {
 
 impl CompileEvaluation for CallExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        // Direct eval
+        if let ast::Expression::Identifier(ident) = &self.callee {
+            if ident.name == "eval" {
+                for ele in &self.arguments {
+                    ele.compile(ctx);
+                }
+                ctx.exe.add_instruction_with_immediate(
+                    Instruction::DirectEvalCall,
+                    self.arguments.len(),
+                );
+                return;
+            }
+        }
+
         self.callee.compile(ctx);
         let need_pop_reference = if is_reference(&self.callee) {
             ctx.exe.add_instruction(Instruction::GetValueKeepReference);

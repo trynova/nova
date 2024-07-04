@@ -30,6 +30,15 @@ pub enum Instruction {
     /// Apply the delete operation to the evaluated expression and set it as
     /// the result value.
     Delete,
+    /// Call the `eval` function in a direct way.
+    ///
+    /// If the `eval` identifier points to the current realm's eval intrinsic
+    /// function, then it performs a direct eval. Otherwise, it loads the value
+    /// that identifier points to, and calls it.
+    ///
+    /// This instruction has the number of argument values that need to be
+    /// popped from the stack (last to first) as an argument.
+    DirectEvalCall,
     /// Store EvaluateCall() as the result value.
     ///
     /// This instruction has the number of argument values that need to be
@@ -249,6 +258,7 @@ impl Instruction {
             | Self::CreateCatchBinding
             | Self::CreateImmutableBinding
             | Self::CreateMutableBinding
+            | Self::DirectEvalCall
             | Self::EvaluateCall
             | Self::EvaluateNew
             | Self::EvaluatePropertyAccessWithIdentifierKey
