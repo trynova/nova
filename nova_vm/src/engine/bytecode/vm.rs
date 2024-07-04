@@ -16,9 +16,9 @@ use crate::{
             },
         },
         builtins::{
-            array_create, make_constructor, ordinary::ordinary_object_create_with_intrinsics,
-            ordinary_function_create, set_function_name, ArgumentsList, Array,
-            OrdinaryFunctionCreateParams, ThisMode,
+            array_create, global_object::perform_eval, make_constructor,
+            ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
+            set_function_name, ArgumentsList, Array, OrdinaryFunctionCreateParams, ThisMode,
         },
         execution::{
             agent::{resolve_binding, ExceptionType, JsError},
@@ -415,6 +415,39 @@ impl Vm {
                         .unwrap();
                 }
                 vm.result = Some(function.into_value());
+            }
+            Instruction::DirectEvalCall => {
+                let arg_count = instr.args[0].unwrap() as usize;
+                let args = vm.stack.split_off(vm.stack.len() - arg_count);
+
+                let func_reference = resolve_binding(agent, BUILTIN_STRING_MEMORY.eval, None)?;
+                let func = get_value(agent, &func_reference)?;
+
+                // a. If SameValue(func, %eval%) is true, then
+                if func == agent.current_realm().intrinsics().eval().into_value() {
+                    // i. Let argList be ? ArgumentListEvaluation of arguments.
+                    // ii. If argList has no elements, return undefined.
+                    if args.is_empty() {
+                        vm.result = Some(Value::Undefined);
+                    } else {
+                        // iii. Let evalArg be the first element of argList.
+                        let eval_arg = args[0];
+                        // iv. If IsStrict(this CallExpression) is true, let
+                        //     strictCaller be true. Otherwise let strictCaller
+                        //     be false.
+                        // TODO: Implement strict vs non-strict mode.
+                        let strict_caller = false;
+                        // v. Return ? PerformEval(evalArg, strictCaller, true).
+                        vm.result = Some(perform_eval(agent, eval_arg, true, strict_caller)?);
+                    }
+                } else {
+                    vm.result = Some(call(
+                        agent,
+                        func,
+                        Value::Undefined,
+                        Some(ArgumentsList(&args)),
+                    )?);
+                }
             }
             Instruction::EvaluateCall => {
                 let arg_count = instr.args[0].unwrap() as usize;
