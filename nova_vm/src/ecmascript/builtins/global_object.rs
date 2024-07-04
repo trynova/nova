@@ -239,7 +239,6 @@ pub fn perform_eval(
 
     // 14. Let runningContext be the running execution context.
     // 15. NOTE: If direct is true, runningContext will be the execution context that performed the direct eval. If direct is false, runningContext will be the execution context for the invocation of the eval function.
-    // let running_context = agent.running_execution_context();
 
     // 16. If direct is true, then
     let mut ecmascript_code = if direct {
@@ -380,17 +379,13 @@ pub fn eval_declaration_instantiation(
         // d. Repeat, while thisEnv and varEnv are not the same Environment Record,
         while this_env != var_env {
             // i. If thisEnv is not an Object Environment Record, then
-            if matches!(
-                this_env,
-                EnvironmentIndex::Declarative(_)
-                    | EnvironmentIndex::Function(_)
-                    | EnvironmentIndex::Global(_)
-            ) {
+            if !matches!(this_env, EnvironmentIndex::Object(_)) {
                 // 1. NOTE: The environment of with statements cannot contain any lexical declaration so it doesn't need to be checked for var/let hoisting conflicts.
                 // 2. For each element name of varNames, do
                 for name in &var_names {
                     let name = String::from_str(agent, name.as_str());
                     // a. If ! thisEnv.HasBinding(name) is true, then
+                    // b. NOTE: A direct eval will not hoist var declaration over a like-named lexical declaration.
                     if this_env.has_binding(agent, name).unwrap() {
                         // i. Throw a SyntaxError exception.
                         // ii. NOTE: Annex B.3.4 defines alternate semantics for the above step.
@@ -399,7 +394,6 @@ pub fn eval_declaration_instantiation(
                             "Variable already defined.",
                         ));
                     }
-                    // b. NOTE: A direct eval will not hoist var declaration over a like-named lexical declaration.
                 }
             }
             // ii. Set thisEnv to thisEnv.[[OuterEnv]].
@@ -503,10 +497,8 @@ pub fn eval_declaration_instantiation(
                         }
                     }
                     // b. If declaredVarNames does not contain vn, then
-                    if !declared_var_names.contains(&vn) {
-                        // i. Append vn to declaredVarNames.
-                        declared_var_names.insert(vn);
-                    }
+                    // i. Append vn to declaredVarNames.
+                    declared_var_names.insert(vn);
                 }
             }
         }
