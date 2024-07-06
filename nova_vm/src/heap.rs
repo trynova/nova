@@ -7,8 +7,9 @@ mod object_entry;
 mod regexp;
 
 pub(crate) use self::heap_constants::{
-    intrinsic_function_count, intrinsic_object_count, IntrinsicConstructorIndexes,
-    IntrinsicFunctionIndexes, IntrinsicObjectIndexes, WellKnownSymbolIndexes,
+    intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
+    IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
+    IntrinsicPrimitiveObjectIndexes, WellKnownSymbolIndexes,
 };
 #[cfg(test)]
 pub(crate) use self::heap_constants::{

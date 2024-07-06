@@ -31,6 +31,12 @@ use super::ordinary::ordinary_own_property_keys;
 #[repr(transparent)]
 pub struct PrimitiveObject(PrimitiveObjectIndex);
 
+impl From<PrimitiveObjectIndex> for PrimitiveObject {
+    fn from(value: PrimitiveObjectIndex) -> Self {
+        Self(value)
+    }
+}
+
 impl From<PrimitiveObject> for Object {
     fn from(value: PrimitiveObject) -> Self {
         Self::PrimitiveObject(value)
