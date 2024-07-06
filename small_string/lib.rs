@@ -44,12 +44,13 @@ impl SmallString {
     pub fn utf8_index(&self, utf16_idx: usize) -> Option<usize> {
         let mut current_utf16_index = 0;
         for (idx, ch) in self.as_str().char_indices() {
-            if current_utf16_index == utf16_idx {
-                return Some(idx);
-            } else if current_utf16_index > utf16_idx {
-                return None;
+            match current_utf16_index.cmp(&utf16_idx) {
+                std::cmp::Ordering::Equal => return Some(idx),
+                std::cmp::Ordering::Greater => return None,
+                std::cmp::Ordering::Less => {
+                    current_utf16_index += ch.len_utf16();
+                }
             }
-            current_utf16_index += ch.len_utf16();
         }
         assert_eq!(utf16_idx, current_utf16_index);
         Some(self.len())
