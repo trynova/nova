@@ -275,17 +275,19 @@ impl Value {
     }
 
     pub fn is_object(self) -> bool {
-        matches!(
+        !matches!(
             self,
-            Value::Object(_)
-                | Value::Array(_)
-                | Value::ArrayBuffer(_)
-                | Value::Date(_)
-                | Value::BuiltinFunction(_)
-                | Value::ECMAScriptFunction(_)
-                | Value::BoundFunction(_)
-                | Value::Error(_)
-                | Value::RegExp(_)
+            Value::Undefined
+                | Value::Null
+                | Value::Boolean(_)
+                | Value::String(_)
+                | Value::SmallString(_)
+                | Value::Symbol(_)
+                | Value::Number(_)
+                | Value::Integer(_)
+                | Value::Float(_)
+                | Value::BigInt(_)
+                | Value::SmallBigInt(_)
         )
     }
 
@@ -301,7 +303,6 @@ impl Value {
     }
 
     pub fn is_boolean(self) -> bool {
-        // TODO: Check for Boolean object instance.
         matches!(self, Value::Boolean(_))
     }
 
@@ -344,7 +345,6 @@ impl Value {
     }
 
     pub fn is_bigint(self) -> bool {
-        // TODO: Check for BigInt object instance.
         matches!(self, Value::BigInt(_) | Value::SmallBigInt(_))
     }
 
