@@ -114,15 +114,6 @@ impl From<SmallInteger> for Number {
     }
 }
 
-impl From<i64> for Number {
-    fn from(value: i64) -> Self {
-        Number::Integer(
-            SmallInteger::try_from(value.clamp(SmallInteger::MIN_NUMBER, SmallInteger::MAX_NUMBER))
-                .unwrap(),
-        )
-    }
-}
-
 impl From<f32> for Number {
     fn from(value: f32) -> Self {
         Number::Float(value)
@@ -132,6 +123,26 @@ impl From<f32> for Number {
 const MAX_NUMBER: f64 = ((1u64 << 53) - 1) as f64;
 const MIN_NUMBER: f64 = -MAX_NUMBER;
 
+impl TryFrom<i64> for Number {
+    type Error = ();
+
+    fn try_from(value: i64) -> Result<Self, ()> {
+        Ok(Number::Integer(SmallInteger::try_from(value)?))
+    }
+}
+
+impl TryFrom<usize> for Number {
+    type Error = ();
+
+    fn try_from(value: usize) -> Result<Self, ()> {
+        if let Ok(i64) = i64::try_from(value) {
+            Self::try_from(i64)
+        } else {
+            Err(())
+        }
+    }
+}
+
 impl TryFrom<f64> for Number {
     type Error = ();
 
@@ -139,7 +150,7 @@ impl TryFrom<f64> for Number {
         if value.is_finite() && value.trunc() == value && (MIN_NUMBER..=MAX_NUMBER).contains(&value)
         {
             debug_assert_eq!(value as i64 as f64, value);
-            Ok(Number::from(value as i64))
+            Ok(Number::try_from(value as i64).unwrap())
         } else if value as f32 as f64 == value {
             Ok(Number::Float(value as f32))
         } else {
@@ -308,11 +319,38 @@ impl Number {
         }
     }
 
+    /// Returns the number cast to an [`i64`].
+    ///
+    /// If the number isn't representable as an i64:
+    /// - NaN becomes 0.
+    /// - Numbers are clamped between [`i64::MIN`] and [`i64::MAX`].
+    /// - All other numbers round towards zero.
     pub fn into_i64(self, agent: &Agent) -> i64 {
         match self {
             Number::Number(n) => agent[n] as i64,
             Number::Integer(n) => Into::<i64>::into(n),
             Number::Float(n) => n as i64,
+        }
+    }
+
+    /// Returns the number cast to a [`usize`].
+    ///
+    /// If the number isn't representable as a usize:
+    /// - NaN becomes 0.
+    /// - Numbers are clamped between 0 and [`usize::MAX`].
+    /// - All other numbers round towards zero.
+    pub fn into_usize(self, agent: &Agent) -> usize {
+        match self {
+            Number::Number(n) => agent[n] as usize,
+            Number::Integer(n) => {
+                let i64 = Into::<i64>::into(n);
+                if i64 < 0 {
+                    0
+                } else {
+                    usize::try_from(i64).unwrap_or(usize::MAX)
+                }
+            }
+            Number::Float(n) => n as usize,
         }
     }
 
