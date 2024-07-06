@@ -364,6 +364,7 @@ String
 String Iterator
 sub
 subarray
+substring
 symbol
 Symbol
 Symbol.asyncIterator

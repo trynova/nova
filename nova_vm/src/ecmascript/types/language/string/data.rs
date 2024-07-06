@@ -109,6 +109,88 @@ impl StringHeapData {
         ch
     }
 
+    pub fn utf8_index(&self, utf16_idx: usize) -> Option<usize> {
+        if utf16_idx == 0 {
+            Some(0)
+        } else {
+            match self.index_mapping() {
+                IndexMapping::Ascii => {
+                    assert!(utf16_idx <= self.len());
+                    Some(utf16_idx)
+                }
+                IndexMapping::NonAscii { mapping } => {
+                    if utf16_idx == mapping.len() {
+                        Some(self.len())
+                    } else {
+                        mapping[utf16_idx].map(NonZeroUsize::get)
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn utf16_index(&self, utf8_idx: usize) -> usize {
+        if utf8_idx == 0 {
+            0
+        } else {
+            assert!(utf8_idx <= self.len());
+            match self.index_mapping() {
+                IndexMapping::Ascii => utf8_idx,
+                IndexMapping::NonAscii { mapping } => {
+                    if utf8_idx == self.len() {
+                        return mapping.len();
+                    }
+
+                    // Binary search `mapping`. We start at `utf8_idx` though,
+                    // if it's in range.
+                    let mut range = if utf8_idx >= mapping.len() {
+                        0..mapping.len()
+                    } else {
+                        let mut pivot = utf8_idx;
+                        if mapping[pivot].is_none() {
+                            pivot -= 1;
+                        }
+                        match mapping[pivot].unwrap().get().cmp(&utf8_idx) {
+                            std::cmp::Ordering::Less => pivot..mapping.len(),
+                            std::cmp::Ordering::Equal => return pivot,
+                            std::cmp::Ordering::Greater => 0..pivot,
+                        }
+                    };
+
+                    loop {
+                        let mut pivot = (range.start + range.end) / 2;
+                        if mapping[pivot].is_none() {
+                            pivot -= 1;
+                        }
+                        debug_assert!(range.contains(&pivot));
+
+                        // Since we're adjusting the pivot due to None elements
+                        // (i.e. surrogates), we might get stuck in an infinite
+                        // loop if pivot is the start of the range. In this
+                        // case, we walk through the range we know is valid.
+                        if pivot == range.start {
+                            for i in range {
+                                if mapping[i].is_some() && mapping[i].unwrap().get() == utf8_idx {
+                                    return i;
+                                }
+                            }
+                            unreachable!();
+                        }
+
+                        let new_range = match mapping[pivot].unwrap().get().cmp(&utf8_idx) {
+                            std::cmp::Ordering::Less => pivot..range.end,
+                            std::cmp::Ordering::Equal => return pivot,
+                            std::cmp::Ordering::Greater => range.start..pivot,
+                        };
+                        assert_ne!(range, new_range);
+
+                        range = new_range;
+                    }
+                }
+            }
+        }
+    }
+
     pub fn as_str(&self) -> &str {
         match &self.data {
             StringBuffer::Owned(buf) => buf.as_str().unwrap(),
