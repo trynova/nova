@@ -275,20 +275,7 @@ impl Value {
     }
 
     pub fn is_object(self) -> bool {
-        !matches!(
-            self,
-            Value::Undefined
-                | Value::Null
-                | Value::Boolean(_)
-                | Value::String(_)
-                | Value::SmallString(_)
-                | Value::Symbol(_)
-                | Value::Number(_)
-                | Value::Integer(_)
-                | Value::Float(_)
-                | Value::BigInt(_)
-                | Value::SmallBigInt(_)
-        )
+        super::Object::try_from(self).is_ok()
     }
 
     pub fn is_function(self) -> bool {
