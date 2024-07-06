@@ -628,7 +628,7 @@ impl ArrayPrototype {
                 // i. Let kValue be ? Get(O, Pk).
                 let k_value = get(agent, o, pk)?;
                 // ii. Let testResult be ToBoolean(? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »)).
-                let f_k = Number::from(k).into_value();
+                let f_k = Number::try_from(k).unwrap().into_value();
                 let test_result = call_function(
                     agent,
                     callback_fn,
@@ -825,7 +825,7 @@ impl ArrayPrototype {
         // 3. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, true, predicate, this_arg)?;
         // 4. Return findRec.[[Index]].
-        Ok(Number::from(find_rec.0).into_value())
+        Ok(Number::try_from(find_rec.0).unwrap().into_value())
     }
 
     /// ### [23.1.3.11 Array.prototype.findLast ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findlast)
@@ -861,7 +861,7 @@ impl ArrayPrototype {
         // 3. Let findRec be ? FindViaPredicate(O, len, descending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, false, predicate, this_arg)?;
         // 4. Return findRec.[[Index]].
-        Ok(Number::from(find_rec.0).into_value())
+        Ok(Number::try_from(find_rec.0).unwrap().into_value())
     }
 
     fn flat(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
@@ -1895,7 +1895,7 @@ fn find_via_predicate(
             predicate,
             this_arg,
             Some(ArgumentsList(&[
-                Number::from(k).into_value(),
+                Number::try_from(k).unwrap().into_value(),
                 o.into_value(),
             ])),
         )?;
