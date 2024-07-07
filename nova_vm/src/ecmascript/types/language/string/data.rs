@@ -44,6 +44,12 @@ pub(crate) enum StringBuffer {
 }
 
 impl StringHeapData {
+    /// The maximum UTf-16 length of a JS string, according to the spec (2^53 - 1).
+    const MAX_UTF16_LENGTH: usize = (1 << 53) - 1;
+
+    /// The maximum UTF-8 length of a JS string.
+    const MAX_UTF8_LENGTH: usize = 3 * Self::MAX_UTF16_LENGTH;
+
     pub fn len(&self) -> usize {
         match &self.data {
             StringBuffer::Owned(buf) => buf.len(),
@@ -76,6 +82,11 @@ impl StringHeapData {
                     mapping.push(None);
                 }
             }
+
+            assert!(
+                mapping.len() <= Self::MAX_UTF16_LENGTH,
+                "String is too long."
+            );
 
             IndexMapping::NonAscii {
                 mapping: mapping.into_boxed_slice(),
@@ -200,6 +211,7 @@ impl StringHeapData {
 
     pub fn from_str(str: &str) -> Self {
         debug_assert!(str.len() > 7);
+        assert!(str.len() <= Self::MAX_UTF8_LENGTH, "String is too long.");
         StringHeapData {
             data: StringBuffer::Owned(Wtf8Buf::from_str(str)),
             mapping: OnceCell::new(),
@@ -208,6 +220,7 @@ impl StringHeapData {
 
     pub fn from_static_str(str: &'static str) -> Self {
         debug_assert!(str.len() > 7);
+        assert!(str.len() <= Self::MAX_UTF8_LENGTH, "String is too long.");
         StringHeapData {
             data: StringBuffer::Static(Wtf8::from_str(str)),
             mapping: OnceCell::new(),
@@ -216,6 +229,7 @@ impl StringHeapData {
 
     pub fn from_string(str: String) -> Self {
         debug_assert!(str.len() > 7);
+        assert!(str.len() <= Self::MAX_UTF8_LENGTH, "String is too long.");
         StringHeapData {
             data: StringBuffer::Owned(Wtf8Buf::from_string(str)),
             mapping: OnceCell::new(),
