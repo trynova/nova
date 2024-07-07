@@ -6,7 +6,7 @@ use std::{fs, path::PathBuf};
 
 use nova_vm::ecmascript::{
     execution::{
-        agent::{BoxedAgent, Options},
+        agent::{GcAgent, Options},
         initialize_default_realm, DefaultHostHooks,
     },
     scripts_and_modules::script::{parse_script, script_evaluation},
@@ -26,7 +26,7 @@ fn object_prototype_tests() {
     let contents = fs::read_to_string(d.clone()).expect("Should have been able to read the file");
 
     let allocator = Allocator::default();
-    let mut agent = BoxedAgent::new(Options::default(), &DefaultHostHooks);
+    let mut agent = GcAgent::new(Options::default(), &DefaultHostHooks);
     agent.with(|agent, _r| {
         initialize_default_realm(agent);
         let realm = agent.current_realm_id();

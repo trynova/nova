@@ -11,7 +11,7 @@ use cliclack::{input, intro, set_theme};
 use helper::{exit_with_parse_errors, initialize_global_object};
 use nova_vm::ecmascript::{
     execution::{
-        agent::{BoxedAgent, Options},
+        agent::{GcAgent, Options},
         initialize_host_defined_realm, Agent, DefaultHostHooks, Realm,
     },
     scripts_and_modules::script::{parse_script, script_evaluation},
@@ -115,7 +115,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let allocator = Default::default();
 
             let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
-            let mut agent = BoxedAgent::new(
+            let mut agent = GcAgent::new(
                 Options {
                     disable_gc: false,
                     print_internals: verbose,

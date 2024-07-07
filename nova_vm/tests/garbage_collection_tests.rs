@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf};
 
 use nova_vm::ecmascript::{
     execution::{
-        agent::{BoxedAgent, Options},
+        agent::{GcAgent, Options},
         initialize_host_defined_realm, Agent, DefaultHostHooks, Realm,
     },
     scripts_and_modules::script::{parse_script, script_evaluation},
@@ -68,7 +68,7 @@ fn garbage_collection_tests() {
         fs::read_to_string(d.clone()).expect("Should have been able to read the file");
 
     let allocator = Allocator::default();
-    let mut agent = BoxedAgent::new(Options::default(), &DefaultHostHooks);
+    let mut agent = GcAgent::new(Options::default(), &DefaultHostHooks);
     agent.with(|agent, root_realms| {
         let create_global_object: Option<fn(&mut Realm) -> Object> = None;
         let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
