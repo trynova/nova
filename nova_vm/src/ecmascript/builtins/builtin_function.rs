@@ -411,34 +411,8 @@ impl InternalMethods for BuiltinFunction {
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
         {
-            let prototype = agent
-                .current_realm()
-                .intrinsics()
-                .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
-            let entry = if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-                ObjectEntry {
-                    key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
-                    value: ObjectEntryPropertyDescriptor::Data {
-                        value: agent[self].length.into(),
-                        writable: false,
-                        enumerable: false,
-                        configurable: true,
-                    },
-                }
-            } else {
-                ObjectEntry {
-                    key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
-                    value: ObjectEntryPropertyDescriptor::Data {
-                        value: agent[self].initial_name.unwrap().into_value(),
-                        writable: false,
-                        enumerable: false,
-                        configurable: true,
-                    },
-                }
-            };
-            let object_index = agent.heap.create_object_with_prototype(prototype, &[entry]);
-            agent[self].object_index = Some(object_index);
-            Ok(true)
+            let object_index = self.create_backing_object(agent);
+            object_index.internal_delete(agent, property_key)
         } else {
             // Non-existing property
             Ok(true)
