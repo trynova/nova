@@ -64,6 +64,7 @@ use crate::{
                     weak_ref_constructor::WeakRefConstructor, weak_ref_prototype::WeakRefPrototype,
                 },
             },
+            primitive_objects::PrimitiveObject,
             reflection::{proxy_constructor::ProxyConstructor, reflect_object::ReflectObject},
             structured_data::{
                 array_buffer_objects::{
@@ -129,9 +130,10 @@ use crate::{
         types::{Object, OrdinaryObject},
     },
     heap::{
-        indexes::{BuiltinFunctionIndex, ObjectIndex},
-        intrinsic_function_count, intrinsic_object_count, CompactionLists, HeapMarkAndSweep,
-        IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes, WorkQueues,
+        indexes::{BuiltinFunctionIndex, ObjectIndex, PrimitiveObjectIndex},
+        intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
+        CompactionLists, HeapMarkAndSweep, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
+        IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
     },
 };
 
@@ -140,6 +142,7 @@ use super::RealmIdentifier;
 #[derive(Debug, Clone)]
 pub(crate) struct Intrinsics {
     pub(crate) object_index_base: ObjectIndex,
+    pub(crate) primitive_object_index_base: PrimitiveObjectIndex,
     pub(crate) builtin_function_index_base: BuiltinFunctionIndex,
 }
 
@@ -194,6 +197,8 @@ impl Intrinsics {
     pub(crate) fn new(agent: &mut Agent) -> Self {
         // Use from_usize to index "one over the edge", ie. where new intrinsics will be created.
         let object_index_base = ObjectIndex::from_index(agent.heap.objects.len());
+        let primitive_object_index_base =
+            PrimitiveObjectIndex::from_index(agent.heap.primitive_objects.len());
         let builtin_function_index_base =
             BuiltinFunctionIndex::from_index(agent.heap.builtin_functions.len());
 
@@ -203,11 +208,16 @@ impl Intrinsics {
             .extend((0..intrinsic_object_count()).map(|_| None));
         agent
             .heap
+            .primitive_objects
+            .extend((0..intrinsic_primitive_object_count()).map(|_| None));
+        agent
+            .heap
             .builtin_functions
             .extend((0..intrinsic_function_count()).map(|_| None));
 
         Self {
             object_index_base,
+            primitive_object_index_base,
             builtin_function_index_base,
         }
     }
@@ -574,10 +584,14 @@ impl Intrinsics {
     }
 
     /// %Boolean.prototype%
-    pub(crate) fn boolean_prototype(&self) -> OrdinaryObject {
-        IntrinsicObjectIndexes::BooleanPrototype
-            .get_object_index(self.object_index_base)
+    pub(crate) fn boolean_prototype(&self) -> PrimitiveObject {
+        IntrinsicPrimitiveObjectIndexes::BooleanPrototype
+            .get_primitive_object_index(self.primitive_object_index_base)
             .into()
+    }
+
+    pub(crate) fn boolean_prototype_base_object(&self) -> ObjectIndex {
+        IntrinsicPrimitiveObjectIndexes::BooleanPrototype.get_object_index(self.object_index_base)
     }
 
     /// %Boolean%
@@ -945,10 +959,14 @@ impl Intrinsics {
     }
 
     /// %Number.prototype%
-    pub(crate) fn number_prototype(&self) -> OrdinaryObject {
-        IntrinsicObjectIndexes::NumberPrototype
-            .get_object_index(self.object_index_base)
+    pub(crate) fn number_prototype(&self) -> PrimitiveObject {
+        IntrinsicPrimitiveObjectIndexes::NumberPrototype
+            .get_primitive_object_index(self.primitive_object_index_base)
             .into()
+    }
+
+    pub(crate) fn number_prototype_base_object(&self) -> ObjectIndex {
+        IntrinsicPrimitiveObjectIndexes::NumberPrototype.get_object_index(self.object_index_base)
     }
 
     /// %Number%
@@ -1170,10 +1188,14 @@ impl Intrinsics {
     }
 
     /// %String.prototype%
-    pub(crate) fn string_prototype(&self) -> OrdinaryObject {
-        IntrinsicObjectIndexes::StringPrototype
-            .get_object_index(self.object_index_base)
+    pub(crate) fn string_prototype(&self) -> PrimitiveObject {
+        IntrinsicPrimitiveObjectIndexes::StringPrototype
+            .get_primitive_object_index(self.primitive_object_index_base)
             .into()
+    }
+
+    pub(crate) fn string_prototype_base_object(&self) -> ObjectIndex {
+        IntrinsicPrimitiveObjectIndexes::StringPrototype.get_object_index(self.object_index_base)
     }
 
     /// %String%

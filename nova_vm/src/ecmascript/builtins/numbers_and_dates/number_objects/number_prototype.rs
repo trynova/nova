@@ -1,9 +1,15 @@
-use crate::ecmascript::{
-    abstract_operations::type_conversion::to_integer_or_infinity,
-    builders::ordinary_object_builder::OrdinaryObjectBuilder,
-    builtins::{primitive_objects::PrimitiveObject, ArgumentsList, Builtin},
-    execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-    types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
+use crate::{
+    ecmascript::{
+        abstract_operations::type_conversion::to_integer_or_infinity,
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
+        builtins::{
+            primitive_objects::{PrimitiveObject, PrimitiveObjectData, PrimitiveObjectHeapData},
+            ArgumentsList, Builtin,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
+    },
+    SmallInteger,
 };
 
 pub(crate) struct NumberPrototype;
@@ -176,9 +182,10 @@ impl NumberPrototype {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.number_prototype();
+        let this_base_object = intrinsics.number_prototype_base_object().into();
         let number_constructor = intrinsics.number();
 
-        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
+        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this_base_object)
             .with_property_capacity(7)
             .with_prototype(object_prototype)
             .with_constructor_property(number_constructor)
@@ -189,6 +196,17 @@ impl NumberPrototype {
             .with_builtin_function_property::<NumberPrototypeToString>()
             .with_builtin_function_property::<NumberPrototypeValueOf>()
             .build();
+
+        let slot = agent
+            .heap
+            .primitive_objects
+            .get_mut(this.get_index())
+            .unwrap();
+        assert!(slot.is_none());
+        *slot = Some(PrimitiveObjectHeapData {
+            object_index: Some(this_base_object),
+            data: PrimitiveObjectData::Integer(SmallInteger::zero()),
+        });
     }
 }
 

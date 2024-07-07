@@ -6,7 +6,7 @@
 
 use crate::ecmascript::types::{PropertyKey, Symbol, Value};
 
-use super::indexes::{BuiltinFunctionIndex, ObjectIndex, SymbolIndex};
+use super::indexes::{BuiltinFunctionIndex, ObjectIndex, PrimitiveObjectIndex, SymbolIndex};
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy)]
@@ -17,18 +17,15 @@ pub(crate) enum IntrinsicObjectIndexes {
 
     // Fundamental objects
     ObjectPrototype,
-    BooleanPrototype,
     SymbolPrototype,
     ErrorPrototype,
 
     // Numbers and dates
-    NumberPrototype,
     BigIntPrototype,
     MathObject,
     DatePrototype,
 
     // Text processing
-    StringPrototype,
     RegExpPrototype,
 
     // Indexed collections
@@ -101,6 +98,17 @@ pub(crate) enum IntrinsicObjectIndexes {
 }
 pub(crate) const LAST_INTRINSIC_OBJECT_INDEX: IntrinsicObjectIndexes =
     IntrinsicObjectIndexes::RegExpStringIteratorPrototype;
+
+#[repr(u32)]
+#[derive(Debug, Clone, Copy)]
+#[allow(clippy::enum_variant_names)]
+pub(crate) enum IntrinsicPrimitiveObjectIndexes {
+    BooleanPrototype,
+    NumberPrototype,
+    StringPrototype,
+}
+pub(crate) const LAST_INTRINSIC_PRIMITIVE_OBJECT_INDEX: IntrinsicPrimitiveObjectIndexes =
+    IntrinsicPrimitiveObjectIndexes::StringPrototype;
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy)]
@@ -221,9 +229,29 @@ impl IntrinsicObjectIndexes {
     }
 }
 
-impl IntrinsicConstructorIndexes {
+impl IntrinsicPrimitiveObjectIndexes {
     const OBJECT_INDEX_OFFSET: u32 =
         IntrinsicObjectIndexes::OBJECT_INDEX_OFFSET + LAST_INTRINSIC_OBJECT_INDEX as u32 + 1;
+    const PRIMITIVE_OBJECT_INDEX_OFFSET: u32 = 0;
+
+    pub(crate) const fn get_object_index(self, base: ObjectIndex) -> ObjectIndex {
+        ObjectIndex::from_u32_index(self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET)
+    }
+
+    pub(crate) const fn get_primitive_object_index(
+        self,
+        base: PrimitiveObjectIndex,
+    ) -> PrimitiveObjectIndex {
+        PrimitiveObjectIndex::from_u32_index(
+            self as u32 + base.into_u32_index() + Self::PRIMITIVE_OBJECT_INDEX_OFFSET,
+        )
+    }
+}
+
+impl IntrinsicConstructorIndexes {
+    const OBJECT_INDEX_OFFSET: u32 = IntrinsicPrimitiveObjectIndexes::OBJECT_INDEX_OFFSET
+        + LAST_INTRINSIC_PRIMITIVE_OBJECT_INDEX as u32
+        + 1;
     const BUILTIN_FUNCTION_INDEX_OFFSET: u32 = 0;
 
     pub(crate) const fn get_object_index(self, base: ObjectIndex) -> ObjectIndex {
@@ -257,7 +285,16 @@ impl IntrinsicFunctionIndexes {
 }
 
 pub(crate) const fn intrinsic_object_count() -> usize {
-    LAST_INTRINSIC_OBJECT_INDEX as usize + 1 + LAST_INTRINSIC_CONSTRUCTOR_INDEX as usize + 1
+    LAST_INTRINSIC_OBJECT_INDEX as usize
+        + 1
+        + LAST_INTRINSIC_PRIMITIVE_OBJECT_INDEX as usize
+        + 1
+        + LAST_INTRINSIC_CONSTRUCTOR_INDEX as usize
+        + 1
+}
+
+pub(crate) const fn intrinsic_primitive_object_count() -> usize {
+    LAST_INTRINSIC_PRIMITIVE_OBJECT_INDEX as usize + 1
 }
 
 pub(crate) const fn intrinsic_function_count() -> usize {

@@ -1,6 +1,9 @@
 use crate::ecmascript::{
     builders::ordinary_object_builder::OrdinaryObjectBuilder,
-    builtins::{primitive_objects::PrimitiveObjectData, ArgumentsList, Builtin},
+    builtins::{
+        primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
+        ArgumentsList, Builtin,
+    },
     execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
     types::{String, Value, BUILTIN_STRING_MEMORY},
 };
@@ -45,15 +48,27 @@ impl BooleanPrototype {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.boolean_prototype();
+        let this_base_object = intrinsics.boolean_prototype_base_object().into();
         let boolean_constructor = intrinsics.boolean();
 
-        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
+        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this_base_object)
             .with_property_capacity(3)
             .with_prototype(object_prototype)
             .with_constructor_property(boolean_constructor)
             .with_builtin_function_property::<BooleanPrototypeToString>()
             .with_builtin_function_property::<BooleanPrototypeValueOf>()
             .build();
+
+        let slot = agent
+            .heap
+            .primitive_objects
+            .get_mut(this.get_index())
+            .unwrap();
+        assert!(slot.is_none());
+        *slot = Some(PrimitiveObjectHeapData {
+            object_index: Some(this_base_object),
+            data: PrimitiveObjectData::Boolean(false),
+        });
     }
 }
 
