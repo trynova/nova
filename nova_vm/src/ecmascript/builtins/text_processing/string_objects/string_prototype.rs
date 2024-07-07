@@ -246,7 +246,7 @@ impl StringPrototype {
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, o)?;
         // 3. Let len be the length of S.
-        let len = s.utf16_len(agent);
+        let len = i64::try_from(s.utf16_len(agent)).unwrap();
         // 4. Let relativeIndex be ? ToIntegerOrInfinity(pos).
         let relative_index = to_integer_or_infinity(agent, args.get(0))?.into_i64(agent);
         // 5. If relativeIndex ≥ 0, then
@@ -256,10 +256,10 @@ impl StringPrototype {
         } else {
             // 6. Else,
             //   a. Let k be len + relativeIndex.
-            i64::try_from(len).unwrap() + relative_index
+            len + relative_index
         };
         // 7. If k < 0 or k ≥ len, return undefined.
-        if k < 0 || k >= i64::try_from(len).unwrap() {
+        if k < 0 || k >= len {
             Ok(Value::Undefined)
         } else {
             // 8. Return the substring of S from k to k + 1.
@@ -371,6 +371,7 @@ impl StringPrototype {
         } else {
             let pos = to_integer_or_infinity(agent, end_position)?.into_usize(agent);
             let end = if pos != 0 {
+                // NOTE: `pos` was already clamped to 0 by `Number::into_usize`.
                 pos.min(s.utf16_len(agent))
             } else {
                 0
@@ -411,6 +412,7 @@ impl StringPrototype {
         let haystack_str = {
             let pos = to_integer_or_infinity(agent, args.get(0))?.into_usize(agent);
             let start = if pos != 0 {
+                // NOTE: `pos` was already clamped to 0 by `Number::into_usize`.
                 pos.min(s.utf16_len(agent))
             } else {
                 0
@@ -726,9 +728,11 @@ impl StringPrototype {
 
         let len = s.utf16_len(agent);
         // 6. Let finalStart be the result of clamping intStart between 0 and len.
+        // NOTE: `into_usize` already clamps to 0.
         let final_start = int_start.into_usize(agent).min(len);
         // 7. Let finalEnd be the result of clamping intEnd between 0 and len.
         let final_end = if let Some(int_end) = int_end {
+            // NOTE: `into_usize` already clamps to 0.
             int_end.into_usize(agent).min(len)
         } else {
             len
