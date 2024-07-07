@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SmallString {
     /// The string will be padded to 7 bytes with the 0xFF byte, which is never
