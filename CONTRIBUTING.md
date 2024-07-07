@@ -5,13 +5,6 @@ is a pain to deal with. He'll nitpick your PR to the bone if he happens to be in
 the mood to do so. He's not doing it to be evil or anything, he's just an idiot.
 Please forgive him, if you can.
 
-The second warning is: There is currently no license in place for Nova. The
-license will be some sort of open source license, but whether it'll be some
-copyleft license or just MIT is still undecided. At the end of the day,
-@aapoalas (again with that guy) has some aspirations of making this project be
-bigger than just a hobby-engine. If that day comes, it'd be nice to get more
-than a warm handshake out of it. Hence the ongoing lack of license.
-
 ## Pull Request Code of Conduct
 
 The following ground rules should be followed:
