@@ -23569,7 +23569,6 @@
   "language/expressions/prefix-increment/operator-prefix-increment-x-calls-putvalue-lhs-newvalue--1.js": "CRASH",
   "language/expressions/prefix-increment/operator-prefix-increment-x-calls-putvalue-lhs-newvalue-.js": "CRASH",
   "language/expressions/prefix-increment/whitespace.js": "FAIL",
-  "language/expressions/property-accessors/S11.2.1_A4_T5.js": "FAIL",
   "language/expressions/property-accessors/S11.2.1_A4_T9.js": "FAIL",
   "language/expressions/relational/S9.1_A1_T4.js": "CRASH",
   "language/expressions/right-shift/S11.7.2_A3_T1.3.js": "CRASH",
