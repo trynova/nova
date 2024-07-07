@@ -313,6 +313,35 @@ impl String {
         }
     }
 
+    /// Returns the corresponding UTF-8 index for a UTF-16 index into the
+    /// string, or `None` if the UTF-16 index is the second code unit in a
+    /// surrogate pair.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if `utf16_idx` is greater (but not equal) than the
+    /// UTF-16 string length.
+    pub fn utf8_index(self, agent: &Agent, utf16_idx: usize) -> Option<usize> {
+        match self {
+            String::String(s) => agent[s].utf8_index(utf16_idx),
+            String::SmallString(s) => s.utf8_index(utf16_idx),
+        }
+    }
+
+    /// Returns the corresponding UTF-16 index for a UTF-8 index into the
+    /// string.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if `utf8_idx` isn't at a UTF-8 code point boundary,
+    /// or if it is past the end (but not *at* the end) of the UTF-8 string.
+    pub fn utf16_index(self, agent: &Agent, utf8_idx: usize) -> usize {
+        match self {
+            String::String(s) => agent[s].utf16_index(utf8_idx),
+            String::SmallString(s) => s.utf16_index(utf8_idx),
+        }
+    }
+
     pub fn as_str<'string, 'agent: 'string>(&'string self, agent: &'agent Agent) -> &'string str {
         match self {
             String::String(s) => agent[*s].as_str(),
@@ -356,10 +385,8 @@ impl String {
             let index = index.into_i64();
             if index >= 0 && (index as usize) < self.utf16_len(agent) {
                 let ch = self.utf16_char(agent, index as usize);
-                let mut buf = [0u8; 4];
-                let char = SmallString::from_str_unchecked(ch.encode_utf8(&mut buf));
                 Some(PropertyDescriptor {
-                    value: Some(char.into_value()),
+                    value: Some(SmallString::from_code_point(ch).into_value()),
                     writable: Some(false),
                     get: None,
                     set: None,
@@ -372,38 +399,6 @@ impl String {
         } else {
             None
         }
-    }
-
-    /// ### [6.1.4.1 StringIndexOf ( string, searchValue, fromIndex )](https://tc39.es/ecma262/#sec-stringindexof)
-    pub fn index_of(self, agent: &mut Agent, search_value: Self, from_index: i64) -> i64 {
-        // TODO: Figure out what we should do for invalid cases.
-        let string = self.as_str(agent);
-        let search_value = search_value.as_str(agent);
-
-        // 1. Let len be the length of string.
-        let len = string.len() as i64;
-
-        // 2. If searchValue is the empty String and fromIndex ≤ len, return fromIndex.
-        if len == 0 && from_index <= len {
-            return from_index;
-        }
-
-        // 3. Let searchLen be the length of searchValue.
-        let search_len = search_value.len() as i64;
-
-        // 4. For each integer i such that fromIndex ≤ i ≤ len - searchLen, in ascending order, do
-        for i in from_index..=(len - search_len) {
-            // a. Let candidate be the substring of string from i to i + searchLen.
-            let candidate = &string[i as usize..(i + search_len) as usize];
-
-            // b. If candidate is searchValue, return i.
-            if candidate == search_value {
-                return i;
-            }
-        }
-
-        // 5. Return -1.
-        -1
     }
 }
 

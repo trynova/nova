@@ -41,6 +41,35 @@ impl SmallString {
         panic!("Index out of bounds");
     }
 
+    pub fn utf8_index(&self, utf16_idx: usize) -> Option<usize> {
+        let mut current_utf16_index = 0;
+        for (idx, ch) in self.as_str().char_indices() {
+            match current_utf16_index.cmp(&utf16_idx) {
+                std::cmp::Ordering::Equal => return Some(idx),
+                std::cmp::Ordering::Greater => return None,
+                std::cmp::Ordering::Less => {
+                    current_utf16_index += ch.len_utf16();
+                }
+            }
+        }
+        assert_eq!(utf16_idx, current_utf16_index);
+        Some(self.len())
+    }
+
+    pub fn utf16_index(&self, utf8_idx: usize) -> usize {
+        let mut utf16_idx = 0;
+        for (idx, ch) in self.as_str().char_indices() {
+            if idx == utf8_idx {
+                return utf16_idx;
+            }
+            assert!(idx < utf8_idx);
+            utf16_idx += ch.len_utf16();
+        }
+
+        assert_eq!(utf8_idx, self.len());
+        utf16_idx
+    }
+
     #[inline]
     pub fn as_str(&self) -> &str {
         // SAFETY: Guaranteed to be UTF-8.
@@ -144,6 +173,12 @@ impl SmallString {
             },
             _ => unreachable!(),
         }
+    }
+
+    pub fn from_code_point(ch: char) -> Self {
+        let mut bytes = [0xFF; 7];
+        ch.encode_utf8(&mut bytes);
+        SmallString { bytes }
     }
 }
 
