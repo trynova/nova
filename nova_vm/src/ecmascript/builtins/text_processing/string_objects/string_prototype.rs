@@ -1,3 +1,5 @@
+use small_string::SmallString;
+
 use crate::{
     ecmascript::{
         builders::{
@@ -5,8 +7,8 @@ use crate::{
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
         builtins::{
-            primitive_objects::PrimitiveObjectData, ArgumentsList, Behaviour, Builtin,
-            BuiltinIntrinsic,
+            primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
@@ -392,9 +394,10 @@ impl StringPrototype {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.string_prototype();
+        let this_base_object = intrinsics.string_prototype_base_object().into();
         let string_constructor = intrinsics.string();
 
-        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
+        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this_base_object)
             .with_property_capacity(36)
             .with_prototype(object_prototype)
             .with_builtin_function_property::<StringPrototypeGetAt>()
@@ -445,6 +448,17 @@ impl StringPrototype {
                     .build()
             })
             .build();
+
+        let slot = agent
+            .heap
+            .primitive_objects
+            .get_mut(this.get_index())
+            .unwrap();
+        assert!(slot.is_none());
+        *slot = Some(PrimitiveObjectHeapData {
+            object_index: Some(this_base_object),
+            data: PrimitiveObjectData::SmallString(SmallString::EMPTY),
+        });
     }
 }
 
