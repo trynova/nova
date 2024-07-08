@@ -61,13 +61,13 @@ impl StringConstructor {
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
-        let value = arguments.get(0);
         // 1. If value is not present, then
-        let s = if value.is_undefined() {
+        let s = if arguments.is_empty() {
             // a. Let s be the empty String.
             String::EMPTY_STRING
         } else {
             // 2. Else,
+            let value = arguments.get(0);
             // a. If NewTarget is undefined and value is a Symbol, return SymbolDescriptiveString(value).
             if new_target.is_none() {
                 if let Value::Symbol(value) = value {
