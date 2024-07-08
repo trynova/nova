@@ -1,10 +1,13 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 pub mod element_array;
 mod heap_bits;
 mod heap_constants;
 mod heap_gc;
 pub mod indexes;
 mod object_entry;
-mod regexp;
 
 pub(crate) use self::heap_constants::{
     intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
