@@ -2246,10 +2246,10 @@ impl CompileEvaluation for ast::ForStatement<'_> {
         let previous_continue = ctx.current_continue.replace(vec![]);
         let previous_break = ctx.current_break.replace(vec![]);
 
+        let mut per_iteration_lets = vec![];
+        let mut is_lexical = false;
+
         if let Some(init) = &self.init {
-            if init.is_lexical_declaration() {
-                todo!();
-            }
             match init {
                 ast::ForStatementInit::ArrayExpression(init) => init.compile(ctx),
                 ast::ForStatementInit::ArrowFunctionExpression(init) => init.compile(ctx),
@@ -2286,7 +2286,46 @@ impl CompileEvaluation for ast::ForStatement<'_> {
                 ast::ForStatementInit::UnaryExpression(init) => init.compile(ctx),
                 ast::ForStatementInit::UpdateExpression(init) => init.compile(ctx),
                 ast::ForStatementInit::UsingDeclaration(init) => init.compile(ctx),
-                ast::ForStatementInit::VariableDeclaration(init) => init.compile(ctx),
+                ast::ForStatementInit::VariableDeclaration(init) => {
+                    is_lexical = init.kind.is_lexical();
+                    if is_lexical {
+                        // 1. Let oldEnv be the running execution context's LexicalEnvironment.
+                        // 2. Let loopEnv be NewDeclarativeEnvironment(oldEnv).
+                        ctx.exe
+                            .add_instruction(Instruction::EnterDeclarativeEnvironment);
+                        // 3. Let isConst be IsConstantDeclaration of LexicalDeclaration.
+                        let is_const = init.kind.is_const();
+                        // 4. Let boundNames be the BoundNames of LexicalDeclaration.
+                        // 5. For each element dn of boundNames, do
+                        // a. If isConst is true, then
+                        if is_const {
+                            init.bound_names(&mut |dn| {
+                                // i. Perform ! loopEnv.CreateImmutableBinding(dn, true).
+                                let identifier = String::from_str(ctx.agent, dn.name.as_str());
+                                ctx.exe.add_instruction_with_identifier(
+                                    Instruction::CreateImmutableBinding,
+                                    identifier,
+                                )
+                            });
+                        } else {
+                            // b. Else,
+                            // i. Perform ! loopEnv.CreateMutableBinding(dn, false).
+                            init.bound_names(&mut |dn| {
+                                let identifier = String::from_str(ctx.agent, dn.name.as_str());
+                                // 9. If isConst is false, let perIterationLets
+                                // be boundNames; otherwise let perIterationLets
+                                // be a new empty List.
+                                per_iteration_lets.push(identifier);
+                                ctx.exe.add_instruction_with_identifier(
+                                    Instruction::CreateMutableBinding,
+                                    identifier,
+                                )
+                            });
+                        }
+                        // 6. Set the running execution context's LexicalEnvironment to loopEnv.
+                    }
+                    init.compile(ctx);
+                }
                 ast::ForStatementInit::YieldExpression(init) => init.compile(ctx),
                 ast::ForStatementInit::JSXElement(_)
                 | ast::ForStatementInit::JSXFragment(_)
@@ -2297,6 +2336,71 @@ impl CompileEvaluation for ast::ForStatement<'_> {
                 | ast::ForStatementInit::TSInstantiationExpression(_) => unreachable!(),
             }
         }
+        // 2. Perform ? CreatePerIterationEnvironment(perIterationBindings).
+        let create_per_iteration_env = if !per_iteration_lets.is_empty() {
+            Some(|ctx: &mut CompileContext| {
+                if per_iteration_lets.len() == 1 {
+                    // NOTE: Optimization for the usual case of a single let
+                    // binding. We do not need to push and pop from the stack
+                    // in this case but can use the result register directly.
+                    // There are rather easy further optimizations available as
+                    // well around creating a sibling environment directly,
+                    // creating an initialized mutable binding directly, and
+                    // importantly: The whole loop environment is unnecessary
+                    // if the loop contains no closures (that capture the
+                    // per-iteration lets).
+
+                    let binding = *per_iteration_lets.first().unwrap();
+                    // Get value of binding from lastIterationEnv.
+                    ctx.exe
+                        .add_instruction_with_identifier(Instruction::ResolveBinding, binding);
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                    // Current declarative environment is now "outer"
+                    ctx.exe
+                        .add_instruction(Instruction::ExitDeclarativeEnvironment);
+                    // NewDeclarativeEnvironment(outer)
+                    ctx.exe
+                        .add_instruction(Instruction::EnterDeclarativeEnvironment);
+                    ctx.exe.add_instruction_with_identifier(
+                        Instruction::CreateMutableBinding,
+                        binding,
+                    );
+                    ctx.exe
+                        .add_instruction_with_identifier(Instruction::ResolveBinding, binding);
+                    ctx.exe
+                        .add_instruction(Instruction::InitializeReferencedBinding);
+                } else {
+                    for bn in &per_iteration_lets {
+                        ctx.exe
+                            .add_instruction_with_identifier(Instruction::ResolveBinding, *bn);
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                        ctx.exe.add_instruction(Instruction::Load);
+                    }
+                    ctx.exe
+                        .add_instruction(Instruction::ExitDeclarativeEnvironment);
+                    ctx.exe
+                        .add_instruction(Instruction::EnterDeclarativeEnvironment);
+                    for bn in per_iteration_lets.iter().rev() {
+                        ctx.exe.add_instruction_with_identifier(
+                            Instruction::CreateMutableBinding,
+                            *bn,
+                        );
+                        ctx.exe
+                            .add_instruction_with_identifier(Instruction::ResolveBinding, *bn);
+                        ctx.exe.add_instruction(Instruction::Store);
+                        ctx.exe
+                            .add_instruction(Instruction::InitializeReferencedBinding);
+                    }
+                }
+            })
+        } else {
+            None
+        };
+
+        if let Some(create_per_iteration_env) = create_per_iteration_env {
+            create_per_iteration_env(ctx);
+        }
+
         let loop_jump = ctx.exe.get_jump_index_to_here();
         if let Some(test) = &self.test {
             test.compile(ctx);
@@ -2308,11 +2412,16 @@ impl CompileEvaluation for ast::ForStatement<'_> {
         let end_jump = ctx
             .exe
             .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+
         self.body.compile(ctx);
 
         let own_continues = ctx.current_continue.take().unwrap();
         for continue_entry in own_continues {
             ctx.exe.set_jump_target_here(continue_entry);
+        }
+
+        if let Some(create_per_iteration_env) = create_per_iteration_env {
+            create_per_iteration_env(ctx);
         }
 
         if let Some(update) = &self.update {
@@ -2325,6 +2434,12 @@ impl CompileEvaluation for ast::ForStatement<'_> {
         let own_breaks = ctx.current_break.take().unwrap();
         for break_entry in own_breaks {
             ctx.exe.set_jump_target_here(break_entry);
+        }
+        if is_lexical {
+            // Lexical binding loops have an extra declarative environment that
+            // we need to exit from once we exit the loop.
+            ctx.exe
+                .add_instruction(Instruction::ExitDeclarativeEnvironment);
         }
         ctx.current_break = previous_break;
         ctx.current_continue = previous_continue;
