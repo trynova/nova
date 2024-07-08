@@ -2501,6 +2501,50 @@ impl CompileEvaluation for ast::TryStatement<'_> {
     }
 }
 
+impl CompileEvaluation for ast::WhileStatement<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        let previous_continue = ctx.current_continue.replace(vec![]);
+        let previous_break = ctx.current_break.replace(vec![]);
+
+        // 2. Repeat
+        let start_jump = ctx.exe.get_jump_index_to_here();
+
+        // a. Let exprRef be ? Evaluation of Expression.
+
+        self.test.compile(ctx);
+        if is_reference(&self.test) {
+            // b. Let exprValue be ? GetValue(exprRef).
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+
+        // c. If ToBoolean(exprValue) is false, return V.
+        // jump over loop jump if test fails
+        let end_jump = ctx
+            .exe
+            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+        // d. Let stmtResult be Completion(Evaluation of Statement).
+        self.body.compile(ctx);
+
+        // e. If LoopContinues(stmtResult, labelSet) is false, return ? UpdateEmpty(stmtResult, V).
+        // f. If stmtResult.[[Value]] is not EMPTY, set V to stmtResult.[[Value]].
+        ctx.exe
+            .add_jump_instruction_to_index(Instruction::Jump, start_jump.clone());
+        let own_continues = ctx.current_continue.take().unwrap();
+        for continue_entry in own_continues {
+            ctx.exe.set_jump_target(continue_entry, start_jump.index);
+        }
+
+        ctx.exe.set_jump_target_here(end_jump);
+
+        let own_breaks = ctx.current_break.take().unwrap();
+        for break_entry in own_breaks {
+            ctx.exe.set_jump_target_here(break_entry);
+        }
+        ctx.current_break = previous_break;
+        ctx.current_continue = previous_continue;
+    }
+}
+
 impl CompileEvaluation for ast::DoWhileStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let previous_continue = ctx.current_continue.replace(vec![]);
@@ -2862,7 +2906,7 @@ impl CompileEvaluation for ast::Statement<'_> {
             Statement::ForOfStatement(_) => todo!(),
             Statement::LabeledStatement(_) => todo!(),
             Statement::SwitchStatement(_) => todo!(),
-            Statement::WhileStatement(_) => todo!(),
+            Statement::WhileStatement(statement) => statement.compile(ctx),
             Statement::WithStatement(_) => todo!(),
             Statement::ClassDeclaration(_) => todo!(),
             Statement::UsingDeclaration(_) => todo!(),
