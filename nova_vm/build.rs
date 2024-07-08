@@ -16,7 +16,7 @@ fn replace_invalid_key_characters(string: &str) -> String {
         }
     }
 
-    string.replace(['[', ']', ' ', '.', '-', '*'], "_")
+    string.replace(['[', ']', '(', ')', ' ', '.', '-', '*'], "_")
 }
 
 fn gen_builtin_strings() -> io::Result<Vec<u8>> {
@@ -53,6 +53,9 @@ fn gen_builtin_strings() -> io::Result<Vec<u8>> {
     }
     output.push_str("];\n\n#[allow(non_snake_case)]\npub struct BuiltinStrings {\n");
     for string in &strings {
+        output.push_str("    /// ```js\n");
+        output.push_str(&format!("    /// \"{}\"\n", string));
+        output.push_str("    /// ```\n");
         output.push_str("    pub r#");
         output.push_str(&replace_invalid_key_characters(string));
         output.push_str(": String,\n");

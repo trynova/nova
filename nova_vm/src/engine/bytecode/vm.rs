@@ -9,7 +9,7 @@ use crate::{
         abstract_operations::{
             operations_on_objects::{
                 call, call_function, construct, create_data_property_or_throw, get_method, get_v,
-                has_property, ordinary_has_instance,
+                has_property, ordinary_has_instance, set,
             },
             testing_and_comparison::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
@@ -32,7 +32,7 @@ use crate::{
         types::{
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
             is_super_reference, put_value, Base, BigInt, Function, InternalMethods, IntoFunction,
-            IntoValue, Number, Numeric, Object, PropertyKey, Reference, String, Value,
+            IntoObject, IntoValue, Number, Numeric, Object, PropertyKey, Reference, String, Value,
             BUILTIN_STRING_MEMORY,
         },
     },
@@ -186,6 +186,19 @@ impl Vm {
                 let len = array.len(agent);
                 let key = PropertyKey::Integer(len.into());
                 create_data_property_or_throw(agent, array.into(), key, value)?
+            }
+            Instruction::ArrayElision => {
+                let array = *vm.stack.last().unwrap();
+                let Ok(array) = Array::try_from(array) else {
+                    unreachable!();
+                };
+                set(
+                    agent,
+                    array.into_object(),
+                    BUILTIN_STRING_MEMORY.length.into(),
+                    (array.len(agent) + 1).into(),
+                    true,
+                )?;
             }
             Instruction::BitwiseNot => {
                 // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
@@ -413,7 +426,11 @@ impl Vm {
                 };
                 let function = ordinary_function_create(agent, params);
                 set_function_name(agent, function, name.into(), None);
-                make_constructor(agent, function, None, None);
+                if !function_expression.expression.r#async
+                    && !function_expression.expression.generator
+                {
+                    make_constructor(agent, function, None, None);
+                }
                 if init_binding {
                     env.initialize_binding(agent, name, function.into_value())
                         .unwrap();
