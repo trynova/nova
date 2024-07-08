@@ -24,8 +24,8 @@ pub enum Instruction {
     ArrayPush,
     /// Set an array's value at the given index.
     ArraySetValue,
-    /// Set the length property of an array to the given index.
-    ArraySetLength,
+    /// Push a hole into an array
+    ArrayElision,
     /// Performs steps 2-4 from the [UnaryExpression ~ Runtime Semantics](https://tc39.es/ecma262/#sec-bitwise-not-operator-runtime-semantics-evaluation).
     BitwiseNot,
     /// Create a catch binding for the given name and populate it with the
@@ -253,7 +253,6 @@ impl Instruction {
             // Number of repetitions and lexical status
             Self::BeginSimpleArrayBindingPattern => 2,
             Self::ArrayCreate
-            | Self::ArraySetLength
             | Self::ArraySetValue
             | Self::BeginArrayBindingPattern
             | Self::BeginObjectBindingPattern

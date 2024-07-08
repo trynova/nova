@@ -1020,7 +1020,10 @@ impl CompileEvaluation for ast::ArrayExpression<'_> {
                     ctx.exe.add_instruction(Instruction::GetValue);
                 }
                 ast::ArrayExpressionElement::ConditionalExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::Elision(_) => todo!(),
+                ast::ArrayExpressionElement::Elision(_) => {
+                    ctx.exe.add_instruction(Instruction::ArrayElision);
+                    continue;
+                }
                 ast::ArrayExpressionElement::FunctionExpression(init) => init.compile(ctx),
                 ast::ArrayExpressionElement::Identifier(init) => {
                     init.compile(ctx);
