@@ -183,7 +183,7 @@ fn symbol_descriptive_string(agent: &mut Agent, sym: Symbol) -> String {
     if let Some(desc) = desc {
         // 3. Assert: desc is a String.
         // 4. Return the string-concatenation of "Symbol(", desc, and ")".
-        let result = format!("String({})", desc.as_str(agent));
+        let result = format!("Symbol({})", desc.as_str(agent));
         String::from_string(agent, result)
     } else {
         BUILTIN_STRING_MEMORY.Symbol__
