@@ -426,7 +426,11 @@ impl Vm {
                 };
                 let function = ordinary_function_create(agent, params);
                 set_function_name(agent, function, name.into(), None);
-                make_constructor(agent, function, None, None);
+                if !function_expression.expression.r#async
+                    && !function_expression.expression.generator
+                {
+                    make_constructor(agent, function, None, None);
+                }
                 if init_binding {
                     env.initialize_binding(agent, name, function.into_value())
                         .unwrap();
