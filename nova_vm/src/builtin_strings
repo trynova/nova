@@ -367,6 +367,7 @@ subarray
 substring
 symbol
 Symbol
+Symbol()
 Symbol.asyncIterator
 Symbol.hasInstance
 Symbol.isConcatSpreadable

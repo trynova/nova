@@ -71,8 +71,9 @@ impl SymbolPrototype {
         todo!();
     }
 
-    fn to_string(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!();
+    fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let symb = this_symbol_value(agent, this_value)?;
+        Ok(symbol_descriptive_string(agent, symb).into_value())
     }
 
     fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
@@ -168,5 +169,23 @@ fn this_symbol_value(agent: &mut Agent, value: Value) -> JsResult<Symbol> {
             Ok(s)
         }
         _ => Err(agent.throw_exception(ExceptionType::TypeError, "this is not a symbol")),
+    }
+}
+
+/// ### [20.4.3.3.1 SymbolDescriptiveString ( sym )](https://tc39.es/ecma262/#sec-symboldescriptivestring)
+///
+/// The abstract operation SymbolDescriptiveString takes argument sym (a Symbol)
+/// and returns a String.
+fn symbol_descriptive_string(agent: &mut Agent, sym: Symbol) -> String {
+    // 1. Let desc be sym's [[Description]] value.
+    let desc = agent[sym].descriptor;
+    // 2. If desc is undefined, set desc to the empty String.
+    if let Some(desc) = desc {
+        // 3. Assert: desc is a String.
+        // 4. Return the string-concatenation of "Symbol(", desc, and ")".
+        let result = format!("String({})", desc.as_str(agent));
+        String::from_string(agent, result)
+    } else {
+        BUILTIN_STRING_MEMORY.Symbol__
     }
 }

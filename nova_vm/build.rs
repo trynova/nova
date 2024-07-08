@@ -16,7 +16,7 @@ fn replace_invalid_key_characters(string: &str) -> String {
         }
     }
 
-    string.replace(['[', ']', ' ', '.', '-', '*'], "_")
+    string.replace(['[', ']', '(', ')', ' ', '.', '-', '*'], "_")
 }
 
 fn gen_builtin_strings() -> io::Result<Vec<u8>> {
