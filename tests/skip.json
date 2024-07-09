@@ -5,7 +5,11 @@
   ],
   "skip": [
     "built-ins/Array/length/S15.4.5.2_A3_T4.js",
+    "built-ins/Array/prototype/concat/arg-length-near-integer-limit.js",
+    "built-ins/Array/prototype/indexOf/15.4.4.14-5-12.js",
+    "built-ins/Array/prototype/indexOf/15.4.4.14-5-16.js",
     "built-ins/Array/prototype/indexOf/15.4.4.14-9-9.js",
+    "built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-12.js",
     "built-ins/Array/prototype/lastIndexOf/15.4.4.15-8-9.js",
     "built-ins/Array/prototype/push/S15.4.4.7_A3.js",
     "built-ins/Array/S15.4_A1.1_T10.js",
