@@ -182,7 +182,9 @@ pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -
     }
     // 6. Set newLenDesc.[[Value]] to newLen.
     // 7. Let oldLenDesc be OrdinaryGetOwnProperty(A, "length").
-    let Heap { arrays, elements, .. } = &mut agent.heap;
+    let Heap {
+        arrays, elements, ..
+    } = &mut agent.heap;
     let array_heap_data = &mut arrays[a];
     // 10. Let oldLen be oldLenDesc.[[Value]].
     let (old_len, old_len_writable) = (
