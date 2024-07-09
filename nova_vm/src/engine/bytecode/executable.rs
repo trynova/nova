@@ -2453,6 +2453,108 @@ impl CompileEvaluation for ast::ForStatement<'_> {
     }
 }
 
+impl CompileEvaluation for ast::SwitchStatement<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        let previous_break = ctx.current_break.replace(vec![]);
+        // 1. Let exprRef be ? Evaluation of Expression.
+        self.discriminant.compile(ctx);
+        if is_reference(&self.discriminant) {
+            // 2. Let switchValue be ? GetValue(exprRef).
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        ctx.exe.add_instruction(Instruction::Load);
+        // 3. Let oldEnv be the running execution context's LexicalEnvironment.
+        // 4. Let blockEnv be NewDeclarativeEnvironment(oldEnv).
+        // 6. Set the running execution context's LexicalEnvironment to blockEnv.
+        ctx.exe
+            .add_instruction(Instruction::EnterDeclarativeEnvironment);
+        // 5. Perform BlockDeclarationInstantiation(CaseBlock, blockEnv).
+        // TODO: Analyze switch env instantiation.
+
+        // 7. Let R be Completion(CaseBlockEvaluation of CaseBlock with argument switchValue).
+        let mut has_default = false;
+        let mut jump_indexes = Vec::with_capacity(self.cases.len());
+        for case in &self.cases {
+            let Some(test) = &case.test else {
+                // Default case test does not care about the write order: After
+                // all other cases have been tested, default will be entered if
+                // no other was entered previously. The placement of the
+                // default case only matters for fall-through behaviour.
+                has_default = true;
+                continue;
+            };
+            // Duplicate the switchValue on the stack. One will remain, one is
+            // used by the IsStrictlyEqual
+            ctx.exe.add_instruction(Instruction::Store);
+            ctx.exe.add_instruction(Instruction::LoadCopy);
+            ctx.exe.add_instruction(Instruction::Load);
+            // 2. Let exprRef be ? Evaluation of the Expression of C.
+            test.compile(ctx);
+            // 3. Let clauseSelector be ? GetValue(exprRef).
+            if is_reference(test) {
+                ctx.exe.add_instruction(Instruction::GetValue);
+            }
+            // 4. Return IsStrictlyEqual(input, clauseSelector).
+            ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
+            // b. If found is true then [evaluate case]
+            jump_indexes.push(
+                ctx.exe
+                    .add_instruction_with_jump_slot(Instruction::JumpIfTrue),
+            );
+        }
+
+        if has_default {
+            // 10. If foundInB is true, return V.
+            // 11. Let defaultR be Completion(Evaluation of DefaultClause).
+            jump_indexes.push(ctx.exe.add_instruction_with_jump_slot(Instruction::Jump));
+        }
+
+        let mut index = 0;
+        for (i, case) in self.cases.iter().enumerate() {
+            let fallthrough_jump = if i != 0 {
+                Some(ctx.exe.add_instruction_with_jump_slot(Instruction::Jump))
+            } else {
+                None
+            };
+            // Jump from IsStrictlyEqual comparison to here.
+            let jump_index = if case.test.is_some() {
+                let jump_index = jump_indexes.get(index).unwrap();
+                index += 1;
+                jump_index
+            } else {
+                // Default case! The jump index is last in the Vec.
+                jump_indexes.last().unwrap()
+            };
+            ctx.exe.set_jump_target_here(jump_index.clone());
+
+            // Pop the switchValue from the stack.
+            ctx.exe.add_instruction(Instruction::Store);
+            // And override it with undefined
+            ctx.exe
+                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+
+            if let Some(fallthrough_jump) = fallthrough_jump {
+                ctx.exe.set_jump_target_here(fallthrough_jump);
+            }
+
+            for ele in &case.consequent {
+                ele.compile(ctx);
+            }
+        }
+
+        let own_breaks = ctx.current_break.take().unwrap();
+        for break_entry in own_breaks {
+            ctx.exe.set_jump_target_here(break_entry);
+        }
+        ctx.current_break = previous_break;
+
+        // 8. Set the running execution context's LexicalEnvironment to oldEnv.
+        ctx.exe
+            .add_instruction(Instruction::ExitDeclarativeEnvironment);
+        // 9. Return R.
+    }
+}
+
 impl CompileEvaluation for ast::ThrowStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         self.argument.compile(ctx);
@@ -2905,7 +3007,7 @@ impl CompileEvaluation for ast::Statement<'_> {
             Statement::ForInStatement(statement) => statement.compile(ctx),
             Statement::ForOfStatement(_) => todo!(),
             Statement::LabeledStatement(_) => todo!(),
-            Statement::SwitchStatement(_) => todo!(),
+            Statement::SwitchStatement(statement) => statement.compile(ctx),
             Statement::WhileStatement(statement) => statement.compile(ctx),
             Statement::WithStatement(_) => todo!(),
             Statement::ClassDeclaration(_) => todo!(),
