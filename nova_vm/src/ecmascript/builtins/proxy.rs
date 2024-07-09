@@ -14,7 +14,7 @@ use crate::{
     },
     heap::{
         indexes::{BaseIndex, ProxyIndex},
-        CreateHeapData, Heap,
+        CreateHeapData, Heap, HeapMarkAndSweep,
     },
 };
 
@@ -233,5 +233,15 @@ impl CreateHeapData<ProxyHeapData, Proxy> for Heap {
     fn create(&mut self, data: ProxyHeapData) -> Proxy {
         self.proxys.push(Some(data));
         Proxy(ProxyIndex::last(&self.proxys))
+    }
+}
+
+impl HeapMarkAndSweep for Proxy {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.proxys.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+        compactions.proxys.shift_index(&mut self.0);
     }
 }

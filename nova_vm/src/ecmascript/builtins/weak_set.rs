@@ -150,3 +150,13 @@ impl CreateHeapData<WeakSetHeapData, WeakSet> for Heap {
         WeakSet(WeakSetIndex::last(&self.weak_sets))
     }
 }
+
+impl HeapMarkAndSweep for WeakSet {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.weak_sets.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+        compactions.weak_sets.shift_index(&mut self.0);
+    }
+}

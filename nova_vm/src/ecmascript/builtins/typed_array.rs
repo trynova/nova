@@ -16,7 +16,7 @@ use crate::{
             UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
         },
     },
-    heap::{indexes::TypedArrayIndex, CreateHeapData, Heap},
+    heap::{indexes::TypedArrayIndex, CreateHeapData, Heap, HeapMarkAndSweep},
 };
 
 use self::data::TypedArrayHeapData;
@@ -199,5 +199,49 @@ impl CreateHeapData<TypedArrayHeapData, TypedArray> for Heap {
         self.typed_arrays.push(Some(data));
         // TODO: The type should be checked based on data or something equally stupid
         TypedArray::Uint8Array(TypedArrayIndex::last(&self.typed_arrays))
+    }
+}
+
+impl HeapMarkAndSweep for TypedArrayIndex {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.typed_arrays.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+        compactions.typed_arrays.shift_index(self);
+    }
+}
+
+impl HeapMarkAndSweep for TypedArray {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        match self {
+            TypedArray::Int8Array(data)
+            | TypedArray::Uint8Array(data)
+            | TypedArray::Uint8ClampedArray(data)
+            | TypedArray::Int16Array(data)
+            | TypedArray::Uint16Array(data)
+            | TypedArray::Int32Array(data)
+            | TypedArray::Uint32Array(data)
+            | TypedArray::BigInt64Array(data)
+            | TypedArray::BigUint64Array(data)
+            | TypedArray::Float32Array(data)
+            | TypedArray::Float64Array(data) => queues.typed_arrays.push(*data),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+        match self {
+            TypedArray::Int8Array(data)
+            | TypedArray::Uint8Array(data)
+            | TypedArray::Uint8ClampedArray(data)
+            | TypedArray::Int16Array(data)
+            | TypedArray::Uint16Array(data)
+            | TypedArray::Int32Array(data)
+            | TypedArray::Uint32Array(data)
+            | TypedArray::BigInt64Array(data)
+            | TypedArray::BigUint64Array(data)
+            | TypedArray::Float32Array(data)
+            | TypedArray::Float64Array(data) => compactions.typed_arrays.shift_index(data),
+        }
     }
 }

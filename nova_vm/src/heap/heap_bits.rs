@@ -563,8 +563,11 @@ pub(crate) struct CompactionLists {
     pub bound_functions: CompactionList,
     pub builtin_functions: CompactionList,
     pub ecmascript_functions: CompactionList,
+    pub embedder_objects: CompactionList,
+    pub data_views: CompactionList,
     pub dates: CompactionList,
     pub errors: CompactionList,
+    pub finalization_registrys: CompactionList,
     pub maps: CompactionList,
     pub numbers: CompactionList,
     pub objects: CompactionList,
@@ -573,11 +576,16 @@ pub(crate) struct CompactionLists {
     pub promise_reaction_records: CompactionList,
     pub promise_reject_functions: CompactionList,
     pub promises: CompactionList,
+    pub proxys: CompactionList,
     pub regexps: CompactionList,
     pub sets: CompactionList,
     pub strings: CompactionList,
     pub shared_array_buffers: CompactionList,
     pub symbols: CompactionList,
+    pub typed_arrays: CompactionList,
+    pub weak_maps: CompactionList,
+    pub weak_refs: CompactionList,
+    pub weak_sets: CompactionList,
 }
 
 impl CompactionLists {
@@ -615,6 +623,7 @@ impl CompactionLists {
             bound_functions: CompactionList::from_mark_bits(&bits.bound_functions),
             builtin_functions: CompactionList::from_mark_bits(&bits.builtin_functions),
             ecmascript_functions: CompactionList::from_mark_bits(&bits.ecmascript_functions),
+            embedder_objects: CompactionList::from_mark_bits(&bits.embedder_objects),
             dates: CompactionList::from_mark_bits(&bits.dates),
             errors: CompactionList::from_mark_bits(&bits.errors),
             maps: CompactionList::from_mark_bits(&bits.maps),
@@ -636,6 +645,13 @@ impl CompactionLists {
             strings: CompactionList::from_mark_bits(&bits.strings),
             shared_array_buffers: CompactionList::from_mark_bits(&bits.shared_array_buffers),
             symbols: CompactionList::from_mark_bits(&bits.symbols),
+            data_views: CompactionList::from_mark_bits(&bits.data_views),
+            finalization_registrys: CompactionList::from_mark_bits(&bits.finalization_registrys),
+            proxys: CompactionList::from_mark_bits(&bits.proxys),
+            weak_maps: CompactionList::from_mark_bits(&bits.weak_maps),
+            weak_refs: CompactionList::from_mark_bits(&bits.weak_refs),
+            weak_sets: CompactionList::from_mark_bits(&bits.weak_sets),
+            typed_arrays: CompactionList::from_mark_bits(&bits.typed_arrays),
         }
     }
 }

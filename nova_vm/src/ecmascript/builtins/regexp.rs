@@ -9,8 +9,11 @@ use std::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
-        execution::Agent,
-        types::{IntoObject, IntoValue, Object, Value},
+        execution::{Agent, ProtoIntrinsics},
+        types::{
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
+            OrdinaryObject, Value,
+        },
     },
     heap::{
         indexes::{BaseIndex, RegExpIndex},
@@ -79,6 +82,31 @@ impl IntoObject for RegExp {
         self.into()
     }
 }
+
+impl InternalSlots for RegExp {
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::RegExp;
+
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
+        agent[self].object_index
+    }
+
+    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
+        let prototype = agent
+            .current_realm()
+            .intrinsics()
+            .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
+        let backing_object = agent.heap.create(ObjectHeapData {
+            extensible: true,
+            prototype: Some(prototype),
+            keys: Default::default(),
+            values: Default::default(),
+        });
+        agent[self].object_index = Some(backing_object);
+        backing_object
+    }
+}
+
+impl InternalMethods for RegExp {}
 
 impl HeapMarkAndSweep for RegExp {
     fn mark_values(&self, queues: &mut WorkQueues) {

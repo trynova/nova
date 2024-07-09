@@ -13,7 +13,7 @@ use crate::{
     },
     heap::{
         indexes::{BaseIndex, FinalizationRegistryIndex},
-        CreateHeapData, Heap,
+        CreateHeapData, Heap, HeapMarkAndSweep,
     },
 };
 
@@ -137,5 +137,15 @@ impl CreateHeapData<FinalizationRegistryHeapData, FinalizationRegistry> for Heap
         FinalizationRegistry(FinalizationRegistryIndex::last(
             &self.finalization_registrys,
         ))
+    }
+}
+
+impl HeapMarkAndSweep for FinalizationRegistry {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.finalization_registrys.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+        compactions.finalization_registrys.shift_index(&mut self.0);
     }
 }
