@@ -16,6 +16,7 @@
     "built-ins/Array/S15.4.5.2_A1_T1.js",
     "built-ins/Object/defineProperties/15.2.3.7-6-a-179.js",
     "built-ins/Object/defineProperty/15.2.3.6-4-183.js",
+    "harness/propertyhelper-verifywritable-array-length.js",
     "language/identifiers/start-unicode-10.0.0-escaped.js",
     "language/identifiers/start-unicode-10.0.0.js",
     "language/identifiers/start-unicode-8.0.0-escaped.js",
