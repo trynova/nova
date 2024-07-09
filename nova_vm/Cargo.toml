@@ -4,14 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+fast-float = "0.2.0"
 num-bigint = { workspace = true }
 num-traits = "0.2.18"
+oxc_allocator = { workspace = true }
+oxc_ast = { workspace = true }
+oxc_diagnostics = { workspace = true }
 oxc_parser = { workspace = true }
 oxc_span = { workspace = true }
 oxc_syntax = { workspace = true }
-oxc_ast = { workspace = true }
-oxc_allocator = { workspace = true }
-oxc_diagnostics = { workspace = true }
 ryu-js = "1.0.1"
 small_string = { path = "../small_string" }
 wtf8 = { workspace = true }

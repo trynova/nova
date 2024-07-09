@@ -13,6 +13,7 @@ use crate::{
         types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
+    SmallInteger,
 };
 
 pub(crate) struct MathObject;
@@ -459,10 +460,30 @@ impl MathObject {
         todo!();
     }
 
-    fn pow(_agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        let _base = arguments.get(0);
-        let _exponent = arguments.get(1);
-        todo!();
+    fn pow(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let base = arguments.get(0);
+        let exponent = arguments.get(1);
+        if let (Value::Integer(base), Value::Integer(exponent)) = (base, exponent) {
+            let base = base.into_i64();
+            let exponent = exponent.into_i64();
+            if let Ok(exponent) = u32::try_from(exponent) {
+                let result = base.pow(exponent);
+                if let Ok(result) = SmallInteger::try_from(result) {
+                    return Ok(Value::Integer(result));
+                } else {
+                    return Ok(Value::from_f64(agent, result as f64));
+                }
+            } else if let Ok(exponent) = i32::try_from(exponent) {
+                let result = (base as f64).powi(exponent);
+                return Ok(Value::from_f64(agent, result));
+            } else {
+                let result = (base as f64).powf(exponent as f64);
+                return Ok(Value::from_f64(agent, result));
+            }
+        }
+        let base = to_number(agent, base)?;
+        let exponent = to_number(agent, exponent)?;
+        Ok(Number::exponentiate(agent, base, exponent).into_value())
     }
 
     fn random(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
