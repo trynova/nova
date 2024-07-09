@@ -15,7 +15,7 @@ use crate::{
             Function, IntoObject, Number, Object, PropertyDescriptor, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{indexes::ArrayIndex, WellKnownSymbolIndexes},
+    heap::{indexes::ArrayIndex, Heap, WellKnownSymbolIndexes},
 };
 
 use super::{data::SealableElementsVector, Array, ArrayHeapData};
@@ -182,7 +182,8 @@ pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -
     }
     // 6. Set newLenDesc.[[Value]] to newLen.
     // 7. Let oldLenDesc be OrdinaryGetOwnProperty(A, "length").
-    let array_heap_data = &mut agent[a];
+    let Heap { arrays, elements, .. } = &mut agent.heap;
+    let array_heap_data = &mut arrays[a];
     // 10. Let oldLen be oldLenDesc.[[Value]].
     let (old_len, old_len_writable) = (
         array_heap_data.elements.len(),
@@ -200,7 +201,7 @@ pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -
     // 11. If newLen ≥ oldLen, then
     if new_len >= old_len {
         // a. Return ! OrdinaryDefineOwnProperty(A, "length", newLenDesc).
-        // TODO: Handle growing elements
+        array_heap_data.elements.reserve(elements, new_len);
         array_heap_data.elements.len = new_len;
         array_heap_data.elements.len_writable = new_len_writable;
         return Ok(true);
@@ -212,13 +213,13 @@ pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -
     debug_assert!(old_len > new_len);
     for i in new_len + 1..old_len {
         // a. Let deleteSucceeded be ! A.[[Delete]](P).
-        let elements = &mut agent[old_elements];
+        let elements = &mut elements[old_elements];
         // TODO: Handle unwritable properties and property descriptors.
         *elements.get_mut(i as usize).unwrap() = None;
         let delete_succeeded = true;
         // b. If deleteSucceeded is false, then
         if !delete_succeeded {
-            let array_heap_data = &mut agent[a];
+            let array_heap_data = &mut arrays[a];
             // i. Set newLenDesc.[[Value]] to ! ToUint32(P) + 1𝔽.
             array_heap_data.elements.len = i + 1;
             // ii. If newWritable is false, set newLenDesc.[[Writable]] to false.
@@ -232,7 +233,7 @@ pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -
     if !new_len_writable {
         // a. Set succeeded to ! OrdinaryDefineOwnProperty(A, "length", PropertyDescriptor { [[Writable]]: false }).
         // b. Assert: succeeded is true.
-        let array_heap_data = &mut agent[a];
+        let array_heap_data = &mut arrays[a];
         array_heap_data.elements.len_writable &= new_len_writable;
     }
     // 19. Return true.
