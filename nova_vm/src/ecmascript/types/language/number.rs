@@ -1041,7 +1041,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.14 Number::sameValue ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValue)
-    pub fn same_value(agent: &mut Agent, x: Self, y: Self) -> bool {
+    pub fn same_value(agent: &Agent, x: Self, y: Self) -> bool {
         // 1. If x is NaN and y is NaN, return true.
         if x.is_nan(agent) && y.is_nan(agent) {
             return true;
