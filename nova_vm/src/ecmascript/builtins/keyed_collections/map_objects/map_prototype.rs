@@ -66,7 +66,7 @@ impl Builtin for MapPrototypeKeys {
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::keys);
 }
-struct MapPrototypeSet;
+pub(super) struct MapPrototypeSet;
 impl Builtin for MapPrototypeSet {
     const NAME: String = BUILTIN_STRING_MEMORY.set;
     const LENGTH: u8 = 2;
@@ -378,8 +378,7 @@ fn require_map_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<M
 /// ### [24.5.1 CanonicalizeKeyedCollectionKey ( key )](https://tc39.es/ecma262/#sec-canonicalizekeyedcollectionkey)
 /// The abstract operation CanonicalizeKeyedCollectionKey takes argument key
 /// (an ECMAScript language value) and returns an ECMAScript language value.
-
-fn canonicalize_keyed_collection_key(agent: &Agent, key: Value) -> Value {
+pub(super) fn canonicalize_keyed_collection_key(agent: &Agent, key: Value) -> Value {
     // 1. If key is -0𝔽, return +0𝔽.
     if let Value::Float(key) = key {
         // Note: Only f32 should hold -0.

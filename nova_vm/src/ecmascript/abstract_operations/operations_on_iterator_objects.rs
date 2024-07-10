@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::get_method,
+        abstract_operations::operations_on_objects::{call_function, get_method},
         builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{Function, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
@@ -247,38 +247,66 @@ pub(crate) fn iterator_step_value(
 /// Completion Record. It is used to notify an iterator that it should perform
 /// any actions it would normally perform when it has reached its completed
 /// state.
-pub(crate) fn iterator_close(
-    _agent: &mut Agent,
-    _iterator_record: &IteratorRecord,
-    _completion: JsResult<Value>,
-) -> JsResult<Value> {
+pub(crate) fn iterator_close<T>(
+    agent: &mut Agent,
+    iterator_record: &IteratorRecord,
+    completion: JsResult<T>,
+) -> JsResult<T> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
+    let iterator = iterator_record.iterator;
     // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
+    let inner_result = get_method(
+        agent,
+        iterator.into_value(),
+        BUILTIN_STRING_MEMORY.r#return.into(),
+    );
     // 4. If innerResult.[[Type]] is normal, then
-    // a. Let return be innerResult.[[Value]].
-    // b. If return is undefined, return ? completion.
-    // c. Set innerResult to Completion(Call(return, iterator)).
+    let inner_result = match inner_result {
+        Ok(return_function) => {
+            // a. Let return be innerResult.[[Value]].
+            // b. If return is undefined, return ? completion.
+            let Some(return_function) = return_function else {
+                return completion;
+            };
+            // c. Set innerResult to Completion(Call(return, iterator)).
+            call_function(agent, return_function, iterator.into_value(), None)
+        }
+        Err(inner_result) => Err(inner_result),
+    };
     // 5. If completion.[[Type]] is throw, return ? completion.
+    let completion = completion?;
     // 6. If innerResult.[[Type]] is throw, return ? innerResult.
+    let inner_result = inner_result?;
     // 7. If innerResult.[[Value]] is not an Object, throw a TypeError exception.
+    if !inner_result.is_object() {
+        return Err(agent.throw_exception(
+            ExceptionType::TypeError,
+            "Invalid iterator 'return' method return value",
+        ));
+    }
     // 8. Return ? completion.
-    todo!()
+    Ok(completion)
 }
 
 /// ### [7.4.10 IfAbruptCloseIterator ( value, iteratorRecord )](https://tc39.es/ecma262/#sec-ifabruptcloseiterator)
 ///
 /// IfAbruptCloseIterator is a shorthand for a sequence of algorithm steps that
 /// use an Iterator Record.
+#[inline(always)]
 pub(crate) fn if_abrupt_close_iterator<T>(
-    _agent: &mut Agent,
-    _value: JsResult<T>,
-    _iterator_record: &IteratorRecord,
+    agent: &mut Agent,
+    value: JsResult<T>,
+    iterator_record: &IteratorRecord,
 ) -> JsResult<T> {
     // 1. Assert: value is a Completion Record.
     // 2. If value is an abrupt completion, return ? IteratorClose(iteratorRecord, value).
-    // 3. Else, set value to value.[[Value]].
-    todo!()
+    if value.is_err() {
+        iterator_close(agent, iterator_record, value)
+    } else {
+        // 3. Else, set value to value.[[Value]].
+        value
+    }
 }
 
 /// ### [7.4.11 AsyncIteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-asynciteratorclose)

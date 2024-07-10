@@ -45,7 +45,7 @@ pub type RegularFn = fn(&mut Agent, Value, ArgumentsList<'_>) -> JsResult<Value>
 pub type ConstructorFn =
     fn(&mut Agent, Value, ArgumentsList<'_>, Option<Object>) -> JsResult<Value>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Behaviour {
     Regular(RegularFn),
     Constructor(ConstructorFn),
