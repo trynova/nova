@@ -554,6 +554,16 @@ impl Vm {
                     vm.ip = ip;
                 }
             }
+            Instruction::JumpIfTrue => {
+                let result = vm.result.take().unwrap();
+                let Value::Boolean(result) = result else {
+                    unreachable!()
+                };
+                if result {
+                    let ip = instr.args[0].unwrap() as usize;
+                    vm.ip = ip;
+                }
+            }
             Instruction::Increment => {
                 let lhs = vm.result.take().unwrap();
                 let old_value = to_numeric(agent, lhs)?;

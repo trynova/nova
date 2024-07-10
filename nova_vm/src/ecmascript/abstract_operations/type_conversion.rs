@@ -205,7 +205,8 @@ pub(crate) fn to_number(agent: &mut Agent, argument: impl Into<Value> + Copy) ->
         // 5. If argument is true, return 1𝔽.
         Value::Boolean(true) => Ok(Number::from(1)),
         // 6. If argument is a String, return StringToNumber(argument).
-        Value::String(_) | Value::SmallString(_) => todo!("implement StringToNumber"),
+        Value::String(str) => Ok(string_to_number(agent, str.into())),
+        Value::SmallString(str) => Ok(string_to_number(agent, str.into())),
         // 2. If argument is either a Symbol or a BigInt, throw a TypeError exception.
         Value::Symbol(_) => {
             Err(agent.throw_exception(ExceptionType::TypeError, "cannot convert symbol to number"))
@@ -226,6 +227,78 @@ pub(crate) fn to_number(agent: &mut Agent, argument: impl Into<Value> + Copy) ->
             // 10. Return ? ToNumber(primValue).
             to_number(agent, prim_value)
         }
+    }
+}
+
+/// ### [7.1.4.1.1 StringToNumber ( str )](https://tc39.es/ecma262/#sec-stringtonumber)
+///
+/// The abstract operation StringToNumber takes argument str (a String) and
+/// returns a Number.
+///
+/// Copied from Boa JS engine. Source https://github.com/boa-dev/boa/blob/183e763c32710e4e3ea83ba762cf815b7a89cd1f/core/string/src/lib.rs#L560
+///
+/// Copyright (c) 2019 Jason Williams
+fn string_to_number(agent: &mut Agent, str: String) -> Number {
+    // 1. Let literal be ParseText(str, StringNumericLiteral).
+    // 2. If literal is a List of errors, return NaN.
+    // 3. Return the StringNumericValue of literal.
+    let str = str.as_str(agent).trim_matches(is_trimmable_whitespace);
+    match str {
+        "+Infinity" | "Infinity" => {
+            return Number::pos_inf();
+        }
+        "-Infinity" => {
+            return Number::neg_inf();
+        }
+        "0" | "+0" | "0.0" | "+0.0" => {
+            return Number::pos_zero();
+        }
+        "-0" | "-0.0" => {
+            return Number::neg_zero();
+        }
+        _ => {}
+    }
+
+    let mut s = str.bytes();
+    let base = match (s.next(), s.next()) {
+        (Some(b'0'), Some(b'b' | b'B')) => Some(2),
+        (Some(b'0'), Some(b'o' | b'O')) => Some(8),
+        (Some(b'0'), Some(b'x' | b'X')) => Some(16),
+        // Make sure that no further variants of "infinity" are parsed.
+        (Some(b'i' | b'I'), _) => {
+            return Number::nan();
+        }
+        _ => None,
+    };
+
+    // Parse numbers that begin with `0b`, `0o` and `0x`.
+    if let Some(base) = base {
+        let string = &str[2..];
+        if string.is_empty() {
+            return Number::nan();
+        }
+
+        // Fast path
+        if let Ok(value) = u32::from_str_radix(string, base) {
+            return value.into();
+        }
+
+        // Slow path
+        let mut value: f64 = 0.0;
+        for c in s {
+            if let Some(digit) = char::from(c).to_digit(base) {
+                value = value.mul_add(f64::from(base), f64::from(digit));
+            } else {
+                return Number::nan();
+            }
+        }
+        return Number::from_f64(agent, value);
+    }
+
+    if let Ok(result) = fast_float::parse(str) {
+        Number::from_f64(agent, result)
+    } else {
+        Number::nan()
     }
 }
 
@@ -886,4 +959,28 @@ pub(crate) fn to_index(agent: &mut Agent, argument: Value) -> JsResult<i64> {
 
     // 3. Return integer.
     Ok(integer)
+}
+
+/// Helper function to check if a `char` is trimmable.
+///
+/// Copied from Boa JS engine. Source https://github.com/boa-dev/boa/blob/183e763c32710e4e3ea83ba762cf815b7a89cd1f/core/string/src/lib.rs#L51
+///
+/// Copyright (c) 2019 Jason Williams
+pub const fn is_trimmable_whitespace(c: char) -> bool {
+    // The rust implementation of `trim` does not regard the same characters whitespace as ecma standard does
+    //
+    // Rust uses \p{White_Space} by default, which also includes:
+    // `\u{0085}' (next line)
+    // And does not include:
+    // '\u{FEFF}' (zero width non-breaking space)
+    // Explicit whitespace: https://tc39.es/ecma262/#sec-white-space
+    matches!(
+        c,
+        '\u{0009}' | '\u{000B}' | '\u{000C}' | '\u{0020}' | '\u{00A0}' | '\u{FEFF}' |
+    // Unicode Space_Separator category
+    '\u{1680}' | '\u{2000}'
+            ..='\u{200A}' | '\u{202F}' | '\u{205F}' | '\u{3000}' |
+    // Line terminators: https://tc39.es/ecma262/#sec-line-terminators
+    '\u{000A}' | '\u{000D}' | '\u{2028}' | '\u{2029}'
+    )
 }

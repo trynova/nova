@@ -36,7 +36,7 @@ use super::{
 use crate::{
     ecmascript::{
         builtins::{
-            bound_function::BoundFunction, control_abstraction_objects::promise_objects::promise_abstract_operations::promise_reject_function::BuiltinPromiseRejectFunction, data_view::DataView, date::Date, embedder_object::EmbedderObject, error::Error, finalization_registry::FinalizationRegistry, map::Map, module::Module, primitive_objects::PrimitiveObject, promise::Promise, proxy::Proxy, regexp::RegExp, set::Set, shared_array_buffer::SharedArrayBuffer, weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet, ArgumentsList, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction
+            bound_function::BoundFunction, control_abstraction_objects::promise_objects::promise_abstract_operations::promise_reject_function::BuiltinPromiseRejectFunction, data_view::DataView, date::Date, embedder_object::EmbedderObject, error::Error, finalization_registry::FinalizationRegistry, map::Map, module::Module, primitive_objects::PrimitiveObject, promise::Promise, proxy::Proxy, regexp::RegExp, set::Set, shared_array_buffer::SharedArrayBuffer, typed_array::TypedArray, weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet, ArgumentsList, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction
         },
         execution::{Agent, JsResult},
         types::PropertyDescriptor,
@@ -447,33 +447,39 @@ impl InternalSlots for Object {
             Object::ECMAScriptGeneratorFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_extensible(agent),
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
+            Object::DataView(data) => data.internal_extensible(agent),
+            Object::FinalizationRegistry(data) => data.internal_extensible(agent),
             Object::Map(data) => data.internal_extensible(agent),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
+            Object::Promise(data) => data.internal_extensible(agent),
+            Object::Proxy(data) => data.internal_extensible(agent),
+            Object::RegExp(data) => data.internal_extensible(agent),
             Object::Set(data) => data.internal_extensible(agent),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::SharedArrayBuffer(data) => data.internal_extensible(agent),
+            Object::WeakMap(data) => data.internal_extensible(agent),
+            Object::WeakRef(data) => data.internal_extensible(agent),
+            Object::WeakSet(data) => data.internal_extensible(agent),
+            Object::Int8Array(data) => TypedArray::Int8Array(data).internal_extensible(agent),
+            Object::Uint8Array(data) => TypedArray::Uint8Array(data).internal_extensible(agent),
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).internal_extensible(agent)
+            }
+            Object::Int16Array(data) => TypedArray::Int16Array(data).internal_extensible(agent),
+            Object::Uint16Array(data) => TypedArray::Uint16Array(data).internal_extensible(agent),
+            Object::Int32Array(data) => TypedArray::Int32Array(data).internal_extensible(agent),
+            Object::Uint32Array(data) => TypedArray::Uint32Array(data).internal_extensible(agent),
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).internal_extensible(agent)
+            }
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).internal_extensible(agent)
+            }
+            Object::Float32Array(data) => TypedArray::Float32Array(data).internal_extensible(agent),
+            Object::Float64Array(data) => TypedArray::Float64Array(data).internal_extensible(agent),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => data.internal_extensible(agent),
+            Object::EmbedderObject(data) => data.internal_extensible(agent),
         }
     }
 
@@ -501,33 +507,55 @@ impl InternalSlots for Object {
             Object::ECMAScriptGeneratorFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_set_extensible(agent, value),
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
+            Object::DataView(data) => data.internal_set_extensible(agent, value),
+            Object::FinalizationRegistry(data) => data.internal_set_extensible(agent, value),
             Object::Map(data) => data.internal_set_extensible(agent, value),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
+            Object::Promise(data) => data.internal_set_extensible(agent, value),
+            Object::Proxy(data) => data.internal_set_extensible(agent, value),
+            Object::RegExp(data) => data.internal_set_extensible(agent, value),
             Object::Set(data) => data.internal_set_extensible(agent, value),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::SharedArrayBuffer(data) => data.internal_set_extensible(agent, value),
+            Object::WeakMap(data) => data.internal_set_extensible(agent, value),
+            Object::WeakRef(data) => data.internal_set_extensible(agent, value),
+            Object::WeakSet(data) => data.internal_set_extensible(agent, value),
+            Object::Int8Array(data) => {
+                TypedArray::Int8Array(data).internal_set_extensible(agent, value)
+            }
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).internal_set_extensible(agent, value)
+            }
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).internal_set_extensible(agent, value)
+            }
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).internal_set_extensible(agent, value)
+            }
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).internal_set_extensible(agent, value)
+            }
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).internal_set_extensible(agent, value)
+            }
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).internal_set_extensible(agent, value)
+            }
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).internal_set_extensible(agent, value)
+            }
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).internal_set_extensible(agent, value)
+            }
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).internal_set_extensible(agent, value)
+            }
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).internal_set_extensible(agent, value)
+            }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => data.internal_set_extensible(agent, value),
+            Object::EmbedderObject(data) => data.internal_set_extensible(agent, value),
         }
     }
 
@@ -553,33 +581,39 @@ impl InternalSlots for Object {
             Object::ECMAScriptGeneratorFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_prototype(agent),
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
+            Object::DataView(data) => data.internal_prototype(agent),
+            Object::FinalizationRegistry(data) => data.internal_prototype(agent),
             Object::Map(data) => data.internal_prototype(agent),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
+            Object::Promise(data) => data.internal_prototype(agent),
+            Object::Proxy(data) => data.internal_prototype(agent),
+            Object::RegExp(data) => data.internal_prototype(agent),
             Object::Set(data) => data.internal_prototype(agent),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::SharedArrayBuffer(data) => data.internal_prototype(agent),
+            Object::WeakMap(data) => data.internal_prototype(agent),
+            Object::WeakRef(data) => data.internal_prototype(agent),
+            Object::WeakSet(data) => data.internal_prototype(agent),
+            Object::Int8Array(data) => TypedArray::Int8Array(data).internal_prototype(agent),
+            Object::Uint8Array(data) => TypedArray::Uint8Array(data).internal_prototype(agent),
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).internal_prototype(agent)
+            }
+            Object::Int16Array(data) => TypedArray::Int16Array(data).internal_prototype(agent),
+            Object::Uint16Array(data) => TypedArray::Uint16Array(data).internal_prototype(agent),
+            Object::Int32Array(data) => TypedArray::Int32Array(data).internal_prototype(agent),
+            Object::Uint32Array(data) => TypedArray::Uint32Array(data).internal_prototype(agent),
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).internal_prototype(agent)
+            }
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).internal_prototype(agent)
+            }
+            Object::Float32Array(data) => TypedArray::Float32Array(data).internal_prototype(agent),
+            Object::Float64Array(data) => TypedArray::Float64Array(data).internal_prototype(agent),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => data.internal_prototype(agent),
+            Object::EmbedderObject(data) => data.internal_prototype(agent),
         }
     }
 
@@ -607,33 +641,55 @@ impl InternalSlots for Object {
             Object::ECMAScriptGeneratorFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_set_prototype(agent, prototype),
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
+            Object::DataView(data) => data.internal_set_prototype(agent, prototype),
+            Object::FinalizationRegistry(data) => data.internal_set_prototype(agent, prototype),
             Object::Map(data) => data.internal_set_prototype(agent, prototype),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
+            Object::Promise(data) => data.internal_set_prototype(agent, prototype),
+            Object::Proxy(data) => data.internal_set_prototype(agent, prototype),
+            Object::RegExp(data) => data.internal_set_prototype(agent, prototype),
             Object::Set(data) => data.internal_set_prototype(agent, prototype),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::SharedArrayBuffer(data) => data.internal_set_prototype(agent, prototype),
+            Object::WeakMap(data) => data.internal_set_prototype(agent, prototype),
+            Object::WeakRef(data) => data.internal_set_prototype(agent, prototype),
+            Object::WeakSet(data) => data.internal_set_prototype(agent, prototype),
+            Object::Int8Array(data) => {
+                TypedArray::Int8Array(data).internal_set_prototype(agent, prototype)
+            }
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).internal_set_prototype(agent, prototype)
+            }
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).internal_set_prototype(agent, prototype)
+            }
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).internal_set_prototype(agent, prototype)
+            }
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).internal_set_prototype(agent, prototype)
+            }
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).internal_set_prototype(agent, prototype)
+            }
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).internal_set_prototype(agent, prototype)
+            }
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).internal_set_prototype(agent, prototype)
+            }
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).internal_set_prototype(agent, prototype)
+            }
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).internal_set_prototype(agent, prototype)
+            }
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).internal_set_prototype(agent, prototype)
+            }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => data.internal_set_prototype(agent, prototype),
+            Object::EmbedderObject(data) => data.internal_set_prototype(agent, prototype),
         }
     }
 }
@@ -661,33 +717,53 @@ impl InternalMethods for Object {
             Object::ECMAScriptGeneratorFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_get_prototype_of(agent),
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
+            Object::DataView(data) => data.internal_get_prototype_of(agent),
+            Object::FinalizationRegistry(data) => data.internal_get_prototype_of(agent),
             Object::Map(data) => data.internal_get_prototype_of(agent),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
+            Object::Promise(data) => data.internal_get_prototype_of(agent),
+            Object::Proxy(data) => data.internal_get_prototype_of(agent),
+            Object::RegExp(data) => data.internal_get_prototype_of(agent),
             Object::Set(data) => data.internal_get_prototype_of(agent),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::SharedArrayBuffer(data) => data.internal_get_prototype_of(agent),
+            Object::WeakMap(data) => data.internal_get_prototype_of(agent),
+            Object::WeakRef(data) => data.internal_get_prototype_of(agent),
+            Object::WeakSet(data) => data.internal_get_prototype_of(agent),
+            Object::Int8Array(data) => TypedArray::Int8Array(data).internal_get_prototype_of(agent),
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).internal_get_prototype_of(agent)
+            }
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).internal_get_prototype_of(agent)
+            }
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).internal_get_prototype_of(agent)
+            }
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).internal_get_prototype_of(agent)
+            }
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).internal_get_prototype_of(agent)
+            }
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).internal_get_prototype_of(agent)
+            }
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).internal_get_prototype_of(agent)
+            }
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).internal_get_prototype_of(agent)
+            }
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).internal_get_prototype_of(agent)
+            }
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).internal_get_prototype_of(agent)
+            }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => data.internal_get_prototype_of(agent),
+            Object::EmbedderObject(data) => data.internal_get_prototype_of(agent),
         }
     }
 
@@ -719,33 +795,55 @@ impl InternalMethods for Object {
             Object::ECMAScriptGeneratorFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_set_prototype_of(agent, prototype),
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
+            Object::DataView(data) => data.internal_set_prototype_of(agent, prototype),
+            Object::FinalizationRegistry(data) => data.internal_set_prototype_of(agent, prototype),
             Object::Map(data) => data.internal_set_prototype_of(agent, prototype),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
+            Object::Promise(data) => data.internal_set_prototype_of(agent, prototype),
+            Object::Proxy(data) => data.internal_set_prototype_of(agent, prototype),
+            Object::RegExp(data) => data.internal_set_prototype_of(agent, prototype),
             Object::Set(data) => data.internal_set_prototype_of(agent, prototype),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::SharedArrayBuffer(data) => data.internal_set_prototype_of(agent, prototype),
+            Object::WeakMap(data) => data.internal_set_prototype_of(agent, prototype),
+            Object::WeakRef(data) => data.internal_set_prototype_of(agent, prototype),
+            Object::WeakSet(data) => data.internal_set_prototype_of(agent, prototype),
+            Object::Int8Array(data) => {
+                TypedArray::Int8Array(data).internal_set_prototype_of(agent, prototype)
+            }
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).internal_set_prototype_of(agent, prototype)
+            }
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).internal_set_prototype_of(agent, prototype)
+            }
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).internal_set_prototype_of(agent, prototype)
+            }
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).internal_set_prototype_of(agent, prototype)
+            }
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).internal_set_prototype_of(agent, prototype)
+            }
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).internal_set_prototype_of(agent, prototype)
+            }
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).internal_set_prototype_of(agent, prototype)
+            }
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).internal_set_prototype_of(agent, prototype)
+            }
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).internal_set_prototype_of(agent, prototype)
+            }
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).internal_set_prototype_of(agent, prototype)
+            }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => data.internal_set_prototype_of(agent, prototype),
+            Object::EmbedderObject(data) => data.internal_set_prototype_of(agent, prototype),
         }
     }
 
@@ -771,33 +869,47 @@ impl InternalMethods for Object {
             Object::ECMAScriptGeneratorFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_is_extensible(agent),
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
+            Object::DataView(data) => data.internal_is_extensible(agent),
+            Object::FinalizationRegistry(data) => data.internal_is_extensible(agent),
             Object::Map(data) => data.internal_is_extensible(agent),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
+            Object::Promise(data) => data.internal_is_extensible(agent),
+            Object::Proxy(data) => data.internal_is_extensible(agent),
+            Object::RegExp(data) => data.internal_is_extensible(agent),
             Object::Set(data) => data.internal_is_extensible(agent),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::SharedArrayBuffer(data) => data.internal_is_extensible(agent),
+            Object::WeakMap(data) => data.internal_is_extensible(agent),
+            Object::WeakRef(data) => data.internal_is_extensible(agent),
+            Object::WeakSet(data) => data.internal_is_extensible(agent),
+            Object::Int8Array(data) => TypedArray::Int8Array(data).internal_is_extensible(agent),
+            Object::Uint8Array(data) => TypedArray::Uint8Array(data).internal_is_extensible(agent),
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).internal_is_extensible(agent)
+            }
+            Object::Int16Array(data) => TypedArray::Int16Array(data).internal_is_extensible(agent),
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).internal_is_extensible(agent)
+            }
+            Object::Int32Array(data) => TypedArray::Int32Array(data).internal_is_extensible(agent),
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).internal_is_extensible(agent)
+            }
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).internal_is_extensible(agent)
+            }
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).internal_is_extensible(agent)
+            }
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).internal_is_extensible(agent)
+            }
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).internal_is_extensible(agent)
+            }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => data.internal_is_extensible(agent),
+            Object::EmbedderObject(data) => data.internal_is_extensible(agent),
         }
     }
 
@@ -823,33 +935,55 @@ impl InternalMethods for Object {
             Object::ECMAScriptGeneratorFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_prevent_extensions(agent),
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
+            Object::DataView(data) => data.internal_prevent_extensions(agent),
+            Object::FinalizationRegistry(data) => data.internal_prevent_extensions(agent),
             Object::Map(data) => data.internal_prevent_extensions(agent),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
+            Object::Promise(data) => data.internal_prevent_extensions(agent),
+            Object::Proxy(data) => data.internal_prevent_extensions(agent),
+            Object::RegExp(data) => data.internal_prevent_extensions(agent),
             Object::Set(data) => data.internal_prevent_extensions(agent),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::SharedArrayBuffer(data) => data.internal_prevent_extensions(agent),
+            Object::WeakMap(data) => data.internal_prevent_extensions(agent),
+            Object::WeakRef(data) => data.internal_prevent_extensions(agent),
+            Object::WeakSet(data) => data.internal_prevent_extensions(agent),
+            Object::Int8Array(data) => {
+                TypedArray::Int8Array(data).internal_prevent_extensions(agent)
+            }
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).internal_prevent_extensions(agent)
+            }
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).internal_prevent_extensions(agent)
+            }
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).internal_prevent_extensions(agent)
+            }
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).internal_prevent_extensions(agent)
+            }
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).internal_prevent_extensions(agent)
+            }
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).internal_prevent_extensions(agent)
+            }
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).internal_prevent_extensions(agent)
+            }
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).internal_prevent_extensions(agent)
+            }
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).internal_prevent_extensions(agent)
+            }
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).internal_prevent_extensions(agent)
+            }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => data.internal_prevent_extensions(agent),
+            Object::EmbedderObject(data) => data.internal_prevent_extensions(agent),
         }
     }
 
@@ -881,33 +1015,57 @@ impl InternalMethods for Object {
             Object::ECMAScriptGeneratorFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_get_own_property(agent, property_key),
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
+            Object::DataView(data) => data.internal_get_own_property(agent, property_key),
+            Object::FinalizationRegistry(data) => {
+                data.internal_get_own_property(agent, property_key)
+            }
             Object::Map(data) => data.internal_get_own_property(agent, property_key),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
+            Object::Promise(data) => data.internal_get_own_property(agent, property_key),
+            Object::Proxy(data) => data.internal_get_own_property(agent, property_key),
+            Object::RegExp(data) => data.internal_get_own_property(agent, property_key),
             Object::Set(data) => data.internal_get_own_property(agent, property_key),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::SharedArrayBuffer(data) => data.internal_get_own_property(agent, property_key),
+            Object::WeakMap(data) => data.internal_get_own_property(agent, property_key),
+            Object::WeakRef(data) => data.internal_get_own_property(agent, property_key),
+            Object::WeakSet(data) => data.internal_get_own_property(agent, property_key),
+            Object::Int8Array(data) => {
+                TypedArray::Int8Array(data).internal_get_own_property(agent, property_key)
+            }
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).internal_get_own_property(agent, property_key)
+            }
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).internal_get_own_property(agent, property_key)
+            }
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).internal_get_own_property(agent, property_key)
+            }
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).internal_get_own_property(agent, property_key)
+            }
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).internal_get_own_property(agent, property_key)
+            }
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).internal_get_own_property(agent, property_key)
+            }
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).internal_get_own_property(agent, property_key)
+            }
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).internal_get_own_property(agent, property_key)
+            }
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).internal_get_own_property(agent, property_key)
+            }
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).internal_get_own_property(agent, property_key)
+            }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => data.internal_get_own_property(agent, property_key),
+            Object::EmbedderObject(data) => data.internal_get_own_property(agent, property_key),
         }
     }
 
@@ -958,37 +1116,82 @@ impl InternalMethods for Object {
                 data.internal_define_own_property(agent, property_key, property_descriptor)
             }
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
+            Object::DataView(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::FinalizationRegistry(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
             Object::Map(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor)
             }
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
+            Object::Promise(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::Proxy(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::RegExp(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
             Object::Set(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor)
             }
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::SharedArrayBuffer(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::WeakMap(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::WeakRef(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::WeakSet(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::Int8Array(data) => TypedArray::Int8Array(data).internal_define_own_property(
+                agent,
+                property_key,
+                property_descriptor,
+            ),
+            Object::Uint8Array(data) => TypedArray::Uint8Array(data).internal_define_own_property(
+                agent,
+                property_key,
+                property_descriptor,
+            ),
+            Object::Uint8ClampedArray(data) => TypedArray::Uint8ClampedArray(data)
+                .internal_define_own_property(agent, property_key, property_descriptor),
+            Object::Int16Array(data) => TypedArray::Int16Array(data).internal_define_own_property(
+                agent,
+                property_key,
+                property_descriptor,
+            ),
+            Object::Uint16Array(data) => TypedArray::Uint16Array(data)
+                .internal_define_own_property(agent, property_key, property_descriptor),
+            Object::Int32Array(data) => TypedArray::Int32Array(data).internal_define_own_property(
+                agent,
+                property_key,
+                property_descriptor,
+            ),
+            Object::Uint32Array(data) => TypedArray::Uint32Array(data)
+                .internal_define_own_property(agent, property_key, property_descriptor),
+            Object::BigInt64Array(data) => TypedArray::BigInt64Array(data)
+                .internal_define_own_property(agent, property_key, property_descriptor),
+            Object::BigUint64Array(data) => TypedArray::BigUint64Array(data)
+                .internal_define_own_property(agent, property_key, property_descriptor),
+            Object::Float32Array(data) => TypedArray::Float32Array(data)
+                .internal_define_own_property(agent, property_key, property_descriptor),
+            Object::Float64Array(data) => TypedArray::Float64Array(data)
+                .internal_define_own_property(agent, property_key, property_descriptor),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
+            Object::EmbedderObject(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
         }
     }
 
@@ -1016,33 +1219,55 @@ impl InternalMethods for Object {
             Object::ECMAScriptGeneratorFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_has_property(agent, property_key),
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
+            Object::DataView(data) => data.internal_has_property(agent, property_key),
+            Object::FinalizationRegistry(data) => data.internal_has_property(agent, property_key),
             Object::Map(data) => data.internal_has_property(agent, property_key),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
+            Object::Promise(data) => data.internal_has_property(agent, property_key),
+            Object::Proxy(data) => data.internal_has_property(agent, property_key),
+            Object::RegExp(data) => data.internal_has_property(agent, property_key),
             Object::Set(data) => data.internal_has_property(agent, property_key),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::SharedArrayBuffer(data) => data.internal_has_property(agent, property_key),
+            Object::WeakMap(data) => data.internal_has_property(agent, property_key),
+            Object::WeakRef(data) => data.internal_has_property(agent, property_key),
+            Object::WeakSet(data) => data.internal_has_property(agent, property_key),
+            Object::Int8Array(data) => {
+                TypedArray::Int8Array(data).internal_has_property(agent, property_key)
+            }
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).internal_has_property(agent, property_key)
+            }
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).internal_has_property(agent, property_key)
+            }
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).internal_has_property(agent, property_key)
+            }
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).internal_has_property(agent, property_key)
+            }
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).internal_has_property(agent, property_key)
+            }
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).internal_has_property(agent, property_key)
+            }
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).internal_has_property(agent, property_key)
+            }
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).internal_has_property(agent, property_key)
+            }
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).internal_has_property(agent, property_key)
+            }
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).internal_has_property(agent, property_key)
+            }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => data.internal_has_property(agent, property_key),
+            Object::EmbedderObject(data) => data.internal_has_property(agent, property_key),
         }
     }
 
@@ -1075,33 +1300,55 @@ impl InternalMethods for Object {
             Object::ECMAScriptGeneratorFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_get(agent, property_key, receiver),
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
+            Object::DataView(data) => data.internal_get(agent, property_key, receiver),
+            Object::FinalizationRegistry(data) => data.internal_get(agent, property_key, receiver),
             Object::Map(data) => data.internal_get(agent, property_key, receiver),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
+            Object::Promise(data) => data.internal_get(agent, property_key, receiver),
+            Object::Proxy(data) => data.internal_get(agent, property_key, receiver),
+            Object::RegExp(data) => data.internal_get(agent, property_key, receiver),
             Object::Set(data) => data.internal_get(agent, property_key, receiver),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::SharedArrayBuffer(data) => data.internal_get(agent, property_key, receiver),
+            Object::WeakMap(data) => data.internal_get(agent, property_key, receiver),
+            Object::WeakRef(data) => data.internal_get(agent, property_key, receiver),
+            Object::WeakSet(data) => data.internal_get(agent, property_key, receiver),
+            Object::Int8Array(data) => {
+                TypedArray::Int8Array(data).internal_get(agent, property_key, receiver)
+            }
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).internal_get(agent, property_key, receiver)
+            }
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).internal_get(agent, property_key, receiver)
+            }
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).internal_get(agent, property_key, receiver)
+            }
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).internal_get(agent, property_key, receiver)
+            }
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).internal_get(agent, property_key, receiver)
+            }
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).internal_get(agent, property_key, receiver)
+            }
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).internal_get(agent, property_key, receiver)
+            }
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).internal_get(agent, property_key, receiver)
+            }
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).internal_get(agent, property_key, receiver)
+            }
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).internal_get(agent, property_key, receiver)
+            }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => data.internal_get(agent, property_key, receiver),
+            Object::EmbedderObject(data) => data.internal_get(agent, property_key, receiver),
         }
     }
 
@@ -1141,33 +1388,62 @@ impl InternalMethods for Object {
                 data.internal_set(agent, property_key, value, receiver)
             }
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
+            Object::DataView(data) => data.internal_set(agent, property_key, value, receiver),
+            Object::FinalizationRegistry(data) => {
+                data.internal_set(agent, property_key, value, receiver)
+            }
             Object::Map(data) => data.internal_set(agent, property_key, value, receiver),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
+            Object::Promise(data) => data.internal_set(agent, property_key, value, receiver),
+            Object::Proxy(data) => data.internal_set(agent, property_key, value, receiver),
+            Object::RegExp(data) => data.internal_set(agent, property_key, value, receiver),
             Object::Set(data) => data.internal_set(agent, property_key, value, receiver),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::SharedArrayBuffer(data) => {
+                data.internal_set(agent, property_key, value, receiver)
+            }
+            Object::WeakMap(data) => data.internal_set(agent, property_key, value, receiver),
+            Object::WeakRef(data) => data.internal_set(agent, property_key, value, receiver),
+            Object::WeakSet(data) => data.internal_set(agent, property_key, value, receiver),
+            Object::Int8Array(data) => {
+                TypedArray::Int8Array(data).internal_set(agent, property_key, value, receiver)
+            }
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).internal_set(agent, property_key, value, receiver)
+            }
+            Object::Uint8ClampedArray(data) => TypedArray::Uint8ClampedArray(data).internal_set(
+                agent,
+                property_key,
+                value,
+                receiver,
+            ),
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).internal_set(agent, property_key, value, receiver)
+            }
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).internal_set(agent, property_key, value, receiver)
+            }
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).internal_set(agent, property_key, value, receiver)
+            }
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).internal_set(agent, property_key, value, receiver)
+            }
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).internal_set(agent, property_key, value, receiver)
+            }
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).internal_set(agent, property_key, value, receiver)
+            }
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).internal_set(agent, property_key, value, receiver)
+            }
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).internal_set(agent, property_key, value, receiver)
+            }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => data.internal_set(agent, property_key, value, receiver),
+            Object::EmbedderObject(data) => data.internal_set(agent, property_key, value, receiver),
         }
     }
 
@@ -1193,33 +1469,55 @@ impl InternalMethods for Object {
             Object::ECMAScriptGeneratorFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_delete(agent, property_key),
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
+            Object::DataView(data) => data.internal_delete(agent, property_key),
+            Object::FinalizationRegistry(data) => data.internal_delete(agent, property_key),
             Object::Map(data) => data.internal_delete(agent, property_key),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
+            Object::Promise(data) => data.internal_delete(agent, property_key),
+            Object::Proxy(data) => data.internal_delete(agent, property_key),
+            Object::RegExp(data) => data.internal_delete(agent, property_key),
             Object::Set(data) => data.internal_delete(agent, property_key),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::SharedArrayBuffer(data) => data.internal_delete(agent, property_key),
+            Object::WeakMap(data) => data.internal_delete(agent, property_key),
+            Object::WeakRef(data) => data.internal_delete(agent, property_key),
+            Object::WeakSet(data) => data.internal_delete(agent, property_key),
+            Object::Int8Array(data) => {
+                TypedArray::Int8Array(data).internal_delete(agent, property_key)
+            }
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).internal_delete(agent, property_key)
+            }
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).internal_delete(agent, property_key)
+            }
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).internal_delete(agent, property_key)
+            }
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).internal_delete(agent, property_key)
+            }
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).internal_delete(agent, property_key)
+            }
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).internal_delete(agent, property_key)
+            }
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).internal_delete(agent, property_key)
+            }
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).internal_delete(agent, property_key)
+            }
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).internal_delete(agent, property_key)
+            }
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).internal_delete(agent, property_key)
+            }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => data.internal_delete(agent, property_key),
+            Object::EmbedderObject(data) => data.internal_delete(agent, property_key),
         }
     }
 
@@ -1245,33 +1543,55 @@ impl InternalMethods for Object {
             Object::ECMAScriptGeneratorFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_own_property_keys(agent),
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
+            Object::DataView(data) => data.internal_own_property_keys(agent),
+            Object::FinalizationRegistry(data) => data.internal_own_property_keys(agent),
             Object::Map(data) => data.internal_own_property_keys(agent),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
+            Object::Promise(data) => data.internal_own_property_keys(agent),
+            Object::Proxy(data) => data.internal_own_property_keys(agent),
+            Object::RegExp(data) => data.internal_own_property_keys(agent),
             Object::Set(data) => data.internal_own_property_keys(agent),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::SharedArrayBuffer(data) => data.internal_own_property_keys(agent),
+            Object::WeakMap(data) => data.internal_own_property_keys(agent),
+            Object::WeakRef(data) => data.internal_own_property_keys(agent),
+            Object::WeakSet(data) => data.internal_own_property_keys(agent),
+            Object::Int8Array(data) => {
+                TypedArray::Int8Array(data).internal_own_property_keys(agent)
+            }
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).internal_own_property_keys(agent)
+            }
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).internal_own_property_keys(agent)
+            }
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).internal_own_property_keys(agent)
+            }
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).internal_own_property_keys(agent)
+            }
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).internal_own_property_keys(agent)
+            }
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).internal_own_property_keys(agent)
+            }
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).internal_own_property_keys(agent)
+            }
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).internal_own_property_keys(agent)
+            }
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).internal_own_property_keys(agent)
+            }
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).internal_own_property_keys(agent)
+            }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => data.internal_own_property_keys(agent),
+            Object::EmbedderObject(data) => data.internal_own_property_keys(agent),
         }
     }
 
@@ -1336,42 +1656,85 @@ impl HeapMarkAndSweep for Object {
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.mark_values(queues),
             Object::Arguments => todo!(),
-            Object::DataView(_) => todo!(),
-            Object::FinalizationRegistry(_) => todo!(),
-            Object::Map(_) => todo!(),
-            Object::Promise(_) => todo!(),
-            Object::Proxy(_) => todo!(),
-            Object::RegExp(_) => todo!(),
-            Object::Set(_) => todo!(),
-            Object::SharedArrayBuffer(_) => todo!(),
-            Object::WeakMap(_) => todo!(),
-            Object::WeakRef(_) => todo!(),
-            Object::WeakSet(_) => todo!(),
-            Object::Int8Array(_) => todo!(),
-            Object::Uint8Array(_) => todo!(),
-            Object::Uint8ClampedArray(_) => todo!(),
-            Object::Int16Array(_) => todo!(),
-            Object::Uint16Array(_) => todo!(),
-            Object::Int32Array(_) => todo!(),
-            Object::Uint32Array(_) => todo!(),
-            Object::BigInt64Array(_) => todo!(),
-            Object::BigUint64Array(_) => todo!(),
-            Object::Float32Array(_) => todo!(),
-            Object::Float64Array(_) => todo!(),
+            Object::DataView(data) => data.mark_values(queues),
+            Object::FinalizationRegistry(data) => data.mark_values(queues),
+            Object::Map(data) => data.mark_values(queues),
+            Object::Promise(data) => data.mark_values(queues),
+            Object::Proxy(data) => data.mark_values(queues),
+            Object::RegExp(data) => data.mark_values(queues),
+            Object::Set(data) => data.mark_values(queues),
+            Object::SharedArrayBuffer(data) => data.mark_values(queues),
+            Object::WeakMap(data) => data.mark_values(queues),
+            Object::WeakRef(data) => data.mark_values(queues),
+            Object::WeakSet(data) => data.mark_values(queues),
+            Object::Int8Array(data) => data.mark_values(queues),
+            Object::Uint8Array(data) => data.mark_values(queues),
+            Object::Uint8ClampedArray(data) => data.mark_values(queues),
+            Object::Int16Array(data) => data.mark_values(queues),
+            Object::Uint16Array(data) => data.mark_values(queues),
+            Object::Int32Array(data) => data.mark_values(queues),
+            Object::Uint32Array(data) => data.mark_values(queues),
+            Object::BigInt64Array(data) => data.mark_values(queues),
+            Object::BigUint64Array(data) => data.mark_values(queues),
+            Object::Float32Array(data) => data.mark_values(queues),
+            Object::Float64Array(data) => data.mark_values(queues),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
-            Object::Module(_) => todo!(),
-            Object::EmbedderObject(_) => todo!(),
+            Object::Module(data) => data.mark_values(queues),
+            Object::EmbedderObject(data) => data.mark_values(queues),
         }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         match self {
-            Self::Object(data) => data.sweep_values(compactions),
-            Self::Array(data) => data.sweep_values(compactions),
-            Self::Error(data) => data.sweep_values(compactions),
-            _ => todo!(),
+            Object::Object(data) => data.sweep_values(compactions),
+            Object::BoundFunction(data) => data.sweep_values(compactions),
+            Object::BuiltinFunction(data) => data.sweep_values(compactions),
+            Object::ECMAScriptFunction(data) => data.sweep_values(compactions),
+            Object::BuiltinGeneratorFunction => todo!(),
+            Object::BuiltinConstructorFunction => todo!(),
+            Object::BuiltinPromiseResolveFunction => todo!(),
+            Object::BuiltinPromiseRejectFunction(data) => data.sweep_values(compactions),
+            Object::BuiltinPromiseCollectorFunction => todo!(),
+            Object::BuiltinProxyRevokerFunction => todo!(),
+            Object::ECMAScriptAsyncFunction => todo!(),
+            Object::ECMAScriptAsyncGeneratorFunction => todo!(),
+            Object::ECMAScriptConstructorFunction => todo!(),
+            Object::ECMAScriptGeneratorFunction => todo!(),
+            Object::PrimitiveObject(data) => data.sweep_values(compactions),
+            Object::Arguments => todo!(),
+            Object::Array(data) => data.sweep_values(compactions),
+            Object::ArrayBuffer(data) => data.sweep_values(compactions),
+            Object::DataView(data) => data.sweep_values(compactions),
+            Object::Date(data) => data.sweep_values(compactions),
+            Object::Error(data) => data.sweep_values(compactions),
+            Object::FinalizationRegistry(data) => data.sweep_values(compactions),
+            Object::Map(data) => data.sweep_values(compactions),
+            Object::Promise(data) => data.sweep_values(compactions),
+            Object::Proxy(data) => data.sweep_values(compactions),
+            Object::RegExp(data) => data.sweep_values(compactions),
+            Object::Set(data) => data.sweep_values(compactions),
+            Object::SharedArrayBuffer(data) => data.sweep_values(compactions),
+            Object::WeakMap(data) => data.sweep_values(compactions),
+            Object::WeakRef(data) => data.sweep_values(compactions),
+            Object::WeakSet(data) => data.sweep_values(compactions),
+            Object::Int8Array(data) => data.sweep_values(compactions),
+            Object::Uint8Array(data) => data.sweep_values(compactions),
+            Object::Uint8ClampedArray(data) => data.sweep_values(compactions),
+            Object::Int16Array(data) => data.sweep_values(compactions),
+            Object::Uint16Array(data) => data.sweep_values(compactions),
+            Object::Int32Array(data) => data.sweep_values(compactions),
+            Object::Uint32Array(data) => data.sweep_values(compactions),
+            Object::BigInt64Array(data) => data.sweep_values(compactions),
+            Object::BigUint64Array(data) => data.sweep_values(compactions),
+            Object::Float32Array(data) => data.sweep_values(compactions),
+            Object::Float64Array(data) => data.sweep_values(compactions),
+            Object::AsyncFromSyncIterator => todo!(),
+            Object::AsyncIterator => todo!(),
+            Object::Iterator => todo!(),
+            Object::Module(data) => data.sweep_values(compactions),
+            Object::EmbedderObject(data) => data.sweep_values(compactions),
         }
     }
 }

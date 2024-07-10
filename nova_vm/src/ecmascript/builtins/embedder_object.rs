@@ -12,7 +12,10 @@ use crate::{
             PropertyKey, Value,
         },
     },
-    heap::indexes::{BaseIndex, EmbedderObjectIndex},
+    heap::{
+        indexes::{BaseIndex, EmbedderObjectIndex},
+        HeapMarkAndSweep,
+    },
 };
 
 use self::data::EmbedderObjectHeapData;
@@ -204,5 +207,15 @@ impl IndexMut<EmbedderObject> for Vec<Option<EmbedderObjectHeapData>> {
             .expect("EmbedderObject out of bounds")
             .as_mut()
             .expect("EmbedderObject slot empty")
+    }
+}
+
+impl HeapMarkAndSweep for EmbedderObject {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.embedder_objects.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+        compactions.embedder_objects.shift_index(&mut self.0);
     }
 }

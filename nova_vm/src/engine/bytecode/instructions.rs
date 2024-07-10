@@ -97,6 +97,9 @@ pub enum Instruction {
     /// Jump to another instruction by setting the instruction pointer
     /// if the current result is falsey.
     JumpIfNot,
+    /// Jump to another intrsuction by setting the instruction pointer if the
+    /// current result is `true`.
+    JumpIfTrue,
     /// Compare the last two values on the stack using the '<' operator rules.
     LessThan,
     /// Compare the last two values on the stack using the '<=' operator rules.
@@ -270,6 +273,7 @@ impl Instruction {
             | Self::IteratorComplete
             | Self::Jump
             | Self::JumpIfNot
+            | Self::JumpIfTrue
             | Self::LoadConstant
             | Self::PushExceptionJumpTarget
             | Self::ResolveBinding
@@ -306,7 +310,11 @@ impl Instruction {
     pub fn has_jump_slot(self) -> bool {
         matches!(
             self,
-            Self::Jump | Self::JumpIfNot | Self::PushExceptionJumpTarget | Self::IteratorComplete
+            Self::Jump
+                | Self::JumpIfNot
+                | Self::JumpIfTrue
+                | Self::PushExceptionJumpTarget
+                | Self::IteratorComplete
         )
     }
 

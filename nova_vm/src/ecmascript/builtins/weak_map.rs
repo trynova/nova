@@ -13,7 +13,7 @@ use crate::{
     },
     heap::{
         indexes::{BaseIndex, WeakMapIndex},
-        CreateHeapData,
+        CreateHeapData, HeapMarkAndSweep,
     },
     Heap,
 };
@@ -138,5 +138,15 @@ impl CreateHeapData<WeakMapHeapData, WeakMap> for Heap {
         self.weak_maps.push(Some(data));
         // TODO: The type should be checked based on data or something equally stupid
         WeakMap(WeakMapIndex::last(&self.weak_maps))
+    }
+}
+
+impl HeapMarkAndSweep for WeakMap {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.weak_maps.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+        compactions.weak_maps.shift_index(&mut self.0);
     }
 }

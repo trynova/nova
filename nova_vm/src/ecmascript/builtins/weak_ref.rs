@@ -13,7 +13,7 @@ use crate::{
     },
     heap::{
         indexes::{BaseIndex, WeakRefIndex},
-        CreateHeapData, Heap,
+        CreateHeapData, Heap, HeapMarkAndSweep,
     },
 };
 
@@ -137,5 +137,15 @@ impl CreateHeapData<WeakRefHeapData, WeakRef> for Heap {
         self.weak_refs.push(Some(data));
         // TODO: The type should be checked based on data or something equally stupid
         WeakRef(WeakRefIndex::last(&self.weak_refs))
+    }
+}
+
+impl HeapMarkAndSweep for WeakRef {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        queues.weak_refs.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+        compactions.weak_refs.shift_index(&mut self.0);
     }
 }
