@@ -73,6 +73,30 @@ impl From<Set> for Object {
     }
 }
 
+impl TryFrom<Value> for Set {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Set(set) = value {
+            Ok(set)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Object> for Set {
+    type Error = ();
+
+    fn try_from(value: Object) -> Result<Self, Self::Error> {
+        if let Object::Set(set) = value {
+            Ok(set)
+        } else {
+            Err(())
+        }
+    }
+}
+
 fn create_set_base_object(agent: &mut Agent, set: Set, entries: &[ObjectEntry]) -> OrdinaryObject {
     // TODO: An issue crops up if multiple realms are in play:
     // The prototype should not be dependent on the realm we're operating in

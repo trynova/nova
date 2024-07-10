@@ -18,7 +18,7 @@ pub struct SetHeapData {
     // ValueHash is created using a Value.hash(agent) function and connects to
     // an index; the index points to a value in Vec.
     // Note that empty slots are deleted values in the Vec.
-    pub(crate) set: Vec<Value>,
+    pub(crate) set: Vec<Option<Value>>,
     // TODO: When an non-terminal (start or end) iterator exists for the Set,
     // the items in the map cannot be compacted.
     // pub(crate) observed: bool;

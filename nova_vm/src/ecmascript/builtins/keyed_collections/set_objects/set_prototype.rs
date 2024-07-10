@@ -4,10 +4,18 @@
 
 use crate::{
     ecmascript::{
+        abstract_operations::{
+            operations_on_objects::call_function,
+            testing_and_comparison::{is_callable, same_value},
+        },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        builtins::{
+            keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
+            set::{data::SetHeapData, Set},
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{Function, IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -28,7 +36,7 @@ impl Builtin for SetPrototypeClear {
 }
 struct SetPrototypeDelete;
 impl Builtin for SetPrototypeDelete {
-    const NAME: String = BUILTIN_STRING_MEMORY.every;
+    const NAME: String = BUILTIN_STRING_MEMORY.delete;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::delete);
 }
@@ -76,36 +84,188 @@ impl BuiltinIntrinsic for SetPrototypeValues {
 }
 
 impl SetPrototype {
-    fn add(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// #### [24.2.4.1 Set.prototype.add ( value )](https://tc39.es/ecma262/#sec-set.prototype.add)
+    fn add(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
+        let s = require_set_data_internal_slot(agent, this_value)?;
+        // 3. Set value to CanonicalizeKeyedCollectionKey(value).
+        let value = canonicalize_keyed_collection_key(agent, arguments.get(0));
+        // 4. For each element e of S.[[SetData]], do
+        let result = agent[s]
+            .set
+            .iter()
+            .any(|&e| e.map_or(false, |e| e == value || same_value(agent, e, value)));
+        // a. If e is not EMPTY and SameValue(e, value) is true, then
+        // i. Return S.
+        if !result {
+            // 5. Append value to S.[[SetData]].
+            agent[s].set.push(Some(value));
+        }
+        // 6. Return S.
+        Ok(s.into_value())
     }
 
-    fn clear(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [24.2.4.2 Set.prototype.clear ( )](https://tc39.es/ecma262/#sec-set.prototype.clear)
+    ///
+    /// > #### Note
+    /// > The existing \[\[SetData]] List is preserved because there may be
+    /// > existing Set Iterator objects that are suspended midway through
+    /// > iterating over that List.
+    fn clear(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
+        let s = require_set_data_internal_slot(agent, this_value)?;
+        // 3. For each element e of S.[[SetData]], do
+        for e in agent[s].set.iter_mut() {
+            // a. Replace the element of S.[[SetData]] whose value is e with an
+            // element whose value is EMPTY.
+            *e = None;
+        }
+        // 4. Return undefined.
+        Ok(Value::Undefined)
+    }
+
+    /// ### [24.2.4.4 Set.prototype.delete ( value )](https://tc39.es/ecma262/#sec-set.prototype.delete)
+    ///
+    /// > #### Note
+    /// >
+    /// > The value EMPTY is used as a specification device to indicate that an
+    /// > entry has been deleted. Actual implementations may take other actions
+    /// > such as physically removing the entry from internal data structures.
+    fn delete(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
+        let s = require_set_data_internal_slot(agent, this_value)?;
+        // 3. Set value to CanonicalizeKeyedCollectionKey(value).
+        let value = canonicalize_keyed_collection_key(agent, arguments.get(0));
+        // 4. For each element e of S.[[SetData]], do
+        for e in agent[s].set.iter_mut() {
+            // a. If e is not EMPTY and SameValue(e, value) is true, then
+            if *e == Some(value) {
+                // i. Replace the element of S.[[SetData]] whose value is e with an element whose value is EMPTY.
+                *e = None;
+                // ii. Return true.
+                return Ok(true.into());
+            }
+        }
+        // 5. Return false.
+        Ok(false.into())
     }
 
     fn entries(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         todo!()
     }
 
-    fn delete(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [24.2.4.7 Set.prototype.forEach ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-set.prototype.foreach)
+    ///
+    /// > #### Note
+    /// > `callbackfn` should be a function that accepts three arguments.
+    /// > **forEach** calls `callbackfn` once for each value present in the Set
+    /// > object, in value insertion order. `callbackfn` is called only for
+    /// > values of the Set which actually exist; it is not called for keys
+    /// > that have been deleted from the set.
+    /// >
+    /// > If a `thisArg` parameter is provided, it will be used as the **this**
+    /// > value for each invocation of `callbackfn`. If it is not provided,
+    /// > **undefined** is used instead.
+    /// >
+    /// > `callbackfn` is called with three arguments: the first two arguments
+    /// > are a value contained in the Set. The same value is passed for both
+    /// > arguments. The Set object being traversed is passed as the third
+    /// > argument.
+    /// >
+    /// > The `callbackfn` is called with three arguments to be consistent with
+    /// > the call back functions used by **forEach** methods for Map and
+    /// > Array. For Sets, each item value is considered to be both the key and
+    /// > the value.
+    /// >
+    /// > **forEach** does not directly mutate the object on which it is called
+    /// > but the object may be mutated by the calls to `callbackfn`.
+    /// >
+    /// > Each value is normally visited only once. However, a value will be
+    /// > revisited if it is deleted after it has been visited and then
+    /// > re-added before the **forEach** call completes. Values that are
+    /// > deleted after the call to **forEach** begins and before being visited
+    /// > are not visited unless the value is added again before the
+    /// > **forEach** call completes. New values added after the call to
+    /// > **forEach** begins are visited.
+    fn for_each(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let callback_fn = arguments.get(0);
+        let this_arg = arguments.get(1);
+        // 1. Let S be the this value.
+        // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
+        let s = require_set_data_internal_slot(agent, this_value)?;
+        // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
+        if !is_callable(callback_fn) {
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                "Callback function is not a function",
+            ));
+        }
+        let callback_fn = Function::try_from(callback_fn).unwrap();
+        // 4. Let entries be S.[[SetData]].
+        // 5. Let numEntries be the number of elements in entries.
+        let mut num_entries = agent[s].set.len();
+        // 6. Let index be 0.
+        let mut index = 0;
+        // 7. Repeat, while index < numEntries,
+        while index < num_entries {
+            // a. Let e be entries[index].
+            let e = agent[s].set[index];
+            // b. Set index to index + 1.
+            index += 1;
+            // c. If e is not EMPTY, then
+            if let Some(e) = e {
+                // i. Perform ? Call(callbackfn, thisArg, « e, e, S »).
+                call_function(
+                    agent,
+                    callback_fn,
+                    this_arg,
+                    Some(ArgumentsList(&[e, e, s.into_value()])),
+                )?;
+                // ii. NOTE: The number of elements in entries may have increased during execution of callbackfn.
+                // iii. Set numEntries to the number of elements in entries.
+                num_entries = agent[s].set.len();
+            }
+        }
+        // 8. Return undefined.
+        Ok(Value::Undefined)
     }
 
-    fn for_each(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
-    }
-
-    fn has(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [24.2.4.8 Set.prototype.has ( value )](https://tc39.es/ecma262/#sec-set.prototype.has)
+    fn has(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
+        let s = require_set_data_internal_slot(agent, this_value)?;
+        // 3. Set value to CanonicalizeKeyedCollectionKey(value).
+        let value = canonicalize_keyed_collection_key(agent, arguments.get(0));
+        // 4. For each element e of S.[[SetData]], do
+        // a. If e is not EMPTY and SameValue(e, value) is true, return true.
+        let result = agent[s]
+            .set
+            .iter()
+            .any(|&e| e.map_or(false, |e| e == value || same_value(agent, e, value)));
+        // 5. Return false.
+        Ok(result.into())
     }
 
     fn keys(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_size(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [24.2.4.14 get Set.prototype.size](https://tc39.es/ecma262/#sec-get-set.prototype.size)
+    ///
+    /// Set.prototype.size is an accessor property whose set accessor function
+    /// is undefined.
+    fn get_size(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
+        let s = require_set_data_internal_slot(agent, this_value)?;
+        // 3. Let size be SetDataSize(S.[[SetData]]).
+        let size = set_data_size(&agent[s]);
+        // 4. Return 𝔽(size).
+        Ok(Number::try_from(size).unwrap().into_value())
     }
 
     fn values(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
@@ -150,4 +310,25 @@ impl SetPrototype {
             })
             .build();
     }
+}
+
+#[inline(always)]
+fn require_set_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<Set> {
+    match value {
+        Value::Set(map) => Ok(map),
+        _ => Err(agent.throw_exception(ExceptionType::TypeError, "Object is not a Set")),
+    }
+}
+
+/// ### [24.2.1.5 SetDataSize ( setData )](https://tc39.es/ecma262/#sec-setdatasize)
+///
+/// The abstract operation SetDataSize takes argument setData (a List of either
+/// ECMAScript language values or EMPTY) and returns a non-negative integer.
+#[inline(always)]
+fn set_data_size(set_data: &SetHeapData) -> usize {
+    // 1. Let count be 0.
+    // 2. For each element e of setData, do
+    // a. If e is not EMPTY, set count to count + 1.
+    // 3. Return count.
+    set_data.set.iter().filter(|&e| e.is_some()).count()
 }

@@ -378,7 +378,7 @@ fn require_map_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<M
 /// ### [24.5.1 CanonicalizeKeyedCollectionKey ( key )](https://tc39.es/ecma262/#sec-canonicalizekeyedcollectionkey)
 /// The abstract operation CanonicalizeKeyedCollectionKey takes argument key
 /// (an ECMAScript language value) and returns an ECMAScript language value.
-pub(super) fn canonicalize_keyed_collection_key(agent: &Agent, key: Value) -> Value {
+pub(crate) fn canonicalize_keyed_collection_key(agent: &Agent, key: Value) -> Value {
     // 1. If key is -0𝔽, return +0𝔽.
     if let Value::Float(key) = key {
         // Note: Only f32 should hold -0.
