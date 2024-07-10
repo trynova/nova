@@ -8,7 +8,7 @@ use crate::{
             operations_on_iterator_objects::{
                 get_iterator, if_abrupt_close_iterator, iterator_step_value,
             },
-            operations_on_objects::{call_function, get},
+            operations_on_objects::{call_function, get, get_method},
             testing_and_comparison::{is_callable, same_value},
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
@@ -84,12 +84,17 @@ impl SetConstructor {
         if let Value::Array(iterable) = iterable {
             if iterable.is_trivial(agent)
                 && iterable.is_dense(agent)
-                && adder
-                    == agent
+                && get_method(
+                    agent,
+                    iterable.into_value(),
+                    PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+                )? == Some(
+                    agent
                         .current_realm()
                         .intrinsics()
                         .array_prototype_values()
-                        .into_function()
+                        .into_function(),
+                )
             {
                 // Accessorless, holeless array with standard Array values
                 // iterator. We can fast-path this.
