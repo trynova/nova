@@ -305,31 +305,31 @@ impl Value {
         matches!(self, Value::Undefined)
     }
 
-    pub fn is_pos_zero(self, agent: &mut Agent) -> bool {
+    pub fn is_pos_zero(self, agent: &Agent) -> bool {
         Number::try_from(self)
             .map(|n| n.is_pos_zero(agent))
             .unwrap_or(false)
     }
 
-    pub fn is_neg_zero(self, agent: &mut Agent) -> bool {
+    pub fn is_neg_zero(self, agent: &Agent) -> bool {
         Number::try_from(self)
             .map(|n| n.is_neg_zero(agent))
             .unwrap_or(false)
     }
 
-    pub fn is_pos_infinity(self, agent: &mut Agent) -> bool {
+    pub fn is_pos_infinity(self, agent: &Agent) -> bool {
         Number::try_from(self)
             .map(|n| n.is_pos_infinity(agent))
             .unwrap_or(false)
     }
 
-    pub fn is_neg_infinity(self, agent: &mut Agent) -> bool {
+    pub fn is_neg_infinity(self, agent: &Agent) -> bool {
         Number::try_from(self)
             .map(|n| n.is_neg_infinity(agent))
             .unwrap_or(false)
     }
 
-    pub fn is_nan(self, agent: &mut Agent) -> bool {
+    pub fn is_nan(self, agent: &Agent) -> bool {
         Number::try_from(self)
             .map(|n| n.is_nan(agent))
             .unwrap_or(false)

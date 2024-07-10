@@ -88,6 +88,7 @@ decodeURIComponent
 default
 defineProperties
 defineProperty
+delete
 deleteProperty
 deref
 description
@@ -367,7 +368,6 @@ subarray
 substring
 symbol
 Symbol
-Symbol()
 Symbol.asyncIterator
 Symbol.hasInstance
 Symbol.isConcatSpreadable
@@ -381,6 +381,7 @@ Symbol.split
 Symbol.toPrimitive
 Symbol.toStringTag
 Symbol.unscopables
+Symbol()
 SyntaxError
 tan
 tanh

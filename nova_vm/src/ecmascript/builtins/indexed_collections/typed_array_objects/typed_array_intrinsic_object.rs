@@ -87,11 +87,7 @@ impl TypedArrayIntrinsicObject {
         todo!();
     }
 
-    fn get_species(
-        _agent: &mut Agent,
-        this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_species(_: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         Ok(this_value)
     }
 
