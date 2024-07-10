@@ -303,7 +303,7 @@ impl MapPrototype {
 
     fn get_size(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         let m = require_map_data_internal_slot(agent, this_value)?;
-        let count = agent[m].keys.len() as u32;
+        let count = agent[m].keys.iter().filter(|key| key.is_some()).count() as u32;
         Ok(count.into())
     }
 
