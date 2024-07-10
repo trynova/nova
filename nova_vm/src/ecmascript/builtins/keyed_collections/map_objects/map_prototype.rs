@@ -29,7 +29,7 @@ impl Builtin for MapPrototypeClear {
 }
 struct MapPrototypeDelete;
 impl Builtin for MapPrototypeDelete {
-    const NAME: String = BUILTIN_STRING_MEMORY.every;
+    const NAME: String = BUILTIN_STRING_MEMORY.delete;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::delete);
 }
