@@ -52,8 +52,17 @@ impl JsError {
 // pub struct PreAllocated;
 
 pub trait HostHooks: std::fmt::Debug {
-    fn host_ensure_can_compile_strings(&self, callee_realm: &mut Realm) -> JsResult<()>;
-    fn host_has_source_text_available(&self, func: Function) -> bool;
+    /// ### [19.2.1.2 HostEnsureCanCompileStrings ( calleeRealm )](https://tc39.es/ecma262/#sec-hostensurecancompilestrings)
+    fn host_ensure_can_compile_strings(&self, _callee_realm: &mut Realm) -> JsResult<()> {
+        // The default implementation of HostEnsureCanCompileStrings is to return NormalCompletion(unused).
+        Ok(())
+    }
+
+    /// ### [20.2.5 HostHasSourceTextAvailable ( func )](https://tc39.es/ecma262/#sec-hosthassourcetextavailable)
+    fn host_has_source_text_available(&self, _func: Function) -> bool {
+        // The default implementation of HostHasSourceTextAvailable is to return true.
+        true
+    }
 }
 
 /// ### [9.7 Agents](https://tc39.es/ecma262/#sec-agents)
