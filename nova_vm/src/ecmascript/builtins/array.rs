@@ -49,6 +49,10 @@ impl Array {
         agent[*self].elements.len()
     }
 
+    pub fn is_empty(&self, agent: &Agent) -> bool {
+        agent[*self].elements.len() == 0
+    }
+
     pub fn is_dense(self, agent: &Agent) -> bool {
         agent[self].elements.is_dense(agent)
     }

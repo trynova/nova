@@ -2,7 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use num_traits::Zero;
 use small_string::SmallString;
 
 use crate::{
@@ -19,8 +18,8 @@ use crate::{
         builtins::{array_species_create, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
-            Function, IntoFunction, IntoValue, Number, Object, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            Function, IntoFunction, IntoObject, IntoValue, Number, Object, PropertyKey, String,
+            Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{Heap, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
@@ -764,8 +763,97 @@ impl ArrayPrototype {
         Ok(o.into_value())
     }
 
-    fn filter(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.8 Array.prototype.filter ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.filter)
+    ///
+    /// > #### Note 1
+    /// > `callbackfn` should be a function that accepts three arguments and
+    /// > returns a value that is coercible to a Boolean value. **filter**
+    /// > calls `callbackfn` once for each element in the array, in ascending
+    /// > order, and constructs a new array of all the values for which
+    /// > `callbackfn` returns **true**. `callbackfn` is called only for
+    /// > elements of the array which actually exist; it is not called for
+    /// > missing elements of the array.
+    /// >
+    /// > If a `thisArg` parameter is provided, it will be used as the **this**
+    /// > value for each invocation of `callbackfn`. If it is not provided,
+    /// > **undefined** is used instead.
+    /// >
+    /// > `callbackfn` is called with three arguments: the value of the
+    /// > element, the index of the element, and the object being traversed.
+    /// >
+    /// > **filter** does not directly mutate the object on which it is called
+    /// > but the object may be mutated by the calls to `callbackfn`.
+    /// >
+    /// > The range of elements processed by **filter** is set before the first
+    /// > call to `callbackfn`. Elements which are appended to the array after
+    /// > the call to **filter** begins will not be visited by `callbackfn`. If
+    /// > existing elements of the array are changed their value as passed to
+    /// > `callbackfn` will be the value at the time **filter** visits them;
+    /// > elements that are deleted after the call to **filter** begins and
+    /// > before being visited are not visited.
+    ///
+    /// > #### Note 2
+    /// >
+    /// > This method is intentionally generic; it does not require that its
+    /// > **this** value be an Array. Therefore it can be transferred to other
+    /// > kinds of objects for use as a method.
+    fn filter(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let callback_fn = arguments.get(0);
+        let this_arg = arguments.get(1);
+
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
+        if !is_callable(callback_fn) {
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                "Callback function is not callable",
+            ));
+        }
+        let callback_fn = Function::try_from(callback_fn).unwrap();
+        // 4. Let A be ? ArraySpeciesCreate(O, 0).
+        let a = array_species_create(agent, o, 0)?;
+        // 5. Let k be 0.
+        let mut k = 0;
+        // 6. Let to be 0.
+        let mut to: u32 = 0;
+        // 7. Repeat, while k < len,
+        while k < len {
+            // a. Let Pk be ! ToString(𝔽(k)).
+            let pk = PropertyKey::from(SmallInteger::try_from(k).unwrap());
+            // b. Let kPresent be ? HasProperty(O, Pk).
+            let k_present = has_property(agent, o, pk)?;
+            // c. If kPresent is true, then
+            if k_present {
+                // i. Let kValue be ? Get(O, Pk).
+                let k_value = get(agent, o, pk)?;
+                // ii. Let selected be ToBoolean(? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »)).
+                let result = call_function(
+                    agent,
+                    callback_fn,
+                    this_arg,
+                    Some(ArgumentsList(&[
+                        k_value,
+                        k.try_into().unwrap(),
+                        o.into_value(),
+                    ])),
+                )?;
+                let selected = to_boolean(agent, result);
+                // iii. If selected is true, then
+                if selected {
+                    // 1. Perform ? CreateDataPropertyOrThrow(A, ! ToString(𝔽(to)), kValue).
+                    create_data_property_or_throw(agent, a, to.into(), k_value)?;
+                    // 2. Set to to to + 1.
+                    to += 1;
+                }
+            }
+            // d. Set k to k + 1.
+            k += 1;
+        }
+        // 8. Return A.
+        Ok(a.into_value())
     }
 
     /// ### [23.1.3.9 Array.prototype.find ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.find)
@@ -868,12 +956,72 @@ impl ArrayPrototype {
         Ok(Number::try_from(find_rec.0).unwrap().into_value())
     }
 
-    fn flat(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.13 Array.prototype.flat ( \[ depth \] )]()
+    fn flat(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let depth = arguments.get(0);
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let sourceLen be ? LengthOfArrayLike(O).
+        let source_len = length_of_array_like(agent, o)? as usize;
+        // 3. Let depthNum be 1.
+        let mut depth_num = 1;
+        // 4. If depth is not undefined, then
+        if !depth.is_undefined() {
+            // a. Set depthNum to ? ToIntegerOrInfinity(depth).
+            depth_num = to_integer_or_infinity(agent, depth)?.into_i64(agent);
+        }
+        // b. If depthNum < 0, set depthNum to 0.
+        if depth_num < 0 {
+            depth_num = 0;
+        }
+        // 5. Let A be ? ArraySpeciesCreate(O, 0).
+        let a = array_species_create(agent, o, 0)?;
+        // 6. Perform ? FlattenIntoArray(A, O, sourceLen, 0, depthNum).
+        flatten_into_array(
+            agent,
+            a,
+            o,
+            source_len,
+            0,
+            Some(depth_num as usize),
+            None,
+            None,
+        )?;
+        // 7. Return A.
+        Ok(a.into_value())
     }
 
-    fn flat_map(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.14 Array.prototype.flatMap ( mapperFunction \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.flatmap)
+    fn flat_map(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let mapper_function = arguments.get(0);
+        let this_arg = arguments.get(1);
+
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let sourceLen be ? LengthOfArrayLike(O).
+        let source_len = length_of_array_like(agent, o)? as usize;
+        // 3. If IsCallable(mapperFunction) is false, throw a TypeError exception.
+        if !is_callable(mapper_function) {
+            return Err(
+                agent.throw_exception(ExceptionType::TypeError, "Mapper function is not callable")
+            );
+        }
+        let mapper_function = Function::try_from(mapper_function).unwrap();
+        // 4. Let A be ? ArraySpeciesCreate(O, 0).
+        let a = array_species_create(agent, o, 0)?;
+        // 5. Perform ? FlattenIntoArray(A, O, sourceLen, 0, 1, mapperFunction, thisArg).
+        flatten_into_array(
+            agent,
+            a,
+            o,
+            source_len,
+            0,
+            Some(1),
+            Some(mapper_function),
+            Some(this_arg),
+        )?;
+        // 6. Return A.
+        Ok(a.into_value())
     }
 
     /// ### [23.1.3.15 Array.prototype.forEach ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.foreach)
@@ -1155,7 +1303,7 @@ impl ArrayPrototype {
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o)?;
         // 3. If len = 0, return -1𝔽.
-        if len.is_zero() {
+        if len == 0 {
             return Ok((-1).into());
         }
         // 4. Let n be ? ToIntegerOrInfinity(fromIndex).
@@ -1628,12 +1776,295 @@ impl ArrayPrototype {
         todo!()
     }
 
-    fn shift(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.27 Array.prototype.shift ( )](https://tc39.es/ecma262/#sec-array.prototype.shift)
+    ///
+    /// This method removes the first element of the array and returns it.
+    ///
+    /// > ### Note
+    /// >
+    /// > This method is intentionally generic; it does not require that its
+    /// > this value be an Array. Therefore it can be transferred to other
+    /// > kinds of objects for use as a method.
+    fn shift(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        if let Value::Array(array) = this_value {
+            if array.is_empty(agent) {
+                if agent[array].elements.len_writable {
+                    return Ok(Value::Undefined);
+                } else {
+                    // This will throw
+                    set(
+                        agent,
+                        array.into_object(),
+                        BUILTIN_STRING_MEMORY.length.into(),
+                        0.into(),
+                        true,
+                    )?;
+                    unreachable!();
+                }
+            }
+            if array.is_trivial(agent) && array.is_dense(agent) {
+                // Fast path: Array is dense and contains no descriptors. No JS
+                // functions can thus be called by shift.
+                let slice = array.as_mut_slice(agent);
+                let first = slice[0].unwrap();
+                slice.copy_within(1.., 0);
+                *slice.last_mut().unwrap() = None;
+                let array_data = &mut agent[array];
+                if array_data.elements.len_writable {
+                    array_data.elements.len -= 1;
+                    return Ok(first);
+                } else {
+                    // This will throw
+                    set(
+                        agent,
+                        array.into_object(),
+                        BUILTIN_STRING_MEMORY.length.into(),
+                        (array.len(agent) - 1).into(),
+                        true,
+                    )?;
+                    unreachable!();
+                }
+            }
+        }
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        // 3. If len = 0, then
+        if len == 0 {
+            // a. Perform ? Set(O, "length", +0𝔽, true).
+            set(
+                agent,
+                o,
+                BUILTIN_STRING_MEMORY.length.into(),
+                0.into(),
+                true,
+            )?;
+            // b. Return undefined.
+            return Ok(Value::Undefined);
+        }
+        // 4. Let first be ? Get(O, "0").
+        let first = get(agent, o, 0.into())?;
+        // 5. Let k be 1.
+        let mut k = 1;
+        // 6. Repeat, while k < len,
+        while k < len {
+            // a. Let from be ! ToString(𝔽(k)).
+            let from = k.try_into().unwrap();
+            // b. Let to be ! ToString(𝔽(k - 1)).
+            let to = (k - 1).try_into().unwrap();
+            // c. Let fromPresent be ? HasProperty(O, from).
+            let from_present = has_property(agent, o, from)?;
+            // d. If fromPresent is true, then
+            if from_present {
+                // i. Let fromValue be ? Get(O, from).
+                let from_value = get(agent, o, from)?;
+                // ii. Perform ? Set(O, to, fromValue, true).
+                set(agent, o, to, from_value, true)?;
+            } else {
+                // e. Else,
+                // i. Assert: fromPresent is false.
+                // ii. Perform ? DeletePropertyOrThrow(O, to).
+                delete_property_or_throw(agent, o, to)?;
+            }
+            // f. Set k to k + 1.
+            k += 1;
+        }
+        // 7. Perform ? DeletePropertyOrThrow(O, ! ToString(𝔽(len - 1))).
+        delete_property_or_throw(agent, o, (len - 1).try_into().unwrap())?;
+        // 8. Perform ? Set(O, "length", 𝔽(len - 1), true).
+        set(
+            agent,
+            o,
+            BUILTIN_STRING_MEMORY.length.into(),
+            (len - 1).try_into().unwrap(),
+            true,
+        )?;
+        // 9. Return first.
+        Ok(first)
     }
 
-    fn slice(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.28 Array.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-array.prototype.slice)
+    ///
+    /// This method returns an array containing the elements of the array from
+    /// element start up to, but not including, element end (or through the end
+    /// of the array if end is undefined). If start is negative, it is treated
+    /// as length + start where length is the length of the array. If end is
+    /// negative, it is treated as length + end where length is the length of
+    /// the array.
+    ///
+    /// > #### Note 1
+    /// > The explicit setting of the "length" property in step 15 is intended
+    /// > to ensure the length is correct even when A is not a built-in Array.
+    ///
+    /// > #### Note 2
+    /// > This method is intentionally generic; it does not require that its
+    /// > this value be an Array. Therefore it can be transferred to other
+    /// > kinds of objects for use as a method.
+    fn slice(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let start = arguments.get(0);
+        let end = arguments.get(1);
+        if let (
+            Value::Array(array),
+            Value::Undefined | Value::Integer(_),
+            Value::Undefined | Value::Integer(_),
+        ) = (this_value, start, end)
+        {
+            let len = array.len(agent) as usize;
+            if array.is_trivial(agent) && array.is_dense(agent) {
+                let start = if let Value::Integer(relative_start) = start {
+                    let relative_start = relative_start.into_i64();
+                    if relative_start < 0 {
+                        (len as i64 + relative_start).max(0) as usize
+                    } else {
+                        relative_start as usize
+                    }
+                } else {
+                    0
+                };
+                let end = if let Value::Integer(relative_end) = end {
+                    let relative_end = relative_end.into_i64();
+                    if relative_end < 0 {
+                        (len as i64 + relative_end).max(0) as usize
+                    } else {
+                        (relative_end as usize).min(len)
+                    }
+                } else {
+                    len
+                };
+                let count = end.saturating_sub(start);
+                let a = array_species_create(agent, array.into_object(), count)?;
+                if count == 0 {
+                    set(
+                        agent,
+                        a,
+                        BUILTIN_STRING_MEMORY.length.into(),
+                        0.into(),
+                        true,
+                    )?;
+                    return Ok(a.into_value());
+                }
+                if let Object::Array(a) = a {
+                    if a.len(agent) as usize == count
+                        && a.is_trivial(agent)
+                        && a.as_slice(agent).iter().all(|el| el.is_none())
+                    {
+                        // Array full of holes
+                        let source_data = array.as_slice(agent)[start..end].as_ptr();
+                        let destination_data = a.as_mut_slice(agent).as_mut_ptr();
+                        // SAFETY: Source and destination are properly aligned
+                        // and valid for reads/writes. They do not overlap.
+                        // From JS point of view, setting data properties to
+                        // the destination would not call any JS code so this
+                        // is spec-wise correct.
+                        unsafe {
+                            std::ptr::copy_nonoverlapping(source_data, destination_data, count)
+                        };
+                        set(
+                            agent,
+                            a.into_object(),
+                            BUILTIN_STRING_MEMORY.length.into(),
+                            Number::try_from(count).unwrap().into_value(),
+                            true,
+                        )?;
+                        return Ok(a.into_value());
+                    }
+                }
+                let mut k = start;
+                let mut n = 0u32;
+                while k < end {
+                    // a. Let Pk be ! ToString(𝔽(k)).
+                    // b. Let kPresent be ? HasProperty(O, Pk).
+                    // Note: Array is dense, we do not need to check this.
+                    // c. If kPresent is true, then
+                    // i. Let kValue be ? Get(O, Pk).
+                    let k_value = array.as_slice(agent)[k].unwrap();
+                    // ii. Perform ? CreateDataPropertyOrThrow(A, ! ToString(𝔽(n)), kValue).
+                    create_data_property_or_throw(agent, a, n.into(), k_value)?;
+                    // d. Set k to k + 1.
+                    k += 1;
+                    // e. Set n to n + 1.
+                    n += 1;
+                }
+                // 15. Perform ? Set(A, "length", 𝔽(n), true).
+                set(
+                    agent,
+                    a.into_object(),
+                    BUILTIN_STRING_MEMORY.length.into(),
+                    n.into(),
+                    true,
+                )?;
+                // 16. Return A.
+                return Ok(a.into_value());
+            }
+        }
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)? as usize;
+        // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
+        let relative_start = to_integer_or_infinity(agent, start)?;
+        // 4. If relativeStart = -∞, let k be 0.
+        let mut k = if relative_start.is_neg_infinity(agent) {
+            0
+        } else if relative_start.into_i64(agent) < 0 {
+            // 5. Else if relativeStart < 0, let k be max(len + relativeStart, 0).
+            (len as i64 + relative_start.into_i64(agent)).max(0) as usize
+        } else {
+            // 6. Else, let k be min(relativeStart, len).
+            relative_start.into_usize(agent).min(len)
+        };
+
+        // 7. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
+        let relative_end = if end.is_undefined() {
+            len.try_into().unwrap()
+        } else {
+            to_integer_or_infinity(agent, end)?
+        };
+        // 8. If relativeEnd = -∞, let final be 0.
+        let final_end = if relative_end.is_neg_infinity(agent) {
+            0
+        } else if relative_end.into_i64(agent) < 0 {
+            // 9. Else if relativeEnd < 0, let final be max(len + relativeEnd, 0).
+            (len as i64 + relative_end.into_i64(agent)).max(0) as usize
+        } else {
+            // 10. Else, let final be min(relativeEnd, len).
+            relative_end.into_usize(agent).min(len)
+        };
+        // 11. Let count be max(final - k, 0).
+        let count = final_end.saturating_sub(k);
+        // 12. Let A be ? ArraySpeciesCreate(O, count).
+        let a = array_species_create(agent, o, count)?;
+        // 13. Let n be 0.
+        let mut n = 0u32;
+        // 14. Repeat, while k < final,
+        while k < final_end {
+            // a. Let Pk be ! ToString(𝔽(k)).
+            let pk = k.try_into().unwrap();
+            // b. Let kPresent be ? HasProperty(O, Pk).
+            let k_present = has_property(agent, o, pk)?;
+            // c. If kPresent is true, then
+            if k_present {
+                // i. Let kValue be ? Get(O, Pk).
+                let k_value = get(agent, o, pk)?;
+                // ii. Perform ? CreateDataPropertyOrThrow(A, ! ToString(𝔽(n)), kValue).
+                create_data_property_or_throw(agent, a, n.into(), k_value)?;
+            }
+            // d. Set k to k + 1.
+            k += 1;
+            // e. Set n to n + 1.
+            n += 1;
+        }
+        // 15. Perform ? Set(A, "length", 𝔽(n), true).
+        set(
+            agent,
+            a,
+            BUILTIN_STRING_MEMORY.length.into(),
+            n.into(),
+            true,
+        )?;
+        // 16. Return A.
+        Ok(a.into_value())
     }
 
     fn some(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
@@ -1930,4 +2361,108 @@ fn find_via_predicate(
     };
     // 5. Return the Record { [[Index]]: -1𝔽, [[Value]]: undefined }.
     Ok((-1, Value::Undefined))
+}
+
+/// ### [23.1.3.13.1 FlattenIntoArray ( target, source, sourceLen, start, depth \[ , mapperFunction \[ , thisArg \] \] )](https://tc39.es/ecma262/#sec-flattenintoarray)
+/// The abstract operation FlattenIntoArray takes arguments target (an Object),
+/// source (an Object), sourceLen (a non-negative integer), start (a
+/// non-negative integer), and depth (a non-negative integer or +∞) and
+/// optional arguments mapperFunction (a function object) and thisArg (an
+/// ECMAScript language value) and returns either a normal completion
+/// containing a non-negative integer or a throw completion.
+#[allow(clippy::too_many_arguments)]
+fn flatten_into_array(
+    agent: &mut Agent,
+    target: Object,
+    source: Object,
+    source_len: usize,
+    start: usize,
+    depth: Option<usize>,
+    mapper_function: Option<Function>,
+    this_arg: Option<Value>,
+) -> JsResult<usize> {
+    // 1. Assert: If mapperFunction is present, then IsCallable(mapperFunction) is true, thisArg is present, and depth is 1.
+    assert!(mapper_function.is_none() || this_arg.is_some() && depth == Some(1));
+    // 2. Let targetIndex be start.
+    let mut target_index = start;
+    // 3. Let sourceIndex be +0𝔽.
+    let mut source_index = 0;
+    // 4. Repeat, while ℝ(sourceIndex) < sourceLen,
+    while source_index < source_len {
+        // a. Let P be ! ToString(sourceIndex).
+        let source_index_number = Number::try_from(source_index).unwrap();
+        let p = PropertyKey::try_from(source_index).unwrap();
+        // b. Let exists be ? HasProperty(source, P).
+        let exists = has_property(agent, source, p)?;
+        // c. If exists is true, then
+        if !exists {
+            // d. Set sourceIndex to sourceIndex + 1𝔽.
+            source_index += 1;
+            continue;
+        }
+        // i. Let element be ? Get(source, P).
+        let element = get(agent, source, p)?;
+        // ii. If mapperFunction is present, then
+        let element = if let Some(mapper_function) = mapper_function {
+            // 1. Set element to ? Call(mapperFunction, thisArg, « element, sourceIndex, source »).
+            call_function(
+                agent,
+                mapper_function,
+                this_arg.unwrap(),
+                Some(ArgumentsList(&[
+                    element,
+                    source_index_number.into_value(),
+                    source.into_value(),
+                ])),
+            )?
+        } else {
+            element
+        };
+        // iii. Let shouldFlatten be false.
+        let mut should_flatten = false;
+        // iv. If depth > 0, then
+        if depth.map_or(true, |depth| depth > 0) {
+            // 1. Set shouldFlatten to ? IsArray(element).
+            should_flatten = is_array(agent, element)?;
+        }
+        // v. If shouldFlatten is true, then
+        if should_flatten {
+            // Note: Element is necessary an Array.
+            let element = Object::try_from(element).unwrap();
+            let new_depth = depth.map(|depth| depth - 1);
+            // 3. Let elementLen be ? LengthOfArrayLike(element).
+            let element_len = length_of_array_like(agent, element)? as usize;
+            // 4. Set targetIndex to ? FlattenIntoArray(target, element, elementLen, targetIndex, newDepth).
+            target_index = flatten_into_array(
+                agent,
+                target,
+                element,
+                element_len,
+                target_index,
+                new_depth,
+                None,
+                None,
+            )?;
+        } else {
+            // vi. Else,
+            // 1. If targetIndex ≥ 2**53 - 1, throw a TypeError exception.
+            if target_index >= SmallInteger::MAX_NUMBER as usize {
+                return Err(
+                    agent.throw_exception(ExceptionType::TypeError, "Target index overflowed")
+                );
+            }
+            // 2. Perform ? CreateDataPropertyOrThrow(target, ! ToString(𝔽(targetIndex)), element).
+            create_data_property_or_throw(
+                agent,
+                target,
+                target_index.try_into().unwrap(),
+                element,
+            )?;
+            // 3. Set targetIndex to targetIndex + 1.
+        }
+        // d. Set sourceIndex to sourceIndex + 1𝔽.
+        source_index += 1;
+    }
+    // 5. Return targetIndex.
+    Ok(target_index)
 }

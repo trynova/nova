@@ -197,6 +197,26 @@ impl TryFrom<Value> for PropertyKey {
     }
 }
 
+impl TryFrom<i64> for PropertyKey {
+    type Error = ();
+
+    fn try_from(value: i64) -> Result<Self, ()> {
+        Ok(PropertyKey::Integer(SmallInteger::try_from(value)?))
+    }
+}
+
+impl TryFrom<usize> for PropertyKey {
+    type Error = ();
+
+    fn try_from(value: usize) -> Result<Self, ()> {
+        if let Ok(i64) = i64::try_from(value) {
+            Self::try_from(i64)
+        } else {
+            Err(())
+        }
+    }
+}
+
 #[test]
 fn compare_num_str() {
     assert!(PropertyKey::is_str_eq_num("23", 23));
