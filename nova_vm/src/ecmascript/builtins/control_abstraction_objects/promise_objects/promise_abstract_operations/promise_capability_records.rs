@@ -89,10 +89,11 @@ pub(crate) fn if_abrupt_reject_promise<T>(
     value: JsResult<T>,
     capability: PromiseCapability,
 ) -> JsResult<T> {
-    value.or_else(|err| {
+    value.map_err(|err| {
         capability.reject(agent, err.value());
+
         // Note: We return an error here so that caller gets to call this
         // function with the ? operator
-        Err(JsError::new(capability.promise().into_value()))
+        JsError::new(capability.promise().into_value())
     })
 }
