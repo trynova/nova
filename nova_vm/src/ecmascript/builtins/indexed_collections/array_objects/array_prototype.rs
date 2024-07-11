@@ -1786,7 +1786,7 @@ impl ArrayPrototype {
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
     fn shift(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        let o = if let Value::Array(array) = this_value {
+        if let Value::Array(array) = this_value {
             if array.is_empty(agent) {
                 if agent[array].elements.len_writable {
                     return Ok(Value::Undefined);
@@ -1802,29 +1802,13 @@ impl ArrayPrototype {
                     unreachable!();
                 }
             }
-            let is_trivial = array.is_trivial(agent);
-            if (is_trivial || array.is_simple(agent)) && array.is_dense(agent) {
-                // Fast path: Array is dense and contains no getters or
-                // setters. No JS functions can thus be called by shift.
+            if array.is_trivial(agent) && array.is_dense(agent) {
+                // Fast path: Array is dense and contains no descriptors. No JS
+                // functions can thus be called by shift.
                 let slice = array.as_mut_slice(agent);
                 let first = slice[0].unwrap();
                 slice.copy_within(1.., 0);
                 *slice.last_mut().unwrap() = None;
-                if !is_trivial {
-                    // Array does contain descriptors, need to shift them down.
-                    let Heap {
-                        arrays, elements, ..
-                    } = &mut agent.heap;
-                    let array_elements = arrays[array].elements;
-                    let (descriptors, _) =
-                        elements.get_descriptors_and_slice_mut(array_elements.into());
-                    let descriptors = descriptors.unwrap();
-                    for (key, value) in descriptors.drain().collect::<Vec<_>>() {
-                        if key != 0 {
-                            descriptors.insert(key - 1, value);
-                        }
-                    }
-                }
                 let array_data = &mut agent[array];
                 if array_data.elements.len_writable {
                     array_data.elements.len -= 1;
@@ -1841,11 +1825,9 @@ impl ArrayPrototype {
                     unreachable!();
                 }
             }
-            array.into_object()
-        } else {
-            // 1. Let O be ? ToObject(this value).
-            to_object(agent, this_value)?
-        };
+        }
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o)?;
         // 3. If len = 0, then
@@ -1902,8 +1884,187 @@ impl ArrayPrototype {
         Ok(first)
     }
 
-    fn slice(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [23.1.3.28 Array.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-array.prototype.slice)
+    ///
+    /// This method returns an array containing the elements of the array from
+    /// element start up to, but not including, element end (or through the end
+    /// of the array if end is undefined). If start is negative, it is treated
+    /// as length + start where length is the length of the array. If end is
+    /// negative, it is treated as length + end where length is the length of
+    /// the array.
+    ///
+    /// > #### Note 1
+    /// > The explicit setting of the "length" property in step 15 is intended
+    /// > to ensure the length is correct even when A is not a built-in Array.
+    ///
+    /// > #### Note 2
+    /// > This method is intentionally generic; it does not require that its
+    /// > this value be an Array. Therefore it can be transferred to other
+    /// > kinds of objects for use as a method.
+    fn slice(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let start = arguments.get(0);
+        let end = arguments.get(1);
+        if let (
+            Value::Array(array),
+            Value::Undefined | Value::Integer(_),
+            Value::Undefined | Value::Integer(_),
+        ) = (this_value, start, end)
+        {
+            let len = array.len(agent) as usize;
+            if array.is_trivial(agent) && array.is_dense(agent) {
+                let start = if let Value::Integer(relative_start) = start {
+                    let relative_start = relative_start.into_i64();
+                    if relative_start < 0 {
+                        (len as i64 + relative_start).max(0) as usize
+                    } else {
+                        relative_start as usize
+                    }
+                } else {
+                    0
+                };
+                let end = if let Value::Integer(relative_end) = end {
+                    let relative_end = relative_end.into_i64();
+                    if relative_end < 0 {
+                        (len as i64 + relative_end).max(0) as usize
+                    } else {
+                        (relative_end as usize).min(len)
+                    }
+                } else {
+                    len
+                };
+                let count = end.saturating_sub(start);
+                let a = array_species_create(agent, array.into_object(), count)?;
+                if count == 0 {
+                    set(
+                        agent,
+                        a,
+                        BUILTIN_STRING_MEMORY.length.into(),
+                        0.into(),
+                        true,
+                    )?;
+                    return Ok(a.into_value());
+                }
+                if let Object::Array(a) = a {
+                    if a.len(agent) as usize == count
+                        && a.is_trivial(agent)
+                        && a.as_slice(agent).iter().all(|el| el.is_none())
+                    {
+                        // Array full of holes
+                        let source_data = array.as_slice(agent)[start..end].as_ptr();
+                        let destination_data = a.as_mut_slice(agent).as_mut_ptr();
+                        // SAFETY: Source and destination are properly aligned
+                        // and valid for reads/writes. They do not overlap.
+                        // From JS point of view, setting data properties to
+                        // the destination would not call any JS code so this
+                        // is spec-wise correct.
+                        unsafe {
+                            std::ptr::copy_nonoverlapping(source_data, destination_data, count)
+                        };
+                        set(
+                            agent,
+                            a.into_object(),
+                            BUILTIN_STRING_MEMORY.length.into(),
+                            Number::try_from(count).unwrap().into_value(),
+                            true,
+                        )?;
+                        return Ok(a.into_value());
+                    }
+                }
+                let mut k = start;
+                let mut n = 0u32;
+                while k < end {
+                    // a. Let Pk be ! ToString(𝔽(k)).
+                    // b. Let kPresent be ? HasProperty(O, Pk).
+                    // Note: Array is dense, we do not need to check this.
+                    // c. If kPresent is true, then
+                    // i. Let kValue be ? Get(O, Pk).
+                    let k_value = array.as_slice(agent)[k].unwrap();
+                    // ii. Perform ? CreateDataPropertyOrThrow(A, ! ToString(𝔽(n)), kValue).
+                    create_data_property_or_throw(agent, a, n.into(), k_value)?;
+                    // d. Set k to k + 1.
+                    k += 1;
+                    // e. Set n to n + 1.
+                    n += 1;
+                }
+                // 15. Perform ? Set(A, "length", 𝔽(n), true).
+                set(
+                    agent,
+                    a.into_object(),
+                    BUILTIN_STRING_MEMORY.length.into(),
+                    n.into(),
+                    true,
+                )?;
+                // 16. Return A.
+                return Ok(a.into_value());
+            }
+        }
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)? as usize;
+        // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
+        let relative_start = to_integer_or_infinity(agent, start)?;
+        // 4. If relativeStart = -∞, let k be 0.
+        let mut k = if relative_start.is_neg_infinity(agent) {
+            0
+        } else if relative_start.into_i64(agent) < 0 {
+            // 5. Else if relativeStart < 0, let k be max(len + relativeStart, 0).
+            (len as i64 + relative_start.into_i64(agent)).max(0) as usize
+        } else {
+            // 6. Else, let k be min(relativeStart, len).
+            relative_start.into_usize(agent).min(len)
+        };
+
+        // 7. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
+        let relative_end = if end.is_undefined() {
+            len.try_into().unwrap()
+        } else {
+            to_integer_or_infinity(agent, end)?
+        };
+        // 8. If relativeEnd = -∞, let final be 0.
+        let final_end = if relative_end.is_neg_infinity(agent) {
+            0
+        } else if relative_end.into_i64(agent) < 0 {
+            // 9. Else if relativeEnd < 0, let final be max(len + relativeEnd, 0).
+            (len as i64 + relative_end.into_i64(agent)).max(0) as usize
+        } else {
+            // 10. Else, let final be min(relativeEnd, len).
+            relative_end.into_usize(agent).min(len)
+        };
+        // 11. Let count be max(final - k, 0).
+        let count = final_end.saturating_sub(k);
+        // 12. Let A be ? ArraySpeciesCreate(O, count).
+        let a = array_species_create(agent, o, count)?;
+        // 13. Let n be 0.
+        let mut n = 0u32;
+        // 14. Repeat, while k < final,
+        while k < final_end {
+            // a. Let Pk be ! ToString(𝔽(k)).
+            let pk = k.try_into().unwrap();
+            // b. Let kPresent be ? HasProperty(O, Pk).
+            let k_present = has_property(agent, o, pk)?;
+            // c. If kPresent is true, then
+            if k_present {
+                // i. Let kValue be ? Get(O, Pk).
+                let k_value = get(agent, o, pk)?;
+                // ii. Perform ? CreateDataPropertyOrThrow(A, ! ToString(𝔽(n)), kValue).
+                create_data_property_or_throw(agent, a, n.into(), k_value)?;
+            }
+            // d. Set k to k + 1.
+            k += 1;
+            // e. Set n to n + 1.
+            n += 1;
+        }
+        // 15. Perform ? Set(A, "length", 𝔽(n), true).
+        set(
+            agent,
+            a,
+            BUILTIN_STRING_MEMORY.length.into(),
+            n.into(),
+            true,
+        )?;
+        // 16. Return A.
+        Ok(a.into_value())
     }
 
     fn some(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
