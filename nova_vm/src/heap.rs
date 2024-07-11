@@ -30,7 +30,6 @@ use self::{
 use crate::ecmascript::{
     builtins::{
         control_abstraction_objects::promise_objects::promise_abstract_operations::{
-            promise_capability_records::PromiseCapabilityRecord,
             promise_reaction_records::PromiseReactionRecord,
             promise_reject_function::PromiseRejectFunctionHeapData,
         },
@@ -92,7 +91,6 @@ pub struct Heap {
     pub numbers: Vec<Option<NumberHeapData>>,
     pub objects: Vec<Option<ObjectHeapData>>,
     pub primitive_objects: Vec<Option<PrimitiveObjectHeapData>>,
-    pub promise_capability_records: Vec<Option<PromiseCapabilityRecord>>,
     pub promise_reaction_records: Vec<Option<PromiseReactionRecord>>,
     pub promise_reject_functions: Vec<Option<PromiseRejectFunctionHeapData>>,
     pub promises: Vec<Option<PromiseHeapData>>,
@@ -169,7 +167,6 @@ impl Heap {
             numbers: Vec::with_capacity(1024),
             objects: Vec::with_capacity(1024),
             primitive_objects: Vec::with_capacity(0),
-            promise_capability_records: Vec::with_capacity(0),
             promise_reaction_records: Vec::with_capacity(0),
             promise_reject_functions: Vec::with_capacity(0),
             promises: Vec::with_capacity(0),

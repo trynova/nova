@@ -13,7 +13,6 @@ use crate::ecmascript::{
     builtins::{
         bound_function::BoundFunction,
         control_abstraction_objects::promise_objects::promise_abstract_operations::{
-            promise_capability_records::PromiseCapability,
             promise_reaction_records::PromiseReaction,
             promise_reject_function::BuiltinPromiseRejectFunction,
         },
@@ -73,7 +72,6 @@ pub struct HeapBits {
     pub object_environments: Box<[bool]>,
     pub objects: Box<[bool]>,
     pub primitive_objects: Box<[bool]>,
-    pub promise_capability_records: Box<[bool]>,
     pub promise_reaction_records: Box<[bool]>,
     pub promise_reject_functions: Box<[bool]>,
     pub promises: Box<[bool]>,
@@ -122,7 +120,6 @@ pub(crate) struct WorkQueues {
     pub objects: Vec<OrdinaryObject>,
     pub primitive_objects: Vec<PrimitiveObject>,
     pub promises: Vec<Promise>,
-    pub promise_capability_records: Vec<PromiseCapability>,
     pub promise_reaction_records: Vec<PromiseReaction>,
     pub promise_reject_functions: Vec<BuiltinPromiseRejectFunction>,
     pub proxys: Vec<Proxy>,
@@ -169,7 +166,6 @@ impl HeapBits {
         let object_environments = vec![false; heap.environments.object.len()];
         let objects = vec![false; heap.objects.len()];
         let primitive_objects = vec![false; heap.primitive_objects.len()];
-        let promise_capability_records = vec![false; heap.promise_capability_records.len()];
         let promise_reaction_records = vec![false; heap.promise_reaction_records.len()];
         let promise_reject_functions = vec![false; heap.promise_reject_functions.len()];
         let promises = vec![false; heap.promises.len()];
@@ -214,7 +210,6 @@ impl HeapBits {
             object_environments: object_environments.into_boxed_slice(),
             objects: objects.into_boxed_slice(),
             primitive_objects: primitive_objects.into_boxed_slice(),
-            promise_capability_records: promise_capability_records.into_boxed_slice(),
             promise_reaction_records: promise_reaction_records.into_boxed_slice(),
             promise_reject_functions: promise_reject_functions.into_boxed_slice(),
             promises: promises.into_boxed_slice(),
@@ -265,9 +260,6 @@ impl WorkQueues {
             object_environments: Vec::with_capacity(heap.environments.object.len() / 4),
             objects: Vec::with_capacity(heap.objects.len() / 4),
             primitive_objects: Vec::with_capacity(heap.primitive_objects.len() / 4),
-            promise_capability_records: Vec::with_capacity(
-                heap.promise_capability_records.len() / 4,
-            ),
             promise_reaction_records: Vec::with_capacity(heap.promise_reaction_records.len() / 4),
             promise_reject_functions: Vec::with_capacity(heap.promise_reject_functions.len() / 4),
             promises: Vec::with_capacity(heap.promises.len() / 4),
@@ -572,7 +564,6 @@ pub(crate) struct CompactionLists {
     pub numbers: CompactionList,
     pub objects: CompactionList,
     pub primitive_objects: CompactionList,
-    pub promise_capability_records: CompactionList,
     pub promise_reaction_records: CompactionList,
     pub promise_reject_functions: CompactionList,
     pub promises: CompactionList,
@@ -629,9 +620,6 @@ impl CompactionLists {
             maps: CompactionList::from_mark_bits(&bits.maps),
             numbers: CompactionList::from_mark_bits(&bits.numbers),
             objects: CompactionList::from_mark_bits(&bits.objects),
-            promise_capability_records: CompactionList::from_mark_bits(
-                &bits.promise_capability_records,
-            ),
             promise_reaction_records: CompactionList::from_mark_bits(
                 &bits.promise_reaction_records,
             ),
