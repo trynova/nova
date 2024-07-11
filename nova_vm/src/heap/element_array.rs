@@ -132,7 +132,7 @@ impl ElementsVector {
 
     /// An elements vector is simple if it contains no accessor descriptors.
     pub(crate) fn is_simple(&self, agent: &Agent) -> bool {
-        let backing_store = agent.heap.elements.get_full(*self);
+        let backing_store = agent.heap.elements.get_descriptors_and_slice(*self);
         backing_store.0.map_or(true, |hashmap| {
             !hashmap
                 .iter()
@@ -142,12 +142,12 @@ impl ElementsVector {
 
     /// An elements vector is trivial if it contains no descriptors.
     pub(crate) fn is_trivial(&self, agent: &Agent) -> bool {
-        let backing_store = agent.heap.elements.get_full(*self);
+        let backing_store = agent.heap.elements.get_descriptors_and_slice(*self);
         backing_store.0.is_none()
     }
 
     pub(crate) fn is_dense(&self, agent: &Agent) -> bool {
-        let (descriptors, elements) = agent.heap.elements.get_full(*self);
+        let (descriptors, elements) = agent.heap.elements.get_descriptors_and_slice(*self);
         if let Some(descriptors) = descriptors {
             for (index, ele) in elements.iter().enumerate() {
                 let index = index as u32;
@@ -1566,7 +1566,7 @@ impl ElementArrays {
         }
     }
 
-    pub fn get_full(
+    pub fn get_descriptors_and_slice(
         &self,
         vector: ElementsVector,
     ) -> (Option<&HashMap<u32, ElementDescriptor>>, &[Option<Value>]) {
@@ -1675,6 +1675,123 @@ impl ElementArrays {
                         .as_ref()
                         .unwrap()
                         .as_slice()[0..vector.len as usize],
+                )
+            }
+        }
+    }
+
+    pub fn get_descriptors_and_slice_mut(
+        &mut self,
+        vector: ElementsVector,
+    ) -> (
+        Option<&mut HashMap<u32, ElementDescriptor>>,
+        &mut [Option<Value>],
+    ) {
+        let usize_index = vector.elements_index.into_index();
+        match vector.cap {
+            ElementArrayKey::Empty => (None, &mut []),
+            ElementArrayKey::E4 => {
+                let epow = &mut self.e2pow4;
+                (
+                    epow.descriptors.get_mut(&vector.elements_index),
+                    &mut epow
+                        .values
+                        .get_mut(usize_index)
+                        .unwrap()
+                        .as_mut()
+                        .unwrap()
+                        .as_mut_slice()[0..vector.len as usize],
+                )
+            }
+            ElementArrayKey::E6 => {
+                let epow = &mut self.e2pow6;
+                (
+                    epow.descriptors.get_mut(&vector.elements_index),
+                    &mut epow
+                        .values
+                        .get_mut(usize_index)
+                        .unwrap()
+                        .as_mut()
+                        .unwrap()
+                        .as_mut_slice()[0..vector.len as usize],
+                )
+            }
+            ElementArrayKey::E8 => {
+                let epow = &mut self.e2pow8;
+                (
+                    epow.descriptors.get_mut(&vector.elements_index),
+                    &mut epow
+                        .values
+                        .get_mut(usize_index)
+                        .unwrap()
+                        .as_mut()
+                        .unwrap()
+                        .as_mut_slice()[0..vector.len as usize],
+                )
+            }
+            ElementArrayKey::E10 => {
+                let epow = &mut self.e2pow10;
+                (
+                    epow.descriptors.get_mut(&vector.elements_index),
+                    &mut epow
+                        .values
+                        .get_mut(usize_index)
+                        .unwrap()
+                        .as_mut()
+                        .unwrap()
+                        .as_mut_slice()[0..vector.len as usize],
+                )
+            }
+            ElementArrayKey::E12 => {
+                let epow = &mut self.e2pow12;
+                (
+                    epow.descriptors.get_mut(&vector.elements_index),
+                    &mut epow
+                        .values
+                        .get_mut(usize_index)
+                        .unwrap()
+                        .as_mut()
+                        .unwrap()
+                        .as_mut_slice()[0..vector.len as usize],
+                )
+            }
+            ElementArrayKey::E16 => {
+                let epow = &mut self.e2pow16;
+                (
+                    epow.descriptors.get_mut(&vector.elements_index),
+                    &mut epow
+                        .values
+                        .get_mut(usize_index)
+                        .unwrap()
+                        .as_mut()
+                        .unwrap()
+                        .as_mut_slice()[0..vector.len as usize],
+                )
+            }
+            ElementArrayKey::E24 => {
+                let epow = &mut self.e2pow24;
+                (
+                    epow.descriptors.get_mut(&vector.elements_index),
+                    &mut epow
+                        .values
+                        .get_mut(usize_index)
+                        .unwrap()
+                        .as_mut()
+                        .unwrap()
+                        .as_mut_slice()[0..vector.len as usize],
+                )
+            }
+            ElementArrayKey::E32 => {
+                let epow = &mut self.e2pow32;
+                (
+                    epow.descriptors.get_mut(&vector.elements_index),
+                    &mut epow
+                        .values
+                        .get_mut(usize_index)
+                        .unwrap()
+                        .as_mut()
+                        .unwrap()
+                        .as_mut_slice()[0..vector.len as usize],
                 )
             }
         }

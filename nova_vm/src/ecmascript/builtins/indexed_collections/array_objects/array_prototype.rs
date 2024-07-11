@@ -18,8 +18,8 @@ use crate::{
         builtins::{array_species_create, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
-            Function, IntoFunction, IntoValue, Number, Object, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            Function, IntoFunction, IntoObject, IntoValue, Number, Object, PropertyKey, String,
+            Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{Heap, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
@@ -1785,29 +1785,121 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn shift(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        // 1. Let O be ? ToObject(this value).
+    fn shift(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        let o = if let Value::Array(array) = this_value {
+            if array.is_empty(agent) {
+                if agent[array].elements.len_writable {
+                    return Ok(Value::Undefined);
+                } else {
+                    // This will throw
+                    set(
+                        agent,
+                        array.into_object(),
+                        BUILTIN_STRING_MEMORY.length.into(),
+                        0.into(),
+                        true,
+                    )?;
+                    unreachable!();
+                }
+            }
+            let is_trivial = array.is_trivial(agent);
+            if (is_trivial || array.is_simple(agent)) && array.is_dense(agent) {
+                // Fast path: Array is dense and contains no getters or
+                // setters. No JS functions can thus be called by shift.
+                let slice = array.as_mut_slice(agent);
+                let first = slice[0].unwrap();
+                slice.copy_within(1.., 0);
+                *slice.last_mut().unwrap() = None;
+                if !is_trivial {
+                    // Array does contain descriptors, need to shift them down.
+                    let Heap {
+                        arrays, elements, ..
+                    } = &mut agent.heap;
+                    let array_elements = arrays[array].elements;
+                    let (descriptors, _) =
+                        elements.get_descriptors_and_slice_mut(array_elements.into());
+                    let descriptors = descriptors.unwrap();
+                    for (key, value) in descriptors.drain().collect::<Vec<_>>() {
+                        if key != 0 {
+                            descriptors.insert(key - 1, value);
+                        }
+                    }
+                }
+                let array_data = &mut agent[array];
+                if array_data.elements.len_writable {
+                    array_data.elements.len -= 1;
+                    return Ok(first);
+                } else {
+                    // This will throw
+                    set(
+                        agent,
+                        array.into_object(),
+                        BUILTIN_STRING_MEMORY.length.into(),
+                        (array.len(agent) - 1).into(),
+                        true,
+                    )?;
+                    unreachable!();
+                }
+            }
+            array.into_object()
+        } else {
+            // 1. Let O be ? ToObject(this value).
+            to_object(agent, this_value)?
+        };
         // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
         // 3. If len = 0, then
-        // a. Perform ? Set(O, "length", +0𝔽, true).
-        // b. Return undefined.
+        if len == 0 {
+            // a. Perform ? Set(O, "length", +0𝔽, true).
+            set(
+                agent,
+                o,
+                BUILTIN_STRING_MEMORY.length.into(),
+                0.into(),
+                true,
+            )?;
+            // b. Return undefined.
+            return Ok(Value::Undefined);
+        }
         // 4. Let first be ? Get(O, "0").
+        let first = get(agent, o, 0.into())?;
         // 5. Let k be 1.
+        let mut k = 1;
         // 6. Repeat, while k < len,
-        // a. Let from be ! ToString(𝔽(k)).
-        // b. Let to be ! ToString(𝔽(k - 1)).
-        // c. Let fromPresent be ? HasProperty(O, from).
-        // d. If fromPresent is true, then
-        // i. Let fromValue be ? Get(O, from).
-        // ii. Perform ? Set(O, to, fromValue, true).
-        // e. Else,
-        // i. Assert: fromPresent is false.
-        // ii. Perform ? DeletePropertyOrThrow(O, to).
-        // f. Set k to k + 1.
+        while k < len {
+            // a. Let from be ! ToString(𝔽(k)).
+            let from = k.try_into().unwrap();
+            // b. Let to be ! ToString(𝔽(k - 1)).
+            let to = (k - 1).try_into().unwrap();
+            // c. Let fromPresent be ? HasProperty(O, from).
+            let from_present = has_property(agent, o, from)?;
+            // d. If fromPresent is true, then
+            if from_present {
+                // i. Let fromValue be ? Get(O, from).
+                let from_value = get(agent, o, from)?;
+                // ii. Perform ? Set(O, to, fromValue, true).
+                set(agent, o, to, from_value, true)?;
+            } else {
+                // e. Else,
+                // i. Assert: fromPresent is false.
+                // ii. Perform ? DeletePropertyOrThrow(O, to).
+                delete_property_or_throw(agent, o, to)?;
+            }
+            // f. Set k to k + 1.
+            k += 1;
+        }
         // 7. Perform ? DeletePropertyOrThrow(O, ! ToString(𝔽(len - 1))).
+        delete_property_or_throw(agent, o, (len - 1).try_into().unwrap())?;
         // 8. Perform ? Set(O, "length", 𝔽(len - 1), true).
+        set(
+            agent,
+            o,
+            BUILTIN_STRING_MEMORY.length.into(),
+            (len - 1).try_into().unwrap(),
+            true,
+        )?;
         // 9. Return first.
-        todo!()
+        Ok(first)
     }
 
     fn slice(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
