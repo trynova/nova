@@ -122,9 +122,10 @@ pub(crate) fn array_species_create(
     if let Ok(c_obj) = Object::try_from(c) {
         // a. Set C to ? Get(C, @@species).
         c = get(agent, c_obj, WellKnownSymbolIndexes::Species.into())?;
-    } else if c.is_null() {
         // b. If C is null, set C to undefined.
-        c = Value::Undefined;
+        if c.is_null() {
+            c = Value::Undefined;
+        }
     }
     // 6. If C is undefined, return ? ArrayCreate(length).
     if c.is_undefined() {
