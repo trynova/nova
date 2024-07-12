@@ -185,7 +185,8 @@ impl PromiseCapability {
         };
 
         // 13. Let thenJobCallback be HostMakeJobCallback(thenAction).
-        // TODO: HostMakeJobCallback
+        // TODO: Add the HostMakeJobCallback host hook. Leaving it for later, since in
+        // implementations other than browsers, [[HostDefine]] must be EMPTY.
         // 14. Let job be NewPromiseResolveThenableJob(promise, resolution, thenJobCallback).
         let job = new_promise_resolve_thenable_job(agent, self.promise, resolution, then_action);
         // 15. Perform HostEnqueuePromiseJob(job.[[Job]], job.[[Realm]]).

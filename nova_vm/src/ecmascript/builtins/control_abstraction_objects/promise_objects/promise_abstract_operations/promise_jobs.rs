@@ -21,6 +21,7 @@ pub(crate) struct PromiseResolveThenableJob {
 }
 impl PromiseResolveThenableJob {
     pub(crate) fn run(self, agent: &mut Agent) -> JsResult<()> {
+        // The following are substeps of point 1 in NewPromiseResolveThenableJob.
         // a. Let resolvingFunctions be CreateResolvingFunctions(promiseToResolve).
         let promise_capability = PromiseCapability::from_promise(self.promise_to_resolve, false);
         let resolve_function = agent
@@ -41,6 +42,9 @@ impl PromiseResolveThenableJob {
             .into_value();
 
         // b. Let thenCallResult be Completion(HostCallJobCallback(then, thenable, « resolvingFunctions.[[Resolve]], resolvingFunctions.[[Reject]] »)).
+        // TODO: Add the HostCallJobCallback host hook. For now we're using its default
+        // implementation, which is calling the thenable, since only browsers should use a different
+        // implementation.
         let then_call_result = call_function(
             agent,
             self.then,
@@ -58,6 +62,7 @@ impl PromiseResolveThenableJob {
     }
 }
 
+/// ### [27.2.2.2 NewPromiseResolveThenableJob ( promiseToResolve, thenable, then )](https://tc39.es/ecma262/#sec-newpromiseresolvethenablejob)
 pub(crate) fn new_promise_resolve_thenable_job(
     agent: &mut Agent,
     promise_to_resolve: Promise,
@@ -90,6 +95,7 @@ pub(crate) struct PromiseReactionJob {
 }
 impl PromiseReactionJob {
     pub(crate) fn run(self, agent: &mut Agent) -> JsResult<()> {
+        // The following are substeps of point 1 in NewPromiseReactionJob.
         let handler_result = match agent[self.reaction].handler {
             PromiseReactionHandler::Empty(PromiseReactionType::Fulfill) => {
                 // d.i.1. Let handlerResult be NormalCompletion(argument).
@@ -100,6 +106,9 @@ impl PromiseReactionJob {
                 Err(JsError::new(self.argument))
             }
             // e.1. Let handlerResult be Completion(HostCallJobCallback(handler, undefined, « argument »)).
+            // TODO: Add the HostCallJobCallback host hook. For now we're using its default
+            // implementation, which is calling the thenable, since only browsers should use a
+            // different implementation.
             PromiseReactionHandler::JobCallback(callback) => call_function(
                 agent,
                 callback,
@@ -131,6 +140,7 @@ impl PromiseReactionJob {
     }
 }
 
+/// ### [27.2.2.1 NewPromiseReactionJob ( reaction, argument )](https://tc39.es/ecma262/#sec-newpromisereactionjob)
 pub(crate) fn new_promise_reaction_job(
     agent: &mut Agent,
     reaction: PromiseReaction,

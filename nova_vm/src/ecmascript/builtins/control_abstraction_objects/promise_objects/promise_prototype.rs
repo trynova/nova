@@ -136,7 +136,8 @@ pub(crate) fn perform_promise_then(
     //     a. Let onRejectedJobCallback be empty.
     // 6. Else,
     //     a. Let onRejectedJobCallback be HostMakeJobCallback(onRejected).
-    // TODO: HostMakeJobCallback
+    // TODO: Add the HostMakeJobCallback host hook. Leaving it for later, since in implementations
+    // other than browsers, [[HostDefine]] must be EMPTY.
 
     // 7. Let fulfillReaction be the PromiseReaction Record { [[Capability]]: resultCapability, [[Type]]: fulfill, [[Handler]]: onFulfilledJobCallback }.
     let fulfill_reaction = agent.heap.create(PromiseReactionRecord {
@@ -201,8 +202,8 @@ pub(crate) fn perform_promise_then(
             // c. If promise.[[PromiseIsHandled]] is false, perform HostPromiseRejectionTracker(promise, "handle").
             if !*is_handled {
                 // 12. Set promise.[[PromiseIsHandled]] to true.
-                // NOTE: `is_handled` is tied to the agent's lifetime, so we need to drop the
-                // mutable reference t
+                // NOTE: `is_handled` is tied to the agent's lifetime, so we need to use and drop
+                // the mutable reference before calling into the host hook.
                 *is_handled = true;
 
                 agent
