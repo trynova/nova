@@ -14,7 +14,7 @@ use crate::ecmascript::{
         bound_function::BoundFunction,
         control_abstraction_objects::promise_objects::promise_abstract_operations::{
             promise_reaction_records::PromiseReaction,
-            promise_reject_function::BuiltinPromiseRejectFunction,
+            promise_resolving_functions::BuiltinPromiseResolvingFunction,
         },
         data_view::DataView,
         date::Date,
@@ -73,7 +73,7 @@ pub struct HeapBits {
     pub objects: Box<[bool]>,
     pub primitive_objects: Box<[bool]>,
     pub promise_reaction_records: Box<[bool]>,
-    pub promise_reject_functions: Box<[bool]>,
+    pub promise_resolving_functions: Box<[bool]>,
     pub promises: Box<[bool]>,
     pub proxys: Box<[bool]>,
     pub realms: Box<[bool]>,
@@ -121,7 +121,7 @@ pub(crate) struct WorkQueues {
     pub primitive_objects: Vec<PrimitiveObject>,
     pub promises: Vec<Promise>,
     pub promise_reaction_records: Vec<PromiseReaction>,
-    pub promise_reject_functions: Vec<BuiltinPromiseRejectFunction>,
+    pub promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction>,
     pub proxys: Vec<Proxy>,
     pub realms: Vec<RealmIdentifier>,
     pub regexps: Vec<RegExp>,
@@ -167,7 +167,7 @@ impl HeapBits {
         let objects = vec![false; heap.objects.len()];
         let primitive_objects = vec![false; heap.primitive_objects.len()];
         let promise_reaction_records = vec![false; heap.promise_reaction_records.len()];
-        let promise_reject_functions = vec![false; heap.promise_reject_functions.len()];
+        let promise_resolving_functions = vec![false; heap.promise_resolving_functions.len()];
         let promises = vec![false; heap.promises.len()];
         let proxys = vec![false; heap.proxys.len()];
         let realms = vec![false; heap.realms.len()];
@@ -211,7 +211,7 @@ impl HeapBits {
             objects: objects.into_boxed_slice(),
             primitive_objects: primitive_objects.into_boxed_slice(),
             promise_reaction_records: promise_reaction_records.into_boxed_slice(),
-            promise_reject_functions: promise_reject_functions.into_boxed_slice(),
+            promise_resolving_functions: promise_resolving_functions.into_boxed_slice(),
             promises: promises.into_boxed_slice(),
             proxys: proxys.into_boxed_slice(),
             realms: realms.into_boxed_slice(),
@@ -261,7 +261,9 @@ impl WorkQueues {
             objects: Vec::with_capacity(heap.objects.len() / 4),
             primitive_objects: Vec::with_capacity(heap.primitive_objects.len() / 4),
             promise_reaction_records: Vec::with_capacity(heap.promise_reaction_records.len() / 4),
-            promise_reject_functions: Vec::with_capacity(heap.promise_reject_functions.len() / 4),
+            promise_resolving_functions: Vec::with_capacity(
+                heap.promise_resolving_functions.len() / 4,
+            ),
             promises: Vec::with_capacity(heap.promises.len() / 4),
             proxys: Vec::with_capacity(heap.proxys.len() / 4),
             realms: Vec::with_capacity(heap.realms.len() / 4),
@@ -325,8 +327,9 @@ impl WorkQueues {
             Value::Float64Array(idx) => self.typed_arrays.push(idx),
             Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction => todo!(),
-            Value::BuiltinPromiseResolveFunction => todo!(),
-            Value::BuiltinPromiseRejectFunction(data) => self.promise_reject_functions.push(data),
+            Value::BuiltinPromiseResolvingFunction(data) => {
+                self.promise_resolving_functions.push(data)
+            }
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
             Value::ECMAScriptAsyncFunction => todo!(),
@@ -565,7 +568,7 @@ pub(crate) struct CompactionLists {
     pub objects: CompactionList,
     pub primitive_objects: CompactionList,
     pub promise_reaction_records: CompactionList,
-    pub promise_reject_functions: CompactionList,
+    pub promise_resolving_functions: CompactionList,
     pub promises: CompactionList,
     pub proxys: CompactionList,
     pub regexps: CompactionList,
@@ -623,8 +626,8 @@ impl CompactionLists {
             promise_reaction_records: CompactionList::from_mark_bits(
                 &bits.promise_reaction_records,
             ),
-            promise_reject_functions: CompactionList::from_mark_bits(
-                &bits.promise_reject_functions,
+            promise_resolving_functions: CompactionList::from_mark_bits(
+                &bits.promise_resolving_functions,
             ),
             promises: CompactionList::from_mark_bits(&bits.promises),
             primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),

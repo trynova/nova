@@ -856,8 +856,7 @@ pub(crate) fn make_constructor(
         }
         Function::BuiltinGeneratorFunction => todo!(),
         Function::BuiltinConstructorFunction => todo!(),
-        Function::BuiltinPromiseResolveFunction => todo!(),
-        Function::BuiltinPromiseRejectFunction(_) => todo!(),
+        Function::BuiltinPromiseResolvingFunction(_) => todo!(),
         Function::BuiltinPromiseCollectorFunction => todo!(),
         Function::BuiltinProxyRevokerFunction => todo!(),
         Function::ECMAScriptAsyncFunction => todo!(),
@@ -954,8 +953,7 @@ pub(crate) fn set_function_name(
         }
         Function::BuiltinGeneratorFunction => todo!(),
         Function::BuiltinConstructorFunction => todo!(),
-        Function::BuiltinPromiseResolveFunction => todo!(),
-        Function::BuiltinPromiseRejectFunction(_) => todo!(),
+        Function::BuiltinPromiseResolvingFunction(_) => todo!(),
         Function::BuiltinPromiseCollectorFunction => todo!(),
         Function::BuiltinProxyRevokerFunction => todo!(),
         Function::ECMAScriptAsyncFunction => todo!(),
