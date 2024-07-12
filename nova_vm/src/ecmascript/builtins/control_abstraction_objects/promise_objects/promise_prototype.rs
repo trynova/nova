@@ -56,13 +56,13 @@ impl PromisePrototype {
         let property_key = PropertyKey::from_static_str(agent, "then");
         let on_rejected = args.get(0);
         if let Value::Promise(promise) = this_value {
-            let then_is_overriden = match agent[promise].object_index {
+            let then_is_overridden = match agent[promise].object_index {
                 Some(backing_object) => backing_object
                     .internal_has_property(agent, property_key)
                     .unwrap(),
                 None => false,
             };
-            if !then_is_overriden {
+            if !then_is_overridden {
                 // NOTE: The next steps are from Promise.prototype.then.
 
                 // 3. Let C be ? SpeciesConstructor(promise, %Promise%).
