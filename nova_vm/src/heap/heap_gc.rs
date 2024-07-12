@@ -19,7 +19,7 @@ use crate::ecmascript::{
         bound_function::BoundFunction,
         control_abstraction_objects::promise_objects::promise_abstract_operations::{
             promise_reaction_records::PromiseReaction,
-            promise_reject_function::BuiltinPromiseRejectFunction,
+            promise_resolving_functions::BuiltinPromiseResolvingFunction,
         },
         data_view::DataView,
         date::Date,
@@ -85,7 +85,7 @@ pub fn heap_gc(heap: &mut Heap) {
             objects,
             primitive_objects,
             promise_reaction_records,
-            promise_reject_functions,
+            promise_resolving_functions,
             promises,
             proxys,
             realms,
@@ -402,18 +402,20 @@ pub fn heap_gc(heap: &mut Heap) {
                 promise_reaction_records.get(index).mark_values(&mut queues);
             }
         });
-        let mut promise_reject_function_marks: Box<[BuiltinPromiseRejectFunction]> =
-            queues.promise_reject_functions.drain(..).collect();
-        promise_reject_function_marks.sort();
-        promise_reject_function_marks.iter().for_each(|&idx| {
+        let mut promise_resolving_function_marks: Box<[BuiltinPromiseResolvingFunction]> =
+            queues.promise_resolving_functions.drain(..).collect();
+        promise_resolving_function_marks.sort();
+        promise_resolving_function_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if let Some(marked) = bits.promise_reject_functions.get_mut(index) {
+            if let Some(marked) = bits.promise_resolving_functions.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
                     return;
                 }
                 *marked = true;
-                promise_reject_functions.get(index).mark_values(&mut queues);
+                promise_resolving_functions
+                    .get(index)
+                    .mark_values(&mut queues);
             }
         });
         let mut proxy_marks: Box<[Proxy]> = queues.proxys.drain(..).collect();
@@ -761,7 +763,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
         objects,
         primitive_objects,
         promise_reaction_records,
-        promise_reject_functions,
+        promise_resolving_functions,
         promises,
         proxys,
         realms,
@@ -901,9 +903,9 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
         });
         s.spawn(|| {
             sweep_heap_vector_values(
-                promise_reject_functions,
+                promise_resolving_functions,
                 &compactions,
-                &bits.promise_reject_functions,
+                &bits.promise_resolving_functions,
             );
         });
         s.spawn(|| {

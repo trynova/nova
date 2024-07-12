@@ -6,7 +6,7 @@ use std::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
-        builtins::promise::Promise,
+        builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, ArgumentsList},
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
@@ -20,6 +20,12 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, Copy)]
+enum PromiseResolvingFunctionType {
+    Resolve,
+    Reject,
+}
+
 /// ### [27.2.1.3.1 Promise Reject Functions]()
 ///
 /// A promise reject function is an anonymous built-in function that has
@@ -27,20 +33,18 @@ use crate::{
 ///
 /// The "length" property of a promise reject function is 1𝔽.
 #[derive(Debug, Clone, Copy)]
-pub struct PromiseRejectFunctionHeapData {
-    /// \[\[Promise\]\]
-    pub(crate) promise: Promise,
-    /// \[\[AlreadyResolved\]\]
-    pub(crate) already_resolved: bool,
+pub struct PromiseResolvingFunctionHeapData {
     pub(crate) object_index: Option<OrdinaryObject>,
+    promise_capability: PromiseCapability,
+    resolve_type: PromiseResolvingFunctionType,
 }
 
-pub(crate) type BuiltinPromiseRejectFunctionIndex = BaseIndex<PromiseRejectFunctionHeapData>;
+pub(crate) type BuiltinPromiseResolvingFunctionIndex = BaseIndex<PromiseResolvingFunctionHeapData>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BuiltinPromiseRejectFunction(pub(crate) BuiltinPromiseRejectFunctionIndex);
+pub struct BuiltinPromiseResolvingFunction(pub(crate) BuiltinPromiseResolvingFunctionIndex);
 
-impl BuiltinPromiseRejectFunction {
+impl BuiltinPromiseResolvingFunction {
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -50,69 +54,43 @@ impl BuiltinPromiseRejectFunction {
     }
 }
 
-impl From<BuiltinPromiseRejectFunction> for Function {
-    fn from(value: BuiltinPromiseRejectFunction) -> Self {
-        Self::BuiltinPromiseRejectFunction(value)
+impl From<BuiltinPromiseResolvingFunction> for Function {
+    fn from(value: BuiltinPromiseResolvingFunction) -> Self {
+        Self::BuiltinPromiseResolvingFunction(value)
     }
 }
 
-impl IntoFunction for BuiltinPromiseRejectFunction {
+impl IntoFunction for BuiltinPromiseResolvingFunction {
     fn into_function(self) -> Function {
         self.into()
     }
 }
 
-impl From<BuiltinPromiseRejectFunction> for Object {
-    fn from(value: BuiltinPromiseRejectFunction) -> Self {
-        Self::BuiltinPromiseRejectFunction(value)
+impl From<BuiltinPromiseResolvingFunction> for Object {
+    fn from(value: BuiltinPromiseResolvingFunction) -> Self {
+        Self::BuiltinPromiseResolvingFunction(value)
     }
 }
 
-impl IntoObject for BuiltinPromiseRejectFunction {
+impl IntoObject for BuiltinPromiseResolvingFunction {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<BuiltinPromiseRejectFunction> for Value {
-    fn from(value: BuiltinPromiseRejectFunction) -> Self {
-        Self::BuiltinPromiseRejectFunction(value)
+impl From<BuiltinPromiseResolvingFunction> for Value {
+    fn from(value: BuiltinPromiseResolvingFunction) -> Self {
+        Self::BuiltinPromiseResolvingFunction(value)
     }
 }
 
-impl IntoValue for BuiltinPromiseRejectFunction {
+impl IntoValue for BuiltinPromiseResolvingFunction {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl PromiseRejectFunctionHeapData {
-    /// When a promise reject function is called with argument reason, the
-    /// following steps are taken:
-    pub(crate) fn call(agent: &mut Agent, _reason: Value) {
-        // 1. Let F be the active function object.
-        let f = agent.running_execution_context().function.unwrap();
-        // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
-        let Function::BuiltinPromiseRejectFunction(f) = f else {
-            unreachable!();
-        };
-        // 3. Let promise be F.[[Promise]].
-        // 4. Let alreadyResolved be F.[[AlreadyResolved]].
-        let PromiseRejectFunctionHeapData {
-            already_resolved, ..
-        } = agent[f];
-        // 5. If alreadyResolved.[[Value]] is true, return undefined.
-        if !already_resolved {
-            // 6. Set alreadyResolved.[[Value]] to true.
-            agent[f].already_resolved = true;
-            // 7. Perform RejectPromise(promise, reason).
-            // reject_promise(agent, promise, reason);
-            // 8. Return undefined.
-        }
-    }
-}
-
-impl InternalSlots for BuiltinPromiseRejectFunction {
+impl InternalSlots for BuiltinPromiseResolvingFunction {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
@@ -156,7 +134,7 @@ impl InternalSlots for BuiltinPromiseRejectFunction {
     }
 }
 
-impl InternalMethods for BuiltinPromiseRejectFunction {
+impl InternalMethods for BuiltinPromiseResolvingFunction {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
@@ -276,26 +254,41 @@ impl InternalMethods for BuiltinPromiseRejectFunction {
             ])
         }
     }
-}
 
-impl Index<BuiltinPromiseRejectFunction> for Agent {
-    type Output = PromiseRejectFunctionHeapData;
-
-    fn index(&self, index: BuiltinPromiseRejectFunction) -> &Self::Output {
-        &self.heap.promise_reject_functions[index]
+    fn internal_call(
+        self,
+        agent: &mut Agent,
+        _this_value: Value,
+        args: ArgumentsList,
+    ) -> JsResult<Value> {
+        let arg = args.get(0);
+        let promise_capability = agent[self].promise_capability;
+        match agent[self].resolve_type {
+            PromiseResolvingFunctionType::Resolve => promise_capability.resolve(agent, arg),
+            PromiseResolvingFunctionType::Reject => promise_capability.reject(agent, arg),
+        };
+        Ok(Value::Undefined)
     }
 }
 
-impl IndexMut<BuiltinPromiseRejectFunction> for Agent {
-    fn index_mut(&mut self, index: BuiltinPromiseRejectFunction) -> &mut Self::Output {
-        &mut self.heap.promise_reject_functions[index]
+impl Index<BuiltinPromiseResolvingFunction> for Agent {
+    type Output = PromiseResolvingFunctionHeapData;
+
+    fn index(&self, index: BuiltinPromiseResolvingFunction) -> &Self::Output {
+        &self.heap.promise_resolving_functions[index]
     }
 }
 
-impl Index<BuiltinPromiseRejectFunction> for Vec<Option<PromiseRejectFunctionHeapData>> {
-    type Output = PromiseRejectFunctionHeapData;
+impl IndexMut<BuiltinPromiseResolvingFunction> for Agent {
+    fn index_mut(&mut self, index: BuiltinPromiseResolvingFunction) -> &mut Self::Output {
+        &mut self.heap.promise_resolving_functions[index]
+    }
+}
 
-    fn index(&self, index: BuiltinPromiseRejectFunction) -> &Self::Output {
+impl Index<BuiltinPromiseResolvingFunction> for Vec<Option<PromiseResolvingFunctionHeapData>> {
+    type Output = PromiseResolvingFunctionHeapData;
+
+    fn index(&self, index: BuiltinPromiseResolvingFunction) -> &Self::Output {
         self.get(index.get_index())
             .expect("BuiltinPromiseRejectFunction out of bounds")
             .as_ref()
@@ -303,8 +296,8 @@ impl Index<BuiltinPromiseRejectFunction> for Vec<Option<PromiseRejectFunctionHea
     }
 }
 
-impl IndexMut<BuiltinPromiseRejectFunction> for Vec<Option<PromiseRejectFunctionHeapData>> {
-    fn index_mut(&mut self, index: BuiltinPromiseRejectFunction) -> &mut Self::Output {
+impl IndexMut<BuiltinPromiseResolvingFunction> for Vec<Option<PromiseResolvingFunctionHeapData>> {
+    fn index_mut(&mut self, index: BuiltinPromiseResolvingFunction) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BuiltinPromiseRejectFunction out of bounds")
             .as_mut()
@@ -312,33 +305,36 @@ impl IndexMut<BuiltinPromiseRejectFunction> for Vec<Option<PromiseRejectFunction
     }
 }
 
-impl CreateHeapData<PromiseRejectFunctionHeapData, BuiltinPromiseRejectFunction> for Heap {
-    fn create(&mut self, data: PromiseRejectFunctionHeapData) -> BuiltinPromiseRejectFunction {
-        self.promise_reject_functions.push(Some(data));
-        BuiltinPromiseRejectFunction(BaseIndex::last(&self.promise_reject_functions))
+impl CreateHeapData<PromiseResolvingFunctionHeapData, BuiltinPromiseResolvingFunction> for Heap {
+    fn create(
+        &mut self,
+        data: PromiseResolvingFunctionHeapData,
+    ) -> BuiltinPromiseResolvingFunction {
+        self.promise_resolving_functions.push(Some(data));
+        BuiltinPromiseResolvingFunction(BaseIndex::last(&self.promise_resolving_functions))
     }
 }
 
-impl HeapMarkAndSweep for BuiltinPromiseRejectFunction {
+impl HeapMarkAndSweep for BuiltinPromiseResolvingFunction {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
-        queues.promise_reject_functions.push(*self);
+        queues.promise_resolving_functions.push(*self);
     }
 
     fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
         compactions
-            .promise_reject_functions
+            .promise_resolving_functions
             .shift_index(&mut self.0);
     }
 }
 
-impl HeapMarkAndSweep for PromiseRejectFunctionHeapData {
+impl HeapMarkAndSweep for PromiseResolvingFunctionHeapData {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         self.object_index.mark_values(queues);
-        self.promise.mark_values(queues);
+        self.promise_capability.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
         self.object_index.sweep_values(compactions);
-        self.promise.sweep_values(compactions);
+        self.promise_capability.sweep_values(compactions);
     }
 }

@@ -1259,8 +1259,7 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) |
         Value::BuiltinGeneratorFunction |
         Value::BuiltinConstructorFunction |
-        Value::BuiltinPromiseResolveFunction |
-        Value::BuiltinPromiseRejectFunction(_) |
+        Value::BuiltinPromiseResolvingFunction(_) |
         Value::BuiltinPromiseCollectorFunction |
         Value::BuiltinProxyRevokerFunction |
         Value::ECMAScriptAsyncFunction |

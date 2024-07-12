@@ -186,8 +186,13 @@ impl FunctionPrototype {
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction => todo!(),
-            Function::BuiltinPromiseResolveFunction => todo!(),
-            Function::BuiltinPromiseRejectFunction(_) => todo!(),
+            Function::BuiltinPromiseResolvingFunction(_) => {
+                // Promise resolving functions have no initial name.
+                Ok(Value::from_static_str(
+                    agent,
+                    "function () { [ native code ] }",
+                ))
+            }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
             Function::ECMAScriptAsyncFunction => todo!(),
