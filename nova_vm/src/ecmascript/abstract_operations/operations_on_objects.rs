@@ -550,11 +550,11 @@ pub(crate) fn invoke(
 /// object inheritance path provided by C.
 pub(crate) fn ordinary_has_instance(
     agent: &mut Agent,
-    c: impl IntoValue,
+    c: impl TryInto<Function>,
     o: impl IntoValue,
 ) -> JsResult<bool> {
     // 1. If IsCallable(C) is false, return false.
-    let Some(c) = is_callable(c.into_value()) else {
+    let Some(c) = is_callable(c) else {
         return Ok(false);
     };
     // 2. If C has a [[BoundTargetFunction]] internal slot, then
