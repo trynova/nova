@@ -220,17 +220,12 @@ pub(crate) fn get_method(
         return Ok(None);
     }
     // 3. If IsCallable(func) is false, throw a TypeError exception.
-    if !is_callable(func) {
+    let func = is_callable(func);
+    if func.is_none() {
         return Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable object"));
     }
     // 4. Return func.
-    match func {
-        Value::BoundFunction(idx) => Ok(Some(Function::from(idx))),
-        Value::BuiltinFunction(idx) => Ok(Some(Function::from(idx))),
-        Value::ECMAScriptFunction(idx) => Ok(Some(Function::from(idx))),
-        Value::BuiltinPromiseResolvingFunction(idx) => Ok(Some(Function::from(idx))),
-        _ => unreachable!(),
-    }
+    Ok(func)
 }
 
 /// ### [7.3.12 HasProperty ( O, P )](https://tc39.es/ecma262/#sec-hasproperty)
@@ -279,21 +274,10 @@ pub(crate) fn call(
     // 1. If argumentsList is not present, set argumentsList to a new empty List.
     let arguments_list = arguments_list.unwrap_or_default();
     // 2. If IsCallable(F) is false, throw a TypeError exception.
-    if !is_callable(f) {
-        Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable object"))
-    } else {
+    match is_callable(f) {
+        None => Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable object")),
         // 3. Return ? F.[[Call]](V, argumentsList).
-        match f {
-            Value::BoundFunction(idx) => {
-                Function::from(idx).internal_call(agent, v, arguments_list)
-            }
-            Value::BuiltinFunction(idx) => idx.internal_call(agent, v, arguments_list),
-            Value::ECMAScriptFunction(idx) => idx.internal_call(agent, v, arguments_list),
-            Value::BuiltinPromiseResolvingFunction(idx) => {
-                idx.internal_call(agent, v, arguments_list)
-            }
-            _ => unreachable!(),
-        }
+        Some(f) => f.internal_call(agent, v, arguments_list),
     }
 }
 
@@ -570,10 +554,9 @@ pub(crate) fn ordinary_has_instance(
     o: impl IntoValue,
 ) -> JsResult<bool> {
     // 1. If IsCallable(C) is false, return false.
-    if !is_callable(c) {
+    let Some(c) = is_callable(c.into_value()) else {
         return Ok(false);
-    }
-    let c = Function::try_from(c.into_value()).unwrap();
+    };
     // 2. If C has a [[BoundTargetFunction]] internal slot, then
     if let Function::BoundFunction(c) = c {
         // a. Let BC be C.[[BoundTargetFunction]].

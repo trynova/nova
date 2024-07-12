@@ -14,7 +14,7 @@ use crate::{
         },
         builtins::{map::Map, ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{Function, IntoValue, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -182,13 +182,12 @@ impl MapPrototype {
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        if !is_callable(callback_fn) {
+        let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
                 "Callback function parameter is not callable",
             ));
-        }
-        let callback_fn = Function::try_from(callback_fn).unwrap();
+        };
         // 4. Let entries be M.[[MapData]].
         // 5. Let numEntries be the number of elements in entries.
         let mut num_entries = agent[m].keys.len();

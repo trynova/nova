@@ -611,12 +611,11 @@ impl ArrayPrototype {
         let len = length_of_array_like(agent, o)?;
         let callback_fn = arguments.get(0);
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        if !is_callable(callback_fn) {
+        let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(
                 agent.throw_exception(ExceptionType::TypeError, "Callback is not a function")
             );
-        }
-        let callback_fn = Function::try_from(callback_fn).unwrap();
+        };
         let this_arg = arguments.get(1);
         // 4. Let k be 0.
         let mut k = 0;
@@ -806,13 +805,12 @@ impl ArrayPrototype {
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        if !is_callable(callback_fn) {
+        let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
                 "Callback function is not callable",
             ));
-        }
-        let callback_fn = Function::try_from(callback_fn).unwrap();
+        };
         // 4. Let A be ? ArraySpeciesCreate(O, 0).
         let a = array_species_create(agent, o, 0)?;
         // 5. Let k be 0.
@@ -1001,12 +999,11 @@ impl ArrayPrototype {
         // 2. Let sourceLen be ? LengthOfArrayLike(O).
         let source_len = length_of_array_like(agent, o)? as usize;
         // 3. If IsCallable(mapperFunction) is false, throw a TypeError exception.
-        if !is_callable(mapper_function) {
+        let Some(mapper_function) = is_callable(mapper_function) else {
             return Err(
                 agent.throw_exception(ExceptionType::TypeError, "Mapper function is not callable")
             );
-        }
-        let mapper_function = Function::try_from(mapper_function).unwrap();
+        };
         // 4. Let A be ? ArraySpeciesCreate(O, 0).
         let a = array_species_create(agent, o, 0)?;
         // 5. Perform ? FlattenIntoArray(A, O, sourceLen, 0, 1, mapperFunction, thisArg).
@@ -1067,13 +1064,12 @@ impl ArrayPrototype {
         let callback_fn = arguments.get(0);
 
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        if !is_callable(callback_fn) {
+        let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
-        }
-        let callback_fn = Function::try_from(callback_fn).unwrap();
+        };
 
         let this_arg = arguments.get(0);
         // 4. Let k be 0.
@@ -1585,13 +1581,12 @@ impl ArrayPrototype {
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        if !is_callable(callback_fn) {
+        let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
-        }
-        let callback_fn = Function::try_from(callback_fn).unwrap();
+        };
         // 4. Let A be ? ArraySpeciesCreate(O, len).
         let a = array_species_create(agent, o, len as usize)?;
         // 5. Let k be 0.
@@ -2191,15 +2186,13 @@ impl ArrayPrototype {
         // 2. Let func be ? Get(array, "join").
         let func = get(agent, array, BUILTIN_STRING_MEMORY.join.into())?;
         // 3. If IsCallable(func) is false, set func to the intrinsic function %Object.prototype.toString%.
-        let func = if !is_callable(func) {
+        let func = is_callable(func).unwrap_or_else(|| {
             agent
                 .current_realm()
                 .intrinsics()
                 .object_prototype_to_string()
                 .into_function()
-        } else {
-            Function::try_from(func).unwrap()
-        };
+        });
         // 4. Return ? Call(func, array).
         call_function(agent, func, array.into_value(), None)
     }
@@ -2393,10 +2386,9 @@ fn find_via_predicate(
     this_arg: Value,
 ) -> JsResult<(i64, Value)> {
     // 1. If IsCallable(predicate) is false, throw a TypeError exception.
-    if !is_callable(predicate) {
+    let Some(predicate) = is_callable(predicate) else {
         return Err(agent.throw_exception(ExceptionType::TypeError, "Predicate is not a function"));
-    }
-    let predicate = Function::try_from(predicate).unwrap();
+    };
     // 4. For each integer k of indices, do
     let check = |agent: &mut Agent,
                  o: Object,

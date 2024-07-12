@@ -152,10 +152,9 @@ impl ReflectObject {
         let arguments_list = arguments.get(2);
 
         // 1. If IsCallable(target) is false, throw a TypeError exception.
-        if !is_callable(target) {
+        let Some(target) = is_callable(target) else {
             return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not callable"));
-        }
-        let target = Function::try_from(target).unwrap();
+        };
         // 2. Let args be ? CreateListFromArrayLike(argumentsList).
         let args = create_list_from_array_like(agent, arguments_list)?;
         // TODO: 3. Perform PrepareForTailCall().

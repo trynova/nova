@@ -98,17 +98,15 @@ impl MapConstructor {
                 BUILTIN_STRING_MEMORY.set.to_property_key(),
             )?;
             // 6. If IsCallable(adder) is false, throw a TypeError exception.
-            if !is_callable(adder) {
-                Err(agent.throw_exception(
+            let Some(adder) = is_callable(adder) else {
+                return Err(agent.throw_exception(
                     ExceptionType::TypeError,
                     "Map.prototype.set is not callable",
-                ))
-            } else {
-                let adder = Function::try_from(adder).unwrap();
-                // 7. Return ? AddEntriesFromIterable(map, iterable, adder).
-                add_entries_from_iterable_map_constructor(agent, map, iterable, adder)
-                    .map(|result| result.into_value())
-            }
+                ));
+            };
+            // 7. Return ? AddEntriesFromIterable(map, iterable, adder).
+            add_entries_from_iterable_map_constructor(agent, map, iterable, adder)
+                .map(|result| result.into_value())
         }
     }
 

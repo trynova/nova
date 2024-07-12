@@ -1316,17 +1316,13 @@ pub(crate) fn instanceof_operator(
         Ok(to_boolean(agent, result))
     } else {
         // 4. If IsCallable(target) is false, throw a TypeError exception.
-        if !is_callable(target.into_value()) {
+        let Some(target) = is_callable(target) else {
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
                 "instanceof target is not a function",
             ));
-        }
+        };
         // 5. Return ? OrdinaryHasInstance(target, V).
-        Ok(ordinary_has_instance(
-            agent,
-            target.into_value(),
-            value.into_value(),
-        )?)
+        Ok(ordinary_has_instance(agent, target, value)?)
     }
 }

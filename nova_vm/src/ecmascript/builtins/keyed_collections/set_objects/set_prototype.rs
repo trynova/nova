@@ -15,7 +15,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{Function, IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -197,13 +197,12 @@ impl SetPrototype {
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        if !is_callable(callback_fn) {
+        let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
-        }
-        let callback_fn = Function::try_from(callback_fn).unwrap();
+        };
         // 4. Let entries be S.[[SetData]].
         // 5. Let numEntries be the number of elements in entries.
         let mut num_entries = agent[s].set.len();

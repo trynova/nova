@@ -89,10 +89,9 @@ impl FunctionPrototype {
     }
 
     fn apply(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
-        if !is_callable(this_value) {
+        let Some(func) = is_callable(this_value) else {
             return Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable value"));
         };
-        let func = Function::try_from(this_value).unwrap();
         let this_arg = args.get(0);
         let arg_array = args.get(1);
         if arg_array.is_undefined() || arg_array.is_null() {
@@ -122,10 +121,9 @@ impl FunctionPrototype {
     }
 
     fn call(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
-        if !is_callable(this_value) {
+        let Some(func) = is_callable(this_value) else {
             return Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable value"));
         };
-        let func = Function::try_from(this_value).unwrap();
         // TODO: PrepareForTailCall
         let this_arg = args.get(0);
         let args = ArgumentsList(if args.len() > 0 { &args[1..] } else { &args });

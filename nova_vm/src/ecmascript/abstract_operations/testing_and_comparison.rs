@@ -8,7 +8,7 @@ use crate::ecmascript::{
     abstract_operations::type_conversion::to_numeric,
     builtins::Behaviour,
     execution::{agent::ExceptionType, Agent, JsResult},
-    types::{bigint::BigInt, InternalMethods, IntoValue, Number, Object, String, Value},
+    types::{bigint::BigInt, Function, InternalMethods, IntoValue, Number, Object, String, Value},
 };
 
 use super::type_conversion::{string_to_big_int, to_number, to_primitive, PreferredType};
@@ -53,17 +53,16 @@ pub(crate) fn is_array(_agent: &Agent, argument: Value) -> JsResult<bool> {
 /// The abstract operation IsCallable takes argument argument (an ECMAScript
 /// language value) and returns a Boolean. It determines if argument is a
 /// callable function with a [[Call]] internal method.
-pub(crate) fn is_callable(argument: impl IntoValue) -> bool {
+///
+/// > #### Note
+/// > Nova breaks with the specification to narrow the types automatically, and
+/// > returns an `Option<Function>`. Eventually this should become
+/// > `Option<Callable>` once callable proxies are supported.
+pub(crate) fn is_callable(argument: impl TryInto<Function>) -> Option<Function> {
     // 1. If argument is not an Object, return false.
     // 2. If argument has a [[Call]] internal method, return true.
     // 3. Return false.
-    matches!(
-        argument.into_value(),
-        Value::BoundFunction(_)
-            | Value::BuiltinFunction(_)
-            | Value::ECMAScriptFunction(_)
-            | Value::BuiltinPromiseResolvingFunction(_)
-    )
+    argument.try_into().ok()
 }
 
 pub(crate) fn is_constructor(agent: &mut Agent, constructor: Value) -> bool {

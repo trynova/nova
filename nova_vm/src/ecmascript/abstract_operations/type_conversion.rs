@@ -31,7 +31,7 @@ use crate::{
 };
 
 use super::{
-    operations_on_objects::{call, call_function, get, get_method},
+    operations_on_objects::{call_function, get, get_method},
     testing_and_comparison::is_callable,
 };
 
@@ -141,9 +141,9 @@ pub(crate) fn ordinary_to_primitive(
         // a. Let method be ? Get(O, name).
         let method = get(agent, o, name)?;
         // b. If IsCallable(method) is true, then
-        if is_callable(method) {
+        if let Some(method) = is_callable(method) {
             // i. Let result be ? Call(method, O).
-            let result: Value = call(agent, method, o.into(), None)?;
+            let result: Value = call_function(agent, method, o.into(), None)?;
             // ii. If result is not an Object, return result.
             if let Ok(result) = Primitive::try_from(result) {
                 return Ok(result);
