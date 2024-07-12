@@ -8,7 +8,10 @@ use crate::ecmascript::{
     abstract_operations::type_conversion::to_numeric,
     builtins::Behaviour,
     execution::{agent::ExceptionType, Agent, JsResult},
-    types::{bigint::BigInt, Function, InternalMethods, IntoValue, Number, Object, String, Value},
+    types::{
+        bigint::BigInt, Function, InternalMethods, IntoFunction, IntoValue, Number, Object, String,
+        Value,
+    },
 };
 
 use super::type_conversion::{string_to_big_int, to_number, to_primitive, PreferredType};
@@ -65,24 +68,49 @@ pub(crate) fn is_callable(argument: impl TryInto<Function>) -> Option<Function> 
     argument.try_into().ok()
 }
 
-pub(crate) fn is_constructor(agent: &mut Agent, constructor: Value) -> bool {
-    // If argument is not an Object, return false.
+/// ### [7.2.4 IsConstructor ( argument )](https://tc39.es/ecma262/#sec-isconstructor)
+///
+/// The abstract operation IsConstructor takes argument argument (an ECMAScript
+/// language value) and returns a Boolean. It determines if argument is a
+/// function object with a [[Construct]] internal method.
+///
+/// > #### Note
+/// > Nova breaks with the specification to narrow the types automatically, and
+/// > returns an `Option<Function>`. Eventually this should become
+/// > `Option<Callable>` once callable proxies are supported.
+pub(crate) fn is_constructor(agent: &mut Agent, constructor: impl IntoValue) -> Option<Function> {
+    // 1. If argument is not an Object, return false.
     // 2. If argument has a [[Construct]] internal method, return true.
-    match constructor {
-        Value::BoundFunction(idx) => {
-            let function = agent[idx].bound_target_function;
-            is_constructor(agent, function.into_value())
+    match constructor.into_value() {
+        Value::BoundFunction(func) => {
+            let function = agent[func].bound_target_function;
+            if is_constructor(agent, function.into_value()).is_some() {
+                Some(func.into_function())
+            } else {
+                None
+            }
         }
-        Value::BuiltinFunction(idx) => {
-            let behaviour = agent[idx].behaviour;
-            matches!(behaviour, Behaviour::Constructor(_))
+        Value::BuiltinFunction(func) => {
+            let behaviour = agent[func].behaviour;
+            if matches!(behaviour, Behaviour::Constructor(_)) {
+                Some(func.into_function())
+            } else {
+                None
+            }
         }
-        Value::ECMAScriptFunction(idx) => agent[idx]
-            .ecmascript_function
-            .constructor_status
-            .is_constructor(),
+        Value::ECMAScriptFunction(func) => {
+            if agent[func]
+                .ecmascript_function
+                .constructor_status
+                .is_constructor()
+            {
+                Some(func.into_function())
+            } else {
+                None
+            }
+        }
         // TODO: Proxy
-        _ => false,
+        _ => None,
     }
     // 3. Return false.
 }

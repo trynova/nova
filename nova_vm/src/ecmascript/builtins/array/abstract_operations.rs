@@ -11,9 +11,7 @@ use crate::{
         },
         builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{
-            Function, IntoObject, Number, Object, PropertyDescriptor, Value, BUILTIN_STRING_MEMORY,
-        },
+        types::{IntoObject, Number, Object, PropertyDescriptor, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{indexes::ArrayIndex, Heap, WellKnownSymbolIndexes},
 };
@@ -104,8 +102,7 @@ pub(crate) fn array_species_create(
         BUILTIN_STRING_MEMORY.constructor.into(),
     )?;
     // 4. If IsConstructor(C) is true, then
-    if is_constructor(agent, c) {
-        let c_func = Function::try_from(c).unwrap();
+    if let Some(c_func) = is_constructor(agent, c) {
         // a. Let thisRealm be the current Realm Record.
         let this_realm = agent.current_realm_id();
         // b. Let realmC be ? GetFunctionRealm(C).
@@ -133,10 +130,9 @@ pub(crate) fn array_species_create(
         return Ok(new_array.into_object());
     }
     // 7. If IsConstructor(C) is false, throw a TypeError exception.
-    if !is_constructor(agent, c) {
+    let Some(c) = is_constructor(agent, c) else {
         return Err(agent.throw_exception(ExceptionType::TypeError, "Not a constructor"));
-    }
-    let c = Function::try_from(c).unwrap();
+    };
     // 8. Return ? Construct(C, « 𝔽(length) »).
     let length = Value::from_f64(agent, length as f64);
     construct(agent, c, Some(ArgumentsList(&[length])), None)

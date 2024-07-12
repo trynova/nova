@@ -221,11 +221,9 @@ impl ArrayConstructor {
         // 5. If usingIterator is not undefined, then
         if let Some(using_iterator) = using_iterator {
             // a. If IsConstructor(C) is true, then
-            let a = if is_constructor(agent, this_value) {
-                let constructor = Function::try_from(this_value).unwrap();
-
+            let a = if let Some(c) = is_constructor(agent, this_value) {
                 // i. Let A be ? Construct(C).
-                construct(agent, constructor, None, None)?
+                construct(agent, c, None, None)?
             } else {
                 // b. Else,
                 // i. Let A be ! ArrayCreate(0).
@@ -315,11 +313,9 @@ impl ArrayConstructor {
         let len_value = Value::try_from(len).unwrap();
 
         // 9. If IsConstructor(C) is true, then
-        let a = if is_constructor(agent, this_value) {
-            let constructor = Function::try_from(this_value).unwrap();
-
+        let a = if let Some(c) = is_constructor(agent, this_value) {
             // a. Let A be ? Construct(C, « 𝔽(len) »).
-            construct(agent, constructor, Some(ArgumentsList(&[len_value])), None)?
+            construct(agent, c, Some(ArgumentsList(&[len_value])), None)?
         } else {
             // 10. Else,
             // a. Let A be ? ArrayCreate(len).
@@ -395,11 +391,9 @@ impl ArrayConstructor {
 
         // 3. Let C be the this value.
         // 4. If IsConstructor(C) is true, then
-        let a = if is_constructor(agent, this_value) {
-            let constructor = Function::try_from(this_value).unwrap();
-
+        let a = if let Some(c) = is_constructor(agent, this_value) {
             // a. Let A be ? Construct(C, « lenNumber »).
-            construct(agent, constructor, Some(ArgumentsList(&[len_number])), None)?
+            construct(agent, c, Some(ArgumentsList(&[len_number])), None)?
         } else {
             // 5. Else,
             // a. Let A be ? ArrayCreate(len).

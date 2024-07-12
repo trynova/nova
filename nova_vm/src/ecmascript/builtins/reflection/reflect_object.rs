@@ -15,8 +15,8 @@ use crate::{
         builtins::{ArgumentsList, Builtin},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
-            Function, InternalMethods, IntoValue, Object, PropertyDescriptor, PropertyKey, String,
-            Value, BUILTIN_STRING_MEMORY,
+            InternalMethods, IntoValue, Object, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::WellKnownSymbolIndexes,
@@ -172,23 +172,22 @@ impl ReflectObject {
         let arguments_list = arguments.get(1);
 
         // 1. If IsConstructor(target) is false, throw a TypeError exception.
-        if !is_constructor(agent, target) {
+        let Some(target) = is_constructor(agent, target) else {
             return Err(
                 agent.throw_exception(ExceptionType::TypeError, "Value is not a constructor")
             );
-        }
-        let target = Function::try_from(target).unwrap();
+        };
 
         // 2. If newTarget is not present, set newTarget to target.
         // 3. Else if IsConstructor(newTarget) is false, throw a TypeError exception.
         let new_target = if arguments.len() > 2 {
             let new_target = arguments.get(2);
-            if !is_constructor(agent, new_target) {
+            let Some(new_target) = is_constructor(agent, new_target) else {
                 return Err(
                     agent.throw_exception(ExceptionType::TypeError, "Value is not a constructor")
                 );
-            }
-            Function::try_from(new_target).unwrap()
+            };
+            new_target
         } else {
             target
         };

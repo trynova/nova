@@ -31,8 +31,8 @@ use crate::{
         },
         types::{
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
-            is_super_reference, put_value, Base, BigInt, Function, InternalMethods, IntoFunction,
-            IntoObject, IntoValue, Number, Numeric, Object, PropertyKey, Reference, String, Value,
+            is_super_reference, put_value, Base, BigInt, InternalMethods, IntoFunction, IntoObject,
+            IntoValue, Number, Numeric, Object, PropertyKey, Reference, String, Value,
             BUILTIN_STRING_MEMORY,
         },
     },
@@ -503,13 +503,11 @@ impl Vm {
                 let arg_count = instr.args[0].unwrap() as usize;
                 let args = vm.stack.split_off(vm.stack.len() - arg_count);
                 let constructor = vm.stack.pop().unwrap();
-                if !is_constructor(agent, constructor) {
+                let Some(constructor) = is_constructor(agent, constructor) else {
                     return Err(
                         agent.throw_exception(ExceptionType::TypeError, "Not a constructor")
                     );
-                }
-                // SAFETY: Only Functions can be constructors
-                let constructor = unsafe { Function::try_from(constructor).unwrap_unchecked() };
+                };
                 vm.result = Some(
                     construct(agent, constructor, Some(ArgumentsList(&args)), None)
                         .map(|result| result.into_value())?,
