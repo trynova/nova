@@ -8,21 +8,34 @@ use crate::{ecmascript::{builtins::control_abstraction_objects::promise_objects:
 pub struct PromiseHeapData {
     pub(crate) object_index: Option<OrdinaryObject>,
     pub(crate) promise_state: PromiseState,
-    pub(crate) promise_fulfill_reactions: Option<PromiseReactions>,
-    pub(crate) promise_reject_reactions: Option<PromiseReactions>,
-    pub(crate) promise_is_handled: bool,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone)]
 pub(crate) enum PromiseState {
-    #[default]
-    Pending,
+    Pending {
+        fulfill_reactions: Option<PromiseReactions>,
+        reject_reactions: Option<PromiseReactions>,
+        /// True if the resolution state of this promise depends on another
+        /// promise or thenable that hasn't fulfilled or rejected yet.
+        is_resolved: bool,
+    },
     Fulfilled {
         promise_result: Value,
     },
     Rejected {
         promise_result: Value,
+        is_handled: bool,
     },
+}
+
+impl Default for PromiseState {
+    fn default() -> Self {
+        Self::Pending {
+            fulfill_reactions: None,
+            reject_reactions: None,
+            is_resolved: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -56,7 +69,7 @@ impl HeapMarkAndSweep for PromiseHeapData {
         self.object_index.mark_values(queues);
         match self.promise_state {
             PromiseState::Fulfilled { promise_result }
-            | PromiseState::Rejected { promise_result } => {
+            | PromiseState::Rejected { promise_result, .. } => {
                 promise_result.mark_values(queues);
             }
             _ => {}

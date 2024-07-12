@@ -18,7 +18,6 @@ use crate::ecmascript::{
     builtins::{
         bound_function::BoundFunction,
         control_abstraction_objects::promise_objects::promise_abstract_operations::{
-            promise_capability_records::PromiseCapability,
             promise_reaction_records::PromiseReaction,
             promise_reject_function::BuiltinPromiseRejectFunction,
         },
@@ -85,7 +84,6 @@ pub fn heap_gc(heap: &mut Heap) {
             numbers,
             objects,
             primitive_objects,
-            promise_capability_records,
             promise_reaction_records,
             promise_reject_functions,
             promises,
@@ -388,22 +386,6 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 promises.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut promise_capability_record_marks: Box<[PromiseCapability]> =
-            queues.promise_capability_records.drain(..).collect();
-        promise_capability_record_marks.sort();
-        promise_capability_record_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if let Some(marked) = bits.promise_capability_records.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                promise_capability_records
-                    .get(index)
-                    .mark_values(&mut queues);
             }
         });
         let mut promise_reaction_record_marks: Box<[PromiseReaction]> =
@@ -778,7 +760,6 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
         numbers,
         objects,
         primitive_objects,
-        promise_capability_records,
         promise_reaction_records,
         promise_reject_functions,
         promises,
@@ -910,13 +891,6 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
         });
         s.spawn(|| {
             sweep_heap_vector_values(primitive_objects, &compactions, &bits.primitive_objects);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(
-                promise_capability_records,
-                &compactions,
-                &bits.promise_capability_records,
-            );
         });
         s.spawn(|| {
             sweep_heap_vector_values(
