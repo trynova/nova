@@ -211,7 +211,7 @@ impl PromiseCapability {
         }
 
         // 7. Perform RejectPromise(promise, reason).
-        self.reject(agent, reason);
+        self.internal_reject(agent, reason);
 
         // 6. Set alreadyResolved.[[Value]] to true.
         debug_assert!(matches!(
