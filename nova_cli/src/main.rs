@@ -90,7 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Command::Eval { verbose, paths } => {
             let allocator = Default::default();
 
-            let host_hooks: &CliHostHooks = &*Box::leak(Box::new(CliHostHooks::default()));
+            let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
             let mut agent = Agent::new(
                 Options {
                     disable_gc: false,
@@ -127,7 +127,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            if !final_result.is_err() {
+            if final_result.is_ok() {
                 while let Some(job) = host_hooks.pop_promise_job() {
                     if let Err(err) = job.run(&mut agent) {
                         final_result = Err(err);
