@@ -228,6 +228,7 @@ pub(crate) fn get_method(
         Value::BoundFunction(idx) => Ok(Some(Function::from(idx))),
         Value::BuiltinFunction(idx) => Ok(Some(Function::from(idx))),
         Value::ECMAScriptFunction(idx) => Ok(Some(Function::from(idx))),
+        Value::BuiltinPromiseResolvingFunction(idx) => Ok(Some(Function::from(idx))),
         _ => unreachable!(),
     }
 }
@@ -288,6 +289,9 @@ pub(crate) fn call(
             }
             Value::BuiltinFunction(idx) => idx.internal_call(agent, v, arguments_list),
             Value::ECMAScriptFunction(idx) => idx.internal_call(agent, v, arguments_list),
+            Value::BuiltinPromiseResolvingFunction(idx) => {
+                idx.internal_call(agent, v, arguments_list)
+            }
             _ => unreachable!(),
         }
     }

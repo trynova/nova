@@ -111,14 +111,16 @@ impl Agent {
         &mut self[id]
     }
 
+    pub fn create_exception(&mut self, kind: ExceptionType, message: &'static str) -> Value {
+        let message = String::from_str(self, message);
+        self.heap
+            .create(ErrorHeapData::new(kind, Some(message), None))
+            .into_value()
+    }
+
     /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
     pub fn throw_exception(&mut self, kind: ExceptionType, message: &'static str) -> JsError {
-        let message = String::from_str(self, message);
-        JsError(
-            self.heap
-                .create(ErrorHeapData::new(kind, Some(message), None))
-                .into_value(),
-        )
+        JsError(self.create_exception(kind, message))
     }
 
     pub(crate) fn running_execution_context(&self) -> &ExecutionContext {

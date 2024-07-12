@@ -59,7 +59,10 @@ pub(crate) fn is_callable(argument: impl IntoValue) -> bool {
     // 3. Return false.
     matches!(
         argument.into_value(),
-        Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_)
+        Value::BoundFunction(_)
+            | Value::BuiltinFunction(_)
+            | Value::ECMAScriptFunction(_)
+            | Value::BuiltinPromiseResolvingFunction(_)
     )
 }
 

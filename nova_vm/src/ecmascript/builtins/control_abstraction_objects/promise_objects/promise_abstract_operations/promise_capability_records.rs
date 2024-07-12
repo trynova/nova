@@ -6,11 +6,18 @@
 
 use crate::{
     ecmascript::{
-        builtins::promise::Promise,
-        execution::{agent::JsError, Agent, JsResult},
-        types::{IntoValue, Value},
+        abstract_operations::{operations_on_objects::get, testing_and_comparison::same_value},
+        builtins::promise::{
+            data::{PromiseHeapData, PromiseState},
+            Promise,
+        },
+        execution::{
+            agent::{ExceptionType, JsError},
+            Agent, JsResult,
+        },
+        types::{Function, IntoValue, Object, PropertyKey, Value},
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
 };
 
 /// A promise capability encapsulates a promise, adding methods that are capable
@@ -36,22 +43,181 @@ pub(crate) struct PromiseCapability {
 
 impl PromiseCapability {
     /// [27.2.1.5 NewPromiseCapability ( C )](https://tc39.es/ecma262/#sec-newpromisecapability)
-    pub(crate) fn new(_agent: &mut Agent) -> Self {
-        todo!()
+    /// NOTE: Our implementation doesn't take C as a parameter, since we don't
+    /// yet support promise subclassing.
+    pub(crate) fn new(agent: &mut Agent) -> Self {
+        Self::from_promise(agent.heap.create(PromiseHeapData::default()), true)
+    }
+
+    pub(crate) fn from_promise(promise: Promise, must_be_unresolved: bool) -> Self {
+        Self {
+            promise,
+            must_be_unresolved,
+        }
     }
 
     pub(crate) fn promise(&self) -> Promise {
         self.promise
     }
 
+    /// [27.2.1.4 FulfillPromise ( promise, value )](https://tc39.es/ecma262/#sec-fulfillpromise)
+    fn internal_fulfill(self, agent: &mut Agent, value: Value) {
+        // 1. Assert: The value of promise.[[PromiseState]] is pending.
+        // 2. Let reactions be promise.[[PromiseFulfillReactions]].
+        let promise_state = &mut agent[self.promise].promise_state;
+        let reactions = match promise_state {
+            PromiseState::Pending {
+                fulfill_reactions, ..
+            } => fulfill_reactions.take(),
+            _ => unreachable!(),
+        };
+        // 3. Set promise.[[PromiseResult]] to value.
+        // 4. Set promise.[[PromiseFulfillReactions]] to undefined.
+        // 5. Set promise.[[PromiseRejectReactions]] to undefined.
+        // 6. Set promise.[[PromiseState]] to FULFILLED.
+        *promise_state = PromiseState::Fulfilled {
+            promise_result: value,
+        };
+        // 7. Perform TriggerPromiseReactions(reactions, value)
+        if let Some(reactions) = reactions {
+            reactions.trigger(agent, value);
+        }
+    }
+
+    /// [27.2.1.7 RejectPromise ( promise, reason )](https://tc39.es/ecma262/#sec-rejectpromise)
+    fn internal_reject(self, agent: &mut Agent, reason: Value) {
+        // 1. Assert: The value of promise.[[PromiseState]] is pending.
+        // 2. Let reactions be promise.[[PromiseRejectReactions]].
+        let promise_state = &mut agent[self.promise].promise_state;
+        let reactions = match promise_state {
+            PromiseState::Pending {
+                reject_reactions, ..
+            } => reject_reactions.take(),
+            _ => unreachable!(),
+        };
+        // 3. Set promise.[[PromiseResult]] to reason.
+        // 4. Set promise.[[PromiseFulfillReactions]] to undefined.
+        // 5. Set promise.[[PromiseRejectReactions]] to undefined.
+        // 6. Set promise.[[PromiseState]] to REJECTED.
+        // NOTE: [[PromiseIsHandled]] for pending promises corresponds to
+        // whether [[PromiseRejectReactions]] is not empty.
+        *promise_state = PromiseState::Rejected {
+            promise_result: reason,
+            is_handled: reactions.is_some(),
+        };
+
+        // 7. If promise.[[PromiseIsHandled]] is false, perform HostPromiseRejectionTracker(promise, "reject").
+        //agent
+        //    .host_hooks
+        //    .promise_rejection_tracker(self.promise, PromiseRejectionTrackerOperation::Reject);
+
+        // 8. Perform TriggerPromiseReactions(reactions, reason)
+        if let Some(reactions) = reactions {
+            reactions.trigger(agent, reason);
+        }
+    }
+
     /// [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
-    pub(crate) fn resolve(&self, _agent: &mut Agent, _resolution: Value) {
-        todo!()
+    pub fn resolve(self, agent: &mut Agent, resolution: Value) {
+        // 1. Let F be the active function object.
+        // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
+        // 3. Let promise be F.[[Promise]].
+        // 4. Let alreadyResolved be F.[[AlreadyResolved]].
+        // NOTE: If `self.must_be_unresolved` is true, then `alreadyResolved`
+        // corresponds with the `is_resolved` flag in PromiseState::Pending.
+        // Otherwise, it corresponds to `promise_state` being Pending.
+        match &mut agent[self.promise].promise_state {
+            PromiseState::Pending { is_resolved, .. }
+                if !*is_resolved || !self.must_be_unresolved =>
+            {
+                // 6. Set alreadyResolved.[[Value]] to true.
+                *is_resolved = true;
+            }
+            _ => {
+                // 5. If alreadyResolved.[[Value]] is true, return undefined.
+                return;
+            }
+        }
+
+        // 7. If SameValue(resolution, promise) is true, then
+        if same_value(agent, resolution, self.promise) {
+            // a. Let selfResolutionError be a newly created TypeError object.
+            // b. Perform RejectPromise(promise, selfResolutionError).
+            let exception = agent.create_exception(
+                ExceptionType::TypeError,
+                "Tried to resolve a promise with itself.",
+            );
+            self.internal_reject(agent, exception);
+            // c. Return undefined.
+            return;
+        }
+
+        // 8. If resolution is not an Object, then
+        let Ok(resolution) = Object::try_from(resolution) else {
+            // a. Perform FulfillPromise(promise, resolution).
+            self.internal_fulfill(agent, resolution);
+            // b. Return undefined.
+            return;
+        };
+
+        // 9. Let then be Completion(Get(resolution, "then")).
+        let then_pk = PropertyKey::from_static_str(agent, "then");
+        let then_action = match get(agent, resolution, then_pk) {
+            // 11. Let thenAction be then.[[Value]].
+            Ok(then_action) => then_action,
+            // 10. If then is an abrupt completion, then
+            Err(err) => {
+                // a. Perform RejectPromise(promise, then.[[Value]]).
+                self.internal_reject(agent, err.value());
+                // b. Return undefined.
+                return;
+            }
+        };
+
+        // 12. If IsCallable(thenAction) is false, then
+        // TODO: Callable proxies
+        let Ok(_then_action) = Function::try_from(then_action) else {
+            // a. Perform FulfillPromise(promise, resolution).
+            self.internal_fulfill(agent, resolution.into_value());
+            // b. Return undefined.
+            return;
+        };
+
+        // 13. Let thenJobCallback be HostMakeJobCallback(thenAction).
+        // TODO: HostMakeJobCallback
+        // 14. Let job be NewPromiseResolveThenableJob(promise, resolution, thenJobCallback).
+        //let job = new_promise_resolve_thenable_job(agent, self.promise, resolution, then_action);
+        // 15. Perform HostEnqueuePromiseJob(job.[[Job]], job.[[Realm]]).
+        //agent.host_hooks.enqueue_promise_job(job);
+        // 16. Return undefined.
     }
 
     /// [27.2.1.3.1 Promise Reject Functions](https://tc39.es/ecma262/#sec-promise-reject-functions)
-    pub(crate) fn reject(&self, _agent: &mut Agent, _reason: Value) {
-        todo!()
+    pub fn reject(self, agent: &mut Agent, reason: Value) {
+        // 1. Let F be the active function object.
+        // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
+        // 3. Let promise be F.[[Promise]].
+        // 4. Let alreadyResolved be F.[[AlreadyResolved]].
+        // NOTE: If `self.must_be_unresolved` is true, then `alreadyResolved`
+        // corresponds with the `is_resolved` flag in PromiseState::Pending.
+        // Otherwise, it corresponds to `promise_state` being Pending.
+        match &mut agent[self.promise].promise_state {
+            PromiseState::Pending { is_resolved, .. }
+                if *is_resolved || !self.must_be_unresolved => {}
+            _ => {
+                // 5. If alreadyResolved.[[Value]] is true, return undefined.
+                return;
+            }
+        }
+
+        // 7. Perform RejectPromise(promise, reason).
+        self.reject(agent, reason);
+
+        // 6. Set alreadyResolved.[[Value]] to true.
+        debug_assert!(matches!(
+            agent[self.promise].promise_state,
+            PromiseState::Rejected { .. }
+        ));
     }
 }
 

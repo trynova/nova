@@ -4,12 +4,28 @@
 
 use crate::{
     ecmascript::{
+        abstract_operations::operations_on_objects::invoke,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{String, Value, BUILTIN_STRING_MEMORY},
+        builtins::{
+            promise::{
+                data::{PromiseReactions, PromiseState},
+                Promise,
+            },
+            ArgumentsList, Behaviour, Builtin,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{
+            Function, InternalMethods, IntoValue, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+        },
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{CreateHeapData, WellKnownSymbolIndexes},
+};
+
+use super::promise_abstract_operations::{
+    promise_capability_records::PromiseCapability,
+    promise_reaction_records::{
+        PromiseReactionHandler, PromiseReactionRecord, PromiseReactionType,
+    },
 };
 
 pub(crate) struct PromisePrototype;
@@ -34,16 +50,73 @@ impl Builtin for PromisePrototypeThen {
 }
 
 impl PromisePrototype {
-    fn catch(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    fn catch(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+        // 1. Let promise be the this value.
+        // 2. Return ? Invoke(promise, "then", « undefined, onRejected »).
+        let property_key = PropertyKey::from_static_str(agent, "then");
+        let on_rejected = args.get(0);
+        if let Value::Promise(promise) = this_value {
+            let then_is_overriden = match agent[promise].object_index {
+                Some(backing_object) => backing_object
+                    .internal_has_property(agent, property_key)
+                    .unwrap(),
+                None => false,
+            };
+            if !then_is_overriden {
+                // NOTE: The next steps are from Promise.prototype.then.
+
+                // 3. Let C be ? SpeciesConstructor(promise, %Promise%).
+                // 4. Let resultCapability be ? NewPromiseCapability(C).
+                // NOTE: We're ignoring species and subclasses.
+                let result_capability = PromiseCapability::new(agent);
+
+                // 5. Return PerformPromiseThen(promise, onFulfilled, onRejected, resultCapability).
+                perform_promise_then(
+                    agent,
+                    promise,
+                    None,
+                    Function::try_from(on_rejected).ok(),
+                    Some(result_capability),
+                );
+                return Ok(result_capability.promise().into_value());
+            }
+        };
+
+        invoke(
+            agent,
+            this_value,
+            property_key,
+            Some(ArgumentsList(&[Value::Undefined, on_rejected])),
+        )
     }
 
     fn finally(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         todo!()
     }
 
-    fn then(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    fn then(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+        // 1. Let promise be the this value.
+        // 2. If IsPromise(promise) is false, throw a TypeError exception.
+        let Value::Promise(promise) = this_value else {
+            return Err(agent.throw_exception(ExceptionType::TypeError, "'this' is not a promise"));
+        };
+
+        // 3. Let C be ? SpeciesConstructor(promise, %Promise%).
+        // 4. Let resultCapability be ? NewPromiseCapability(C).
+        // NOTE: We're ignoring species and subclasses.
+        let result_capability = PromiseCapability::new(agent);
+
+        // 5. Return PerformPromiseThen(promise, onFulfilled, onRejected, resultCapability).
+        let on_fulfilled = Function::try_from(args.get(0)).ok();
+        let on_rejected = Function::try_from(args.get(1)).ok();
+        perform_promise_then(
+            agent,
+            promise,
+            on_fulfilled,
+            on_rejected,
+            Some(result_capability),
+        );
+        Ok(result_capability.promise().into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -68,5 +141,95 @@ impl PromisePrototype {
                     .build()
             })
             .build();
+    }
+}
+
+/// [27.2.5.4.1 PerformPromiseThen ( promise, onFulfilled, onRejected \[ , resultCapability \] )](https://tc39.es/ecma262/#sec-performpromisethen)
+pub(crate) fn perform_promise_then(
+    agent: &mut Agent,
+    promise: Promise,
+    on_fulfilled: Option<Function>,
+    on_rejected: Option<Function>,
+    result_capability: Option<PromiseCapability>,
+) {
+    // 3. If IsCallable(onFulfilled) is false, then
+    //     a. Let onFulfilledJobCallback be empty.
+    // 4. Else,
+    //     a. Let onFulfilledJobCallback be HostMakeJobCallback(onFulfilled).
+    // 5. If IsCallable(onRejected) is false, then
+    //     a. Let onRejectedJobCallback be empty.
+    // 6. Else,
+    //     a. Let onRejectedJobCallback be HostMakeJobCallback(onRejected).
+    // TODO: HostMakeJobCallback
+
+    // 7. Let fulfillReaction be the PromiseReaction Record { [[Capability]]: resultCapability, [[Type]]: fulfill, [[Handler]]: onFulfilledJobCallback }.
+    let fulfill_reaction = agent.heap.create(PromiseReactionRecord {
+        capability: result_capability,
+        handler: match on_fulfilled {
+            Some(cb) => PromiseReactionHandler::JobCallback(cb),
+            None => PromiseReactionHandler::Empty(PromiseReactionType::Fulfill),
+        },
+    });
+    // 8. Let rejectReaction be the PromiseReaction Record { [[Capability]]: resultCapability, [[Type]]: reject, [[Handler]]: onRejectedJobCallback }.
+    let reject_reaction = agent.heap.create(PromiseReactionRecord {
+        capability: result_capability,
+        handler: match on_rejected {
+            Some(cb) => PromiseReactionHandler::JobCallback(cb),
+            None => PromiseReactionHandler::Empty(PromiseReactionType::Reject),
+        },
+    });
+
+    match &mut agent[promise].promise_state {
+        // 9. If promise.[[PromiseState]] is pending, then
+        PromiseState::Pending {
+            fulfill_reactions,
+            reject_reactions,
+            ..
+        } => {
+            // a. Append fulfillReaction to promise.[[PromiseFulfillReactions]].
+            match fulfill_reactions {
+                Some(PromiseReactions::Many(reaction_vec)) => reaction_vec.push(fulfill_reaction),
+                Some(PromiseReactions::One(reaction)) => {
+                    *fulfill_reactions =
+                        Some(PromiseReactions::Many(vec![*reaction, fulfill_reaction]))
+                }
+                None => *fulfill_reactions = Some(PromiseReactions::One(fulfill_reaction)),
+            };
+            // b. Append rejectReaction to promise.[[PromiseRejectReactions]].
+            match reject_reactions {
+                Some(PromiseReactions::Many(reaction_vec)) => reaction_vec.push(reject_reaction),
+                Some(PromiseReactions::One(reaction)) => {
+                    *reject_reactions =
+                        Some(PromiseReactions::Many(vec![*reaction, reject_reaction]))
+                }
+                None => *reject_reactions = Some(PromiseReactions::One(reject_reaction)),
+            };
+        }
+        // 10. Else if promise.[[PromiseState]] is fulfilled, then
+        PromiseState::Fulfilled { .. } => {
+            // a. Let value be promise.[[PromiseResult]].
+            // b. Let fulfillJob be NewPromiseReactionJob(fulfillReaction, value).
+            //let fulfill_job = new_promise_reaction_job(agent, fulfill_reaction, promise_result);
+            // c. Perform HostEnqueuePromiseJob(fulfillJob.[[Job]], fulfillJob.[[Realm]]).
+            //agent.host_hooks.enqueue_promise_job(fulfill_job);
+        }
+        // 11. Else,
+        PromiseState::Rejected { is_handled, .. } => {
+            // a. Assert: The value of promise.[[PromiseState]] is rejected.
+            // b. Let reason be promise.[[PromiseResult]].
+            // c. If promise.[[PromiseIsHandled]] is false, perform HostPromiseRejectionTracker(promise, "handle").
+            if !*is_handled {
+                //agent
+                //    .host_hooks
+                //    .promise_rejection_tracker(promise, PromiseRejectionTrackerOperation::Handle);
+
+                // 12. Set promise.[[PromiseIsHandled]] to true.
+                *is_handled = true;
+            }
+            // d. Let rejectJob be NewPromiseReactionJob(rejectReaction, reason).
+            //let reject_job = new_promise_reaction_job(agent, reject_reaction, promise_result);
+            // e. Perform HostEnqueuePromiseJob(rejectJob.[[Job]], rejectJob.[[Realm]]).
+            //agent.host_hooks.enqueue_promise_job(reject_job);
+        }
     }
 }
