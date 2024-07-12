@@ -4,12 +4,25 @@
 
 use crate::{
     ecmascript::{
+        abstract_operations::operations_on_objects::call_function,
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoObject, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        builtins::{
+            ordinary::ordinary_create_from_constructor,
+            promise::data::{PromiseHeapData, PromiseState},
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
+        types::{
+            Function, IntoObject, IntoValue, Object, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
-    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+    heap::{CreateHeapData, IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+};
+
+use super::promise_abstract_operations::{
+    promise_capability_records::PromiseCapability,
+    promise_resolving_functions::{PromiseResolvingFunctionHeapData, PromiseResolvingFunctionType},
 };
 
 pub(crate) struct PromiseConstructor;
@@ -77,12 +90,78 @@ impl BuiltinGetter for PromiseGetSpecies {
 
 impl PromiseConstructor {
     fn behaviour(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
+        args: ArgumentsList,
+        new_target: Option<Object>,
     ) -> JsResult<Value> {
-        todo!()
+        // 1. If NewTarget is undefined, throw a TypeError exception.
+        let Some(new_target) = new_target else {
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                "Promise Constructor requires 'new'",
+            ));
+        };
+
+        // We currently don't support Promise subclassing.
+        assert_eq!(
+            new_target,
+            agent.current_realm().intrinsics().promise().into_object()
+        );
+
+        // 2. If IsCallable(executor) is false, throw a TypeError exception.
+        // TODO: Callable proxies
+        let Ok(executor) = Function::try_from(args.get(0)) else {
+            return Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable value"));
+        };
+
+        // 3. Let promise be ? OrdinaryCreateFromConstructor(NewTarget, "%Promise.prototype%", « [[PromiseState]], [[PromiseResult]], [[PromiseFulfillReactions]], [[PromiseRejectReactions]], [[PromiseIsHandled]] »).
+        // 4. Set promise.[[PromiseState]] to pending.
+        // 5. Set promise.[[PromiseFulfillReactions]] to a new empty List.
+        // 6. Set promise.[[PromiseRejectReactions]] to a new empty List.
+        // 7. Set promise.[[PromiseIsHandled]] to false.
+        let Object::Promise(promise) = ordinary_create_from_constructor(
+            agent,
+            Function::try_from(new_target).unwrap(),
+            ProtoIntrinsics::Promise,
+        )?
+        else {
+            unreachable!()
+        };
+
+        // 8. Let resolvingFunctions be CreateResolvingFunctions(promise).
+        let promise_capability = PromiseCapability::from_promise(promise, true);
+        let resolve_function = agent
+            .heap
+            .create(PromiseResolvingFunctionHeapData {
+                object_index: None,
+                promise_capability,
+                resolve_type: PromiseResolvingFunctionType::Resolve,
+            })
+            .into_value();
+        let reject_function = agent
+            .heap
+            .create(PromiseResolvingFunctionHeapData {
+                object_index: None,
+                promise_capability,
+                resolve_type: PromiseResolvingFunctionType::Reject,
+            })
+            .into_value();
+
+        // 9. Let completion be Completion(Call(executor, undefined, « resolvingFunctions.[[Resolve]], resolvingFunctions.[[Reject]] »)).
+        // 10. If completion is an abrupt completion, then
+        if let Err(err) = call_function(
+            agent,
+            executor,
+            Value::Undefined,
+            Some(ArgumentsList(&[resolve_function, reject_function])),
+        ) {
+            // a. Perform ? Call(resolvingFunctions.[[Reject]], undefined, « completion.[[Value]] »).
+            promise_capability.reject(agent, err.value());
+        }
+
+        // 11. Return promise.
+        Ok(promise.into_value())
     }
 
     fn all(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
@@ -102,20 +181,53 @@ impl PromiseConstructor {
     fn race(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
         todo!()
     }
-    fn reject(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
-        todo!()
+
+    fn reject(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        // We currently don't support Promise subclassing.
+        assert_eq!(
+            this_value,
+            agent.current_realm().intrinsics().promise().into_value()
+        );
+
+        // 1. Let C be the this value.
+        // 2. Let promiseCapability be ? NewPromiseCapability(C).
+        // 3. Perform ? Call(promiseCapability.[[Reject]], undefined, « r »).
+        // 4. Return promiseCapability.[[Promise]].
+        // NOTE: Since we don't support promise subclassing, this is equivalent
+        // to creating an already-rejected promise.
+        let promise = agent.heap.create(PromiseHeapData {
+            object_index: None,
+            promise_state: PromiseState::Rejected {
+                promise_result: arguments.get(0),
+                is_handled: false,
+            },
+        });
+        Ok(promise.into_value())
     }
-    fn resolve(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
-        todo!()
+
+    fn resolve(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        // We currently don't support Promise subclassing.
+        assert_eq!(
+            this_value,
+            agent.current_realm().intrinsics().promise().into_value()
+        );
+
+        let x = arguments.get(0);
+        // 1. If IsPromise(x) is true, then
+        if let Value::Promise(x) = x {
+            // a. Let xConstructor be ? Get(x, "constructor").
+            // b. If SameValue(xConstructor, C) is true, return x.
+            // NOTE: Ignoring subclasses.
+            return Ok(x.into_value());
+        }
+        // 2. Let promiseCapability be ? NewPromiseCapability(C).
+        let promise_capability = PromiseCapability::new(agent);
+        // 3. Perform ? Call(promiseCapability.[[Resolve]], undefined, « x »).
+        promise_capability.resolve(agent, x);
+        // 4. Return promiseCapability.[[Promise]].
+        Ok(promise_capability.promise().into_value())
     }
+
     fn with_resolvers(
         _agent: &mut Agent,
         _this_value: Value,

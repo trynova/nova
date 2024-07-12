@@ -21,7 +21,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-enum PromiseResolvingFunctionType {
+pub(crate) enum PromiseResolvingFunctionType {
     Resolve,
     Reject,
 }
@@ -35,8 +35,8 @@ enum PromiseResolvingFunctionType {
 #[derive(Debug, Clone, Copy)]
 pub struct PromiseResolvingFunctionHeapData {
     pub(crate) object_index: Option<OrdinaryObject>,
-    promise_capability: PromiseCapability,
-    resolve_type: PromiseResolvingFunctionType,
+    pub(crate) promise_capability: PromiseCapability,
+    pub(crate) resolve_type: PromiseResolvingFunctionType,
 }
 
 pub(crate) type BuiltinPromiseResolvingFunctionIndex = BaseIndex<PromiseResolvingFunctionHeapData>;

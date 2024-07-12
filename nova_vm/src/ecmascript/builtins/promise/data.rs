@@ -2,7 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{ecmascript::{builtins::control_abstraction_objects::promise_objects::promise_abstract_operations::promise_reaction_records::PromiseReaction, types::{OrdinaryObject, Value}}, heap::{CompactionLists, HeapMarkAndSweep, WorkQueues}};
+use crate::{
+    ecmascript::{
+        builtins::control_abstraction_objects::promise_objects::promise_abstract_operations::promise_reaction_records::PromiseReaction,
+        execution::Agent,
+        types::{OrdinaryObject, Value},
+    },
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct PromiseHeapData {
@@ -42,6 +49,13 @@ impl Default for PromiseState {
 pub(crate) enum PromiseReactions {
     One(PromiseReaction),
     Many(Vec<PromiseReaction>),
+}
+
+impl PromiseReactions {
+    /// ### [27.2.1.8 TriggerPromiseReactions ( reactions, argument )](https://tc39.es/ecma262/#sec-triggerpromisereactions)
+    pub(crate) fn trigger(&self, _agent: &mut Agent, _argument: Value) {
+        // TODO
+    }
 }
 
 impl HeapMarkAndSweep for PromiseReactions {
