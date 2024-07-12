@@ -254,7 +254,7 @@ impl BaseTest262Runner {
                     let mut read = 0;
                     while read < buffer.len() {
                         match child.stdout.as_mut().unwrap().read(&mut buffer[read..]) {
-                            Ok(bytes_read) if bytes_read == 0 => break,
+                            Ok(0) => break,
                             Ok(bytes_read) => read += bytes_read,
                             Err(e) if e.kind() == ErrorKind::Interrupted => {}
                             Err(e) => panic!("{:?}", e),
@@ -264,7 +264,7 @@ impl BaseTest262Runner {
                 };
 
                 if self.in_test_eval {
-                    std::io::stdout().write_all(&buffer).unwrap();
+                    std::io::stdout().write_all(buffer).unwrap();
                 }
 
                 if buffer.starts_with(pass_prefix.as_bytes()) {
