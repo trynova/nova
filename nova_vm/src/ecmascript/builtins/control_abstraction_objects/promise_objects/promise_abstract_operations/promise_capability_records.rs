@@ -12,13 +12,15 @@ use crate::{
             Promise,
         },
         execution::{
-            agent::{ExceptionType, JsError},
+            agent::{ExceptionType, JsError, PromiseRejectionTrackerOperation},
             Agent, JsResult,
         },
         types::{Function, IntoValue, Object, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
 };
+
+use super::promise_jobs::new_promise_resolve_thenable_job;
 
 /// A promise capability encapsulates a promise, adding methods that are capable
 /// of resolving or rejecting that promise.
@@ -107,9 +109,9 @@ impl PromiseCapability {
         };
 
         // 7. If promise.[[PromiseIsHandled]] is false, perform HostPromiseRejectionTracker(promise, "reject").
-        //agent
-        //    .host_hooks
-        //    .promise_rejection_tracker(self.promise, PromiseRejectionTrackerOperation::Reject);
+        agent
+            .host_hooks
+            .promise_rejection_tracker(self.promise, PromiseRejectionTrackerOperation::Reject);
 
         // 8. Perform TriggerPromiseReactions(reactions, reason)
         if let Some(reactions) = reactions {
@@ -175,7 +177,7 @@ impl PromiseCapability {
 
         // 12. If IsCallable(thenAction) is false, then
         // TODO: Callable proxies
-        let Ok(_then_action) = Function::try_from(then_action) else {
+        let Ok(then_action) = Function::try_from(then_action) else {
             // a. Perform FulfillPromise(promise, resolution).
             self.internal_fulfill(agent, resolution.into_value());
             // b. Return undefined.
@@ -183,11 +185,12 @@ impl PromiseCapability {
         };
 
         // 13. Let thenJobCallback be HostMakeJobCallback(thenAction).
-        // TODO: HostMakeJobCallback
+        // TODO: Add the HostMakeJobCallback host hook. Leaving it for later, since in
+        // implementations other than browsers, [[HostDefine]] must be EMPTY.
         // 14. Let job be NewPromiseResolveThenableJob(promise, resolution, thenJobCallback).
-        //let job = new_promise_resolve_thenable_job(agent, self.promise, resolution, then_action);
+        let job = new_promise_resolve_thenable_job(agent, self.promise, resolution, then_action);
         // 15. Perform HostEnqueuePromiseJob(job.[[Job]], job.[[Realm]]).
-        //agent.host_hooks.enqueue_promise_job(job);
+        agent.host_hooks.enqueue_promise_job(job);
         // 16. Return undefined.
     }
 

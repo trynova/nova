@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::agent::HostHooks;
+use super::agent::{HostHooks, Job};
 
 /// A default implementation of host hooks, meant for applications that don't
 /// need an event loop or microtasks.
@@ -25,4 +25,8 @@ use super::agent::HostHooks;
 #[derive(Debug)]
 pub struct DefaultHostHooks;
 
-impl HostHooks for DefaultHostHooks {}
+impl HostHooks for DefaultHostHooks {
+    fn enqueue_promise_job(&self, _job: Job) {
+        // No-op
+    }
+}
