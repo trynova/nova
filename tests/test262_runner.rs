@@ -24,6 +24,7 @@ use wait_timeout::ChildExt;
 enum TestExpectation {
     Pass,
     Fail,
+    Unresolved,
     Crash,
     Timeout,
 }
@@ -149,8 +150,8 @@ impl BaseTest262Runner {
     fn run_test(&self, path: &PathBuf) -> Option<TestExpectation> {
         let metadata = test_metadata::parse(path);
 
-        if metadata.flags.is_async || metadata.flags.module {
-            // We don't yet support async or modules, skip any tests for them.
+        if metadata.flags.module {
+            // We don't yet support modules, skip any tests for them.
             return None;
         }
 
@@ -171,11 +172,20 @@ impl BaseTest262Runner {
         command.arg(&self.nova_harness_path);
         if metadata.flags.raw {
             assert!(metadata.includes.is_empty());
+            assert!(!metadata.flags.is_async);
         } else {
+            let async_include = if metadata.flags.is_async {
+                Some("doneprintHandle.js")
+            } else {
+                None
+            };
+            let auto_includes = [Some("assert.js"), Some("sta.js"), async_include];
+
             let mut harness = self.runner_base_path.clone();
             harness.push("test262/harness");
-            let includes_iter = ["assert.js", "sta.js"]
+            let includes_iter = auto_includes
                 .iter()
+                .filter_map(|include| *include)
                 .map(PathBuf::from)
                 .chain(metadata.includes.iter().cloned());
             for include_relpath in includes_iter {
@@ -191,20 +201,28 @@ impl BaseTest262Runner {
             println!();
         }
 
-        Some(self.run_command_and_parse_output(command, &metadata.negative))
+        if metadata.flags.is_async {
+            assert!(
+                metadata.negative.is_none(),
+                "Unexpected negative async expectation in {:?}",
+                path
+            );
+        }
+
+        Some(self.run_command_and_parse_output(
+            command,
+            &metadata.negative,
+            metadata.flags.is_async,
+        ))
     }
 
     fn run_command_and_parse_output(
         &self,
         mut command: Command,
         negative: &Option<test_metadata::NegativeExpectation>,
+        is_async: bool,
     ) -> TestExpectation {
-        if self.in_test_eval {
-            command.stdout(Stdio::inherit());
-        } else {
-            command.stdout(Stdio::null());
-        }
-        command.stderr(Stdio::piped());
+        command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         let mut child = command.spawn().unwrap();
 
@@ -226,8 +244,41 @@ impl BaseTest262Runner {
             return TestExpectation::Crash;
         }
 
-        let pass = if status.success() {
-            negative.is_none()
+        let result = if status.success() {
+            if is_async {
+                let pass_prefix = "Test262:AsyncTestComplete\n";
+                let fail_prefix = "Test262:AsyncTestFailure:";
+
+                let mut buffer = vec![0u8; pass_prefix.len().max(fail_prefix.len())];
+                let buffer = {
+                    let mut read = 0;
+                    while read < buffer.len() {
+                        match child.stdout.as_mut().unwrap().read(&mut buffer[read..]) {
+                            Ok(bytes_read) if bytes_read == 0 => break,
+                            Ok(bytes_read) => read += bytes_read,
+                            Err(e) if e.kind() == ErrorKind::Interrupted => {}
+                            Err(e) => panic!("{:?}", e),
+                        }
+                    }
+                    &buffer[..read]
+                };
+
+                if self.in_test_eval {
+                    std::io::stdout().write_all(&buffer).unwrap();
+                }
+
+                if buffer.starts_with(pass_prefix.as_bytes()) {
+                    TestExpectation::Pass
+                } else if buffer.starts_with(fail_prefix.as_bytes()) {
+                    TestExpectation::Fail
+                } else {
+                    TestExpectation::Unresolved
+                }
+            } else if negative.is_none() {
+                TestExpectation::Pass
+            } else {
+                TestExpectation::Fail
+            }
         } else if let Some(negative) = negative {
             let expected_stderr_prefix: Cow<str> = match negative.phase {
                 test_metadata::TestFailurePhase::Parse => "Parse errors:".into(),
@@ -247,30 +298,32 @@ impl BaseTest262Runner {
                     if self.in_test_eval {
                         std::io::stderr().write_all(&buffer).unwrap();
                     }
-                    buffer == expected_stderr_prefix.as_bytes()
+                    if buffer == expected_stderr_prefix.as_bytes() {
+                        TestExpectation::Pass
+                    } else {
+                        TestExpectation::Fail
+                    }
                 }
                 Err(e) => {
                     if e.kind() == ErrorKind::UnexpectedEof {
-                        false
+                        TestExpectation::Fail
                     } else {
                         panic!("{:?}", e);
                     }
                 }
             }
         } else {
-            false
+            TestExpectation::Fail
         };
 
         if self.in_test_eval {
+            std::io::copy(&mut child.stdout.unwrap(), &mut std::io::stdout()).unwrap();
+            std::io::stdout().flush().unwrap();
             std::io::copy(&mut child.stderr.unwrap(), &mut std::io::stderr()).unwrap();
             std::io::stderr().flush().unwrap();
         }
 
-        if pass {
-            TestExpectation::Pass
-        } else {
-            TestExpectation::Fail
-        }
+        result
     }
 }
 
