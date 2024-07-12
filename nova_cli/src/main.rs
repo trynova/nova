@@ -2,9 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::{cell::RefCell, fmt::Debug};
+
 use clap::{Parser as ClapParser, Subcommand};
 use nova_vm::ecmascript::{
-    execution::{agent::Options, initialize_host_defined_realm, Agent, DefaultHostHooks, Realm},
+    execution::{
+        agent::{HostHooks, Job, Options},
+        initialize_host_defined_realm, Agent, Realm,
+    },
     scripts_and_modules::script::{parse_script, script_evaluation},
     types::{Object, Value},
 };
@@ -40,6 +45,32 @@ enum Command {
     },
 }
 
+#[derive(Default)]
+struct CliHostHooks {
+    promise_job_queue: RefCell<Vec<Job>>,
+}
+
+// RefCell doesn't implement Debug
+impl Debug for CliHostHooks {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CliHostHooks")
+            //.field("promise_job_queue", &*self.promise_job_queue.borrow())
+            .finish()
+    }
+}
+
+impl CliHostHooks {
+    fn pop_promise_job(&self) -> Option<Job> {
+        self.promise_job_queue.borrow_mut().pop()
+    }
+}
+
+impl HostHooks for CliHostHooks {
+    fn enqueue_promise_job(&self, job: Job) {
+        self.promise_job_queue.borrow_mut().push(job);
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
 
@@ -59,12 +90,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Command::Eval { verbose, paths } => {
             let allocator = Default::default();
 
+            let host_hooks: &CliHostHooks = &*Box::leak(Box::new(CliHostHooks::default()));
             let mut agent = Agent::new(
                 Options {
                     disable_gc: false,
                     print_internals: verbose,
                 },
-                &DefaultHostHooks,
+                host_hooks,
             );
             {
                 let create_global_object: Option<fn(&mut Realm) -> Object> = None;
@@ -92,6 +124,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 final_result = script_evaluation(&mut agent, script);
                 if final_result.is_err() {
                     break;
+                }
+            }
+
+            if !final_result.is_err() {
+                while let Some(job) = host_hooks.pop_promise_job() {
+                    if let Err(err) = job.run(&mut agent) {
+                        final_result = Err(err);
+                        break;
+                    }
                 }
             }
 

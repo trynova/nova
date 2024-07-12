@@ -14,7 +14,7 @@ use super::{
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_string,
-        builtins::error::ErrorHeapData,
+        builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Reference, String, Symbol, Value},
     },
@@ -51,6 +51,53 @@ impl JsError {
 // #[derive(Debug)]
 // pub struct PreAllocated;
 
+pub(crate) enum InnerJob {
+    PromiseResolveThenable(PromiseResolveThenableJob),
+    PromiseReaction(PromiseReactionJob),
+}
+
+pub struct Job {
+    pub(crate) realm: Option<RealmIdentifier>,
+    pub(crate) inner: InnerJob,
+}
+
+impl Job {
+    pub fn realm(&self) -> Option<RealmIdentifier> {
+        self.realm
+    }
+
+    pub fn run(&self, agent: &mut Agent) -> JsResult<()> {
+        let mut pushed_context = false;
+        if let Some(realm) = self.realm {
+            if agent.current_realm_id() != realm {
+                agent.execution_context_stack.push(ExecutionContext {
+                    ecmascript_code: None,
+                    function: None,
+                    realm,
+                    script_or_module: None,
+                });
+                pushed_context = true;
+            }
+        };
+
+        let result = match self.inner {
+            InnerJob::PromiseResolveThenable(job) => job.run(agent),
+            InnerJob::PromiseReaction(job) => job.run(agent),
+        };
+
+        if pushed_context {
+            agent.execution_context_stack.pop();
+        }
+
+        result
+    }
+}
+
+pub enum PromiseRejectionTrackerOperation {
+    Reject,
+    Handle,
+}
+
 pub trait HostHooks: std::fmt::Debug {
     /// ### [19.2.1.2 HostEnsureCanCompileStrings ( calleeRealm )](https://tc39.es/ecma262/#sec-hostensurecancompilestrings)
     fn host_ensure_can_compile_strings(&self, _callee_realm: &mut Realm) -> JsResult<()> {
@@ -62,6 +109,18 @@ pub trait HostHooks: std::fmt::Debug {
     fn host_has_source_text_available(&self, _func: Function) -> bool {
         // The default implementation of HostHasSourceTextAvailable is to return true.
         true
+    }
+
+    /// ### [9.5.5 HostEnqueuePromiseJob ( job, realm )](https://tc39.es/ecma262/#sec-hostenqueuepromisejob)
+    fn enqueue_promise_job(&self, job: Job);
+
+    /// ### [27.2.1.9 HostPromiseRejectionTracker ( promise, operation )](https://tc39.es/ecma262/#sec-host-promise-rejection-tracker)
+    fn promise_rejection_tracker(
+        &self,
+        _promise: Promise,
+        _operation: PromiseRejectionTrackerOperation,
+    ) {
+        // The default implementation of HostPromiseRejectionTracker is to return unused.
     }
 }
 

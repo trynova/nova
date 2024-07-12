@@ -13,7 +13,10 @@ use crate::{
             },
             ArgumentsList, Behaviour, Builtin,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        execution::{
+            agent::{ExceptionType, PromiseRejectionTrackerOperation},
+            Agent, JsResult, RealmIdentifier,
+        },
         types::{Function, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{CreateHeapData, WellKnownSymbolIndexes},
@@ -21,6 +24,7 @@ use crate::{
 
 use super::promise_abstract_operations::{
     promise_capability_records::PromiseCapability,
+    promise_jobs::new_promise_reaction_job,
     promise_reaction_records::{
         PromiseReactionHandler, PromiseReactionRecord, PromiseReactionType,
     },
@@ -178,30 +182,37 @@ pub(crate) fn perform_promise_then(
             };
         }
         // 10. Else if promise.[[PromiseState]] is fulfilled, then
-        PromiseState::Fulfilled { .. } => {
+        PromiseState::Fulfilled { promise_result } => {
+            let promise_result = *promise_result;
             // a. Let value be promise.[[PromiseResult]].
             // b. Let fulfillJob be NewPromiseReactionJob(fulfillReaction, value).
-            //let fulfill_job = new_promise_reaction_job(agent, fulfill_reaction, promise_result);
+            let fulfill_job = new_promise_reaction_job(agent, fulfill_reaction, promise_result);
             // c. Perform HostEnqueuePromiseJob(fulfillJob.[[Job]], fulfillJob.[[Realm]]).
-            //agent.host_hooks.enqueue_promise_job(fulfill_job);
+            agent.host_hooks.enqueue_promise_job(fulfill_job);
         }
         // 11. Else,
-        PromiseState::Rejected { is_handled, .. } => {
+        PromiseState::Rejected {
+            promise_result,
+            is_handled,
+        } => {
+            let promise_result = *promise_result;
             // a. Assert: The value of promise.[[PromiseState]] is rejected.
             // b. Let reason be promise.[[PromiseResult]].
             // c. If promise.[[PromiseIsHandled]] is false, perform HostPromiseRejectionTracker(promise, "handle").
             if !*is_handled {
-                //agent
-                //    .host_hooks
-                //    .promise_rejection_tracker(promise, PromiseRejectionTrackerOperation::Handle);
-
                 // 12. Set promise.[[PromiseIsHandled]] to true.
+                // NOTE: `is_handled` is tied to the agent's lifetime, so we need to drop the
+                // mutable reference t
                 *is_handled = true;
+
+                agent
+                    .host_hooks
+                    .promise_rejection_tracker(promise, PromiseRejectionTrackerOperation::Handle);
             }
             // d. Let rejectJob be NewPromiseReactionJob(rejectReaction, reason).
-            //let reject_job = new_promise_reaction_job(agent, reject_reaction, promise_result);
+            let reject_job = new_promise_reaction_job(agent, reject_reaction, promise_result);
             // e. Perform HostEnqueuePromiseJob(rejectJob.[[Job]], rejectJob.[[Realm]]).
-            //agent.host_hooks.enqueue_promise_job(reject_job);
+            agent.host_hooks.enqueue_promise_job(reject_job);
         }
     }
 }
