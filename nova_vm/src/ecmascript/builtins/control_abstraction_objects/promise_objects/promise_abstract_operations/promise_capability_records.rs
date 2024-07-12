@@ -6,7 +6,7 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{operations_on_objects::get, testing_and_comparison::same_value},
+        abstract_operations::operations_on_objects::get,
         builtins::promise::{
             data::{PromiseHeapData, PromiseState},
             Promise,
@@ -15,7 +15,7 @@ use crate::{
             agent::{ExceptionType, JsError},
             Agent, JsResult,
         },
-        types::{Function, IntoValue, Object, PropertyKey, Value},
+        types::{Function, IntoValue, Object, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
 };
@@ -140,7 +140,7 @@ impl PromiseCapability {
         }
 
         // 7. If SameValue(resolution, promise) is true, then
-        if same_value(agent, resolution, self.promise) {
+        if resolution == self.promise.into_value() {
             // a. Let selfResolutionError be a newly created TypeError object.
             // b. Perform RejectPromise(promise, selfResolutionError).
             let exception = agent.create_exception(
@@ -161,8 +161,7 @@ impl PromiseCapability {
         };
 
         // 9. Let then be Completion(Get(resolution, "then")).
-        let then_pk = PropertyKey::from_static_str(agent, "then");
-        let then_action = match get(agent, resolution, then_pk) {
+        let then_action = match get(agent, resolution, BUILTIN_STRING_MEMORY.then.into()) {
             // 11. Let thenAction be then.[[Value]].
             Ok(then_action) => then_action,
             // 10. If then is an abrupt completion, then

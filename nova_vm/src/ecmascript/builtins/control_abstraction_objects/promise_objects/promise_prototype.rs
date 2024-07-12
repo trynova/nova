@@ -14,9 +14,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{
-            Function, InternalMethods, IntoValue, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
-        },
+        types::{Function, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{CreateHeapData, WellKnownSymbolIndexes},
 };
@@ -53,39 +51,13 @@ impl PromisePrototype {
     fn catch(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
         // 1. Let promise be the this value.
         // 2. Return ? Invoke(promise, "then", « undefined, onRejected »).
-        let property_key = PropertyKey::from_static_str(agent, "then");
+        // TODO: Add a fast path that calls `perform_promise_then` if we know
+        // `this.then` is this realm's creation-time `Promise.prototype.then`.
         let on_rejected = args.get(0);
-        if let Value::Promise(promise) = this_value {
-            let then_is_overridden = match agent[promise].object_index {
-                Some(backing_object) => backing_object
-                    .internal_has_property(agent, property_key)
-                    .unwrap(),
-                None => false,
-            };
-            if !then_is_overridden {
-                // NOTE: The next steps are from Promise.prototype.then.
-
-                // 3. Let C be ? SpeciesConstructor(promise, %Promise%).
-                // 4. Let resultCapability be ? NewPromiseCapability(C).
-                // NOTE: We're ignoring species and subclasses.
-                let result_capability = PromiseCapability::new(agent);
-
-                // 5. Return PerformPromiseThen(promise, onFulfilled, onRejected, resultCapability).
-                perform_promise_then(
-                    agent,
-                    promise,
-                    None,
-                    Function::try_from(on_rejected).ok(),
-                    Some(result_capability),
-                );
-                return Ok(result_capability.promise().into_value());
-            }
-        };
-
         invoke(
             agent,
             this_value,
-            property_key,
+            BUILTIN_STRING_MEMORY.then.into(),
             Some(ArgumentsList(&[Value::Undefined, on_rejected])),
         )
     }

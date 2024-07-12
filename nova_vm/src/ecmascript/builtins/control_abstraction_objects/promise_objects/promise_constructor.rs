@@ -7,8 +7,9 @@ use crate::{
         abstract_operations::operations_on_objects::call_function,
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            ordinary::ordinary_create_from_constructor, ArgumentsList, Behaviour, Builtin,
-            BuiltinGetter, BuiltinIntrinsicConstructor,
+            ordinary::ordinary_create_from_constructor,
+            promise::data::{PromiseHeapData, PromiseState},
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
         },
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
         types::{
@@ -102,6 +103,12 @@ impl PromiseConstructor {
             ));
         };
 
+        // We currently don't support Promise subclassing.
+        assert_eq!(
+            new_target,
+            agent.current_realm().intrinsics().promise().into_object()
+        );
+
         // 2. If IsCallable(executor) is false, throw a TypeError exception.
         // TODO: Callable proxies
         let Ok(executor) = Function::try_from(args.get(0)) else {
@@ -175,23 +182,42 @@ impl PromiseConstructor {
         todo!()
     }
 
-    fn reject(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn reject(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        // We currently don't support Promise subclassing.
+        assert_eq!(
+            this_value,
+            agent.current_realm().intrinsics().promise().into_value()
+        );
+
         // 1. Let C be the this value.
         // 2. Let promiseCapability be ? NewPromiseCapability(C).
-        let promise_capability = PromiseCapability::new(agent);
         // 3. Perform ? Call(promiseCapability.[[Reject]], undefined, « r »).
-        promise_capability.reject(agent, arguments.get(0));
         // 4. Return promiseCapability.[[Promise]].
-        Ok(promise_capability.promise().into_value())
+        // NOTE: Since we don't support promise subclassing, this is equivalent
+        // to creating an already-rejected promise.
+        let promise = agent.heap.create(PromiseHeapData {
+            object_index: None,
+            promise_state: PromiseState::Rejected {
+                promise_result: arguments.get(0),
+                is_handled: false,
+            },
+        });
+        Ok(promise.into_value())
     }
 
-    fn resolve(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn resolve(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        // We currently don't support Promise subclassing.
+        assert_eq!(
+            this_value,
+            agent.current_realm().intrinsics().promise().into_value()
+        );
+
         let x = arguments.get(0);
         // 1. If IsPromise(x) is true, then
         if let Value::Promise(x) = x {
             // a. Let xConstructor be ? Get(x, "constructor").
             // b. If SameValue(xConstructor, C) is true, return x.
-            // NOTE: Ignoring subclasses for now.
+            // NOTE: Ignoring subclasses.
             return Ok(x.into_value());
         }
         // 2. Let promiseCapability be ? NewPromiseCapability(C).
