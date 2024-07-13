@@ -232,13 +232,15 @@ impl PropertyDescriptor {
             let getter = get(agent, obj, BUILTIN_STRING_MEMORY.get.into())?;
             // b. If IsCallable(getter) is false and getter is not undefined,
             // throw a TypeError exception.
-            if !is_callable(getter) && !getter.is_undefined() {
-                return Err(
-                    agent.throw_exception(ExceptionType::TypeError, "getter is not callable")
-                );
+            if !getter.is_undefined() {
+                let Some(getter) = is_callable(getter) else {
+                    return Err(
+                        agent.throw_exception(ExceptionType::TypeError, "getter is not callable")
+                    );
+                };
+                // c. Set desc.[[Get]] to getter.
+                desc.get = Some(getter);
             }
-            // c. Set desc.[[Get]] to getter.
-            desc.get = Some(Function::try_from(getter).unwrap());
         }
         // 13. Let hasSet be ? HasProperty(Obj, "set").
         let has_set = has_property(agent, obj, BUILTIN_STRING_MEMORY.set.into())?;
@@ -248,13 +250,15 @@ impl PropertyDescriptor {
             let setter = get(agent, obj, BUILTIN_STRING_MEMORY.set.into())?;
             // b. If IsCallable(setter) is false and setter is not undefined,
             // throw a TypeError exception.
-            if !is_callable(setter) && !setter.is_undefined() {
-                return Err(
-                    agent.throw_exception(ExceptionType::TypeError, "setter is not callable")
-                );
+            if !setter.is_undefined() {
+                let Some(setter) = is_callable(setter) else {
+                    return Err(
+                        agent.throw_exception(ExceptionType::TypeError, "setter is not callable")
+                    );
+                };
+                // c. Set desc.[[Set]] to setter.
+                desc.set = Some(setter);
             }
-            // c. Set desc.[[Set]] to setter.
-            desc.set = Some(Function::try_from(setter).unwrap());
         }
         // 15. If desc has a [[Get]] field or desc has a [[Set]] field, then
         if desc.get.is_some() || desc.set.is_some() {

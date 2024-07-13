@@ -6,7 +6,7 @@ use crate::ecmascript::abstract_operations::operations_on_iterator_objects::get_
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::if_abrupt_close_iterator;
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::iterator_close;
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::iterator_step_value;
-use crate::ecmascript::abstract_operations::operations_on_objects::call;
+use crate::ecmascript::abstract_operations::operations_on_objects::call_function;
 use crate::ecmascript::abstract_operations::operations_on_objects::construct;
 use crate::ecmascript::abstract_operations::operations_on_objects::create_data_property_or_throw;
 use crate::ecmascript::abstract_operations::operations_on_objects::get;
@@ -200,19 +200,19 @@ impl ArrayConstructor {
         // 2. If mapfn is undefined, then
         let mapping = if mapfn.is_undefined() {
             // a. Let mapping be false.
-            false
+            None
         } else {
             // 3. Else,
             // a. If IsCallable(mapfn) is false, throw a TypeError exception.
-            if !is_callable(mapfn) {
+            let Some(mapfn) = is_callable(mapfn) else {
                 return Err(agent.throw_exception(
                     ExceptionType::TypeError,
                     "The map function of Array.from is not callable",
                 ));
-            }
+            };
 
             // b. Let mapping be true.
-            true
+            Some(mapfn)
         };
 
         // 4. Let usingIterator be ? GetMethod(items, @@iterator).
@@ -221,11 +221,9 @@ impl ArrayConstructor {
         // 5. If usingIterator is not undefined, then
         if let Some(using_iterator) = using_iterator {
             // a. If IsConstructor(C) is true, then
-            let a = if is_constructor(agent, this_value) {
-                let constructor = Function::try_from(this_value).unwrap();
-
+            let a = if let Some(c) = is_constructor(agent, this_value) {
                 // i. Let A be ? Construct(C).
-                construct(agent, constructor, None, None)?
+                construct(agent, c, None, None)?
             } else {
                 // b. Else,
                 // i. Let A be ! ArrayCreate(0).
@@ -276,10 +274,10 @@ impl ArrayConstructor {
                 };
 
                 // v. If mapping is true, then
-                let mapped_value = if mapping {
+                let mapped_value = if let Some(mapping) = mapping {
                     // 1. Let mappedValue be Completion(Call(mapfn, thisArg, « next, 𝔽(k) »)).
                     let mapped_value =
-                        call(agent, mapfn, this_arg, Some(ArgumentsList(&[next, fk])));
+                        call_function(agent, mapping, this_arg, Some(ArgumentsList(&[next, fk])));
 
                     // 2. IfAbruptCloseIterator(mappedValue, iteratorRecord).
                     let _ = if_abrupt_close_iterator(agent, mapped_value, &iterator_record);
@@ -315,11 +313,9 @@ impl ArrayConstructor {
         let len_value = Value::try_from(len).unwrap();
 
         // 9. If IsConstructor(C) is true, then
-        let a = if is_constructor(agent, this_value) {
-            let constructor = Function::try_from(this_value).unwrap();
-
+        let a = if let Some(c) = is_constructor(agent, this_value) {
             // a. Let A be ? Construct(C, « 𝔽(len) »).
-            construct(agent, constructor, Some(ArgumentsList(&[len_value])), None)?
+            construct(agent, c, Some(ArgumentsList(&[len_value])), None)?
         } else {
             // 10. Else,
             // a. Let A be ? ArrayCreate(len).
@@ -342,9 +338,14 @@ impl ArrayConstructor {
             let k_value = get(agent, array_like, pk)?;
 
             // c. If mapping is true, then
-            let mapped_value = if mapping {
+            let mapped_value = if let Some(mapping) = mapping {
                 // i. Let mappedValue be ? Call(mapfn, thisArg, « kValue, 𝔽(k) »).
-                call(agent, mapfn, this_arg, Some(ArgumentsList(&[k_value, fk])))?
+                call_function(
+                    agent,
+                    mapping,
+                    this_arg,
+                    Some(ArgumentsList(&[k_value, fk])),
+                )?
             } else {
                 // d. Else,
                 // i. Let mappedValue be kValue.
@@ -390,11 +391,9 @@ impl ArrayConstructor {
 
         // 3. Let C be the this value.
         // 4. If IsConstructor(C) is true, then
-        let a = if is_constructor(agent, this_value) {
-            let constructor = Function::try_from(this_value).unwrap();
-
+        let a = if let Some(c) = is_constructor(agent, this_value) {
             // a. Let A be ? Construct(C, « lenNumber »).
-            construct(agent, constructor, Some(ArgumentsList(&[len_number])), None)?
+            construct(agent, c, Some(ArgumentsList(&[len_number])), None)?
         } else {
             // 5. Else,
             // a. Let A be ? ArrayCreate(len).

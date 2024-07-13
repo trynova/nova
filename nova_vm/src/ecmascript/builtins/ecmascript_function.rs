@@ -238,6 +238,12 @@ impl ECMAScriptFunction {
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
+
+    pub fn is_constructor(self, agent: &Agent) -> bool {
+        // An ECMAScript function has the [[Construct]] slot if its constructor
+        // status is something other than non-constructor.
+        agent[self].ecmascript_function.constructor_status != ConstructorStatus::NonConstructor
+    }
 }
 
 impl InternalSlots for ECMAScriptFunction {

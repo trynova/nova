@@ -31,8 +31,8 @@ use crate::{
         },
         types::{
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
-            is_super_reference, put_value, Base, BigInt, Function, InternalMethods, IntoFunction,
-            IntoObject, IntoValue, Number, Numeric, Object, PropertyKey, Reference, String, Value,
+            is_super_reference, put_value, Base, BigInt, InternalMethods, IntoFunction, IntoObject,
+            IntoValue, Number, Numeric, Object, PropertyKey, Reference, String, Value,
             BUILTIN_STRING_MEMORY,
         },
     },
@@ -503,13 +503,11 @@ impl Vm {
                 let arg_count = instr.args[0].unwrap() as usize;
                 let args = vm.stack.split_off(vm.stack.len() - arg_count);
                 let constructor = vm.stack.pop().unwrap();
-                if !is_constructor(agent, constructor) {
+                let Some(constructor) = is_constructor(agent, constructor) else {
                     return Err(
                         agent.throw_exception(ExceptionType::TypeError, "Not a constructor")
                     );
-                }
-                // SAFETY: Only Functions can be constructors
-                let constructor = unsafe { Function::try_from(constructor).unwrap_unchecked() };
+                };
                 vm.result = Some(
                     construct(agent, constructor, Some(ArgumentsList(&args)), None)
                         .map(|result| result.into_value())?,
@@ -1316,17 +1314,13 @@ pub(crate) fn instanceof_operator(
         Ok(to_boolean(agent, result))
     } else {
         // 4. If IsCallable(target) is false, throw a TypeError exception.
-        if !is_callable(target.into_value()) {
+        let Some(target) = is_callable(target) else {
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
                 "instanceof target is not a function",
             ));
-        }
+        };
         // 5. Return ? OrdinaryHasInstance(target, V).
-        Ok(ordinary_has_instance(
-            agent,
-            target.into_value(),
-            value.into_value(),
-        )?)
+        Ok(ordinary_has_instance(agent, target, value)?)
     }
 }

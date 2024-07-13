@@ -77,10 +77,9 @@ impl SetConstructor {
         // 5. Let adder be ? Get(set, "add").
         let adder = get(agent, set, BUILTIN_STRING_MEMORY.add.into())?;
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
-        if !is_callable(adder) {
+        let Some(adder) = is_callable(adder) else {
             return Err(agent.throw_exception(ExceptionType::TypeError, "Invalid adder function"));
-        }
-        let adder = Function::try_from(adder).unwrap();
+        };
         if let Value::Array(iterable) = iterable {
             if iterable.is_trivial(agent)
                 && iterable.is_dense(agent)

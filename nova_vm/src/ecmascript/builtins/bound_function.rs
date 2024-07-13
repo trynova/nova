@@ -37,6 +37,12 @@ impl BoundFunction {
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
+
+    pub fn is_constructor(self, agent: &Agent) -> bool {
+        // A bound function has the [[Construct]] method if the target function
+        // does.
+        agent[self].bound_target_function.is_constructor(agent)
+    }
 }
 
 impl IntoValue for BoundFunction {
@@ -281,7 +287,7 @@ impl InternalMethods for BoundFunction {
         // 1. Let target be F.[[BoundTargetFunction]].
         let target = agent[self].bound_target_function;
         // 2. Assert: IsConstructor(target) is true.
-        assert!(is_constructor(agent, target.into_value()));
+        assert!(is_constructor(agent, target).is_some());
         // 3. Let boundArgs be F.[[BoundArguments]].
         let bound_args = agent[self].bound_arguments;
         // 5. If SameValue(F, newTarget) is true, set newTarget to target.
