@@ -123,7 +123,6 @@
   "built-ins/Array/isArray/15.4.3.2-1-10.js": "CRASH",
   "built-ins/Array/isArray/proxy-revoked.js": "CRASH",
   "built-ins/Array/isArray/proxy.js": "CRASH",
-  "built-ins/Array/length/S15.4.2.2_A2.1_T1.js": "TIMEOUT",
   "built-ins/Array/length/define-own-prop-length-overflow-realm.js": "FAIL",
   "built-ins/Array/name.js": "CRASH",
   "built-ins/Array/of/proto-from-ctor-realm.js": "FAIL",
