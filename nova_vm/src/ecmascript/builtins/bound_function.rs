@@ -37,6 +37,12 @@ impl BoundFunction {
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
+
+    pub fn is_constructor(self, agent: &Agent) -> bool {
+        // A bound function has the [[Construct]] method if the target function
+        // does.
+        agent[self].bound_target_function.is_constructor(agent)
+    }
 }
 
 impl IntoValue for BoundFunction {

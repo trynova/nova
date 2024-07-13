@@ -51,6 +51,12 @@ pub enum Behaviour {
     Constructor(ConstructorFn),
 }
 
+impl Behaviour {
+    pub(crate) fn is_constructor(&self) -> bool {
+        matches!(self, Behaviour::Constructor(_))
+    }
+}
+
 pub trait Builtin {
     const NAME: String;
     const LENGTH: u8;
@@ -108,6 +114,12 @@ impl BuiltinFunction {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+
+    pub fn is_constructor(self, agent: &Agent) -> bool {
+        // A builtin function has the [[Construct]] method if its behaviour is
+        // a constructor behaviour.
+        agent[self].behaviour.is_constructor()
     }
 }
 

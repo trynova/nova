@@ -22,7 +22,7 @@ use crate::{
             bound_function::BoundFunction, control_abstraction_objects::promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction, ArgumentsList, BuiltinFunction, ECMAScriptFunction
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
-        types::{PropertyDescriptor},
+        types::PropertyDescriptor,
     },
     heap::{indexes::BuiltinFunctionIndex, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -185,6 +185,23 @@ impl From<Function> for Value {
 impl Function {
     pub(crate) const fn new_builtin_function(idx: BuiltinFunctionIndex) -> Self {
         Self::BuiltinFunction(BuiltinFunction(idx))
+    }
+
+    pub fn is_constructor(self, agent: &Agent) -> bool {
+        match self {
+            Function::BoundFunction(f) => f.is_constructor(agent),
+            Function::BuiltinFunction(f) => f.is_constructor(agent),
+            Function::ECMAScriptFunction(f) => f.is_constructor(agent),
+            Function::BuiltinPromiseResolvingFunction(_) => false,
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction => todo!(),
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+            Function::ECMAScriptAsyncFunction => todo!(),
+            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
+            Function::ECMAScriptConstructorFunction => todo!(),
+            Function::ECMAScriptGeneratorFunction => todo!(),
+        }
     }
 }
 
