@@ -2109,13 +2109,12 @@ impl ArrayPrototype {
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        if !is_callable(callback_fn) {
+        let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
                 "Callback function is not callable",
             ));
-        }
-        let callback_fn = Function::try_from(callback_fn).unwrap();
+        };
         // 4. Let k be 0.
         let mut k = 0;
         // 5. Repeat, while k < len,
