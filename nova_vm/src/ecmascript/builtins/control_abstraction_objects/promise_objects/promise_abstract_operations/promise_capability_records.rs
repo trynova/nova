@@ -62,6 +62,22 @@ impl PromiseCapability {
         self.promise
     }
 
+    fn is_already_resolved(self, agent: &mut Agent) -> bool {
+        // If `self.must_be_unresolved` is true, then `alreadyResolved`
+        // corresponds with the `is_resolved` flag in PromiseState::Pending.
+        // Otherwise, it corresponds to `promise_state` not being Pending.
+        match agent[self.promise].promise_state {
+            PromiseState::Pending { is_resolved, .. } => {
+                if self.must_be_unresolved {
+                    is_resolved
+                } else {
+                    false
+                }
+            }
+            _ => true,
+        }
+    }
+
     /// [27.2.1.4 FulfillPromise ( promise, value )](https://tc39.es/ecma262/#sec-fulfillpromise)
     fn internal_fulfill(self, agent: &mut Agent, value: Value) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
@@ -125,21 +141,15 @@ impl PromiseCapability {
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].
         // 4. Let alreadyResolved be F.[[AlreadyResolved]].
-        // NOTE: If `self.must_be_unresolved` is true, then `alreadyResolved`
-        // corresponds with the `is_resolved` flag in PromiseState::Pending.
-        // Otherwise, it corresponds to `promise_state` being Pending.
-        match &mut agent[self.promise].promise_state {
-            PromiseState::Pending { is_resolved, .. }
-                if !*is_resolved || !self.must_be_unresolved =>
-            {
-                // 6. Set alreadyResolved.[[Value]] to true.
-                *is_resolved = true;
-            }
-            _ => {
-                // 5. If alreadyResolved.[[Value]] is true, return undefined.
-                return;
-            }
+        // 5. If alreadyResolved.[[Value]] is true, return undefined.
+        if self.is_already_resolved(agent) {
+            return;
         }
+        // 6. Set alreadyResolved.[[Value]] to true.
+        match &mut agent[self.promise].promise_state {
+            PromiseState::Pending { is_resolved, .. } => *is_resolved = true,
+            _ => unreachable!(),
+        };
 
         // 7. If SameValue(resolution, promise) is true, then
         if resolution == self.promise.into_value() {
@@ -200,16 +210,9 @@ impl PromiseCapability {
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].
         // 4. Let alreadyResolved be F.[[AlreadyResolved]].
-        // NOTE: If `self.must_be_unresolved` is true, then `alreadyResolved`
-        // corresponds with the `is_resolved` flag in PromiseState::Pending.
-        // Otherwise, it corresponds to `promise_state` being Pending.
-        match &mut agent[self.promise].promise_state {
-            PromiseState::Pending { is_resolved, .. }
-                if *is_resolved || !self.must_be_unresolved => {}
-            _ => {
-                // 5. If alreadyResolved.[[Value]] is true, return undefined.
-                return;
-            }
+        // 5. If alreadyResolved.[[Value]] is true, return undefined.
+        if self.is_already_resolved(agent) {
+            return;
         }
 
         // 7. Perform RejectPromise(promise, reason).
