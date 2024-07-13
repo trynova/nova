@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{cell::RefCell, fmt::Debug};
+use std::{cell::RefCell, collections::VecDeque, fmt::Debug};
 
 use clap::{Parser as ClapParser, Subcommand};
 use nova_vm::ecmascript::{
@@ -47,7 +47,7 @@ enum Command {
 
 #[derive(Default)]
 struct CliHostHooks {
-    promise_job_queue: RefCell<Vec<Job>>,
+    promise_job_queue: RefCell<VecDeque<Job>>,
 }
 
 // RefCell doesn't implement Debug
@@ -61,13 +61,13 @@ impl Debug for CliHostHooks {
 
 impl CliHostHooks {
     fn pop_promise_job(&self) -> Option<Job> {
-        self.promise_job_queue.borrow_mut().pop()
+        self.promise_job_queue.borrow_mut().pop_front()
     }
 }
 
 impl HostHooks for CliHostHooks {
     fn enqueue_promise_job(&self, job: Job) {
-        self.promise_job_queue.borrow_mut().push(job);
+        self.promise_job_queue.borrow_mut().push_back(job);
     }
 }
 
