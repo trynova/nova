@@ -559,6 +559,7 @@ impl TypedArrayPrototype {
             .with_builtin_function_property::<TypedArrayPrototypeToString>()
             .with_builtin_intrinsic_function_property::<TypedArrayPrototypeValues>()
             .with_builtin_function_property::<TypedArrayPrototypeWith>()
+            .with_builtin_function_getter_property::<TypedArrayPrototypeGetToStringTag>()
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::Iterator.into())
@@ -567,7 +568,6 @@ impl TypedArrayPrototype {
                     .with_configurable(TypedArrayPrototypeValues::CONFIGURABLE)
                     .build()
             })
-            .with_builtin_function_getter_property::<TypedArrayPrototypeGetToStringTag>()
             .build();
     }
 }

@@ -593,10 +593,10 @@ pub(crate) fn to_big_int(agent: &mut Agent, argument: Value) -> JsResult<BigInt>
     // 2. Return the value that prim corresponds to in Table 12.
     match prim {
         Primitive::Undefined => {
-            Err(agent.throw_exception(ExceptionType::Error, "Invalid primitive 'undefined'"))
+            Err(agent.throw_exception(ExceptionType::TypeError, "Invalid primitive 'undefined'"))
         }
         Primitive::Null => {
-            Err(agent.throw_exception(ExceptionType::Error, "Invalid primitive 'null'"))
+            Err(agent.throw_exception(ExceptionType::TypeError, "Invalid primitive 'null'"))
         }
         Primitive::Boolean(bool) => {
             if bool {
