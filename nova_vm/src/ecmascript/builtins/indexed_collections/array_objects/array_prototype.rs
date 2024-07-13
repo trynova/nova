@@ -2115,9 +2115,10 @@ impl ArrayPrototype {
         let len = length_of_array_like(agent, o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         if !is_callable(callback_fn) {
-            return Err(
-                agent.throw_exception(ExceptionType::Error, "Callback function is not callable")
-            );
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                "Callback function is not callable",
+            ));
         }
         let callback_fn = Function::try_from(callback_fn).unwrap();
         // 4. Let k be 0.
