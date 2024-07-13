@@ -2109,30 +2109,6 @@ impl ArrayPrototype {
         let callback_fn = arguments.get(0);
         let this_arg = arguments.get(1);
 
-        if let (Value::Array(array), Some(callback_fn)) =
-            (this_value, Function::try_from(callback_fn).ok())
-        {
-            if array.is_simple(agent) && array.is_dense(agent) {
-                // Fast path: All indexed properties are present and are not
-                // getters.
-                let len = array.len(agent);
-
-                for k in 0..len {
-                    let k_value = array.as_slice(agent)[k as usize].unwrap();
-                    let test_result = call_function(
-                        agent,
-                        callback_fn,
-                        this_arg,
-                        Some(ArgumentsList(&[k_value, k.into(), array.into_value()])),
-                    )?;
-                    if test_result == Value::Boolean(true) || to_boolean(agent, test_result) {
-                        return Ok(true.into());
-                    }
-                }
-                return Ok(false.into());
-            }
-        }
-
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
