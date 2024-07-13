@@ -260,6 +260,12 @@ impl RegExpPrototype {
             .with_builtin_function_getter_property::<RegExpPrototypeGetGlobal>()
             .with_builtin_function_getter_property::<RegExpPrototypeGetHasIndices>()
             .with_builtin_function_getter_property::<RegExpPrototypeGetIgnoreCase>()
+            .with_builtin_function_getter_property::<RegExpPrototypeGetSource>()
+            .with_builtin_function_getter_property::<RegExpPrototypeGetSticky>()
+            .with_builtin_function_property::<RegExpPrototypeTest>()
+            .with_builtin_function_property::<RegExpPrototypeToString>()
+            .with_builtin_function_getter_property::<RegExpPrototypeGetUnicode>()
+            .with_builtin_function_getter_property::<RegExpPrototypeGetUnicodeSets>()
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::Match.into())
@@ -305,7 +311,6 @@ impl RegExpPrototype {
                     .with_enumerable(false)
                     .build()
             })
-            .with_builtin_function_getter_property::<RegExpPrototypeGetSource>()
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::Split.into())
@@ -317,11 +322,6 @@ impl RegExpPrototype {
                     .with_enumerable(false)
                     .build()
             })
-            .with_builtin_function_getter_property::<RegExpPrototypeGetSticky>()
-            .with_builtin_function_property::<RegExpPrototypeTest>()
-            .with_builtin_function_property::<RegExpPrototypeToString>()
-            .with_builtin_function_getter_property::<RegExpPrototypeGetUnicode>()
-            .with_builtin_function_getter_property::<RegExpPrototypeGetUnicodeSets>()
             .build();
     }
 }

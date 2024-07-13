@@ -451,8 +451,8 @@ impl ReflectObject {
             .with_builtin_function_property::<ReflectObjectSetPrototypeOf>()
             .with_property(|builder| {
                 builder
-                    .with_key(BUILTIN_STRING_MEMORY.Reflect.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Reflect.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

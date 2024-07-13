@@ -619,14 +619,6 @@ impl MathObject {
                     .with_configurable(false)
                     .build()
             })
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.Math.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_enumerable(false)
-                    .with_configurable(true)
-                    .build()
-            })
             .with_builtin_function_property::<MathObjectAbs>()
             .with_builtin_function_property::<MathObjectAcos>()
             .with_builtin_function_property::<MathObjectAcosh>()
@@ -662,6 +654,14 @@ impl MathObject {
             .with_builtin_function_property::<MathObjectTan>()
             .with_builtin_function_property::<MathObjectTanh>()
             .with_builtin_function_property::<MathObjectTrunc>()
+            .with_property(|builder| {
+                builder
+                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Math.into())
+                    .with_enumerable(false)
+                    .with_configurable(true)
+                    .build()
+            })
             .build();
     }
 }
