@@ -5,13 +5,19 @@
 use std::collections::VecDeque;
 
 use crate::ecmascript::{
+    abstract_operations::{
+        operations_on_iterator_objects::IteratorRecord, operations_on_objects::get,
+    },
+    builtins::Array,
     execution::{Agent, JsResult},
-    types::{InternalMethods, Object, PropertyKey},
+    types::{InternalMethods, Object, PropertyKey, Value},
 };
 
 #[derive(Debug)]
 pub(super) enum VmIterator {
     ObjectProperties(ObjectPropertiesIterator),
+    ArrayValues(ArrayValuesIterator),
+    GenericIterator(IteratorRecord),
 }
 
 #[derive(Debug)]
@@ -66,5 +72,50 @@ impl ObjectPropertiesIterator {
                 return Ok(None);
             }
         }
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct ArrayValuesIterator {
+    array: Array,
+    index: u32,
+}
+
+impl ArrayValuesIterator {
+    pub(super) fn new(array: Array) -> Self {
+        Self {
+            array,
+            // a. Let index be 0.
+            index: 0,
+        }
+    }
+
+    pub(super) fn next(&mut self, agent: &mut Agent) -> JsResult<Option<Value>> {
+        // b. Repeat,
+        let array = self.array;
+        let index = self.index;
+        // viii. Set index to index + 1.
+        // 1. Let len be ? LengthOfArrayLike(array).
+        let len = self.array.len(agent);
+        // iii. If index ≥ len, return NormalCompletion(undefined).
+        if index >= len {
+            return Ok(None);
+        }
+        self.index += 1;
+        if array.is_trivial(agent) {
+            // Fast path: An array with no descriptors will likely find the
+            // value directly in the elements slice.
+            let element_value = array.as_slice(agent)[index as usize];
+            if element_value.is_some() {
+                return Ok(element_value);
+            }
+        }
+        // iv. Let indexNumber be 𝔽(index).
+        // 1. Let elementKey be ! ToString(indexNumber).
+        // 2. Let elementValue be ? Get(array, elementKey).
+        let element_value = get(agent, self.array, index.into())?;
+        // a. Let result be elementValue.
+        // vii. Perform ? GeneratorYield(CreateIterResultObject(result, false)).
+        Ok(Some(element_value))
     }
 }

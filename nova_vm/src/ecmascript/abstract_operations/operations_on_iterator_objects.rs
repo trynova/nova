@@ -24,9 +24,9 @@ use crate::{
 /// AsyncIterator along with the next method.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct IteratorRecord {
-    iterator: Object,
-    next_method: Value,
-    done: bool,
+    pub(crate) iterator: Object,
+    pub(crate) next_method: Value,
+    pub(crate) done: bool,
 }
 
 /// ### [7.4.2 GetIteratorFromMethod ( obj, method )](https://tc39.es/ecma262/#sec-getiteratorfrommethod)

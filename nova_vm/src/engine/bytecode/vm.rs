@@ -7,9 +7,10 @@ use oxc_syntax::operator::BinaryOperator;
 use crate::{
     ecmascript::{
         abstract_operations::{
+            operations_on_iterator_objects::{get_iterator_from_method, iterator_close},
             operations_on_objects::{
-                call, call_function, construct, create_data_property_or_throw, get_method, get_v,
-                has_property, ordinary_has_instance, set,
+                call, call_function, construct, create_data_property_or_throw, get, get_method,
+                get_v, has_property, ordinary_has_instance, set,
             },
             testing_and_comparison::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
@@ -41,7 +42,7 @@ use crate::{
 
 use super::{
     instructions::Instr,
-    iterator::{ObjectPropertiesIterator, VmIterator},
+    iterator::{ArrayValuesIterator, ObjectPropertiesIterator, VmIterator},
     Executable, Instruction, InstructionIter,
 };
 
@@ -902,9 +903,73 @@ impl Vm {
                         object,
                     )))
             }
+            Instruction::GetIteratorSync => {
+                let expr_value = vm.result.take().unwrap();
+                // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
+                let method = get_method(
+                    agent,
+                    expr_value,
+                    PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+                )?;
+                let Some(method) = method else {
+                    // 3. If method is undefined, throw a TypeError exception.
+                    return Err(agent.throw_exception(
+                        ExceptionType::TypeError,
+                        "Iterator method cannot be undefined",
+                    ));
+                };
+
+                // 4. Return ? GetIteratorFromMethod(obj, method).
+                match expr_value {
+                    Value::Array(array)
+                        if get_method(
+                            agent,
+                            expr_value,
+                            PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+                        )? == Some(
+                            agent
+                                .current_realm()
+                                .intrinsics()
+                                .array_prototype_values()
+                                .into_function(),
+                        ) =>
+                    {
+                        // Fast path: We know what Array.prototype.values
+                        // iterates over on Arrays.
+                        vm.iterator_stack
+                            .push(VmIterator::ArrayValues(ArrayValuesIterator::new(array)));
+                    }
+                    _ => {
+                        vm.iterator_stack.push(VmIterator::GenericIterator(
+                            get_iterator_from_method(agent, expr_value, method)?,
+                        ));
+                    }
+                }
+            }
+            Instruction::GetIteratorAsync => {
+                todo!();
+            }
             Instruction::IteratorComplete => {
-                if vm.result.is_none() {
-                    vm.ip = instr.args[0].unwrap() as usize;
+                if matches!(
+                    vm.iterator_stack.last().as_ref().unwrap(),
+                    VmIterator::GenericIterator(_)
+                ) {
+                    // Generic iterators have to access the "done" property of the result object.
+                    let iter_result = Object::try_from(vm.result.unwrap()).unwrap();
+                    let done = get(agent, iter_result, BUILTIN_STRING_MEMORY.done.into())?;
+                    let done = to_boolean(agent, done);
+                    if done {
+                        vm.result = None;
+                        vm.iterator_stack.pop().unwrap();
+                        vm.ip = instr.args[0].unwrap() as usize;
+                    }
+                } else {
+                    // Fast-path iterators place a None as result if they've
+                    // completed.
+                    if vm.result.is_none() {
+                        vm.iterator_stack.pop().unwrap();
+                        vm.ip = instr.args[0].unwrap() as usize;
+                    }
                 }
             }
             Instruction::IteratorNext => {
@@ -927,13 +992,62 @@ impl Vm {
                                 _ => unreachable!(),
                             });
                         } else {
-                            vm.iterator_stack.pop();
                             vm.result = None;
                         }
                     }
+                    VmIterator::ArrayValues(iter) => {
+                        let result = iter.next(agent);
+                        if result.is_err() {
+                            vm.iterator_stack.pop();
+                            result?;
+                        }
+                        let result = result.unwrap();
+                        vm.result = result;
+                    }
+                    VmIterator::GenericIterator(iter) => {
+                        let result =
+                            call(agent, iter.next_method, iter.iterator.into_value(), None);
+                        if result.is_err() {
+                            vm.iterator_stack.pop();
+                            result?;
+                        }
+                        let result = result.unwrap();
+                        if !result.is_object() {
+                            return Err(agent.throw_exception(
+                                ExceptionType::TypeError,
+                                "Iterator returned a non-object result",
+                            ));
+                        }
+                        vm.result = Some(result);
+                    }
                 }
             }
-            Instruction::IteratorValue => {}
+            Instruction::IteratorValue => {
+                if matches!(
+                    vm.iterator_stack.last().as_ref().unwrap(),
+                    VmIterator::GenericIterator(_)
+                ) {
+                    // Generic iterators have to access the "value" property of the result object.
+
+                    // 1. Return ? Get(iterResult, "value").
+                    let value = get(
+                        agent,
+                        Object::try_from(vm.result.take().unwrap()).unwrap(),
+                        BUILTIN_STRING_MEMORY.value.into(),
+                    )?;
+                    vm.result = Some(value);
+                }
+            }
+            Instruction::IteratorClose => {
+                let iterator = vm.iterator_stack.pop().unwrap();
+                if let VmIterator::GenericIterator(iterator_record) = iterator {
+                    iterator_close(
+                        agent,
+                        &iterator_record,
+                        Ok(vm.result.take().unwrap_or(Value::Undefined)),
+                    )?;
+                }
+            }
             other => todo!("{other:?}"),
         }
 

@@ -244,10 +244,20 @@ pub enum Instruction {
     /// Take the current result and begin iterating it according to
     /// EnumerateObjectProperties.
     EnumerateObjectProperties,
+    /// Take the current result and call `GetIterator(result, SYNC)`
+    GetIteratorSync,
+    /// Take the current result and call `GetIterator(result, ASYNC)`
+    GetIteratorAsync,
     /// Call [[NextMethod]] of current iterator
     IteratorNext,
+    /// Check "done" boolean of current iterator result object
     IteratorComplete,
+    // Extract "value" of current iterator result object
     IteratorValue,
+    /// Perform CloseIterator on the current iterator
+    IteratorClose,
+    /// Perform AsyncCloseIterator on the current iterator
+    AsyncIteratorClose,
 }
 
 impl Instruction {
