@@ -807,18 +807,14 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
     // 19. Set F.[[PrivateMethods]] to a new empty List.
     // 20. Set F.[[ClassFieldInitializerName]] to EMPTY.
     // 21. Let len be the ExpectedArgumentCount of ParameterList.
+    let len = params
+        .parameters_list
+        .items
+        .iter()
+        .filter(|par| !par.pattern.kind.is_assignment_pattern())
+        .count();
     // 22. Perform SetFunctionLength(F, len).
-    set_ecmascript_function_length(
-        agent,
-        &mut function,
-        params
-            .parameters_list
-            .items
-            .iter()
-            .filter(|par| !par.pattern.kind.is_binding_identifier())
-            .count(),
-    )
-    .unwrap();
+    set_ecmascript_function_length(agent, &mut function, len).unwrap();
     // 23. Return F.
     agent.heap.create(function).into_function()
 }
