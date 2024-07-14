@@ -14,7 +14,9 @@ use crate::ecmascript::{
 };
 use core::panic;
 use std::{
-    collections::HashMap, mem::MaybeUninit, ops::{Index, IndexMut}
+    collections::HashMap,
+    mem::MaybeUninit,
+    ops::{Index, IndexMut},
 };
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
