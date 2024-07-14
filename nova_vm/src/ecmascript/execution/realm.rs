@@ -1148,7 +1148,8 @@ mod test {
             BuiltinFunctionIndex::from_index(0)
         );
         assert!(agent.heap.array_buffers.is_empty());
-        assert!(agent.heap.arrays.is_empty());
+        // Array prototype is itself an Array :/
+        assert_eq!(agent.heap.arrays.len(), 1);
         assert!(agent.heap.bigints.is_empty());
         assert!(agent.heap.bound_functions.is_empty());
         let missing_builtin = agent

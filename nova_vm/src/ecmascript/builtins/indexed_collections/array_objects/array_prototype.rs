@@ -15,7 +15,10 @@ use crate::{
             type_conversion::{to_boolean, to_integer_or_infinity, to_object, to_string},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{array_species_create, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
+        builtins::{
+            array_species_create, ArgumentsList, ArrayHeapData, Behaviour, Builtin,
+            BuiltinIntrinsic,
+        },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
             Function, IntoFunction, IntoObject, IntoValue, Number, Object, PropertyKey, String,
@@ -2212,10 +2215,11 @@ impl ArrayPrototype {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.array_prototype();
+        let this_base_object = intrinsics.array_prototype_base_object();
         let array_constructor = intrinsics.array();
         let array_prototype_values = intrinsics.array_prototype_values();
 
-        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
+        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this_base_object)
             .with_property_capacity(41)
             .with_prototype(object_prototype)
             .with_builtin_function_property::<ArrayPrototypeAt>()
@@ -2304,6 +2308,16 @@ impl ArrayPrototype {
                     .build()
             })
             .build();
+
+        let slot = agent.heap.arrays.get_mut(this.get_index()).unwrap();
+        assert!(slot.is_none());
+        *slot = Some(ArrayHeapData {
+            object_index: Some(this_base_object),
+            // has a "length" property whose initial value is +0𝔽 and whose
+            // attributes are { [[Writable]]: true, [[Enumerable]]: false,
+            // [[Configurable]]: false }.
+            elements: Default::default(),
+        });
     }
 }
 
