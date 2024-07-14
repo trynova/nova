@@ -256,7 +256,6 @@ impl TypedArrayConstructors {
 
         let int8_array_prototype = intrinsics.int8_array_prototype();
         let uint8_array_prototype = intrinsics.uint8_array_prototype();
-        intrinsics.uint8_clamped_array_base_object();
         let uint8_clamped_array_prototype = intrinsics.uint8_clamped_array_prototype();
         let int16_array_prototype = intrinsics.int16_array_prototype();
         let uint16_array_prototype = intrinsics.uint16_array_prototype();
