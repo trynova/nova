@@ -150,7 +150,7 @@ impl<'a> LexicallyDeclaredNames<'a> for Statement<'a> {
                     ExportDefaultDeclarationKind::FunctionDeclaration(decl) => decl.bound_names(f),
                     ExportDefaultDeclarationKind::ClassDeclaration(decl) => decl.bound_names(f),
                     ExportDefaultDeclarationKind::TSAsExpression(_)
-                    | ExportDefaultDeclarationKind::TSEnumDeclaration(_)
+                    // | ExportDefaultDeclarationKind::TSEnumDeclaration(_)
                     | ExportDefaultDeclarationKind::TSInstantiationExpression(_)
                     | ExportDefaultDeclarationKind::TSInterfaceDeclaration(_)
                     | ExportDefaultDeclarationKind::TSNonNullExpression(_)
@@ -432,7 +432,7 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                     ExportDefaultDeclarationKind::JSXElement(_) |
                     ExportDefaultDeclarationKind::JSXFragment(_) |
                     ExportDefaultDeclarationKind::TSAsExpression(_) |
-                    ExportDefaultDeclarationKind::TSEnumDeclaration(_) |
+                    // ExportDefaultDeclarationKind::TSEnumDeclaration(_) |
                     ExportDefaultDeclarationKind::TSInstantiationExpression(_) |
                     ExportDefaultDeclarationKind::TSInterfaceDeclaration(_) |
                     ExportDefaultDeclarationKind::TSNonNullExpression(_) |
