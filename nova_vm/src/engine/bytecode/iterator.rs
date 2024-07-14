@@ -6,11 +6,13 @@ use std::collections::VecDeque;
 
 use crate::ecmascript::{
     abstract_operations::{
-        operations_on_iterator_objects::IteratorRecord, operations_on_objects::get,
+        operations_on_iterator_objects::IteratorRecord,
+        operations_on_objects::{call, get},
+        type_conversion::to_boolean,
     },
     builtins::Array,
-    execution::{Agent, JsResult},
-    types::{InternalMethods, Object, PropertyKey, Value},
+    execution::{agent::ExceptionType, Agent, JsResult},
+    types::{InternalMethods, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
 };
 
 #[derive(Debug)]
@@ -18,6 +20,54 @@ pub(super) enum VmIterator {
     ObjectProperties(ObjectPropertiesIterator),
     ArrayValues(ArrayValuesIterator),
     GenericIterator(IteratorRecord),
+}
+
+impl VmIterator {
+    /// ### [7.4.8 IteratorStepValue ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstepvalue)
+    ///
+    /// While not exactly equal to the IteratorStepValue method in usage, this
+    /// function implements much the same intent. It does the IteratorNext
+    /// step, followed by a completion check, and finally extracts the value
+    /// if the iterator did not complete yet.
+    pub(super) fn step_value(&mut self, agent: &mut Agent) -> JsResult<Option<Value>> {
+        match self {
+            VmIterator::ObjectProperties(iter) => {
+                let result = iter.next(agent)?;
+                if let Some(result) = result {
+                    Ok(Some(match result {
+                        PropertyKey::Integer(int) => {
+                            Value::from_string(agent, format!("{}", int.into_i64()))
+                        }
+                        PropertyKey::SmallString(data) => Value::SmallString(data),
+                        PropertyKey::String(data) => Value::String(data),
+                        _ => unreachable!(),
+                    }))
+                } else {
+                    Ok(None)
+                }
+            }
+            VmIterator::ArrayValues(iter) => iter.next(agent),
+            VmIterator::GenericIterator(iter) => {
+                let result = call(agent, iter.next_method, iter.iterator.into_value(), None)?;
+                let Ok(result) = Object::try_from(result) else {
+                    return Err(agent.throw_exception(
+                        ExceptionType::TypeError,
+                        "Iterator returned a non-object result",
+                    ));
+                };
+                // 1. Return ToBoolean(? Get(iterResult, "done")).
+                let done = get(agent, result, BUILTIN_STRING_MEMORY.done.into())?;
+                let done = to_boolean(agent, done);
+                if done {
+                    Ok(None)
+                } else {
+                    // 1. Return ? Get(iterResult, "value").
+                    let value = get(agent, result, BUILTIN_STRING_MEMORY.value.into())?;
+                    Ok(Some(value))
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug)]

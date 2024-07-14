@@ -9,8 +9,8 @@ use crate::{
         abstract_operations::{
             operations_on_iterator_objects::{get_iterator_from_method, iterator_close},
             operations_on_objects::{
-                call, call_function, construct, create_data_property_or_throw, get, get_method,
-                get_v, has_property, ordinary_has_instance, set,
+                call, call_function, construct, create_data_property_or_throw, get_method, get_v,
+                has_property, ordinary_has_instance, set,
             },
             testing_and_comparison::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
@@ -949,93 +949,18 @@ impl Vm {
             Instruction::GetIteratorAsync => {
                 todo!();
             }
-            Instruction::IteratorComplete => {
-                if matches!(
-                    vm.iterator_stack.last().as_ref().unwrap(),
-                    VmIterator::GenericIterator(_)
-                ) {
-                    // Generic iterators have to access the "done" property of the result object.
-                    let iter_result = Object::try_from(vm.result.unwrap()).unwrap();
-                    let done = get(agent, iter_result, BUILTIN_STRING_MEMORY.done.into())?;
-                    let done = to_boolean(agent, done);
-                    if done {
-                        vm.result = None;
+            Instruction::IteratorStepValue => {
+                let result = vm.iterator_stack.last_mut().unwrap().step_value(agent);
+                if let Ok(result) = result {
+                    vm.result = result;
+                    if result.is_none() {
+                        // Iterator finished: Jump to escape iterator loop.
                         vm.iterator_stack.pop().unwrap();
                         vm.ip = instr.args[0].unwrap() as usize;
                     }
                 } else {
-                    // Fast-path iterators place a None as result if they've
-                    // completed.
-                    if vm.result.is_none() {
-                        vm.iterator_stack.pop().unwrap();
-                        vm.ip = instr.args[0].unwrap() as usize;
-                    }
-                }
-            }
-            Instruction::IteratorNext => {
-                let iterator = vm.iterator_stack.last_mut().unwrap();
-                match iterator {
-                    VmIterator::ObjectProperties(iter) => {
-                        let result = iter.next(agent);
-                        if result.is_err() {
-                            vm.iterator_stack.pop();
-                            result?;
-                        }
-                        let result = result.unwrap();
-                        if let Some(result) = result {
-                            vm.result = Some(match result {
-                                PropertyKey::Integer(int) => {
-                                    Value::from_string(agent, format!("{}", int.into_i64()))
-                                }
-                                PropertyKey::SmallString(data) => Value::SmallString(data),
-                                PropertyKey::String(data) => Value::String(data),
-                                _ => unreachable!(),
-                            });
-                        } else {
-                            vm.result = None;
-                        }
-                    }
-                    VmIterator::ArrayValues(iter) => {
-                        let result = iter.next(agent);
-                        if result.is_err() {
-                            vm.iterator_stack.pop();
-                            result?;
-                        }
-                        let result = result.unwrap();
-                        vm.result = result;
-                    }
-                    VmIterator::GenericIterator(iter) => {
-                        let result =
-                            call(agent, iter.next_method, iter.iterator.into_value(), None);
-                        if result.is_err() {
-                            vm.iterator_stack.pop();
-                            result?;
-                        }
-                        let result = result.unwrap();
-                        if !result.is_object() {
-                            return Err(agent.throw_exception(
-                                ExceptionType::TypeError,
-                                "Iterator returned a non-object result",
-                            ));
-                        }
-                        vm.result = Some(result);
-                    }
-                }
-            }
-            Instruction::IteratorValue => {
-                if matches!(
-                    vm.iterator_stack.last().as_ref().unwrap(),
-                    VmIterator::GenericIterator(_)
-                ) {
-                    // Generic iterators have to access the "value" property of the result object.
-
-                    // 1. Return ? Get(iterResult, "value").
-                    let value = get(
-                        agent,
-                        Object::try_from(vm.result.take().unwrap()).unwrap(),
-                        BUILTIN_STRING_MEMORY.value.into(),
-                    )?;
-                    vm.result = Some(value);
+                    vm.iterator_stack.pop();
+                    result?;
                 }
             }
             Instruction::IteratorClose => {

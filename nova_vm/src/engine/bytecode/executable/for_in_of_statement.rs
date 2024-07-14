@@ -161,15 +161,12 @@ fn for_in_of_body_evaluation(
     // a. Let nextResult be ? Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]]).
     // b. If iteratorKind is ASYNC, set nextResult to ? Await(nextResult).
     // c. If nextResult is not an Object, throw a TypeError exception.
-    ctx.exe.add_instruction(Instruction::IteratorNext);
-
     // d. Let done be ? IteratorComplete(nextResult).
     // e. If done is true, return V.
+    // f. Let nextValue be ? IteratorValue(nextResult).
     let jump_to_end = ctx
         .exe
-        .add_instruction_with_jump_slot(Instruction::IteratorComplete);
-    // f. Let nextValue be ? IteratorValue(nextResult).
-    ctx.exe.add_instruction(Instruction::IteratorValue);
+        .add_instruction_with_jump_slot(Instruction::IteratorStepValue);
     let mut entered_declarative_environment = false;
     // g. If lhsKind is either ASSIGNMENT or VAR-BINDING, then
     match lhs_kind {

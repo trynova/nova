@@ -248,12 +248,9 @@ pub enum Instruction {
     GetIteratorSync,
     /// Take the current result and call `GetIterator(result, ASYNC)`
     GetIteratorAsync,
-    /// Call [[NextMethod]] of current iterator
-    IteratorNext,
-    /// Check "done" boolean of current iterator result object
-    IteratorComplete,
-    // Extract "value" of current iterator result object
-    IteratorValue,
+    /// Perform IteratorStepValue on the current iterator and jump to
+    /// index if iterator completed.
+    IteratorStepValue,
     /// Perform CloseIterator on the current iterator
     IteratorClose,
     /// Perform AsyncCloseIterator on the current iterator
@@ -280,7 +277,7 @@ impl Instruction {
             | Self::EvaluatePropertyAccessWithIdentifierKey
             | Self::InstantiateArrowFunctionExpression
             | Self::InstantiateOrdinaryFunctionExpression
-            | Self::IteratorComplete
+            | Self::IteratorStepValue
             | Self::Jump
             | Self::JumpIfNot
             | Self::JumpIfTrue
@@ -324,7 +321,7 @@ impl Instruction {
                 | Self::JumpIfNot
                 | Self::JumpIfTrue
                 | Self::PushExceptionJumpTarget
-                | Self::IteratorComplete
+                | Self::IteratorStepValue
         )
     }
 
