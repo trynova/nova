@@ -93,24 +93,21 @@ impl ArrayValuesIterator {
     pub(super) fn next(&mut self, agent: &mut Agent) -> JsResult<Option<Value>> {
         // b. Repeat,
         let array = self.array;
+        // iv. Let indexNumber be 𝔽(index).
         let index = self.index;
-        // viii. Set index to index + 1.
         // 1. Let len be ? LengthOfArrayLike(array).
         let len = self.array.len(agent);
         // iii. If index ≥ len, return NormalCompletion(undefined).
         if index >= len {
             return Ok(None);
         }
+        // viii. Set index to index + 1.
         self.index += 1;
-        if array.is_trivial(agent) {
-            // Fast path: An array with no descriptors will likely find the
-            // value directly in the elements slice.
-            let element_value = array.as_slice(agent)[index as usize];
-            if element_value.is_some() {
-                return Ok(element_value);
-            }
+        if let Some(element_value) = array.as_slice(agent)[index as usize] {
+            // Fast path: If the element at this index has a Value, then it is
+            // not an accessor nor a hole. Yield the result as-is.
+            return Ok(Some(element_value));
         }
-        // iv. Let indexNumber be 𝔽(index).
         // 1. Let elementKey be ! ToString(indexNumber).
         // 2. Let elementValue be ? Get(array, elementKey).
         let element_value = get(agent, self.array, index.into())?;
