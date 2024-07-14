@@ -28,11 +28,23 @@ use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 
 pub type IndexType = u16;
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum NamedEvaluationParameter {
+    /// Name is in the result register
+    Result,
+    /// Name is at the top of the stack
+    Stack,
+    /// Name is in the reference register
+    Reference,
+    /// Name is at the top of the reference stack
+    ReferenceStack,
+}
+
 pub(crate) struct CompileContext<'agent> {
     agent: &'agent mut Agent,
     exe: Executable,
     /// NamedEvaluation name parameter
-    name_identifier: Option<usize>,
+    name_identifier: Option<NamedEvaluationParameter>,
     /// If true, indicates that all bindings being created are lexical.
     ///
     /// Otherwise, all bindings being created are variable scoped.
@@ -60,14 +72,14 @@ impl CompileContext<'_> {
 #[derive(Debug)]
 pub(crate) struct FunctionExpression {
     pub(crate) expression: &'static ast::Function<'static>,
-    pub(crate) identifier: Option<usize>,
+    pub(crate) identifier: Option<NamedEvaluationParameter>,
     pub(crate) home_object: Option<usize>,
 }
 
 #[derive(Debug)]
 pub(crate) struct ArrowFunctionExpression {
     pub(crate) expression: &'static ast::ArrowFunctionExpression<'static>,
-    pub(crate) identifier: Option<usize>,
+    pub(crate) identifier: Option<NamedEvaluationParameter>,
     pub(crate) home_object: Option<usize>,
 }
 
@@ -685,26 +697,21 @@ impl CompileEvaluation for ast::LogicalExpression<'_> {
 impl CompileEvaluation for ast::AssignmentExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         // 1. Let lref be ? Evaluation of LeftHandSideExpression.
-        let identifier = match &self.left {
+        let is_identifier_ref = match &self.left {
             ast::AssignmentTarget::ArrayAssignmentTarget(_) => todo!(),
             ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) => {
-                // impl CompileEvaluation for ast::IdentifierReference<'_>
-                // is inlined here to reuse the identifier.
-                let identifier = String::from_str(ctx.agent, identifier.name.as_str());
-                let identifier = ctx.exe.add_identifier(identifier);
-                ctx.exe
-                    .add_instruction_with_immediate(Instruction::ResolveBinding, identifier);
-                Some(identifier)
+                identifier.compile(ctx);
+                true
             }
             ast::AssignmentTarget::ComputedMemberExpression(expression) => {
                 expression.compile(ctx);
-                None
+                false
             }
             ast::AssignmentTarget::ObjectAssignmentTarget(_) => todo!(),
             ast::AssignmentTarget::PrivateFieldExpression(_) => todo!(),
             ast::AssignmentTarget::StaticMemberExpression(expression) => {
                 expression.compile(ctx);
-                None
+                false
             }
             ast::AssignmentTarget::TSAsExpression(_)
             | ast::AssignmentTarget::TSSatisfiesExpression(_)
@@ -770,38 +777,17 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
             // 5. If IsAnonymousFunctionDefinition(AssignmentExpression)
             // is true and IsIdentifierRef of LeftHandSideExpression is true,
             // then
-            if let Some(identifier) = identifier {
+            if is_identifier_ref && is_anonymous_function_definition(&self.right) {
                 // a. Let lhs be the StringValue of LeftHandSideExpression.
-                match &self.right {
-                    ast::Expression::ArrowFunctionExpression(expr) => {
-                        // Always anonymous
-                        // b. Let rval be ? NamedEvaluation of AssignmentExpression with argument lhs.
-                        ctx.name_identifier = Some(identifier);
-                        expr.compile(ctx);
-                    }
-                    ast::Expression::FunctionExpression(expr) => {
-                        if expr.id.is_none() {
-                            ctx.name_identifier = Some(identifier);
-                        }
-                        // b. Let rval be ? NamedEvaluation of AssignmentExpression with argument lhs.
-                        expr.compile(ctx);
-                    }
-                    _ => {
-                        // 6. Else
-                        // a. Let rref be ? Evaluation of AssignmentExpression.
-                        self.right.compile(ctx);
-                        // b. Let rval be ? GetValue(rref).
-                        if is_reference(&self.right) {
-                            ctx.exe.add_instruction(Instruction::GetValue);
-                        }
-                    }
-                };
+                // b. Let rval be ? NamedEvaluation of AssignmentExpression with argument lhs.
+                ctx.name_identifier = Some(NamedEvaluationParameter::ReferenceStack);
+                self.right.compile(ctx);
             } else {
                 // 6. Else
                 // a. Let rref be ? Evaluation of AssignmentExpression.
                 self.right.compile(ctx);
+                // b. Let rval be ? GetValue(rref).
                 if is_reference(&self.right) {
-                    // b. Let rval be ? GetValue(rref).
                     ctx.exe.add_instruction(Instruction::GetValue);
                 }
             }
@@ -988,6 +974,9 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                     ctx.exe.add_instruction(Instruction::Load);
                     match prop.kind {
                         ast::PropertyKind::Init => {
+                            if is_anonymous_function_definition(&prop.value) {
+                                ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
+                            }
                             prop.value.compile(ctx);
                             if is_reference(&prop.value) {
                                 ctx.exe.add_instruction(Instruction::GetValue);
@@ -2065,34 +2054,19 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     ctx.exe.add_instruction(Instruction::PushReference);
 
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
-                    match &init {
-                        ast::Expression::ArrowFunctionExpression(expr) => {
-                            // Always anonymous
-                            // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                            let name_identifier = ctx.exe.add_identifier(identifier_string);
-                            ctx.name_identifier = Some(name_identifier);
-                            expr.compile(ctx);
+                    if is_anonymous_function_definition(init) {
+                        // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
+                        ctx.name_identifier = Some(NamedEvaluationParameter::ReferenceStack);
+                        init.compile(ctx);
+                    } else {
+                        // 4. Else,
+                        // a. Let rhs be ? Evaluation of Initializer.
+                        init.compile(ctx);
+                        // b. Let value be ? GetValue(rhs).
+                        if is_reference(init) {
+                            ctx.exe.add_instruction(Instruction::GetValue);
                         }
-                        ast::Expression::FunctionExpression(expr) => {
-                            if expr.id.is_none() {
-                                // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                                let name_identifier = ctx.exe.add_identifier(identifier_string);
-                                ctx.name_identifier = Some(name_identifier);
-                            }
-                            // 4. Else,
-                            // a. Let rhs be ? Evaluation of Initializer.
-                            expr.compile(ctx);
-                        }
-                        _ => {
-                            // 4. Else,
-                            // a. Let rhs be ? Evaluation of Initializer.
-                            init.compile(ctx);
-                            // b. Let value be ? GetValue(rhs).
-                            if is_reference(init) {
-                                ctx.exe.add_instruction(Instruction::GetValue);
-                            }
-                        }
-                    };
+                    }
                     // 5. Perform ? PutValue(lhs, value).
                     ctx.exe.add_instruction(Instruction::PopReference);
                     ctx.exe.add_instruction(Instruction::PutValue);
@@ -2160,34 +2134,19 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     //  LexicalBinding : BindingIdentifier Initializer
                     ctx.exe.add_instruction(Instruction::PushReference);
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
-                    match &init {
-                        ast::Expression::ArrowFunctionExpression(expr) => {
-                            // Always anonymous
-                            // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                            let name_identifier = ctx.exe.add_identifier(identifier_string);
-                            ctx.name_identifier = Some(name_identifier);
-                            expr.compile(ctx);
+                    if is_anonymous_function_definition(init) {
+                        // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
+                        ctx.name_identifier = Some(NamedEvaluationParameter::ReferenceStack);
+                        init.compile(ctx);
+                    } else {
+                        // 4. Else,
+                        // a. Let rhs be ? Evaluation of Initializer.
+                        init.compile(ctx);
+                        // b. Let value be ? GetValue(rhs).
+                        if is_reference(init) {
+                            ctx.exe.add_instruction(Instruction::GetValue);
                         }
-                        ast::Expression::FunctionExpression(expr) => {
-                            if expr.id.is_none() {
-                                // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                                let name_identifier = ctx.exe.add_identifier(identifier_string);
-                                ctx.name_identifier = Some(name_identifier);
-                            }
-                            // 4. Else,
-                            // a. Let rhs be ? Evaluation of Initializer.
-                            expr.compile(ctx);
-                        }
-                        _ => {
-                            // 4. Else,
-                            // a. Let rhs be ? Evaluation of Initializer.
-                            init.compile(ctx);
-                            // b. Let value be ? GetValue(rhs).
-                            if is_reference(init) {
-                                ctx.exe.add_instruction(Instruction::GetValue);
-                            }
-                        }
-                    };
+                    }
 
                     // 5. Perform ! InitializeReferencedBinding(lhs, value).
                     ctx.exe.add_instruction(Instruction::PopReference);
@@ -2778,5 +2737,13 @@ impl CompileEvaluation for ast::Statement<'_> {
             | Statement::TSNamespaceExportDeclaration(_)
             | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
         }
+    }
+}
+
+fn is_anonymous_function_definition(expression: &ast::Expression) -> bool {
+    match expression {
+        ast::Expression::ArrowFunctionExpression(_) => true,
+        ast::Expression::FunctionExpression(f) => f.id.is_none(),
+        _ => false,
     }
 }

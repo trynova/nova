@@ -981,7 +981,9 @@ pub(crate) fn set_function_name(
         // TODO: Private Name
         // 3. Else if name is a Private Name, then
         // a. Set name to name.[[Description]].
-        PropertyKey::Integer(_integer) => todo!(),
+        PropertyKey::Integer(integer) => {
+            String::from_string(agent, format!("{}", integer.into_i64()))
+        }
         PropertyKey::SmallString(str) => str.into(),
         PropertyKey::String(str) => str.into(),
     };
