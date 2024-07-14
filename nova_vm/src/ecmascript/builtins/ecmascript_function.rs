@@ -85,6 +85,42 @@ impl IntoFunction for ECMAScriptFunction {
     }
 }
 
+impl TryFrom<Value> for ECMAScriptFunction {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::ECMAScriptFunction(function) = value {
+            Ok(function)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Object> for ECMAScriptFunction {
+    type Error = ();
+
+    fn try_from(value: Object) -> Result<Self, Self::Error> {
+        if let Object::ECMAScriptFunction(function) = value {
+            Ok(function)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Function> for ECMAScriptFunction {
+    type Error = ();
+
+    fn try_from(value: Function) -> Result<Self, Self::Error> {
+        if let Function::ECMAScriptFunction(function) = value {
+            Ok(function)
+        } else {
+            Err(())
+        }
+    }
+}
+
 impl From<ECMAScriptFunction> for Value {
     fn from(val: ECMAScriptFunction) -> Self {
         Value::ECMAScriptFunction(val)
@@ -740,7 +776,7 @@ pub(crate) fn ordinary_call_evaluate_body(
 pub(crate) fn ordinary_function_create<'agent, 'program>(
     agent: &'agent mut Agent,
     params: OrdinaryFunctionCreateParams<'agent, 'program>,
-) -> Function {
+) -> ECMAScriptFunction {
     // 1. Let internalSlotsList be the internal slots listed in Table 30.
     // 2. Let F be OrdinaryObjectCreate(functionPrototype, internalSlotsList).
     // 3. Set F.[[Call]] to the definition specified in 10.2.1.
@@ -822,7 +858,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
     // 22. Perform SetFunctionLength(F, len).
     set_ecmascript_function_length(agent, &mut function, len).unwrap();
     // 23. Return F.
-    agent.heap.create(function).into_function()
+    agent.heap.create(function)
 }
 
 /// ### [10.2.5 MakeConstructor ( F \[ , writablePrototype \[ , prototype \] \] )](https://tc39.es/ecma262/#sec-makeconstructor)
@@ -832,13 +868,13 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
 /// UNUSED. It converts F into a constructor.
 pub(crate) fn make_constructor(
     agent: &mut Agent,
-    function: Function,
+    function: impl IntoFunction,
     writable_prototype: Option<bool>,
     prototype: Option<Object>,
 ) {
     // 4. If writablePrototype is not present, set writablePrototype to true.
     let writable_prototype = writable_prototype.unwrap_or(true);
-    match function {
+    match function.into_function() {
         Function::BoundFunction(_) => unreachable!(),
         // 1. If F is an ECMAScript function object, then
         Function::ECMAScriptFunction(idx) => {
@@ -906,13 +942,25 @@ pub(crate) fn make_constructor(
     // 7. Return UNUSED.
 }
 
+/// ### [10.2.7 MakeMethod ( F, homeObject )](https://tc39.es/ecma262/#sec-makemethod)
+///
+/// The abstract operation MakeMethod takes arguments F (an ECMAScript function
+/// object) and homeObject (an Object) and returns unused. It configures F as a
+/// method.
+#[inline]
+pub(crate) fn make_method(agent: &mut Agent, f: ECMAScriptFunction, home_object: Object) {
+    // 1. Set F.[[HomeObject]] to homeObject.
+    agent[f].ecmascript_function.home_object = Some(home_object);
+    // 2. Return unused.
+}
+
 /// ### [10.2.9 SetFunctionName ( F, name \[ , prefix \] )](https://tc39.es/ecma262/#sec-setfunctionname)
 /// The abstract operation SetFunctionName takes arguments F (a function
 /// object) and name (a property key or Private Name) and optional argument
 /// prefix (a String) and returns UNUSED. It adds a "name" property to F.
 pub(crate) fn set_function_name(
     agent: &mut Agent,
-    function: Function,
+    function: impl IntoFunction,
     name: PropertyKey,
     _prefix: Option<String>,
 ) {
@@ -941,7 +989,7 @@ pub(crate) fn set_function_name(
     // a. Set name to the string-concatenation of prefix, the code unit 0x0020 (SPACE), and name.
     // TODO: Handle prefixing
 
-    match function {
+    match function.into_function() {
         Function::BoundFunction(_idx) => todo!(),
         Function::BuiltinFunction(_idx) => todo!(),
         Function::ECMAScriptFunction(idx) => {

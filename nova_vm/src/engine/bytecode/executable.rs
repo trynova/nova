@@ -13,7 +13,7 @@ use crate::{
         syntax_directed_operations::scope_analysis::{
             LexicallyScopedDeclaration, LexicallyScopedDeclarations,
         },
-        types::{BigIntHeapData, Reference, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BigIntHeapData, PropertyKey, Reference, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::CreateHeapData,
 };
@@ -328,8 +328,11 @@ impl Executable {
         self.instructions.extend_from_slice(&bytes);
     }
 
-    fn add_function_expression(&mut self, function_expression: FunctionExpression) {
-        let instruction = Instruction::InstantiateOrdinaryFunctionExpression;
+    fn add_instruction_with_function_expression(
+        &mut self,
+        instruction: Instruction,
+        function_expression: FunctionExpression,
+    ) {
         debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_function_expression_index());
         self._push_instruction(instruction);
@@ -887,14 +890,17 @@ impl CompileEvaluation for ast::ArrowFunctionExpression<'_> {
 
 impl CompileEvaluation for ast::Function<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        ctx.exe.add_function_expression(FunctionExpression {
-            expression: unsafe {
-                std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(self)
+        ctx.exe.add_instruction_with_function_expression(
+            Instruction::InstantiateOrdinaryFunctionExpression,
+            FunctionExpression {
+                expression: unsafe {
+                    std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(self)
+                },
+                // CompileContext holds a name identifier for us if this is NamedEvaluation.
+                identifier: ctx.name_identifier.take(),
+                home_object: None,
             },
-            // CompileContext holds a name identifier for us if this is NamedEvaluation.
-            identifier: ctx.name_identifier.take(),
-            home_object: None,
-        });
+        );
     }
 }
 
@@ -940,12 +946,10 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                                 // should dispatch a SetPrototype instruction.
                                 todo!();
                             } else {
-                                let property_key = crate::ecmascript::types::PropertyKey::from_str(
-                                    ctx.agent, &id.name,
-                                );
+                                let identifier = PropertyKey::from_str(ctx.agent, &id.name);
                                 ctx.exe.add_instruction_with_constant(
                                     Instruction::StoreConstant,
-                                    property_key,
+                                    identifier,
                                 );
                             }
                         }
@@ -956,13 +960,10 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                                 // should dispatch a SetPrototype instruction.
                                 todo!();
                             } else {
-                                let property_key = crate::ecmascript::types::PropertyKey::from_str(
-                                    ctx.agent,
-                                    &init.value,
-                                );
+                                let identifier = PropertyKey::from_str(ctx.agent, &init.value);
                                 ctx.exe.add_instruction_with_constant(
                                     Instruction::StoreConstant,
-                                    property_key,
+                                    identifier,
                                 );
                             }
                         }
@@ -985,12 +986,42 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         | ast::PropertyKey::TSInstantiationExpression(_) => unreachable!(),
                     }
                     ctx.exe.add_instruction(Instruction::Load);
-                    prop.value.compile(ctx);
-                    if is_reference(&prop.value) {
-                        ctx.exe.add_instruction(Instruction::GetValue);
+                    match prop.kind {
+                        ast::PropertyKind::Init => {
+                            prop.value.compile(ctx);
+                            if is_reference(&prop.value) {
+                                ctx.exe.add_instruction(Instruction::GetValue);
+                            }
+                            ctx.exe.add_instruction(Instruction::ObjectSetProperty);
+                        }
+                        ast::PropertyKind::Get | ast::PropertyKind::Set => {
+                            let is_get = prop.kind == ast::PropertyKind::Get;
+                            let ast::Expression::FunctionExpression(function_expression) =
+                                &prop.value
+                            else {
+                                unreachable!()
+                            };
+                            ctx.exe.add_instruction_with_function_expression(
+                                if is_get {
+                                    Instruction::ObjectSetGetter
+                                } else {
+                                    Instruction::ObjectSetSetter
+                                },
+                                FunctionExpression {
+                                    expression: unsafe {
+                                        std::mem::transmute::<
+                                            &ast::Function<'_>,
+                                            &'static ast::Function<'static>,
+                                        >(
+                                            function_expression
+                                        )
+                                    },
+                                    identifier: None,
+                                    home_object: None,
+                                },
+                            );
+                        }
                     }
-
-                    ctx.exe.add_instruction(Instruction::ObjectSetProperty);
                 }
                 ast::ObjectPropertyKind::SpreadProperty(_) => {
                     todo!("...spread not yet implemented")

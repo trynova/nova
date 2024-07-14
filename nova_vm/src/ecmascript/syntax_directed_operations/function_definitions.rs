@@ -13,7 +13,7 @@ use crate::{
             Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult,
             PrivateEnvironmentIndex,
         },
-        types::{Function, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        types::{PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     engine::{Executable, FunctionExpression, Vm},
 };
@@ -29,7 +29,7 @@ pub(crate) fn instantiate_ordinary_function_object(
     function: &ast::Function<'_>,
     env: EnvironmentIndex,
     private_env: Option<PrivateEnvironmentIndex>,
-) -> Function {
+) -> ECMAScriptFunction {
     // FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
     if let Some(id) = &function.id {
         // 1. Let name be StringValue of BindingIdentifier.
@@ -92,7 +92,7 @@ pub(crate) fn instantiate_ordinary_function_expression(
     agent: &mut Agent,
     function: &FunctionExpression,
     name: Option<String>,
-) -> Function {
+) -> ECMAScriptFunction {
     if let Some(_identifier) = function.identifier {
         todo!();
     } else {

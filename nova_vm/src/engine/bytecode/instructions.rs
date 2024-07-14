@@ -121,6 +121,8 @@ pub enum Instruction {
     /// Set an object's property to the key/value pair from the last two values
     /// on the stack.
     ObjectSetProperty,
+    ObjectSetGetter,
+    ObjectSetSetter,
     /// Pop a jump target for uncaught exceptions
     PopExceptionJumpTarget,
     /// Pop the last stored reference.
@@ -282,6 +284,8 @@ impl Instruction {
             | Self::JumpIfNot
             | Self::JumpIfTrue
             | Self::LoadConstant
+            | Self::ObjectSetGetter
+            | Self::ObjectSetSetter
             | Self::PushExceptionJumpTarget
             | Self::ResolveBinding
             | Self::StoreConstant
@@ -310,7 +314,10 @@ impl Instruction {
     pub fn has_function_expression_index(self) -> bool {
         matches!(
             self,
-            Self::InstantiateArrowFunctionExpression | Self::InstantiateOrdinaryFunctionExpression
+            Self::ObjectSetGetter
+                | Self::ObjectSetSetter
+                | Self::InstantiateArrowFunctionExpression
+                | Self::InstantiateOrdinaryFunctionExpression
         )
     }
 

@@ -2,6 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::sync::OnceLock;
+
+use oxc_ast::ast;
 use oxc_syntax::operator::BinaryOperator;
 
 use crate::{
@@ -9,8 +12,9 @@ use crate::{
         abstract_operations::{
             operations_on_iterator_objects::{get_iterator_from_method, iterator_close},
             operations_on_objects::{
-                call, call_function, construct, create_data_property_or_throw, get_method, get_v,
-                has_property, ordinary_has_instance, set,
+                call, call_function, construct, create_data_property_or_throw,
+                define_property_or_throw, get_method, get_v, has_property, ordinary_has_instance,
+                set,
             },
             testing_and_comparison::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
@@ -21,7 +25,7 @@ use crate::{
             },
         },
         builtins::{
-            array_create, global_object::perform_eval, make_constructor,
+            array_create, global_object::perform_eval, make_constructor, make_method,
             ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
             set_function_name, ArgumentsList, Array, OrdinaryFunctionCreateParams, ThisMode,
         },
@@ -33,12 +37,16 @@ use crate::{
         types::{
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
             is_super_reference, put_value, Base, BigInt, InternalMethods, IntoFunction, IntoObject,
-            IntoValue, Number, Numeric, Object, PropertyKey, Reference, String, Value,
-            BUILTIN_STRING_MEMORY,
+            IntoValue, Number, Numeric, Object, PropertyDescriptor, PropertyKey, Reference, String,
+            Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::WellKnownSymbolIndexes,
 };
+
+struct EmptyParametersList(ast::FormalParameters<'static>);
+unsafe impl Send for EmptyParametersList {}
+unsafe impl Sync for EmptyParametersList {}
 
 use super::{
     instructions::Instr,
@@ -297,10 +305,145 @@ impl Vm {
             }
             Instruction::ObjectSetProperty => {
                 let value = vm.result.take().unwrap();
-                let key = PropertyKey::try_from(vm.stack.pop().unwrap()).unwrap();
+                let key = to_property_key(agent, vm.stack.pop().unwrap())?;
                 let object = *vm.stack.last().unwrap();
                 let object = Object::try_from(object).unwrap();
                 create_data_property_or_throw(agent, object, key, value).unwrap()
+            }
+            Instruction::ObjectSetGetter => {
+                let function_expression = executable
+                    .function_expressions
+                    .get(instr.args[0].unwrap() as usize)
+                    .unwrap();
+                // 1. Let propKey be ? Evaluation of ClassElementName.
+                let prop_key = to_property_key(agent, vm.stack.pop().unwrap())?;
+                // 2. Let env be the running execution context's LexicalEnvironment.
+                // 3. Let privateEnv be the running execution context's PrivateEnvironment.
+                let ECMAScriptCodeEvaluationState {
+                    lexical_environment: env,
+                    private_environment: private_env,
+                    ..
+                } = *agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap();
+                // 5. Let formalParameterList be an instance of the production FormalParameters : [empty] .
+                // We have to create a temporary allocator to create the empty
+                // items Vec. The allocator will never be asked to allocate
+                // anything.
+                static EMPTY_PARAMETERS: OnceLock<EmptyParametersList> = OnceLock::new();
+                let empty_parameters = EMPTY_PARAMETERS.get_or_init(|| {
+                    let allocator: &'static oxc_allocator::Allocator = Box::leak(Box::default());
+                    allocator.set_allocation_limit(Some(0));
+                    EmptyParametersList(ast::FormalParameters {
+                        span: Default::default(),
+                        kind: ast::FormalParameterKind::FormalParameter,
+                        items: oxc_allocator::Vec::new_in(allocator),
+                        rest: None,
+                    })
+                });
+                let params = OrdinaryFunctionCreateParams {
+                    function_prototype: None,
+                    // 4. Let sourceText be the source text matched by MethodDefinition.
+                    source_text: function_expression.expression.span,
+                    parameters_list: &empty_parameters.0,
+                    body: function_expression.expression.body.as_ref().unwrap(),
+                    is_concise_arrow_function: false,
+                    this_mode: ThisMode::Global,
+                    env,
+                    private_env,
+                };
+                // 6. Let closure be OrdinaryFunctionCreate(
+                //      %Function.prototype%,
+                //      sourceText,
+                //      formalParameterList,
+                //      FunctionBody,
+                //      non-lexical-this,
+                //      env,
+                //      privateEnv
+                //  ).
+                let closure = ordinary_function_create(agent, params);
+                // 7. Perform MakeMethod(closure, object).
+                let object = Object::try_from(*vm.stack.last().unwrap()).unwrap();
+                make_method(agent, closure, object);
+                // 8. Perform SetFunctionName(closure, propKey, "get").
+                set_function_name(agent, closure, prop_key, Some(BUILTIN_STRING_MEMORY.get));
+                // 9. If propKey is a Private Name, then
+                // a. Return PrivateElement { [[Key]]: propKey, [[Kind]]: accessor, [[Get]]: closure, [[Set]]: undefined }.
+                // 10. Else,
+                // a. Let desc be the PropertyDescriptor { [[Get]]: closure, [[Enumerable]]: enumerable, [[Configurable]]: true }.
+                let desc = PropertyDescriptor {
+                    value: None,
+                    writable: None,
+                    get: Some(closure.into_function()),
+                    set: None,
+                    enumerable: Some(true),
+                    configurable: Some(true),
+                };
+                // b. Perform ? DefinePropertyOrThrow(object, propKey, desc).
+                define_property_or_throw(agent, object, prop_key, desc)?;
+                // c. Return unused.
+            }
+            Instruction::ObjectSetSetter => {
+                let function_expression = executable
+                    .function_expressions
+                    .get(instr.args[0].unwrap() as usize)
+                    .unwrap();
+                // 1. Let propKey be ? Evaluation of ClassElementName.
+                let prop_key = to_property_key(agent, vm.stack.pop().unwrap())?;
+                // 2. Let env be the running execution context's LexicalEnvironment.
+                // 3. Let privateEnv be the running execution context's PrivateEnvironment.
+                let ECMAScriptCodeEvaluationState {
+                    lexical_environment: env,
+                    private_environment: private_env,
+                    ..
+                } = *agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap();
+                let params = OrdinaryFunctionCreateParams {
+                    function_prototype: None,
+                    // 4. Let sourceText be the source text matched by MethodDefinition.
+                    source_text: function_expression.expression.span,
+                    parameters_list: &function_expression.expression.params,
+                    body: function_expression.expression.body.as_ref().unwrap(),
+                    is_concise_arrow_function: false,
+                    this_mode: ThisMode::Global,
+                    env,
+                    private_env,
+                };
+                // 5. Let closure be OrdinaryFunctionCreate(
+                //      %Function.prototype%,
+                //      sourceText,
+                //      PropertySetParameterList,
+                //      FunctionBody,
+                //      non-lexical-this,
+                //      env,
+                //      privateEnv
+                //  ).
+                let closure = ordinary_function_create(agent, params);
+                // 6. Perform MakeMethod(closure, object).
+                let object = Object::try_from(*vm.stack.last().unwrap()).unwrap();
+                make_method(agent, closure, object);
+                // 7. Perform SetFunctionName(closure, propKey, "set").
+                set_function_name(agent, closure, prop_key, Some(BUILTIN_STRING_MEMORY.set));
+                // 8. If propKey is a Private Name, then
+                // a. Return PrivateElement { [[Key]]: propKey, [[Kind]]: accessor, [[Get]]: undefined, [[Set]]: closure }.
+                // 9. Else,
+                // a. Let desc be the PropertyDescriptor { [[Set]]: closure, [[Enumerable]]: enumerable, [[Configurable]]: true }.
+                let desc = PropertyDescriptor {
+                    value: None,
+                    writable: None,
+                    get: None,
+                    set: Some(closure.into_function()),
+                    enumerable: Some(true),
+                    configurable: Some(true),
+                };
+                // b. Perform ? DefinePropertyOrThrow(object, propKey, desc).
+                define_property_or_throw(agent, object, prop_key, desc)?;
+                // c. Return unused.
             }
             Instruction::PushReference => {
                 vm.reference_stack.push(vm.reference.take().unwrap());

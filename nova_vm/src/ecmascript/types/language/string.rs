@@ -30,6 +30,10 @@ impl HeapString {
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
+
+    pub fn as_str(self, agent: &Agent) -> &str {
+        agent[self].as_str()
+    }
 }
 
 impl Index<HeapString> for Agent {
