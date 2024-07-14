@@ -7,9 +7,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::{
+    builtins::ECMAScriptFunction,
     execution::{Agent, EnvironmentIndex, PrivateEnvironmentIndex},
     syntax_directed_operations::function_definitions::instantiate_ordinary_function_object,
-    types::Function,
 };
 use oxc_ast::ast;
 
@@ -23,7 +23,7 @@ pub(crate) fn instantiate_function_object(
     function: &ast::Function<'_>,
     env: EnvironmentIndex,
     private_env: Option<PrivateEnvironmentIndex>,
-) -> Function {
+) -> ECMAScriptFunction {
     // FunctionDeclaration :
     // function BindingIdentifier ( FormalParameters ) { FunctionBody }
     // function ( FormalParameters ) { FunctionBody }
