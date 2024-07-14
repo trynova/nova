@@ -12,7 +12,6 @@ use crate::ecmascript::{
     execution::Agent,
     types::{Function, PropertyDescriptor, PropertyKey, Value},
 };
-use core::panic;
 use std::{
     collections::HashMap,
     mem::MaybeUninit,
@@ -99,10 +98,8 @@ impl From<usize> for ElementArrayKey {
             ElementArrayKey::E16
         } else if value <= usize::pow(2, 24) {
             ElementArrayKey::E24
-        } else if value < usize::pow(2, 32) - 1 {
-            ElementArrayKey::E32
         } else {
-            panic!("Elements array length over 2 ** 32 - 1");
+            ElementArrayKey::E32
         }
     }
 }
@@ -1079,29 +1076,41 @@ impl ElementArrays {
             std::mem::size_of::<Option<[Option<Value>; 1]>>(),
             std::mem::size_of::<[Option<Value>; 1]>()
         );
+        let length = vector.len();
         match key {
-            ElementArrayKey::Empty => ElementIndex::from_u32_index(0),
+            ElementArrayKey::Empty => {
+                assert!(vector.is_empty() && descriptors.is_none());
+                ElementIndex::from_u32_index(0)
+            }
             ElementArrayKey::E4 => {
                 let elements = &mut self.e2pow4;
                 const N: usize = usize::pow(2, 4);
                 elements.values.reserve(1);
                 let remaining = elements.values.spare_capacity_mut();
-                let length = vector.len();
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
-                // length is smaller or equal to that. The vector is valid for reads up to length.
-                // Both are property aligned and do not alias.
+                debug_assert_eq!(
+                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                    std::mem::size_of::<[Option<Value>; N]>()
+                );
+                // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
+                // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
+                // but it could theoretically be that we end up copying a bit that says "the array is None".
+                // Experimentally however, this works and we do not copy None but Some([_]).
+                let last = unsafe {
+                    std::mem::transmute::<
+                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
+                        &mut [MaybeUninit<Option<Value>>; N],
+                    >(last)
+                };
+                // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
+                let len_slice = unsafe {
+                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                };
+                last[..length].copy_from_slice(len_slice);
+                last[length..].fill(MaybeUninit::new(None));
+                // SAFETY: We have fully initialized the next item.
                 unsafe {
-                    debug_assert_eq!(
-                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                        std::mem::size_of::<[Option<Value>; N]>()
-                    );
-                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
-                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
-                    for index in length..N {
-                        element_ptr.add(index).write(None);
-                    }
                     elements.values.set_len(elements.values.len() + 1);
                 }
                 let index = ElementIndex::last_element_index(&elements.values);
@@ -1115,22 +1124,30 @@ impl ElementArrays {
                 const N: usize = usize::pow(2, 6);
                 elements.values.reserve(1);
                 let remaining = elements.values.spare_capacity_mut();
-                let length = vector.len();
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
-                // length is smaller or equal to that. The vector is valid for reads up to length.
-                // Both are property aligned and do not alias.
+                debug_assert_eq!(
+                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                    std::mem::size_of::<[Option<Value>; N]>()
+                );
+                // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
+                // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
+                // but it could theoretically be that we end up copying a bit that says "the array is None".
+                // Experimentally however, this works and we do not copy None but Some([_]).
+                let last = unsafe {
+                    std::mem::transmute::<
+                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
+                        &mut [MaybeUninit<Option<Value>>; N],
+                    >(last)
+                };
+                // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
+                let len_slice = unsafe {
+                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                };
+                last[..length].copy_from_slice(len_slice);
+                last[length..].fill(MaybeUninit::new(None));
+                // SAFETY: We have fully initialized the next item.
                 unsafe {
-                    debug_assert_eq!(
-                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                        std::mem::size_of::<[Option<Value>; N]>()
-                    );
-                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
-                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
-                    for index in length..N {
-                        element_ptr.add(index).write(None);
-                    }
                     elements.values.set_len(elements.values.len() + 1);
                 }
                 let index = ElementIndex::last_element_index(&elements.values);
@@ -1144,22 +1161,30 @@ impl ElementArrays {
                 const N: usize = usize::pow(2, 8);
                 elements.values.reserve(1);
                 let remaining = elements.values.spare_capacity_mut();
-                let length = vector.len();
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
-                // length is smaller or equal to that. The vector is valid for reads up to length.
-                // Both are property aligned and do not alias.
+                debug_assert_eq!(
+                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                    std::mem::size_of::<[Option<Value>; N]>()
+                );
+                // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
+                // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
+                // but it could theoretically be that we end up copying a bit that says "the array is None".
+                // Experimentally however, this works and we do not copy None but Some([_]).
+                let last = unsafe {
+                    std::mem::transmute::<
+                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
+                        &mut [MaybeUninit<Option<Value>>; N],
+                    >(last)
+                };
+                // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
+                let len_slice = unsafe {
+                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                };
+                last[..length].copy_from_slice(len_slice);
+                last[length..].fill(MaybeUninit::new(None));
+                // SAFETY: We have fully initialized the next item.
                 unsafe {
-                    debug_assert_eq!(
-                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                        std::mem::size_of::<[Option<Value>; N]>()
-                    );
-                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
-                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
-                    for index in length..N {
-                        element_ptr.add(index).write(None);
-                    }
                     elements.values.set_len(elements.values.len() + 1);
                 }
                 let index = ElementIndex::last_element_index(&elements.values);
@@ -1173,22 +1198,30 @@ impl ElementArrays {
                 const N: usize = usize::pow(2, 10);
                 elements.values.reserve(1);
                 let remaining = elements.values.spare_capacity_mut();
-                let length = vector.len();
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
-                // length is smaller or equal to that. The vector is valid for reads up to length.
-                // Both are property aligned and do not alias.
+                debug_assert_eq!(
+                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                    std::mem::size_of::<[Option<Value>; N]>()
+                );
+                // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
+                // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
+                // but it could theoretically be that we end up copying a bit that says "the array is None".
+                // Experimentally however, this works and we do not copy None but Some([_]).
+                let last = unsafe {
+                    std::mem::transmute::<
+                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
+                        &mut [MaybeUninit<Option<Value>>; N],
+                    >(last)
+                };
+                // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
+                let len_slice = unsafe {
+                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                };
+                last[..length].copy_from_slice(len_slice);
+                last[length..].fill(MaybeUninit::new(None));
+                // SAFETY: We have fully initialized the next item.
                 unsafe {
-                    debug_assert_eq!(
-                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                        std::mem::size_of::<[Option<Value>; N]>()
-                    );
-                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
-                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
-                    for index in length..N {
-                        element_ptr.add(index).write(None);
-                    }
                     elements.values.set_len(elements.values.len() + 1);
                 }
                 let index = ElementIndex::last_element_index(&elements.values);
@@ -1202,22 +1235,30 @@ impl ElementArrays {
                 const N: usize = usize::pow(2, 12);
                 elements.values.reserve(1);
                 let remaining = elements.values.spare_capacity_mut();
-                let length = vector.len();
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
-                // length is smaller or equal to that. The vector is valid for reads up to length.
-                // Both are property aligned and do not alias.
+                debug_assert_eq!(
+                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                    std::mem::size_of::<[Option<Value>; N]>()
+                );
+                // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
+                // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
+                // but it could theoretically be that we end up copying a bit that says "the array is None".
+                // Experimentally however, this works and we do not copy None but Some([_]).
+                let last = unsafe {
+                    std::mem::transmute::<
+                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
+                        &mut [MaybeUninit<Option<Value>>; N],
+                    >(last)
+                };
+                // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
+                let len_slice = unsafe {
+                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                };
+                last[..length].copy_from_slice(len_slice);
+                last[length..].fill(MaybeUninit::new(None));
+                // SAFETY: We have fully initialized the next item.
                 unsafe {
-                    debug_assert_eq!(
-                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                        std::mem::size_of::<[Option<Value>; N]>()
-                    );
-                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
-                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
-                    for index in length..N {
-                        element_ptr.add(index).write(None);
-                    }
                     elements.values.set_len(elements.values.len() + 1);
                 }
                 let index = ElementIndex::last_element_index(&elements.values);
@@ -1231,22 +1272,30 @@ impl ElementArrays {
                 const N: usize = usize::pow(2, 16);
                 elements.values.reserve(1);
                 let remaining = elements.values.spare_capacity_mut();
-                let length = vector.len();
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
-                // length is smaller or equal to that. The vector is valid for reads up to length.
-                // Both are property aligned and do not alias.
+                debug_assert_eq!(
+                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                    std::mem::size_of::<[Option<Value>; N]>()
+                );
+                // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
+                // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
+                // but it could theoretically be that we end up copying a bit that says "the array is None".
+                // Experimentally however, this works and we do not copy None but Some([_]).
+                let last = unsafe {
+                    std::mem::transmute::<
+                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
+                        &mut [MaybeUninit<Option<Value>>; N],
+                    >(last)
+                };
+                // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
+                let len_slice = unsafe {
+                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                };
+                last[..length].copy_from_slice(len_slice);
+                last[length..].fill(MaybeUninit::new(None));
+                // SAFETY: We have fully initialized the next item.
                 unsafe {
-                    debug_assert_eq!(
-                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                        std::mem::size_of::<[Option<Value>; N]>()
-                    );
-                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
-                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
-                    for index in length..N {
-                        element_ptr.add(index).write(None);
-                    }
                     elements.values.set_len(elements.values.len() + 1);
                 }
                 let index = ElementIndex::last_element_index(&elements.values);
@@ -1260,22 +1309,30 @@ impl ElementArrays {
                 const N: usize = usize::pow(2, 24);
                 elements.values.reserve(1);
                 let remaining = elements.values.spare_capacity_mut();
-                let length = vector.len();
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
-                // length is smaller or equal to that. The vector is valid for reads up to length.
-                // Both are property aligned and do not alias.
+                debug_assert_eq!(
+                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                    std::mem::size_of::<[Option<Value>; N]>()
+                );
+                // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
+                // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
+                // but it could theoretically be that we end up copying a bit that says "the array is None".
+                // Experimentally however, this works and we do not copy None but Some([_]).
+                let last = unsafe {
+                    std::mem::transmute::<
+                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
+                        &mut [MaybeUninit<Option<Value>>; N],
+                    >(last)
+                };
+                // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
+                let len_slice = unsafe {
+                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                };
+                last[..length].copy_from_slice(len_slice);
+                last[length..].fill(MaybeUninit::new(None));
+                // SAFETY: We have fully initialized the next item.
                 unsafe {
-                    debug_assert_eq!(
-                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                        std::mem::size_of::<[Option<Value>; N]>()
-                    );
-                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
-                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
-                    for index in length..N {
-                        element_ptr.add(index).write(None);
-                    }
                     elements.values.set_len(elements.values.len() + 1);
                 }
                 let index = ElementIndex::last_element_index(&elements.values);
@@ -1289,22 +1346,30 @@ impl ElementArrays {
                 const N: usize = usize::pow(2, 32);
                 elements.values.reserve(1);
                 let remaining = elements.values.spare_capacity_mut();
-                let length = vector.len();
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
-                // SAFETY: The last elements array of the spare capacity is valid for writes up to N and
-                // length is smaller or equal to that. The vector is valid for reads up to length.
-                // Both are property aligned and do not alias.
+                debug_assert_eq!(
+                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
+                    std::mem::size_of::<[Option<Value>; N]>()
+                );
+                // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
+                // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
+                // but it could theoretically be that we end up copying a bit that says "the array is None".
+                // Experimentally however, this works and we do not copy None but Some([_]).
+                let last = unsafe {
+                    std::mem::transmute::<
+                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
+                        &mut [MaybeUninit<Option<Value>>; N],
+                    >(last)
+                };
+                // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
+                let len_slice = unsafe {
+                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                };
+                last[..length].copy_from_slice(len_slice);
+                last[length..].fill(MaybeUninit::new(None));
+                // SAFETY: We have fully initialized the next item.
                 unsafe {
-                    debug_assert_eq!(
-                        std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                        std::mem::size_of::<[Option<Value>; N]>()
-                    );
-                    let element_ptr: *mut Option<Value> = std::mem::transmute(last.as_mut_ptr());
-                    std::ptr::copy_nonoverlapping(vector.as_ptr(), element_ptr, length);
-                    for index in length..N {
-                        element_ptr.add(index).write(None);
-                    }
                     elements.values.set_len(elements.values.len() + 1);
                 }
                 let index = ElementIndex::last_element_index(&elements.values);
