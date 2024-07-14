@@ -97,7 +97,7 @@ use crate::{
                     string_prototype::StringPrototype,
                 },
             },
-            BuiltinFunction,
+            Array, BuiltinFunction,
         },
         execution::Agent,
         fundamental_objects::{
@@ -134,7 +134,7 @@ use crate::{
         types::{Object, OrdinaryObject},
     },
     heap::{
-        indexes::{BuiltinFunctionIndex, ObjectIndex, PrimitiveObjectIndex},
+        indexes::{ArrayIndex, BuiltinFunctionIndex, ObjectIndex, PrimitiveObjectIndex},
         intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
         CompactionLists, HeapMarkAndSweep, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
         IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
@@ -147,6 +147,9 @@ use super::RealmIdentifier;
 pub(crate) struct Intrinsics {
     pub(crate) object_index_base: ObjectIndex,
     pub(crate) primitive_object_index_base: PrimitiveObjectIndex,
+    /// Array prototype object is an Array exotic object. It is the only one
+    /// in the ECMAScript spec so we do not need to store the Array index base.
+    pub(crate) array_prototype: Array,
     pub(crate) builtin_function_index_base: BuiltinFunctionIndex,
 }
 
@@ -205,6 +208,7 @@ impl Intrinsics {
             PrimitiveObjectIndex::from_index(agent.heap.primitive_objects.len());
         let builtin_function_index_base =
             BuiltinFunctionIndex::from_index(agent.heap.builtin_functions.len());
+        let array_prototype = Array::from(ArrayIndex::from_index(agent.heap.arrays.len()));
 
         agent
             .heap
@@ -218,11 +222,13 @@ impl Intrinsics {
             .heap
             .builtin_functions
             .extend((0..intrinsic_function_count()).map(|_| None));
+        agent.heap.arrays.push(None);
 
         Self {
             object_index_base,
             primitive_object_index_base,
             builtin_function_index_base,
+            array_prototype,
         }
     }
 
@@ -420,7 +426,12 @@ impl Intrinsics {
     }
 
     /// %Array.prototype%
-    pub(crate) fn array_prototype(&self) -> OrdinaryObject {
+    pub(crate) fn array_prototype(&self) -> Array {
+        self.array_prototype
+    }
+
+    /// %Array.prototype%
+    pub(crate) fn array_prototype_base_object(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::ArrayPrototype
             .get_object_index(self.object_index_base)
             .into()
@@ -1591,5 +1602,9 @@ impl HeapMarkAndSweep for Intrinsics {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         OrdinaryObject(self.object_index_base).sweep_values(compactions);
         BuiltinFunction(self.builtin_function_index_base).sweep_values(compactions);
+        compactions
+            .primitive_objects
+            .shift_index(&mut self.primitive_object_index_base);
+        self.array_prototype.sweep_values(compactions);
     }
 }
