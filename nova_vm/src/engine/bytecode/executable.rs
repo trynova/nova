@@ -904,7 +904,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         ast::PropertyKey::ArrowFunctionExpression(init) => init.compile(ctx),
                         ast::PropertyKey::AssignmentExpression(init) => init.compile(ctx),
                         ast::PropertyKey::AwaitExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::BigintLiteral(init) => init.compile(ctx),
+                        ast::PropertyKey::BigIntLiteral(init) => init.compile(ctx),
                         ast::PropertyKey::BinaryExpression(init) => init.compile(ctx),
                         ast::PropertyKey::BooleanLiteral(init) => init.compile(ctx),
                         ast::PropertyKey::CallExpression(init) => init.compile(ctx),
@@ -1006,7 +1006,7 @@ impl CompileEvaluation for ast::ArrayExpression<'_> {
                 ast::ArrayExpressionElement::ArrowFunctionExpression(init) => init.compile(ctx),
                 ast::ArrayExpressionElement::AssignmentExpression(init) => init.compile(ctx),
                 ast::ArrayExpressionElement::AwaitExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::BigintLiteral(init) => init.compile(ctx),
+                ast::ArrayExpressionElement::BigIntLiteral(init) => init.compile(ctx),
                 ast::ArrayExpressionElement::BinaryExpression(init) => init.compile(ctx),
                 ast::ArrayExpressionElement::BooleanLiteral(init) => init.compile(ctx),
                 ast::ArrayExpressionElement::CallExpression(init) => init.compile(ctx),
@@ -1090,7 +1090,7 @@ impl CompileEvaluation for ast::Argument<'_> {
                     ast::Argument::BooleanLiteral(x) => x.compile(ctx),
                     ast::Argument::NullLiteral(x) => x.compile(ctx),
                     ast::Argument::NumericLiteral(x) => x.compile(ctx),
-                    ast::Argument::BigintLiteral(x) => x.compile(ctx),
+                    ast::Argument::BigIntLiteral(x) => x.compile(ctx),
                     ast::Argument::RegExpLiteral(x) => x.compile(ctx),
                     ast::Argument::StringLiteral(x) => x.compile(ctx),
                     ast::Argument::TemplateLiteral(x) => x.compile(ctx),
@@ -1445,7 +1445,7 @@ impl CompileEvaluation for ast::Expression<'_> {
             ast::Expression::ArrowFunctionExpression(x) => x.compile(ctx),
             ast::Expression::AssignmentExpression(x) => x.compile(ctx),
             ast::Expression::AwaitExpression(x) => x.compile(ctx),
-            ast::Expression::BigintLiteral(x) => x.compile(ctx),
+            ast::Expression::BigIntLiteral(x) => x.compile(ctx),
             ast::Expression::BinaryExpression(x) => x.compile(ctx),
             ast::Expression::BooleanLiteral(x) => x.compile(ctx),
             ast::Expression::CallExpression(x) => x.compile(ctx),
@@ -1774,7 +1774,7 @@ impl CompileEvaluation for ast::ObjectPattern<'_> {
                     ctx.exe
                         .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
                 }
-                ast::PropertyKey::BigintLiteral(expr) => {
+                ast::PropertyKey::BigIntLiteral(expr) => {
                     expr.compile(ctx);
                     ctx.exe
                         .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
@@ -2262,7 +2262,7 @@ impl CompileEvaluation for ast::ForStatement<'_> {
                 ast::ForStatementInit::ArrowFunctionExpression(init) => init.compile(ctx),
                 ast::ForStatementInit::AssignmentExpression(init) => init.compile(ctx),
                 ast::ForStatementInit::AwaitExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::BigintLiteral(init) => init.compile(ctx),
+                ast::ForStatementInit::BigIntLiteral(init) => init.compile(ctx),
                 ast::ForStatementInit::BinaryExpression(init) => init.compile(ctx),
                 ast::ForStatementInit::BooleanLiteral(init) => init.compile(ctx),
                 ast::ForStatementInit::CallExpression(init) => init.compile(ctx),
