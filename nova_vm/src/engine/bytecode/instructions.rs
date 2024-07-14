@@ -244,10 +244,17 @@ pub enum Instruction {
     /// Take the current result and begin iterating it according to
     /// EnumerateObjectProperties.
     EnumerateObjectProperties,
-    /// Call [[NextMethod]] of current iterator
-    IteratorNext,
-    IteratorComplete,
-    IteratorValue,
+    /// Take the current result and call `GetIterator(result, SYNC)`
+    GetIteratorSync,
+    /// Take the current result and call `GetIterator(result, ASYNC)`
+    GetIteratorAsync,
+    /// Perform IteratorStepValue on the current iterator and jump to
+    /// index if iterator completed.
+    IteratorStepValue,
+    /// Perform CloseIterator on the current iterator
+    IteratorClose,
+    /// Perform AsyncCloseIterator on the current iterator
+    AsyncIteratorClose,
 }
 
 impl Instruction {
@@ -270,7 +277,7 @@ impl Instruction {
             | Self::EvaluatePropertyAccessWithIdentifierKey
             | Self::InstantiateArrowFunctionExpression
             | Self::InstantiateOrdinaryFunctionExpression
-            | Self::IteratorComplete
+            | Self::IteratorStepValue
             | Self::Jump
             | Self::JumpIfNot
             | Self::JumpIfTrue
@@ -314,7 +321,7 @@ impl Instruction {
                 | Self::JumpIfNot
                 | Self::JumpIfTrue
                 | Self::PushExceptionJumpTarget
-                | Self::IteratorComplete
+                | Self::IteratorStepValue
         )
     }
 

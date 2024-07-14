@@ -7,6 +7,7 @@ use oxc_syntax::operator::BinaryOperator;
 use crate::{
     ecmascript::{
         abstract_operations::{
+            operations_on_iterator_objects::{get_iterator_from_method, iterator_close},
             operations_on_objects::{
                 call, call_function, construct, create_data_property_or_throw, get_method, get_v,
                 has_property, ordinary_has_instance, set,
@@ -41,7 +42,7 @@ use crate::{
 
 use super::{
     instructions::Instr,
-    iterator::{ObjectPropertiesIterator, VmIterator},
+    iterator::{ArrayValuesIterator, ObjectPropertiesIterator, VmIterator},
     Executable, Instruction, InstructionIter,
 };
 
@@ -902,38 +903,76 @@ impl Vm {
                         object,
                     )))
             }
-            Instruction::IteratorComplete => {
-                if vm.result.is_none() {
-                    vm.ip = instr.args[0].unwrap() as usize;
-                }
-            }
-            Instruction::IteratorNext => {
-                let iterator = vm.iterator_stack.last_mut().unwrap();
-                match iterator {
-                    VmIterator::ObjectProperties(iter) => {
-                        let result = iter.next(agent);
-                        if result.is_err() {
-                            vm.iterator_stack.pop();
-                            result?;
-                        }
-                        let result = result.unwrap();
-                        if let Some(result) = result {
-                            vm.result = Some(match result {
-                                PropertyKey::Integer(int) => {
-                                    Value::from_string(agent, format!("{}", int.into_i64()))
-                                }
-                                PropertyKey::SmallString(data) => Value::SmallString(data),
-                                PropertyKey::String(data) => Value::String(data),
-                                _ => unreachable!(),
-                            });
-                        } else {
-                            vm.iterator_stack.pop();
-                            vm.result = None;
-                        }
+            Instruction::GetIteratorSync => {
+                let expr_value = vm.result.take().unwrap();
+                // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
+                let method = get_method(
+                    agent,
+                    expr_value,
+                    PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+                )?;
+                let Some(method) = method else {
+                    // 3. If method is undefined, throw a TypeError exception.
+                    return Err(agent.throw_exception(
+                        ExceptionType::TypeError,
+                        "Iterator method cannot be undefined",
+                    ));
+                };
+
+                // 4. Return ? GetIteratorFromMethod(obj, method).
+                match expr_value {
+                    Value::Array(array)
+                        if get_method(
+                            agent,
+                            expr_value,
+                            PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+                        )? == Some(
+                            agent
+                                .current_realm()
+                                .intrinsics()
+                                .array_prototype_values()
+                                .into_function(),
+                        ) =>
+                    {
+                        // Fast path: We know what Array.prototype.values
+                        // iterates over on Arrays.
+                        vm.iterator_stack
+                            .push(VmIterator::ArrayValues(ArrayValuesIterator::new(array)));
+                    }
+                    _ => {
+                        vm.iterator_stack.push(VmIterator::GenericIterator(
+                            get_iterator_from_method(agent, expr_value, method)?,
+                        ));
                     }
                 }
             }
-            Instruction::IteratorValue => {}
+            Instruction::GetIteratorAsync => {
+                todo!();
+            }
+            Instruction::IteratorStepValue => {
+                let result = vm.iterator_stack.last_mut().unwrap().step_value(agent);
+                if let Ok(result) = result {
+                    vm.result = result;
+                    if result.is_none() {
+                        // Iterator finished: Jump to escape iterator loop.
+                        vm.iterator_stack.pop().unwrap();
+                        vm.ip = instr.args[0].unwrap() as usize;
+                    }
+                } else {
+                    vm.iterator_stack.pop();
+                    result?;
+                }
+            }
+            Instruction::IteratorClose => {
+                let iterator = vm.iterator_stack.pop().unwrap();
+                if let VmIterator::GenericIterator(iterator_record) = iterator {
+                    iterator_close(
+                        agent,
+                        &iterator_record,
+                        Ok(vm.result.take().unwrap_or(Value::Undefined)),
+                    )?;
+                }
+            }
             other => todo!("{other:?}"),
         }
 
