@@ -14,9 +14,9 @@ use crate::{
 
 pub(crate) struct ProxyConstructor;
 impl Builtin for ProxyConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Map;
+    const NAME: String = BUILTIN_STRING_MEMORY.Proxy;
 
-    const LENGTH: u8 = 1;
+    const LENGTH: u8 = 2;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(ProxyConstructor::behaviour);
 }

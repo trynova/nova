@@ -16,7 +16,7 @@ pub(crate) struct WeakMapPrototype;
 
 struct WeakMapPrototypeDelete;
 impl Builtin for WeakMapPrototypeDelete {
-    const NAME: String = BUILTIN_STRING_MEMORY.every;
+    const NAME: String = BUILTIN_STRING_MEMORY.delete;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakMapPrototype::delete);
 }

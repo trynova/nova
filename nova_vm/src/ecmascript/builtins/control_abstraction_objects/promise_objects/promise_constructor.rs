@@ -29,7 +29,7 @@ pub(crate) struct PromiseConstructor;
 impl Builtin for PromiseConstructor {
     const NAME: String = BUILTIN_STRING_MEMORY.Promise;
 
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 1;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(PromiseConstructor::behaviour);
 }

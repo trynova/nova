@@ -88,7 +88,7 @@ impl Builtin for StringPrototypeLastIndexOf {
 }
 struct StringPrototypeLocaleCompare;
 impl Builtin for StringPrototypeLocaleCompare {
-    const NAME: String = BUILTIN_STRING_MEMORY.findIndex;
+    const NAME: String = BUILTIN_STRING_MEMORY.localeCompare;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::locale_compare);
 }
@@ -137,7 +137,7 @@ impl Builtin for StringPrototypeReplace {
 struct StringPrototypeReplaceAll;
 impl Builtin for StringPrototypeReplaceAll {
     const NAME: String = BUILTIN_STRING_MEMORY.replaceAll;
-    const LENGTH: u8 = 3;
+    const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::replace_all);
 }
 struct StringPrototypeSearch;
