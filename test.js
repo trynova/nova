@@ -1,1 +1,4 @@
-let test = "Hello World".split("")
+let test = "Hello World".toLowerCase();
+
+print(test);
+print(test.toUpperCase());
