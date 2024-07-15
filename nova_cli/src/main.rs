@@ -12,7 +12,7 @@ use helper::{exit_with_parse_errors, initialize_global_object};
 use nova_vm::ecmascript::{
     execution::{
         agent::{GcAgent, HostHooks, Job, Options},
-        initialize_host_defined_realm, Agent, Realm,
+        Agent,
     },
     scripts_and_modules::script::{parse_script, script_evaluation},
     types::{Object, Value},
@@ -126,18 +126,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 host_hooks,
             );
             assert!(!paths.is_empty());
-            agent.with(|agent, root_realms| {
-                let create_global_object: Option<fn(&mut Realm) -> Object> = None;
-                let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
-                initialize_host_defined_realm(
-                    agent,
-                    create_global_object,
-                    create_global_this_value,
-                    Some(initialize_global_object),
-                );
-                let realm = agent.current_realm_id();
-                root_realms.push(realm);
-            });
+            let create_global_object: Option<fn(&mut Agent) -> Object> = None;
+            let create_global_this_value: Option<fn(&mut Agent) -> Object> = None;
+            let realm = agent.create_realm(
+                create_global_object,
+                create_global_this_value,
+                Some(initialize_global_object),
+            );
             let mut is_first = true;
             for path in paths {
                 if is_first {
@@ -145,43 +140,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     agent.gc();
                 }
-                agent.with(
-                    |agent, root_realms| -> Result<(), Box<dyn std::error::Error>> {
-                        let realm = *root_realms.first().unwrap();
-                        let file = std::fs::read_to_string(&path)?;
-                        let script = match parse_script(&allocator, file.into(), realm, !no_strict, None) {
-                            Ok(script) => script,
-                            Err((file, errors)) => exit_with_parse_errors(errors, &path, &file),
-                        };
-                        let mut result = script_evaluation(agent, script);
+                agent.run_in_realm(&realm, |agent| -> Result<(), Box<dyn std::error::Error>> {
+                    let realm = agent.current_realm_id();
+                    let file = std::fs::read_to_string(&path)?;
+                    let script = match parse_script(&allocator, file.into(), realm, !no_strict, None) {
+                        Ok(script) => script,
+                        Err((file, errors)) => exit_with_parse_errors(errors, &path, &file),
+                    };
+                    let mut result = script_evaluation(agent, script);
 
-                        if result.is_ok() {
-                            while let Some(job) = host_hooks.pop_promise_job() {
-                                if let Err(err) = job.run(agent) {
-                                    result = Err(err);
-                                    break;
-                                }
+                    if result.is_ok() {
+                        while let Some(job) = host_hooks.pop_promise_job() {
+                            if let Err(err) = job.run(agent) {
+                                result = Err(err);
+                                break;
                             }
                         }
+                    }
 
-                        match result {
-                            Ok(result) => {
-                                if verbose {
-                                    println!("{:?}", result);
-                                }
-                            }
-                            Err(error) => {
-                                eprintln!(
-                                    "Uncaught exception: {}",
-                                    error.value().string_repr(agent).as_str(agent)
-                                );
-                                std::process::exit(1);
+                    match result {
+                        Ok(result) => {
+                            if verbose {
+                                println!("{:?}", result);
                             }
                         }
-                        Ok(())
-                    },
-                )?;
+                        Err(error) => {
+                            eprintln!(
+                                "Uncaught exception: {}",
+                                error.value().string_repr(agent).as_str(agent)
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    Ok(())
+                })?;
             }
+            agent.remove_realm(realm);
         }
         Command::Repl {} => {
             let allocator = Default::default();

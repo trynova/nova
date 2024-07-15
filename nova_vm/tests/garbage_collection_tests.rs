@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 use nova_vm::ecmascript::{
     execution::{
         agent::{GcAgent, Options},
-        initialize_host_defined_realm, Agent, DefaultHostHooks, Realm,
+        Agent, DefaultHostHooks,
     },
     scripts_and_modules::script::{parse_script, script_evaluation},
     types::{Object, Value},
@@ -69,15 +69,14 @@ fn garbage_collection_tests() {
 
     let allocator = Allocator::default();
     let mut agent = GcAgent::new(Options::default(), &DefaultHostHooks);
-    agent.with(|agent, root_realms| {
-        let create_global_object: Option<fn(&mut Realm) -> Object> = None;
-        let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
-        initialize_host_defined_realm(
-            agent,
-            create_global_object,
-            create_global_this_value,
-            Some(initialize_global_object),
-        );
+    let create_global_object: Option<fn(&mut Agent) -> Object> = None;
+    let create_global_this_value: Option<fn(&mut Agent) -> Object> = None;
+    let realm = agent.create_realm(
+        create_global_object,
+        create_global_this_value,
+        Some(initialize_global_object),
+    );
+    agent.run_in_realm(&realm, |agent| {
         let realm = agent.current_realm_id();
         let script =
             parse_script(&allocator, header_contents.into_boxed_str(), realm, None).unwrap();
@@ -88,13 +87,12 @@ fn garbage_collection_tests() {
                 err.value().string_repr(agent).as_str(agent)
             )
         });
-        root_realms.push(realm);
     });
     agent.gc();
 
     for i in 0..2 {
-        agent.with(|agent, root_realms| {
-            let realm = *root_realms.first().unwrap();
+        agent.run_in_realm(&realm, |agent| {
+            let realm = agent.current_realm_id();
             let script = parse_script(
                 &allocator,
                 call_contents.clone().into_boxed_str(),

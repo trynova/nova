@@ -7,7 +7,7 @@ use std::{fs, path::PathBuf};
 use nova_vm::ecmascript::{
     execution::{
         agent::{GcAgent, Options},
-        initialize_default_realm, DefaultHostHooks,
+        DefaultHostHooks,
     },
     scripts_and_modules::script::{parse_script, script_evaluation},
 };
@@ -27,8 +27,8 @@ fn object_prototype_tests() {
 
     let allocator = Allocator::default();
     let mut agent = GcAgent::new(Options::default(), &DefaultHostHooks);
-    agent.with(|agent, _r| {
-        initialize_default_realm(agent);
+    let realm = agent.create_default_realm();
+    agent.run_in_realm(&realm, |agent| {
         let realm = agent.current_realm_id();
         let script = parse_script(&allocator, contents.into_boxed_str(), realm, false, None).unwrap();
         let _ = script_evaluation(agent, script).unwrap_or_else(|err| {

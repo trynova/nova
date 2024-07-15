@@ -22,25 +22,31 @@ pub(crate) use intrinsics::ProtoIntrinsics;
 use std::{
     any::Any,
     marker::PhantomData,
+    num::NonZeroU32,
     ops::{Index, IndexMut},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct RealmIdentifier(u32, PhantomData<Realm>);
+pub struct RealmIdentifier(NonZeroU32, PhantomData<Realm>);
 
 impl RealmIdentifier {
     /// Creates a realm identififer from a usize.
     ///
     /// ## Panics
-    /// If the given index is greater than `u32::MAX`.
+    /// If the given index is greater than `u32::MAX - 1`.
     pub(crate) const fn from_index(value: usize) -> Self {
-        assert!(value <= u32::MAX as usize);
-        Self(value as u32, PhantomData)
+        assert!(value < u32::MAX as usize);
+        // SAFETY: Not u32::MAX, so addition cannot overflow to 0.
+        Self(
+            unsafe { NonZeroU32::new_unchecked(value as u32 + 1) },
+            PhantomData,
+        )
     }
 
     /// Creates a module identififer from a u32.
     pub(crate) const fn from_u32(value: u32) -> Self {
-        Self(value, PhantomData)
+        // SAFETY: Not u32::MAX, so addition cannot overflow to 0.
+        Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
     }
 
     pub(crate) fn last(realms: &[Option<Realm>]) -> Self {
@@ -49,11 +55,11 @@ impl RealmIdentifier {
     }
 
     pub(crate) const fn into_index(self) -> usize {
-        self.0 as usize
+        self.0.get() as usize - 1
     }
 
-    pub(crate) const fn into_u32(self) -> u32 {
-        self.0
+    pub(crate) const fn into_u32_index(self) -> u32 {
+        self.0.get() - 1
     }
 }
 
@@ -97,7 +103,7 @@ impl HeapMarkAndSweep for RealmIdentifier {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
+        let self_index = self.into_u32_index();
         *self = Self::from_u32(self_index - compactions.realms.get_shift_for_index(self_index));
     }
 }
@@ -247,7 +253,7 @@ pub(crate) fn create_intrinsics(agent: &mut Agent) -> Intrinsics {
 }
 
 /// ### [9.3.3 SetRealmGlobalObject ( realmRec, globalObj, thisValue )](https://tc39.es/ecma262/#sec-setrealmglobalobject)
-pub fn set_realm_global_object(
+pub(crate) fn set_realm_global_object(
     agent: &mut Agent,
     realm_id: RealmIdentifier,
     global_object: Option<Object>,
@@ -1012,10 +1018,10 @@ pub(crate) fn set_default_global_bindings(
 }
 
 /// ### [9.6 InitializeHostDefinedRealm ( )](https://tc39.es/ecma262/#sec-initializehostdefinedrealm)
-pub fn initialize_host_defined_realm(
+pub(crate) fn initialize_host_defined_realm(
     agent: &mut Agent,
-    create_global_object: Option<impl FnOnce(&mut Realm) -> Object>,
-    create_global_this_value: Option<impl FnOnce(&mut Realm) -> Object>,
+    create_global_object: Option<impl FnOnce(&mut Agent) -> Object>,
+    create_global_this_value: Option<impl FnOnce(&mut Agent) -> Object>,
     initialize_global_object: Option<impl FnOnce(&mut Agent, Object)>,
 ) {
     // 1. Let realm be CreateRealm().
@@ -1043,14 +1049,13 @@ pub fn initialize_host_defined_realm(
     // 7. If the host requires use of an exotic object to serve as realm's global object,
     // let global be such an object created in a host-defined manner.
     // Otherwise, let global be undefined, indicating that an ordinary object should be created as the global object.
-    let global = create_global_this_value
-        .map(|create_global_this_value| create_global_this_value(agent.current_realm_mut()));
+    let global =
+        create_global_this_value.map(|create_global_this_value| create_global_this_value(agent));
 
     // 8. If the host requires that the this binding in realm's global scope return an object other than the global object,
     // let thisValue be such an object created in a host-defined manner.
     // Otherwise, let thisValue be undefined, indicating that realm's global this binding should be the global object.
-    let this_value = create_global_object
-        .map(|create_global_object| create_global_object(agent.current_realm_mut()));
+    let this_value = create_global_object.map(|create_global_object| create_global_object(agent));
 
     // 9. Perform SetRealmGlobalObject(realm, global, thisValue).
     set_realm_global_object(agent, realm, global, this_value);
@@ -1066,9 +1071,9 @@ pub fn initialize_host_defined_realm(
     // 12. Return UNUSED.
 }
 
-pub fn initialize_default_realm(agent: &mut Agent) {
-    let create_global_object: Option<fn(&mut Realm) -> Object> = None;
-    let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
+pub(crate) fn initialize_default_realm(agent: &mut Agent) {
+    let create_global_object: Option<fn(&mut Agent) -> Object> = None;
+    let create_global_this_value: Option<fn(&mut Agent) -> Object> = None;
     let initialize_global_object: Option<fn(&mut Agent, Object)> = None;
     initialize_host_defined_realm(
         agent,
