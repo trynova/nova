@@ -14,7 +14,7 @@ use crate::{
 
 pub(crate) struct FinalizationRegistryConstructor;
 impl Builtin for FinalizationRegistryConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Map;
+    const NAME: String = BUILTIN_STRING_MEMORY.FinalizationRegistry;
 
     const LENGTH: u8 = 1;
 

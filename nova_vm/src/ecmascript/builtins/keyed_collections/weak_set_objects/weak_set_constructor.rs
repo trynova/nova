@@ -14,7 +14,7 @@ use crate::{
 
 pub(crate) struct WeakSetConstructor;
 impl Builtin for WeakSetConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Map;
+    const NAME: String = BUILTIN_STRING_MEMORY.WeakSet;
 
     const LENGTH: u8 = 0;
 

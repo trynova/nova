@@ -1528,7 +1528,10 @@ impl CompileEvaluation for ast::UpdateExpression<'_> {
             | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         }
         ctx.exe.add_instruction(Instruction::GetValueKeepReference);
-        if self.prefix {
+        if !self.prefix {
+            // The return value of postfix increment/decrement is the value
+            // after ToNumeric.
+            ctx.exe.add_instruction(Instruction::ToNumeric);
             ctx.exe.add_instruction(Instruction::LoadCopy);
         }
         match self.operator {
@@ -1539,7 +1542,7 @@ impl CompileEvaluation for ast::UpdateExpression<'_> {
                 ctx.exe.add_instruction(Instruction::Decrement);
             }
         }
-        if !self.prefix {
+        if self.prefix {
             ctx.exe.add_instruction(Instruction::LoadCopy);
         }
         ctx.exe.add_instruction(Instruction::PutValue);

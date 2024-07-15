@@ -28,7 +28,7 @@ struct BigIntPrototypeToString;
 impl Builtin for BigIntPrototypeToString {
     const NAME: String = BUILTIN_STRING_MEMORY.toString;
 
-    const LENGTH: u8 = 1;
+    const LENGTH: u8 = 0;
 
     const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
         crate::ecmascript::builtins::Behaviour::Regular(BigIntPrototype::to_string);
