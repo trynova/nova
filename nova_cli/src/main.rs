@@ -138,8 +138,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let realm = agent.current_realm_id();
                 root_realms.push(realm);
             });
-            agent.gc();
+            let mut is_first = true;
             for path in paths {
+                if is_first {
+                    is_first = false;
+                } else {
+                    agent.gc();
+                }
                 agent.with(
                     |agent, root_realms| -> Result<(), Box<dyn std::error::Error>> {
                         let realm = *root_realms.first().unwrap();
@@ -176,7 +181,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Ok(())
                     },
                 )?;
-                agent.gc();
             }
         }
         Command::Repl {} => {
