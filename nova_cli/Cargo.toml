@@ -5,10 +5,10 @@ edition = "2021"
 default-run = "nova_cli"
 
 [dependencies]
-clap = { version = "4.5.0", features = ["derive"] }
+clap = { workspace = true}
+miette = { workspace = true }
 nova_vm = { path = "../nova_vm" }
 oxc_ast = { workspace = true }
 oxc_parser = { workspace = true }
 oxc_span = { workspace = true }
 oxc_diagnostics = { workspace = true }
-miette = { version = "7.2.0", features = ["fancy"] }

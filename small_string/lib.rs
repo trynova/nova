@@ -1,6 +1,7 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#![no_std]
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SmallString {
@@ -9,8 +10,8 @@ pub struct SmallString {
     bytes: [u8; 7],
 }
 
-impl std::fmt::Debug for SmallString {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for SmallString {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "\"{}\"", self.as_str())
     }
 }
@@ -49,9 +50,9 @@ impl SmallString {
         let mut current_utf16_index = 0;
         for (idx, ch) in self.as_str().char_indices() {
             match current_utf16_index.cmp(&utf16_idx) {
-                std::cmp::Ordering::Equal => return Some(idx),
-                std::cmp::Ordering::Greater => return None,
-                std::cmp::Ordering::Less => {
+                core::cmp::Ordering::Equal => return Some(idx),
+                core::cmp::Ordering::Greater => return None,
+                core::cmp::Ordering::Less => {
                     current_utf16_index += ch.len_utf16();
                 }
             }
@@ -77,7 +78,7 @@ impl SmallString {
     #[inline]
     pub fn as_str(&self) -> &str {
         // SAFETY: Guaranteed to be UTF-8.
-        unsafe { std::str::from_utf8_unchecked(self.as_bytes()) }
+        unsafe { core::str::from_utf8_unchecked(self.as_bytes()) }
     }
 
     #[inline]
