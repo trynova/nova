@@ -7,8 +7,9 @@ use small_string::SmallString;
 use crate::{
     ecmascript::{
         abstract_operations::{
+            operations_on_objects::{create_array_from_list, get_method},
             testing_and_comparison::require_object_coercible,
-            type_conversion::{to_integer_or_infinity, to_number, to_string},
+            type_conversion::{to_integer_or_infinity, to_number, to_string, to_uint32},
         },
         builders::{
             builtin_function_builder::BuiltinFunctionBuilder,
@@ -654,8 +655,74 @@ impl StringPrototype {
         Ok(String::from_str(agent, substring).into_value())
     }
 
-    fn split(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    fn split(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value)?;
+        // 2. If separator is neither undefined nor null, then
+        if !args.get(0).is_undefined() && !args.get(0).is_null() {
+            // a. Let splitter be ? GetMethod(separator, %Symbol.split%).
+            let splitter = get_method(agent, args.get(0), WellKnownSymbolIndexes::Split.into())?;
+            // b. If splitter is not undefined, then
+            if !splitter.is_none() {
+                // i. Return ? Call(splitter, separator, « O, limit »).
+                // return call(agent, splitter, args.get(0), &[o, args.get(1)]);
+            } else {
+                // c. If separator is the empty String, return ? ArrayCreate(1, « O »).
+                // if args.get(0).is_string() && args.get(0).as_string().unwrap().is_empty() {
+                // return array_create(agent, 1, &[o]);
+                // }
+            }
+        }
+        // 3. Let S be ? ToString(O).
+        let s = o.to_string(agent)?;
+        // 4. If limit is undefined, let lim be 2**32 - 1; else let lim be ℝ(? ToUint32(limit)).
+        let lim = if args.get(1).is_undefined() {
+            2u32.pow(32) - 1
+        } else {
+            to_uint32(agent, args.get(1))?
+        };
+        // 5. Let R be ? ToString(separator).
+        let r = args.get(0).to_string(agent)?;
+        // 6. If lim = 0, then
+        if lim == 0 {
+            // a. Return CreateArrayFromList(« »).
+            return Ok(create_array_from_list(agent, &[]).into());
+        }
+        // 7. If separator is undefined, then
+        if args.get(0).is_undefined() {
+            // a. Return CreateArrayFromList(« S »).
+            return Ok(create_array_from_list(agent, &[s.into()]).into());
+        }
+        // 8. Let separatorLength be the length of R.
+        let separator_length = r.utf16_len(agent);
+        // 9. If separatorLength = 0, then
+        if separator_length == 0 {
+            // a. Let head be the substring of S from 0 to lim.
+            // b. Let codeUnits be a List consisting of the sequence of code units that are the elements of head.
+        }
+        // 10. If S is the empty String, return CreateArrayFromList(« S »).
+        if s.is_empty_string() {
+            return Ok(create_array_from_list(agent, &[s.into()]).into());
+        }
+        // 11. Let substrings be a new empty List.
+        let substrings: Vec<Value> = vec![];
+        // 12. Let i be 0.
+        let mut _i = 0;
+        // 13. Let j be StringIndexOf(S, R, 0).
+        let _j = 0;
+        // 14. Repeat, while j is not NOT-FOUND,
+        //      a. Let T be the substring of S from i to j.
+        //      b. Append T to substrings.
+        //      c. If the number of elements in substrings is lim, return CreateArrayFromList(substrings).
+        //      d. Set i to j + separatorLength.
+        //      e. Set j to StringIndexOf(S, R, i).
+        // 15. Let T be the substring of S from i.
+        // 16. Append T to substrings.
+        // 17. Return CreateArrayFromList(substrings).
+        Ok(Value::from(create_array_from_list(
+            agent,
+            substrings.as_slice(),
+        )))
     }
 
     fn starts_with(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
