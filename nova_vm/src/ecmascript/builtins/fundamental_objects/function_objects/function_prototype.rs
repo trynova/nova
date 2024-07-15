@@ -10,15 +10,20 @@ use crate::{
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, BuiltinIntrinsicConstructor,
+            ArgumentsList, Behaviour, Builtin, BuiltinFunction, BuiltinIntrinsic,
+            BuiltinIntrinsicConstructor,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         scripts_and_modules::ScriptOrModule,
         types::{
-            Function, IntoFunction, IntoObject, IntoValue, String, Value, BUILTIN_STRING_MEMORY,
+            Function, InternalSlots, IntoFunction, IntoObject, IntoValue, ObjectHeapData,
+            OrdinaryObject, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{
+        CreateHeapData, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
+        ObjectEntryPropertyDescriptor, WellKnownSymbolIndexes,
+    },
 };
 
 pub(crate) struct FunctionPrototype;
@@ -37,7 +42,7 @@ struct FunctionPrototypeApply;
 impl Builtin for FunctionPrototypeApply {
     const NAME: String = BUILTIN_STRING_MEMORY.apply;
 
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 2;
 
     const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
         crate::ecmascript::builtins::Behaviour::Regular(FunctionPrototype::apply);
@@ -47,7 +52,7 @@ struct FunctionPrototypeBind;
 impl Builtin for FunctionPrototypeBind {
     const NAME: String = BUILTIN_STRING_MEMORY.bind;
 
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 1;
 
     const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
         crate::ecmascript::builtins::Behaviour::Regular(FunctionPrototype::bind);
@@ -57,7 +62,7 @@ struct FunctionPrototypeCall;
 impl Builtin for FunctionPrototypeCall {
     const NAME: String = BUILTIN_STRING_MEMORY.call;
 
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 1;
 
     const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
         crate::ecmascript::builtins::Behaviour::Regular(FunctionPrototype::call);
@@ -283,6 +288,52 @@ impl ThrowTypeError {
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        BuiltinFunctionBuilder::new_intrinsic_function::<ThrowTypeError>(agent, realm).build();
+        let throw_type_error =
+            BuiltinFunctionBuilder::new_intrinsic_function::<ThrowTypeError>(agent, realm).build();
+        let backing_object = create_throw_type_error_backing_object(agent, realm);
+        agent[throw_type_error].object_index = Some(backing_object);
     }
+}
+
+fn create_throw_type_error_backing_object(
+    agent: &mut Agent,
+    realm: RealmIdentifier,
+) -> OrdinaryObject {
+    let prototype = agent
+        .get_realm(realm)
+        .intrinsics()
+        .get_intrinsic_default_proto(BuiltinFunction::DEFAULT_PROTOTYPE);
+
+    let length_entry = ObjectEntry {
+        key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+        // The "length" property of this function has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
+        value: ObjectEntryPropertyDescriptor::Data {
+            value: ThrowTypeError::LENGTH.into(),
+            writable: false,
+            enumerable: false,
+            configurable: false,
+        },
+    };
+    let name_entry = ObjectEntry {
+        key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+        // The "name" property of this function has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
+        value: ObjectEntryPropertyDescriptor::Data {
+            value: ThrowTypeError::NAME.into_value(),
+            writable: false,
+            enumerable: false,
+            configurable: false,
+        },
+    };
+    let (keys, values) = agent
+        .heap
+        .elements
+        .create_object_entries(&[length_entry, name_entry]);
+
+    agent.heap.create(ObjectHeapData {
+        // The value of the [[Extensible]] internal slot of this function is false.
+        extensible: true,
+        prototype: Some(prototype),
+        keys,
+        values,
+    })
 }

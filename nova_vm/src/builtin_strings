@@ -299,6 +299,7 @@ ReferenceError
 Reflect
 RegExp
 RegExp String Iterator
+register
 reject
 repeat
 replace
@@ -427,6 +428,7 @@ undefined
 unescape
 unicode
 unicodeSets
+unregister
 unscopables
 unshift
 URIError

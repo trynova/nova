@@ -27,9 +27,9 @@ use crate::{
 
 pub(crate) struct SetConstructor;
 impl Builtin for SetConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Map;
+    const NAME: String = BUILTIN_STRING_MEMORY.Set;
 
-    const LENGTH: u8 = 1;
+    const LENGTH: u8 = 0;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(SetConstructor::behaviour);
 }

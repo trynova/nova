@@ -16,13 +16,13 @@ pub(crate) struct FinalizationRegistryPrototype;
 
 struct FinalizationRegistryPrototypeRegister;
 impl Builtin for FinalizationRegistryPrototypeRegister {
-    const NAME: String = BUILTIN_STRING_MEMORY.every;
+    const NAME: String = BUILTIN_STRING_MEMORY.register;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(FinalizationRegistryPrototype::register);
 }
 struct FinalizationRegistryPrototypeUnregister;
 impl Builtin for FinalizationRegistryPrototypeUnregister {
-    const NAME: String = BUILTIN_STRING_MEMORY.get;
+    const NAME: String = BUILTIN_STRING_MEMORY.unregister;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(FinalizationRegistryPrototype::unregister);
 }

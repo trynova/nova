@@ -29,7 +29,7 @@ pub(crate) struct SymbolConstructor;
 impl Builtin for SymbolConstructor {
     const NAME: String = BUILTIN_STRING_MEMORY.Symbol;
 
-    const LENGTH: u8 = 1;
+    const LENGTH: u8 = 0;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
 }

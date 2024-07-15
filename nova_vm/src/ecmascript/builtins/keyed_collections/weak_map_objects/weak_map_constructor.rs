@@ -14,9 +14,9 @@ use crate::{
 
 pub(crate) struct WeakMapConstructor;
 impl Builtin for WeakMapConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Map;
+    const NAME: String = BUILTIN_STRING_MEMORY.WeakMap;
 
-    const LENGTH: u8 = 1;
+    const LENGTH: u8 = 0;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(WeakMapConstructor::behaviour);
 }

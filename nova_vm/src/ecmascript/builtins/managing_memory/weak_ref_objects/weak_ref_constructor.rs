@@ -14,7 +14,7 @@ use crate::{
 
 pub(crate) struct WeakRefConstructor;
 impl Builtin for WeakRefConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Map;
+    const NAME: String = BUILTIN_STRING_MEMORY.WeakRef;
 
     const LENGTH: u8 = 1;
 

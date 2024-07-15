@@ -22,7 +22,7 @@ impl Builtin for WeakSetPrototypeAdd {
 }
 struct WeakSetPrototypeDelete;
 impl Builtin for WeakSetPrototypeDelete {
-    const NAME: String = BUILTIN_STRING_MEMORY.every;
+    const NAME: String = BUILTIN_STRING_MEMORY.delete;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakSetPrototype::delete);
 }

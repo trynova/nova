@@ -53,7 +53,7 @@ impl BuiltinGetter for ArrayBufferPrototypeGetResizable {
 struct ArrayBufferPrototypeResize;
 impl Builtin for ArrayBufferPrototypeResize {
     const NAME: String = BUILTIN_STRING_MEMORY.resize;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayBufferPrototype::resize);
 }
 struct ArrayBufferPrototypeSlice;

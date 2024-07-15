@@ -31,7 +31,7 @@ pub struct DateConstructor;
 impl Builtin for DateConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.Number;
+    const NAME: String = BUILTIN_STRING_MEMORY.Date;
 }
 impl BuiltinIntrinsicConstructor for DateConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Date;
