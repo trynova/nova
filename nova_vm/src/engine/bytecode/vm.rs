@@ -472,7 +472,13 @@ impl Vm {
             Instruction::Typeof => {
                 // 2. If val is a Reference Record, then
                 let val = if let Some(reference) = vm.reference.take() {
-                    get_value(agent, &reference)?
+                    if reference.base == Base::Unresolvable {
+                        // a. If IsUnresolvableReference(val) is true, return "undefined".
+                        Value::Undefined
+                    } else {
+                        // 3. Set val to ? GetValue(val).
+                        get_value(agent, &reference)?
+                    }
                 } else {
                     vm.result.unwrap()
                 };
