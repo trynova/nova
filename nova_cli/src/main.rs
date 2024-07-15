@@ -43,6 +43,8 @@ enum Command {
     Eval {
         #[arg(short, long)]
         verbose: bool,
+        #[arg(short, long)]
+        nogc: bool,
 
         #[arg(short, long)]
         no_strict: bool,
@@ -110,14 +112,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Command::Eval {
             verbose,
             no_strict,
-            paths,
+            nogc,
+            paths
         } => {
             let allocator = Default::default();
 
             let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
             let mut agent = GcAgent::new(
                 Options {
-                    disable_gc: false,
+                    disable_gc: nogc,
                     print_internals: verbose,
                 },
                 host_hooks,

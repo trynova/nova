@@ -187,6 +187,7 @@ impl BaseTest262Runner {
             if !strict {
                 command.arg("--no-strict");
             }
+            command.arg("--nogc");
 
             command.arg(&self.nova_harness_path);
             if metadata.flags.raw {
