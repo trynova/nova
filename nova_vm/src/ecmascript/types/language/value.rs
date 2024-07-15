@@ -267,6 +267,14 @@ impl Value {
         Number::neg_inf().into_value()
     }
 
+    pub fn zero() -> Self {
+        Number::pos_zero().into_value()
+    }
+
+    pub fn neg_zero() -> Self {
+        Number::neg_zero().into_value()
+    }
+
     pub fn is_true(self) -> bool {
         matches!(self, Value::Boolean(true))
     }
