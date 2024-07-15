@@ -331,7 +331,7 @@ fn create_throw_type_error_backing_object(
 
     agent.heap.create(ObjectHeapData {
         // The value of the [[Extensible]] internal slot of this function is false.
-        extensible: true,
+        extensible: false,
         prototype: Some(prototype),
         keys,
         values,
