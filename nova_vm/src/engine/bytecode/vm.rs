@@ -350,6 +350,8 @@ impl Vm {
                     source_text: function_expression.expression.get().span,
                     parameters_list: &empty_parameters.0,
                     body: function_expression.expression.get().body.as_ref().unwrap(),
+                    is_async: function_expression.expression.get().r#async,
+                    is_generator: function_expression.expression.get().generator,
                     is_concise_arrow_function: false,
                     lexical_this: false,
                     env,
@@ -411,6 +413,8 @@ impl Vm {
                     parameters_list: &function_expression.expression.get().params,
                     body: function_expression.expression.get().body.as_ref().unwrap(),
                     is_concise_arrow_function: false,
+                    is_async: function_expression.expression.get().r#async,
+                    is_generator: function_expression.expression.get().generator,
                     lexical_this: false,
                     env,
                     private_env,
@@ -520,6 +524,8 @@ impl Vm {
                     parameters_list: &function_expression.expression.get().params,
                     body: &function_expression.expression.get().body,
                     is_concise_arrow_function: function_expression.expression.get().expression,
+                    is_async: function_expression.expression.get().r#async,
+                    is_generator: false,
                     lexical_this: true,
                     env: lexical_environment,
                     private_env: private_environment,
@@ -594,6 +600,8 @@ impl Vm {
                     parameters_list: &function_expression.expression.get().params,
                     body: function_expression.expression.get().body.as_ref().unwrap(),
                     is_concise_arrow_function: false,
+                    is_async: function_expression.expression.get().r#async,
+                    is_generator: function_expression.expression.get().generator,
                     lexical_this: false,
                     env,
                     private_env: private_environment,
@@ -1497,11 +1505,7 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::BuiltinConstructorFunction |
         Value::BuiltinPromiseResolvingFunction(_) |
         Value::BuiltinPromiseCollectorFunction |
-        Value::BuiltinProxyRevokerFunction |
-        Value::ECMAScriptAsyncFunction |
-        Value::ECMAScriptAsyncGeneratorFunction |
-        Value::ECMAScriptConstructorFunction |
-        Value::ECMAScriptGeneratorFunction => BUILTIN_STRING_MEMORY.function,
+        Value::BuiltinProxyRevokerFunction => BUILTIN_STRING_MEMORY.function,
         // TODO: Check [[Call]] slot for Proxy
         Value::Proxy(_) => todo!(),
     }

@@ -204,10 +204,6 @@ impl FunctionPrototype {
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
 
         // NOTE: NativeFunction means the following string:

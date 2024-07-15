@@ -11,9 +11,7 @@ use super::{
         BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
-        ECMASCRIPT_ASYNC_FUNCTION_DISCRIMINANT, ECMASCRIPT_ASYNC_GENERATOR_FUNCTION_DISCRIMINANT,
-        ECMASCRIPT_CONSTRUCTOR_FUNCTION_DISCRIMINANT, ECMASCRIPT_FUNCTION_DISCRIMINANT,
-        ECMASCRIPT_GENERATOR_FUNCTION_DISCRIMINANT,
+        ECMASCRIPT_FUNCTION_DISCRIMINANT,
     }, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, InternalSlots, PropertyKey, Value
 };
 use crate::{
@@ -43,10 +41,6 @@ pub enum Function {
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
-    ECMAScriptAsyncFunction = ECMASCRIPT_ASYNC_FUNCTION_DISCRIMINANT,
-    ECMAScriptAsyncGeneratorFunction = ECMASCRIPT_ASYNC_GENERATOR_FUNCTION_DISCRIMINANT,
-    ECMAScriptConstructorFunction = ECMASCRIPT_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
-    ECMAScriptGeneratorFunction = ECMASCRIPT_GENERATOR_FUNCTION_DISCRIMINANT,
 }
 
 impl std::fmt::Debug for Function {
@@ -62,10 +56,6 @@ impl std::fmt::Debug for Function {
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 }
@@ -104,12 +94,6 @@ impl TryFrom<Object> for Function {
                 Ok(Function::BuiltinPromiseCollectorFunction)
             }
             Object::BuiltinProxyRevokerFunction => Ok(Function::BuiltinProxyRevokerFunction),
-            Object::ECMAScriptAsyncFunction => Ok(Function::ECMAScriptAsyncFunction),
-            Object::ECMAScriptAsyncGeneratorFunction => {
-                Ok(Function::ECMAScriptAsyncGeneratorFunction)
-            }
-            Object::ECMAScriptConstructorFunction => Ok(Function::ECMAScriptConstructorFunction),
-            Object::ECMAScriptGeneratorFunction => Ok(Function::ECMAScriptGeneratorFunction),
             _ => Err(()),
         }
     }
@@ -129,12 +113,6 @@ impl TryFrom<Value> for Function {
             }
             Value::BuiltinPromiseCollectorFunction => Ok(Function::BuiltinPromiseCollectorFunction),
             Value::BuiltinProxyRevokerFunction => Ok(Function::BuiltinProxyRevokerFunction),
-            Value::ECMAScriptAsyncFunction => Ok(Function::ECMAScriptAsyncFunction),
-            Value::ECMAScriptAsyncGeneratorFunction => {
-                Ok(Function::ECMAScriptAsyncGeneratorFunction)
-            }
-            Value::ECMAScriptConstructorFunction => Ok(Function::ECMAScriptConstructorFunction),
-            Value::ECMAScriptGeneratorFunction => Ok(Function::ECMAScriptGeneratorFunction),
             _ => Err(()),
         }
     }
@@ -153,10 +131,6 @@ impl From<Function> for Object {
             }
             Function::BuiltinPromiseCollectorFunction => Object::BuiltinPromiseCollectorFunction,
             Function::BuiltinProxyRevokerFunction => Object::BuiltinProxyRevokerFunction,
-            Function::ECMAScriptAsyncFunction => Object::ECMAScriptAsyncFunction,
-            Function::ECMAScriptAsyncGeneratorFunction => Object::ECMAScriptAsyncGeneratorFunction,
-            Function::ECMAScriptConstructorFunction => Object::ECMAScriptConstructorFunction,
-            Function::ECMAScriptGeneratorFunction => Object::ECMAScriptGeneratorFunction,
         }
     }
 }
@@ -174,10 +148,6 @@ impl From<Function> for Value {
             }
             Function::BuiltinPromiseCollectorFunction => Value::BuiltinPromiseCollectorFunction,
             Function::BuiltinProxyRevokerFunction => Value::BuiltinProxyRevokerFunction,
-            Function::ECMAScriptAsyncFunction => Value::ECMAScriptAsyncFunction,
-            Function::ECMAScriptAsyncGeneratorFunction => Value::ECMAScriptAsyncGeneratorFunction,
-            Function::ECMAScriptConstructorFunction => Value::ECMAScriptConstructorFunction,
-            Function::ECMAScriptGeneratorFunction => Value::ECMAScriptGeneratorFunction,
         }
     }
 }
@@ -197,10 +167,6 @@ impl Function {
             Function::BuiltinConstructorFunction => todo!(),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 }
@@ -223,10 +189,6 @@ impl InternalSlots for Function {
             Function::BuiltinPromiseResolvingFunction(d) => agent[d].object_index,
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -268,10 +230,6 @@ impl InternalMethods for Function {
             Function::BuiltinPromiseResolvingFunction(x) => x.internal_get_prototype_of(agent),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -291,10 +249,6 @@ impl InternalMethods for Function {
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -308,10 +262,6 @@ impl InternalMethods for Function {
             Function::BuiltinPromiseResolvingFunction(x) => x.internal_is_extensible(agent),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -325,10 +275,6 @@ impl InternalMethods for Function {
             Function::BuiltinPromiseResolvingFunction(x) => x.internal_prevent_extensions(agent),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -348,10 +294,6 @@ impl InternalMethods for Function {
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -378,10 +320,6 @@ impl InternalMethods for Function {
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -397,10 +335,6 @@ impl InternalMethods for Function {
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -421,10 +355,6 @@ impl InternalMethods for Function {
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -446,10 +376,6 @@ impl InternalMethods for Function {
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -463,10 +389,6 @@ impl InternalMethods for Function {
             Function::BuiltinPromiseResolvingFunction(x) => x.internal_delete(agent, property_key),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -480,10 +402,6 @@ impl InternalMethods for Function {
             Function::BuiltinPromiseResolvingFunction(x) => x.internal_own_property_keys(agent),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -506,10 +424,6 @@ impl InternalMethods for Function {
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -532,10 +446,6 @@ impl InternalMethods for Function {
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 }
@@ -551,10 +461,6 @@ impl HeapMarkAndSweep for Function {
             Function::BuiltinPromiseResolvingFunction(x) => x.mark_values(queues),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -568,10 +474,6 @@ impl HeapMarkAndSweep for Function {
             Function::BuiltinPromiseResolvingFunction(x) => x.sweep_values(compactions),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 }

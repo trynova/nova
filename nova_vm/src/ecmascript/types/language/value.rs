@@ -92,10 +92,6 @@ pub enum Value {
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction),
     BuiltinPromiseCollectorFunction,
     BuiltinProxyRevokerFunction,
-    ECMAScriptAsyncFunction,
-    ECMAScriptAsyncGeneratorFunction,
-    ECMAScriptConstructorFunction,
-    ECMAScriptGeneratorFunction,
 
     // Boolean, Number, String, Symbol, BigInt objects
     PrimitiveObject(PrimitiveObject),
@@ -207,14 +203,6 @@ pub(crate) const BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinPromiseCollectorFunction);
 pub(crate) const BUILTIN_PROXY_REVOKER_FUNCTION: u8 =
     value_discriminant(Value::BuiltinProxyRevokerFunction);
-pub(crate) const ECMASCRIPT_ASYNC_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::ECMAScriptAsyncFunction);
-pub(crate) const ECMASCRIPT_ASYNC_GENERATOR_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::ECMAScriptAsyncGeneratorFunction);
-pub(crate) const ECMASCRIPT_CONSTRUCTOR_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::ECMAScriptConstructorFunction);
-pub(crate) const ECMASCRIPT_GENERATOR_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::ECMAScriptGeneratorFunction);
 pub(crate) const PRIMITIVE_OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::PrimitiveObject(PrimitiveObject::_def()));
 pub(crate) const ARGUMENTS_DISCRIMINANT: u8 = value_discriminant(Value::Arguments);
@@ -578,10 +566,6 @@ impl HeapMarkAndSweep for Value {
             Value::BuiltinPromiseResolvingFunction(data) => data.mark_values(queues),
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
-            Value::ECMAScriptAsyncFunction => todo!(),
-            Value::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Value::ECMAScriptConstructorFunction => todo!(),
-            Value::ECMAScriptGeneratorFunction => todo!(),
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
@@ -642,10 +626,6 @@ impl HeapMarkAndSweep for Value {
             Value::BuiltinPromiseResolvingFunction(data) => data.sweep_values(compactions),
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
-            Value::ECMAScriptAsyncFunction => todo!(),
-            Value::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Value::ECMAScriptConstructorFunction => todo!(),
-            Value::ECMAScriptGeneratorFunction => todo!(),
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
