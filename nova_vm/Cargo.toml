@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-fast-float = "0.2.0"
+fast-float = { workspace = true }
 num-bigint = { workspace = true }
-num-traits = "0.2.18"
+num-traits = { workspace = true }
 oxc_allocator = { workspace = true }
 oxc_ast = { workspace = true }
 oxc_diagnostics = { workspace = true }
