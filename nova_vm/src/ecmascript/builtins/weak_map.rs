@@ -133,16 +133,6 @@ impl IndexMut<WeakMap> for Vec<Option<WeakMapHeapData>> {
     }
 }
 
-impl HeapMarkAndSweep for WeakMap {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
-        queues.weak_maps.push(*self);
-    }
-
-    fn sweep_values(&mut self, _compactions: &crate::heap::CompactionLists) {
-        todo!()
-    }
-}
-
 impl CreateHeapData<WeakMapHeapData, WeakMap> for Heap {
     fn create(&mut self, data: WeakMapHeapData) -> WeakMap {
         self.weak_maps.push(Some(data));

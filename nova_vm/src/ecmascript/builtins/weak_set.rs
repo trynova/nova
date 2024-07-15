@@ -143,16 +143,6 @@ impl IndexMut<WeakSet> for Vec<Option<WeakSetHeapData>> {
     }
 }
 
-impl HeapMarkAndSweep for WeakSet {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
-        queues.weak_sets.push(*self);
-    }
-
-    fn sweep_values(&mut self, _compactions: &crate::heap::CompactionLists) {
-        todo!()
-    }
-}
-
 impl CreateHeapData<WeakSetHeapData, WeakSet> for Heap {
     fn create(&mut self, data: WeakSetHeapData) -> WeakSet {
         self.weak_sets.push(Some(data));

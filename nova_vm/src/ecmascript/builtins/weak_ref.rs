@@ -132,16 +132,6 @@ impl IndexMut<WeakRef> for Vec<Option<WeakRefHeapData>> {
     }
 }
 
-impl HeapMarkAndSweep for WeakRef {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
-        queues.weak_refs.push(*self);
-    }
-
-    fn sweep_values(&mut self, _compactions: &crate::heap::CompactionLists) {
-        todo!()
-    }
-}
-
 impl CreateHeapData<WeakRefHeapData, WeakRef> for Heap {
     fn create(&mut self, data: WeakRefHeapData) -> WeakRef {
         self.weak_refs.push(Some(data));

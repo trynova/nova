@@ -11,8 +11,8 @@ use cliclack::{input, intro, set_theme};
 use helper::{exit_with_parse_errors, initialize_global_object};
 use nova_vm::ecmascript::{
     execution::{
-        agent::{GcAgent, Options},
-        initialize_host_defined_realm, Agent, DefaultHostHooks, Realm,
+        agent::{GcAgent, HostHooks, Job, Options},
+        initialize_host_defined_realm, Agent, Realm,
     },
     scripts_and_modules::script::{parse_script, script_evaluation},
     types::{Object, Value},
@@ -145,11 +145,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             Ok(script) => script,
                             Err((file, errors)) => exit_with_parse_errors(errors, &path, &file),
                         };
-                        let result = script_evaluation(agent, script);
+                        let mut result = script_evaluation(agent, script);
 
                         if result.is_ok() {
                             while let Some(job) = host_hooks.pop_promise_job() {
-                                if let Err(err) = job.run(&mut agent) {
+                                if let Err(err) = job.run(agent) {
                                     result = Err(err);
                                     break;
                                 }
