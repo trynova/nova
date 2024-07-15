@@ -30,7 +30,7 @@ pub struct DateConstructor;
 
 impl Builtin for DateConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
-    const LENGTH: u8 = 1;
+    const LENGTH: u8 = 7;
     const NAME: String = BUILTIN_STRING_MEMORY.Date;
 }
 impl BuiltinIntrinsicConstructor for DateConstructor {
