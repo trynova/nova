@@ -288,7 +288,7 @@ pub(crate) fn get_this_value(reference: &Reference) -> Value {
         })
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(crate) enum Base {
     Value(Value),
     Environment(EnvironmentIndex),

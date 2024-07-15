@@ -53,7 +53,7 @@ pub struct ArrayConstructor;
 impl Builtin for ArrayConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.String;
+    const NAME: String = BUILTIN_STRING_MEMORY.Array;
 }
 impl BuiltinIntrinsicConstructor for ArrayConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Array;

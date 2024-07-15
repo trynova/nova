@@ -268,7 +268,7 @@ impl Builtin for TypedArrayPrototypeReverse {
 struct TypedArrayPrototypeSet;
 impl Builtin for TypedArrayPrototypeSet {
     const NAME: String = BUILTIN_STRING_MEMORY.set;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayPrototype::set);
 }
 struct TypedArrayPrototypeSlice;
