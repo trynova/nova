@@ -235,11 +235,12 @@ pub(crate) fn resolve_binding(
     // 2. Assert: env is an Environment Record.
     // Implicit from env's type.
 
-    // 3. If the source text matched by the syntactic production that is being
-    //    evaluated is contained in strict mode code, let strict be true; else
-    //    let strict be false.
-    // TODO: Implement correctly.
-    let strict = false;
+    // 3. Let strict be IsStrict(the syntactic production that is being evaluated).
+    let strict = agent
+        .running_execution_context()
+        .ecmascript_code
+        .unwrap()
+        .is_strict_mode;
 
     // 4. Return ? GetIdentifierReference(env, name, strict).
     get_identifier_reference(agent, Some(env), name, strict)

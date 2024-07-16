@@ -72,8 +72,8 @@ impl DeclarativeEnvironment {
             name,
             Binding {
                 value: None,
-                // TODO: Figure out how/if we should propagate this.
-                strict: true,
+                // Strictness only seems to matter for immutable bindings.
+                strict: false,
                 mutable: true,
                 deletable: is_deletable,
             },
