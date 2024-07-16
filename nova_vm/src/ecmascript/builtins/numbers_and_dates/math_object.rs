@@ -756,51 +756,126 @@ impl MathObject {
             return Ok(Value::neg_infinity());
         }
         // 4. If n < -1𝔽, return NaN.
+        if n.is_sign_negative(agent) {
+            return Ok(Value::nan());
+        }
         // 5. Return an implementation-approximated Number value representing the natural logarithm of 1 + ℝ(n).
+        Ok(Value::from_f64(agent, n.into_f64(agent).ln_1p()))
     }
 
     fn log10(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
+        let n = to_number(agent, arguments.get(0))?;
         // 2. If n is either NaN or +∞𝔽, return n.
+        if n.is_nan(agent) || n.is_pos_infinity(agent) {
+            return Ok(n.into_value());
+        }
         // 3. If n is 1𝔽, return +0𝔽.
+        if n.is_pos_one(agent) {
+            return Ok(Value::zero());
+        }
         // 4. If n is either +0𝔽 or -0𝔽, return -∞𝔽.
+        if n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+            return Ok(Value::neg_infinity());
+        }
         // 5. If n < -0𝔽, return NaN.
+        if n.is_sign_negative(agent) {
+            return Ok(Value::nan());
+        }
+        
         // 6. Return an implementation-approximated Number value representing the base 10 logarithm of ℝ(n).
+        return Ok(Value::from_f64(agent, n.into_f64(agent).log10()))
     }
 
     fn log2(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
+        let n = to_number(agent, arguments.get(0))?;
         // 2. If n is either NaN or +∞𝔽, return n.
+        if n.is_nan(agent) || n.is_pos_infinity(agent) {
+            return Ok(n.into_value());
+        }
         // 3. If n is 1𝔽, return +0𝔽.
+        if n.is_pos_one(agent) {
+            return Ok(Value::zero());
+        }
         // 4. If n is either +0𝔽 or -0𝔽, return -∞𝔽.
+        if n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+            return Ok(Value::neg_infinity());
+        }
         // 5. If n < -0𝔽, return NaN.
+        if n.is_sign_negative(agent) {
+            return Ok(Value::nan());
+        }
         // 6. Return an implementation-approximated Number value
+        Ok(Value::from_f64(agent, n.into_f64(agent).log2()))
     }
 
     fn max(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. Let coerced be a new empty List.
+        let mut coerced = vec![];
         // 2. For each element arg of args, do
-        // a. Let n be ? ToNumber(arg).
-        // b. Append n to coerced.
+        for &arg in arguments.iter() {
+            // a. Let n be ? ToNumber(arg).
+            let n = to_number(agent, arg)?;
+            // b. Append n to coerced.
+            coerced.push(n);
+        }
         // 3. Let highest be -∞𝔽.
+        let mut highest = Value::neg_infinity();
         // 4. For each element number of coerced, do
-        // a. If number is NaN, return NaN.
+        for number in coerced.iter() {
+            // a. If number is NaN, return NaN.
+            if number.is_nan(agent) {
+                return Ok(Value::nan());
+            }
         // b. If number is +0𝔽 and highest is -0𝔽, set highest to +0𝔽.
-        // c. If number > highest, set highest to number.
+            if number.is_pos_zero(agent) && highest.is_neg_zero(agent) {
+                highest = Value::zero();
+            }
+            // c. If number > highest, set highest to number.
+            // TODO: Implement this.
+            // if number > highest {
+            //     highest = *number;
+            // }
+        }
+    
         // 5. Return highest.
+        Ok(highest)
     }
 
     fn min(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. Let coerced be a new empty List.
+        let mut coerced = vec![];
         // 2. For each element arg of args, do
-        // a. Let n be ? ToNumber(arg).
-        // b. Append n to coerced.
+        for &arg in arguments.iter() {
+            // a. Let n be ? ToNumber(arg).
+            let n = to_number(agent, arg)?;
+            // b. Append n to coerced.
+            coerced.push(n);
+        }
         // 3. Let lowest be +∞𝔽.
+        let mut lowest = Value::infinity();
         // 4. For each element number of coerced, do
+        for number in coerced.iter() {
+            // a. If number is NaN, return NaN.
+            if number.is_nan(agent) {
+                return Ok(Value::nan());
+            }
+            // b. If number is -0𝔽 and lowest is +0𝔽, set lowest to -0𝔽.
+            if number.is_neg_zero(agent) && lowest.is_pos_zero(agent) {
+                lowest = Value::neg_zero();
+            }
+            // c. If number < lowest, set lowest to number.
+            // TODO: Implement this.
+            // if number < lowest {
+            //     lowest = *number;
+            // }
+        }
         // a. If number is NaN, return NaN.
         // b. If number is -0𝔽 and lowest is +0𝔽, set lowest to -0𝔽.
         // c. If number < lowest, set lowest to number.
         // 5. Return lowest.
+        Ok(lowest)
     }
 
     fn pow(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
@@ -829,9 +904,8 @@ impl MathObject {
         Ok(Number::exponentiate(agent, base, exponent).into_value())
     }
 
-    fn random(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        let _x = to_number(agent, arguments.get(0))?;
-        todo!();
+    fn random(agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        Ok(Value::from_f64(agent, rand::random::<f64>()))
     }
 
     fn round(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
