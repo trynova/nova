@@ -124,7 +124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             assert!(!paths.is_empty());
             for path in paths {
                 let file = std::fs::read_to_string(&path)?;
-                let script = match parse_script(&allocator, file.into(), realm, None, !no_strict) {
+                let script = match parse_script(&allocator, file.into(), realm, !no_strict, None) {
                     Ok(script) => script,
                     Err((file, errors)) => exit_with_parse_errors(errors, &path, &file),
                 };
