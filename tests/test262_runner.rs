@@ -172,7 +172,7 @@ impl BaseTest262Runner {
 
         if metadata.flags.raw
             || metadata.flags.strict == Some(false)
-            || (self.prefer_loose_mode && metadata.flags.strict == None)
+            || (self.prefer_loose_mode && metadata.flags.strict.is_none())
         {
             command.arg("--no-strict");
         }
