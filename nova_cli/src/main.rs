@@ -39,6 +39,9 @@ enum Command {
         #[arg(short, long)]
         verbose: bool,
 
+        #[arg(short, long)]
+        no_strict: bool,
+
         /// The files to evaluate
         #[arg(required = true)]
         paths: Vec<String>,
@@ -87,7 +90,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             println!("{:?}", result.program);
         }
-        Command::Eval { verbose, paths } => {
+        Command::Eval {
+            verbose,
+            no_strict,
+            paths,
+        } => {
             let allocator = Default::default();
 
             let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
@@ -117,7 +124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             assert!(!paths.is_empty());
             for path in paths {
                 let file = std::fs::read_to_string(&path)?;
-                let script = match parse_script(&allocator, file.into(), realm, None) {
+                let script = match parse_script(&allocator, file.into(), realm, !no_strict, None) {
                     Ok(script) => script,
                     Err((file, errors)) => exit_with_parse_errors(errors, &path, &file),
                 };

@@ -227,7 +227,7 @@ pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
     pub parameters_list: &'agent FormalParameters<'program>,
     pub body: &'agent FunctionBody<'program>,
     pub is_concise_arrow_function: bool,
-    pub this_mode: ThisMode,
+    pub lexical_this: bool,
     pub env: EnvironmentIndex,
     pub private_env: Option<PrivateEnvironmentIndex>,
 }
@@ -605,6 +605,7 @@ pub(crate) fn prepare_for_ordinary_call(
 ) -> &ExecutionContext {
     let ecmascript_function_object = &agent[f].ecmascript_function;
     let private_environment = ecmascript_function_object.private_environment;
+    let is_strict_mode = ecmascript_function_object.strict;
     let script_or_module = ecmascript_function_object.script_or_module;
     // 1. Let callerContext be the running execution context.
     let _caller_context = agent.running_execution_context();
@@ -621,6 +622,7 @@ pub(crate) fn prepare_for_ordinary_call(
             lexical_environment: EnvironmentIndex::Function(local_env),
             variable_environment: EnvironmentIndex::Function(local_env),
             private_environment,
+            is_strict_mode,
         }),
         // 3. Set the Function of calleeContext to F.
         function: Some(f.into()),
@@ -777,6 +779,14 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
     agent: &'agent mut Agent,
     params: OrdinaryFunctionCreateParams<'agent, 'program>,
 ) -> ECMAScriptFunction {
+    // 7. If the source text matched by Body is strict mode code, let Strict be true; else let Strict be false.
+    let strict = params.body.has_use_strict_directive()
+        || agent
+            .running_execution_context()
+            .ecmascript_code
+            .unwrap()
+            .is_strict_mode;
+
     // 1. Let internalSlotsList be the internal slots listed in Table 30.
     // 2. Let F be OrdinaryObjectCreate(functionPrototype, internalSlotsList).
     // 3. Set F.[[Call]] to the definition specified in 10.2.1.
@@ -813,10 +823,15 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
         // 9. If thisMode is LEXICAL-THIS, set F.[[ThisMode]] to LEXICAL.
         // 10. Else if Strict is true, set F.[[ThisMode]] to STRICT.
         // 11. Else, set F.[[ThisMode]] to GLOBAL.
-        this_mode: params.this_mode,
-        // 7. If the source text matched by Body is strict mode code, let Strict be true; else let Strict be false.
+        this_mode: if params.lexical_this {
+            ThisMode::Lexical
+        } else if strict {
+            ThisMode::Strict
+        } else {
+            ThisMode::Global
+        },
         // 8. Set F.[[Strict]] to Strict.
-        strict: true,
+        strict,
         // 17. Set F.[[HomeObject]] to undefined.
         home_object: None,
         // 4. Set F.[[SourceText]] to sourceText.
@@ -1067,6 +1082,7 @@ pub(crate) fn function_declaration_instantiation(
         lexical_environment: callee_lex_env,
         variable_environment: callee_var_env,
         private_environment: callee_private_env,
+        ..
     } = *callee_context.ecmascript_code.as_ref().unwrap();
     // 2. Let code be func.[[ECMAScriptCode]].
     let (var_names, var_declarations, lexical_names, lex_declarations) = {
@@ -1210,18 +1226,20 @@ pub(crate) fn function_declaration_instantiation(
     // Note: parameter_names is a slice of parameter_bindings.
     let parameter_bindings;
     let parameter_names = if arguments_object_needed {
-        // a. If strict is true or simpleParameterList is false, then
-        let ao: Value = if strict || !simple_parameter_list {
-            // i. Let ao be CreateUnmappedArgumentsObject(argumentsList).
-            create_unmapped_arguments_object(agent, arguments_list).into_value()
-        } else {
-            // b. Else,
-            todo!("Handle arguments object creation");
-            // i. NOTE: A mapped argument object is only provided for non-strict functions
-            // that don't have a rest parameter, any parameter default value initializers,
-            // or any destructured parameters.
-            // ii. Let ao be CreateMappedArgumentsObject(func, formals, argumentsList, env).
-        };
+        // TODO: For now we use an unmapped arguments object even in non-strict mode.
+        // // a. If strict is true or simpleParameterList is false, then
+        // let ao: Value = if strict || !simple_parameter_list {
+        //     // i. Let ao be CreateUnmappedArgumentsObject(argumentsList).
+        //     create_unmapped_arguments_object(agent, arguments_list).into_value()
+        // } else {
+        //     // b. Else,
+        //     todo!("Handle arguments object creation");
+        //     // i. NOTE: A mapped argument object is only provided for non-strict functions
+        //     // that don't have a rest parameter, any parameter default value initializers,
+        //     // or any destructured parameters.
+        //     // ii. Let ao be CreateMappedArgumentsObject(func, formals, argumentsList, env).
+        // };
+        let ao = create_unmapped_arguments_object(agent, arguments_list).into_value();
         // c. If strict is true, then
         if strict {
             // i. Perform ! env.CreateImmutableBinding("arguments", false).

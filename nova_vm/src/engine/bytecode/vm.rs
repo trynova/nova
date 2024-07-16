@@ -27,7 +27,7 @@ use crate::{
         builtins::{
             array_create, global_object::perform_eval, make_constructor, make_method,
             ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
-            set_function_name, ArgumentsList, Array, OrdinaryFunctionCreateParams, ThisMode,
+            set_function_name, ArgumentsList, Array, OrdinaryFunctionCreateParams,
         },
         execution::{
             agent::{resolve_binding, ExceptionType, JsError},
@@ -351,7 +351,7 @@ impl Vm {
                     parameters_list: &empty_parameters.0,
                     body: function_expression.expression.body.as_ref().unwrap(),
                     is_concise_arrow_function: false,
-                    this_mode: ThisMode::Global,
+                    lexical_this: false,
                     env,
                     private_env,
                 };
@@ -411,7 +411,7 @@ impl Vm {
                     parameters_list: &function_expression.expression.params,
                     body: function_expression.expression.body.as_ref().unwrap(),
                     is_concise_arrow_function: false,
-                    this_mode: ThisMode::Global,
+                    lexical_this: false,
                     env,
                     private_env,
                 };
@@ -520,7 +520,7 @@ impl Vm {
                     parameters_list: &function_expression.expression.params,
                     body: &function_expression.expression.body,
                     is_concise_arrow_function: function_expression.expression.expression,
-                    this_mode: ThisMode::Lexical,
+                    lexical_this: true,
                     env: lexical_environment,
                     private_env: private_environment,
                 };
@@ -594,7 +594,7 @@ impl Vm {
                     parameters_list: &function_expression.expression.params,
                     body: function_expression.expression.body.as_ref().unwrap(),
                     is_concise_arrow_function: false,
-                    this_mode: ThisMode::Global,
+                    lexical_this: false,
                     env,
                     private_env: private_environment,
                 };
@@ -635,8 +635,11 @@ impl Vm {
                         // iv. If IsStrict(this CallExpression) is true, let
                         //     strictCaller be true. Otherwise let strictCaller
                         //     be false.
-                        // TODO: Implement strict vs non-strict mode.
-                        let strict_caller = false;
+                        let strict_caller = agent
+                            .running_execution_context()
+                            .ecmascript_code
+                            .unwrap()
+                            .is_strict_mode;
                         // v. Return ? PerformEval(evalArg, strictCaller, true).
                         vm.result = Some(perform_eval(agent, eval_arg, true, strict_caller)?);
                     }
