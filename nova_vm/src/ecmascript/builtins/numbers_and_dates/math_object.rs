@@ -812,7 +812,7 @@ impl MathObject {
 
     fn max(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. Let coerced be a new empty List.
-        let mut coerced = vec![];
+        let mut coerced = Vec::with_capacity(arguments.len());
         // 2. For each element arg of args, do
         for &arg in arguments.iter() {
             // a. Let n be ? ToNumber(arg).
