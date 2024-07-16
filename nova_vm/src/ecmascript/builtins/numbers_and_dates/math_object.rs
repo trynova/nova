@@ -570,7 +570,6 @@ impl MathObject {
         }
         // 14. Else,
         else {
-
             // a. If ny < -0𝔽, set r to -r.
             if ny.into_f64(agent) < 0.0 {
                 r = -r;
@@ -1039,18 +1038,44 @@ impl MathObject {
     }
 
     fn sign(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        let _x = to_number(agent, arguments.get(0))?;
-        todo!();
+        // 1. Let n be ? ToNumber(x).
+        let n = to_number(agent, arguments.get(0))?;
+        // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
+        if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+            return Ok(n.into_value());
+        }
+        // 3. If n < -0𝔽, return -1𝔽.
+        if n.is_sign_negative(agent) {
+            return Ok(Value::from(-1));
+        }
+        // 4. Return 1𝔽.
+        Ok(Value::from(1))
     }
 
     fn sin(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        let _x = to_number(agent, arguments.get(0))?;
-        todo!();
+        // 1. Let n be ? ToNumber(x).
+        let n = to_number(agent, arguments.get(0))?;
+        // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
+        if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+            return Ok(n.into_value());
+        }
+        // 3. If n is either +∞𝔽 or -∞𝔽, return NaN.
+        if n.is_pos_infinity(agent) || n.is_neg_infinity(agent) {
+            return Ok(Value::nan());
+        }
+        // 4. Return an implementation-approximated Number value representing the sine of ℝ(n).
+        Ok(Value::from_f64(agent, n.into_f64(agent).sin()))
     }
 
     fn sinh(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        let _x = to_number(agent, arguments.get(0))?;
-        todo!();
+        // 1. Let n be ? ToNumber(x).
+        let n = to_number(agent, arguments.get(0))?;
+        // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
+        if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+            return Ok(n.into_value());
+        }
+        // 3. Return an implementation-approximated Number value representing the hyperbolic sine of ℝ(n).
+        Ok(Value::from_f64(agent, n.into_f64(agent).sinh()))
     }
 
     fn sqrt(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
