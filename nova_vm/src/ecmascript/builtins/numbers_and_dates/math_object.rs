@@ -343,7 +343,7 @@ impl MathObject {
     fn acos(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0))?.into_f64(agent);
-        
+
         // 2. If n is NaN, n > 1𝔽, or n < -1𝔽, return NaN.
         if n.is_nan() || n > 1.0 || n < -1.0 {
             return Ok(Value::nan());
@@ -361,7 +361,7 @@ impl MathObject {
     fn acosh(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0))?;
-        
+
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
             return Ok(n.into_value());
@@ -386,7 +386,7 @@ impl MathObject {
     fn asin(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0))?;
-        
+
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
             return Ok(n.into_value());
@@ -406,7 +406,7 @@ impl MathObject {
     fn asinh(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0))?;
-        
+
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
             return Ok(n.into_value());
@@ -470,8 +470,114 @@ impl MathObject {
     }
 
     fn atan2(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        let _x = to_number(agent, arguments.get(0))?;
-        todo!();
+        // 1. Let ny be ? ToNumber(y).
+        let ny = to_number(agent, arguments.get(0))?;
+        // 2. Let nx be ? ToNumber(x).
+        let nx = to_number(agent, arguments.get(1))?;
+        // 3. If ny is NaN or nx is NaN, return NaN.
+        if ny.is_nan(agent) || nx.is_nan(agent) {
+            return Ok(Value::nan());
+        }
+        // 4. If ny is +∞𝔽, then
+        if ny.is_pos_infinity(agent) {
+            // a. If nx is +∞𝔽, return an implementation-approximated Number value representing π / 4.
+            if nx.is_pos_infinity(agent) {
+                return Ok(Value::from_f64(agent, consts::FRAC_PI_4));
+            }
+            // b. If nx is -∞𝔽, return an implementation-approximated Number value representing 3π / 4.
+            if nx.is_neg_infinity(agent) {
+                return Ok(Value::from_f64(agent, 3.0 * consts::FRAC_PI_4));
+            }
+            // c. Return an implementation-approximated Number value representing π / 2.
+            return Ok(Value::from_f64(agent, consts::FRAC_PI_2));
+        }
+        // 5. If ny is -∞𝔽, then
+        if ny.is_neg_infinity(agent) {
+            // a. If nx is +∞𝔽, return an implementation-approximated Number value representing -π / 4.
+            if nx.is_pos_infinity(agent) {
+                return Ok(Value::from_f64(agent, -consts::FRAC_PI_4));
+            }
+            // b. If nx is -∞𝔽, return an implementation-approximated Number value representing -3π / 4.
+            if nx.is_neg_infinity(agent) {
+                return Ok(Value::from_f64(agent, -3.0 * consts::FRAC_PI_4));
+            }
+            // c. Return an implementation-approximated Number value representing -π / 2.
+            return Ok(Value::from_f64(agent, -consts::FRAC_PI_2));
+        }
+        // 6. If ny is +0𝔽, then
+        if ny.is_pos_zero(agent) {
+            // a. If nx > +0𝔽 or nx is +0𝔽, return +0𝔽.
+            if nx.is_pos_zero(agent) || nx.is_pos_zero(agent) {
+                return Ok(Value::zero());
+            }
+            // b. Return an implementation-approximated Number value representing π.
+            return Ok(Value::from_f64(agent, consts::PI));
+        }
+        // 7. If ny is -0𝔽, then
+        if ny.is_neg_zero(agent) {
+            // a. If nx > +0𝔽 or nx is +0𝔽, return -0𝔽.
+            if nx.is_pos_zero(agent) || nx.is_pos_zero(agent) {
+                return Ok(Value::neg_zero());
+            }
+            // b. Return an implementation-approximated Number value representing -π.
+            return Ok(Value::from_f64(agent, -consts::PI));
+        }
+        // 8. Assert: ny is finite and is neither +0𝔽 nor -0𝔽.
+        assert!(ny.is_finite(agent) && !ny.is_pos_zero(agent) && !ny.is_neg_zero(agent));
+        // 9. If ny > +0𝔽, then
+        if ny.into_f64(agent) > 0.0 {
+            // a. If nx is +∞𝔽, return +0𝔽.
+            if nx.is_pos_infinity(agent) {
+                return Ok(Value::zero());
+            }
+            // b. If nx is -∞𝔽, return an implementation-approximated Number value representing π.
+            if nx.is_neg_infinity(agent) {
+                return Ok(Value::from_f64(agent, consts::PI));
+            }
+            // c. If nx is either +0𝔽 or -0𝔽, return an implementation-approximated Number value representing π / 2.
+            if nx.is_pos_zero(agent) || nx.is_neg_zero(agent) {
+                return Ok(Value::from_f64(agent, consts::FRAC_PI_2));
+            }
+        }
+        // 10. If ny < -0𝔽, then
+        if ny.into_f64(agent) < 0.0 {
+            // a. If nx is +∞𝔽, return -0𝔽.
+            if nx.is_pos_infinity(agent) {
+                return Ok(Value::neg_zero());
+            }
+            // b. If nx is -∞𝔽, return an implementation-approximated Number value representing -π.
+            if nx.is_neg_infinity(agent) {
+                return Ok(Value::from_f64(agent, -consts::PI));
+            }
+            // c. If nx is either +0𝔽 or -0𝔽, return an implementation-approximated Number value representing -π / 2.
+            if nx.is_pos_zero(agent) || nx.is_neg_zero(agent) {
+                return Ok(Value::from_f64(agent, -consts::FRAC_PI_2));
+            }
+        }
+        // 11. Assert: nx is finite and is neither +0𝔽 nor -0𝔽.
+        assert!(nx.is_finite(agent) && !nx.is_pos_zero(agent) && !nx.is_neg_zero(agent));
+        // 12. Let r be the inverse tangent of abs(ℝ(ny) / ℝ(nx)).
+        let mut r = (ny.into_f64(agent) / nx.into_f64(agent)).atan();
+        // 13. If nx < -0𝔽, then
+        if nx.into_f64(agent) < 0.0 {
+            // a. If ny > +0𝔽, set r to π - r.
+            if ny.into_f64(agent) > 0.0 {
+                r = consts::PI - r;
+            } else {
+                // b. Else, set r to -π + r.
+                r = -consts::PI + r;
+            }
+        }
+        // 14. Else,
+        else {
+
+            // a. If ny < -0𝔽, set r to -r.
+            if ny.into_f64(agent) < 0.0 {
+                r = -r;
+            }
+        }
+        // 15. Return an implementation-approximated Number value representing r.
+        Ok(Value::from_f64(agent, r))
     }
 
     fn cbrt(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
@@ -482,7 +588,7 @@ impl MathObject {
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
             return Ok(n.into_value());
         }
-        
+
         // 3. Return an implementation-approximated Number value representing the result of the cube root of ℝ(n).
         Ok(Value::from_f64(agent, n.into_f64(agent).cbrt()))
     }
@@ -529,7 +635,7 @@ impl MathObject {
         if !n.is_finite(agent) {
             return Ok(Value::nan());
         }
-        
+
         // 3. If n is either +0𝔽 or -0𝔽, return 1𝔽.
         if n.is_pos_zero(agent) || n.is_neg_zero(agent) {
             return Ok(Value::from(1));
@@ -547,7 +653,7 @@ impl MathObject {
         if n.is_nan(agent) {
             return Ok(Value::nan());
         }
-        
+
         // 3. If n is either +∞𝔽 or -∞𝔽, return +∞𝔽.
         if n.is_pos_infinity(agent) || n.is_neg_infinity(agent) {
             return Ok(Number::pos_inf().into_value());
@@ -590,7 +696,11 @@ impl MathObject {
         let n = to_number(agent, arguments.get(0))?;
 
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
-        if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) || n.is_pos_infinity(agent) {
+        if n.is_nan(agent)
+            || n.is_pos_zero(agent)
+            || n.is_neg_zero(agent)
+            || n.is_pos_infinity(agent)
+        {
             return Ok(n.into_value());
         }
 
@@ -638,7 +748,11 @@ impl MathObject {
         }
 
         // 3. If n is one of +0𝔽, -0𝔽, +∞𝔽, or -∞𝔽, return n.
-        if n.is_pos_zero(agent) || n.is_neg_zero(agent) || n.is_pos_infinity(agent) || n.is_neg_infinity(agent) {
+        if n.is_pos_zero(agent)
+            || n.is_neg_zero(agent)
+            || n.is_pos_infinity(agent)
+            || n.is_neg_infinity(agent)
+        {
             return Ok(n.into_value());
         }
 
@@ -672,7 +786,7 @@ impl MathObject {
                 return Ok(Value::infinity());
             }
         }
-        
+
         // 4. Let onlyZero be true.
         let mut only_zero = true;
 
@@ -695,7 +809,14 @@ impl MathObject {
         }
 
         // 7. Return an implementation-approximated Number value representing the square root of the sum of squares of the mathematical values of the elements of coerced.
-        return Ok(Value::from_f64(agent, coerced.iter().map(|n| n.into_f64(agent)).fold(0.0, |acc, n| acc + n * n).sqrt()));
+        return Ok(Value::from_f64(
+            agent,
+            coerced
+                .iter()
+                .map(|n| n.into_f64(agent))
+                .fold(0.0, |acc, n| acc + n * n)
+                .sqrt(),
+        ));
     }
 
     fn imul(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
@@ -704,7 +825,7 @@ impl MathObject {
 
         // 2. Let b be ℝ(? ToUint32(y)).
         let b = to_uint32(agent, arguments.get(1))?;
-        
+
         // 3. Let product be (a × b) modulo 2**32.
         let product = (a * b) % 2u32.pow(32);
 
@@ -724,7 +845,7 @@ impl MathObject {
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
             return Ok(n.into_value());
         }
-        
+
         // 3. If n is 1𝔽, return +0𝔽.
         if n.is_pos_one(agent) {
             return Ok(Value::zero());
@@ -748,7 +869,11 @@ impl MathObject {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0))?;
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
-        if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) || n.is_pos_infinity(agent) {
+        if n.is_nan(agent)
+            || n.is_pos_zero(agent)
+            || n.is_neg_zero(agent)
+            || n.is_pos_infinity(agent)
+        {
             return Ok(n.into_value());
         }
         // 3. If n is -1𝔽, return -∞𝔽.
@@ -782,9 +907,9 @@ impl MathObject {
         if n.is_sign_negative(agent) {
             return Ok(Value::nan());
         }
-        
+
         // 6. Return an implementation-approximated Number value representing the base 10 logarithm of ℝ(n).
-        return Ok(Value::from_f64(agent, n.into_f64(agent).log10()))
+        return Ok(Value::from_f64(agent, n.into_f64(agent).log10()));
     }
 
     fn log2(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
@@ -828,7 +953,7 @@ impl MathObject {
             if number.is_nan(agent) {
                 return Ok(Value::nan());
             }
-        // b. If number is +0𝔽 and highest is -0𝔽, set highest to +0𝔽.
+            // b. If number is +0𝔽 and highest is -0𝔽, set highest to +0𝔽.
             if number.is_pos_zero(agent) && highest.is_neg_zero(agent) {
                 highest = Value::zero();
             }
@@ -838,7 +963,7 @@ impl MathObject {
             //     highest = *number;
             // }
         }
-    
+
         // 5. Return highest.
         Ok(highest)
     }
