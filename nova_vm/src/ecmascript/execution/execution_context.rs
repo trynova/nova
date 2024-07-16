@@ -34,7 +34,7 @@ pub(crate) struct ECMAScriptCodeEvaluationState {
     pub(crate) private_environment: Option<PrivateEnvironmentIndex>,
 
     /// Although the spec does not track this here, we also use
-    /// [`ECMASCriptCodeEvaluationState`] to track whether some ECMAScript code
+    /// [`ECMAScriptCodeEvaluationState`] to track whether some ECMAScript code
     /// is in strict mode.
     pub(crate) is_strict_mode: bool,
 }
