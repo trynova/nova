@@ -7,7 +7,6 @@ use crate::{
         builtins::{
             function_declaration_instantiation, make_constructor, ordinary_function_create,
             set_function_name, ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams,
-            ThisMode,
         },
         execution::{
             Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult,
@@ -43,7 +42,7 @@ pub(crate) fn instantiate_ordinary_function_object(
             parameters_list: &function.params,
             body: function.body.as_deref().unwrap(),
             is_concise_arrow_function: false,
-            this_mode: crate::ecmascript::builtins::ThisMode::Global,
+            lexical_this: false,
             env,
             private_env,
         };
@@ -67,7 +66,7 @@ pub(crate) fn instantiate_ordinary_function_object(
             parameters_list: &function.params,
             body: function.body.as_ref().unwrap(),
             is_concise_arrow_function: false,
-            this_mode: crate::ecmascript::builtins::ThisMode::Global,
+            lexical_this: false,
             env,
             private_env,
         };
@@ -118,7 +117,7 @@ pub(crate) fn instantiate_ordinary_function_expression(
             parameters_list: &function.expression.params,
             body: function.expression.body.as_ref().unwrap(),
             is_concise_arrow_function: false,
-            this_mode: ThisMode::Global,
+            lexical_this: false,
             env: lexical_environment,
             private_env: private_environment,
         };

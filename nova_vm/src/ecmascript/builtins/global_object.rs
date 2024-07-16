@@ -255,6 +255,7 @@ pub fn perform_eval(
             lexical_environment: running_context_lex_env,
             variable_environment: running_context_var_env,
             private_environment: running_context_private_env,
+            ..
         } = *agent
             .running_execution_context()
             .ecmascript_code
@@ -271,6 +272,7 @@ pub fn perform_eval(
             variable_environment: running_context_var_env,
             // c. Let privateEnv be runningContext's PrivateEnvironment.
             private_environment: running_context_private_env,
+            is_strict_mode: script.is_strict(),
         }
     } else {
         // 17. Else,
@@ -286,6 +288,7 @@ pub fn perform_eval(
             variable_environment: global_env,
             // c. Let privateEnv be null.
             private_environment: None,
+            is_strict_mode: script.is_strict(),
         }
     };
 

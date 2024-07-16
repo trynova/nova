@@ -136,6 +136,7 @@ struct BaseTest262Runner {
     tests_base: PathBuf,
     nova_harness_path: PathBuf,
     nova_cli_path: PathBuf,
+    prefer_loose_mode: bool,
     print_progress: bool,
     in_test_eval: bool,
 }
@@ -168,6 +169,13 @@ impl BaseTest262Runner {
 
         let mut command = Command::new(&self.nova_cli_path);
         command.arg("eval");
+
+        if metadata.flags.raw
+            || metadata.flags.strict == Some(false)
+            || (self.prefer_loose_mode && metadata.flags.strict == None)
+        {
+            command.arg("--no-strict");
+        }
 
         command.arg(&self.nova_harness_path);
         if metadata.flags.raw {
@@ -674,7 +682,13 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum CliCommands {
-    EvalTest { path: PathBuf },
+    EvalTest {
+        #[arg(short = 'l', long)]
+        /// Run tests that don't require strict mode in loose mode.
+        prefer_loose_mode: bool,
+
+        path: PathBuf,
+    },
 }
 
 #[derive(Debug, Args)]
@@ -699,6 +713,10 @@ struct RunTestsArgs {
     #[arg(short, long)]
     /// Don't print progress messages
     noprogress: bool,
+
+    #[arg(short = 'l', long)]
+    /// Run tests that don't require strict mode in loose mode.
+    prefer_loose_mode: bool,
 
     /// Filters to apply to the tests to run.
     ///
@@ -733,12 +751,18 @@ fn main() {
         tests_base,
         nova_harness_path,
         nova_cli_path,
+        prefer_loose_mode: match cli.command {
+            Some(CliCommands::EvalTest {
+                prefer_loose_mode, ..
+            }) => prefer_loose_mode,
+            None => cli.run_tests.prefer_loose_mode,
+        },
         print_progress: false,
         in_test_eval: false,
     };
 
     match cli.command {
-        Some(CliCommands::EvalTest { path }) => eval_test(base_runner, path),
+        Some(CliCommands::EvalTest { path, .. }) => eval_test(base_runner, path),
         None => run_tests(base_runner, cli.run_tests),
     }
 }

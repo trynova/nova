@@ -26,7 +26,7 @@ fn object_prototype_tests() {
     let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
     initialize_default_realm(&mut agent);
     let realm = agent.current_realm_id();
-    let script = parse_script(&allocator, contents.into_boxed_str(), realm, None).unwrap();
+    let script = parse_script(&allocator, contents.into_boxed_str(), realm, None, false).unwrap();
     let _ = script_evaluation(&mut agent, script).unwrap_or_else(|err| {
         panic!(
             "Test '{}' failed: {:?}",

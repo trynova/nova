@@ -32,6 +32,11 @@ pub(crate) struct ECMAScriptCodeEvaluationState {
     /// created by ClassElements in the nearest containing class. null if there
     /// is no containing class.
     pub(crate) private_environment: Option<PrivateEnvironmentIndex>,
+
+    /// Although the spec does not track this here, we also use
+    /// [`ECMASCriptCodeEvaluationState`] to track whether some ECMAScript code
+    /// is in strict mode.
+    pub(crate) is_strict_mode: bool,
 }
 
 /// ### [9.4 Execution Contexts](https://tc39.es/ecma262/#sec-execution-contexts)
