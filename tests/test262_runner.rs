@@ -136,7 +136,6 @@ struct BaseTest262Runner {
     tests_base: PathBuf,
     nova_harness_path: PathBuf,
     nova_cli_path: PathBuf,
-    prefer_loose_mode: bool,
     print_progress: bool,
     in_test_eval: bool,
 }
@@ -167,48 +166,6 @@ impl BaseTest262Runner {
             print!("{}\x1B[0K\r", message);
         }
 
-        let mut command = Command::new(&self.nova_cli_path);
-        command.arg("eval");
-
-        if metadata.flags.raw
-            || metadata.flags.strict == Some(false)
-            || (self.prefer_loose_mode && metadata.flags.strict.is_none())
-        {
-            command.arg("--no-strict");
-        }
-
-        command.arg(&self.nova_harness_path);
-        if metadata.flags.raw {
-            assert!(metadata.includes.is_empty());
-            assert!(!metadata.flags.is_async);
-        } else {
-            let async_include = if metadata.flags.is_async {
-                Some("doneprintHandle.js")
-            } else {
-                None
-            };
-            let auto_includes = [Some("assert.js"), Some("sta.js"), async_include];
-
-            let mut harness = self.runner_base_path.clone();
-            harness.push("test262/harness");
-            let includes_iter = auto_includes
-                .iter()
-                .filter_map(|include| *include)
-                .map(PathBuf::from)
-                .chain(metadata.includes.iter().cloned());
-            for include_relpath in includes_iter {
-                let mut include = harness.clone();
-                include.push(include_relpath);
-                command.arg(include);
-            }
-        }
-        command.arg(path);
-
-        if self.in_test_eval {
-            println!("Running: {:?}", command);
-            println!();
-        }
-
         if metadata.flags.is_async {
             assert!(
                 metadata.negative.is_none(),
@@ -217,11 +174,79 @@ impl BaseTest262Runner {
             );
         }
 
-        Some(self.run_command_and_parse_output(
-            command,
-            &metadata.negative,
-            metadata.flags.is_async,
-        ))
+        let mut modes_run = 0;
+        for strict in [false, true] {
+            if (metadata.flags.raw && strict) || metadata.flags.strict == Some(!strict) {
+                continue;
+            }
+
+            modes_run += 1;
+
+            let mut command = Command::new(&self.nova_cli_path);
+            command.arg("eval");
+            if !strict {
+                command.arg("--no-strict");
+            }
+
+            command.arg(&self.nova_harness_path);
+            if metadata.flags.raw {
+                assert!(metadata.includes.is_empty());
+                assert!(!metadata.flags.is_async);
+            } else {
+                let async_include = if metadata.flags.is_async {
+                    Some("doneprintHandle.js")
+                } else {
+                    None
+                };
+                let auto_includes = [Some("assert.js"), Some("sta.js"), async_include];
+
+                let mut harness = self.runner_base_path.clone();
+                harness.push("test262/harness");
+                let includes_iter = auto_includes
+                    .iter()
+                    .filter_map(|include| *include)
+                    .map(PathBuf::from)
+                    .chain(metadata.includes.iter().cloned());
+                for include_relpath in includes_iter {
+                    let mut include = harness.clone();
+                    include.push(include_relpath);
+                    command.arg(include);
+                }
+            }
+            command.arg(path);
+
+            if self.in_test_eval {
+                if strict {
+                    println!("Strict mode run:");
+                } else {
+                    println!("Loose mode run:")
+                }
+                println!("Running: {:?}", command);
+                println!();
+            }
+
+            let expectation = self.run_command_and_parse_output(
+                command,
+                &metadata.negative,
+                metadata.flags.is_async,
+            );
+            if self.in_test_eval {
+                println!();
+                println!("Test result: {:?}", expectation);
+                if !strict {
+                    println!();
+                }
+            }
+
+            if expectation != TestExpectation::Pass {
+                return Some(expectation);
+            }
+        }
+
+        // Make sure all tests ran at least one mode (strict or loose).
+        assert_ne!(modes_run, 0);
+
+        Some(TestExpectation::Pass)
     }
 
     fn run_command_and_parse_output(
@@ -751,12 +776,6 @@ fn main() {
         tests_base,
         nova_harness_path,
         nova_cli_path,
-        prefer_loose_mode: match cli.command {
-            Some(CliCommands::EvalTest {
-                prefer_loose_mode, ..
-            }) => prefer_loose_mode,
-            None => cli.run_tests.prefer_loose_mode,
-        },
         print_progress: false,
         in_test_eval: false,
     };
@@ -789,8 +808,6 @@ fn eval_test(mut base_runner: BaseTest262Runner, path: PathBuf) {
         std::process::exit(1);
     };
 
-    println!();
-    println!("Test result: {:?}", result);
     if result != TestExpectation::Pass {
         std::process::exit(1);
     }
