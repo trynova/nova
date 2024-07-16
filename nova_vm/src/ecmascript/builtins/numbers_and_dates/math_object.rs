@@ -995,9 +995,6 @@ impl MathObject {
             //     lowest = *number;
             // }
         }
-        // a. If number is NaN, return NaN.
-        // b. If number is -0𝔽 and lowest is +0𝔽, set lowest to -0𝔽.
-        // c. If number < lowest, set lowest to number.
         // 5. Return lowest.
         Ok(lowest)
     }
@@ -1032,9 +1029,24 @@ impl MathObject {
         Ok(Value::from_f64(agent, rand::random::<f64>()))
     }
 
+    // TODO: check if number is integral
     fn round(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        let _x = to_number(agent, arguments.get(0))?;
-        todo!();
+        // 1. Let n be ? ToNumber(x).
+        let n = to_number(agent, arguments.get(0))?;
+        // 2. If n is not finite or n is an integral Number, return n.
+        // if !n.is_finite(agent) || <figure out how to check if its an integral number> {
+        //     return Ok(n.into_value());
+        // }
+        // 3. If n < 0.5𝔽 and n > +0𝔽, return +0𝔽.
+        if n.is_pos_zero(agent) && n.into_f64(agent) < 0.5 {
+            return Ok(Value::zero());
+        }
+        // 4. If n < -0𝔽 and n ≥ -0.5𝔽, return -0𝔽.
+        if n.is_neg_zero(agent) && n.into_f64(agent) >= -0.5 {
+            return Ok(Value::neg_zero());
+        }
+        // 5. Return the integral Number closest to n, preferring the Number closer to +∞ in the case of a tie.
+        Ok(Value::from_f64(agent, n.into_f64(agent).round()))
     }
 
     fn sign(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
@@ -1079,23 +1091,75 @@ impl MathObject {
     }
 
     fn sqrt(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        let _x = to_number(agent, arguments.get(0))?;
-        todo!();
+        // 1. Let n be ? ToNumber(x).
+        let n = to_number(agent, arguments.get(0))?;
+        // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
+        if n.is_nan(agent)
+            || n.is_pos_zero(agent)
+            || n.is_neg_zero(agent)
+            || n.is_pos_infinity(agent)
+        {
+            return Ok(n.into_value());
+        }
+        // 3. If n < -0𝔽, return NaN.
+        if n.is_sign_negative(agent) {
+            return Ok(Value::nan());
+        }
+        // 4. Return an implementation-approximated Number value representing the square root of ℝ(n).
+        Ok(Value::from_f64(agent, n.into_f64(agent).sqrt()))
     }
 
     fn tan(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        let _x = to_number(agent, arguments.get(0))?;
-        todo!();
+        // 1. Let n be ? ToNumber(x).
+        let n = to_number(agent, arguments.get(0))?;
+        // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
+        if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+            return Ok(n.into_value());
+        }
+        // 3. If n is either +∞𝔽 or -∞𝔽, return NaN.
+        if n.is_pos_infinity(agent) || n.is_neg_infinity(agent) {
+            return Ok(Value::nan());
+        }
+        // 4. Return an implementation-approximated Number value representing the tangent of ℝ(n).
+        Ok(Value::from_f64(agent, n.into_f64(agent).tan()))
     }
 
     fn tanh(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        let _x = to_number(agent, arguments.get(0))?;
-        todo!();
+        // 1. Let n be ? ToNumber(x).
+        let n = to_number(agent, arguments.get(0))?;
+        // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
+        if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+            return Ok(n.into_value());
+        }
+        // 3. If n is +∞𝔽, return 1𝔽.
+        if n.is_pos_infinity(agent) {
+            return Ok(Value::from(1));
+        }
+        // 4. If n is -∞𝔽, return -1𝔽.
+        if n.is_neg_infinity(agent) {
+            return Ok(Value::from(-1));
+        }
+        // 5. Return an implementation-approximated Number value representing the hyperbolic tangent of ℝ(n).
+        Ok(Value::from_f64(agent, n.into_f64(agent).tanh()))
     }
 
     fn trunc(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
-        let _x = to_number(agent, arguments.get(0))?;
-        todo!();
+        // 1. Let n be ? ToNumber(x).
+        let n = to_number(agent, arguments.get(0))?;
+        // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
+        if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+            return Ok(n.into_value());
+        }
+        // 3. If n < 1𝔽 and n > +0𝔽, return +0𝔽.
+        if n.into_f64(agent) < 1.0 && n.into_f64(agent) > 0.0 {
+            return Ok(Value::zero());
+        }
+        // 4. If n < -0𝔽 and n > -1𝔽, return -0𝔽.
+        if n.into_f64(agent) < 0.0 && n.into_f64(agent) > -1.0 {
+            return Ok(Value::neg_zero());
+        }
+        // 5. Return the integral Number nearest n in the direction of +0𝔽.
+        Ok(Value::from_f64(agent, n.into_f64(agent).trunc()))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
