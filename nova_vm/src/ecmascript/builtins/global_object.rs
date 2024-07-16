@@ -209,7 +209,8 @@ pub fn perform_eval(
     // for more information.
     let allocator = Box::leak(Box::default());
     let source_text = x.as_str(agent).to_owned();
-    let parser = Parser::new(allocator, &source_text, SourceType::default());
+    let source_type = SourceType::default().with_always_strict(strict_caller);
+    let parser = Parser::new(allocator, &source_text, source_type);
     let ParserReturn {
         errors,
         program: script,
@@ -244,7 +245,10 @@ pub fn perform_eval(
 
     // 12. If strictCaller is true, let strictEval be true.
     // 13. Else, let strictEval be ScriptIsStrict of script.
-    let strict_eval = strict_caller || script.is_strict();
+    let strict_eval = script.is_strict();
+    if strict_caller {
+        debug_assert!(strict_eval);
+    }
 
     // 14. Let runningContext be the running execution context.
     // 15. NOTE: If direct is true, runningContext will be the execution context that performed the direct eval. If direct is false, runningContext will be the execution context for the invocation of the eval function.
@@ -272,7 +276,7 @@ pub fn perform_eval(
             variable_environment: running_context_var_env,
             // c. Let privateEnv be runningContext's PrivateEnvironment.
             private_environment: running_context_private_env,
-            is_strict_mode: script.is_strict(),
+            is_strict_mode: strict_eval,
         }
     } else {
         // 17. Else,
@@ -288,7 +292,7 @@ pub fn perform_eval(
             variable_environment: global_env,
             // c. Let privateEnv be null.
             private_environment: None,
-            is_strict_mode: script.is_strict(),
+            is_strict_mode: strict_eval,
         }
     };
 
