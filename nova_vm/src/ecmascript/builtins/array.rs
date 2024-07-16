@@ -14,6 +14,9 @@ use std::ops::{Index, IndexMut, RangeInclusive};
 use super::{array_set_length, ordinary::ordinary_define_own_property};
 use crate::{
     ecmascript::{
+        abstract_operations::{
+            operations_on_objects::call_function, testing_and_comparison::same_value,
+        },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
@@ -287,8 +290,9 @@ impl InternalMethods for Array {
                 } = &mut agent.heap;
                 let array_heap_data = &mut arrays[self];
                 array_heap_data.elements.reserve(elements, index + 1);
-                let (element_descriptor, value) =
-                    ElementDescriptor::from_property_descriptor(&property_descriptor.into());
+                let value = property_descriptor.value;
+                let element_descriptor =
+                    ElementDescriptor::from_property_descriptor(property_descriptor);
                 if index > length {
                     // Elements backing store should be filled with Nones already
                     array_heap_data.elements.len = index;
@@ -305,15 +309,12 @@ impl InternalMethods for Array {
                 Ok(true)
             } else {
                 // h. Let succeeded be ! OrdinaryDefineOwnProperty(A, P, Desc).
-                // TODO: Handle property descriptors
-                *agent[elements].get_mut(index as usize).unwrap() = property_descriptor.value;
-                // i. If succeeded is false, return false.
-                if false {
-                    Ok(false)
-                } else {
-                    // k. Return true.
-                    Ok(true)
-                }
+                return Ok(ordinary_define_own_property_for_array(
+                    agent,
+                    elements,
+                    index,
+                    property_descriptor,
+                ));
             }
         } else {
             let backing_object = self
@@ -357,8 +358,9 @@ impl InternalMethods for Array {
                 // Negative indexes and indexes over 2^32 - 2 go into backing store
                 return self.internal_get_backing(agent, property_key, receiver);
             }
+            let index = index as u32;
             let elements = agent[self].elements;
-            if index >= elements.len() as i64 {
+            if index >= elements.len() {
                 // Indexes below 2^32 but above length are necessarily not
                 // defined: If they were, then the length would be larger.
                 // Hence, we look in the prototype.
@@ -368,13 +370,23 @@ impl InternalMethods for Array {
                     Ok(Value::Undefined)
                 };
             }
-            let elements = &agent[elements];
-            // Index has been checked to be between 0 <= idx < len; unwrapping should never fail.
-            let element = *elements.get(index as usize).unwrap();
+            // Index has been checked to be between 0 <= idx < len; indexing should never fail.
+            let element = agent[elements][index as usize];
             if let Some(element) = element {
                 Ok(element)
             } else {
-                // TODO: getters
+                let (descriptors, _) = agent
+                    .heap
+                    .elements
+                    .get_descriptors_and_slice(elements.into());
+                if let Some(descriptors) = descriptors {
+                    if let Some(descriptor) = descriptors.get(&index) {
+                        if let Some(getter) = descriptor.getter_function() {
+                            // 7. Return ? Call(getter, Receiver).
+                            return call_function(agent, getter, receiver, None);
+                        }
+                    }
+                }
                 if let Some(prototype) = self.internal_prototype(agent) {
                     prototype.internal_get(agent, property_key, receiver)
                 } else {
@@ -398,14 +410,26 @@ impl InternalMethods for Array {
                         object_index.internal_delete(agent, property_key)
                     });
             }
+            let index = index as u32;
             let elements = agent[self].elements;
-            if index >= elements.len() as i64 {
+            if index >= elements.len() {
                 return Ok(true);
             }
-            let elements = &mut agent[elements];
-            // TODO: Handle unwritable properties
-            // Index has been checked to be between 0 <= idx < len; unwrapping should never fail.
-            *elements.get_mut(index as usize).unwrap() = None;
+            let (descriptors, slice) = agent
+                .heap
+                .elements
+                .get_descriptors_and_slice_mut(elements.into());
+            if let Some(descriptors) = descriptors {
+                if let Some(descriptor) = descriptors.get(&index) {
+                    if !descriptor.is_configurable() {
+                        // Unconfigurable property.
+                        return Ok(false);
+                    }
+                    descriptors.remove(&index);
+                }
+            }
+            // Index has been checked to be between 0 <= idx < len; indexing should never fail.
+            slice[index as usize] = None;
             Ok(true)
         } else {
             self.get_backing_object(agent)
@@ -488,4 +512,255 @@ impl HeapMarkAndSweep for Array {
         let idx = self.0.into_u32_index();
         self.0 = ArrayIndex::from_u32_index(idx - compactions.arrays.get_shift_for_index(idx));
     }
+}
+
+fn ordinary_define_own_property_for_array(
+    agent: &mut Agent,
+    elements: SealableElementsVector,
+    index: u32,
+    descriptor: PropertyDescriptor,
+) -> bool {
+    let (descriptors, slice) = agent
+        .heap
+        .elements
+        .get_descriptors_and_slice(elements.into());
+    let current_descriptor = if let Some(descriptors) = descriptors {
+        descriptors.get(&index).copied()
+    } else {
+        None
+    };
+    let current_value = slice[index as usize];
+    let descriptor_value = descriptor.value;
+
+    // 2. If current is undefined, then
+    if current_descriptor.is_none() && current_value.is_none() {
+        // Hole
+
+        // a. If extensible is false, return false.
+        if !elements.writable() {
+            return false;
+        }
+
+        // c. If IsAccessorDescriptor(Desc) is true, then
+        if descriptor.is_accessor_descriptor() {
+            // i. Create an own accessor property named P of object O whose [[Get]], [[Set]],
+            //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
+            //    corresponding field in Desc if Desc has that field, or to the attribute's default
+            //    value otherwise.
+            let (descriptors, _) = agent
+                .heap
+                .elements
+                .get_descriptors_and_slice_mut(elements.into());
+            let elem_descriptor = ElementDescriptor::from_property_descriptor(descriptor).unwrap();
+            if let Some(descriptors) = descriptors {
+                descriptors.insert(index, elem_descriptor);
+            } else {
+                agent.heap.elements.set_descriptor(
+                    elements.into(),
+                    index as usize,
+                    Some(elem_descriptor),
+                )
+            }
+        }
+        // d. Else,
+        else {
+            // i. Create an own data property named P of object O whose [[Value]], [[Writable]],
+            //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
+            //    corresponding field in Desc if Desc has that field, or to the attribute's default
+            //    value otherwise.
+            let (descriptors, slice) = agent
+                .heap
+                .elements
+                .get_descriptors_and_slice_mut(elements.into());
+            slice[index as usize] = Some(descriptor_value.unwrap_or(Value::Undefined));
+            let elem_descriptor = ElementDescriptor::from_property_descriptor(descriptor);
+            if let Some(descriptor) = elem_descriptor {
+                if let Some(descriptors) = descriptors {
+                    descriptors.insert(index, descriptor);
+                } else {
+                    agent.heap.elements.set_descriptor(
+                        elements.into(),
+                        index as usize,
+                        Some(descriptor),
+                    )
+                }
+            }
+        }
+
+        // e. Return true.
+        return true;
+    };
+
+    // 4. If Desc does not have any fields, return true.
+    if !descriptor.has_fields() {
+        return true;
+    }
+
+    // If current descriptor doesn't exist, then its a default data descriptor
+    // with WEC all true.
+    let current_writable = current_descriptor.map_or(Some(true), |c| c.is_writable());
+    let current_enumerable = current_descriptor.map_or(true, |c| c.is_enumerable());
+    let current_configurable = current_descriptor.map_or(true, |c| c.is_configurable());
+    let current_is_data_descriptor = current_descriptor.map_or(false, |c| c.is_data_descriptor());
+    let current_is_accessor_descriptor =
+        current_descriptor.map_or(false, |c| c.is_accessor_descriptor());
+    let current_getter = current_descriptor.and_then(|c| c.getter_function());
+    let current_setter = current_descriptor.and_then(|c| c.setter_function());
+
+    // 5. If current.[[Configurable]] is false, then
+    if !current_configurable {
+        // a. If Desc has a [[Configurable]] field and Desc.[[Configurable]] is true, return false.
+        if let Some(true) = descriptor.configurable {
+            return false;
+        }
+
+        // b. If Desc has an [[Enumerable]] field and SameValue(Desc.[[Enumerable]], current.[[Enumerable]])
+        //    is false, return false.
+        if descriptor
+            .enumerable
+            .map_or(false, |enumerable| enumerable != current_enumerable)
+        {
+            return false;
+        }
+
+        // c. If IsGenericDescriptor(Desc) is false and SameValue(IsAccessorDescriptor(Desc), IsAccessorDescriptor(current))
+        //    is false, return false.
+        if !descriptor.is_generic_descriptor()
+            && descriptor.is_accessor_descriptor() != current_is_accessor_descriptor
+        {
+            return false;
+        }
+
+        // d. If IsAccessorDescriptor(current) is true, then
+        if current_is_accessor_descriptor {
+            // i. If Desc has a [[Get]] field and SameValue(Desc.[[Get]], current.[[Get]]) is false,
+            //    return false.
+            if let Some(desc_get) = descriptor.get {
+                if desc_get != current_getter.unwrap() {
+                    return false;
+                }
+            }
+
+            // ii. If Desc has a [[Set]] field and SameValue(Desc.[[Set]], current.[[Set]]) is
+            //     false, return false.
+            if let Some(desc_set) = descriptor.set {
+                if desc_set != current_setter.unwrap() {
+                    return false;
+                }
+            }
+        }
+        // e. Else if current.[[Writable]] is false, then
+        else if !current_writable.unwrap() {
+            // i. If Desc has a [[Writable]] field and Desc.[[Writable]] is true, return false.
+            if let Some(true) = descriptor.writable {
+                return false;
+            }
+
+            // ii. If Desc has a [[Value]] field and SameValue(Desc.[[Value]], current.[[Value]])
+            //     is false, return false.
+            if let Some(desc_value) = descriptor.value {
+                if !same_value(agent, desc_value, current_value.unwrap()) {
+                    return false;
+                }
+            }
+        }
+    }
+    // a. If IsDataDescriptor(current) is true and IsAccessorDescriptor(Desc) is true, then
+    if current_is_data_descriptor && descriptor.is_accessor_descriptor() {
+        // i. If Desc has a [[Configurable]] field, let configurable be Desc.[[Configurable]];
+        //    else let configurable be current.[[Configurable]].
+        let configurable = descriptor.configurable.unwrap_or(current_configurable);
+
+        // ii. If Desc has a [[Enumerable]] field, let enumerable be Desc.[[Enumerable]]; else
+        //     let enumerable be current.[[Enumerable]].
+        let enumerable = descriptor.enumerable.unwrap_or(current_enumerable);
+
+        // iii. Replace the property named P of object O with an accessor property whose
+        //      [[Configurable]] and [[Enumerable]] attributes are set to configurable and
+        //      enumerable, respectively, and whose [[Get]] and [[Set]] attributes are set to
+        //      the value of the corresponding field in Desc if Desc has that field, or to the
+        //      attribute's default value otherwise.
+        let new_descriptor = match (descriptor.get, descriptor.set) {
+            (None, None) => unreachable!(),
+            (None, Some(set)) => ElementDescriptor::new_with_set_ec(set, enumerable, configurable),
+            (Some(get), None) => ElementDescriptor::new_with_get_ec(get, enumerable, configurable),
+            (Some(get), Some(set)) => {
+                ElementDescriptor::new_with_get_set_ec(get, set, enumerable, configurable)
+            }
+        };
+        let (descriptors, slice) = agent
+            .heap
+            .elements
+            .get_descriptors_and_slice_mut(elements.into());
+        descriptors.unwrap().insert(index, new_descriptor);
+        slice[index as usize] = None;
+    }
+    // b. Else if IsAccessorDescriptor(current) is true and IsDataDescriptor(Desc) is true, then
+    else if current_is_accessor_descriptor && descriptor.is_data_descriptor() {
+        // i. If Desc has a [[Configurable]] field, let configurable be Desc.[[Configurable]];
+        //    else let configurable be current.[[Configurable]].
+        let configurable = descriptor.configurable.unwrap_or(current_configurable);
+
+        // ii. If Desc has a [[Enumerable]] field, let enumerable be Desc.[[Enumerable]]; else
+        //     let enumerable be current.[[Enumerable]].
+        let enumerable = descriptor.enumerable.unwrap_or(current_enumerable);
+
+        // iii. Replace the property named P of object O with a data property whose
+        //      [[Configurable]] and [[Enumerable]] attributes are set to configurable and
+        //      enumerable, respectively, and whose [[Value]] and [[Writable]] attributes are
+        //      set to the value of the corresponding field in Desc if Desc has that field, or
+        //      to the attribute's default value otherwise.
+        // try object.propertyStorage().set(property_key, PropertyDescriptor{
+        //     .value = descriptor.value or else .undefined,
+        //     .writable = descriptor.writable or else false,
+        //     .enumerable = enumerable,
+        //     .configurable = configurable,
+        // });
+        let (descriptors, slice) = agent
+            .heap
+            .elements
+            .get_descriptors_and_slice_mut(elements.into());
+        if let Some(elem_descriptor) = ElementDescriptor::new_with_wec(
+            descriptor.writable.unwrap_or(false),
+            enumerable,
+            configurable,
+        ) {
+            descriptors.unwrap().insert(index, elem_descriptor);
+        } else {
+            descriptors.unwrap().remove(&index);
+        }
+        slice[index as usize] = Some(descriptor.value.unwrap_or(Value::Undefined));
+    }
+    // c. Else,
+    else {
+        // i. For each field of Desc, set the corresponding attribute of the property named P
+        //    of object O to the value of the field.
+        let mut descriptor = descriptor;
+        let result_value = descriptor.value.or(current_value);
+        descriptor.writable = descriptor.writable.or(current_writable);
+        descriptor.get = descriptor.get.or(current_getter);
+        descriptor.set = descriptor.set.or(current_setter);
+        descriptor.enumerable = Some(descriptor.enumerable.unwrap_or(current_enumerable));
+        descriptor.configurable = Some(descriptor.configurable.unwrap_or(current_configurable));
+        let (descriptors, slice) = agent
+            .heap
+            .elements
+            .get_descriptors_and_slice_mut(elements.into());
+        slice[index as usize] = result_value;
+        if let Some(elem_descriptor) = ElementDescriptor::from_property_descriptor(descriptor) {
+            if let Some(descriptors) = descriptors {
+                descriptors.insert(index, elem_descriptor);
+            } else {
+                agent.heap.elements.set_descriptor(
+                    elements.into(),
+                    index as usize,
+                    Some(elem_descriptor),
+                )
+            }
+        } else if let Some(descriptors) = descriptors {
+            descriptors.remove(&index);
+        }
+    }
+
+    true
 }

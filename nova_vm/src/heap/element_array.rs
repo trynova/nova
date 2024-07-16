@@ -495,7 +495,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub(crate) fn from_property_descriptor(
+    pub(crate) fn from_object_entry_property_descriptor(
         desc: &ObjectEntryPropertyDescriptor,
     ) -> (Option<ElementDescriptor>, Option<Value>) {
         match desc {
@@ -632,6 +632,51 @@ impl ElementDescriptor {
                 ),
             },
         }
+    }
+
+    pub fn from_property_descriptor(descriptor: PropertyDescriptor) -> Option<Self> {
+        let configurable = descriptor.configurable.unwrap_or(false);
+        let enumerable = descriptor.enumerable.unwrap_or(false);
+        let writable = descriptor.writable.unwrap_or(false);
+        if configurable
+            && enumerable
+            && descriptor.get.is_none()
+            && descriptor.set.is_none()
+            && writable
+        {
+            // Default data descriptor, return None.
+            return None;
+        }
+        Some(match (descriptor.get, descriptor.set) {
+            (None, None) => match (writable, enumerable, configurable) {
+                (true, true, true) => unreachable!(),
+                (true, true, false) => Self::WritableEnumerableUnconfigurableData,
+                (true, false, true) => Self::WritableUnenumerableConfigurableData,
+                (true, false, false) => Self::WritableUnenumerableUnconfigurableData,
+                (false, true, true) => Self::ReadOnlyEnumerableConfigurableData,
+                (false, true, false) => Self::ReadOnlyEnumerableUnconfigurableData,
+                (false, false, true) => Self::ReadOnlyUnenumerableConfigurableData,
+                (false, false, false) => Self::ReadOnlyUnenumerableUnconfigurableData,
+            },
+            (None, Some(set)) => match (enumerable, configurable) {
+                (true, true) => Self::WriteOnlyEnumerableConfigurableAccessor { set },
+                (true, false) => Self::WriteOnlyEnumerableUnconfigurableAccessor { set },
+                (false, true) => Self::WriteOnlyUnenumerableConfigurableAccessor { set },
+                (false, false) => Self::WriteOnlyUnenumerableUnconfigurableAccessor { set },
+            },
+            (Some(get), None) => match (enumerable, configurable) {
+                (true, true) => Self::ReadOnlyEnumerableConfigurableAccessor { get },
+                (true, false) => Self::ReadOnlyEnumerableUnconfigurableAccessor { get },
+                (false, true) => Self::ReadOnlyUnenumerableConfigurableAccessor { get },
+                (false, false) => Self::ReadOnlyUnenumerableUnconfigurableAccessor { get },
+            },
+            (Some(get), Some(set)) => match (enumerable, configurable) {
+                (true, true) => Self::ReadWriteEnumerableConfigurableAccessor { get, set },
+                (true, false) => Self::ReadWriteEnumerableUnconfigurableAccessor { get, set },
+                (false, true) => Self::ReadWriteUnenumerableConfigurableAccessor { get, set },
+                (false, false) => Self::ReadWriteUnenumerableUnconfigurableAccessor { get, set },
+            },
+        })
     }
 
     pub fn to_property_descriptor(
@@ -828,7 +873,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub fn getter_index(&self) -> Option<Function> {
+    pub fn getter_function(&self) -> Option<Function> {
         match self {
             ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }
             | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }
@@ -844,7 +889,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub fn setter_index(&self) -> Option<Function> {
+    pub fn setter_function(&self) -> Option<Function> {
         match self {
             ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set }
             | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set }
@@ -858,6 +903,70 @@ impl ElementDescriptor {
             }
             _ => None,
         }
+    }
+
+    pub fn is_writable(&self) -> Option<bool> {
+        match self {
+            ElementDescriptor::WritableEnumerableConfigurableData
+            | ElementDescriptor::WritableEnumerableUnconfigurableData
+            | ElementDescriptor::WritableUnenumerableConfigurableData
+            | ElementDescriptor::WritableUnenumerableUnconfigurableData => Some(true),
+            ElementDescriptor::ReadOnlyEnumerableConfigurableData
+            | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
+            | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData => Some(false),
+            _ => None,
+        }
+    }
+
+    pub fn is_enumerable(&self) -> bool {
+        matches!(
+            self,
+            ElementDescriptor::WritableEnumerableConfigurableData
+                | ElementDescriptor::WritableEnumerableUnconfigurableData
+                | ElementDescriptor::ReadOnlyEnumerableConfigurableData
+                | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
+                | ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { .. }
+                | ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { .. }
+        )
+    }
+
+    pub fn is_configurable(&self) -> bool {
+        matches!(
+            self,
+            ElementDescriptor::WritableEnumerableConfigurableData
+                | ElementDescriptor::WritableUnenumerableConfigurableData
+                | ElementDescriptor::ReadOnlyEnumerableConfigurableData
+                | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
+                | ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { .. }
+                | ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { .. },
+        )
+    }
+
+    pub fn is_accessor_descriptor(&self) -> bool {
+        !matches!(
+            self,
+            ElementDescriptor::WritableEnumerableConfigurableData
+                | ElementDescriptor::WritableEnumerableUnconfigurableData
+                | ElementDescriptor::WritableUnenumerableConfigurableData
+                | ElementDescriptor::WritableUnenumerableUnconfigurableData
+                | ElementDescriptor::ReadOnlyEnumerableConfigurableData
+                | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
+                | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
+                | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData
+        )
+    }
+
+    pub fn is_data_descriptor(&self) -> bool {
+        self.is_accessor_descriptor()
     }
 }
 
@@ -1740,7 +1849,7 @@ impl ElementArrays {
         entries.iter().enumerate().for_each(|(index, entry)| {
             let ObjectEntry { key, value } = entry;
             let (maybe_descriptor, maybe_value) =
-                ElementDescriptor::from_property_descriptor(value);
+                ElementDescriptor::from_object_entry_property_descriptor(value);
             let key = match key {
                 PropertyKey::Integer(data) => Value::Integer(*data),
                 PropertyKey::SmallString(data) => Value::SmallString(*data),
