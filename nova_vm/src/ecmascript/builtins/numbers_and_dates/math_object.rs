@@ -3,7 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 use std::f64::consts;
 
-use num_traits::ops::wrapping::WrappingMul;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{to_number, to_uint32},
@@ -346,7 +345,7 @@ impl MathObject {
         let n = to_number(agent, arguments.get(0))?.into_f64(agent);
 
         // 2. If n is NaN, n > 1𝔽, or n < -1𝔽, return NaN.
-        if n.is_nan() || n > 1.0 || n < -1.0 {
+        if n.is_nan() || !(-1.0..=1.0).contains(&n) {
             return Ok(Value::nan());
         }
 
@@ -396,7 +395,7 @@ impl MathObject {
         let n = n.into_f64(agent);
 
         // 3. If n > 1𝔽 or n < -1𝔽, return NaN.
-        if n > 1.0 || n < -1.0 {
+        if !(-1.0..=1.0).contains(&n) {
             return Ok(Value::nan());
         }
 
@@ -452,7 +451,7 @@ impl MathObject {
         let n = n.into_f64(agent);
 
         // 3. If n > 1𝔽 or n < -1𝔽, return NaN.
-        if n > 1.0 || n < -1.0 {
+        if !(-1.0..=1.0).contains(&n) {
             return Ok(Value::nan());
         }
 
@@ -566,7 +565,7 @@ impl MathObject {
                 r = consts::PI - r;
             } else {
                 // b. Else, set r to -π + r.
-                r = -consts::PI + r;
+                r += -consts::PI;
             }
         }
         // 14. Else,
@@ -905,7 +904,7 @@ impl MathObject {
         }
 
         // 6. Return an implementation-approximated Number value representing the base 10 logarithm of ℝ(n).
-        return Ok(Value::from_f64(agent, n.into_f64(agent).log10()));
+        Ok(Value::from_f64(agent, n.into_f64(agent).log10()))
     }
 
     fn log2(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
