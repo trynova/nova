@@ -953,10 +953,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                                 );
                             }
                         }
-                        ast::PropertyKey::Super(init) => {
-                            init.compile(ctx);
-                            ctx.exe.add_instruction(Instruction::GetValue);
-                        }
+                        ast::PropertyKey::Super(_) => unreachable!(),
                         ast::PropertyKey::TaggedTemplateExpression(init) => init.compile(ctx),
                         ast::PropertyKey::TemplateLiteral(init) => init.compile(ctx),
                         ast::PropertyKey::ThisExpression(init) => init.compile(ctx),
@@ -970,6 +967,11 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         | ast::PropertyKey::TSTypeAssertion(_)
                         | ast::PropertyKey::TSNonNullExpression(_)
                         | ast::PropertyKey::TSInstantiationExpression(_) => unreachable!(),
+                    }
+                    if let Some(prop_key_expression) = prop.key.as_expression() {
+                        if is_reference(prop_key_expression) {
+                            ctx.exe.add_instruction(Instruction::GetValue);
+                        }
                     }
                     ctx.exe.add_instruction(Instruction::Load);
                     match prop.kind {
