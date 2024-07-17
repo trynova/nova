@@ -351,7 +351,7 @@ impl MathObject {
 
         // 3. If n is 1𝔽, return +0𝔽.
         if n == 1.0 {
-            return Ok(Value::zero());
+            return Ok(Value::pos_zero());
         }
 
         // 4. Return an implementation-approximated Number value representing the result of the inverse cosine of ℝ(n).
@@ -371,7 +371,7 @@ impl MathObject {
 
         // 3. If n is 1𝔽, return +0𝔽.
         if n == 1.0 {
-            return Ok(Value::zero());
+            return Ok(Value::pos_zero());
         }
 
         // 4. If n < 1𝔽, return NaN.
@@ -457,12 +457,12 @@ impl MathObject {
 
         // 4. If n is 1𝔽, return +∞𝔽.
         if n == 1.0 {
-            return Ok(Value::infinity());
+            return Ok(Value::pos_inf());
         }
 
         // 5. If n is -1𝔽, return -∞𝔽.
         if n == -1.0 {
-            return Ok(Value::neg_infinity());
+            return Ok(Value::neg_inf());
         }
 
         // 6. Return an implementation-approximated Number value representing the result of the inverse hyperbolic tangent of ℝ(n).
@@ -508,7 +508,7 @@ impl MathObject {
         if ny.is_pos_zero(agent) {
             // a. If nx > +0𝔽 or nx is +0𝔽, return +0𝔽.
             if nx.is_pos_zero(agent) || nx.is_pos_zero(agent) {
-                return Ok(Value::zero());
+                return Ok(Value::pos_zero());
             }
             // b. Return an implementation-approximated Number value representing π.
             return Ok(Value::from_f64(agent, consts::PI));
@@ -528,7 +528,7 @@ impl MathObject {
         if ny.into_f64(agent) > 0.0 {
             // a. If nx is +∞𝔽, return +0𝔽.
             if nx.is_pos_infinity(agent) {
-                return Ok(Value::zero());
+                return Ok(Value::pos_zero());
             }
             // b. If nx is -∞𝔽, return an implementation-approximated Number value representing π.
             if nx.is_neg_infinity(agent) {
@@ -683,7 +683,7 @@ impl MathObject {
 
         //4. If n is -∞𝔽, return +0𝔽.
         if n.is_neg_infinity(agent) {
-            return Ok(Value::zero());
+            return Ok(Value::pos_zero());
         }
 
         //5. Return an implementation-approximated Number value representing the result of the exponential function of ℝ(n).
@@ -730,7 +730,7 @@ impl MathObject {
 
         // 3. If n < 1𝔽 and n > +0𝔽, return +0𝔽.
         if n < 1.0 && n > 0.0 {
-            return Ok(Value::zero());
+            return Ok(Value::pos_zero());
         }
 
         // 5. Return the greatest (closest to +∞) integral Number value that is not greater than n.
@@ -782,7 +782,7 @@ impl MathObject {
         for number in coerced.iter() {
             // a. If number is either +∞𝔽 or -∞𝔽, return +∞𝔽.
             if number.is_pos_infinity(agent) || number.is_neg_infinity(agent) {
-                return Ok(Value::infinity());
+                return Ok(Value::pos_inf());
             }
         }
 
@@ -804,7 +804,7 @@ impl MathObject {
 
         // 6. If onlyZero is true, return +0𝔽.
         if only_zero {
-            return Ok(Value::zero());
+            return Ok(Value::pos_zero());
         }
 
         // 7. Return an implementation-approximated Number value representing the square root of the sum of squares of the mathematical values of the elements of coerced.
@@ -843,12 +843,12 @@ impl MathObject {
 
         // 3. If n is 1𝔽, return +0𝔽.
         if n.is_pos_one(agent) {
-            return Ok(Value::zero());
+            return Ok(Value::pos_zero());
         }
 
         // 4. If n is either +0𝔽 or -0𝔽, return -∞𝔽.
         if n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(Value::neg_infinity());
+            return Ok(Value::neg_inf());
         }
 
         // 5. If n < -0𝔽, return NaN.
@@ -873,7 +873,7 @@ impl MathObject {
         }
         // 3. If n is -1𝔽, return -∞𝔽.
         if n.is_neg_one(agent) {
-            return Ok(Value::neg_infinity());
+            return Ok(Value::neg_inf());
         }
         // 4. If n < -1𝔽, return NaN.
         if n.is_sign_negative(agent) {
@@ -892,11 +892,11 @@ impl MathObject {
         }
         // 3. If n is 1𝔽, return +0𝔽.
         if n.is_pos_one(agent) {
-            return Ok(Value::zero());
+            return Ok(Value::pos_zero());
         }
         // 4. If n is either +0𝔽 or -0𝔽, return -∞𝔽.
         if n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(Value::neg_infinity());
+            return Ok(Value::neg_inf());
         }
         // 5. If n < -0𝔽, return NaN.
         if n.is_sign_negative(agent) {
@@ -916,11 +916,11 @@ impl MathObject {
         }
         // 3. If n is 1𝔽, return +0𝔽.
         if n.is_pos_one(agent) {
-            return Ok(Value::zero());
+            return Ok(Value::pos_zero());
         }
         // 4. If n is either +0𝔽 or -0𝔽, return -∞𝔽.
         if n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(Value::neg_infinity());
+            return Ok(Value::neg_inf());
         }
         // 5. If n < -0𝔽, return NaN.
         if n.is_sign_negative(agent) {
@@ -933,6 +933,7 @@ impl MathObject {
     fn max(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. Let coerced be a new empty List.
         let mut coerced = Vec::with_capacity(arguments.len());
+
         // 2. For each element arg of args, do
         for &arg in arguments.iter() {
             // a. Let n be ? ToNumber(arg).
@@ -940,32 +941,36 @@ impl MathObject {
             // b. Append n to coerced.
             coerced.push(n);
         }
+
         // 3. Let highest be -∞𝔽.
-        let mut highest = Value::neg_infinity();
+        let mut highest = Number::neg_inf();
+
         // 4. For each element number of coerced, do
         for number in coerced.iter() {
             // a. If number is NaN, return NaN.
             if number.is_nan(agent) {
                 return Ok(Value::nan());
             }
+
             // b. If number is +0𝔽 and highest is -0𝔽, set highest to +0𝔽.
             if number.is_pos_zero(agent) && highest.is_neg_zero(agent) {
-                highest = Value::zero();
+                highest = Number::pos_zero();
             }
+
             // c. If number > highest, set highest to number.
-            // TODO: Implement this.
-            // if number > highest {
-            //     highest = *number;
-            // }
+            if let Some(true) = Number::greater_than(agent, *number, highest) {
+                highest = *number;
+            }
         }
 
         // 5. Return highest.
-        Ok(highest)
+        Ok(highest.into_value())
     }
 
     fn min(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. Let coerced be a new empty List.
-        let mut coerced = vec![];
+        let mut coerced = Vec::with_capacity(arguments.len());
+
         // 2. For each element arg of args, do
         for &arg in arguments.iter() {
             // a. Let n be ? ToNumber(arg).
@@ -973,26 +978,30 @@ impl MathObject {
             // b. Append n to coerced.
             coerced.push(n);
         }
+
         // 3. Let lowest be +∞𝔽.
-        let mut lowest = Value::infinity();
+        let mut lowest = Number::pos_inf();
+
         // 4. For each element number of coerced, do
         for number in coerced.iter() {
             // a. If number is NaN, return NaN.
             if number.is_nan(agent) {
                 return Ok(Value::nan());
             }
+
             // b. If number is -0𝔽 and lowest is +0𝔽, set lowest to -0𝔽.
             if number.is_neg_zero(agent) && lowest.is_pos_zero(agent) {
-                lowest = Value::neg_zero();
+                lowest = Number::neg_zero();
             }
+
             // c. If number < lowest, set lowest to number.
-            // TODO: Implement this.
-            // if number < lowest {
-            //     lowest = *number;
-            // }
+            if let Some(true) = Number::less_than(agent, *number, lowest) {
+                lowest = *number;
+            }
         }
+
         // 5. Return lowest.
-        Ok(lowest)
+        Ok(lowest.into_value())
     }
 
     fn pow(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
@@ -1025,22 +1034,25 @@ impl MathObject {
         Ok(Value::from_f64(agent, rand::random::<f64>()))
     }
 
-    // TODO: check if number is integral
     fn round(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0))?;
+
         // 2. If n is not finite or n is an integral Number, return n.
-        // if !n.is_finite(agent) || <figure out how to check if its an integral number> {
-        //     return Ok(n.into_value());
-        // }
+        if !n.is_finite(agent) || matches!(n, Number::Integer(_)) {
+            return Ok(n.into_value());
+        }
+
         // 3. If n < 0.5𝔽 and n > +0𝔽, return +0𝔽.
         if n.is_pos_zero(agent) && n.into_f64(agent) < 0.5 {
-            return Ok(Value::zero());
+            return Ok(Value::pos_zero());
         }
+
         // 4. If n < -0𝔽 and n ≥ -0.5𝔽, return -0𝔽.
         if n.is_neg_zero(agent) && n.into_f64(agent) >= -0.5 {
             return Ok(Value::neg_zero());
         }
+
         // 5. Return the integral Number closest to n, preferring the Number closer to +∞ in the case of a tie.
         Ok(Value::from_f64(agent, n.into_f64(agent).round()))
     }
@@ -1148,7 +1160,7 @@ impl MathObject {
         }
         // 3. If n < 1𝔽 and n > +0𝔽, return +0𝔽.
         if n.into_f64(agent) < 1.0 && n.into_f64(agent) > 0.0 {
-            return Ok(Value::zero());
+            return Ok(Value::pos_zero());
         }
         // 4. If n < -0𝔽 and n > -1𝔽, return -0𝔽.
         if n.into_f64(agent) < 0.0 && n.into_f64(agent) > -1.0 {
