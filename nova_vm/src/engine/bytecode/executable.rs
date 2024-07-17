@@ -953,10 +953,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                                 );
                             }
                         }
-                        ast::PropertyKey::Super(init) => {
-                            init.compile(ctx);
-                            ctx.exe.add_instruction(Instruction::GetValue);
-                        }
+                        ast::PropertyKey::Super(_) => unreachable!(),
                         ast::PropertyKey::TaggedTemplateExpression(init) => init.compile(ctx),
                         ast::PropertyKey::TemplateLiteral(init) => init.compile(ctx),
                         ast::PropertyKey::ThisExpression(init) => init.compile(ctx),
