@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 use std::f64::consts;
 
+use num_traits::ops::wrapping::WrappingMul;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{to_number, to_uint32},
@@ -756,7 +757,7 @@ impl MathObject {
         }
 
         // 4. Let n32 be the result of converting n to IEEE 754-2019 binary32 format using roundTiesToEven mode.
-        let n32 = n.into_f32(agent).round_ties_even();
+        let n32 = n.into_f32(agent);
 
         // 5. Let n64 be the result of converting n32 to IEEE 754-2019 binary64 format.
         let n64 = n32 as f64;
@@ -826,14 +827,10 @@ impl MathObject {
         let b = to_uint32(agent, arguments.get(1))?;
 
         // 3. Let product be (a × b) modulo 2**32.
-        let product = (a * b) % 2u32.pow(32);
+        let product = a.wrapping_mul(b);
 
         // 4. If product ≥ 2**31, return 𝔽(product - 2**32); otherwise return 𝔽(product).
-        if product >= 2u32.pow(31) {
-            Ok(Value::from(product as i32 - 2i32.pow(32)))
-        } else {
-            Ok(Value::from(product as i32))
-        }
+        Ok(Value::from(product as i32))
     }
 
     fn log(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
