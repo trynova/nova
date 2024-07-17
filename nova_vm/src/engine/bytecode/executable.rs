@@ -971,6 +971,11 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         | ast::PropertyKey::TSNonNullExpression(_)
                         | ast::PropertyKey::TSInstantiationExpression(_) => unreachable!(),
                     }
+                    if let Some(prop_key_expression) = prop.key.as_expression() {
+                        if is_reference(prop_key_expression) {
+                            ctx.exe.add_instruction(Instruction::GetValue);
+                        }
+                    }
                     ctx.exe.add_instruction(Instruction::Load);
                     match prop.kind {
                         ast::PropertyKind::Init => {
