@@ -65,4 +65,3 @@ pub fn exit_with_parse_errors(errors: Vec<OxcDiagnostic>, source_path: &str, sou
 
     std::process::exit(1);
 }
-
