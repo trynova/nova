@@ -1071,7 +1071,7 @@ impl MathObject {
         }
 
         // 4. If n < -0𝔽 and n ≥ -0.5𝔽, return -0𝔽.
-        if n < -0.0 && n >= -0.5 {
+        if (-0.5..-0.0).contains(&n) {
             return Ok(Value::neg_zero());
         }
 
