@@ -474,7 +474,7 @@ impl MathObject {
         let ny = to_number(agent, arguments.get(0))?;
         // 2. Let nx be ? ToNumber(x).
         let nx = to_number(agent, arguments.get(1))?;
-        
+
         // 3. If ny is NaN or nx is NaN, return NaN.
         if ny.is_nan(agent) || nx.is_nan(agent) {
             return Ok(Value::nan());
@@ -565,10 +565,10 @@ impl MathObject {
 
         // 11. Assert: nx is finite and is neither +0𝔽 nor -0𝔽.
         assert!(nx.is_finite(agent) && !nx.is_pos_zero(agent) && !nx.is_neg_zero(agent));
-        
+
         // 12. Let r be the inverse tangent of abs(ℝ(ny) / ℝ(nx)).
         let mut r = (ny.into_f64(agent) / nx.into_f64(agent)).atan();
-        
+
         // 13. If nx < -0𝔽, then
         if nx.into_f64(agent) < 0.0 {
             // a. If ny > +0𝔽, set r to π - r.
@@ -1188,12 +1188,12 @@ impl MathObject {
         if n < 1.0 && n > 0.0 {
             return Ok(Value::pos_zero());
         }
-        
+
         // 4. If n < -0𝔽 and n > -1𝔽, return -0𝔽.
         if n < -0.0 && n > -1.0 {
             return Ok(Value::neg_zero());
         }
-        
+
         // 5. Return the integral Number nearest n in the direction of +0𝔽.
         Ok(Value::from_f64(agent, n.trunc()))
     }
