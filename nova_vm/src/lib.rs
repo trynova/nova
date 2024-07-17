@@ -3,7 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #![allow(dead_code)]
-// #![feature(round_ties_even)]
 
 pub mod ecmascript;
 pub mod engine;
