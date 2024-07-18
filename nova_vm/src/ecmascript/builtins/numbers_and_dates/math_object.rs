@@ -994,10 +994,10 @@ impl MathObject {
                 highest = Number::pos_zero();
             }
 
-            // c. If number > highest, set highest to number.
             let number_f64 = number.into_f64(agent);
             let highest_f64 = highest.into_f64(agent);
 
+            // c. If number > highest, set highest to number.
             if number_f64 > highest_f64 {
                 highest = *number;
             }
@@ -1070,10 +1070,10 @@ impl MathObject {
                 lowest = Number::neg_zero();
             }
 
-            // c. If number < lowest, set lowest to number.
             let number_f64 = number.into_f64(agent);
             let lowest_f64 = lowest.into_f64(agent);
 
+            // c. If number < lowest, set lowest to number.
             if number_f64 < lowest_f64 {
                 lowest = *number;
             }
