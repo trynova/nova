@@ -306,9 +306,15 @@ impl Number {
 
     pub fn is_neg_one(self, agent: &Agent) -> bool {
         match self {
-            Number::Number(n) => -1.0 == agent[n],
             Number::Integer(n) => -1i64 == n.into(),
-            Number::Float(n) => -1.0 == n,
+            Number::Number(n) => {
+                debug_assert_ne!(agent[n], -1.0);
+                false
+            }
+            Number::Float(n) => {
+                debug_assert_ne!(n, -1.0);
+                false
+            }
         }
     }
 

@@ -435,21 +435,21 @@ impl MathObject {
             return Ok(n.into_value());
         }
 
+        // 4. If n is 1𝔽, return +∞𝔽.
+        if n.is_pos_one(agent) {
+            return Ok(Value::pos_inf());
+        }
+
+        // 5. If n is -1𝔽, return -∞𝔽.
+        if n.is_neg_one(agent) {
+            return Ok(Value::neg_inf());
+        }
+
         let n = n.into_f64(agent);
 
         // 3. If n > 1𝔽 or n < -1𝔽, return NaN.
         if !(-1.0..=1.0).contains(&n) {
             return Ok(Value::nan());
-        }
-
-        // 4. If n is 1𝔽, return +∞𝔽.
-        if n == 1.0 {
-            return Ok(Value::pos_inf());
-        }
-
-        // 5. If n is -1𝔽, return -∞𝔽.
-        if n == -1.0 {
-            return Ok(Value::neg_inf());
         }
 
         // 6. Return an implementation-approximated Number value representing the result of the inverse hyperbolic tangent of ℝ(n).
@@ -935,12 +935,58 @@ impl MathObject {
         // 1. Let coerced be a new empty List.
         let mut coerced = Vec::with_capacity(arguments.len());
 
+        let mut only_ints = true;
+        let mut has_heap_number = false;
+        let mut has_float = false;
+
         // 2. For each element arg of args, do
         for &arg in arguments.iter() {
             // a. Let n be ? ToNumber(arg).
             let n = to_number(agent, arg)?;
             // b. Append n to coerced.
             coerced.push(n);
+
+            match n {
+                Number::Number(_) => {
+                    only_ints = false;
+                    has_float = true;
+                    has_heap_number = true;
+                }
+                Number::Float(_) => {
+                    only_ints = false;
+                    has_float = true;
+                }
+                _ => {}
+            }
+        }
+
+        if coerced.is_empty() {
+            return Ok(Value::neg_inf());
+        }
+
+        if coerced.len() == 1 {
+            return Ok(coerced[0].into_value());
+        }
+
+        // NOTE: Fast path for when all numbers are integers.
+        if only_ints {
+            // SAFETY: Because we know that `coerced` is not empty and only
+            // contains small integers we know that it is always safe to
+            // convert it back into a small integer number.
+            return Ok(unsafe {
+                Number::try_from(
+                    coerced
+                        .iter()
+                        .map(|number| match number {
+                            Number::Integer(n) => n.into_i64(),
+                            _ => unreachable!(),
+                        })
+                        .max()
+                        .unwrap_unchecked(),
+                )
+                .unwrap_unchecked()
+                .into_value()
+            });
         }
 
         // 3. Let highest be -∞𝔽.
@@ -948,22 +994,33 @@ impl MathObject {
 
         // 4. For each element number of coerced, do
         for number in coerced.iter() {
-            // a. If number is NaN, return NaN.
-            if number.is_nan(agent) {
-                return Ok(Value::nan());
-            }
+            if has_float {
+                // a. If number is NaN, return NaN.
+                if number.is_nan(agent) {
+                    return Ok(Value::nan());
+                }
 
-            // b. If number is +0𝔽 and highest is -0𝔽, set highest to +0𝔽.
-            if number.is_pos_zero(agent) && highest.is_neg_zero(agent) {
-                highest = Number::pos_zero();
+                // b. If number is +0𝔽 and highest is -0𝔽, set highest to +0𝔽.
+                if number.is_pos_zero(agent) && highest.is_neg_zero(agent) {
+                    highest = Number::pos_zero();
+                }
             }
-
-            let number_f64 = number.into_f64(agent);
-            let highest_f64 = highest.into_f64(agent);
 
             // c. If number > highest, set highest to number.
-            if number_f64 > highest_f64 {
-                highest = *number;
+            if has_heap_number {
+                let number_f64 = number.into_f64(agent);
+                let highest_f64 = highest.into_f64(agent);
+
+                if number_f64 > highest_f64 {
+                    highest = *number;
+                }
+            } else {
+                let number_f32 = number.into_f32(agent);
+                let highest_f32 = highest.into_f32(agent);
+
+                if number_f32 > highest_f32 {
+                    highest = *number;
+                }
             }
         }
 
@@ -975,12 +1032,58 @@ impl MathObject {
         // 1. Let coerced be a new empty List.
         let mut coerced = Vec::with_capacity(arguments.len());
 
+        let mut only_ints = true;
+        let mut has_heap_number = false;
+        let mut has_float = false;
+
         // 2. For each element arg of args, do
         for &arg in arguments.iter() {
             // a. Let n be ? ToNumber(arg).
             let n = to_number(agent, arg)?;
             // b. Append n to coerced.
             coerced.push(n);
+
+            match n {
+                Number::Number(_) => {
+                    only_ints = false;
+                    has_float = true;
+                    has_heap_number = true;
+                }
+                Number::Float(_) => {
+                    only_ints = false;
+                    has_float = true;
+                }
+                _ => {}
+            }
+        }
+
+        if coerced.is_empty() {
+            return Ok(Value::pos_inf());
+        }
+
+        if coerced.len() == 1 {
+            return Ok(coerced[0].into_value());
+        }
+
+        // NOTE: Fast path for when all numbers are integers.
+        if only_ints {
+            // SAFETY: Because we know that `coerced` is not empty and only
+            // contains small integers we know that it is always safe to
+            // convert it back into a small integer number.
+            return Ok(unsafe {
+                Number::try_from(
+                    coerced
+                        .iter()
+                        .map(|number| match number {
+                            Number::Integer(n) => n.into_i64(),
+                            _ => unreachable!(),
+                        })
+                        .min()
+                        .unwrap_unchecked(),
+                )
+                .unwrap_unchecked()
+                .into_value()
+            });
         }
 
         // 3. Let lowest be +∞𝔽.
@@ -988,22 +1091,33 @@ impl MathObject {
 
         // 4. For each element number of coerced, do
         for number in coerced.iter() {
-            // a. If number is NaN, return NaN.
-            if number.is_nan(agent) {
-                return Ok(Value::nan());
-            }
+            if has_float {
+                // a. If number is NaN, return NaN.
+                if number.is_nan(agent) {
+                    return Ok(Value::nan());
+                }
 
-            // b. If number is -0𝔽 and lowest is +0𝔽, set lowest to -0𝔽.
-            if number.is_neg_zero(agent) && lowest.is_pos_zero(agent) {
-                lowest = Number::neg_zero();
+                // b. If number is -0𝔽 and lowest is +0𝔽, set lowest to -0𝔽.
+                if number.is_neg_zero(agent) && lowest.is_pos_zero(agent) {
+                    lowest = Number::neg_zero();
+                }
             }
-
-            let number_f64 = number.into_f64(agent);
-            let lowest_f64 = lowest.into_f64(agent);
 
             // c. If number < lowest, set lowest to number.
-            if number_f64 < lowest_f64 {
-                lowest = *number;
+            if has_heap_number {
+                let number_f64 = number.into_f64(agent);
+                let lowest_f64 = lowest.into_f64(agent);
+
+                if number_f64 < lowest_f64 {
+                    lowest = *number;
+                }
+            } else {
+                let number_f32 = number.into_f32(agent);
+                let lowest_f32 = lowest.into_f32(agent);
+
+                if number_f32 < lowest_f32 {
+                    lowest = *number;
+                }
             }
         }
 
