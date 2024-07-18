@@ -846,7 +846,7 @@ pub(crate) fn to_property_key_simple(
             }
         }
         Value::Integer(x) => Some(PropertyKey::Integer(x)),
-        Value::Float(x) if x == -0.0 => Some(PropertyKey::Integer(0.into())),
+        Value::Float(x) if x.into_f64() == -0.0 => Some(PropertyKey::Integer(0.into())),
         Value::Symbol(x) => Some(PropertyKey::Symbol(x)),
         Value::SmallBigInt(x)
             if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&x.into_i64()) =>
@@ -894,7 +894,7 @@ pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<i64> {
     // 2. If len ≤ 0, return +0𝔽.
     if match len {
         Number::Integer(n) => n.into_i64() <= 0,
-        Number::Float(n) => n <= 0.0,
+        Number::Float(n) => n.into_f64() <= 0.0,
         Number::Number(n) => agent[n] <= 0.0,
     } {
         return Ok(0);
@@ -903,7 +903,7 @@ pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<i64> {
     // 3. Return 𝔽(min(len, 2**53 - 1)).
     Ok(match len {
         Number::Integer(n) => n.into_i64().min(SmallInteger::MAX_NUMBER),
-        Number::Float(n) => n.min(SmallInteger::MAX_NUMBER as f32) as i64,
+        Number::Float(n) => n.into_f64().min(SmallInteger::MAX_NUMBER as f64) as i64,
         Number::Number(n) => agent[n].min(SmallInteger::MAX_NUMBER as f64) as i64,
     })
 }

@@ -381,7 +381,7 @@ pub(crate) fn canonicalize_keyed_collection_key(agent: &Agent, key: Value) -> Va
     // 1. If key is -0𝔽, return +0𝔽.
     if let Value::Float(key) = key {
         // Note: Only f32 should hold -0.
-        if key == -0.0 {
+        if key.into_f64() == -0.0 {
             return 0.into();
         }
     } else if let Value::Number(key) = key {

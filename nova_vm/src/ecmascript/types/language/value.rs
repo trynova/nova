@@ -14,9 +14,7 @@ use crate::{
         },
         execution::{Agent, JsResult},
         types::BUILTIN_STRING_MEMORY,
-    },
-    heap::{indexes::TypedArrayIndex, CompactionLists, HeapMarkAndSweep, WorkQueues},
-    SmallInteger, SmallString,
+    }, engine::small_double::SmallF64, heap::{indexes::TypedArrayIndex, CompactionLists, HeapMarkAndSweep, WorkQueues}, SmallInteger, SmallString
 };
 
 use super::{
@@ -50,7 +48,7 @@ pub enum Value {
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     Number(HeapNumber),
     Integer(SmallInteger), // 56-bit signed integer.
-    Float(f32),
+    Float(SmallF64),
 
     /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     BigInt(HeapBigInt),
@@ -155,7 +153,7 @@ pub(crate) const SYMBOL_DISCRIMINANT: u8 = value_discriminant(Value::Symbol(Symb
 pub(crate) const NUMBER_DISCRIMINANT: u8 = value_discriminant(Value::Number(HeapNumber::_def()));
 pub(crate) const INTEGER_DISCRIMINANT: u8 =
     value_discriminant(Value::Integer(SmallInteger::zero()));
-pub(crate) const FLOAT_DISCRIMINANT: u8 = value_discriminant(Value::Float(0f32));
+pub(crate) const FLOAT_DISCRIMINANT: u8 = value_discriminant(Value::Float(SmallF64::_def()));
 pub(crate) const BIGINT_DISCRIMINANT: u8 = value_discriminant(Value::BigInt(HeapBigInt::_def()));
 pub(crate) const SMALL_BIGINT_DISCRIMINANT: u8 =
     value_discriminant(Value::SmallBigInt(SmallBigInt::zero()));
@@ -406,7 +404,7 @@ impl Value {
         Ok(match self {
             Value::Number(n) => agent[n],
             Value::Integer(i) => i.into_i64() as f64,
-            Value::Float(f) => f as f64,
+            Value::Float(f) => f.into_f64(),
             // NOTE: Converting to a number should give us a nice error message.
             _ => to_number(agent, self)?.into_f64(agent),
         })
@@ -454,7 +452,7 @@ impl From<Number> for Value {
 
 impl From<f32> for Value {
     fn from(value: f32) -> Self {
-        Value::Float(value)
+        Value::Float(SmallF64::from(value))
     }
 }
 

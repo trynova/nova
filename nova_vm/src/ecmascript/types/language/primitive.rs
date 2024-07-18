@@ -4,7 +4,7 @@
 
 use small_string::SmallString;
 
-use crate::SmallInteger;
+use crate::{engine::small_double::SmallF64, SmallInteger};
 
 use super::{
     bigint::{HeapBigInt, SmallBigInt},
@@ -30,7 +30,7 @@ pub enum Primitive {
     Symbol(Symbol) = SYMBOL_DISCRIMINANT,
     Number(HeapNumber) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
-    Float(f32) = FLOAT_DISCRIMINANT,
+    Float(SmallF64) = FLOAT_DISCRIMINANT,
     BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }

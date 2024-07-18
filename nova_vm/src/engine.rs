@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 mod bytecode;
+pub mod small_double;
 pub mod small_integer;
 
 pub(crate) use bytecode::*;

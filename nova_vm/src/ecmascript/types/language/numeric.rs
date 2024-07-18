@@ -7,6 +7,7 @@ use crate::{
         abstract_operations::type_conversion::to_number,
         execution::{Agent, JsResult},
     },
+    engine::small_double::SmallF64,
     SmallInteger,
 };
 
@@ -25,7 +26,7 @@ use super::{
 pub enum Numeric {
     Number(HeapNumber) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
-    Float(f32) = FLOAT_DISCRIMINANT,
+    Float(SmallF64) = FLOAT_DISCRIMINANT,
     BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
@@ -74,7 +75,7 @@ impl Numeric {
         Ok(match self {
             Self::Number(n) => agent[n],
             Self::Integer(i) => i.into_i64() as f64,
-            Self::Float(f) => f as f64,
+            Self::Float(f) => f.into_f64(),
             // NOTE: Converting to a number should give us a nice error message.
             _ => to_number(agent, self)?.into_f64(agent),
         })
