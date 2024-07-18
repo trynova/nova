@@ -699,7 +699,11 @@ impl Vm {
                 let property_name_value = vm.result.take().unwrap();
                 let base_value = vm.stack.pop().unwrap();
 
-                let strict = true;
+                let strict = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .unwrap()
+                    .is_strict_mode;
 
                 let property_key = to_property_key(agent, property_name_value)?;
 
@@ -714,7 +718,11 @@ impl Vm {
                 let property_name_string =
                     vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
                 let base_value = vm.result.take().unwrap();
-                let strict = true;
+                let strict = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .unwrap()
+                    .is_strict_mode;
 
                 vm.reference = Some(Reference {
                     base: Base::Value(base_value),
@@ -1258,7 +1266,11 @@ impl Vm {
             } else if instr.kind == Instruction::EvaluatePropertyAccessWithIdentifierKey {
                 let property_name_string =
                     vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                let strict = true;
+                let strict = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .unwrap()
+                    .is_strict_mode;
 
                 let reference = Reference {
                     base: Base::Value(value),

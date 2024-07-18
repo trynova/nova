@@ -16,5 +16,6 @@
 // to `$262.global` (needed for old tests, since `globalThis` was only added in
 // ES2020).
 
-$262 = {};
-$262.global = globalThis;
+globalThis.$262 = {
+    global: globalThis
+};
