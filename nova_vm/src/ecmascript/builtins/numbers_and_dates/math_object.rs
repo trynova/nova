@@ -343,17 +343,8 @@ impl MathObject {
     fn acos(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0))?.into_f64(agent);
-
         // 2. If n is NaN, n > 1𝔽, or n < -1𝔽, return NaN.
-        if n.is_nan() || !(-1.0..=1.0).contains(&n) {
-            return Ok(Value::nan());
-        }
-
         // 3. If n is 1𝔽, return +0𝔽.
-        if n == 1.0 {
-            return Ok(Value::pos_zero());
-        }
-
         // 4. Return an implementation-approximated Number value representing the result of the inverse cosine of ℝ(n).
         Ok(Value::from_f64(agent, n.acos()))
     }
@@ -375,10 +366,6 @@ impl MathObject {
         let n = n.into_f64(agent);
 
         // 4. If n < 1𝔽, return NaN.
-        if n < 1.0 {
-            return Ok(Value::nan());
-        }
-
         // 5. Return an implementation-approximated Number value representing the result of the inverse hyperbolic cosine of ℝ(n).
         Ok(Value::from_f64(agent, n.acosh()))
     }
