@@ -936,8 +936,6 @@ impl MathObject {
         let mut coerced = Vec::with_capacity(arguments.len());
 
         let mut only_ints = true;
-        let mut has_heap_number = false;
-        let mut has_float = false;
 
         // 2. For each element arg of args, do
         for &arg in arguments.iter() {
@@ -947,15 +945,7 @@ impl MathObject {
             coerced.push(n);
 
             match n {
-                Number::Number(_) => {
-                    only_ints = false;
-                    has_float = true;
-                    has_heap_number = true;
-                }
-                Number::Float(_) => {
-                    only_ints = false;
-                    has_float = true;
-                }
+                Number::Number(_) | Number::Float(_) => only_ints = false,
                 _ => {}
             }
         }
@@ -994,33 +984,22 @@ impl MathObject {
 
         // 4. For each element number of coerced, do
         for number in coerced.iter() {
-            if has_float {
-                // a. If number is NaN, return NaN.
-                if number.is_nan(agent) {
-                    return Ok(Value::nan());
-                }
+            // a. If number is NaN, return NaN.
+            if number.is_nan(agent) {
+                return Ok(Value::nan());
+            }
 
-                // b. If number is +0𝔽 and highest is -0𝔽, set highest to +0𝔽.
-                if number.is_pos_zero(agent) && highest.is_neg_zero(agent) {
-                    highest = Number::pos_zero();
-                }
+            // b. If number is +0𝔽 and highest is -0𝔽, set highest to +0𝔽.
+            if number.is_pos_zero(agent) && highest.is_neg_zero(agent) {
+                highest = Number::pos_zero();
             }
 
             // c. If number > highest, set highest to number.
-            if has_heap_number {
-                let number_f64 = number.into_f64(agent);
-                let highest_f64 = highest.into_f64(agent);
+            let number_f64 = number.into_f64(agent);
+            let highest_f64 = highest.into_f64(agent);
 
-                if number_f64 > highest_f64 {
-                    highest = *number;
-                }
-            } else {
-                let number_f32 = number.into_f32(agent);
-                let highest_f32 = highest.into_f32(agent);
-
-                if number_f32 > highest_f32 {
-                    highest = *number;
-                }
+            if number_f64 > highest_f64 {
+                highest = *number;
             }
         }
 
@@ -1033,8 +1012,6 @@ impl MathObject {
         let mut coerced = Vec::with_capacity(arguments.len());
 
         let mut only_ints = true;
-        let mut has_heap_number = false;
-        let mut has_float = false;
 
         // 2. For each element arg of args, do
         for &arg in arguments.iter() {
@@ -1044,15 +1021,7 @@ impl MathObject {
             coerced.push(n);
 
             match n {
-                Number::Number(_) => {
-                    only_ints = false;
-                    has_float = true;
-                    has_heap_number = true;
-                }
-                Number::Float(_) => {
-                    only_ints = false;
-                    has_float = true;
-                }
+                Number::Number(_) | Number::Float(_) => only_ints = false,
                 _ => {}
             }
         }
@@ -1091,33 +1060,22 @@ impl MathObject {
 
         // 4. For each element number of coerced, do
         for number in coerced.iter() {
-            if has_float {
-                // a. If number is NaN, return NaN.
-                if number.is_nan(agent) {
-                    return Ok(Value::nan());
-                }
+            // a. If number is NaN, return NaN.
+            if number.is_nan(agent) {
+                return Ok(Value::nan());
+            }
 
-                // b. If number is -0𝔽 and lowest is +0𝔽, set lowest to -0𝔽.
-                if number.is_neg_zero(agent) && lowest.is_pos_zero(agent) {
-                    lowest = Number::neg_zero();
-                }
+            // b. If number is -0𝔽 and lowest is +0𝔽, set lowest to -0𝔽.
+            if number.is_neg_zero(agent) && lowest.is_pos_zero(agent) {
+                lowest = Number::neg_zero();
             }
 
             // c. If number < lowest, set lowest to number.
-            if has_heap_number {
-                let number_f64 = number.into_f64(agent);
-                let lowest_f64 = lowest.into_f64(agent);
+            let number_f64 = number.into_f64(agent);
+            let lowest_f64 = lowest.into_f64(agent);
 
-                if number_f64 < lowest_f64 {
-                    lowest = *number;
-                }
-            } else {
-                let number_f32 = number.into_f32(agent);
-                let lowest_f32 = lowest.into_f32(agent);
-
-                if number_f32 < lowest_f32 {
-                    lowest = *number;
-                }
+            if number_f64 < lowest_f64 {
+                lowest = *number;
             }
         }
 
