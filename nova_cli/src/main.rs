@@ -2,10 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 mod helper;
+mod theme;
 
 use std::{cell::RefCell, collections::VecDeque, fmt::Debug};
 
 use clap::{Parser as ClapParser, Subcommand};
+use cliclack::{input, intro, set_theme};
 use helper::{exit_with_parse_errors, initialize_global_object};
 use nova_vm::ecmascript::{
     execution::{
@@ -17,6 +19,7 @@ use nova_vm::ecmascript::{
 };
 use oxc_parser::Parser;
 use oxc_span::SourceType;
+use theme::DefaultTheme;
 
 /// A JavaScript engine
 #[derive(Debug, ClapParser)] // requires `derive` feature
@@ -49,10 +52,7 @@ enum Command {
     },
 
     /// Runs the REPL
-    Repl {
-        #[arg(short, long)]
-        verbose: bool,
-    },
+    Repl {},
 }
 
 #[derive(Default)]
@@ -165,13 +165,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Command::Repl { verbose } => {
+        Command::Repl {} => {
             let allocator = Default::default();
             let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
             let mut agent = Agent::new(
                 Options {
                     disable_gc: false,
-                    print_internals: verbose,
+                    print_internals: true,
                 },
                 host_hooks,
             );
@@ -187,9 +187,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             let realm = agent.current_realm_id();
 
+            set_theme(DefaultTheme);
+            println!("\n\n");
+            let mut placeholder = "Enter a line of Javascript".to_string();
+
             loop {
-                let mut input = String::new();
-                std::io::stdin().read_line(&mut input)?;
+                intro("Nova Repl (type exit or ctrl+c to exit)")?;
+                let input: String = input("").placeholder(&placeholder).interact()?;
+
+                if input.matches("exit").count() == 1 {
+                    std::process::exit(0);
+                }
+                placeholder = input.to_string();
                 let script = match parse_script(&allocator, input.into(), realm, true, None) {
                     Ok(script) => script,
                     Err((file, errors)) => {
@@ -199,9 +208,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let result = script_evaluation(&mut agent, script);
                 match result {
                     Ok(result) => {
-                        if verbose {
-                            println!("{:?}", result);
-                        }
+                        println!("{:?}\n", result);
                     }
                     Err(error) => {
                         eprintln!(
