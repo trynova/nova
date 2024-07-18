@@ -287,6 +287,37 @@ impl Number {
         }
     }
 
+    pub fn is_pos_one(self, agent: &Agent) -> bool {
+        // NOTE: Only the integer variant should ever return true, if any other
+        // variant returns true, that's a bug as it means that our variants are
+        // no longer "sound".
+        match self {
+            Number::Integer(n) => 1i64 == n.into(),
+            Number::Number(n) => {
+                debug_assert_ne!(agent[n], 1.0);
+                false
+            }
+            Number::Float(n) => {
+                debug_assert_ne!(n, 1.0);
+                false
+            }
+        }
+    }
+
+    pub fn is_neg_one(self, agent: &Agent) -> bool {
+        match self {
+            Number::Integer(n) => -1i64 == n.into(),
+            Number::Number(n) => {
+                debug_assert_ne!(agent[n], -1.0);
+                false
+            }
+            Number::Float(n) => {
+                debug_assert_ne!(n, -1.0);
+                false
+            }
+        }
+    }
+
     pub fn is_sign_positive(self, agent: &Agent) -> bool {
         match self {
             Number::Number(n) => agent[n].is_sign_positive(),
@@ -320,6 +351,14 @@ impl Number {
             Number::Number(n) => agent[n],
             Number::Integer(n) => Into::<i64>::into(n) as f64,
             Number::Float(n) => n as f64,
+        }
+    }
+
+    pub fn into_f32(self, agent: &Agent) -> f32 {
+        match self {
+            Number::Number(n) => agent[n] as f32,
+            Number::Integer(n) => Into::<i64>::into(n) as f32,
+            Number::Float(n) => n,
         }
     }
 

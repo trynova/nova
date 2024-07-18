@@ -252,19 +252,27 @@ impl Value {
     }
 
     pub fn from_f64(agent: &mut Agent, value: f64) -> Value {
-        Number::from_f64(agent, value).into()
+        Number::from_f64(agent, value).into_value()
     }
 
     pub fn nan() -> Self {
         Number::nan().into_value()
     }
 
-    pub fn infinity() -> Self {
+    pub fn pos_inf() -> Self {
         Number::pos_inf().into_value()
     }
 
-    pub fn neg_infinity() -> Self {
+    pub fn neg_inf() -> Self {
         Number::neg_inf().into_value()
+    }
+
+    pub fn pos_zero() -> Self {
+        Number::pos_zero().into_value()
+    }
+
+    pub fn neg_zero() -> Self {
+        Number::neg_zero().into_value()
     }
 
     pub fn is_true(self) -> bool {
