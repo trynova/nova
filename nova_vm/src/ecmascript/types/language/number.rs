@@ -287,14 +287,13 @@ impl Number {
         }
     }
 
-    pub fn is_pos_one(self, agent: &Agent) -> bool {
+    pub fn is_pos_one(self) -> bool {
         // NOTE: Only the integer variant should ever return true, if any other
         // variant returns true, that's a bug as it means that our variants are
-        // no longer "sound".
+        // no longer "sound" which is why only the integer variant is checked.
         match self {
-            Number::Number(n) => 1.0 == agent[n],
             Number::Integer(n) => 1i64 == n.into(),
-            Number::Float(n) => 1.0 == n,
+            _ => false,
         }
     }
 
