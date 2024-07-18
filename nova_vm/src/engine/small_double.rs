@@ -75,16 +75,22 @@ impl From<SmallF64> for f64 {
 
         #[repr(u8)]
         enum Repr {
-            Data([u8; 7]),
+            Data([u8; 7]) = 0,
         }
 
         // SAFETY: This matches the format on the endian platform.
         let number: u64 = unsafe { std::mem::transmute(Repr::Data(data)) };
 
+        // The enum repr zero is the first byte
         if cfg!(target_endian = "little") {
+            // In little endian that is the least significant byte, which is
+            // exactly where we want it.
             f64::from_bits(number)
         } else {
-            f64::from_bits((number & 0x00FF_FFFF_FFFF_FFFF) << 8)
+            // In big endian that is the most significant byte. We want to shift
+            // up one byte to "pop off" the zero and bring a zero byte in to
+            // the least significant byte.
+            f64::from_bits(number << 8)
         }
     }
 }
