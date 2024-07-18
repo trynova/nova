@@ -305,7 +305,7 @@ impl Number {
                 false
             }
             Number::Float(n) => {
-                debug_assert_ne!(n, 1.0);
+                debug_assert_ne!(n.into_f64(), 1.0);
                 false
             }
         }
@@ -319,7 +319,7 @@ impl Number {
                 false
             }
             Number::Float(n) => {
-                debug_assert_ne!(n, -1.0);
+                debug_assert_ne!(n.into_f64(), -1.0);
                 false
             }
         }
@@ -365,7 +365,7 @@ impl Number {
         match self {
             Number::Number(n) => agent[n] as f32,
             Number::Integer(n) => Into::<i64>::into(n) as f32,
-            Number::Float(n) => n,
+            Number::Float(n) => n.into_f64() as f32,
         }
     }
 
