@@ -368,7 +368,7 @@ impl MathObject {
         }
 
         // 3. If n is 1𝔽, return +0𝔽.
-        if n.is_pos_one() {
+        if n.is_pos_one(agent) {
             return Ok(Value::pos_zero());
         }
 
@@ -856,7 +856,7 @@ impl MathObject {
         }
 
         // 3. If n is 1𝔽, return +0𝔽.
-        if n.is_pos_one() {
+        if n.is_pos_one(agent) {
             return Ok(Value::pos_zero());
         }
 
@@ -905,7 +905,7 @@ impl MathObject {
             return Ok(n.into_value());
         }
         // 3. If n is 1𝔽, return +0𝔽.
-        if n.is_pos_one() {
+        if n.is_pos_one(agent) {
             return Ok(Value::pos_zero());
         }
         // 4. If n is either +0𝔽 or -0𝔽, return -∞𝔽.
@@ -929,7 +929,7 @@ impl MathObject {
             return Ok(n.into_value());
         }
         // 3. If n is 1𝔽, return +0𝔽.
-        if n.is_pos_one() {
+        if n.is_pos_one(agent) {
             return Ok(Value::pos_zero());
         }
         // 4. If n is either +0𝔽 or -0𝔽, return -∞𝔽.
