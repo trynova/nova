@@ -1,10 +1,14 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+mod helper;
+mod theme;
 
 use std::{cell::RefCell, collections::VecDeque, fmt::Debug};
 
 use clap::{Parser as ClapParser, Subcommand};
+use cliclack::{input, intro, set_theme};
+use helper::{exit_with_parse_errors, initialize_global_object};
 use nova_vm::ecmascript::{
     execution::{
         agent::{HostHooks, Job, Options},
@@ -13,9 +17,9 @@ use nova_vm::ecmascript::{
     scripts_and_modules::script::{parse_script, script_evaluation},
     types::{Object, Value},
 };
-use oxc_diagnostics::{GraphicalTheme, OxcDiagnostic};
 use oxc_parser::Parser;
 use oxc_span::SourceType;
+use theme::DefaultTheme;
 
 /// A JavaScript engine
 #[derive(Debug, ClapParser)] // requires `derive` feature
@@ -46,6 +50,9 @@ enum Command {
         #[arg(required = true)]
         paths: Vec<String>,
     },
+
+    /// Runs the REPL
+    Repl {},
 }
 
 #[derive(Default)]
@@ -158,72 +165,60 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-    }
+        Command::Repl {} => {
+            let allocator = Default::default();
+            let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
+            let mut agent = Agent::new(
+                Options {
+                    disable_gc: false,
+                    print_internals: true,
+                },
+                host_hooks,
+            );
+            {
+                let create_global_object: Option<fn(&mut Realm) -> Object> = None;
+                let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
+                initialize_host_defined_realm(
+                    &mut agent,
+                    create_global_object,
+                    create_global_this_value,
+                    Some(initialize_global_object),
+                );
+            }
+            let realm = agent.current_realm_id();
 
+            set_theme(DefaultTheme);
+            println!("\n\n");
+            let mut placeholder = "Enter a line of Javascript".to_string();
+
+            loop {
+                intro("Nova Repl (type exit or ctrl+c to exit)")?;
+                let input: String = input("").placeholder(&placeholder).interact()?;
+
+                if input.matches("exit").count() == 1 {
+                    std::process::exit(0);
+                }
+                placeholder = input.to_string();
+                let script = match parse_script(&allocator, input.into(), realm, true, None) {
+                    Ok(script) => script,
+                    Err((file, errors)) => {
+                        exit_with_parse_errors(errors, "<stdin>", &file);
+                    }
+                };
+                let result = script_evaluation(&mut agent, script);
+                match result {
+                    Ok(result) => {
+                        println!("{:?}\n", result);
+                    }
+                    Err(error) => {
+                        eprintln!(
+                            "Uncaught exception: {}",
+                            error.value().string_repr(&mut agent).as_str(&agent)
+                        );
+                    }
+                }
+            }
+        }
+    }
     Ok(())
-}
-
-fn exit_with_parse_errors(errors: Vec<OxcDiagnostic>, source_path: &str, source: &str) -> ! {
-    assert!(!errors.is_empty());
-
-    // This seems to be needed for color and Unicode output.
-    miette::set_hook(Box::new(|_| {
-        use std::io::IsTerminal;
-        let mut handler = oxc_diagnostics::GraphicalReportHandler::new();
-        if !std::io::stdout().is_terminal() || std::io::stderr().is_terminal() {
-            // Fix for https://github.com/oxc-project/oxc/issues/3539
-            handler = handler.with_theme(GraphicalTheme::none());
-        }
-        Box::new(handler)
-    }))
-    .unwrap();
-
-    eprintln!("Parse errors:");
-
-    // SAFETY: This function never returns, so `source`'s lifetime must last for
-    // the duration of the program.
-    let source: &'static str = unsafe { std::mem::transmute(source) };
-    let named_source = miette::NamedSource::new(source_path, source);
-
-    for error in errors {
-        let report = error.with_source_code(named_source.clone());
-        eprint!("{:?}", report);
-    }
-    eprintln!();
-
-    std::process::exit(1);
-}
-
-fn initialize_global_object(agent: &mut Agent, global: Object) {
-    use nova_vm::ecmascript::{
-        builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
-        execution::JsResult,
-        types::{InternalMethods, IntoValue, PropertyDescriptor, PropertyKey},
-    };
-
-    // `print` function
-    fn print(agent: &mut Agent, _this: Value, args: ArgumentsList) -> JsResult<Value> {
-        if args.len() == 0 {
-            println!();
-        } else {
-            println!("{}", args[0].to_string(agent)?.as_str(agent));
-        }
-        Ok(Value::Undefined)
-    }
-    let function = create_builtin_function(
-        agent,
-        Behaviour::Regular(print),
-        BuiltinFunctionArgs::new(1, "print", agent.current_realm_id()),
-    );
-    let property_key = PropertyKey::from_static_str(agent, "print");
-    global
-        .internal_define_own_property(
-            agent,
-            property_key,
-            PropertyDescriptor {
-                value: Some(function.into_value()),
-                ..Default::default()
-            },
-        )
-        .unwrap();
 }
