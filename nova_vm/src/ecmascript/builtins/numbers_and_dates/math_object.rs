@@ -367,12 +367,12 @@ impl MathObject {
             return Ok(n.into_value());
         }
 
-        let n = n.into_f64(agent);
-
         // 3. If n is 1𝔽, return +0𝔽.
-        if n == 1.0 {
+        if n.is_pos_one() {
             return Ok(Value::pos_zero());
         }
+
+        let n = n.into_f64(agent);
 
         // 4. If n < 1𝔽, return NaN.
         if n < 1.0 {
@@ -856,7 +856,7 @@ impl MathObject {
         }
 
         // 3. If n is 1𝔽, return +0𝔽.
-        if n.is_pos_one(agent) {
+        if n.is_pos_one() {
             return Ok(Value::pos_zero());
         }
 
@@ -905,7 +905,7 @@ impl MathObject {
             return Ok(n.into_value());
         }
         // 3. If n is 1𝔽, return +0𝔽.
-        if n.is_pos_one(agent) {
+        if n.is_pos_one() {
             return Ok(Value::pos_zero());
         }
         // 4. If n is either +0𝔽 or -0𝔽, return -∞𝔽.
@@ -929,7 +929,7 @@ impl MathObject {
             return Ok(n.into_value());
         }
         // 3. If n is 1𝔽, return +0𝔽.
-        if n.is_pos_one(agent) {
+        if n.is_pos_one() {
             return Ok(Value::pos_zero());
         }
         // 4. If n is either +0𝔽 or -0𝔽, return -∞𝔽.

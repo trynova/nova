@@ -287,11 +287,10 @@ impl Number {
         }
     }
 
-    pub fn is_pos_one(self, agent: &Agent) -> bool {
+    pub fn is_pos_one(self) -> bool {
         match self {
-            Number::Number(n) => 1.0 == agent[n],
             Number::Integer(n) => 1i64 == n.into(),
-            Number::Float(n) => 1.0 == n,
+            _ => unreachable!(),
         }
     }
 
