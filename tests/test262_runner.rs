@@ -184,6 +184,7 @@ impl BaseTest262Runner {
 
             let mut command = Command::new(&self.nova_cli_path);
             command.arg("eval");
+            command.arg("--no-types");
             if !strict {
                 command.arg("--no-strict");
             }

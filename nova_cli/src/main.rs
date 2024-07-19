@@ -43,8 +43,11 @@ enum Command {
         #[arg(short, long)]
         verbose: bool,
 
-        #[arg(short, long)]
+        #[arg(long, short)]
         no_strict: bool,
+
+        #[arg(long)]
+        no_types: bool,
 
         /// The files to evaluate
         #[arg(required = true)]
@@ -89,7 +92,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let file = std::fs::read_to_string(&path)?;
             let allocator = Default::default();
             let source_type: SourceType = Default::default();
-            let parser = Parser::new(&allocator, &file, source_type.with_typescript(false));
+            let parser = Parser::new(&allocator, &file, source_type.with_typescript(true));
             let result = parser.parse();
 
             if !result.errors.is_empty() {
@@ -101,6 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             verbose,
             no_strict,
             paths,
+            no_types,
         } => {
             let allocator = Default::default();
 
@@ -131,10 +135,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             assert!(!paths.is_empty());
             for path in paths {
                 let file = std::fs::read_to_string(&path)?;
-                let script = match parse_script(&allocator, file.into(), realm, !no_strict, None) {
-                    Ok(script) => script,
-                    Err((file, errors)) => exit_with_parse_errors(errors, &path, &file),
-                };
+                let script =
+                    match parse_script(&allocator, file.into(), realm, !no_strict, !no_types, None)
+                    {
+                        Ok(script) => script,
+                        Err((file, errors)) => exit_with_parse_errors(errors, &path, &file),
+                    };
                 final_result = script_evaluation(&mut agent, script);
                 if final_result.is_err() {
                     break;
@@ -199,7 +205,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     std::process::exit(0);
                 }
                 placeholder = input.to_string();
-                let script = match parse_script(&allocator, input.into(), realm, true, None) {
+                let script = match parse_script(&allocator, input.into(), realm, true, true, None) {
                     Ok(script) => script,
                     Err((file, errors)) => {
                         exit_with_parse_errors(errors, "<stdin>", &file);

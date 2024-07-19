@@ -181,10 +181,11 @@ pub fn parse_script(
     source_text: Box<str>,
     realm: RealmIdentifier,
     strict_mode: bool,
+    typescript: bool,
     host_defined: Option<HostDefined>,
 ) -> ScriptOrErrors {
     // 1. Let script be ParseText(sourceText, Script).
-    let source_type = SourceType::default().with_always_strict(strict_mode);
+    let source_type = SourceType::default().with_typescript(typescript).with_always_strict(strict_mode);
     let parser = Parser::new(allocator, &source_text, source_type);
     let ParserReturn {
         errors, program, ..
@@ -529,7 +530,7 @@ mod test {
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "".into(), realm, false, true, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -544,7 +545,7 @@ mod test {
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "true".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "true".into(), realm, false, true, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -559,7 +560,7 @@ mod test {
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "-2".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "-2".into(), realm, false, true, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -575,7 +576,7 @@ mod test {
         set_realm_global_object(&mut agent, realm, None, None);
 
         let script =
-            parse_script(&allocator, "void (2 + 2 + 6)".into(), realm, false, None).unwrap();
+            parse_script(&allocator, "void (2 + 2 + 6)".into(), realm, false, true, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -590,7 +591,7 @@ mod test {
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "+(54)".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "+(54)".into(), realm, false, true, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -605,7 +606,7 @@ mod test {
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "!true".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "!true".into(), realm, false, true, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -620,7 +621,7 @@ mod test {
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "~0b1111".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "~0b1111".into(), realm, false, true, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -636,37 +637,37 @@ mod test {
         let realm = agent.current_realm_id();
 
         let script =
-            parse_script(&allocator, "typeof undefined".into(), realm, false, None).unwrap();
+            parse_script(&allocator, "typeof undefined".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "undefined"));
 
-        let script = parse_script(&allocator, "typeof null".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "typeof null".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "object"));
 
         let script =
-            parse_script(&allocator, "typeof \"string\"".into(), realm, false, None).unwrap();
+            parse_script(&allocator, "typeof \"string\"".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "string"));
 
         let script =
-            parse_script(&allocator, "typeof Symbol()".into(), realm, false, None).unwrap();
+            parse_script(&allocator, "typeof Symbol()".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "symbol"));
 
-        let script = parse_script(&allocator, "typeof true".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "typeof true".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "boolean"));
 
-        let script = parse_script(&allocator, "typeof 3".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "typeof 3".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "number"));
 
-        let script = parse_script(&allocator, "typeof 3n".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "typeof 3n".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "bigint"));
 
-        let script = parse_script(&allocator, "typeof {}".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "typeof {}".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "object"));
 
@@ -675,6 +676,7 @@ mod test {
             "typeof (function() {})".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -690,7 +692,7 @@ mod test {
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "2 + 2 + 6".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "2 + 2 + 6".into(), realm, false, true, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -705,7 +707,7 @@ mod test {
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "var foo = 3;".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "var foo = 3;".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Undefined);
     }
@@ -718,7 +720,7 @@ mod test {
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "var foo = {};".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "var foo = {};".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
         let key = PropertyKey::from_static_str(&mut agent, "foo");
@@ -747,7 +749,7 @@ mod test {
         set_realm_global_object(&mut agent, realm, None, None);
 
         let script =
-            parse_script(&allocator, "var foo = { a: 3 };".into(), realm, false, None).unwrap();
+            parse_script(&allocator, "var foo = { a: 3 };".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
         let key = PropertyKey::from_static_str(&mut agent, "foo");
@@ -788,7 +790,7 @@ mod test {
             script_or_module: None,
         });
 
-        let script = parse_script(&allocator, "var foo = [];".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "var foo = [];".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
         let foo_key = String::from_static_str(&mut agent, "foo");
@@ -819,6 +821,7 @@ mod test {
             "var foo = [ 'a', 3 ];".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -864,7 +867,7 @@ mod test {
         set_realm_global_object(&mut agent, realm, None, None);
 
         let script =
-            parse_script(&allocator, "function foo() {}".into(), realm, false, None).unwrap();
+            parse_script(&allocator, "function foo() {}".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_function());
     }
@@ -878,7 +881,7 @@ mod test {
         set_realm_global_object(&mut agent, realm, None, None);
 
         let script =
-            parse_script(&allocator, "(function() {})()".into(), realm, false, None).unwrap();
+            parse_script(&allocator, "(function() {})()".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
     }
@@ -896,6 +899,7 @@ mod test {
             "var f = function() {}; f();".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -916,6 +920,7 @@ mod test {
             "function f() {}; f();".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -936,6 +941,7 @@ mod test {
             "(function() { return 3 })()".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -983,15 +989,15 @@ mod test {
 
         create_data_property_or_throw(&mut agent, global, key, func.into_value()).unwrap();
 
-        let script = parse_script(&allocator, "test(true)".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "test(true)".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from(3));
 
-        let script = parse_script(&allocator, "test()".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "test()".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Null);
 
-        let script = parse_script(&allocator, "test({})".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "test({})".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Null);
     }
@@ -1004,11 +1010,11 @@ mod test {
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "if (true) 3".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "if (true) 3".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Number::from(3).into_value());
 
-        let script = parse_script(&allocator, "if (false) 3".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "if (false) 3".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Undefined);
     }
@@ -1026,6 +1032,7 @@ mod test {
             "var foo = function() { if (true) { return 3; } else { return 5; } }; foo()".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1037,6 +1044,7 @@ mod test {
             "var bar = function() { if (false) { return 3; } else { return 5; } }; bar()".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1057,6 +1065,7 @@ mod test {
             "var foo = { a: 3 }; foo.a".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1077,6 +1086,7 @@ mod test {
             "var fn = function() { return 3; }; var foo = { a: { b: fn } }; foo.a.b()".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1097,6 +1107,7 @@ mod test {
             "var foo = { a: 3 }; var prop = 'a'; foo[prop]".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1115,6 +1126,7 @@ mod test {
             "var i = 0; for (; i < 3; i++) {}".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1145,6 +1157,7 @@ mod test {
             "let i = 0; const a = 'foo'; i = 3;".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1182,6 +1195,7 @@ mod test {
             "{ let i = 0; const a = 'foo'; i = 3; }".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1208,6 +1222,7 @@ mod test {
             "var foo = {}; foo.a = 42; foo".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1236,6 +1251,7 @@ mod test {
             "let a = 0; try { a++; } catch { a = 500; }; a++; a".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1256,6 +1272,7 @@ mod test {
             "let a = 0; try { throw null; a = 500 } catch { a++; }; a++; a".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1276,6 +1293,7 @@ mod test {
             "let err; try { throw 'thrown'; } catch(e) { err = e; }; err".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1296,6 +1314,7 @@ mod test {
             "let a = 42; try { let a = 62; throw 'thrown'; } catch { }; a".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1316,6 +1335,7 @@ mod test {
             "const foo = function (a) { return a + 10; }; foo(32)".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1331,7 +1351,7 @@ mod test {
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(&allocator, "true && true".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "true && true".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Boolean(true));
 
@@ -1340,6 +1360,7 @@ mod test {
             "true && false && true".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1355,7 +1376,7 @@ mod test {
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(&allocator, "false || false".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "false || false".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Boolean(false));
 
@@ -1364,6 +1385,7 @@ mod test {
             "true || false || true".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1379,16 +1401,16 @@ mod test {
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(&allocator, "null ?? 42".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "null ?? 42".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
 
-        let script = parse_script(&allocator, "'foo' ?? 12".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "'foo' ?? 12".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "foo"));
 
         let script =
-            parse_script(&allocator, "undefined ?? null".into(), realm, false, None).unwrap();
+            parse_script(&allocator, "undefined ?? null".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Null);
     }
@@ -1402,7 +1424,7 @@ mod test {
         let realm = agent.current_realm_id();
 
         let script =
-            parse_script(&allocator, "'foo' + '' + 'bar'".into(), realm, false, None).unwrap();
+            parse_script(&allocator, "'foo' + '' + 'bar'".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "foobar"));
 
@@ -1411,6 +1433,7 @@ mod test {
             "'foo' + ' a heap string'".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1425,6 +1448,7 @@ mod test {
             "'Concatenating ' + 'two heap strings'".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1448,6 +1472,7 @@ mod test {
             "function foo() {}; foo.bar".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1459,21 +1484,22 @@ mod test {
             "foo.bar = 42; foo.bar".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
 
-        let script = parse_script(&allocator, "foo.name".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "foo.name".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "foo"));
 
-        let script = parse_script(&allocator, "foo.length".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "foo.length".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::zero()));
 
-        let script = parse_script(&allocator, "foo.prototype".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "foo.prototype".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_object())
     }
@@ -1486,12 +1512,12 @@ mod test {
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(&allocator, "TypeError.name".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "TypeError.name".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "TypeError"));
 
         let script =
-            parse_script(&allocator, "TypeError.length".into(), realm, false, None).unwrap();
+            parse_script(&allocator, "TypeError.length".into(), realm, false, true, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(1)));
     }
@@ -1509,13 +1535,14 @@ mod test {
             "function foo() {}; foo.prototype".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         let foo_prototype = Object::try_from(result).unwrap();
 
-        let script = parse_script(&allocator, "new foo()".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "new foo()".into(), realm, false, true, None).unwrap();
         let result = match script_evaluation(&mut agent, script) {
             Ok(result) => result,
             Err(err) => panic!("{}", err.to_string(&mut agent).as_str(&agent)),
@@ -1540,6 +1567,7 @@ mod test {
             "function foo() { this.bar = 42; }; new foo().bar".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1551,6 +1579,7 @@ mod test {
             "foo.prototype.baz = function() { return this.bar + 10; }; (new foo()).baz()".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1566,14 +1595,14 @@ mod test {
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(&allocator, "+Symbol()".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "+Symbol()".into(), realm, false, true, None).unwrap();
         assert!(script_evaluation(&mut agent, script).is_err());
 
-        let script = parse_script(&allocator, "+Symbol('foo')".into(), realm, false, None).unwrap();
+        let script = parse_script(&allocator, "+Symbol('foo')".into(), realm, false, true, None).unwrap();
         assert!(script_evaluation(&mut agent, script).is_err());
 
         let script =
-            parse_script(&allocator, "String(Symbol())".into(), realm, false, None).unwrap();
+            parse_script(&allocator, "String(Symbol())".into(), realm, false, true, None).unwrap();
         let value = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(value, Value::from_static_str(&mut agent, "Symbol()"));
 
@@ -1582,6 +1611,7 @@ mod test {
             "String(Symbol('foo'))".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1598,7 +1628,7 @@ mod test {
         let realm = agent.current_realm_id();
 
         let script =
-            parse_script(&allocator, "3 instanceof Number".into(), realm, false, None).unwrap();
+            parse_script(&allocator, "3 instanceof Number".into(), realm, false, true, None).unwrap();
         assert_eq!(script_evaluation(&mut agent, script).unwrap(), false.into());
 
         let script = parse_script(
@@ -1606,6 +1636,7 @@ mod test {
             "'foo' instanceof String".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1616,6 +1647,7 @@ mod test {
             "({}) instanceof Object".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1626,6 +1658,7 @@ mod test {
             "({}) instanceof Array".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1636,6 +1669,7 @@ mod test {
             "([]) instanceof Object".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1646,6 +1680,7 @@ mod test {
             "([]) instanceof Array".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1665,6 +1700,7 @@ mod test {
             "const [a, b, , c] = [1, 2, 3, 4];".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1708,6 +1744,7 @@ mod test {
             "let i = 0; do { i++ } while(i < 10)".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
@@ -1737,6 +1774,7 @@ mod test {
             "function foo() { 42; }; foo()".into(),
             realm,
             false,
+            true,
             None,
         )
         .unwrap();
