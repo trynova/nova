@@ -9,7 +9,7 @@ clap = { workspace = true}
 cliclack = { workspace = true }
 console = { workspace = true }
 miette = { workspace = true }
-nova_vm = { path = "../nova_vm", features = ["typescript"] }
+nova_vm = { path = "../nova_vm" }
 oxc_ast = { workspace = true }
 oxc_parser = { workspace = true }
 oxc_span = { workspace = true }
