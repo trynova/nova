@@ -97,10 +97,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 exit_with_parse_errors(result.errors, &path, &file);
             }
 
-            let SemanticBuilderReturn {
-                errors,
-                ..
-            } = SemanticBuilder::new(&file, source_type).with_check_syntax_error(true).build(&result.program);
+            let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new(&file, source_type)
+                .with_check_syntax_error(true)
+                .build(&result.program);
 
             if !errors.is_empty() {
                 exit_with_parse_errors(result.errors, &path, &file);

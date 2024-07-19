@@ -198,10 +198,9 @@ pub fn parse_script(
         return Err((source_text, errors));
     }
 
-    let SemanticBuilderReturn {
-        errors,
-        ..
-    } = SemanticBuilder::new(&source_text, source_type).with_check_syntax_error(true).build(&program);
+    let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new(&source_text, source_type)
+        .with_check_syntax_error(true)
+        .build(&program);
 
     if !errors.is_empty() {
         // Make sure `program` can't borrow `source_text` so we can return it.

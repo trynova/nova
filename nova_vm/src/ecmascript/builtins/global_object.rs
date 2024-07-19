@@ -228,10 +228,9 @@ pub fn perform_eval(
         return Err(agent.throw_exception(ExceptionType::SyntaxError, "Invalid eval source text."));
     }
 
-    let SemanticBuilderReturn {
-        errors,
-        ..
-    } = SemanticBuilder::new(&source_text, source_type).with_check_syntax_error(true).build(&script);
+    let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new(&source_text, source_type)
+        .with_check_syntax_error(true)
+        .build(&script);
 
     if !errors.is_empty() {
         // Make sure `script` can't borrow `source_text` so we can return it.
