@@ -2734,13 +2734,17 @@ impl CompileEvaluation for ast::Statement<'_> {
             Statement::ExportAllDeclaration(_) => todo!(),
             Statement::ExportDefaultDeclaration(_) => todo!(),
             Statement::ExportNamedDeclaration(_) => todo!(),
+            #[cfg(feature = "typescript")]
+            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {}
+            #[cfg(not(feature = "typescript"))]
+            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {
+                unreachable!()
+            }
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)
-            | Statement::TSInterfaceDeclaration(_)
             | Statement::TSModuleDeclaration(_)
-            | Statement::TSNamespaceExportDeclaration(_)
-            | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
+            | Statement::TSNamespaceExportDeclaration(_) => unreachable!(),
         }
     }
 }

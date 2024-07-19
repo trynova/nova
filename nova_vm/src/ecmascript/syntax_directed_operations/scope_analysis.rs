@@ -1079,11 +1079,15 @@ impl<'a> TopLevelLexicallyDeclaredNames<'a> for Statement<'a> {
             Statement::UsingDeclaration(decl) => decl.bound_names(f),
             Statement::ImportDeclaration(decl) => decl.bound_names(f),
             Statement::ExportNamedDeclaration(decl) => decl.bound_names(f),
+            #[cfg(feature = "typescript")]
+            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {}
+            #[cfg(not(feature = "typescript"))]
+            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {
+                unreachable!()
+            }
             // Note: No bounds names for export all and export default declarations.
             Statement::ExportAllDeclaration(_) | Statement::ExportDefaultDeclaration(_) => {}
-            Statement::TSTypeAliasDeclaration(_)
-            | Statement::TSInterfaceDeclaration(_)
-            | Statement::TSEnumDeclaration(_)
+            Statement::TSEnumDeclaration(_)
             | Statement::TSModuleDeclaration(_)
             | Statement::TSImportEqualsDeclaration(_)
             | Statement::TSExportAssignment(_)
@@ -1158,13 +1162,17 @@ impl<'a> TopLevelLexicallyScopedDeclarations<'a> for Statement<'a> {
             }
             Statement::ClassDeclaration(decl) => f(LexicallyScopedDeclaration::Class(decl)),
             Statement::UsingDeclaration(_) => todo!(),
+            #[cfg(feature = "typescript")]
+            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {}
+            #[cfg(not(feature = "typescript"))]
+            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {
+                unreachable!()
+            }
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)
-            | Statement::TSInterfaceDeclaration(_)
             | Statement::TSModuleDeclaration(_)
-            | Statement::TSNamespaceExportDeclaration(_)
-            | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
+            | Statement::TSNamespaceExportDeclaration(_) => unreachable!(),
             // Note: TopLevelLexicallScopedDeclarations should only be reached
             // from Function body, Class static fields, and Script body. Module
             // declarations should never be reached.
@@ -1241,13 +1249,17 @@ impl<'a> TopLevelVarDeclaredNames<'a> for Statement<'a> {
             | Statement::VariableDeclaration(_)
             | Statement::WhileStatement(_)
             | Statement::WithStatement(_) => self.var_declared_names(f),
+            #[cfg(feature = "typescript")]
+            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {}
+            #[cfg(not(feature = "typescript"))]
+            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {
+                unreachable!()
+            }
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)
-            | Statement::TSInterfaceDeclaration(_)
             | Statement::TSModuleDeclaration(_)
-            | Statement::TSNamespaceExportDeclaration(_)
-            | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
+            | Statement::TSNamespaceExportDeclaration(_) => unreachable!(),
         }
     }
 }
@@ -1366,14 +1378,18 @@ impl<'a> TopLevelVarScopedDeclarations<'a> for Statement<'a> {
             | Statement::VariableDeclaration(_) => {
                 // 2. Return a new empty List.
             }
+            #[cfg(feature = "typescript")]
+            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {}
+            #[cfg(not(feature = "typescript"))]
+            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {
+                unreachable!()
+            }
             Statement::UsingDeclaration(_) => todo!(),
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)
-            | Statement::TSInterfaceDeclaration(_)
             | Statement::TSModuleDeclaration(_)
-            | Statement::TSNamespaceExportDeclaration(_)
-            | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
+            | Statement::TSNamespaceExportDeclaration(_) => unreachable!(),
         }
     }
 }
