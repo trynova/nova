@@ -18,5 +18,8 @@ ryu-js = { workspace = true }
 small_string = { path = "../small_string" }
 wtf8 = { workspace = true }
 
+[features]
+typescript = []
+
 [build-dependencies]
 small_string = { path = "../small_string" }

@@ -184,7 +184,10 @@ pub fn parse_script(
     host_defined: Option<HostDefined>,
 ) -> ScriptOrErrors {
     // 1. Let script be ParseText(sourceText, Script).
-    let source_type = SourceType::default().with_always_strict(strict_mode);
+    let mut source_type = SourceType::default().with_always_strict(strict_mode);
+    if cfg!(feature = "typescript") {
+        source_type = source_type.with_typescript(true);
+    }
     let parser = Parser::new(allocator, &source_text, source_type);
     let ParserReturn {
         errors, program, ..
