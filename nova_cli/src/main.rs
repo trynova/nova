@@ -18,6 +18,7 @@ use nova_vm::ecmascript::{
     types::{Object, Value},
 };
 use oxc_parser::Parser;
+use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
 use theme::DefaultTheme;
 
@@ -95,6 +96,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if !result.errors.is_empty() {
                 exit_with_parse_errors(result.errors, &path, &file);
             }
+
+            let SemanticBuilderReturn {
+                errors,
+                ..
+            } = SemanticBuilder::new(&file, source_type).with_check_syntax_error(true).build(&result.program);
+
+            if !errors.is_empty() {
+                exit_with_parse_errors(result.errors, &path, &file);
+            }
+
             println!("{:?}", result.program);
         }
         Command::Eval {

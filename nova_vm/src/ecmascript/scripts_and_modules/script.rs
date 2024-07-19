@@ -29,6 +29,7 @@ use oxc_ast::{
 };
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_parser::{Parser, ParserReturn};
+use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
 use std::{
     any::Any,
@@ -191,6 +192,17 @@ pub fn parse_script(
     } = parser.parse();
 
     // 2. If script is a List of errors, return script.
+    if !errors.is_empty() {
+        // Make sure `program` can't borrow `source_text` so we can return it.
+        drop(program);
+        return Err((source_text, errors));
+    }
+
+    let SemanticBuilderReturn {
+        errors,
+        ..
+    } = SemanticBuilder::new(&source_text, source_type).with_check_syntax_error(true).build(&program);
+
     if !errors.is_empty() {
         // Make sure `program` can't borrow `source_text` so we can return it.
         drop(program);
