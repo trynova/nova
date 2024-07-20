@@ -781,12 +781,26 @@ impl StringPrototype {
         todo!()
     }
 
-    fn to_lower_case(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    fn to_lower_case(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value)?;
+        // 2. Let S be ? ToString(O).
+        let s = to_string(agent, o)?;
+
+        // 3. Return the lower case version of the string
+        let lower_case_string = s.as_str(agent).to_lowercase();
+        Ok(String::from_string(agent, lower_case_string).into_value())
     }
 
-    fn to_upper_case(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    fn to_upper_case(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value)?;
+        // 2. Let S be ? ToString(O).
+        let s = to_string(agent, o)?;
+
+        // 3. Return the upper case version of the string
+        let upper_case_string = s.as_str(agent).to_uppercase();
+        Ok(String::from_string(agent, upper_case_string).into_value())
     }
 
     fn to_well_formed(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
