@@ -31149,7 +31149,7 @@
   "language/white-space/string-nbsp.js": "FAIL",
   "language/white-space/string-space.js": "FAIL",
   "language/white-space/string-vertical-tab.js": "FAIL",
-  "language/expressions/object/11.1.5-0-1.js": "FAIL",
+  "language/expressions/object/11.1.5-0-1.js": "PASS",
   "staging/ArrayBuffer/resizable/access-out-of-bounds-typed-array.js": "CRASH",
   "staging/ArrayBuffer/resizable/array-fill-parameter-conversion-resizes.js": "CRASH",
   "staging/ArrayBuffer/resizable/array-sort-with-default-comparison.js": "CRASH",
