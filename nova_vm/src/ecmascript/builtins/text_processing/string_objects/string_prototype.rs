@@ -781,6 +781,7 @@ impl StringPrototype {
         todo!()
     }
 
+    /// > NOTE: The implementation might not reflect the spec.
     fn to_lower_case(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
@@ -795,13 +796,17 @@ impl StringPrototype {
         Ok(String::from_string(agent, lower_case_string).into_value())
     }
 
+    /// > NOTE: The implementation might not reflect the spec.
     fn to_upper_case(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, o)?;
 
-        // 3. Return the upper case version of the string
+        // 3. Let sText be [StringToCodePoints](https://tc39.es/ecma262/#sec-stringtocodepoints)(S).
+        // 4. Let upperText be toUppercase(sText), according to the Unicode Default Case Conversion algorithm.
+        // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(upperText).
+        // 6. Return L.
         let upper_case_string = s.as_str(agent).to_uppercase();
         Ok(String::from_string(agent, upper_case_string).into_value())
     }
