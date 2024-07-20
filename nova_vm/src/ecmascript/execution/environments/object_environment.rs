@@ -220,7 +220,7 @@ impl ObjectEnvironmentIndex {
             let binding_object_repr = binding_object.into_value().string_repr(agent);
             let error_message = format!(
                 "Property '{}' does not exist in {}.",
-                n.to_display(agent),
+                n.as_display(agent),
                 binding_object_repr.as_str(agent)
             );
             Err(agent.throw_exception(ExceptionType::ReferenceError, error_message))
@@ -260,7 +260,7 @@ impl ObjectEnvironmentIndex {
                 let binding_object_repr = binding_object.into_value().string_repr(agent);
                 let error_message = format!(
                     "Property '{}' does not exist in {}.",
-                    name.to_display(agent),
+                    name.as_display(agent),
                     binding_object_repr.as_str(agent)
                 );
                 Err(agent.throw_exception(ExceptionType::ReferenceError, error_message))

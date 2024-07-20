@@ -84,7 +84,7 @@ impl PropertyKey {
         }
     }
 
-    pub(crate) fn to_display<'a, 'b>(&'a self, agent: &'b Agent) -> DisplayablePropertyKey<'a, 'b> {
+    pub(crate) fn as_display<'a, 'b>(&'a self, agent: &'b Agent) -> DisplayablePropertyKey<'a, 'b> {
         DisplayablePropertyKey { key: self, agent }
     }
 }

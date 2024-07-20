@@ -94,7 +94,7 @@ pub(crate) fn set(
     if !success && throw {
         return Err(agent.throw_exception(
             ExceptionType::TypeError,
-            format!("Could not set property '{}'.", p.to_display(agent)),
+            format!("Could not set property '{}'.", p.as_display(agent)),
         ));
     }
     // 3. Return UNUSED.
@@ -151,7 +151,7 @@ pub(crate) fn create_data_property_or_throw(
             ExceptionType::TypeError,
             format!(
                 "Could not create property '{}'.",
-                property_key.to_display(agent)
+                property_key.as_display(agent)
             ),
         ))
     } else {

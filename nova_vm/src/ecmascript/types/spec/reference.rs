@@ -117,14 +117,14 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
                     Value::Undefined => {
                         let error_message = format!(
                             "Cannot read property '{}' of undefined.",
-                            referenced_name.to_display(agent)
+                            referenced_name.as_display(agent)
                         );
                         Err(agent.throw_exception(ExceptionType::TypeError, error_message))
                     }
                     Value::Null => {
                         let error_message = format!(
                             "Cannot read property '{}' of null.",
-                            referenced_name.to_display(agent)
+                            referenced_name.as_display(agent)
                         );
                         Err(agent.throw_exception(ExceptionType::TypeError, error_message))
                     }
@@ -182,7 +182,7 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             // 2. If IsUnresolvableReference(V) is true, throw a ReferenceError exception.
             let error_message = format!(
                 "Cannot access undeclared variable '{}'.",
-                referenced_name.to_display(agent)
+                referenced_name.as_display(agent)
             );
             Err(agent.throw_exception(ExceptionType::ReferenceError, error_message))
         }
@@ -202,7 +202,7 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
             // a. If V.[[Strict]] is true, throw a ReferenceError exception.
             let error_message = format!(
                 "Cannot assign to undeclared variable '{}'.",
-                v.referenced_name.to_display(agent)
+                v.referenced_name.as_display(agent)
             );
             return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message));
         }
@@ -235,7 +235,7 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
             let base_obj_repr = base_obj.into_value().string_repr(agent);
             let error_message = format!(
                 "Could not set property '{}' of {}.",
-                referenced_name.to_display(agent),
+                referenced_name.as_display(agent),
                 base_obj_repr.as_str(agent)
             );
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
