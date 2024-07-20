@@ -787,7 +787,10 @@ impl StringPrototype {
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, o)?;
 
-        // 3. Return the lower case version of the string
+        // 3. Let sText be [StringToCodePoints](https://tc39.es/ecma262/#sec-stringtocodepoints)(S).
+        // 4. Let lowerText be toLowercase(sText), according to the Unicode Default Case Conversion algorithm.
+        // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(lowerText).
+        // 6. Return L.
         let lower_case_string = s.as_str(agent).to_lowercase();
         Ok(String::from_string(agent, lower_case_string).into_value())
     }
