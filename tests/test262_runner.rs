@@ -765,7 +765,7 @@ fn main() {
         assert!(path.pop());
         path.push("nova_cli");
         if cfg!(windows) {
-            path.set_extension(".exe");
+            path.set_extension("exe");
         }
         assert!(path.is_file());
         path
