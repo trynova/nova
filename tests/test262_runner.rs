@@ -755,7 +755,11 @@ fn main() {
     // We're expecting this binary to always be run in the same machine at
     // the same time as the repo checkout exists.
     let runner_base_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let tests_base = runner_base_path.join("test262/test");
+    let tests_base = runner_base_path
+        .join("test262")
+        .join("test")
+        .canonicalize()
+        .unwrap();
     let nova_harness_path = runner_base_path.join("nova-harness.js");
 
     let nova_cli_path = {
