@@ -95,7 +95,10 @@ impl FunctionPrototype {
 
     fn apply(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
         let Some(func) = is_callable(this_value) else {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable value"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Not a callable value",
+            ));
         };
         let this_arg = args.get(0);
         let arg_array = args.get(1);
@@ -107,9 +110,10 @@ impl FunctionPrototype {
         let elements = match arg_array {
             Value::Array(array) => array.as_slice(agent),
             _ => {
-                return Err(
-                    agent.throw_exception(ExceptionType::TypeError, "Not a valid arguments array")
-                );
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Not a valid arguments array",
+                ));
             }
         };
         let args: Vec<Value> = elements
@@ -127,7 +131,10 @@ impl FunctionPrototype {
 
     fn call(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
         let Some(func) = is_callable(this_value) else {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable value"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Not a callable value",
+            ));
         };
         // TODO: PrepareForTailCall
         let this_arg = args.get(0);
@@ -139,7 +146,10 @@ impl FunctionPrototype {
         // Let func be the this value.
         let Ok(func) = Function::try_from(this_value) else {
             // 5. Throw a TypeError exception.
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable value"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Not a callable value",
+            ));
         };
 
         match func {
@@ -284,7 +294,7 @@ impl BuiltinIntrinsic for ThrowTypeError {
 
 impl ThrowTypeError {
     fn behaviour(agent: &mut Agent, _: Value, _: ArgumentsList) -> JsResult<Value> {
-        Err(agent.throw_exception(ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"))
+        Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

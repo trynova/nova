@@ -49,7 +49,7 @@ pub(crate) fn allocate_array_buffer(
     if allocating_resizable_buffer {
         // a. If byteLength > maxByteLength, throw a RangeError exception.
         if byte_length > max_byte_length.unwrap() {
-            return Err(agent.throw_exception(
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
                 "Byte length is over maximumm byte length",
             ));
@@ -244,7 +244,8 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
     if (0..=(2i64.pow(53) - 1)).contains(&integer) {
         Ok(Some(integer))
     } else {
-        Err(agent.throw_exception(ExceptionType::RangeError, "Not a SafeInteger"))
+        Err(agent
+            .throw_exception_with_static_message(ExceptionType::RangeError, "Not a SafeInteger"))
     }
 }
 

@@ -217,7 +217,13 @@ impl ObjectEnvironmentIndex {
         let still_exists = has_property(agent, binding_object, n)?;
         // 3. If stillExists is false and S is true, throw a ReferenceError exception.
         if !still_exists && s {
-            Err(agent.throw_exception(ExceptionType::ReferenceError, "Property does not exist"))
+            let binding_object_repr = binding_object.into_value().string_repr(agent);
+            let error_message = format!(
+                "Property '{}' does not exist in {}.",
+                n.to_display(agent),
+                binding_object_repr.as_str(agent)
+            );
+            Err(agent.throw_exception(ExceptionType::ReferenceError, error_message))
         } else {
             // 4. Perform ? Set(bindingObject, N, V, S).
             set(agent, binding_object, n, v, s)?;
@@ -251,7 +257,13 @@ impl ObjectEnvironmentIndex {
             if !s {
                 Ok(Value::Undefined)
             } else {
-                Err(agent.throw_exception(ExceptionType::ReferenceError, "Property does not exist"))
+                let binding_object_repr = binding_object.into_value().string_repr(agent);
+                let error_message = format!(
+                    "Property '{}' does not exist in {}.",
+                    name.to_display(agent),
+                    binding_object_repr.as_str(agent)
+                );
+                Err(agent.throw_exception(ExceptionType::ReferenceError, error_message))
             }
         } else {
             // 4. Return ? Get(bindingObject, N).

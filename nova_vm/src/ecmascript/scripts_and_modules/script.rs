@@ -363,9 +363,11 @@ pub(crate) fn global_declaration_instantiation(
             // d. If hasRestrictedGlobal is true, throw a SyntaxError exception.
             || env.has_restricted_global_property(agent, name)?
         {
-            return Err(
-                agent.throw_exception(ExceptionType::SyntaxError, "Variable already defined.")
+            let error_message = format!(
+                "Redeclaration of restricted global property '{}'.",
+                name.as_str(agent)
             );
+            return Err(agent.throw_exception(ExceptionType::SyntaxError, error_message));
         }
     }
 
@@ -374,9 +376,9 @@ pub(crate) fn global_declaration_instantiation(
         // a. If env.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
         let name = String::from_str(agent, name.as_str());
         if env.has_lexical_declaration(agent, name) {
-            return Err(
-                agent.throw_exception(ExceptionType::SyntaxError, "Variable already defined.")
-            );
+            let error_message =
+                format!("Redeclaration of lexical binding '{}'.", name.as_str(agent));
+            return Err(agent.throw_exception(ExceptionType::SyntaxError, error_message));
         }
     }
 
@@ -404,10 +406,11 @@ pub(crate) fn global_declaration_instantiation(
                 let fn_definable = env.can_declare_global_function(agent, function_name)?;
                 // 2. If fnDefinable is false, throw a TypeError exception.
                 if !fn_definable {
-                    return Err(agent.throw_exception(
-                        ExceptionType::TypeError,
-                        "Cannot declare global function.",
-                    ));
+                    let error_message = format!(
+                        "Cannot declare of global function '{}'.",
+                        function_name.as_str(agent)
+                    );
+                    return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
                 }
                 // 3. Append fn to declaredFunctionNames.
                 // 4. Insert d as the first element of functionsToInitialize.
@@ -435,10 +438,9 @@ pub(crate) fn global_declaration_instantiation(
                     let vn_definable = env.can_declare_global_var(agent, vn)?;
                     // b. If vnDefinable is false, throw a TypeError exception.
                     if !vn_definable {
-                        return Err(agent.throw_exception(
-                            ExceptionType::TypeError,
-                            "Cannot declare global variable.",
-                        ));
+                        let error_message =
+                            format!("Cannot declare global variable '{}'.", vn.as_str(agent));
+                        return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
                     }
                     // c. If declaredVarNames does not contain vn, then
                     // i. Append vn to declaredVarNames.

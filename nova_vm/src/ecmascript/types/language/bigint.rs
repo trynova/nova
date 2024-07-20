@@ -211,9 +211,10 @@ impl BigInt {
             BigInt::BigInt(x) => agent[x].data < 0.into(),
             _ => false,
         } {
-            return Err(
-                agent.throw_exception(ExceptionType::RangeError, "exponent must be positive")
-            );
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "exponent must be positive",
+            ));
         }
 
         // TODO: 2. If base is 0ℤ and exponent is 0ℤ, return 1ℤ.
@@ -221,7 +222,10 @@ impl BigInt {
         // NOTE: The BigInt implementation does not support native
         // exponentiation.
 
-        Err(agent.throw_exception(ExceptionType::EvalError, "Unsupported operation."))
+        Err(agent.throw_exception_with_static_message(
+            ExceptionType::EvalError,
+            "Unsupported operation.",
+        ))
     }
 
     /// ### [6.1.6.2.4 BigInt::multiply ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-multiply)

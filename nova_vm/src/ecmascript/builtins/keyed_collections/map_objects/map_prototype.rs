@@ -183,7 +183,7 @@ impl MapPrototype {
         let m = require_map_data_internal_slot(agent, this_value)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
-            return Err(agent.throw_exception(
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function parameter is not callable",
             ));
@@ -369,7 +369,8 @@ impl MapPrototype {
 fn require_map_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<Map> {
     match value {
         Value::Map(map) => Ok(map),
-        _ => Err(agent.throw_exception(ExceptionType::TypeError, "Object is not a Map")),
+        _ => Err(agent
+            .throw_exception_with_static_message(ExceptionType::TypeError, "Object is not a Map")),
     }
 }
 

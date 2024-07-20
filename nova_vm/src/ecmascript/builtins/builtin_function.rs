@@ -529,7 +529,10 @@ pub(crate) fn builtin_call_or_construct(
     let result = match func {
         Behaviour::Regular(func) => {
             if new_target.is_some() {
-                Err(agent.throw_exception(ExceptionType::TypeError, "Not a constructor"))
+                Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Not a constructor",
+                ))
             } else {
                 func(
                     agent,
@@ -683,14 +686,6 @@ pub fn define_builtin_property(
     _descriptor: PropertyDescriptor,
 ) -> JsResult<()> {
     Ok(())
-}
-
-pub fn todo_builtin(agent: &mut Agent, _: Value, _: ArgumentsList) -> JsResult<Value> {
-    agent.throw_exception(
-        crate::ecmascript::execution::agent::ExceptionType::SyntaxError,
-        "TODO: Builtin not implemented.",
-    );
-    Err(Default::default())
 }
 
 impl CreateHeapData<BuiltinFunctionHeapData, BuiltinFunction> for Heap {

@@ -95,7 +95,10 @@ pub(crate) fn to_primitive(
             // v. If result is not an Object, return result.
             Primitive::try_from(result).map_err(|_| {
                 // vi. Throw a TypeError exception.
-                agent.throw_exception(ExceptionType::TypeError, "Invalid toPrimitive return value")
+                agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Invalid toPrimitive return value",
+                )
             })
         } else {
             // c. If preferredType is not present, let preferredType be NUMBER.
@@ -151,7 +154,10 @@ pub(crate) fn ordinary_to_primitive(
         }
     }
     // 4. Throw a TypeError exception.
-    Err(agent.throw_exception(ExceptionType::TypeError, "Could not convert to primitive"))
+    Err(agent.throw_exception_with_static_message(
+        ExceptionType::TypeError,
+        "Could not convert to primitive",
+    ))
 }
 
 /// ### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
@@ -208,16 +214,18 @@ pub(crate) fn to_number(agent: &mut Agent, argument: impl Into<Value> + Copy) ->
         Value::String(str) => Ok(string_to_number(agent, str.into())),
         Value::SmallString(str) => Ok(string_to_number(agent, str.into())),
         // 2. If argument is either a Symbol or a BigInt, throw a TypeError exception.
-        Value::Symbol(_) => {
-            Err(agent.throw_exception(ExceptionType::TypeError, "cannot convert symbol to number"))
-        }
+        Value::Symbol(_) => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "cannot convert symbol to number",
+        )),
         // 1. If argument is a Number, return argument.
         Value::Number(idx) => Ok(idx.into()),
         Value::Integer(idx) => Ok(idx.into()),
         Value::SmallF64(idx) => Ok(idx.into()),
-        Value::BigInt(_) | Value::SmallBigInt(_) => {
-            Err(agent.throw_exception(ExceptionType::TypeError, "cannot convert bigint to number"))
-        }
+        Value::BigInt(_) | Value::SmallBigInt(_) => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "cannot convert bigint to number",
+        )),
         _ => {
             // 7. Assert: argument is an Object.
             let argument = Object::try_from(argument).unwrap();
@@ -592,12 +600,14 @@ pub(crate) fn to_big_int(agent: &mut Agent, argument: Value) -> JsResult<BigInt>
 
     // 2. Return the value that prim corresponds to in Table 12.
     match prim {
-        Primitive::Undefined => {
-            Err(agent.throw_exception(ExceptionType::TypeError, "Invalid primitive 'undefined'"))
-        }
-        Primitive::Null => {
-            Err(agent.throw_exception(ExceptionType::TypeError, "Invalid primitive 'null'"))
-        }
+        Primitive::Undefined => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Invalid primitive 'undefined'",
+        )),
+        Primitive::Null => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Invalid primitive 'null'",
+        )),
         Primitive::Boolean(bool) => {
             if bool {
                 Ok(BigInt::from(1))
@@ -608,27 +618,32 @@ pub(crate) fn to_big_int(agent: &mut Agent, argument: Value) -> JsResult<BigInt>
         Primitive::String(idx) => {
             let result = string_to_big_int(agent, idx.into());
             let Some(result) = result else {
-                return Err(
-                    agent.throw_exception(ExceptionType::TypeError, "Invalid BigInt string")
-                );
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Invalid BigInt string",
+                ));
             };
             Ok(result)
         }
         Primitive::SmallString(data) => {
             let result = string_to_big_int(agent, data.into());
             let Some(result) = result else {
-                return Err(
-                    agent.throw_exception(ExceptionType::TypeError, "Invalid BigInt string")
-                );
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Invalid BigInt string",
+                ));
             };
             Ok(result)
         }
-        Primitive::Symbol(_) => {
-            Err(agent.throw_exception(ExceptionType::TypeError, "Cannot convert Symbol to BigInt"))
-        }
-        Primitive::Number(_) | Primitive::Integer(_) | Primitive::SmallF64(_) => {
-            Err(agent.throw_exception(ExceptionType::TypeError, "Cannot convert Number to BigInt"))
-        }
+        Primitive::Symbol(_) => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Cannot convert Symbol to BigInt",
+        )),
+        Primitive::Number(_) | Primitive::Integer(_) | Primitive::SmallF64(_) => Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Cannot convert Number to BigInt",
+            )),
         Primitive::BigInt(idx) => Ok(idx.into()),
         Primitive::SmallBigInt(data) => Ok(data.into()),
     }
@@ -667,9 +682,10 @@ pub(crate) fn to_string(agent: &mut Agent, argument: impl Into<Value> + Copy) ->
         Value::String(idx) => Ok(String::String(idx)),
         Value::SmallString(data) => Ok(String::SmallString(data)),
         // 2. If argument is a Symbol, throw a TypeError exception.
-        Value::Symbol(_) => {
-            Err(agent.throw_exception(ExceptionType::TypeError, "Cannot turn Symbol into string"))
-        }
+        Value::Symbol(_) => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Cannot turn Symbol into string",
+        )),
         // 7. If argument is a Number, return Number::toString(argument, 10).
         Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => {
             Number::to_string_radix_10(agent, Number::try_from(argument).unwrap())
@@ -698,7 +714,7 @@ pub(crate) fn to_string(agent: &mut Agent, argument: impl Into<Value> + Copy) ->
 /// according to [Table 13](https://tc39.es/ecma262/#table-toobject-conversions):
 pub(crate) fn to_object(agent: &mut Agent, argument: Value) -> JsResult<Object> {
     match argument {
-        Value::Undefined | Value::Null => Err(agent.throw_exception(
+        Value::Undefined | Value::Null => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Argument cannot be converted into an object",
         )),
@@ -936,7 +952,10 @@ pub(crate) fn to_index(agent: &mut Agent, argument: Value) -> JsResult<i64> {
     if let Value::Integer(integer) = argument {
         let integer = integer.into_i64();
         if !(0..=(SmallInteger::MAX_NUMBER)).contains(&integer) {
-            return Err(agent.throw_exception(ExceptionType::RangeError, "Result is out of range"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Index is out of range",
+            ));
         }
         return Ok(integer);
     }
@@ -949,12 +968,18 @@ pub(crate) fn to_index(agent: &mut Agent, argument: Value) -> JsResult<i64> {
     let integer = if let Number::Integer(n) = integer {
         let integer = n.into_i64();
         if !(0..=(SmallInteger::MAX_NUMBER)).contains(&integer) {
-            return Err(agent.throw_exception(ExceptionType::RangeError, "Result is out of range"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Index is out of range",
+            ));
         }
         integer
     } else {
         // to_integer_or_infinity returns +0, +Infinity, -Infinity, or an integer.
-        return Err(agent.throw_exception(ExceptionType::RangeError, "Result is out of range"));
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "Index is out of range",
+        ));
     };
 
     // 3. Return integer.

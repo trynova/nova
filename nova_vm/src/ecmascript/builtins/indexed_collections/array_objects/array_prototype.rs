@@ -338,7 +338,10 @@ impl ArrayPrototype {
                 let len = length_of_array_like(agent, e)?;
                 // ii. If n + len > 2**53 - 1, throw a TypeError exception.
                 if (n + len) > SmallInteger::MAX_NUMBER {
-                    return Err(agent.throw_exception(ExceptionType::TypeError, "Array overflow"));
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Array overflow",
+                    ));
                 }
                 // iii. Let k be 0.
                 let mut k = 0;
@@ -370,7 +373,10 @@ impl ArrayPrototype {
                 // i. NOTE: E is added as a single item rather than spread.
                 // ii. If n ≥ 2**53 - 1, throw a TypeError exception.
                 if n >= SmallInteger::MAX_NUMBER {
-                    return Err(agent.throw_exception(ExceptionType::TypeError, "Array overflow"));
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Array overflow",
+                    ));
                 }
                 // iii. Perform ? CreateDataPropertyOrThrow(A, ! ToString(𝔽(n)), E).
                 create_data_property_or_throw(
@@ -615,9 +621,10 @@ impl ArrayPrototype {
         let callback_fn = arguments.get(0);
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
-            return Err(
-                agent.throw_exception(ExceptionType::TypeError, "Callback is not a function")
-            );
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Callback is not a function",
+            ));
         };
         let this_arg = arguments.get(1);
         // 4. Let k be 0.
@@ -809,7 +816,7 @@ impl ArrayPrototype {
         let len = length_of_array_like(agent, o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
-            return Err(agent.throw_exception(
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not callable",
             ));
@@ -1003,9 +1010,10 @@ impl ArrayPrototype {
         let source_len = length_of_array_like(agent, o)? as usize;
         // 3. If IsCallable(mapperFunction) is false, throw a TypeError exception.
         let Some(mapper_function) = is_callable(mapper_function) else {
-            return Err(
-                agent.throw_exception(ExceptionType::TypeError, "Mapper function is not callable")
-            );
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Mapper function is not callable",
+            ));
         };
         // 4. Let A be ? ArraySpeciesCreate(O, 0).
         let a = array_species_create(agent, o, 0)?;
@@ -1068,7 +1076,7 @@ impl ArrayPrototype {
 
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
-            return Err(agent.throw_exception(
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
@@ -1585,7 +1593,7 @@ impl ArrayPrototype {
         let len = length_of_array_like(agent, o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
-            return Err(agent.throw_exception(
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
@@ -1645,8 +1653,10 @@ impl ArrayPrototype {
                 let length_writable = agent[array].elements.len_writable;
                 if len == 0 {
                     return if !length_writable {
-                        Err(agent
-                            .throw_exception(ExceptionType::TypeError, "Could not set property."))
+                        Err(agent.throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "Could not set property.",
+                        ))
                     } else {
                         Ok(Value::Undefined)
                     };
@@ -1658,8 +1668,10 @@ impl ArrayPrototype {
                     if length_writable {
                         agent[array].elements.len -= 1;
                     } else {
-                        return Err(agent
-                            .throw_exception(ExceptionType::TypeError, "Could not set property."));
+                        return Err(agent.throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "Could not set property.",
+                        ));
                     }
                     return Ok(last_element);
                 }
@@ -1730,7 +1742,10 @@ impl ArrayPrototype {
         let arg_count = items.len();
         // 4. If len + argCount > 2**53 - 1, throw a TypeError exception.
         if (len + arg_count as i64) > SmallInteger::MAX_NUMBER {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Array length overflow"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Array length overflow",
+            ));
         }
         if let Object::Array(array) = o {
             // Fast path: Reserve enough room in the array.
@@ -2113,7 +2128,7 @@ impl ArrayPrototype {
         let len = length_of_array_like(agent, o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
-            return Err(agent.throw_exception(
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not callable",
             ));
@@ -2400,7 +2415,10 @@ fn find_via_predicate(
 ) -> JsResult<(i64, Value)> {
     // 1. If IsCallable(predicate) is false, throw a TypeError exception.
     let Some(predicate) = is_callable(predicate) else {
-        return Err(agent.throw_exception(ExceptionType::TypeError, "Predicate is not a function"));
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Predicate is not a function",
+        ));
     };
     // 4. For each integer k of indices, do
     let check = |agent: &mut Agent,
@@ -2537,9 +2555,10 @@ fn flatten_into_array(
             // vi. Else,
             // 1. If targetIndex ≥ 2**53 - 1, throw a TypeError exception.
             if target_index >= SmallInteger::MAX_NUMBER as usize {
-                return Err(
-                    agent.throw_exception(ExceptionType::TypeError, "Target index overflowed")
-                );
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Target index overflowed",
+                ));
             }
             // 2. Perform ? CreateDataPropertyOrThrow(target, ! ToString(𝔽(targetIndex)), element).
             create_data_property_or_throw(

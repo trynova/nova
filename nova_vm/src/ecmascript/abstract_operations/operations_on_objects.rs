@@ -92,7 +92,10 @@ pub(crate) fn set(
     let success = o.internal_set(agent, p, v, o.into_value())?;
     // 2. If success is false and Throw is true, throw a TypeError exception.
     if !success && throw {
-        return Err(agent.throw_exception(ExceptionType::TypeError, "Could not set property."));
+        return Err(agent.throw_exception(
+            ExceptionType::TypeError,
+            format!("Could not set property '{}'.", p.to_display(agent)),
+        ));
     }
     // 3. Return UNUSED.
     Ok(())
@@ -144,7 +147,13 @@ pub(crate) fn create_data_property_or_throw(
 ) -> JsResult<()> {
     let success = create_data_property(agent, object, property_key, value)?;
     if !success {
-        Err(agent.throw_exception(ExceptionType::TypeError, "Could not create property"))
+        Err(agent.throw_exception(
+            ExceptionType::TypeError,
+            format!(
+                "Could not create property '{}'.",
+                property_key.to_display(agent)
+            ),
+        ))
     } else {
         Ok(())
     }
@@ -168,7 +177,7 @@ pub(crate) fn define_property_or_throw(
     let success = object.internal_define_own_property(agent, property_key, desc)?;
     // 2. If success is false, throw a TypeError exception.
     if !success {
-        Err(agent.throw_exception(
+        Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Failed to defined property on object",
         ))
@@ -193,7 +202,10 @@ pub(crate) fn delete_property_or_throw(
     let success = o.internal_delete(agent, p)?;
     // 2. If success is false, throw a TypeError exception.
     if !success {
-        Err(agent.throw_exception(ExceptionType::TypeError, "Failed to delete property"))
+        Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Failed to delete property",
+        ))
     } else {
         // 3. Return unused.
         Ok(())
@@ -222,7 +234,10 @@ pub(crate) fn get_method(
     // 3. If IsCallable(func) is false, throw a TypeError exception.
     let func = is_callable(func);
     if func.is_none() {
-        return Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable object"));
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Not a callable object",
+        ));
     }
     // 4. Return func.
     Ok(func)
@@ -275,7 +290,10 @@ pub(crate) fn call(
     let arguments_list = arguments_list.unwrap_or_default();
     // 2. If IsCallable(F) is false, throw a TypeError exception.
     match is_callable(f) {
-        None => Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable object")),
+        None => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Not a callable object",
+        )),
         // 3. Return ? F.[[Call]](V, argumentsList).
         Some(f) => f.internal_call(agent, v, arguments_list),
     }
@@ -489,7 +507,10 @@ pub(crate) fn create_list_from_array_like(agent: &mut Agent, obj: Value) -> JsRe
             Ok(list)
         }
         // 2. If obj is not an Object, throw a TypeError exception.
-        _ => Err(agent.throw_exception(ExceptionType::TypeError, "Not an object")),
+        _ => {
+            Err(agent
+                .throw_exception_with_static_message(ExceptionType::TypeError, "Not an object"))
+        }
     }
 }
 
@@ -573,7 +594,10 @@ pub(crate) fn ordinary_has_instance(
     let p = get(agent, c, key)?;
     // 5. If P is not an Object, throw a TypeError exception.
     let Ok(p) = Object::try_from(p) else {
-        return Err(agent.throw_exception(ExceptionType::TypeError, "Non-object prototype found"));
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Non-object prototype found",
+        ));
     };
     // 6. Repeat,
     loop {

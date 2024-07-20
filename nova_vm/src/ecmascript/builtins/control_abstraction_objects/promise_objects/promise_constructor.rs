@@ -97,7 +97,7 @@ impl PromiseConstructor {
     ) -> JsResult<Value> {
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
-            return Err(agent.throw_exception(
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Promise Constructor requires 'new'",
             ));
@@ -112,7 +112,10 @@ impl PromiseConstructor {
         // 2. If IsCallable(executor) is false, throw a TypeError exception.
         // TODO: Callable proxies
         let Ok(executor) = Function::try_from(args.get(0)) else {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Not a callable value"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Not a callable value",
+            ));
         };
 
         // 3. Let promise be ? OrdinaryCreateFromConstructor(NewTarget, "%Promise.prototype%", « [[PromiseState]], [[PromiseResult]], [[PromiseFulfillReactions]], [[PromiseRejectReactions]], [[PromiseIsHandled]] »).

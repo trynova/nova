@@ -102,6 +102,8 @@ fn this_big_int_value(agent: &mut Agent, value: Value) -> JsResult<BigInt> {
         Value::BigInt(idx) => Ok(idx.into()),
         Value::SmallBigInt(data) => Ok(data.into()),
         // TODO: Primitive objects
-        _ => Err(agent.throw_exception(ExceptionType::TypeError, "Not a BigInt")),
+        _ => {
+            Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "Not a BigInt"))
+        }
     }
 }

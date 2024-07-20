@@ -50,7 +50,7 @@ pub(crate) use array::{ArrayHeapData, SealableElementsVector};
 pub use array_buffer::ArrayBuffer;
 pub(crate) use array_buffer::ArrayBufferHeapData;
 pub use builtin_function::{
-    create_builtin_function, todo_builtin, ArgumentsList, Behaviour, Builtin, BuiltinFunction,
+    create_builtin_function, ArgumentsList, Behaviour, Builtin, BuiltinFunction,
     BuiltinFunctionArgs, BuiltinGetter, ConstructorFn, RegularFn as JsFunction, RegularFn,
 };
 pub(crate) use builtin_function::{BuiltinIntrinsic, BuiltinIntrinsicConstructor};

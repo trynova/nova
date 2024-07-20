@@ -98,7 +98,7 @@ impl NumberPrototype {
         let f = f.into_i64(agent);
         // 5. If f < 0 or f > 100, throw a RangeError exception.
         if !(0..=100).contains(&f) {
-            return Err(agent.throw_exception(
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
                 "Fraction digits count out of range",
             ));
@@ -128,7 +128,7 @@ impl NumberPrototype {
         debug_assert!(!fraction_digits.is_undefined() || f.is_pos_zero(agent));
         // 4. If f is not finite, throw a RangeError exception.
         if !f.is_finite(agent) {
-            return Err(agent.throw_exception(
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
                 "Fraction digits count out of range",
             ));
@@ -136,7 +136,7 @@ impl NumberPrototype {
         let f = f.into_i64(agent);
         // 5. If f < 0 or f > 100, throw a RangeError exception.
         if !(0..=100).contains(&f) {
-            return Err(agent.throw_exception(
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
                 "Fraction digits count out of range",
             ));
@@ -250,5 +250,5 @@ fn this_number_value(agent: &mut Agent, value: Value) -> JsResult<Number> {
         }
     }
     // 3. Throw a TypeError exception.
-    Err(agent.throw_exception(ExceptionType::TypeError, "Not a Number"))
+    Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "Not a Number"))
 }

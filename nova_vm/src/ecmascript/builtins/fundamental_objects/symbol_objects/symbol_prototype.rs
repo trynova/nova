@@ -168,7 +168,8 @@ fn this_symbol_value(agent: &mut Agent, value: Value) -> JsResult<Symbol> {
             let s: Symbol = agent[object].data.try_into().unwrap();
             Ok(s)
         }
-        _ => Err(agent.throw_exception(ExceptionType::TypeError, "this is not a symbol")),
+        _ => Err(agent
+            .throw_exception_with_static_message(ExceptionType::TypeError, "this is not a symbol")),
     }
 }
 

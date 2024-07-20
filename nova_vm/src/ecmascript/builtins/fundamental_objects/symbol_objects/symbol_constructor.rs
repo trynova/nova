@@ -65,9 +65,10 @@ impl SymbolConstructor {
         new_target: Option<Object>,
     ) -> JsResult<Value> {
         if new_target.is_some() {
-            return Err(
-                agent.throw_exception(ExceptionType::TypeError, "Symbol is not a constructor")
-            );
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Symbol is not a constructor",
+            ));
         }
         let description = arguments.get(0);
         let desc_string = if description.is_undefined() {
