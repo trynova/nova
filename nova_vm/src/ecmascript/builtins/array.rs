@@ -221,15 +221,26 @@ impl InternalMethods for Array {
                     return Ok(None);
                 }
             }
+            // ARRAY_INDEX_RANGE guarantees were in u32 area.
+            let index = index as u32;
             let elements = agent[self].elements;
-            let elements = &agent[elements];
-            if let Some(value) = elements.get(index as usize) {
-                return Ok(value.map(|value| PropertyDescriptor {
-                    value: Some(value),
-                    ..Default::default()
-                }));
+            let length = elements.len();
+            if index >= length {
+                // Out of bounds
+                return Ok(None);
             }
-            return Ok(None);
+            let elements = elements.into();
+            let index = index as usize;
+            // We checked that we're within the vector bounds.
+            let value = *agent.heap.elements.get(elements).get(index).unwrap();
+            let descriptor = agent.heap.elements.get_descriptor(elements, index);
+            return if value.is_none() && descriptor.is_none() {
+                Ok(None)
+            } else {
+                Ok(Some(ElementDescriptor::to_property_descriptor(
+                    descriptor, value,
+                )))
+            };
         }
         let length_key = PropertyKey::from(BUILTIN_STRING_MEMORY.length);
         let array_data = agent[self];
@@ -636,7 +647,7 @@ fn ordinary_define_own_property_for_array(
             // i. If Desc has a [[Get]] field and SameValue(Desc.[[Get]], current.[[Get]]) is false,
             //    return false.
             if let Some(desc_get) = descriptor.get {
-                if desc_get != current_getter.unwrap() {
+                if current_getter.map_or(true, |current_getter| desc_get != current_getter) {
                     return false;
                 }
             }
@@ -644,7 +655,7 @@ fn ordinary_define_own_property_for_array(
             // ii. If Desc has a [[Set]] field and SameValue(Desc.[[Set]], current.[[Set]]) is
             //     false, return false.
             if let Some(desc_set) = descriptor.set {
-                if desc_set != current_setter.unwrap() {
+                if current_setter.map_or(true, |current_setter| desc_set != current_setter) {
                     return false;
                 }
             }
