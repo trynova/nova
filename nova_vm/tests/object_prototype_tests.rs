@@ -30,7 +30,8 @@ fn object_prototype_tests() {
     let realm = agent.create_default_realm();
     agent.run_in_realm(&realm, |agent| {
         let realm = agent.current_realm_id();
-        let script = parse_script(&allocator, contents.into_boxed_str(), realm, false, None).unwrap();
+        let script =
+            parse_script(&allocator, contents.into_boxed_str(), realm, false, None).unwrap();
         let _ = script_evaluation(agent, script).unwrap_or_else(|err| {
             panic!(
                 "Test '{}' failed: {:?}",

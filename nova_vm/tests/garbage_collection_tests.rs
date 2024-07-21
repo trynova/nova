@@ -78,8 +78,14 @@ fn garbage_collection_tests() {
     );
     agent.run_in_realm(&realm, |agent| {
         let realm = agent.current_realm_id();
-        let script =
-            parse_script(&allocator, header_contents.into_boxed_str(), realm, None).unwrap();
+        let script = parse_script(
+            &allocator,
+            header_contents.into_boxed_str(),
+            realm,
+            false,
+            None,
+        )
+        .unwrap();
         let _ = script_evaluation(agent, script).unwrap_or_else(|err| {
             panic!(
                 "Header evaluation failed: '{}' failed: {:?}",
@@ -97,6 +103,7 @@ fn garbage_collection_tests() {
                 &allocator,
                 call_contents.clone().into_boxed_str(),
                 realm,
+                false,
                 None,
             )
             .unwrap();
