@@ -146,7 +146,7 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
                         .intrinsics()
                         .symbol_prototype()
                         .internal_get(agent, referenced_name, value),
-                    Value::Number(_) | Value::Integer(_) | Value::Float(_) => agent
+                    Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => agent
                         .current_realm()
                         .intrinsics()
                         .number_prototype()

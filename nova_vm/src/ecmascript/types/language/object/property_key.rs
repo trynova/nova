@@ -172,8 +172,9 @@ impl TryFrom<Value> for PropertyKey {
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
             Value::Integer(x) => Ok(PropertyKey::Integer(x)),
-            Value::Float(x) => {
-                if x == -0.0f32 {
+            Value::SmallF64(x) => {
+                let x = x.into_f64();
+                if x == -0.0 {
                     Ok(PropertyKey::Integer(0.into()))
                 } else if x.fract() == 0.0
                     && (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&(x as i64))

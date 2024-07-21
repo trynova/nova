@@ -301,7 +301,7 @@ impl WorkQueues {
             Value::Symbol(idx) => self.symbols.push(idx),
             Value::Undefined => {}
             Value::Integer(_) => {}
-            Value::Float(_) => {}
+            Value::SmallF64(_) => {}
             Value::PrimitiveObject(idx) => self.primitive_objects.push(idx),
             Value::Arguments => todo!(),
             Value::DataView(idx) => self.data_views.push(idx),

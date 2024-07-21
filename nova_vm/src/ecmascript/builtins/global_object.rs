@@ -9,6 +9,7 @@ use oxc_ast::{
     syntax_directed_operations::BoundNames,
 };
 use oxc_parser::{Parser, ParserReturn};
+use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
 
 use crate::{
@@ -218,6 +219,19 @@ pub fn perform_eval(
     } = parser.parse();
 
     // b. If script is a List of errors, throw a SyntaxError exception.
+    if !errors.is_empty() {
+        // Make sure `script` can't borrow `source_text` so we can return it.
+        drop(script);
+        // SAFETY: It is safe to drop the leaked allocator here because it is known to be unused.
+        drop(unsafe { Box::from_raw(allocator) });
+        // TODO: Include error messages in the exception.
+        return Err(agent.throw_exception(ExceptionType::SyntaxError, "Invalid eval source text."));
+    }
+
+    let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new(&source_text, source_type)
+        .with_check_syntax_error(true)
+        .build(&script);
+
     if !errors.is_empty() {
         // Make sure `script` can't borrow `source_text` so we can return it.
         drop(script);

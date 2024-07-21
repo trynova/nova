@@ -14,9 +14,7 @@ use crate::{
         },
         execution::{Agent, JsResult},
         types::BUILTIN_STRING_MEMORY,
-    },
-    heap::{indexes::TypedArrayIndex, CompactionLists, HeapMarkAndSweep, WorkQueues},
-    SmallInteger, SmallString,
+    }, engine::small_f64::SmallF64, heap::{indexes::TypedArrayIndex, CompactionLists, HeapMarkAndSweep, WorkQueues}, SmallInteger, SmallString
 };
 
 use super::{
@@ -41,19 +39,43 @@ pub enum Value {
     Boolean(bool),
 
     /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
+    ///
+    /// UTF-8 string on the heap. Accessing the data must be done through the
+    /// Agent. ECMAScript specification compliant UTF-16 indexing is
+    /// implemented through an index mapping.
     String(HeapString),
+    /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
+    ///
+    /// 7-byte UTF-8 string on the stack. End of the string is determined by
+    /// the first 0xFF byte in the data. UTF-16 indexing is calculated on
+    /// demand from the data.
     SmallString(SmallString),
 
     /// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
     Symbol(Symbol),
 
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    ///
+    /// f64 on the heap. Accessing the data must be done through the Agent.
     Number(HeapNumber),
-    Integer(SmallInteger), // 56-bit signed integer.
-    Float(f32),
+    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    ///
+    /// 53-bit signed integer on the stack.
+    Integer(SmallInteger),
+    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    ///
+    /// 56-bit f64 on the stack. The missing byte is a zero least significant
+    /// byte.
+    SmallF64(SmallF64),
 
     /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+    ///
+    /// Unlimited size integer data on the heap. Accessing the data must be
+    /// done through the Agent.
     BigInt(HeapBigInt),
+    /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+    ///
+    /// 56-bit signed integer on the stack.
     SmallBigInt(SmallBigInt),
 
     /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
@@ -155,7 +177,7 @@ pub(crate) const SYMBOL_DISCRIMINANT: u8 = value_discriminant(Value::Symbol(Symb
 pub(crate) const NUMBER_DISCRIMINANT: u8 = value_discriminant(Value::Number(HeapNumber::_def()));
 pub(crate) const INTEGER_DISCRIMINANT: u8 =
     value_discriminant(Value::Integer(SmallInteger::zero()));
-pub(crate) const FLOAT_DISCRIMINANT: u8 = value_discriminant(Value::Float(0f32));
+pub(crate) const FLOAT_DISCRIMINANT: u8 = value_discriminant(Value::SmallF64(SmallF64::_def()));
 pub(crate) const BIGINT_DISCRIMINANT: u8 = value_discriminant(Value::BigInt(HeapBigInt::_def()));
 pub(crate) const SMALL_BIGINT_DISCRIMINANT: u8 =
     value_discriminant(Value::SmallBigInt(SmallBigInt::zero()));
@@ -349,7 +371,10 @@ impl Value {
     }
 
     pub fn is_number(self) -> bool {
-        matches!(self, Value::Number(_) | Value::Float(_) | Value::Integer(_))
+        matches!(
+            self,
+            Value::Number(_) | Value::SmallF64(_) | Value::Integer(_)
+        )
     }
 
     pub fn is_empty_string(self) -> bool {
@@ -406,7 +431,7 @@ impl Value {
         Ok(match self {
             Value::Number(n) => agent[n],
             Value::Integer(i) => i.into_i64() as f64,
-            Value::Float(f) => f as f64,
+            Value::SmallF64(f) => f.into_f64(),
             // NOTE: Converting to a number should give us a nice error message.
             _ => to_number(agent, self)?.into_f64(agent),
         })
@@ -454,7 +479,7 @@ impl From<Number> for Value {
 
 impl From<f32> for Value {
     fn from(value: f32) -> Self {
-        Value::Float(value)
+        Value::SmallF64(SmallF64::from(value))
     }
 }
 
@@ -508,7 +533,7 @@ impl HeapMarkAndSweep for Value {
             | Value::Boolean(_)
             | Value::SmallString(_)
             | Value::Integer(_)
-            | Value::Float(_)
+            | Value::SmallF64(_)
             | Value::SmallBigInt(_) => {
                 // Stack values: Nothing to mark
             }
@@ -572,7 +597,7 @@ impl HeapMarkAndSweep for Value {
             | Value::Boolean(_)
             | Value::SmallString(_)
             | Value::Integer(_)
-            | Value::Float(_)
+            | Value::SmallF64(_)
             | Value::SmallBigInt(_) => {
                 // Stack values: Nothing to sweep
             }
