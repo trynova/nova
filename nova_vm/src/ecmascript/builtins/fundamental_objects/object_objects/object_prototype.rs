@@ -158,7 +158,7 @@ impl ObjectPrototype {
                 Ok(BUILTIN_STRING_MEMORY._object_String_.into_value())
             }
             // 10. Else if O has a [[NumberData]] internal slot, let builtinTag be "Number".
-            Value::Number(_) | Value::Integer(_) | Value::Float(_) => {
+            Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => {
                 Ok(BUILTIN_STRING_MEMORY._object_Number_.into_value())
             }
             // 4. Let isArray be ? IsArray(O).

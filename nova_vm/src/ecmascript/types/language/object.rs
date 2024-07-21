@@ -351,7 +351,7 @@ impl TryFrom<Value> for Object {
             | Value::Symbol(_)
             | Value::Number(_)
             | Value::Integer(_)
-            | Value::Float(_)
+            | Value::SmallF64(_)
             | Value::BigInt(_)
             | Value::SmallBigInt(_) => Err(()),
             Value::Object(x) => Ok(Object::from(x)),

@@ -280,7 +280,7 @@ impl ArrayPrototype {
         // 3. Let relativeIndex be ? ToIntegerOrInfinity(index).
         let relative_index = to_integer_or_infinity(agent, index)?;
         let relative_index = match relative_index {
-            Number::Float(_) | Number::Number(_) => {
+            Number::SmallF64(_) | Number::Number(_) => {
                 // Heap number or f32 here means that the value is over the
                 // safe integer limit, which is necessarily >= len
                 return Ok(Value::Undefined);
