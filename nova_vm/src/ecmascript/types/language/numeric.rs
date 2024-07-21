@@ -87,7 +87,7 @@ impl IntoValue for Numeric {
         match self {
             Numeric::Number(data) => Value::Number(data),
             Numeric::Integer(data) => Value::Integer(data),
-            Numeric::Float(data) => Value::Float(data),
+            Numeric::Float(data) => Value::SmallF64(data),
             Numeric::BigInt(data) => Value::BigInt(data),
             Numeric::SmallBigInt(data) => Value::SmallBigInt(data),
         }
@@ -99,7 +99,7 @@ impl IntoPrimitive for Numeric {
         match self {
             Numeric::Number(data) => Primitive::Number(data),
             Numeric::Integer(data) => Primitive::Integer(data),
-            Numeric::Float(data) => Primitive::Float(data),
+            Numeric::Float(data) => Primitive::SmallF64(data),
             Numeric::BigInt(data) => Primitive::BigInt(data),
             Numeric::SmallBigInt(data) => Primitive::SmallBigInt(data),
         }
@@ -125,7 +125,7 @@ impl TryFrom<Value> for Numeric {
         match value {
             Value::Number(data) => Ok(Numeric::Number(data)),
             Value::Integer(data) => Ok(Numeric::Integer(data)),
-            Value::Float(data) => Ok(Numeric::Float(data)),
+            Value::SmallF64(data) => Ok(Numeric::Float(data)),
             Value::BigInt(data) => Ok(Numeric::BigInt(data)),
             Value::SmallBigInt(data) => Ok(Numeric::SmallBigInt(data)),
             _ => Err(()),
@@ -140,7 +140,7 @@ impl TryFrom<Primitive> for Numeric {
         match value {
             Primitive::Number(data) => Ok(Numeric::Number(data)),
             Primitive::Integer(data) => Ok(Numeric::Integer(data)),
-            Primitive::Float(data) => Ok(Numeric::Float(data)),
+            Primitive::SmallF64(data) => Ok(Numeric::Float(data)),
             Primitive::BigInt(data) => Ok(Numeric::BigInt(data)),
             Primitive::SmallBigInt(data) => Ok(Numeric::SmallBigInt(data)),
             _ => Err(()),

@@ -945,7 +945,7 @@ impl MathObject {
             coerced.push(n);
 
             match n {
-                Number::Number(_) | Number::Float(_) => only_ints = false,
+                Number::Number(_) | Number::SmallF64(_) => only_ints = false,
                 _ => {}
             }
         }
@@ -1021,7 +1021,7 @@ impl MathObject {
             coerced.push(n);
 
             match n {
-                Number::Number(_) | Number::Float(_) => only_ints = false,
+                Number::Number(_) | Number::SmallF64(_) => only_ints = false,
                 _ => {}
             }
         }

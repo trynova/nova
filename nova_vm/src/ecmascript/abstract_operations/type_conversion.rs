@@ -214,7 +214,7 @@ pub(crate) fn to_number(agent: &mut Agent, argument: impl Into<Value> + Copy) ->
         // 1. If argument is a Number, return argument.
         Value::Number(idx) => Ok(idx.into()),
         Value::Integer(idx) => Ok(idx.into()),
-        Value::Float(idx) => Ok(idx.into()),
+        Value::SmallF64(idx) => Ok(idx.into()),
         Value::BigInt(_) | Value::SmallBigInt(_) => {
             Err(agent.throw_exception(ExceptionType::TypeError, "cannot convert bigint to number"))
         }
@@ -626,7 +626,7 @@ pub(crate) fn to_big_int(agent: &mut Agent, argument: Value) -> JsResult<BigInt>
         Primitive::Symbol(_) => {
             Err(agent.throw_exception(ExceptionType::TypeError, "Cannot convert Symbol to BigInt"))
         }
-        Primitive::Number(_) | Primitive::Integer(_) | Primitive::Float(_) => {
+        Primitive::Number(_) | Primitive::Integer(_) | Primitive::SmallF64(_) => {
             Err(agent.throw_exception(ExceptionType::TypeError, "Cannot convert Number to BigInt"))
         }
         Primitive::BigInt(idx) => Ok(idx.into()),
@@ -671,7 +671,7 @@ pub(crate) fn to_string(agent: &mut Agent, argument: impl Into<Value> + Copy) ->
             Err(agent.throw_exception(ExceptionType::TypeError, "Cannot turn Symbol into string"))
         }
         // 7. If argument is a Number, return Number::toString(argument, 10).
-        Value::Number(_) | Value::Integer(_) | Value::Float(_) => {
+        Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => {
             Number::to_string_radix_10(agent, Number::try_from(argument).unwrap())
         }
         // 8. If argument is a BigInt, return BigInt::toString(argument, 10).
@@ -748,7 +748,7 @@ pub(crate) fn to_object(agent: &mut Agent, argument: Value) -> JsResult<Object> 
                 data: PrimitiveObjectData::Integer(integer),
             })
             .into_object()),
-        Value::Float(float) => Ok(agent
+        Value::SmallF64(float) => Ok(agent
             .heap
             .create(PrimitiveObjectHeapData {
                 object_index: None,
@@ -846,7 +846,7 @@ pub(crate) fn to_property_key_simple(
             }
         }
         Value::Integer(x) => Some(PropertyKey::Integer(x)),
-        Value::Float(x) if x.into_f64() == -0.0 => Some(PropertyKey::Integer(0.into())),
+        Value::SmallF64(x) if x.into_f64() == -0.0 => Some(PropertyKey::Integer(0.into())),
         Value::Symbol(x) => Some(PropertyKey::Symbol(x)),
         Value::SmallBigInt(x)
             if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&x.into_i64()) =>
@@ -894,7 +894,7 @@ pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<i64> {
     // 2. If len ≤ 0, return +0𝔽.
     if match len {
         Number::Integer(n) => n.into_i64() <= 0,
-        Number::Float(n) => n.into_f64() <= 0.0,
+        Number::SmallF64(n) => n.into_f64() <= 0.0,
         Number::Number(n) => agent[n] <= 0.0,
     } {
         return Ok(0);
@@ -903,7 +903,7 @@ pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<i64> {
     // 3. Return 𝔽(min(len, 2**53 - 1)).
     Ok(match len {
         Number::Integer(n) => n.into_i64().min(SmallInteger::MAX_NUMBER),
-        Number::Float(n) => n.into_f64().min(SmallInteger::MAX_NUMBER as f64) as i64,
+        Number::SmallF64(n) => n.into_f64().min(SmallInteger::MAX_NUMBER as f64) as i64,
         Number::Number(n) => agent[n].min(SmallInteger::MAX_NUMBER as f64) as i64,
     })
 }

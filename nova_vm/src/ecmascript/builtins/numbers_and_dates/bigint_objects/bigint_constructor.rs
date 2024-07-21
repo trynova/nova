@@ -159,7 +159,7 @@ fn number_to_big_int(agent: &mut Agent, value: Number) -> JsResult<BigInt> {
                 }
             }
             Number::Integer(int) => Ok(BigInt::SmallBigInt(int.into())),
-            Number::Float(value) => {
+            Number::SmallF64(value) => {
                 let value = value.into_f64();
                 if let Ok(data) = SmallInteger::try_from(value) {
                     Ok(BigInt::SmallBigInt(data.into()))

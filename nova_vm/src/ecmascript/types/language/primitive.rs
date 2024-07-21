@@ -22,16 +22,47 @@ use super::{
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Primitive {
+    /// ### [6.1.1 The Undefined Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-undefined-type)
     Undefined = UNDEFINED_DISCRIMINANT,
+    /// ### [6.1.2 The Null Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-null-type)
     Null = NULL_DISCRIMINANT,
+    /// ### [6.1.3 The Boolean Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-boolean-type)
     Boolean(bool) = BOOLEAN_DISCRIMINANT,
+    /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
+    ///
+    /// UTF-8 string on the heap. Accessing the data must be done through the
+    /// Agent. ECMAScript specification compliant UTF-16 indexing is
+    /// implemented through an index mapping.
     String(HeapString) = STRING_DISCRIMINANT,
+    /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
+    ///
+    /// 7-byte UTF-8 string on the stack. End of the string is determined by
+    /// the first 0xFF byte in the data. UTF-16 indexing is calculated on
+    /// demand from the data.
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
+    /// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
     Symbol(Symbol) = SYMBOL_DISCRIMINANT,
+    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    ///
+    /// f64 on the heap. Accessing the data must be done through the Agent.
     Number(HeapNumber) = NUMBER_DISCRIMINANT,
+    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    ///
+    /// 53-bit signed integer on the stack.
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
-    Float(SmallF64) = FLOAT_DISCRIMINANT,
+    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    ///
+    /// 56-bit f64 on the stack. The missing byte is a zero least significant
+    /// byte.
+    SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
+    /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+    ///
+    /// Unlimited size integer data on the heap. Accessing the data must be
+    /// done through the Agent.
     BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+    ///
+    /// 56-bit signed integer on the stack.
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
@@ -46,7 +77,7 @@ impl IntoValue for Primitive {
             Primitive::Symbol(data) => Value::Symbol(data),
             Primitive::Number(data) => Value::Number(data),
             Primitive::Integer(data) => Value::Integer(data),
-            Primitive::Float(data) => Value::Float(data),
+            Primitive::SmallF64(data) => Value::SmallF64(data),
             Primitive::BigInt(data) => Value::BigInt(data),
             Primitive::SmallBigInt(data) => Value::SmallBigInt(data),
         }
@@ -67,7 +98,7 @@ impl Primitive {
     }
 
     pub fn is_number(self) -> bool {
-        matches!(self, Self::Number(_) | Self::Float(_) | Self::Integer(_))
+        matches!(self, Self::Number(_) | Self::SmallF64(_) | Self::Integer(_))
     }
 
     pub fn is_string(self) -> bool {
@@ -101,7 +132,7 @@ impl TryFrom<Value> for Primitive {
             Value::Symbol(data) => Ok(Primitive::Symbol(data)),
             Value::Number(data) => Ok(Primitive::Number(data)),
             Value::Integer(data) => Ok(Primitive::Integer(data)),
-            Value::Float(data) => Ok(Primitive::Float(data)),
+            Value::SmallF64(data) => Ok(Primitive::SmallF64(data)),
             Value::BigInt(data) => Ok(Primitive::BigInt(data)),
             Value::SmallBigInt(data) => Ok(Primitive::SmallBigInt(data)),
             _ => Err(()),

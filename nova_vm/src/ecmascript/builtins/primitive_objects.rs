@@ -451,7 +451,7 @@ impl TryFrom<PrimitiveObjectData> for Number {
         match value {
             PrimitiveObjectData::Number(data) => Ok(Number::Number(data)),
             PrimitiveObjectData::Integer(data) => Ok(Number::Integer(data)),
-            PrimitiveObjectData::Float(data) => Ok(Number::Float(data)),
+            PrimitiveObjectData::Float(data) => Ok(Number::SmallF64(data)),
             _ => Err(()),
         }
     }
@@ -509,7 +509,7 @@ impl PrimitiveObjectHeapData {
         let data = match number {
             Number::Number(data) => PrimitiveObjectData::Number(data),
             Number::Integer(data) => PrimitiveObjectData::Integer(data),
-            Number::Float(data) => PrimitiveObjectData::Float(data),
+            Number::SmallF64(data) => PrimitiveObjectData::Float(data),
         };
         Self {
             object_index: None,
