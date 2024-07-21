@@ -30,7 +30,9 @@ impl SmallF64 {
 
     #[inline(always)]
     fn can_convert(value: f64) -> bool {
-        if value.is_nan() {
+        if value.to_bits().trailing_zeros() < 8 {
+            false
+        } else if value.is_nan() {
             true
         } else if value.fract() == 0.0 {
             // SmallF64 is not allowed to be an integer: It should become a
@@ -46,7 +48,7 @@ impl SmallF64 {
                 !range.contains(&value)
             }
         } else {
-            value.fract() != 0.0 && value.to_bits().trailing_zeros() >= 8
+            true
         }
     }
 
