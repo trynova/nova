@@ -349,7 +349,7 @@ impl Number {
                 agent.heap.create(n)
             }
             Number::Integer(_) => self,
-            Number::Float(n) => SmallF64::try_from(n.into_f64().trunc()).unwrap().into(),
+            Number::Float(n) => Number::from_f64(agent, n.into_f64().trunc()),
         }
     }
 
