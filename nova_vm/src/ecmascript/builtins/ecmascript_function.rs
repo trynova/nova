@@ -24,7 +24,7 @@ use crate::{
             ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult,
             PrivateEnvironmentIndex, ProtoIntrinsics, RealmIdentifier, ThisBindingStatus,
         },
-        scripts_and_modules::ScriptOrModule,
+        scripts_and_modules::{eval_source::EvalSource, ScriptOrModule},
         syntax_directed_operations::{
             function_definitions::evaluate_function_body,
             miscellaneous::instantiate_function_object,
@@ -218,7 +218,11 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
 
     ///  [[SourceText]]
     pub source_text: Span,
+
     // TODO: [[Fields]],  [[PrivateMethods]], [[ClassFieldInitializerName]]
+    /// Nova specific addition: If Some(EvalSource) then this function was
+    /// created in an eval call.
+    pub eval_source: Option<EvalSource>,
 }
 
 pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
@@ -607,6 +611,7 @@ pub(crate) fn prepare_for_ordinary_call(
     let private_environment = ecmascript_function_object.private_environment;
     let is_strict_mode = ecmascript_function_object.strict;
     let script_or_module = ecmascript_function_object.script_or_module;
+    let eval_source = ecmascript_function_object.eval_source;
     // 1. Let callerContext be the running execution context.
     let _caller_context = agent.running_execution_context();
     // 4. Let calleeRealm be F.[[Realm]].
@@ -623,6 +628,8 @@ pub(crate) fn prepare_for_ordinary_call(
             variable_environment: EnvironmentIndex::Function(local_env),
             private_environment,
             is_strict_mode,
+            // If we're inside an eval call, we need to pass that info onwards.
+            eval_source,
         }),
         // 3. Set the Function of calleeContext to F.
         function: Some(f.into()),
@@ -779,13 +786,12 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
     agent: &'agent mut Agent,
     params: OrdinaryFunctionCreateParams<'agent, 'program>,
 ) -> ECMAScriptFunction {
+    let running_ecmascript_code = &agent.running_execution_context().ecmascript_code.unwrap();
+    // Nova specific: If this function is created inside an eval, then we must
+    // keep a reference to the eval source string and the AST alive.
+    let eval_source = running_ecmascript_code.eval_source;
     // 7. If the source text matched by Body is strict mode code, let Strict be true; else let Strict be false.
-    let strict = params.body.has_use_strict_directive()
-        || agent
-            .running_execution_context()
-            .ecmascript_code
-            .unwrap()
-            .is_strict_mode;
+    let strict = params.body.has_use_strict_directive() || running_ecmascript_code.is_strict_mode;
 
     // 1. Let internalSlotsList be the internal slots listed in Table 30.
     // 2. Let F be OrdinaryObjectCreate(functionPrototype, internalSlotsList).
@@ -836,6 +842,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
         home_object: None,
         // 4. Set F.[[SourceText]] to sourceText.
         source_text: params.source_text,
+        eval_source,
     };
 
     let mut function = ECMAScriptFunctionHeapData {

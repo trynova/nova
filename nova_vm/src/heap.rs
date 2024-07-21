@@ -51,6 +51,7 @@ use crate::ecmascript::{
         weak_ref::data::WeakRefHeapData,
         weak_set::data::WeakSetHeapData,
     },
+    scripts_and_modules::eval_source::EvalSourceHeapData,
     types::{HeapNumber, HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
 };
 use crate::ecmascript::{
@@ -84,6 +85,7 @@ pub struct Heap {
     pub embedder_objects: Vec<Option<EmbedderObjectHeapData>>,
     pub environments: Environments,
     pub errors: Vec<Option<ErrorHeapData>>,
+    pub(crate) eval_sources: Vec<Option<EvalSourceHeapData>>,
     pub finalization_registrys: Vec<Option<FinalizationRegistryHeapData>>,
     pub globals: Vec<Value>,
     pub maps: Vec<Option<MapHeapData>>,
@@ -163,7 +165,6 @@ impl Heap {
             finalization_registrys: Vec::with_capacity(0),
             globals: Vec::with_capacity(1024),
             maps: Vec::with_capacity(128),
-            modules: Vec::with_capacity(0),
             numbers: Vec::with_capacity(1024),
             objects: Vec::with_capacity(1024),
             primitive_objects: Vec::with_capacity(0),
@@ -173,7 +174,6 @@ impl Heap {
             proxys: Vec::with_capacity(0),
             realms: Vec::with_capacity(1),
             regexps: Vec::with_capacity(1024),
-            scripts: Vec::with_capacity(1),
             sets: Vec::with_capacity(128),
             shared_array_buffers: Vec::with_capacity(0),
             strings: Vec::with_capacity(1024),
@@ -182,6 +182,11 @@ impl Heap {
             weak_maps: Vec::with_capacity(0),
             weak_refs: Vec::with_capacity(0),
             weak_sets: Vec::with_capacity(0),
+            // Drop scripts, modules, and eval sources last to ensure that all
+            // objects referring to them have dropped first.
+            eval_sources: Vec::with_capacity(0),
+            modules: Vec::with_capacity(0),
+            scripts: Vec::with_capacity(1),
         };
 
         heap.strings.extend_from_slice(

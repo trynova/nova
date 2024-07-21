@@ -8,6 +8,7 @@ use self::script::ScriptIdentifier;
 
 use super::builtins::module::Module;
 
+pub mod eval_source;
 pub mod module;
 pub mod script;
 
