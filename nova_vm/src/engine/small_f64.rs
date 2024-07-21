@@ -30,7 +30,9 @@ impl SmallF64 {
 
     #[inline(always)]
     fn can_convert(value: f64) -> bool {
-        if value.fract() == 0.0 {
+        if value.is_nan() {
+            true
+        } else if value.fract() == 0.0 {
             // SmallF64 is not allowed to be an integer: It should become a
             // SmallInteger.
             if value == -0.0 {
@@ -50,7 +52,11 @@ impl SmallF64 {
 
     /// SAFETY: f64 must have 8 or more trailing zeros
     #[inline]
-    unsafe fn from_f64_unchecked(value: f64) -> SmallF64 {
+    unsafe fn from_f64_unchecked(mut value: f64) -> SmallF64 {
+        if value.is_nan() {
+            // Canonicalize NaNs.
+            value = f64::NAN;
+        }
         let bytes = u64::to_ne_bytes(value.to_bits());
 
         let data = if cfg!(target_endian = "little") {
