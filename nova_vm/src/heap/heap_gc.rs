@@ -44,7 +44,7 @@ use crate::ecmascript::{
         DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
     },
-    scripts_and_modules::script::ScriptIdentifier,
+    scripts_and_modules::{eval_source::EvalSource, script::ScriptIdentifier},
     types::{
         bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
         BUILTIN_STRINGS_LIST,
@@ -106,6 +106,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             embedder_objects,
             environments,
             errors,
+            eval_sources,
             finalization_registrys,
             globals: _,
             maps,
@@ -321,6 +322,19 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 }
                 *marked = true;
                 errors.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut eval_source_marks: Box<[EvalSource]> = queues.eval_sources.drain(..).collect();
+        eval_source_marks.sort();
+        eval_source_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.eval_sources.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                eval_sources.get(index).mark_values(&mut queues);
             }
         });
         let mut builtin_functions_marks: Box<[BuiltinFunction]> =
@@ -812,6 +826,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         embedder_objects,
         environments,
         errors,
+        eval_sources,
         finalization_registrys,
         globals,
         maps,
@@ -1160,6 +1175,14 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         if !weak_sets.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(weak_sets, &compactions, &bits.weak_sets);
+            });
+        }
+
+        // Late points: Spawn EvalSource sweeping last to try avoid dropping
+        // them while functions are still referring to them.
+        if !eval_sources.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(eval_sources, &compactions, &bits.eval_sources);
             });
         }
     });

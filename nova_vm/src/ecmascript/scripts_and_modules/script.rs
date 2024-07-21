@@ -265,6 +265,8 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
             private_environment: None,
 
             is_strict_mode,
+
+            eval_source: None,
         }),
     };
 
