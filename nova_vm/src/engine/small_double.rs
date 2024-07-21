@@ -28,7 +28,9 @@ impl SmallF64 {
 
     #[inline(always)]
     fn can_convert(value: f64) -> bool {
-        value.to_bits().trailing_zeros() >= 8
+        // SmallF64 is not allowed to be an integer: It should become a
+        // SmallInteger.
+        value.fract() != 0.0 && value.to_bits().trailing_zeros() >= 8
     }
 
     /// SAFETY: f64 must have 8 or more trailing zeros
