@@ -20511,7 +20511,6 @@
   "language/expressions/new/spread-sngl-literal.js": "CRASH",
   "language/expressions/new/spread-sngl-obj-ident.js": "CRASH",
   "language/expressions/object/11.1.5-0-1.js": "PASS",
-  "language/expressions/object/11.1.5-0-2.js": "FAIL",
   "language/expressions/object/__proto__-duplicate-computed.js": "CRASH",
   "language/expressions/object/__proto__-fn-name.js": "CRASH",
   "language/expressions/object/__proto__-permitted-dup-shorthand.js": "CRASH",
