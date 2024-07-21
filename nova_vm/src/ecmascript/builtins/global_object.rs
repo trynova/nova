@@ -241,7 +241,10 @@ pub fn perform_eval(
         // SAFETY: It is safe to drop the leaked allocator here because it is known to be unused.
         drop(unsafe { Box::from_raw(allocator) });
         // TODO: Include error messages in the exception.
-        return Err(agent.throw_exception(ExceptionType::SyntaxError, "Invalid eval source text."));
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::SyntaxError,
+            "Invalid eval source text.",
+        ));
     }
 
     // c. If script Contains ScriptBody is false, return undefined.
