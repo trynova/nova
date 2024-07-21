@@ -352,6 +352,8 @@
   "built-ins/Array/prototype/includes/fromIndex-equal-or-greater-length-returns-false.js": "CRASH",
   "built-ins/Array/prototype/includes/fromIndex-minus-zero.js": "CRASH",
   "built-ins/Array/prototype/includes/get-prop.js": "CRASH",
+  "built-ins/Array/prototype/includes/resizable-buffer-special-float-values.js": "CRASH",
+  "built-ins/Array/prototype/includes/resizable-buffer.js": "CRASH",
   "built-ins/Array/prototype/includes/tointeger-fromindex.js": "CRASH",
   "built-ins/Array/prototype/indexOf/15.4.4.14-1-11.js": "CRASH",
   "built-ins/Array/prototype/indexOf/15.4.4.14-1-12.js": "CRASH",
