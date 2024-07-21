@@ -43,7 +43,7 @@ enum Command {
     Eval {
         #[arg(short, long)]
         verbose: bool,
-        #[arg(short, long)]
+        #[arg(long)]
         nogc: bool,
 
         #[arg(short, long)]
