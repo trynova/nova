@@ -10,6 +10,7 @@ cliclack = { workspace = true }
 console = { workspace = true }
 miette = { workspace = true }
 nova_vm = { path = "../nova_vm" }
+oxc_allocator = { workspace = true }
 oxc_ast = { workspace = true }
 oxc_parser = { workspace = true }
 oxc_semantic = { workspace = true }
