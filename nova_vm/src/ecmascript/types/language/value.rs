@@ -14,7 +14,7 @@ use crate::{
         },
         execution::{Agent, JsResult},
         types::BUILTIN_STRING_MEMORY,
-    }, engine::small_double::SmallF64, heap::{indexes::TypedArrayIndex, CompactionLists, HeapMarkAndSweep, WorkQueues}, SmallInteger, SmallString
+    }, engine::small_f64::SmallF64, heap::{indexes::TypedArrayIndex, CompactionLists, HeapMarkAndSweep, WorkQueues}, SmallInteger, SmallString
 };
 
 use super::{

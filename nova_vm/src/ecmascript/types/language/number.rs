@@ -15,7 +15,7 @@ use crate::{
         abstract_operations::type_conversion::{to_int32, to_uint32},
         execution::{Agent, JsResult},
     },
-    engine::small_double::SmallF64,
+    engine::small_f64::SmallF64,
     heap::{
         indexes::NumberIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },

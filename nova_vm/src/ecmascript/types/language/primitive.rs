@@ -4,7 +4,7 @@
 
 use small_string::SmallString;
 
-use crate::{engine::small_double::SmallF64, SmallInteger};
+use crate::{engine::small_f64::SmallF64, SmallInteger};
 
 use super::{
     bigint::{HeapBigInt, SmallBigInt},

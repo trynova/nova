@@ -21,7 +21,7 @@ use crate::{
             SYMBOL_DISCRIMINANT,
         },
     },
-    engine::small_double::SmallF64,
+    engine::small_f64::SmallF64,
     heap::{
         indexes::PrimitiveObjectIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues,

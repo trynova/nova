@@ -7,7 +7,7 @@ use crate::{
         abstract_operations::type_conversion::to_number,
         execution::{Agent, JsResult},
     },
-    engine::small_double::SmallF64,
+    engine::small_f64::SmallF64,
     SmallInteger,
 };
 

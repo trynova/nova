@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::SmallInteger;
+
 /// 56-bit double, the implied bottom 8 bits are zero.
 #[derive(Clone, Copy, PartialEq)]
 pub struct SmallF64 {
@@ -28,9 +30,22 @@ impl SmallF64 {
 
     #[inline(always)]
     fn can_convert(value: f64) -> bool {
-        // SmallF64 is not allowed to be an integer: It should become a
-        // SmallInteger.
-        value.fract() != 0.0 && value.to_bits().trailing_zeros() >= 8
+        if value.fract() == 0.0 {
+            // SmallF64 is not allowed to be an integer: It should become a
+            // SmallInteger.
+            if value == -0.0 {
+                // Well that's not representable as an integer!
+                true
+            } else {
+                let range =
+                    const { (SmallInteger::MIN_NUMBER as f64)..=(SmallInteger::MAX_NUMBER as f64) };
+                // If the integer is in the JS SafeInteger range, it should
+                // become a SmallInteger: We don't want it here.
+                !range.contains(&value)
+            }
+        } else {
+            value.fract() != 0.0 && value.to_bits().trailing_zeros() >= 8
+        }
     }
 
     /// SAFETY: f64 must have 8 or more trailing zeros
