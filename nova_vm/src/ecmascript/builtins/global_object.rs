@@ -245,10 +245,8 @@ pub fn perform_eval(
 
     // b. If script is a List of errors, throw a SyntaxError exception.
     if !errors.is_empty() {
-        // Make sure `script` can't borrow `source_text` so we can return it.
+        // Make sure `script` can't borrow `source_text` so we can drop the allocator.
         drop(script);
-        // SAFETY: It is safe to drop the leaked allocator here because it is known to be unused.
-        drop(unsafe { Box::from_raw(allocator) });
         // TODO: Include error messages in the exception.
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::SyntaxError,
@@ -261,10 +259,8 @@ pub fn perform_eval(
         .build(&script);
 
     if !errors.is_empty() {
-        // Make sure `script` can't borrow `source_text` so we can return it.
+        // Make sure `script` can't borrow `source_text` so we can drop the allocator.
         drop(script);
-        // SAFETY: It is safe to drop the leaked allocator here because it is known to be unused.
-        drop(unsafe { Box::from_raw(allocator) });
         // TODO: Include error messages in the exception.
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::SyntaxError,
@@ -276,8 +272,6 @@ pub fn perform_eval(
     if script.is_empty() {
         // Make sure `script` can't borrow `source_text` so we can drop the allocator. Because the script is empty this is fine.
         drop(script);
-        // SAFETY: It is safe to drop the leaked allocator here because it is known to be unused.
-        drop(unsafe { Box::from_raw(allocator) });
         return Ok(Value::Undefined);
     }
 

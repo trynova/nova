@@ -27,7 +27,7 @@ impl EvalSource {
     pub(crate) fn new(agent: &mut Agent, source: HeapString) -> Self {
         agent.heap.create(EvalSourceHeapData {
             source,
-            allocator: Some(NonNull::from(Box::leak(Default::default()))),
+            allocator: NonNull::from(Box::leak(Default::default())),
         })
     }
 
@@ -44,14 +44,14 @@ pub(crate) struct EvalSourceHeapData {
     /// references would necessarily and definitely be invalid.
     source: HeapString,
     /// The arena that contains the parsed data of the eval source.
-    allocator: Option<NonNull<Allocator>>,
+    allocator: NonNull<Allocator>,
 }
 
 unsafe impl Send for EvalSourceHeapData {}
 
 impl EvalSourceHeapData {
     pub(crate) fn get_allocator(&self) -> NonNull<Allocator> {
-        self.allocator.unwrap()
+        self.allocator
     }
 }
 
@@ -68,7 +68,7 @@ impl Drop for EvalSourceHeapData {
     fn drop(&mut self) {
         // SAFETY: All references to this EvalSource should have been dropped
         // before we drop this.
-        drop(unsafe { Box::from_raw(self.allocator.take().unwrap().as_mut()) });
+        drop(unsafe { Box::from_raw(self.allocator.as_mut()) });
     }
 }
 
