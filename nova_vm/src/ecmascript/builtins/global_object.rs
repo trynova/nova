@@ -32,7 +32,7 @@ use crate::{
         types::{Function, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
     engine::{Executable, Vm},
-    heap::IntrinsicFunctionIndexes,
+    heap::{self, IntrinsicFunctionIndexes},
 };
 
 use super::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic};
@@ -163,17 +163,31 @@ pub fn perform_eval(
     // pad it with whitespace and allocate it on the heap. This makes it safe
     // (for some definition of "safe") for the potential functions created in
     // the eval call to keep references to the string buffer.
-    let x = match x {
-        String::String(x) => x,
+    let (x, source_text) = match x {
+        String::String(x) => {
+            // SAFETY: EvalSource keeps this string alive while functions still refer
+            // to it. It's "safe" for the AST to keep references to its buffer.
+            let source_text = unsafe { std::mem::transmute::<&str, &'static str>(x.as_str(agent)) };
+            (x, source_text)
+        }
         String::SmallString(x) => {
-            // Add 7 whitespace bytes to the end of the eval string. This should
-            // guarantee that the string gets heap-allocated, no question.
-            let data = format!("{}       ", x.as_str());
+            // Add 10 whitespace bytes to the end of the eval string. This
+            // should guarantee that the string gets heap-allocated, no
+            // question.
+            let data = format!("{}          ", x.as_str());
             let heap_string_x = String::from_string(agent, data);
             let String::String(x) = heap_string_x else {
                 unreachable!()
             };
-            x
+            // SAFETY: EvalSource keeps this string alive while functions still refer
+            // to it. It's "safe" for the AST to keep references to its buffer.
+            let source_text = unsafe { std::mem::transmute::<&str, &'static str>(x.as_str(agent)) };
+            // Slice the source text back to the original length so that the
+            // whitespace we added doesn't get fed to the parser: It shouldn't
+            // need it.
+            let original_length = heap_string_x.len(agent);
+            let source_text = &source_text[..original_length];
+            (x, source_text)
         }
     };
 
@@ -230,9 +244,6 @@ pub fn perform_eval(
     // allocator here . See https://github.com/trynova/nova/pull/278#discussion_r1663233064
     // for more information.
     let mut allocator = agent[eval_source].get_allocator();
-    // SAFETY: EvalSource keeps this string alive while functions still refer
-    // to it. It's "safe" for the AST to keep references to its buffer.
-    let source_text = unsafe { std::mem::transmute::<&str, &'static str>(x.as_str(agent)) };
     // SAFETY: The same as above goes for Allocator as well.
     let allocator = unsafe { allocator.as_mut() };
     let source_type = SourceType::default().with_always_strict(strict_caller);
