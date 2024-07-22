@@ -43,7 +43,7 @@ pub struct CreatorName(String);
 #[derive(Default, Clone, Copy)]
 pub struct NoBehaviour;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct CreatorBehaviour(Behaviour);
 
 #[derive(Default, Clone, Copy)]
@@ -530,7 +530,7 @@ impl<'agent>
             length: self.length.0,
             realm: self.realm,
             initial_name: Some(self.name.0),
-            behaviour: self.behaviour.0,
+            behaviour: self.behaviour.0.clone(),
         };
 
         let slot = self

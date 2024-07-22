@@ -2,7 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Deref, Index, IndexMut};
+use std::{
+    cell::RefCell,
+    ops::{Deref, Index, IndexMut},
+    rc::Rc,
+};
+
+use anymap::AnyMap;
 
 use crate::{
     ecmascript::{
@@ -41,13 +47,43 @@ impl ArgumentsList<'_> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct RegularFnStorage(pub Rc<RefCell<FnStorage>>);
+impl Default for RegularFnStorage {
+    fn default() -> Self {
+        Self(Rc::new(RefCell::new(FnStorage::new())))
+    }
+}
+
+impl From<FnStorage> for RegularFnStorage {
+    fn from(value: FnStorage) -> Self {
+        Self(Rc::new(RefCell::new(value)))
+    }
+}
+
+impl PartialEq for RegularFnStorage {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for RegularFnStorage {}
+/// Safety:
+/// The storage will ways be used in one thread, but, because the
+/// garbage collector clears the data in other threads, this is required.
+unsafe impl Send for RegularFnStorage {}
+unsafe impl Sync for RegularFnStorage {}
+
+pub type FnStorage = AnyMap;
+pub type RegularWithStorageFn =
+    fn(&mut Agent, Value, ArgumentsList<'_>, &mut FnStorage) -> JsResult<Value>;
 pub type RegularFn = fn(&mut Agent, Value, ArgumentsList<'_>) -> JsResult<Value>;
 pub type ConstructorFn =
     fn(&mut Agent, Value, ArgumentsList<'_>, Option<Object>) -> JsResult<Value>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Behaviour {
     Regular(RegularFn),
+    RegularWithStorage(RegularWithStorageFn, RegularFnStorage),
     Constructor(ConstructorFn),
 }
 
@@ -525,7 +561,7 @@ pub(crate) fn builtin_call_or_construct(
     // 10. Let result be the Completion Record that is the result of evaluating F in a manner that conforms to
     // the specification of F. If thisArgument is uninitialized, the this value is uninitialized; otherwise,
     // thisArgument provides the this value. argumentsList provides the named parameters. newTarget provides the NewTarget value.
-    let func = heap_data.behaviour;
+    let func = heap_data.behaviour.clone();
     let result = match func {
         Behaviour::Regular(func) => {
             if new_target.is_some() {
@@ -535,6 +571,19 @@ pub(crate) fn builtin_call_or_construct(
                     agent,
                     this_argument.unwrap_or(Value::Undefined),
                     arguments_list,
+                )
+            }
+        }
+        Behaviour::RegularWithStorage(func, storage) => {
+            if new_target.is_some() {
+                Err(agent.throw_exception(ExceptionType::TypeError, "Not a constructor"))
+            } else {
+                let mut storage = storage.0.borrow_mut();
+                func(
+                    agent,
+                    this_argument.unwrap_or(Value::Undefined),
+                    arguments_list,
+                    &mut storage,
                 )
             }
         }
