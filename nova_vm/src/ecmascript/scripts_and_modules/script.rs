@@ -35,6 +35,7 @@ use std::{
     any::Any,
     collections::HashSet,
     marker::PhantomData,
+    mem::ManuallyDrop,
     ops::{Index, IndexMut},
     ptr::NonNull,
 };
@@ -133,7 +134,13 @@ pub struct Script {
     /// ### \[\[ECMAScriptCode]]
     ///
     /// The result of parsing the source text of this script.
-    pub(crate) ecmascript_code: Program<'static>,
+    ///
+    /// #### Safety
+    ///
+    /// The Program holds references to the allocator which will drop all of
+    /// the data when it is dropped. Dropping the Program separately is not
+    /// necessary beyond deallocating its own memory.
+    pub(crate) ecmascript_code: ManuallyDrop<Program<'static>>,
 
     /// ### \[\[LoadedModules]]
     ///
@@ -161,14 +168,6 @@ unsafe impl Send for Script {}
 
 impl Drop for Script {
     fn drop(&mut self) {
-        // Drop off all parts of the Program before we drop the allocator that
-        // holds its referenced parts.
-        self.ecmascript_code.body.clear();
-        self.ecmascript_code.directives.clear();
-        self.ecmascript_code.hashbang.take();
-        self.ecmascript_code.body.shrink_to(0);
-        self.ecmascript_code.directives.shrink_to(0);
-        self.ecmascript_code.hashbang.take();
         // SAFETY: All references to this Script should have been dropped
         // before we drop this.
         drop(unsafe { Box::from_raw(self.allocator.as_mut()) });
@@ -285,7 +284,9 @@ pub fn parse_script(
         // SAFETY: Program retains at least a logical connection to `source_text`, possibly even
         // direct references. This should be safe because we move the `source_text` into the Script
         // struct, making it self-referential. Hence we must use the 'static lifetime.
-        ecmascript_code: unsafe { std::mem::transmute::<Program<'_>, Program<'static>>(program) },
+        ecmascript_code: ManuallyDrop::new(unsafe {
+            std::mem::transmute::<Program<'_>, Program<'static>>(program)
+        }),
         // [[LoadedModules]]: « »,
         loaded_modules: (),
         // [[HostDefined]]: hostDefined,
