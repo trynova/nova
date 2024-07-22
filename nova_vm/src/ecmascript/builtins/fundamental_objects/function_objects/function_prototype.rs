@@ -151,14 +151,19 @@ impl FunctionPrototype {
                 let data = &agent[idx].ecmascript_function;
                 let span = data.source_text;
                 let source = data.script_or_module;
-                match source {
-                    ScriptOrModule::Script(script) => {
-                        let source_text = agent[script].source_text
-                            [(span.start as usize)..(span.end as usize)]
-                            .to_string();
-                        Ok(Value::from_string(agent, source_text))
-                    }
+                let source_text = match source {
+                    ScriptOrModule::EvalSource(eval_source) => eval_source.get_source_text(agent),
+                    ScriptOrModule::Script(script) => agent[script].source_text,
                     ScriptOrModule::Module(_) => todo!(),
+                };
+                let source_text =
+                    &source_text.as_str(agent)[span.start as usize..span.end as usize];
+                if let Some(string) = String::find_str(agent, source_text) {
+                    Ok(string.into_value())
+                } else {
+                    // SAFETY: Did not find an existing string for this string data.
+                    let string = source_text.to_owned();
+                    Ok(unsafe { String::from_string_unchecked(agent, string) }.into_value())
                 }
             }
             // 4. If func is an Object and IsCallable(func) is true, return an

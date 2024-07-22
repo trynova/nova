@@ -278,7 +278,7 @@ impl Heap {
         self.create(data)
     }
 
-    fn find_equal_string(&self, message: &str) -> Option<String> {
+    pub(crate) fn find_equal_string(&self, message: &str) -> Option<String> {
         debug_assert!(message.len() > 7);
         self.strings
             .iter()

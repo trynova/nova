@@ -7,8 +7,8 @@ use std::{fs, path::PathBuf};
 use nova_vm::ecmascript::{
     execution::{agent::Options, initialize_default_realm, Agent, DefaultHostHooks},
     scripts_and_modules::script::{parse_script, script_evaluation},
+    types::String as JsString,
 };
-use oxc_allocator::Allocator;
 
 #[test]
 fn object_prototype_tests() {
@@ -22,11 +22,11 @@ fn object_prototype_tests() {
     .collect();
     let contents = fs::read_to_string(d.clone()).expect("Should have been able to read the file");
 
-    let allocator = Allocator::default();
     let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
     initialize_default_realm(&mut agent);
     let realm = agent.current_realm_id();
-    let script = parse_script(&allocator, contents.into_boxed_str(), realm, false, None).unwrap();
+    let source_text = JsString::from_string(&mut agent, contents);
+    let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
     let _ = script_evaluation(&mut agent, script).unwrap_or_else(|err| {
         panic!(
             "Test '{}' failed: {:?}",

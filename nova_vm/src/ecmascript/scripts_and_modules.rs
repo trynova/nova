@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use eval_source::EvalSource;
+
 use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 use self::script::ScriptIdentifier;
@@ -14,22 +16,25 @@ pub mod script;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ScriptOrModule {
-    Script(ScriptIdentifier),
+    EvalSource(EvalSource),
     Module(Module),
+    Script(ScriptIdentifier),
 }
 
 impl HeapMarkAndSweep for ScriptOrModule {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
-            ScriptOrModule::Script(idx) => idx.mark_values(queues),
-            ScriptOrModule::Module(idx) => idx.mark_values(queues),
+            ScriptOrModule::EvalSource(data) => data.mark_values(queues),
+            ScriptOrModule::Script(data) => data.mark_values(queues),
+            ScriptOrModule::Module(data) => data.mark_values(queues),
         }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         match self {
-            ScriptOrModule::Script(idx) => idx.sweep_values(compactions),
-            ScriptOrModule::Module(idx) => idx.sweep_values(compactions),
+            ScriptOrModule::EvalSource(data) => data.sweep_values(compactions),
+            ScriptOrModule::Script(data) => data.sweep_values(compactions),
+            ScriptOrModule::Module(data) => data.sweep_values(compactions),
         }
     }
 }

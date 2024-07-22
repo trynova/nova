@@ -193,8 +193,33 @@ impl String {
         agent.heap.create(str)
     }
 
+    /// Returns a String if the string can be represented on the stack or if an
+    /// equal string is already found on the Agent heap.
+    pub fn find_str(agent: &Agent, str: &str) -> Option<String> {
+        if let Ok(data) = SmallString::try_from(str) {
+            return Some(data.into());
+        }
+
+        agent.heap.find_equal_string(str)
+    }
+
     pub fn from_string(agent: &mut Agent, string: std::string::String) -> String {
         agent.heap.create(string)
+    }
+
+    /// Allocates a new String on the Agent heap without checking for
+    /// duplicates.
+    ///
+    /// ### Safety
+    ///
+    /// The caller must have used String::find_str or otherwise be sure that
+    /// the argument string does already exist on the Agent heap.
+    pub(crate) unsafe fn from_string_unchecked(
+        agent: &mut Agent,
+        string: std::string::String,
+    ) -> String {
+        let data = StringHeapData::from_string(string);
+        agent.heap.create(data)
     }
 
     pub const fn to_property_key(self) -> PropertyKey {

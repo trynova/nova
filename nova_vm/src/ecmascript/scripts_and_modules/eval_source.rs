@@ -34,6 +34,10 @@ impl EvalSource {
     pub(crate) fn get_index(self) -> usize {
         self.0.into_index()
     }
+
+    pub(crate) fn get_source_text(self, agent: &Agent) -> HeapString {
+        agent[self].source
+    }
 }
 
 pub(crate) struct EvalSourceHeapData {
