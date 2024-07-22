@@ -32,7 +32,7 @@ use crate::{
         types::{Function, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
     engine::{Executable, Vm},
-    heap::{self, IntrinsicFunctionIndexes},
+    heap::{IntrinsicFunctionIndexes},
 };
 
 use super::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic};
