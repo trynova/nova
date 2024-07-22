@@ -107,11 +107,11 @@ impl SetConstructor {
             }
         }
         // 7. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-        let iterator_record = get_iterator(agent, iterable, false)?;
+        let mut iterator_record = get_iterator(agent, iterable, false)?;
         // 8. Repeat,
         loop {
             // a. Let next be ? IteratorStepValue(iteratorRecord).
-            let next = iterator_step_value(agent, &iterator_record)?;
+            let next = iterator_step_value(agent, &mut iterator_record)?;
             // b. If next is DONE, return set.
             let Some(next) = next else {
                 return Ok(set.into_value());

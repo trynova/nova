@@ -234,11 +234,11 @@ pub(crate) fn add_entries_from_iterable(
     adder: Function,
 ) -> JsResult<Object> {
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-    let iterator_record = get_iterator(agent, iterable, false)?;
+    let mut iterator_record = get_iterator(agent, iterable, false)?;
     // 2. Repeat,
     loop {
         // a. Let next be ? IteratorStepValue(iteratorRecord).
-        let next = iterator_step_value(agent, &iterator_record)?;
+        let next = iterator_step_value(agent, &mut iterator_record)?;
         // b. If next is DONE, return target.
         let Some(next) = next else {
             return Ok(target);
