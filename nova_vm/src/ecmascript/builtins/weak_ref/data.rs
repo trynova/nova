@@ -28,7 +28,7 @@ impl HeapMarkAndSweep for WeakRefHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.object_index.mark_values(queues);
         if self.is_strong {
-            self.object_index.mark_values(queues);
+            self.value.mark_values(queues);
         }
     }
 
