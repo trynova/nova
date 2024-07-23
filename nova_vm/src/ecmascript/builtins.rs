@@ -51,8 +51,7 @@ pub use array_buffer::ArrayBuffer;
 pub(crate) use array_buffer::ArrayBufferHeapData;
 pub use builtin_function::{
     create_builtin_function, todo_builtin, ArgumentsList, Behaviour, Builtin, BuiltinFunction,
-    BuiltinFunctionArgs, BuiltinGetter, ConstructorFn, FnStorage, RegularFn as JsFunction,
-    RegularFn, RegularFnStorage, RegularWithStorageFn,
+    BuiltinFunctionArgs, BuiltinGetter, ConstructorFn, RegularFn as JsFunction, RegularFn,
 };
 pub(crate) use builtin_function::{BuiltinIntrinsic, BuiltinIntrinsicConstructor};
 pub(crate) use ecmascript_function::*;

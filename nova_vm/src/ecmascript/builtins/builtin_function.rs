@@ -45,7 +45,7 @@ pub type RegularFn = fn(&mut Agent, Value, ArgumentsList<'_>) -> JsResult<Value>
 pub type ConstructorFn =
     fn(&mut Agent, Value, ArgumentsList<'_>, Option<Object>) -> JsResult<Value>;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Behaviour {
     Regular(RegularFn),
     Constructor(ConstructorFn),
@@ -525,7 +525,7 @@ pub(crate) fn builtin_call_or_construct(
     // 10. Let result be the Completion Record that is the result of evaluating F in a manner that conforms to
     // the specification of F. If thisArgument is uninitialized, the this value is uninitialized; otherwise,
     // thisArgument provides the this value. argumentsList provides the named parameters. newTarget provides the NewTarget value.
-    let func = heap_data.behaviour.clone();
+    let func = heap_data.behaviour;
     let result = match func {
         Behaviour::Regular(func) => {
             if new_target.is_some() {

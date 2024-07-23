@@ -4,8 +4,13 @@
 mod helper;
 mod theme;
 
-use std::{cell::RefCell, collections::VecDeque, fmt::Debug};
+use std::{
+    cell::{RefCell, RefMut},
+    collections::VecDeque,
+    fmt::Debug,
+};
 
+use anymap::AnyMap;
 use clap::{Parser as ClapParser, Subcommand};
 use cliclack::{input, intro, set_theme};
 use helper::{exit_with_parse_errors, initialize_global_object};
@@ -55,9 +60,18 @@ enum Command {
     Repl {},
 }
 
-#[derive(Default)]
 struct CliHostHooks {
     promise_job_queue: RefCell<VecDeque<Job>>,
+    storage: RefCell<AnyMap>,
+}
+
+impl Default for CliHostHooks {
+    fn default() -> Self {
+        Self {
+            promise_job_queue: RefCell::default(),
+            storage: RefCell::new(AnyMap::new()),
+        }
+    }
 }
 
 // RefCell doesn't implement Debug
@@ -78,6 +92,10 @@ impl CliHostHooks {
 impl HostHooks for CliHostHooks {
     fn enqueue_promise_job(&self, job: Job) {
         self.promise_job_queue.borrow_mut().push_back(job);
+    }
+
+    fn get_storage_handle(&self) -> RefMut<AnyMap> {
+        self.storage.borrow_mut()
     }
 }
 
