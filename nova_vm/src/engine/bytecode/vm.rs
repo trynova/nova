@@ -1443,7 +1443,7 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         // 9. If val is a Number, return "number".
         Value::Number(_) |
         Value::Integer(_) |
-        Value::Float(_) => BUILTIN_STRING_MEMORY.number,
+        Value::SmallF64(_) => BUILTIN_STRING_MEMORY.number,
         // 10. If val is a BigInt, return "bigint".
         Value::BigInt(_) |
         Value::SmallBigInt(_) => BUILTIN_STRING_MEMORY.bigint,

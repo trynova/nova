@@ -13,7 +13,7 @@ use std::{
     fs::{read_dir, File},
     io::{ErrorKind, Read, Write},
     num::NonZeroUsize,
-    path::PathBuf,
+    path::{absolute, PathBuf},
     process::{Command, Stdio},
     time::Duration,
 };
@@ -201,7 +201,8 @@ impl BaseTest262Runner {
                 let auto_includes = [Some("assert.js"), Some("sta.js"), async_include];
 
                 let mut harness = self.runner_base_path.clone();
-                harness.push("test262/harness");
+                harness.push("test262");
+                harness.push("harness");
                 let includes_iter = auto_includes
                     .iter()
                     .filter_map(|include| *include)
@@ -460,11 +461,25 @@ impl Test262Runner {
                 return;
             }
 
-            RUNNER_STATE.with_borrow_mut(|state| {
-                state
-                    .unexpected_results
-                    .insert(relpath.to_path_buf(), test_result)
-            });
+            // In Windows, `relpath` will likely contain backwards slashes,
+            // which shouldn't end up in the JSON output, because they will
+            // not match in Unix systems. So we replace them with forward
+            // slashes before inserting the path into `unexpected_results`.
+            let output_path = if cfg!(windows) {
+                let mut path_string = relpath.to_str().unwrap().to_string();
+                let mut idx = 0;
+                while let Some(found_idx) = path_string[idx..].find('\\') {
+                    idx += found_idx;
+                    path_string.replace_range(idx..(idx + 1), "/");
+                    idx += 1;
+                }
+                PathBuf::from(path_string)
+            } else {
+                relpath.to_path_buf()
+            };
+
+            RUNNER_STATE
+                .with_borrow_mut(|state| state.unexpected_results.insert(output_path, test_result));
         }
     }
 }
@@ -755,7 +770,7 @@ fn main() {
     // We're expecting this binary to always be run in the same machine at
     // the same time as the repo checkout exists.
     let runner_base_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let tests_base = runner_base_path.join("test262/test");
+    let tests_base = absolute(runner_base_path.join("test262").join("test")).unwrap();
     let nova_harness_path = runner_base_path.join("nova-harness.js");
 
     let nova_cli_path = {
@@ -765,7 +780,7 @@ fn main() {
         assert!(path.pop());
         path.push("nova_cli");
         if cfg!(windows) {
-            path.set_extension(".exe");
+            path.set_extension("exe");
         }
         assert!(path.is_file());
         path
@@ -790,7 +805,7 @@ fn eval_test(mut base_runner: BaseTest262Runner, path: PathBuf) {
     base_runner.print_progress = false;
     base_runner.in_test_eval = true;
 
-    let canonical_path = base_runner.tests_base.join(&path).canonicalize().unwrap();
+    let canonical_path = absolute(base_runner.tests_base.join(&path)).unwrap();
     assert!(canonical_path.is_absolute());
 
     if !canonical_path.starts_with(&base_runner.tests_base)
@@ -863,9 +878,7 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
     filters
         .allowlist
         .extend(args.filters.into_iter().map_while(|filter| {
-            let absolute = base_runner.tests_base.join(filter);
-            assert!(absolute.is_absolute());
-            let Ok(canonical) = absolute.canonicalize() else {
+            let Ok(canonical) = absolute(base_runner.tests_base.join(filter)) else {
                 filters_are_valid = false;
                 return None;
             };

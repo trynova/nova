@@ -98,8 +98,8 @@ impl PropertyStorage {
                 let ObjectHeapData { keys, values, .. } = agent[object];
                 let property_key = property_key.into_value();
 
-                let (element_descriptor, value) =
-                    ElementDescriptor::from_property_descriptor(&descriptor.into());
+                let value = descriptor.value;
+                let element_descriptor = ElementDescriptor::from_property_descriptor(descriptor);
 
                 let result = agent
                     .heap
