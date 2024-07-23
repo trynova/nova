@@ -123,6 +123,9 @@ pub trait HostHooks: std::fmt::Debug {
         // The default implementation of HostPromiseRejectionTracker is to return unused.
     }
 
+    /// Get access to the Host data, useful to share state between calls of built-in functions.
+    ///
+    /// Note: This will panic if not implemented manually.
     fn get_host_data(&self) -> &dyn Any {
         unimplemented!()
     }
