@@ -17,8 +17,8 @@ pub(crate) use environments::{
     PrivateEnvironmentIndex, ThisBindingStatus,
 };
 pub(crate) use execution_context::*;
+pub(crate) use realm::ProtoIntrinsics;
 pub use realm::{
     create_realm, initialize_default_realm, initialize_host_defined_realm, set_realm_global_object,
-    Realm,
+    Realm, RealmIdentifier,
 };
-pub(crate) use realm::{ProtoIntrinsics, RealmIdentifier};

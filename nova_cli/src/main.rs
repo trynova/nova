@@ -4,19 +4,10 @@
 mod helper;
 mod theme;
 
-use std::{cell::RefCell, collections::VecDeque, fmt::Debug};
-
 use clap::{Parser as ClapParser, Subcommand};
 use cliclack::{input, intro, set_theme};
-use helper::{exit_with_parse_errors, initialize_global_object};
-use nova_vm::ecmascript::{
-    execution::{
-        agent::{HostHooks, Job, Options},
-        initialize_host_defined_realm, Agent, Realm,
-    },
-    scripts_and_modules::script::{parse_script, script_evaluation},
-    types::{Object, Value},
-};
+use helper::{exit_with_parse_errors, CliRunner};
+use nova_vm::ecmascript::types::Value;
 use oxc_parser::Parser;
 use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
@@ -56,32 +47,6 @@ enum Command {
     Repl {},
 }
 
-#[derive(Default)]
-struct CliHostHooks {
-    promise_job_queue: RefCell<VecDeque<Job>>,
-}
-
-// RefCell doesn't implement Debug
-impl Debug for CliHostHooks {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CliHostHooks")
-            //.field("promise_job_queue", &*self.promise_job_queue.borrow())
-            .finish()
-    }
-}
-
-impl CliHostHooks {
-    fn pop_promise_job(&self) -> Option<Job> {
-        self.promise_job_queue.borrow_mut().pop_front()
-    }
-}
-
-impl HostHooks for CliHostHooks {
-    fn enqueue_promise_job(&self, job: Job) {
-        self.promise_job_queue.borrow_mut().push_back(job);
-    }
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
 
@@ -112,27 +77,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             no_strict,
             paths,
         } => {
-            let allocator = Default::default();
-
-            let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
-            let mut agent = Agent::new(
-                Options {
-                    disable_gc: false,
-                    print_internals: verbose,
-                },
-                host_hooks,
-            );
-            {
-                let create_global_object: Option<fn(&mut Realm) -> Object> = None;
-                let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
-                initialize_host_defined_realm(
-                    &mut agent,
-                    create_global_object,
-                    create_global_this_value,
-                    Some(initialize_global_object),
-                );
-            }
-            let realm = agent.current_realm_id();
+            let mut cli_runner = CliRunner::new(verbose);
 
             // `final_result` will always be overwritten in the paths loop, but
             // we populate it with a dummy value here so rustc won't complain.
@@ -141,22 +86,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             assert!(!paths.is_empty());
             for path in paths {
                 let file = std::fs::read_to_string(&path)?;
-                let script = match parse_script(&allocator, file.into(), realm, !no_strict, None) {
-                    Ok(script) => script,
-                    Err((file, errors)) => exit_with_parse_errors(errors, &path, &file),
-                };
-                final_result = script_evaluation(&mut agent, script);
+                final_result = cli_runner.run_script_and_microtasks(file.into(), &path, no_strict);
                 if final_result.is_err() {
                     break;
-                }
-            }
-
-            if final_result.is_ok() {
-                while let Some(job) = host_hooks.pop_promise_job() {
-                    if let Err(err) = job.run(&mut agent) {
-                        final_result = Err(err);
-                        break;
-                    }
                 }
             }
 
@@ -169,33 +101,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Err(error) => {
                     eprintln!(
                         "Uncaught exception: {}",
-                        error.value().string_repr(&mut agent).as_str(&agent)
+                        error
+                            .value()
+                            .string_repr(cli_runner.agent())
+                            .as_str(cli_runner.agent())
                     );
                     std::process::exit(1);
                 }
             }
+            std::process::exit(0);
         }
         Command::Repl {} => {
-            let allocator = Default::default();
-            let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
-            let mut agent = Agent::new(
-                Options {
-                    disable_gc: false,
-                    print_internals: true,
-                },
-                host_hooks,
-            );
-            {
-                let create_global_object: Option<fn(&mut Realm) -> Object> = None;
-                let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
-                initialize_host_defined_realm(
-                    &mut agent,
-                    create_global_object,
-                    create_global_this_value,
-                    Some(initialize_global_object),
-                );
-            }
-            let realm = agent.current_realm_id();
+            let mut cli_runner = CliRunner::new(false);
 
             set_theme(DefaultTheme);
             println!("\n\n");
@@ -209,21 +126,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     std::process::exit(0);
                 }
                 placeholder = input.to_string();
-                let script = match parse_script(&allocator, input.into(), realm, true, None) {
-                    Ok(script) => script,
-                    Err((file, errors)) => {
-                        exit_with_parse_errors(errors, "<stdin>", &file);
-                    }
-                };
-                let result = script_evaluation(&mut agent, script);
-                match result {
+
+                match cli_runner.run_script_and_microtasks(input.into(), "<stdin>", false) {
                     Ok(result) => {
                         println!("{:?}\n", result);
                     }
                     Err(error) => {
                         eprintln!(
                             "Uncaught exception: {}",
-                            error.value().string_repr(&mut agent).as_str(&agent)
+                            error
+                                .value()
+                                .string_repr(cli_runner.agent())
+                                .as_str(cli_runner.agent())
                         );
                     }
                 }

@@ -1,12 +1,17 @@
 use nova_vm::ecmascript::{
     builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
-    execution::{Agent, JsResult},
+    execution::{
+        agent::{HostHooks, Job, Options},
+        initialize_host_defined_realm, Agent, JsResult, Realm, RealmIdentifier,
+    },
+    scripts_and_modules::script::{parse_script, script_evaluation},
     types::{InternalMethods, IntoValue, Object, PropertyDescriptor, PropertyKey, Value},
 };
 use oxc_diagnostics::OxcDiagnostic;
+use std::{cell::RefCell, collections::VecDeque, fmt::Debug};
 
 /// Initialize the global object with the built-in functions.
-pub fn initialize_global_object(agent: &mut Agent, global: Object) {
+fn initialize_global_object(agent: &mut Agent, global: Object) {
     // `print` function
     fn print(agent: &mut Agent, _this: Value, args: ArgumentsList) -> JsResult<Value> {
         if args.len() == 0 {
@@ -58,4 +63,107 @@ pub fn exit_with_parse_errors(errors: Vec<OxcDiagnostic>, source_path: &str, sou
     eprintln!();
 
     std::process::exit(1);
+}
+
+#[derive(Default)]
+struct CliHostHooks {
+    promise_job_queue: RefCell<VecDeque<Job>>,
+}
+
+// RefCell doesn't implement Debug
+impl Debug for CliHostHooks {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CliHostHooks")
+            //.field("promise_job_queue", &*self.promise_job_queue.borrow())
+            .finish()
+    }
+}
+
+impl CliHostHooks {
+    fn pop_promise_job(&self) -> Option<Job> {
+        self.promise_job_queue.borrow_mut().pop_front()
+    }
+}
+
+impl HostHooks for CliHostHooks {
+    fn enqueue_promise_job(&self, job: Job) {
+        self.promise_job_queue.borrow_mut().push_back(job);
+    }
+}
+
+pub struct CliRunner {
+    allocator: oxc_allocator::Allocator,
+    host_hooks: &'static CliHostHooks,
+    agent: Option<Agent>,
+    realm_id: RealmIdentifier,
+}
+
+impl CliRunner {
+    pub fn new(print_internals: bool) -> Self {
+        let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
+        let mut agent = Agent::new(
+            Options {
+                disable_gc: false,
+                print_internals,
+            },
+            host_hooks,
+        );
+
+        {
+            let create_global_object: Option<fn(&mut Realm) -> Object> = None;
+            let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
+            initialize_host_defined_realm(
+                &mut agent,
+                create_global_object,
+                create_global_this_value,
+                Some(initialize_global_object),
+            );
+        }
+
+        let realm_id = agent.current_realm_id();
+        Self {
+            allocator: Default::default(),
+            host_hooks,
+            agent: Some(agent),
+            realm_id,
+        }
+    }
+
+    pub fn run_script_and_microtasks(
+        &mut self,
+        script: Box<str>,
+        script_path: &str,
+        allow_loose_mode: bool,
+    ) -> JsResult<Value> {
+        let script = match parse_script(
+            &self.allocator,
+            script,
+            self.realm_id,
+            !allow_loose_mode,
+            None,
+        ) {
+            Ok(script) => script,
+            Err((file, errors)) => exit_with_parse_errors(errors, script_path, &file),
+        };
+
+        let result = script_evaluation(self.agent(), script)?;
+
+        while let Some(job) = self.host_hooks.pop_promise_job() {
+            job.run(self.agent())?;
+        }
+
+        Ok(result)
+    }
+
+    pub fn agent(&mut self) -> &mut Agent {
+        self.agent.as_mut().unwrap()
+    }
+}
+
+impl Drop for CliRunner {
+    fn drop(&mut self) {
+        // The agent unsafely borrows the allocator and the host hooks, so it
+        // has to be dropped first.
+        self.agent.take();
+    }
 }
