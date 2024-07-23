@@ -29,8 +29,4 @@ impl HostHooks for DefaultHostHooks {
     fn enqueue_promise_job(&self, _job: Job) {
         // No-op
     }
-
-    fn get_storage_handle(&self) -> std::cell::RefMut<anymap::AnyMap> {
-        panic!("Storage is not supported.")
-    }
 }

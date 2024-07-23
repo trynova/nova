@@ -7,8 +7,6 @@
 //! - This is inspired by and/or copied from Kiesel engine:
 //!   Copyright (c) 2023-2024 Linus Groh
 
-use anymap::AnyMap;
-
 use super::{
     environments::get_identifier_reference, EnvironmentIndex, ExecutionContext, Realm,
     RealmIdentifier,
@@ -23,7 +21,7 @@ use crate::{
     heap::CreateHeapData,
     Heap,
 };
-use std::{cell::RefMut, collections::HashMap};
+use std::{any::Any, collections::HashMap};
 
 #[derive(Debug, Default)]
 pub struct Options {
@@ -125,7 +123,9 @@ pub trait HostHooks: std::fmt::Debug {
         // The default implementation of HostPromiseRejectionTracker is to return unused.
     }
 
-    fn get_storage_handle(&self) -> RefMut<AnyMap>;
+    fn get_host_data(&self) -> &dyn Any {
+        unimplemented!()
+    }
 }
 
 /// ### [9.7 Agents](https://tc39.es/ecma262/#sec-agents)
@@ -194,8 +194,8 @@ impl Agent {
         self.execution_context_stack.last_mut().unwrap()
     }
 
-    pub fn get_host_storage(&self) -> RefMut<AnyMap> {
-        self.host_hooks.get_storage_handle()
+    pub fn get_host_data(&self) -> &dyn Any {
+        self.host_hooks.get_host_data()
     }
 }
 
