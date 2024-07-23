@@ -194,8 +194,8 @@ impl Agent {
         self.execution_context_stack.last_mut().unwrap()
     }
 
-    pub fn get_hoost_hooks(&self) -> &'static dyn HostHooks {
-        self.host_hooks
+    pub fn get_host_storage(&self) -> RefMut<AnyMap> {
+        self.host_hooks.get_storage_handle()
     }
 }
 
