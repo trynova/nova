@@ -197,6 +197,9 @@ impl Agent {
         self.execution_context_stack.last_mut().unwrap()
     }
 
+    /// Get access to the Host data, useful to share state between calls of built-in functions.
+    ///
+    /// Note: This will panic if not implemented manually.
     pub fn get_host_data(&self) -> &dyn Any {
         self.host_hooks.get_host_data()
     }
