@@ -69,9 +69,17 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
         }
     });
 
-    heap.globals.iter().for_each(|&value| {
-        queues.push_value(value);
+    let mut last_filled_global_value = None;
+    heap.globals.iter().enumerate().for_each(|(i, &value)| {
+        if let Some(value) = value {
+            queues.push_value(value);
+            last_filled_global_value = Some(i);
+        }
     });
+    // Remove as many `None` global values without moving any `Some(Value)` values.
+    if let Some(last_filled_global_value) = last_filled_global_value {
+        heap.globals.drain(last_filled_global_value..);
+    }
 
     queues.strings.extend(
         (0..BUILTIN_STRINGS_LIST.len()).map(|index| HeapString(StringIndex::from_index(index))),
@@ -1171,7 +1179,7 @@ fn test_heap_gc() {
     assert!(heap.objects.is_empty());
     let obj = Value::Object(heap.create_null_object(&[]));
     println!("Object: {:#?}", obj);
-    heap.globals.push(obj);
+    heap.globals.push(Some(obj));
     heap_gc(&mut heap, &mut []);
     println!("Objects: {:#?}", heap.objects);
     assert_eq!(heap.objects.len(), 1);
