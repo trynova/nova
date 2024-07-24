@@ -712,8 +712,7 @@ impl HeapMarkAndSweep for BuiltinFunction {
 
 impl HeapMarkAndSweep for BuiltinFunctionHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        // Note: Builtin functions cannot keep their realm alive.
-        // self.realm.mark_values(queues);
+        self.realm.mark_values(queues);
         self.initial_name.mark_values(queues);
         self.object_index.mark_values(queues);
     }
