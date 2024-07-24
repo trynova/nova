@@ -8,6 +8,7 @@ use super::Value;
 /// multiple calls of the garbage collector.
 ///
 /// This might be useful to resolve promises asynchronously for example.
+#[derive(Debug, PartialEq)]
 pub struct GlobalValue(usize);
 
 impl GlobalValue {
