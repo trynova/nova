@@ -4,7 +4,7 @@ use super::Value;
 
 /// Holds the position of a global value in the heap.
 /// The main advantage of this is that the garbage collector will not move the elements
-/// of the global valus vector, making it possible to maintain a position of any value across
+/// of the global values vector, making it possible to maintain a position of any value across
 /// multiple calls of the garbage collector.
 ///
 /// This might be useful to resolve promises asynchronously for example.
