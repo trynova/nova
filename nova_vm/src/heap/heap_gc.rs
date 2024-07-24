@@ -68,7 +68,7 @@ pub fn heap_gc(heap: &mut Heap) {
     });
     // Remove as many `None` global values without moving any `Some(Value)` values.
     if let Some(last_filled_global_value) = last_filled_global_value {
-        heap.globals.drain(last_filled_global_value..);
+        heap.globals.drain(last_filled_global_value + 1..);
     }
 
     while !queues.is_empty() {
