@@ -21,7 +21,7 @@ use crate::{
     heap::CreateHeapData,
     Heap,
 };
-use std::collections::HashMap;
+use std::{any::Any, collections::HashMap};
 
 #[derive(Debug, Default)]
 pub struct Options {
@@ -122,6 +122,13 @@ pub trait HostHooks: std::fmt::Debug {
     ) {
         // The default implementation of HostPromiseRejectionTracker is to return unused.
     }
+
+    /// Get access to the Host data, useful to share state between calls of built-in functions.
+    ///
+    /// Note: This will panic if not implemented manually.
+    fn get_host_data(&self) -> &dyn Any {
+        unimplemented!()
+    }
 }
 
 /// ### [9.7 Agents](https://tc39.es/ecma262/#sec-agents)
@@ -188,6 +195,13 @@ impl Agent {
 
     pub(crate) fn running_execution_context_mut(&mut self) -> &mut ExecutionContext {
         self.execution_context_stack.last_mut().unwrap()
+    }
+
+    /// Get access to the Host data, useful to share state between calls of built-in functions.
+    ///
+    /// Note: This will panic if not implemented manually.
+    pub fn get_host_data(&self) -> &dyn Any {
+        self.host_hooks.get_host_data()
     }
 }
 
