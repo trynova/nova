@@ -266,8 +266,8 @@ impl Agent {
     }
 
     fn get_created_realm_root(&mut self) -> RealmIdentifier {
+        assert!(!self.execution_context_stack.is_empty());
         let identifier = self.current_realm_id();
-        assert!(self.execution_context_stack.len() >= 1);
         let _ = self.execution_context_stack.pop();
         identifier
     }
