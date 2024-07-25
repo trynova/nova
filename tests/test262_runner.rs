@@ -138,6 +138,7 @@ struct BaseTest262Runner {
     nova_cli_path: PathBuf,
     print_progress: bool,
     in_test_eval: bool,
+    run_gc: bool,
 }
 
 impl BaseTest262Runner {
@@ -187,7 +188,9 @@ impl BaseTest262Runner {
             if !strict {
                 command.arg("--no-strict");
             }
-            command.arg("--nogc");
+            if !self.run_gc {
+                command.arg("--nogc");
+            }
 
             command.arg(&self.nova_harness_path);
             if metadata.flags.raw {
@@ -763,6 +766,13 @@ struct RunTestsArgs {
     ///
     /// Can be absolute paths, or relative to the test folder.
     filters: Vec<PathBuf>,
+
+    /// Run garbage collection between each script run.
+    ///
+    /// Garbage collection is currently disabled by default as it needlessly
+    /// increases the test runtime by about two-fold.
+    #[arg(long)]
+    gc: bool,
 }
 
 fn main() {
@@ -794,6 +804,7 @@ fn main() {
         nova_cli_path,
         print_progress: false,
         in_test_eval: false,
+        run_gc: cli.run_tests.gc,
     };
 
     match cli.command {
