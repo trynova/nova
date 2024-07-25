@@ -163,7 +163,7 @@ impl FunctionPrototype {
                 let source = data.script_or_module;
                 match source {
                     ScriptOrModule::Script(script) => {
-                        let source_text = agent[script].source_text
+                        let source_text = agent[script].source_text.get_source_text(agent)
                             [(span.start as usize)..(span.end as usize)]
                             .to_string();
                         Ok(Value::from_string(agent, source_text))

@@ -77,14 +77,20 @@ impl SourceCode {
             }
         };
 
-        let allocator = Box::new(Allocator::default());
-        let parser = Parser::new(&allocator, source_text, source_type);
+        let mut allocator = NonNull::from(Box::leak(Box::default()));
+        // SAFETY: Parser is dropped before allocator.
+        let parser = Parser::new(unsafe { allocator.as_mut() }, source_text, source_type);
 
         let ParserReturn {
             errors, program, ..
         } = parser.parse();
 
         if !errors.is_empty() {
+            // Drop program before dropping allocator.
+            drop(program);
+            // SAFETY: No references to allocator exist anymore. It is safe to
+            // drop it.
+            drop(unsafe { Box::from_raw(allocator.as_mut()) });
             // TODO: Include error messages in the exception.
             return Err(errors);
         }
@@ -94,18 +100,24 @@ impl SourceCode {
             .build(&program);
 
         if !errors.is_empty() {
+            // Drop program before dropping allocator.
+            drop(program);
+            // SAFETY: No references to allocator exist anymore. It is safe to
+            // drop it.
+            drop(unsafe { Box::from_raw(allocator.as_mut()) });
             // TODO: Include error messages in the exception.
             return Err(errors);
         }
         // SAFETY: Caller guarantees that they will drop the Program before
         // SourceCode can be garbage collected.
         let program = unsafe { std::mem::transmute::<Program<'_>, Program<'static>>(program) };
-        let source_code = agent.heap.create(SourceCodeHeapData {
-            source,
-            allocator: NonNull::from(Box::leak(allocator)),
-        });
+        let source_code = agent.heap.create(SourceCodeHeapData { source, allocator });
 
         Ok((program, source_code))
+    }
+
+    pub(crate) fn get_source_text(self, agent: &Agent) -> &str {
+        agent[agent[self].source].as_str()
     }
 
     pub(crate) fn get_index(self) -> usize {
