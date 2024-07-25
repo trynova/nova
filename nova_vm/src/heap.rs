@@ -51,7 +51,7 @@ use crate::ecmascript::{
         weak_ref::data::WeakRefHeapData,
         weak_set::data::WeakSetHeapData,
     },
-    scripts_and_modules::eval_source::EvalSourceHeapData,
+    scripts_and_modules::eval_source::SourceCodeHeapData,
     types::{HeapNumber, HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
 };
 use crate::ecmascript::{
@@ -104,13 +104,12 @@ pub struct Heap {
     pub weak_maps: Vec<Option<WeakMapHeapData>>,
     pub weak_refs: Vec<Option<WeakRefHeapData>>,
     pub weak_sets: Vec<Option<WeakSetHeapData>>,
-    // Heap data that may be referenced by functions must be dropped after
-    // the functions drop. These are eval sources, modules, and scripts.
-    pub(crate) eval_sources: Vec<Option<EvalSourceHeapData>>,
     pub modules: Vec<Option<ModuleHeapData>>,
     pub scripts: Vec<Option<Script>>,
-    // But: Eval sources (and maybe in the future modules and scripts) actually
-    // keep their string source data in the string heap. We need to thus drop
+    // Parsed ASTs referred by functions must be dropped after functions.
+    // These are held in the SourceCodeHeapData structs.
+    pub(crate) source_codes: Vec<Option<SourceCodeHeapData>>,
+    // But: Source code string data is in the string heap. We need to thus drop
     // the strings only after the source ASTs drop.
     pub strings: Vec<Option<StringHeapData>>,
 }
@@ -167,7 +166,7 @@ impl Heap {
             embedder_objects: Vec::with_capacity(0),
             environments: Default::default(),
             errors: Vec::with_capacity(1024),
-            eval_sources: Vec::with_capacity(0),
+            source_codes: Vec::with_capacity(0),
             finalization_registrys: Vec::with_capacity(0),
             globals: Vec::with_capacity(1024),
             maps: Vec::with_capacity(128),

@@ -23,6 +23,10 @@ pub use data::StringHeapData;
 pub struct HeapString(pub(crate) StringIndex);
 
 impl HeapString {
+    pub fn len(self, agent: &Agent) -> usize {
+        agent[self].len()
+    }
+
     pub(crate) const fn _def() -> Self {
         HeapString(StringIndex::from_u32_index(0))
     }

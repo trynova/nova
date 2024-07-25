@@ -8,8 +8,6 @@ use oxc_ast::{
     ast::{BindingIdentifier, Program, VariableDeclarationKind},
     syntax_directed_operations::BoundNames,
 };
-use oxc_parser::{Parser, ParserReturn};
-use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
 
 use crate::{
@@ -21,7 +19,7 @@ use crate::{
             ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult,
             PrivateEnvironmentIndex, RealmIdentifier,
         },
-        scripts_and_modules::eval_source::EvalSource,
+        scripts_and_modules::eval_source::SourceCode,
         syntax_directed_operations::{
             miscellaneous::instantiate_function_object,
             scope_analysis::{
@@ -159,38 +157,6 @@ pub fn perform_eval(
         return Ok(x);
     };
 
-    // Nova custom step: If the eval source string is not a heap string,
-    // pad it with whitespace and allocate it on the heap. This makes it safe
-    // (for some definition of "safe") for the potential functions created in
-    // the eval call to keep references to the string buffer.
-    let (x, source_text) = match x {
-        String::String(x) => {
-            // SAFETY: EvalSource keeps this string alive while functions still refer
-            // to it. It's "safe" for the AST to keep references to its buffer.
-            let source_text = unsafe { std::mem::transmute::<&str, &'static str>(x.as_str(agent)) };
-            (x, source_text)
-        }
-        String::SmallString(x) => {
-            // Add 10 whitespace bytes to the end of the eval string. This
-            // should guarantee that the string gets heap-allocated, no
-            // question.
-            let data = format!("{}          ", x.as_str());
-            let heap_string_x = String::from_string(agent, data);
-            let String::String(x) = heap_string_x else {
-                unreachable!()
-            };
-            // SAFETY: EvalSource keeps this string alive while functions still refer
-            // to it. It's "safe" for the AST to keep references to its buffer.
-            let source_text = unsafe { std::mem::transmute::<&str, &'static str>(x.as_str(agent)) };
-            // Slice the source text back to the original length so that the
-            // whitespace we added doesn't get fed to the parser: It shouldn't
-            // need it.
-            let original_length = heap_string_x.len(agent);
-            let source_text = &source_text[..original_length];
-            (x, source_text)
-        }
-    };
-
     // 3. Let evalRealm be the current Realm Record.
     let eval_realm = agent.current_realm_id();
 
@@ -236,53 +202,22 @@ pub fn perform_eval(
         }
     }
 
-    let eval_source = EvalSource::new(agent, x);
-
     // 11. Perform the following substeps in an implementation-defined order, possibly interleaving parsing and error detection:
     // a. Let script be ParseText(x, Script).
-    // HACK: Because we rely on the allocator outliving the Agent we leak the
-    // allocator here . See https://github.com/trynova/nova/pull/278#discussion_r1663233064
-    // for more information.
-    let mut allocator = agent[eval_source].get_allocator();
-    // SAFETY: The same as above goes for Allocator as well.
-    let allocator = unsafe { allocator.as_mut() };
     let source_type = SourceType::default().with_always_strict(strict_caller);
-    let parser = Parser::new(allocator, source_text, source_type);
-    let ParserReturn {
-        errors,
-        program: script,
-        ..
-    } = parser.parse();
+    let parse_result = SourceCode::parse_source(agent, x, source_type);
 
     // b. If script is a List of errors, throw a SyntaxError exception.
-    if !errors.is_empty() {
-        // Make sure `script` can't borrow `source_text` so we can drop the allocator.
-        drop(script);
+    let Ok((script, eval_source)) = parse_result else {
         // TODO: Include error messages in the exception.
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::SyntaxError,
             "Invalid eval source text.",
         ));
-    }
-
-    let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new(source_text, source_type)
-        .with_check_syntax_error(true)
-        .build(&script);
-
-    if !errors.is_empty() {
-        // Make sure `script` can't borrow `source_text` so we can drop the allocator.
-        drop(script);
-        // TODO: Include error messages in the exception.
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::SyntaxError,
-            "Invalid eval source text.",
-        ));
-    }
+    };
 
     // c. If script Contains ScriptBody is false, return undefined.
     if script.is_empty() {
-        // Make sure `script` can't borrow `source_text` so we can drop the allocator. Because the script is empty this is fine.
-        drop(script);
         return Ok(Value::Undefined);
     }
 

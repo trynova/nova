@@ -38,7 +38,7 @@ use crate::ecmascript::{
         DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
     },
-    scripts_and_modules::{eval_source::EvalSource, script::ScriptIdentifier},
+    scripts_and_modules::{eval_source::SourceCode, script::ScriptIdentifier},
     types::{
         bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
         BUILTIN_STRINGS_LIST,
@@ -113,7 +113,7 @@ pub(crate) struct WorkQueues {
     pub e_2_8: Vec<(ElementIndex, u32)>,
     pub ecmascript_functions: Vec<ECMAScriptFunction>,
     pub embedder_objects: Vec<EmbedderObject>,
-    pub eval_sources: Vec<EvalSource>,
+    pub eval_sources: Vec<SourceCode>,
     pub errors: Vec<Error>,
     pub finalization_registrys: Vec<FinalizationRegistry>,
     pub function_environments: Vec<FunctionEnvironmentIndex>,
@@ -162,7 +162,7 @@ impl HeapBits {
         let ecmascript_functions = vec![false; heap.ecmascript_functions.len()];
         let embedder_objects = vec![false; heap.embedder_objects.len()];
         let errors = vec![false; heap.errors.len()];
-        let eval_sources = vec![false; heap.eval_sources.len()];
+        let eval_sources = vec![false; heap.source_codes.len()];
         let finalization_registrys = vec![false; heap.finalization_registrys.len()];
         let function_environments = vec![false; heap.environments.function.len()];
         let global_environments = vec![false; heap.environments.global.len()];
@@ -258,7 +258,7 @@ impl WorkQueues {
             ecmascript_functions: Vec::with_capacity(heap.ecmascript_functions.len() / 4),
             embedder_objects: Vec::with_capacity(heap.embedder_objects.len() / 4),
             errors: Vec::with_capacity(heap.errors.len() / 4),
-            eval_sources: Vec::with_capacity(heap.eval_sources.len() / 4),
+            eval_sources: Vec::with_capacity(heap.source_codes.len() / 4),
             finalization_registrys: Vec::with_capacity(heap.finalization_registrys.len() / 4),
             function_environments: Vec::with_capacity(heap.environments.function.len() / 4),
             global_environments: Vec::with_capacity(heap.environments.global.len() / 4),

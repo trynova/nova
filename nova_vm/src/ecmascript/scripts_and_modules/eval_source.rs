@@ -2,33 +2,110 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! EvalSource is a Nova-engine specific concept to capture and keep any
+//! SourceCode is a Nova-engine specific concept to capture and keep any
 //! `eval(source)` source strings alive after the eval call for the case where
 //! that the eval call defines functions. Those functions will refer to the
-//! EvalSource for their function source text.
+//! SourceCode for their function source text.
 
 use std::{fmt::Debug, ops::Index, ptr::NonNull};
 
 use oxc_allocator::Allocator;
+use oxc_ast::ast::Program;
+use oxc_diagnostics::OxcDiagnostic;
+use oxc_parser::{Parser, ParserReturn};
+use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
+use oxc_span::SourceType;
 
 use crate::{
-    ecmascript::{execution::Agent, types::HeapString},
+    ecmascript::{
+        execution::Agent,
+        types::{HeapString, String},
+    },
     heap::{
         indexes::BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
 };
 
-type EvalSourceIndex = BaseIndex<EvalSourceHeapData>;
+type SourceCodeIndex = BaseIndex<SourceCodeHeapData>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct EvalSource(EvalSourceIndex);
+pub(crate) struct SourceCode(SourceCodeIndex);
 
-impl EvalSource {
-    pub(crate) fn new(agent: &mut Agent, source: HeapString) -> Self {
-        agent.heap.create(EvalSourceHeapData {
+impl SourceCode {
+    /// Parses the given source string as JavaScript code and returns the
+    /// parsed result and a SourceCode heap reference.
+    ///
+    /// The caller must keep the SourceCode from being garbage collected until
+    /// they drop the parsed code.
+    pub(crate) fn parse_source(
+        agent: &mut Agent,
+        source: String,
+        source_type: SourceType,
+    ) -> Result<(Program<'static>, Self), Vec<OxcDiagnostic>> {
+        // If the source code is not a heap string, pad it with whitespace and
+        // allocate it on the heap. This makes it safe (for some definition of
+        // "safe") for the any functions created referring to this source code to
+        // keep references to the string buffer.
+        let (source, source_text) = match source {
+            String::String(source) => {
+                // SAFETY: Caller guarantees to keep SourceCode from being
+                // garbage collected until the parsed Program is dropped.
+                // Thus the source text is kept from garbage collection.
+                let source_text =
+                    unsafe { std::mem::transmute::<&str, &'static str>(source.as_str(agent)) };
+                (source, source_text)
+            }
+            String::SmallString(source) => {
+                // Add 10 whitespace bytes to the end of the eval string. This
+                // should guarantee that the string gets heap-allocated.
+                let original_length = source.len();
+                let data = format!("{}          ", source.as_str());
+                let source = String::from_string(agent, data);
+                let String::String(source) = source else {
+                    unreachable!()
+                };
+                // SAFETY: Caller guarantees to keep SourceCode from being
+                // garbage collected until the parsed Program is dropped.
+                // Thus the source text is kept from garbage collection.
+                let source_text =
+                    unsafe { std::mem::transmute::<&str, &'static str>(source.as_str(agent)) };
+                // Slice the source text back to the original length so that the
+                // whitespace we added doesn't get fed to the parser: It shouldn't
+                // need it.
+                let source_text = &source_text[..original_length];
+                (source, source_text)
+            }
+        };
+
+        let allocator = Box::new(Allocator::default());
+        let parser = Parser::new(&allocator, source_text, source_type);
+
+        let ParserReturn {
+            errors, program, ..
+        } = parser.parse();
+
+        if !errors.is_empty() {
+            // TODO: Include error messages in the exception.
+            return Err(errors);
+        }
+
+        let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new(source_text, source_type)
+            .with_check_syntax_error(true)
+            .build(&program);
+
+        if !errors.is_empty() {
+            // TODO: Include error messages in the exception.
+            return Err(errors);
+        }
+        // SAFETY: Caller guarantees that they will drop the Program before
+        // SourceCode can be garbage collected.
+        let program = unsafe { std::mem::transmute::<Program<'_>, Program<'static>>(program) };
+        let source_code = agent.heap.create(SourceCodeHeapData {
             source,
-            allocator: NonNull::from(Box::leak(Default::default())),
-        })
+            allocator: NonNull::from(Box::leak(allocator)),
+        });
+
+        Ok((program, source_code))
     }
 
     pub(crate) fn get_index(self) -> usize {
@@ -36,7 +113,7 @@ impl EvalSource {
     }
 }
 
-pub(crate) struct EvalSourceHeapData {
+pub(crate) struct SourceCodeHeapData {
     /// The source JavaScript string data the eval was called with. The string
     /// is known and required to be a HeapString because functions created
     /// in the eval call may keep references to the string data. If the eval
@@ -47,52 +124,52 @@ pub(crate) struct EvalSourceHeapData {
     allocator: NonNull<Allocator>,
 }
 
-unsafe impl Send for EvalSourceHeapData {}
+unsafe impl Send for SourceCodeHeapData {}
 
-impl EvalSourceHeapData {
+impl SourceCodeHeapData {
     pub(crate) fn get_allocator(&self) -> NonNull<Allocator> {
         self.allocator
     }
 }
 
-impl Debug for EvalSourceHeapData {
+impl Debug for SourceCodeHeapData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("EvalSourceHeapData")
+        f.debug_struct("SourceCodeHeapData")
             .field("source", &self.source)
             .field("allocator", &"[binary data]")
             .finish()
     }
 }
 
-impl Drop for EvalSourceHeapData {
+impl Drop for SourceCodeHeapData {
     fn drop(&mut self) {
-        // SAFETY: All references to this EvalSource should have been dropped
+        // SAFETY: All references to this SourceCode should have been dropped
         // before we drop this.
         drop(unsafe { Box::from_raw(self.allocator.as_mut()) });
     }
 }
 
-impl Index<EvalSource> for Agent {
-    type Output = EvalSourceHeapData;
+impl Index<SourceCode> for Agent {
+    type Output = SourceCodeHeapData;
 
-    fn index(&self, index: EvalSource) -> &Self::Output {
+    fn index(&self, index: SourceCode) -> &Self::Output {
         self.heap
-            .eval_sources
+            .source_codes
             .get(index.get_index())
-            .expect("EvalSource out of bounds")
+            .expect("SourceCode out of bounds")
             .as_ref()
-            .expect("EvalSource slot empty")
+            .expect("SourceCode slot empty")
     }
 }
 
-impl CreateHeapData<EvalSourceHeapData, EvalSource> for Heap {
-    fn create(&mut self, data: EvalSourceHeapData) -> EvalSource {
-        self.eval_sources.push(Some(data));
-        EvalSource(EvalSourceIndex::last(&self.eval_sources))
+impl CreateHeapData<SourceCodeHeapData, SourceCode> for Heap {
+    fn create(&mut self, data: SourceCodeHeapData) -> SourceCode {
+        self.source_codes.push(Some(data));
+        SourceCode(SourceCodeIndex::last(&self.source_codes))
     }
 }
 
-impl HeapMarkAndSweep for EvalSourceHeapData {
+impl HeapMarkAndSweep for SourceCodeHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.source.mark_values(queues);
     }
@@ -102,7 +179,7 @@ impl HeapMarkAndSweep for EvalSourceHeapData {
     }
 }
 
-impl HeapMarkAndSweep for EvalSource {
+impl HeapMarkAndSweep for SourceCode {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.eval_sources.push(*self);
     }

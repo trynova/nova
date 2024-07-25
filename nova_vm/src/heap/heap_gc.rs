@@ -44,7 +44,7 @@ use crate::ecmascript::{
         DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
     },
-    scripts_and_modules::{eval_source::EvalSource, script::ScriptIdentifier},
+    scripts_and_modules::{eval_source::SourceCode, script::ScriptIdentifier},
     types::{
         bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
         BUILTIN_STRINGS_LIST,
@@ -106,7 +106,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             embedder_objects,
             environments,
             errors,
-            eval_sources,
+            source_codes: eval_sources,
             finalization_registrys,
             globals: _,
             maps,
@@ -324,7 +324,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 errors.get(index).mark_values(&mut queues);
             }
         });
-        let mut eval_source_marks: Box<[EvalSource]> = queues.eval_sources.drain(..).collect();
+        let mut eval_source_marks: Box<[SourceCode]> = queues.eval_sources.drain(..).collect();
         eval_source_marks.sort();
         eval_source_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
@@ -826,7 +826,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         embedder_objects,
         environments,
         errors,
-        eval_sources,
+        source_codes: eval_sources,
         finalization_registrys,
         globals,
         maps,

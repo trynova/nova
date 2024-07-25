@@ -24,7 +24,7 @@ use crate::{
             ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult,
             PrivateEnvironmentIndex, ProtoIntrinsics, RealmIdentifier, ThisBindingStatus,
         },
-        scripts_and_modules::{eval_source::EvalSource, ScriptOrModule},
+        scripts_and_modules::{eval_source::SourceCode, ScriptOrModule},
         syntax_directed_operations::{
             function_definitions::evaluate_function_body,
             miscellaneous::instantiate_function_object,
@@ -222,7 +222,7 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     // TODO: [[Fields]],  [[PrivateMethods]], [[ClassFieldInitializerName]]
     /// Nova specific addition: If Some(EvalSource) then this function was
     /// created in an eval call.
-    pub eval_source: Option<EvalSource>,
+    pub eval_source: Option<SourceCode>,
 }
 
 pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
