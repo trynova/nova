@@ -686,9 +686,11 @@ impl Vm {
                 let args = vm.stack.split_off(vm.stack.len() - arg_count);
                 let constructor = vm.stack.pop().unwrap();
                 let Some(constructor) = is_constructor(agent, constructor) else {
-                    return Err(
-                        agent.throw_exception(ExceptionType::TypeError, "Not a constructor")
+                    let error_message = format!(
+                        "'{}' is not a constructor.",
+                        constructor.string_repr(agent).as_str(agent)
                     );
+                    return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
                 };
                 vm.result = Some(
                     construct(agent, constructor, Some(ArgumentsList(&args)), None)
@@ -806,10 +808,11 @@ impl Vm {
                 // RelationalExpression : RelationalExpression in ShiftExpression
                 // 5. If rval is not an Object, throw a TypeError exception.
                 let Ok(rval) = Object::try_from(rval) else {
-                    return Err(agent.throw_exception(
-                        ExceptionType::TypeError,
-                        "The right-hand side of an `in` expression must be an object.",
-                    ));
+                    let error_message = format!(
+                        "The right-hand side of an `in` expression must be an object, got '{}'.",
+                        rval.string_repr(agent).as_str(agent)
+                    );
+                    return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
                 };
                 // 6. Return ? HasProperty(rval, ? ToPropertyKey(lval)).
                 let property_key = to_property_key(agent, lval)?;
@@ -1031,9 +1034,9 @@ impl Vm {
                         debug_assert!(!is_private_reference(&refer));
                         // b. If IsSuperReference(ref) is true, throw a ReferenceError exception.
                         if is_super_reference(&refer) {
-                            return Err(agent.throw_exception(
+                            return Err(agent.throw_exception_with_static_message(
                                 ExceptionType::ReferenceError,
-                                "Cannot delete super reference",
+                                "Invalid delete involving 'super'.",
                             ));
                         }
                         // c. Let baseObj be ? ToObject(ref.[[Base]]).
@@ -1046,7 +1049,7 @@ impl Vm {
                             base_obj.internal_delete(agent, refer.referenced_name)?;
                         // f. If deleteStatus is false and ref.[[Strict]] is true, throw a TypeError exception.
                         if !delete_status && refer.strict {
-                            return Err(agent.throw_exception(
+                            return Err(agent.throw_exception_with_static_message(
                                 ExceptionType::TypeError,
                                 "Cannot delete property",
                             ));
@@ -1102,7 +1105,7 @@ impl Vm {
                 )?;
                 let Some(method) = method else {
                     // 3. If method is undefined, throw a TypeError exception.
-                    return Err(agent.throw_exception(
+                    return Err(agent.throw_exception_with_static_message(
                         ExceptionType::TypeError,
                         "Iterator method cannot be undefined",
                     ));
@@ -1181,7 +1184,10 @@ impl Vm {
         // Let method be ? GetMethod(obj, @@iterator).
         let method = get_method(agent, obj, WellKnownSymbolIndexes::Iterator.into())?;
         let Some(method) = method else {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not iterable"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Value is not iterable",
+            ));
         };
         if Array::try_from(obj).is_ok()
             && method
@@ -1420,7 +1426,7 @@ fn apply_string_or_numeric_binary_operator(
         })
     } else {
         // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
-        Err(agent.throw_exception(
+        Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "The left and right-hand sides do not have the same type.",
         ))
@@ -1523,10 +1529,11 @@ pub(crate) fn instanceof_operator(
 ) -> JsResult<bool> {
     // 1. If target is not an Object, throw a TypeError exception.
     let Ok(target) = Object::try_from(target.into_value()) else {
-        return Err(agent.throw_exception(
-            ExceptionType::TypeError,
-            "instanceof target is not an object",
-        ));
+        let error_message = format!(
+            "Invalid instanceof target {}.",
+            target.into_value().string_repr(agent).as_str(agent)
+        );
+        return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
     };
     // 2. Let instOfHandler be ? GetMethod(target, @@hasInstance).
     let inst_of_handler = get_method(
@@ -1547,10 +1554,11 @@ pub(crate) fn instanceof_operator(
     } else {
         // 4. If IsCallable(target) is false, throw a TypeError exception.
         let Some(target) = is_callable(target) else {
-            return Err(agent.throw_exception(
-                ExceptionType::TypeError,
-                "instanceof target is not a function",
-            ));
+            let error_message = format!(
+                "Invalid instanceof target {} is not a function.",
+                target.into_value().string_repr(agent).as_str(agent)
+            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
         // 5. Return ? OrdinaryHasInstance(target, V).
         Ok(ordinary_has_instance(agent, target, value)?)

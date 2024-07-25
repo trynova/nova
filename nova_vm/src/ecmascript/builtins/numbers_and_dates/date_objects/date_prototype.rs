@@ -592,9 +592,11 @@ impl DatePrototype {
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
-            return Err(
-                agent.throw_exception(ExceptionType::TypeError, "argument is not an object")
+            let error_message = format!(
+                "{} is not an object",
+                this_value.string_repr(agent).as_str(agent)
             );
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
         // 3. If hint is either "string" or "default", then
         let try_first = if hint == BUILTIN_STRING_MEMORY.string.into_value()
@@ -609,10 +611,11 @@ impl DatePrototype {
         } else {
             // 5. Else,
             // a. Throw a TypeError exception.
-            return Err(agent.throw_exception(
-                ExceptionType::TypeError,
-                "Expected 'hint' to be \"string\", \"default\", or \"number\"",
-            ));
+            let error_message = format!(
+                "Expected 'hint' to be \"string\", \"default\", or \"number\", got {}",
+                hint.string_repr(agent).as_str(agent)
+            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
         // 6. Return ? OrdinaryToPrimitive(O, tryFirst).
         ordinary_to_primitive(agent, o, try_first).map(|result| result.into_value())
@@ -691,6 +694,9 @@ impl DatePrototype {
 fn check_date_object(agent: &mut Agent, this_value: Value) -> JsResult<Date> {
     match this_value {
         Value::Date(date) => Ok(date),
-        _ => Err(agent.throw_exception(ExceptionType::TypeError, "this is not a Date object.")),
+        _ => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "this is not a Date object.",
+        )),
     }
 }

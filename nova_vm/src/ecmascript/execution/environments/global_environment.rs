@@ -163,7 +163,9 @@ impl GlobalEnvironmentIndex {
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, throw a TypeError exception.
         if dcl_rec.has_binding(agent, name) {
-            Err(agent.throw_exception(ExceptionType::TypeError, "Binding exists"))
+            let error_message =
+                format!("Redeclaration of global binding '{}'.", name.as_str(agent));
+            Err(agent.throw_exception(ExceptionType::TypeError, error_message))
         } else {
             // 3. Return ! DclRec.CreateMutableBinding(N, D).
             dcl_rec.create_mutable_binding(agent, name, is_deletable);
@@ -191,7 +193,9 @@ impl GlobalEnvironmentIndex {
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, throw a TypeError exception.
         if dcl_rec.has_binding(agent, name) {
-            Err(agent.throw_exception(ExceptionType::TypeError, "Binding exists"))
+            let error_message =
+                format!("Redeclaration of global binding '{}'.", name.as_str(agent));
+            Err(agent.throw_exception(ExceptionType::TypeError, error_message))
         } else {
             // 3. Return ! DclRec.CreateImmutableBinding(N, S).
             dcl_rec.create_immutable_binding(agent, name, is_strict);

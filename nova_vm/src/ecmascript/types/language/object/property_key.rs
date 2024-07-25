@@ -83,6 +83,33 @@ impl PropertyKey {
             _ => false,
         }
     }
+
+    pub(crate) fn as_display<'a, 'b>(&'a self, agent: &'b Agent) -> DisplayablePropertyKey<'a, 'b> {
+        DisplayablePropertyKey { key: self, agent }
+    }
+}
+
+pub(crate) struct DisplayablePropertyKey<'a, 'b> {
+    key: &'a PropertyKey,
+    agent: &'b Agent,
+}
+
+impl<'a, 'b> core::fmt::Display for DisplayablePropertyKey<'a, 'b> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.key {
+            PropertyKey::Integer(data) => data.into_i64().fmt(f),
+            PropertyKey::SmallString(data) => data.as_str().fmt(f),
+            PropertyKey::String(data) => data.as_str(self.agent).fmt(f),
+            PropertyKey::Symbol(data) => {
+                if let Some(descriptor) = self.agent[*data].descriptor {
+                    let descriptor = descriptor.as_str(self.agent);
+                    f.debug_tuple("Symbol").field(&descriptor).finish()
+                } else {
+                    "Symbol()".fmt(f)
+                }
+            }
+        }
+    }
 }
 
 impl From<u32> for PropertyKey {

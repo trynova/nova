@@ -65,7 +65,7 @@ impl TypedArrayIntrinsicObject {
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
     ) -> JsResult<Value> {
-        Err(agent.throw_exception(
+        Err(agent.throw_exception_with_static_message(
             crate::ecmascript::execution::agent::ExceptionType::TypeError,
             "Abstract class TypedArray not directly constructable",
         ))

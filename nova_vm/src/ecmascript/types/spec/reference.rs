@@ -96,6 +96,7 @@ pub(crate) fn is_private_reference(_: &Reference) -> bool {
 /// ECMAScript language value) and returns either a normal completion
 /// containing an ECMAScript language value or an abrupt completion.
 pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Value> {
+    let referenced_name = reference.referenced_name;
     match reference.base {
         Base::Value(value) => {
             // 3. If IsPropertyReference(V) is true, then
@@ -107,21 +108,26 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             // and the ordinary object [[Get]] internal method. An
             // implementation might choose to avoid the actual
             // creation of the object.
-            let referenced_name = reference.referenced_name;
             if let Ok(object) = Object::try_from(value) {
                 // c. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
                 Ok(object.internal_get(agent, referenced_name, get_this_value(reference))?)
             } else {
                 // Primitive value. annoying stuff.
                 match value {
-                    Value::Undefined => Err(agent.throw_exception(
-                        ExceptionType::TypeError,
-                        "Cannot read properties of undefined",
-                    )),
-                    Value::Null => Err(agent.throw_exception(
-                        ExceptionType::TypeError,
-                        "Cannot read properties of null",
-                    )),
+                    Value::Undefined => {
+                        let error_message = format!(
+                            "Cannot read property '{}' of undefined.",
+                            referenced_name.as_display(agent)
+                        );
+                        Err(agent.throw_exception(ExceptionType::TypeError, error_message))
+                    }
+                    Value::Null => {
+                        let error_message = format!(
+                            "Cannot read property '{}' of null.",
+                            referenced_name.as_display(agent)
+                        );
+                        Err(agent.throw_exception(ExceptionType::TypeError, error_message))
+                    }
                     Value::Boolean(_) => agent
                         .current_realm()
                         .intrinsics()
@@ -174,10 +180,11 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
         }
         Base::Unresolvable => {
             // 2. If IsUnresolvableReference(V) is true, throw a ReferenceError exception.
-            Err(agent.throw_exception(
-                ExceptionType::ReferenceError,
-                "Unable to resolve identifier.",
-            ))
+            let error_message = format!(
+                "Cannot access undeclared variable '{}'.",
+                referenced_name.as_display(agent)
+            );
+            Err(agent.throw_exception(ExceptionType::ReferenceError, error_message))
         }
     }
 }
@@ -193,9 +200,11 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
     if is_unresolvable_reference(v) {
         if v.strict {
             // a. If V.[[Strict]] is true, throw a ReferenceError exception.
-            return Err(
-                agent.throw_exception(ExceptionType::ReferenceError, "Could not resolve reference")
+            let error_message = format!(
+                "Cannot assign to undeclared variable '{}'.",
+                v.referenced_name.as_display(agent)
             );
+            return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message));
         }
         // b. Let globalObj be GetGlobalObject().
         let global_obj = get_global_object(agent);
@@ -223,7 +232,13 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
         let succeeded = base_obj.internal_set(agent, referenced_name, w, this_value)?;
         if !succeeded && v.strict {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Could not set property"));
+            let base_obj_repr = base_obj.into_value().string_repr(agent);
+            let error_message = format!(
+                "Could not set property '{}' of {}.",
+                referenced_name.as_display(agent),
+                base_obj_repr.as_str(agent)
+            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         }
         // e. Return UNUSED.
         Ok(())

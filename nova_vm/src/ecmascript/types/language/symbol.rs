@@ -15,7 +15,7 @@ use crate::{
     },
 };
 
-use super::{IntoPrimitive, IntoValue, Primitive, Value};
+use super::{IntoPrimitive, IntoValue, Primitive, Value, BUILTIN_STRING_MEMORY};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -42,8 +42,7 @@ impl Symbol {
                 ],
             )
         } else {
-            // TODO: Add to builtin_strings
-            String::from_static_str(agent, "Symbol()")
+            BUILTIN_STRING_MEMORY.Symbol__
         }
     }
 }

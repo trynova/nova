@@ -178,9 +178,12 @@ impl PropertyDescriptor {
     pub fn to_property_descriptor(agent: &mut Agent, obj: Value) -> JsResult<Self> {
         // 1. If Obj is not an Object, throw a TypeError exception.
         let Ok(obj) = Object::try_from(obj) else {
-            return Err(
-                agent.throw_exception(ExceptionType::TypeError, "Argument is not an object")
+            let obj_repr = obj.string_repr(agent);
+            let error_message = format!(
+                "Property descriptor must be an object, got '{}'.",
+                obj_repr.as_str(agent)
             );
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
         // 2. Let desc be a new Property Descriptor that initially has no
         // fields.
@@ -234,9 +237,10 @@ impl PropertyDescriptor {
             // throw a TypeError exception.
             if !getter.is_undefined() {
                 let Some(getter) = is_callable(getter) else {
-                    return Err(
-                        agent.throw_exception(ExceptionType::TypeError, "getter is not callable")
-                    );
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "getter is not callable",
+                    ));
                 };
                 // c. Set desc.[[Get]] to getter.
                 desc.get = Some(getter);
@@ -252,9 +256,10 @@ impl PropertyDescriptor {
             // throw a TypeError exception.
             if !setter.is_undefined() {
                 let Some(setter) = is_callable(setter) else {
-                    return Err(
-                        agent.throw_exception(ExceptionType::TypeError, "setter is not callable")
-                    );
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "setter is not callable",
+                    ));
                 };
                 // c. Set desc.[[Set]] to setter.
                 desc.set = Some(setter);
@@ -265,7 +270,7 @@ impl PropertyDescriptor {
             // a. If desc has a [[Value]] field or desc has a [[Writable]]
             // field, throw a TypeError exception.
             if desc.writable.is_some() || desc.writable.is_some() {
-                return Err(agent.throw_exception(
+                return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "Over-defined property descriptor",
                 ));

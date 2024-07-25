@@ -352,7 +352,7 @@ impl InternalMethods for Module {
                     match target_env {
                         None => Err(agent.throw_exception(
                             ExceptionType::ReferenceError,
-                            "Could not resolve module",
+                            format!("Could not resolve module '{}'.", key.as_str(agent)),
                         )),
                         Some(_target_env) => {
                             // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).

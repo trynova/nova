@@ -956,7 +956,10 @@ fn this_string_value(agent: &mut Agent, value: Value) -> JsResult<String> {
         }
         _ => {
             // 3. Throw a TypeError exception.
-            Err(agent.throw_exception(ExceptionType::TypeError, "Not a string value"))
+            Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Not a string value",
+            ))
         }
     }
 }

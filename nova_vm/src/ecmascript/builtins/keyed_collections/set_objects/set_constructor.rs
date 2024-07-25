@@ -57,9 +57,10 @@ impl SetConstructor {
         let iterable = arguments.get(0);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
-            return Err(
-                agent.throw_exception(ExceptionType::TypeError, "Cannot call Set as a function")
-            );
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Cannot call Set as a function",
+            ));
         };
         // 2. Let set be ? OrdinaryCreateFromConstructor(NewTarget, "%Set.prototype%", « [[SetData]] »).
         let new_target = Function::try_from(new_target).unwrap();
@@ -78,7 +79,10 @@ impl SetConstructor {
         let adder = get(agent, set, BUILTIN_STRING_MEMORY.add.into())?;
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
         let Some(adder) = is_callable(adder) else {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Invalid adder function"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Invalid adder function",
+            ));
         };
         if let Value::Array(iterable) = iterable {
             if iterable.is_trivial(agent)

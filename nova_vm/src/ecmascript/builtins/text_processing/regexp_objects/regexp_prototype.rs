@@ -240,9 +240,11 @@ impl RegExpPrototype {
         // 1. Let R be the this value.
         // 2. If R is not an Object, throw a TypeError exception.
         let Ok(r) = Object::try_from(this_value) else {
-            return Err(
-                agent.throw_exception(ExceptionType::TypeError, "argument is not an object")
+            let error_message = format!(
+                "{} is not an object",
+                this_value.string_repr(agent).as_str(agent)
             );
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
         if let Object::RegExp(r) = r {
             // Fast path for RegExp objects: This is not actually proper as it

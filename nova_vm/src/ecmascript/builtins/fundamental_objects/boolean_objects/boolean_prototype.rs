@@ -95,5 +95,8 @@ fn this_boolean_value(agent: &mut Agent, value: Value) -> JsResult<bool> {
         }
     }
     // 3. Throw a TypeError exception.
-    Err(agent.throw_exception(ExceptionType::TypeError, "Not a Boolean or Boolean object"))
+    Err(agent.throw_exception_with_static_message(
+        ExceptionType::TypeError,
+        "Not a Boolean or Boolean object",
+    ))
 }

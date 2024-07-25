@@ -498,7 +498,10 @@ impl InternalMethods for ECMAScriptFunction {
         {
             // a. Let error be a newly created TypeError object.
             // b. NOTE: error is created in calleeContext with F's associated Realm Record.
-            let error = agent.throw_exception(ExceptionType::TypeError, "fail");
+            let error = agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "class constructors must be invoked with 'new'",
+            );
             // c. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
             agent.execution_context_stack.pop();
             // d. Return ThrowCompletion(error).
@@ -1040,7 +1043,7 @@ fn set_ecmascript_function_length(
 
     // 2. Perform ! DefinePropertyOrThrow(F, "length", PropertyDescriptor { [[Value]]: 𝔽(length), [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
     if length > u8::MAX as usize {
-        return Err(agent.throw_exception(
+        return Err(agent.throw_exception_with_static_message(
             SyntaxError,
             "Too many arguments in function call (only 255 allowed)",
         ));

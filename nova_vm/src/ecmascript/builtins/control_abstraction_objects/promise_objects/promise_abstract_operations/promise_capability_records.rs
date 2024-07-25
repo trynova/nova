@@ -155,7 +155,7 @@ impl PromiseCapability {
         if resolution == self.promise.into_value() {
             // a. Let selfResolutionError be a newly created TypeError object.
             // b. Perform RejectPromise(promise, selfResolutionError).
-            let exception = agent.create_exception(
+            let exception = agent.create_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Tried to resolve a promise with itself.",
             );

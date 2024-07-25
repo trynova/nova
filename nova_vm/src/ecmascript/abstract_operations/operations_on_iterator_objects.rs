@@ -45,7 +45,10 @@ pub(crate) fn get_iterator_from_method(
 
     // 2. If iterator is not an Object, throw a TypeError exception.
     let Ok(iterator) = to_object(agent, iterator) else {
-        return Err(agent.throw_exception(ExceptionType::TypeError, "Iterator is not an object"));
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Iterator is not an object",
+        ));
     };
 
     // 3. Let nextMethod be ? Get(iterator, "next").
@@ -89,9 +92,10 @@ pub(crate) fn get_iterator(
             )?
             else {
                 // ii. If syncMethod is undefined, throw a TypeError exception.
-                return Err(
-                    agent.throw_exception(ExceptionType::TypeError, "No iterator on object")
-                );
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "No iterator on object",
+                ));
             };
 
             // iii. Let syncIteratorRecord be ? GetIteratorFromMethod(obj, syncMethod).
@@ -114,7 +118,7 @@ pub(crate) fn get_iterator(
 
     // 3. If method is undefined, throw a TypeError exception.
     let Some(method) = method else {
-        return Err(agent.throw_exception(
+        return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Iterator method cannot be undefined",
         ));
@@ -150,10 +154,12 @@ pub(crate) fn iterator_next(
 
     // 3. If result is not an Object, throw a TypeError exception.
     // 4. Return result.
-    result.try_into().or(Err(agent.throw_exception(
-        ExceptionType::TypeError,
-        "The iterator result was not an object",
-    )))
+    result
+        .try_into()
+        .or(Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "The iterator result was not an object",
+        )))
 }
 
 /// ### [7.4.5 IteratorComplete ( iterResult )](https://tc39.es/ecma262/#sec-iteratorcomplete)
@@ -280,7 +286,7 @@ pub(crate) fn iterator_close<T>(
     let inner_result = inner_result?;
     // 7. If innerResult.[[Value]] is not an Object, throw a TypeError exception.
     if !inner_result.is_object() {
-        return Err(agent.throw_exception(
+        return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Invalid iterator 'return' method return value",
         ));

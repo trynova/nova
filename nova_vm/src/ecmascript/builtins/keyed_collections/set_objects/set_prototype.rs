@@ -198,7 +198,7 @@ impl SetPrototype {
         let s = require_set_data_internal_slot(agent, this_value)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
-            return Err(agent.throw_exception(
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
@@ -315,7 +315,8 @@ impl SetPrototype {
 fn require_set_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<Set> {
     match value {
         Value::Set(map) => Ok(map),
-        _ => Err(agent.throw_exception(ExceptionType::TypeError, "Object is not a Set")),
+        _ => Err(agent
+            .throw_exception_with_static_message(ExceptionType::TypeError, "Object is not a Set")),
     }
 }
 
