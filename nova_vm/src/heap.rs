@@ -85,7 +85,7 @@ pub struct Heap {
     pub environments: Environments,
     pub errors: Vec<Option<ErrorHeapData>>,
     pub finalization_registrys: Vec<Option<FinalizationRegistryHeapData>>,
-    pub globals: Vec<Value>,
+    pub globals: Vec<Option<Value>>,
     pub maps: Vec<Option<MapHeapData>>,
     pub modules: Vec<Option<ModuleHeapData>>,
     pub numbers: Vec<Option<NumberHeapData>>,

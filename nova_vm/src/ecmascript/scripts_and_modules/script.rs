@@ -41,7 +41,7 @@ use std::{
 pub type HostDefined = &'static mut dyn Any;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct ScriptIdentifier(u32, PhantomData<Script>);
+pub struct ScriptIdentifier(u32, PhantomData<Script>);
 
 impl ScriptIdentifier {
     /// Creates a script identififer from a usize.
@@ -145,7 +145,7 @@ pub struct Script {
     ///
     /// Field reserved for use by host environments that need to associate
     /// additional information with a script.
-    pub(crate) host_defined: Option<HostDefined>,
+    pub host_defined: Option<HostDefined>,
 
     /// Source text of the script
     ///

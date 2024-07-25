@@ -38,7 +38,7 @@ use super::promise_jobs::new_promise_resolve_thenable_job;
 /// state is Fulfilled or Rejected. If true, it also counts as already resolved
 /// if it's Pending but `is_resolved` is set to true.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PromiseCapability {
+pub struct PromiseCapability {
     promise: Promise,
     must_be_unresolved: bool,
 }
@@ -47,18 +47,18 @@ impl PromiseCapability {
     /// [27.2.1.5 NewPromiseCapability ( C )](https://tc39.es/ecma262/#sec-newpromisecapability)
     /// NOTE: Our implementation doesn't take C as a parameter, since we don't
     /// yet support promise subclassing.
-    pub(crate) fn new(agent: &mut Agent) -> Self {
+    pub fn new(agent: &mut Agent) -> Self {
         Self::from_promise(agent.heap.create(PromiseHeapData::default()), true)
     }
 
-    pub(crate) fn from_promise(promise: Promise, must_be_unresolved: bool) -> Self {
+    pub fn from_promise(promise: Promise, must_be_unresolved: bool) -> Self {
         Self {
             promise,
             must_be_unresolved,
         }
     }
 
-    pub(crate) fn promise(&self) -> Promise {
+    pub fn promise(&self) -> Promise {
         self.promise
     }
 

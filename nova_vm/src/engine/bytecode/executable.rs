@@ -2705,6 +2705,13 @@ impl CompileEvaluation for ast::ContinueStatement<'_> {
     }
 }
 
+impl CompileEvaluation for ast::ImportDeclaration<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        // TODO: Inject the imported values into the context
+        ctx.agent.host_hooks.import_module(self, ctx.agent)
+    }
+}
+
 impl CompileEvaluation for ast::Statement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
@@ -2730,7 +2737,7 @@ impl CompileEvaluation for ast::Statement<'_> {
             Statement::WithStatement(_) => todo!(),
             Statement::ClassDeclaration(_) => todo!(),
             Statement::UsingDeclaration(_) => todo!(),
-            Statement::ImportDeclaration(_) => todo!(),
+            Statement::ImportDeclaration(x) => x.compile(ctx),
             Statement::ExportAllDeclaration(_) => todo!(),
             Statement::ExportDefaultDeclaration(_) => todo!(),
             Statement::ExportNamedDeclaration(_) => todo!(),

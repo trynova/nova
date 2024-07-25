@@ -48,12 +48,12 @@ pub(crate) struct ECMAScriptCodeEvaluationState {
 /// references to the running execution context in this specification denote
 /// the running execution context of the surrounding agent.
 #[derive(Debug)]
-pub(crate) struct ExecutionContext {
+pub struct ExecutionContext {
     /// ### code evaluation state
     ///
     /// Any state needed to perform, suspend, and resume evaluation of the code
     /// associated with this execution context.
-    pub ecmascript_code: Option<ECMAScriptCodeEvaluationState>,
+    pub(crate) ecmascript_code: Option<ECMAScriptCodeEvaluationState>,
 
     /// ### Function
     ///

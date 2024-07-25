@@ -1176,8 +1176,8 @@ impl<'a> TopLevelLexicallyScopedDeclarations<'a> for Statement<'a> {
             // Note: TopLevelLexicallScopedDeclarations should only be reached
             // from Function body, Class static fields, and Script body. Module
             // declarations should never be reached.
-            Statement::ImportDeclaration(_)
-            | Statement::ExportAllDeclaration(_)
+            Statement::ImportDeclaration(_) => {}
+            Statement::ExportAllDeclaration(_)
             | Statement::ExportDefaultDeclaration(_)
             | Statement::ExportNamedDeclaration(_) => unreachable!(),
         }
