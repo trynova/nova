@@ -5,7 +5,7 @@
 pub mod element_array;
 mod heap_bits;
 mod heap_constants;
-mod heap_gc;
+pub(crate) mod heap_gc;
 pub mod indexes;
 mod object_entry;
 

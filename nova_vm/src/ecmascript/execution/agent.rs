@@ -8,17 +8,16 @@
 //!   Copyright (c) 2023-2024 Linus Groh
 
 use super::{
-    environments::get_identifier_reference, EnvironmentIndex, ExecutionContext, Realm,
-    RealmIdentifier,
+    environments::get_identifier_reference, initialize_default_realm, initialize_host_defined_realm, EnvironmentIndex, ExecutionContext, Realm, RealmIdentifier
 };
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_string,
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::ScriptOrModule,
-        types::{Function, IntoValue, Reference, String, Symbol, Value},
+        types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
     },
-    heap::CreateHeapData,
+    heap::{heap_gc::heap_gc, CreateHeapData},
     Heap,
 };
 use std::{any::Any, collections::HashMap};
@@ -131,6 +130,122 @@ pub trait HostHooks: std::fmt::Debug {
     }
 }
 
+/// Owned ECMAScript Agent that can be used to run code but also to run garbage
+/// collection on the Agent heap.
+pub struct GcAgent {
+    agent: Agent,
+    realm_roots: Vec<Option<RealmIdentifier>>,
+}
+
+/// ECMAScript Realm root
+///
+/// As long as this is not passed back into GcAgent, the Realm it represents
+/// won't be removed by the garbage collector.
+#[must_use]
+#[repr(transparent)]
+pub struct RealmRoot {
+    /// Defines an index in the GcAgent::realm_roots vector that contains the
+    /// RealmIdentifier of this Realm.
+    index: u8,
+}
+
+impl GcAgent {
+    pub fn new(options: Options, host_hooks: &'static dyn HostHooks) -> Self {
+        Self {
+            agent: Agent::new(options, host_hooks),
+            realm_roots: Vec::with_capacity(1),
+        }
+    }
+
+    fn root_realm(&mut self, identifier: RealmIdentifier) -> RealmRoot {
+        let index = if let Some((index, deleted_entry)) = self
+            .realm_roots
+            .iter_mut()
+            .enumerate()
+            .find(|(_, entry)| entry.is_none())
+        {
+            *deleted_entry = Some(identifier);
+            index
+        } else {
+            self.realm_roots.push(Some(identifier));
+            self.realm_roots.len() - 1
+        };
+        // Agent's Realm creation should've already popped the context that
+        // created this Realm. The context stack should now be empty.
+        assert!(self.agent.execution_context_stack.is_empty());
+        RealmRoot {
+            index: u8::try_from(index).expect("Only up to 256 simultaneous Realms are supported"),
+        }
+    }
+
+    /// Creates a new Realm
+    ///
+    /// The Realm will not be removed by garbage collection until
+    /// [`GcAgent::remove_realm`] is called.
+    pub fn create_realm(
+        &mut self,
+        create_global_object: Option<impl FnOnce(&mut Agent) -> Object>,
+        create_global_this_value: Option<impl FnOnce(&mut Agent) -> Object>,
+        initialize_global_object: Option<impl FnOnce(&mut Agent, Object)>,
+    ) -> RealmRoot {
+        let realm = self.agent.create_realm(
+            create_global_object,
+            create_global_this_value,
+            initialize_global_object,
+        );
+        self.root_realm(realm)
+    }
+
+    /// Creates a default realm suitable for basic testing only.
+    pub fn create_default_realm(&mut self) -> RealmRoot {
+        let realm = self.agent.create_default_realm();
+        self.root_realm(realm)
+    }
+
+    /// Removes the given Realm. Resources associated with the Realm are free
+    /// to be collected by the garbage collector after this call.
+    pub fn remove_realm(&mut self, realm: RealmRoot) {
+        let RealmRoot { index } = realm;
+        let error_message = "Cannot remove a non-existing Realm";
+        // After this removal, the Realm can be collected by GC.
+        let _ = self
+            .realm_roots
+            .get_mut(index as usize)
+            .expect(error_message)
+            .take()
+            .expect(error_message);
+        while !self.realm_roots.is_empty() && self.realm_roots.last().unwrap().is_none() {
+            let _ = self.realm_roots.pop();
+        }
+    }
+
+    pub fn run_in_realm<F, R>(&mut self, realm: &RealmRoot, func: F) -> R
+    where
+        F: for<'agent> FnOnce(&'agent mut Agent) -> R,
+    {
+        let index = realm.index;
+        let error_message = "Attempted to run in non-existing Realm";
+        let realm = *self
+            .realm_roots
+            .get(index as usize)
+            .expect(error_message)
+            .as_ref()
+            .expect(error_message);
+        assert!(self.agent.execution_context_stack.is_empty());
+        let result = self.agent.run_in_realm(realm, func);
+        assert!(self.agent.execution_context_stack.is_empty());
+        result
+    }
+
+    pub fn gc(&mut self) {
+        if self.agent.options.disable_gc {
+            // GC is disabled; no-op
+            return;
+        }
+        heap_gc(&mut self.agent.heap, &mut self.realm_roots);
+    }
+}
+
 /// ### [9.7 Agents](https://tc39.es/ecma262/#sec-agents)
 #[derive(Debug)]
 pub struct Agent {
@@ -145,7 +260,7 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub fn new(options: Options, host_hooks: &'static dyn HostHooks) -> Self {
+    pub(crate) fn new(options: Options, host_hooks: &'static dyn HostHooks) -> Self {
         Self {
             heap: Heap::new(),
             options,
@@ -155,6 +270,59 @@ impl Agent {
             host_hooks,
             execution_context_stack: Vec::new(),
         }
+    }
+
+    fn get_created_realm_root(&mut self) -> RealmIdentifier {
+        assert!(!self.execution_context_stack.is_empty());
+        let identifier = self.current_realm_id();
+        let _ = self.execution_context_stack.pop();
+        identifier
+    }
+
+    /// Creates a new Realm
+    ///
+    /// This is intended for usage within BuiltinFunction calls.
+    pub fn create_realm(
+        &mut self,
+        create_global_object: Option<impl FnOnce(&mut Agent) -> Object>,
+        create_global_this_value: Option<impl FnOnce(&mut Agent) -> Object>,
+        initialize_global_object: Option<impl FnOnce(&mut Agent, Object)>,
+    ) -> RealmIdentifier {
+        initialize_host_defined_realm(
+            self,
+            create_global_object,
+            create_global_this_value,
+            initialize_global_object,
+        );
+        self.get_created_realm_root()
+    }
+
+    /// Creates a default realm suitable for basic testing only.
+    ///
+    /// This is intended for usage within BuiltinFunction calls.
+    pub fn create_default_realm(&mut self) -> RealmIdentifier {
+        initialize_default_realm(self);
+        self.get_created_realm_root()
+    }
+
+    pub fn run_in_realm<F, R>(&mut self, realm: RealmIdentifier, func: F) -> R
+    where
+        F: for<'agent> FnOnce(&'agent mut Agent) -> R,
+    {
+        let execution_stack_depth_before_call = self.execution_context_stack.len();
+        self.execution_context_stack.push(ExecutionContext {
+            ecmascript_code: None,
+            function: None,
+            realm,
+            script_or_module: None,
+        });
+        let result = func(self);
+        assert_eq!(
+            self.execution_context_stack.len(),
+            execution_stack_depth_before_call + 1
+        );
+        self.execution_context_stack.pop();
+        result
     }
 
     pub fn current_realm_id(&self) -> RealmIdentifier {

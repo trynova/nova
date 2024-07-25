@@ -11,11 +11,11 @@ use cliclack::{input, intro, set_theme};
 use helper::{exit_with_parse_errors, initialize_global_object};
 use nova_vm::ecmascript::{
     execution::{
-        agent::{HostHooks, Job, Options},
-        initialize_host_defined_realm, Agent, Realm,
+        agent::{GcAgent, HostHooks, Job, Options},
+        Agent,
     },
     scripts_and_modules::script::{parse_script, script_evaluation},
-    types::{Object, Value},
+    types::Object,
 };
 use oxc_parser::Parser;
 use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
@@ -43,6 +43,8 @@ enum Command {
     Eval {
         #[arg(short, long)]
         verbose: bool,
+        #[arg(long)]
+        nogc: bool,
 
         #[arg(short, long)]
         no_strict: bool,
@@ -110,92 +112,89 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Command::Eval {
             verbose,
             no_strict,
+            nogc,
             paths,
         } => {
             let allocator = Default::default();
 
             let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
-            let mut agent = Agent::new(
+            let mut agent = GcAgent::new(
                 Options {
-                    disable_gc: false,
+                    disable_gc: nogc,
                     print_internals: verbose,
                 },
                 host_hooks,
             );
-            {
-                let create_global_object: Option<fn(&mut Realm) -> Object> = None;
-                let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
-                initialize_host_defined_realm(
-                    &mut agent,
-                    create_global_object,
-                    create_global_this_value,
-                    Some(initialize_global_object),
-                );
-            }
-            let realm = agent.current_realm_id();
-
-            // `final_result` will always be overwritten in the paths loop, but
-            // we populate it with a dummy value here so rustc won't complain.
-            let mut final_result = Ok(Value::Undefined);
-
             assert!(!paths.is_empty());
+            let create_global_object: Option<fn(&mut Agent) -> Object> = None;
+            let create_global_this_value: Option<fn(&mut Agent) -> Object> = None;
+            let realm = agent.create_realm(
+                create_global_object,
+                create_global_this_value,
+                Some(initialize_global_object),
+            );
+            let mut is_first = true;
             for path in paths {
-                let file = std::fs::read_to_string(&path)?;
-                let script = match parse_script(&allocator, file.into(), realm, !no_strict, None) {
-                    Ok(script) => script,
-                    Err((file, errors)) => exit_with_parse_errors(errors, &path, &file),
-                };
-                final_result = script_evaluation(&mut agent, script);
-                if final_result.is_err() {
-                    break;
+                if is_first {
+                    is_first = false;
+                } else {
+                    agent.gc();
                 }
-            }
+                agent.run_in_realm(&realm, |agent| -> Result<(), Box<dyn std::error::Error>> {
+                    let realm = agent.current_realm_id();
+                    let file = std::fs::read_to_string(&path)?;
+                    let script =
+                        match parse_script(&allocator, file.into(), realm, !no_strict, None) {
+                            Ok(script) => script,
+                            Err((file, errors)) => exit_with_parse_errors(errors, &path, &file),
+                        };
+                    let mut result = script_evaluation(agent, script);
 
-            if final_result.is_ok() {
-                while let Some(job) = host_hooks.pop_promise_job() {
-                    if let Err(err) = job.run(&mut agent) {
-                        final_result = Err(err);
-                        break;
+                    if result.is_ok() {
+                        while let Some(job) = host_hooks.pop_promise_job() {
+                            if let Err(err) = job.run(agent) {
+                                result = Err(err);
+                                break;
+                            }
+                        }
                     }
-                }
-            }
 
-            match final_result {
-                Ok(result) => {
-                    if verbose {
-                        println!("{:?}", result);
+                    match result {
+                        Ok(result) => {
+                            if verbose {
+                                println!("{:?}", result);
+                            }
+                        }
+                        Err(error) => {
+                            eprintln!(
+                                "Uncaught exception: {}",
+                                error.value().string_repr(agent).as_str(agent)
+                            );
+                            std::process::exit(1);
+                        }
                     }
-                }
-                Err(error) => {
-                    eprintln!(
-                        "Uncaught exception: {}",
-                        error.value().string_repr(&mut agent).as_str(&agent)
-                    );
-                    std::process::exit(1);
-                }
+                    Ok(())
+                })?;
             }
+            agent.remove_realm(realm);
         }
         Command::Repl {} => {
             let allocator = Default::default();
             let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
-            let mut agent = Agent::new(
+            let mut agent = GcAgent::new(
                 Options {
                     disable_gc: false,
                     print_internals: true,
                 },
                 host_hooks,
             );
-            {
-                let create_global_object: Option<fn(&mut Realm) -> Object> = None;
-                let create_global_this_value: Option<fn(&mut Realm) -> Object> = None;
-                initialize_host_defined_realm(
-                    &mut agent,
-                    create_global_object,
-                    create_global_this_value,
-                    Some(initialize_global_object),
-                );
-            }
-            let realm = agent.current_realm_id();
+            let create_global_object: Option<fn(&mut Agent) -> Object> = None;
+            let create_global_this_value: Option<fn(&mut Agent) -> Object> = None;
+            let realm = agent.create_realm(
+                create_global_object,
+                create_global_this_value,
+                Some(initialize_global_object),
+            );
 
             set_theme(DefaultTheme);
             println!("\n\n");
@@ -207,26 +206,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 if input.matches("exit").count() == 1 {
                     std::process::exit(0);
+                } else if input.matches("gc").count() == 1 {
+                    agent.gc();
+                    continue;
                 }
                 placeholder = input.to_string();
-                let script = match parse_script(&allocator, input.into(), realm, true, None) {
-                    Ok(script) => script,
-                    Err((file, errors)) => {
-                        exit_with_parse_errors(errors, "<stdin>", &file);
+                agent.run_in_realm(&realm, |agent| {
+                    let script = match parse_script(
+                        &allocator,
+                        input.into(),
+                        agent.current_realm_id(),
+                        true,
+                        None,
+                    ) {
+                        Ok(script) => script,
+                        Err((file, errors)) => {
+                            exit_with_parse_errors(errors, "<stdin>", &file);
+                        }
+                    };
+                    let result = script_evaluation(agent, script);
+                    match result {
+                        Ok(result) => {
+                            println!("{:?}\n", result);
+                        }
+                        Err(error) => {
+                            eprintln!(
+                                "Uncaught exception: {}",
+                                error.value().string_repr(agent).as_str(agent)
+                            );
+                        }
                     }
-                };
-                let result = script_evaluation(&mut agent, script);
-                match result {
-                    Ok(result) => {
-                        println!("{:?}\n", result);
-                    }
-                    Err(error) => {
-                        eprintln!(
-                            "Uncaught exception: {}",
-                            error.value().string_repr(&mut agent).as_str(&agent)
-                        );
-                    }
-                }
+                });
             }
         }
     }

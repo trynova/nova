@@ -134,9 +134,7 @@ impl HeapMarkAndSweep for Symbol {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.0.into_u32();
-        self.0 =
-            SymbolIndex::from_u32(self_index - compactions.symbols.get_shift_for_index(self_index));
+        compactions.symbols.shift_index(&mut self.0);
     }
 }
 

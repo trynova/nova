@@ -129,8 +129,7 @@ impl HeapMarkAndSweep for Map {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.0.into_u32();
-        self.0 = MapIndex::from_u32(self_index - compactions.maps.get_shift_for_index(self_index));
+        compactions.maps.shift_index(&mut self.0);
     }
 }
 

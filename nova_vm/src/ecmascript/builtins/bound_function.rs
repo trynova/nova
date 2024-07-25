@@ -358,10 +358,7 @@ impl HeapMarkAndSweep for BoundFunction {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.0.into_u32();
-        self.0 = BoundFunctionIndex::from_u32(
-            self_index - compactions.bound_functions.get_shift_for_index(self_index),
-        );
+        compactions.bound_functions.shift_index(&mut self.0);
     }
 }
 
@@ -370,6 +367,7 @@ impl HeapMarkAndSweep for BoundFunctionHeapData {
         self.name.mark_values(queues);
         self.bound_target_function.mark_values(queues);
         self.object_index.mark_values(queues);
+        self.bound_this.mark_values(queues);
         self.bound_arguments.mark_values(queues);
     }
 
@@ -377,6 +375,7 @@ impl HeapMarkAndSweep for BoundFunctionHeapData {
         self.name.sweep_values(compactions);
         self.bound_target_function.sweep_values(compactions);
         self.object_index.sweep_values(compactions);
+        self.bound_this.sweep_values(compactions);
         self.bound_arguments.sweep_values(compactions);
     }
 }

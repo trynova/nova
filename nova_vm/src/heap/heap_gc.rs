@@ -7,12 +7,13 @@ use std::thread;
 use super::{
     element_array::ElementArrays,
     heap_bits::{
-        mark_array_with_u32_length, sweep_heap_u16_elements_vector_values,
-        sweep_heap_u32_elements_vector_values, sweep_heap_u8_elements_vector_values,
-        sweep_heap_vector_values, CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
+        mark_array_with_u32_length, mark_descriptors, sweep_heap_elements_vector_descriptors,
+        sweep_heap_u16_elements_vector_values, sweep_heap_u32_elements_vector_values,
+        sweep_heap_u8_elements_vector_values, sweep_heap_vector_values, CompactionLists, HeapBits,
+        HeapMarkAndSweep, WorkQueues,
     },
-    indexes::{ElementIndex, TypedArrayIndex},
-    Heap,
+    indexes::{ElementIndex, StringIndex, TypedArrayIndex},
+    Heap, WellKnownSymbolIndexes,
 };
 use crate::ecmascript::{
     builtins::{
@@ -44,7 +45,10 @@ use crate::ecmascript::{
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
     },
     scripts_and_modules::script::ScriptIdentifier,
-    types::{bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value},
+    types::{
+        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
+        BUILTIN_STRINGS_LIST,
+    },
 };
 
 fn collect_values(queues: &mut WorkQueues, values: &[Option<Value>]) {
@@ -55,13 +59,38 @@ fn collect_values(queues: &mut WorkQueues, values: &[Option<Value>]) {
     });
 }
 
-pub fn heap_gc(heap: &mut Heap) {
+pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
     let mut bits = HeapBits::new(heap);
     let mut queues = WorkQueues::new(heap);
+
+    root_realms.iter().for_each(|realm| {
+        if let Some(realm) = realm {
+            queues.realms.push(*realm);
+        }
+    });
 
     heap.globals.iter().for_each(|&value| {
         queues.push_value(value);
     });
+
+    queues.strings.extend(
+        (0..BUILTIN_STRINGS_LIST.len()).map(|index| HeapString(StringIndex::from_index(index))),
+    );
+    queues.symbols.extend_from_slice(&[
+        WellKnownSymbolIndexes::AsyncIterator.into(),
+        WellKnownSymbolIndexes::HasInstance.into(),
+        WellKnownSymbolIndexes::IsConcatSpreadable.into(),
+        WellKnownSymbolIndexes::Iterator.into(),
+        WellKnownSymbolIndexes::Match.into(),
+        WellKnownSymbolIndexes::MatchAll.into(),
+        WellKnownSymbolIndexes::Replace.into(),
+        WellKnownSymbolIndexes::Search.into(),
+        WellKnownSymbolIndexes::Species.into(),
+        WellKnownSymbolIndexes::Split.into(),
+        WellKnownSymbolIndexes::ToPrimitive.into(),
+        WellKnownSymbolIndexes::ToStringTag.into(),
+        WellKnownSymbolIndexes::Unscopables.into(),
+    ]);
 
     while !queues.is_empty() {
         let Heap {
@@ -603,6 +632,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len as u8;
+                if let Some(descriptors) = e2pow4.descriptors.get(&idx) {
+                    mark_descriptors(descriptors, &mut queues);
+                }
                 if let Some(array) = e2pow4.values.get(index) {
                     mark_array_with_u32_length(array, &mut queues, len);
                 }
@@ -621,6 +653,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len as u8;
+                if let Some(descriptors) = e2pow6.descriptors.get(&idx) {
+                    mark_descriptors(descriptors, &mut queues);
+                }
                 if let Some(array) = e2pow6.values.get(index) {
                     mark_array_with_u32_length(array, &mut queues, len);
                 }
@@ -639,6 +674,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len as u8;
+                if let Some(descriptors) = e2pow8.descriptors.get(&idx) {
+                    mark_descriptors(descriptors, &mut queues);
+                }
                 if let Some(array) = e2pow8.values.get(index) {
                     mark_array_with_u32_length(array, &mut queues, len);
                 }
@@ -657,6 +695,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len as u16;
+                if let Some(descriptors) = e2pow10.descriptors.get(&idx) {
+                    mark_descriptors(descriptors, &mut queues);
+                }
                 if let Some(array) = e2pow10.values.get(index) {
                     mark_array_with_u32_length(array, &mut queues, len);
                 }
@@ -675,6 +716,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len as u16;
+                if let Some(descriptors) = e2pow12.descriptors.get(&idx) {
+                    mark_descriptors(descriptors, &mut queues);
+                }
                 if let Some(array) = e2pow12.values.get(index) {
                     mark_array_with_u32_length(array, &mut queues, len);
                 }
@@ -693,6 +737,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len as u16;
+                if let Some(descriptors) = e2pow16.descriptors.get(&idx) {
+                    mark_descriptors(descriptors, &mut queues);
+                }
                 if let Some(array) = e2pow16.values.get(index) {
                     mark_array_with_u32_length(array, &mut queues, len);
                 }
@@ -711,6 +758,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len;
+                if let Some(descriptors) = e2pow24.descriptors.get(&idx) {
+                    mark_descriptors(descriptors, &mut queues);
+                }
                 if let Some(array) = e2pow24.values.get(index) {
                     mark_array_with_u32_length(array, &mut queues, len);
                 }
@@ -729,6 +779,9 @@ pub fn heap_gc(heap: &mut Heap) {
                 }
                 *marked = true;
                 *length = len;
+                if let Some(descriptors) = e2pow32.descriptors.get(&idx) {
+                    mark_descriptors(descriptors, &mut queues);
+                }
                 if let Some(array) = e2pow32.values.get(index) {
                     mark_array_with_u32_length(array, &mut queues, len);
                 }
@@ -736,11 +789,15 @@ pub fn heap_gc(heap: &mut Heap) {
         });
     }
 
-    sweep(heap, &bits);
+    sweep(heap, &bits, root_realms);
 }
 
-fn sweep(heap: &mut Heap, bits: &HeapBits) {
+fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdentifier>]) {
     let compactions = CompactionLists::create_from_bits(bits);
+
+    for realm in root_realms {
+        realm.sweep_values(&compactions);
+    }
 
     let Heap {
         array_buffers,
@@ -802,155 +859,309 @@ fn sweep(heap: &mut Heap, bits: &HeapBits) {
                 value.sweep_values(&compactions);
             }
         });
-        s.spawn(|| {
-            sweep_heap_u16_elements_vector_values(&mut e2pow10.values, &compactions, &bits.e_2_10);
-        });
-        s.spawn(|| {
-            sweep_heap_u16_elements_vector_values(&mut e2pow12.values, &compactions, &bits.e_2_12);
-        });
-        s.spawn(|| {
-            sweep_heap_u16_elements_vector_values(&mut e2pow16.values, &compactions, &bits.e_2_16);
-        });
-        s.spawn(|| {
-            sweep_heap_u32_elements_vector_values(&mut e2pow24.values, &compactions, &bits.e_2_24);
-        });
-        s.spawn(|| {
-            sweep_heap_u32_elements_vector_values(&mut e2pow32.values, &compactions, &bits.e_2_32);
-        });
-        s.spawn(|| {
-            sweep_heap_u8_elements_vector_values(&mut e2pow4.values, &compactions, &bits.e_2_4);
-        });
-        s.spawn(|| {
-            sweep_heap_u8_elements_vector_values(&mut e2pow6.values, &compactions, &bits.e_2_6);
-        });
-        s.spawn(|| {
-            sweep_heap_u8_elements_vector_values(&mut e2pow8.values, &compactions, &bits.e_2_8);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(array_buffers, &compactions, &bits.array_buffers);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(arrays, &compactions, &bits.arrays);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(bigints, &compactions, &bits.bigints);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(bound_functions, &compactions, &bits.bound_functions);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(builtin_functions, &compactions, &bits.builtin_functions);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(data_views, &compactions, &bits.data_views);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(dates, &compactions, &bits.dates);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(declarative, &compactions, &bits.declarative_environments);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(
-                ecmascript_functions,
-                &compactions,
-                &bits.ecmascript_functions,
-            );
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(embedder_objects, &compactions, &bits.embedder_objects);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(errors, &compactions, &bits.errors);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(
-                finalization_registrys,
-                &compactions,
-                &bits.finalization_registrys,
-            );
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(function, &compactions, &bits.function_environments);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(global, &compactions, &bits.global_environments);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(maps, &compactions, &bits.maps);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(modules, &compactions, &bits.modules);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(numbers, &compactions, &bits.numbers);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(object, &compactions, &bits.object_environments);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(objects, &compactions, &bits.objects);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(primitive_objects, &compactions, &bits.primitive_objects);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(
-                promise_reaction_records,
-                &compactions,
-                &bits.promise_reaction_records,
-            );
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(
-                promise_resolving_functions,
-                &compactions,
-                &bits.promise_resolving_functions,
-            );
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(promises, &compactions, &bits.promises);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(proxys, &compactions, &bits.proxys);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(realms, &compactions, &bits.realms);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(regexps, &compactions, &bits.regexps);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(scripts, &compactions, &bits.scripts);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(sets, &compactions, &bits.sets);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(
-                shared_array_buffers,
-                &compactions,
-                &bits.shared_array_buffers,
-            );
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(strings, &compactions, &bits.strings);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(symbols, &compactions, &bits.symbols);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(typed_arrays, &compactions, &bits.typed_arrays);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(weak_maps, &compactions, &bits.weak_maps);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(weak_refs, &compactions, &bits.weak_refs);
-        });
-        s.spawn(|| {
-            sweep_heap_vector_values(weak_sets, &compactions, &bits.weak_sets);
-        });
+        if !e2pow10.values.is_empty() {
+            s.spawn(|| {
+                sweep_heap_elements_vector_descriptors(
+                    &mut e2pow10.descriptors,
+                    &compactions,
+                    &compactions.e_2_10,
+                    &bits.e_2_10,
+                );
+                sweep_heap_u16_elements_vector_values(
+                    &mut e2pow10.values,
+                    &compactions,
+                    &bits.e_2_10,
+                );
+            });
+        }
+        if !e2pow12.values.is_empty() {
+            s.spawn(|| {
+                sweep_heap_elements_vector_descriptors(
+                    &mut e2pow12.descriptors,
+                    &compactions,
+                    &compactions.e_2_12,
+                    &bits.e_2_12,
+                );
+                sweep_heap_u16_elements_vector_values(
+                    &mut e2pow12.values,
+                    &compactions,
+                    &bits.e_2_12,
+                );
+            });
+        }
+        if !e2pow16.values.is_empty() {
+            s.spawn(|| {
+                sweep_heap_elements_vector_descriptors(
+                    &mut e2pow16.descriptors,
+                    &compactions,
+                    &compactions.e_2_16,
+                    &bits.e_2_16,
+                );
+                sweep_heap_u16_elements_vector_values(
+                    &mut e2pow16.values,
+                    &compactions,
+                    &bits.e_2_16,
+                );
+            });
+        }
+        if !e2pow24.values.is_empty() {
+            s.spawn(|| {
+                sweep_heap_elements_vector_descriptors(
+                    &mut e2pow24.descriptors,
+                    &compactions,
+                    &compactions.e_2_24,
+                    &bits.e_2_24,
+                );
+                sweep_heap_u32_elements_vector_values(
+                    &mut e2pow24.values,
+                    &compactions,
+                    &bits.e_2_24,
+                );
+            });
+        }
+        if !e2pow32.values.is_empty() {
+            s.spawn(|| {
+                sweep_heap_elements_vector_descriptors(
+                    &mut e2pow32.descriptors,
+                    &compactions,
+                    &compactions.e_2_32,
+                    &bits.e_2_32,
+                );
+                sweep_heap_u32_elements_vector_values(
+                    &mut e2pow32.values,
+                    &compactions,
+                    &bits.e_2_32,
+                );
+            });
+        }
+        if !e2pow4.values.is_empty() {
+            s.spawn(|| {
+                sweep_heap_elements_vector_descriptors(
+                    &mut e2pow4.descriptors,
+                    &compactions,
+                    &compactions.e_2_4,
+                    &bits.e_2_4,
+                );
+                sweep_heap_u8_elements_vector_values(&mut e2pow4.values, &compactions, &bits.e_2_4);
+            });
+        }
+        if !e2pow6.values.is_empty() {
+            s.spawn(|| {
+                sweep_heap_elements_vector_descriptors(
+                    &mut e2pow6.descriptors,
+                    &compactions,
+                    &compactions.e_2_6,
+                    &bits.e_2_6,
+                );
+                sweep_heap_u8_elements_vector_values(&mut e2pow6.values, &compactions, &bits.e_2_6);
+            });
+        }
+        if !e2pow8.values.is_empty() {
+            s.spawn(|| {
+                sweep_heap_elements_vector_descriptors(
+                    &mut e2pow8.descriptors,
+                    &compactions,
+                    &compactions.e_2_8,
+                    &bits.e_2_8,
+                );
+                sweep_heap_u8_elements_vector_values(&mut e2pow8.values, &compactions, &bits.e_2_8);
+            });
+        }
+        if !array_buffers.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(array_buffers, &compactions, &bits.array_buffers);
+            });
+        }
+        if !arrays.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(arrays, &compactions, &bits.arrays);
+            });
+        }
+        if !bigints.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(bigints, &compactions, &bits.bigints);
+            });
+        }
+        if !bound_functions.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(bound_functions, &compactions, &bits.bound_functions);
+            });
+        }
+        if !builtin_functions.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(builtin_functions, &compactions, &bits.builtin_functions);
+            });
+        }
+        if !data_views.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(data_views, &compactions, &bits.data_views);
+            });
+        }
+        if !dates.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(dates, &compactions, &bits.dates);
+            });
+        }
+        if !declarative.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(declarative, &compactions, &bits.declarative_environments);
+            });
+        }
+        if !ecmascript_functions.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    ecmascript_functions,
+                    &compactions,
+                    &bits.ecmascript_functions,
+                );
+            });
+        }
+        if !embedder_objects.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(embedder_objects, &compactions, &bits.embedder_objects);
+            });
+        }
+        if !errors.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(errors, &compactions, &bits.errors);
+            });
+        }
+        if !finalization_registrys.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    finalization_registrys,
+                    &compactions,
+                    &bits.finalization_registrys,
+                );
+            });
+        }
+        if !function.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(function, &compactions, &bits.function_environments);
+            });
+        }
+        if !global.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(global, &compactions, &bits.global_environments);
+            });
+        }
+        if !maps.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(maps, &compactions, &bits.maps);
+            });
+        }
+        if !modules.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(modules, &compactions, &bits.modules);
+            });
+        }
+        if !numbers.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(numbers, &compactions, &bits.numbers);
+            });
+        }
+        if !object.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(object, &compactions, &bits.object_environments);
+            });
+        }
+        if !objects.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(objects, &compactions, &bits.objects);
+            });
+        }
+        if !primitive_objects.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(primitive_objects, &compactions, &bits.primitive_objects);
+            });
+        }
+        if !promise_reaction_records.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    promise_reaction_records,
+                    &compactions,
+                    &bits.promise_reaction_records,
+                );
+            });
+        }
+        if !promise_resolving_functions.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    promise_resolving_functions,
+                    &compactions,
+                    &bits.promise_resolving_functions,
+                );
+            });
+        }
+        if !promises.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(promises, &compactions, &bits.promises);
+            });
+        }
+        if !proxys.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(proxys, &compactions, &bits.proxys);
+            });
+        }
+        if !realms.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(realms, &compactions, &bits.realms);
+            });
+        }
+        if !regexps.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(regexps, &compactions, &bits.regexps);
+            });
+        }
+        if !scripts.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(scripts, &compactions, &bits.scripts);
+            });
+        }
+        if !sets.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(sets, &compactions, &bits.sets);
+            });
+        }
+        if !shared_array_buffers.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    shared_array_buffers,
+                    &compactions,
+                    &bits.shared_array_buffers,
+                );
+            });
+        }
+        if !strings.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(strings, &compactions, &bits.strings);
+            });
+        }
+        if !symbols.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(symbols, &compactions, &bits.symbols);
+            });
+        }
+        if !typed_arrays.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(typed_arrays, &compactions, &bits.typed_arrays);
+            });
+        }
+        if !weak_maps.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(weak_maps, &compactions, &bits.weak_maps);
+            });
+        }
+        if !weak_refs.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(weak_refs, &compactions, &bits.weak_refs);
+            });
+        }
+        if !weak_sets.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(weak_sets, &compactions, &bits.weak_sets);
+            });
+        }
     });
 }
 
@@ -961,7 +1172,7 @@ fn test_heap_gc() {
     let obj = Value::Object(heap.create_null_object(&[]));
     println!("Object: {:#?}", obj);
     heap.globals.push(obj);
-    heap_gc(&mut heap);
+    heap_gc(&mut heap, &mut []);
     println!("Objects: {:#?}", heap.objects);
     assert_eq!(heap.objects.len(), 1);
     assert_eq!(heap.elements.e2pow4.values.len(), 0);

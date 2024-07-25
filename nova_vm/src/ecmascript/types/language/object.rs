@@ -57,7 +57,7 @@ pub use property_storage::PropertyStorage;
 /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
 ///
 /// In Nova
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Object {
     Object(OrdinaryObject) = OBJECT_DISCRIMINANT,
