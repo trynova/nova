@@ -150,8 +150,7 @@ impl GcAgent {
         }
     }
 
-    fn get_created_realm_root(&mut self) -> RealmRoot {
-        let identifier = self.agent.current_realm_id();
+    fn root_realm(&mut self, identifier: RealmIdentifier) -> RealmRoot {
         let index = if let Some((index, deleted_entry)) = self
             .realm_roots
             .iter_mut()
@@ -164,8 +163,9 @@ impl GcAgent {
             self.realm_roots.push(Some(identifier));
             self.realm_roots.len() - 1
         };
-        assert_eq!(self.agent.execution_context_stack.len(), 1);
-        let _ = self.agent.execution_context_stack.pop();
+        // Agent's Realm creation should've already popped the context that
+        // created this Realm. The context stack should now be empty.
+        assert!(self.agent.execution_context_stack.is_empty());
         RealmRoot {
             index: u8::try_from(index).expect("Only up to 256 simultaneous Realms are supported"),
         }
@@ -181,19 +181,18 @@ impl GcAgent {
         create_global_this_value: Option<impl FnOnce(&mut Agent) -> Object>,
         initialize_global_object: Option<impl FnOnce(&mut Agent, Object)>,
     ) -> RealmRoot {
-        initialize_host_defined_realm(
-            &mut self.agent,
+        let realm = self.agent.create_realm(
             create_global_object,
             create_global_this_value,
             initialize_global_object,
         );
-        self.get_created_realm_root()
+        self.root_realm(realm)
     }
 
     /// Creates a default realm suitable for basic testing only.
     pub fn create_default_realm(&mut self) -> RealmRoot {
-        initialize_default_realm(&mut self.agent);
-        self.get_created_realm_root()
+        let realm = self.agent.create_default_realm();
+        self.root_realm(realm)
     }
 
     /// Removes the given Realm. Resources associated with the Realm are free
@@ -226,15 +225,8 @@ impl GcAgent {
             .as_ref()
             .expect(error_message);
         assert!(self.agent.execution_context_stack.is_empty());
-        self.agent.execution_context_stack.push(ExecutionContext {
-            ecmascript_code: None,
-            function: None,
-            realm,
-            script_or_module: None,
-        });
-        let result = func(&mut self.agent);
-        assert_eq!(self.agent.execution_context_stack.len(), 1);
-        self.agent.execution_context_stack.pop();
+        let result = self.agent.run_in_realm(realm, func);
+        assert!(self.agent.execution_context_stack.is_empty());
         result
     }
 
@@ -271,6 +263,59 @@ impl Agent {
             host_hooks,
             execution_context_stack: Vec::new(),
         }
+    }
+
+    fn get_created_realm_root(&mut self) -> RealmIdentifier {
+        let identifier = self.current_realm_id();
+        assert!(self.execution_context_stack.len() >= 1);
+        let _ = self.execution_context_stack.pop();
+        identifier
+    }
+
+    /// Creates a new Realm
+    ///
+    /// This is intended for usage within BuiltinFunction calls.
+    pub fn create_realm(
+        &mut self,
+        create_global_object: Option<impl FnOnce(&mut Agent) -> Object>,
+        create_global_this_value: Option<impl FnOnce(&mut Agent) -> Object>,
+        initialize_global_object: Option<impl FnOnce(&mut Agent, Object)>,
+    ) -> RealmIdentifier {
+        initialize_host_defined_realm(
+            self,
+            create_global_object,
+            create_global_this_value,
+            initialize_global_object,
+        );
+        self.get_created_realm_root()
+    }
+
+    /// Creates a default realm suitable for basic testing only.
+    ///
+    /// This is intended for usage within BuiltinFunction calls.
+    pub fn create_default_realm(&mut self) -> RealmIdentifier {
+        initialize_default_realm(self);
+        self.get_created_realm_root()
+    }
+
+    pub fn run_in_realm<F, R>(&mut self, realm: RealmIdentifier, func: F) -> R
+    where
+        F: for<'agent> FnOnce(&'agent mut Agent) -> R,
+    {
+        let execution_stack_depth_before_call = self.execution_context_stack.len();
+        self.execution_context_stack.push(ExecutionContext {
+            ecmascript_code: None,
+            function: None,
+            realm,
+            script_or_module: None,
+        });
+        let result = func(self);
+        assert_eq!(
+            self.execution_context_stack.len(),
+            execution_stack_depth_before_call + 1
+        );
+        self.execution_context_stack.pop();
+        result
     }
 
     pub fn current_realm_id(&self) -> RealmIdentifier {
