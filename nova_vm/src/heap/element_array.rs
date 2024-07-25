@@ -1222,6 +1222,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1259,6 +1262,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1296,6 +1302,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1333,6 +1342,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1370,6 +1382,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1407,6 +1422,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1444,6 +1462,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1481,6 +1502,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1548,6 +1572,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1580,6 +1607,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1612,6 +1642,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1644,6 +1677,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1676,6 +1712,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1708,6 +1747,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1740,6 +1782,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1772,6 +1817,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
