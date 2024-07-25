@@ -232,7 +232,7 @@ impl ArrayConstructor {
             };
 
             // c. Let iteratorRecord be ? GetIteratorFromMethod(items, usingIterator).
-            let iterator_record = get_iterator_from_method(agent, items, using_iterator)?;
+            let mut iterator_record = get_iterator_from_method(agent, items, using_iterator)?;
 
             // d. Let k be 0.
             let mut k = 0;
@@ -259,7 +259,7 @@ impl ArrayConstructor {
                 let pk = PropertyKey::from(sk);
 
                 // iii. Let next be ? IteratorStepValue(iteratorRecord).
-                let Some(next) = iterator_step_value(agent, &iterator_record)? else {
+                let Some(next) = iterator_step_value(agent, &mut iterator_record)? else {
                     // iv. If next is done, then
                     // 1. Perform ? Set(A, "length", 𝔽(k), true).
                     set(
