@@ -152,7 +152,7 @@ pub struct Realm {
     ///
     /// Field reserved for use by hosts that need to associate additional
     /// information with a Realm Record.
-    pub(crate) host_defined: Option<&'static dyn Any>,
+    pub host_defined: Option<&'static dyn Any>,
 }
 
 unsafe impl Send for Realm {}

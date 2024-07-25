@@ -7,6 +7,8 @@
 //! - This is inspired by and/or copied from Kiesel engine:
 //!   Copyright (c) 2023-2024 Linus Groh
 
+use oxc_ast::ast;
+
 use super::{
     environments::get_identifier_reference, EnvironmentIndex, ExecutionContext, Realm,
     RealmIdentifier,
@@ -123,6 +125,13 @@ pub trait HostHooks: std::fmt::Debug {
         // The default implementation of HostPromiseRejectionTracker is to return unused.
     }
 
+    /// Handle import declarations.
+    ///
+    /// Note: This will panic if not implemented manually.
+    fn import_module(&self, _import: &ast::ImportDeclaration<'_>, _agent: &mut Agent) {
+        unimplemented!()
+    }
+
     /// Get access to the Host data, useful to share state between calls of built-in functions.
     ///
     /// Note: This will panic if not implemented manually.
@@ -189,7 +198,7 @@ impl Agent {
         JsError(self.create_exception(kind, message))
     }
 
-    pub(crate) fn running_execution_context(&self) -> &ExecutionContext {
+    pub fn running_execution_context(&self) -> &ExecutionContext {
         self.execution_context_stack.last().unwrap()
     }
 

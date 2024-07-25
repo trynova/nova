@@ -12,7 +12,7 @@ pub mod module;
 pub mod script;
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ScriptOrModule {
+pub enum ScriptOrModule {
     Script(ScriptIdentifier),
     Module(Module),
 }
