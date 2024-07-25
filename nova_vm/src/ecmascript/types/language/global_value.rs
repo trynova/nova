@@ -1,55 +1,79 @@
+use std::marker::PhantomData;
+
 use crate::ecmascript::execution::Agent;
 
-use super::Value;
+use super::{IntoValue, Value};
 
-/// Holds the position of a global value in the heap.
-/// The main advantage of this is that the garbage collector will not move the elements
-/// of the global values vector, making it possible to maintain a position of any value across
-/// multiple calls of the garbage collector.
+/// Stores a Value on the Agent heap as a rooted Value.
 ///
-/// This might be useful to resolve promises asynchronously for example.
+/// A rooted Value cannot be garbage collected. It is safe to thus get the
+/// Value out of a Global at any time. The Global can be thought of as a
+/// unique pointer to a heap allocation in system programming languages. As
+/// long as the pointer lives, the memory on the heap will not be released.
 #[derive(Debug, PartialEq)]
-pub struct GlobalValue(usize);
+pub struct Global<T: IntoValue + TryFrom<Value>>(u32, PhantomData<T>);
 
-impl GlobalValue {
+impl<T: IntoValue + TryFrom<Value>> Global<T> {
     /// Register a value as global.
-    pub fn new(agent: &mut Agent, value: impl Into<Value>) -> Self {
-        let available_index = Self::find_available_index(agent);
-        agent
+    #[must_use]
+    pub fn new(agent: &mut Agent, value: T) -> Self {
+        let reused_index = agent
             .heap
             .globals
-            .insert(available_index, Some(value.into()));
-        Self(available_index)
+            .iter_mut()
+            .enumerate()
+            .find_map(|(index, entry)| {
+                if entry.is_none() {
+                    *entry = Some(value.into_value());
+                    let index = u32::try_from(index).expect("Globals overflowed");
+                    Some(index)
+                } else {
+                    None
+                }
+            });
+        if let Some(reused_index) = reused_index {
+            Global(reused_index, Default::default())
+        } else {
+            let next_index = agent.heap.globals.len();
+            let next_index = u32::try_from(next_index).expect("Globals overflowed");
+            agent.heap.globals.push(Some(value.into_value()));
+            Global(next_index, Default::default())
+        }
     }
 
     /// Unregister this global value.
-    #[must_use]
-    pub fn take(&self, agent: &mut Agent) -> Value {
+    pub fn take(self, agent: &mut Agent) -> T {
         // Leave a `None` in the index and return the value
-        agent.heap.globals.get_mut(self.0).unwrap().take().unwrap()
+        let value = agent
+            .heap
+            .globals
+            .get_mut(self.0 as usize)
+            .unwrap()
+            .take()
+            .unwrap();
+        let Ok(value) = T::try_from(value) else {
+            panic!("Invalid Global returned different type than expected");
+        };
+        value
     }
 
-    /// Find an available index in the global values vector.
-    fn find_available_index(agent: &mut Agent) -> usize {
-        let mut available_index = 0;
+    pub fn get(&self, agent: &mut Agent) -> T {
+        let value = *agent
+            .heap
+            .globals
+            .get_mut(self.0 as usize)
+            .unwrap()
+            .as_ref()
+            .unwrap();
+        let Ok(value) = T::try_from(value) else {
+            panic!("Invalid Global returned different type than expected");
+        };
+        value
+    }
 
-        loop {
-            // Index has been freed previously
-            if let Some(None) = agent.heap.globals.get(available_index) {
-                break;
-            }
-
-            // Global values vector is full, the capacity must increase
-            if available_index == agent.heap.globals.len() {
-                agent.heap.globals.push(None);
-                available_index = agent.heap.globals.len() - 1;
-                break;
-            }
-
-            // Advance the index
-            available_index += 1;
-        }
-
-        available_index
+    #[must_use]
+    pub fn clone(&self, agent: &mut Agent) -> Self {
+        let value = self.get(agent);
+        Self::new(agent, value)
     }
 }

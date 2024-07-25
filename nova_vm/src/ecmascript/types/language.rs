@@ -21,7 +21,7 @@ pub(crate) use function::{
     BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
 };
 pub use function::{Function, IntoFunction};
-pub use global_value::GlobalValue;
+pub use global_value::Global;
 pub use into_numeric::IntoNumeric;
 pub use into_primitive::IntoPrimitive;
 pub use into_value::IntoValue;

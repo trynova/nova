@@ -7,7 +7,7 @@ mod spec;
 
 pub(crate) use language::*;
 pub use language::{
-    bigint, BigInt, Function, GlobalValue, HeapNumber, HeapString, InternalMethods, InternalSlots,
+    bigint, BigInt, Function, Global, HeapNumber, HeapString, InternalMethods, InternalSlots,
     IntoFunction, IntoNumeric, IntoObject, IntoPrimitive, IntoValue, Number, Numeric, Object,
     OrdinaryObject, Primitive, PropertyKey, String, Symbol, Value,
 };
