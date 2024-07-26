@@ -19,4 +19,5 @@ oxc_diagnostics = "0.20.0"
 rand = "0.8.5"
 ryu-js = "1.0.1"
 wtf8 = "0.1"
+rustc-hash = "2.0.0"
 

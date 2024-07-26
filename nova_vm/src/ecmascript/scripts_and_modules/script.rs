@@ -30,9 +30,9 @@ use oxc_ast::{
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_parser::{Parser, ParserReturn};
 use oxc_span::SourceType;
+use rustc_hash::FxHashSet;
 use std::{
     any::Any,
-    collections::HashSet,
     marker::PhantomData,
     ops::{Index, IndexMut},
 };
@@ -372,7 +372,7 @@ pub(crate) fn global_declaration_instantiation(
     // 6. Let functionsToInitialize be a new empty List.
     let mut functions_to_initialize = vec![];
     // 7. Let declaredFunctionNames be a new empty List.
-    let mut declared_function_names = HashSet::new();
+    let mut declared_function_names = FxHashSet::default();
     // 8. For each element d of varDeclarations, in reverse List order, do
     for d in var_declarations.iter().rev() {
         // a. If d is not either a VariableDeclaration, a ForBinding, or a BindingIdentifier, then
@@ -406,7 +406,7 @@ pub(crate) fn global_declaration_instantiation(
     }
 
     // 9. Let declaredVarNames be a new empty List.
-    let mut declared_var_names = HashSet::new();
+    let mut declared_var_names = FxHashSet::default();
     // 10. For each element d of varDeclarations, do
     for d in var_declarations {
         // a. If d is either a VariableDeclaration, a ForBinding, or a BindingIdentifier, then

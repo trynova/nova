@@ -7,6 +7,8 @@
 //! - This is inspired by and/or copied from Kiesel engine:
 //!   Copyright (c) 2023-2024 Linus Groh
 
+use rustc_hash::FxHashMap;
+
 use super::{
     environments::get_identifier_reference, EnvironmentIndex, ExecutionContext, Realm,
     RealmIdentifier,
@@ -21,7 +23,6 @@ use crate::{
     heap::CreateHeapData,
     Heap,
 };
-use std::collections::HashMap;
 
 #[derive(Debug, Default)]
 pub struct Options {
@@ -132,7 +133,7 @@ pub struct Agent {
     // pre_allocated: PreAllocated,
     pub(crate) exception: Option<Value>,
     pub(crate) symbol_id: usize,
-    pub(crate) global_symbol_registry: HashMap<&'static str, Symbol>,
+    pub(crate) global_symbol_registry: FxHashMap<&'static str, Symbol>,
     pub(crate) host_hooks: &'static dyn HostHooks,
     pub(crate) execution_context_stack: Vec<ExecutionContext>,
 }
@@ -144,7 +145,7 @@ impl Agent {
             options,
             exception: None,
             symbol_id: 0,
-            global_symbol_registry: HashMap::new(),
+            global_symbol_registry: FxHashMap::default(),
             host_hooks,
             execution_context_stack: Vec::new(),
         }

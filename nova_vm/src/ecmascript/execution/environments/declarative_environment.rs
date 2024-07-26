@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use rustc_hash::FxHashMap;
+
 use super::{DeclarativeEnvironmentIndex, OuterEnv};
 use crate::{
     ecmascript::{
@@ -10,7 +12,6 @@ use crate::{
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
-use std::collections::HashMap;
 
 /// ### [9.1.1.1 Declarative Environment Records](https://tc39.es/ecma262/#sec-declarative-environment-records)
 ///
@@ -26,7 +27,7 @@ pub(crate) struct DeclarativeEnvironment {
     pub(crate) outer_env: OuterEnv,
 
     /// The environment's bindings.
-    pub(crate) bindings: HashMap<String, Binding>,
+    pub(crate) bindings: FxHashMap<String, Binding>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -50,7 +51,7 @@ impl DeclarativeEnvironment {
         // 3. Return env.
         DeclarativeEnvironment {
             outer_env,
-            bindings: HashMap::new(),
+            bindings: FxHashMap::default(),
         }
     }
 

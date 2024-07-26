@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use rustc_hash::FxHashSet;
+
 use crate::ecmascript::abstract_operations::operations_on_objects::{
     define_property_or_throw, has_own_property, set,
 };
@@ -11,7 +13,6 @@ use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::types::{Object, PropertyDescriptor, PropertyKey, String, Value};
 use crate::ecmascript::{execution::Agent, types::InternalMethods};
 use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
-use std::collections::HashSet;
 
 use super::{
     DeclarativeEnvironment, DeclarativeEnvironmentIndex, GlobalEnvironmentIndex, ObjectEnvironment,
@@ -56,7 +57,7 @@ pub struct GlobalEnvironment {
     /// VariableDeclaration declarations in global code for the associated
     /// realm.
     // TODO: Use the Heap to set this.
-    var_names: HashSet<String>,
+    var_names: FxHashSet<String>,
 }
 
 impl GlobalEnvironment {
@@ -89,7 +90,7 @@ impl GlobalEnvironment {
             declarative_record,
 
             // 7. Set env.[[VarNames]] to a new empty List.
-            var_names: HashSet::new(),
+            var_names: FxHashSet::default(),
             // 8. Set env.[[OuterEnv]] to null.
             // NOTE: We do not expose an outer environment, so this is implicit.
         }
