@@ -1,3 +1,4 @@
 target
 Cargo.lock
 /.vscode
+nova_vm/src/heap/heap_bits.rs
