@@ -44,7 +44,7 @@ use crate::ecmascript::{
         DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
     },
-    scripts_and_modules::script::ScriptIdentifier,
+    scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
     types::{
         bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
         BUILTIN_STRINGS_LIST,
@@ -114,6 +114,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             embedder_objects,
             environments,
             errors,
+            source_codes,
             finalization_registrys,
             globals: _,
             maps,
@@ -329,6 +330,19 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 }
                 *marked = true;
                 errors.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut source_code_marks: Box<[SourceCode]> = queues.source_codes.drain(..).collect();
+        source_code_marks.sort();
+        source_code_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.source_codes.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                source_codes.get(index).mark_values(&mut queues);
             }
         });
         let mut builtin_functions_marks: Box<[BuiltinFunction]> =
@@ -820,6 +834,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         embedder_objects,
         environments,
         errors,
+        source_codes,
         finalization_registrys,
         globals,
         maps,
@@ -1138,6 +1153,11 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                     &compactions,
                     &bits.shared_array_buffers,
                 );
+            });
+        }
+        if !source_codes.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(source_codes, &compactions, &bits.source_codes);
             });
         }
         if !strings.is_empty() {

@@ -10,6 +10,7 @@ use super::builtins::module::Module;
 
 pub mod module;
 pub mod script;
+pub mod source_code;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ScriptOrModule {

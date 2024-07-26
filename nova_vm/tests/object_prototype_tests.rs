@@ -10,8 +10,8 @@ use nova_vm::ecmascript::{
         DefaultHostHooks,
     },
     scripts_and_modules::script::{parse_script, script_evaluation},
+    types::String,
 };
-use oxc_allocator::Allocator;
 
 #[test]
 fn object_prototype_tests() {
@@ -25,13 +25,12 @@ fn object_prototype_tests() {
     .collect();
     let contents = fs::read_to_string(d.clone()).expect("Should have been able to read the file");
 
-    let allocator = Allocator::default();
     let mut agent = GcAgent::new(Options::default(), &DefaultHostHooks);
     let realm = agent.create_default_realm();
     agent.run_in_realm(&realm, |agent| {
         let realm = agent.current_realm_id();
-        let script =
-            parse_script(&allocator, contents.into_boxed_str(), realm, false, None).unwrap();
+        let source_text = String::from_string(agent, contents);
+        let script = parse_script(agent, source_text, realm, false, None).unwrap();
         let _ = script_evaluation(agent, script).unwrap_or_else(|err| {
             panic!(
                 "Test '{}' failed: {:?}",

@@ -145,7 +145,13 @@ pub(crate) fn evaluate_function_body(
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     function_declaration_instantiation(agent, function_object, arguments_list)?;
     // 2. Return ? Evaluation of FunctionStatementList.
-    let body = agent[function_object].ecmascript_function.ecmascript_code;
+    // SAFETY: We're alive so SourceCode must be too.
+    let body = unsafe {
+        agent[function_object]
+            .ecmascript_function
+            .ecmascript_code
+            .as_ref()
+    };
     let is_concise_arrow_function = agent[function_object]
         .ecmascript_function
         .is_concise_arrow_function;

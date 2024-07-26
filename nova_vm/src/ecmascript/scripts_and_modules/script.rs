@@ -22,21 +22,21 @@ use crate::{
     engine::{Executable, Vm},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
-use oxc_allocator::Allocator;
 use oxc_ast::{
     ast::{BindingIdentifier, Program, VariableDeclarationKind},
     syntax_directed_operations::BoundNames,
 };
 use oxc_diagnostics::OxcDiagnostic;
-use oxc_parser::{Parser, ParserReturn};
-use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
 use std::{
     any::Any,
     collections::HashSet,
     marker::PhantomData,
+    mem::ManuallyDrop,
     ops::{Index, IndexMut},
 };
+
+use super::source_code::SourceCode;
 
 pub type HostDefined = &'static mut dyn Any;
 
@@ -132,7 +132,13 @@ pub struct Script {
     /// ### \[\[ECMAScriptCode]]
     ///
     /// The result of parsing the source text of this script.
-    pub(crate) ecmascript_code: Program<'static>,
+    ///
+    /// Note: The Program's drop code is never run. The referred structures
+    /// live in the SourceCode heap data in its contained Allocator. The bump
+    /// allocator drops all of the data in a single go. All that needs to be
+    /// dropped here is the local Program itself, not any of its referred
+    /// parts.
+    pub(crate) ecmascript_code: ManuallyDrop<Program<'static>>,
 
     /// ### \[\[LoadedModules]]
     ///
@@ -149,37 +155,37 @@ pub struct Script {
 
     /// Source text of the script
     ///
-    /// Parsing a script takes ownership of the text.
-    pub(crate) source_text: Box<str>,
+    /// The source text is kept in the heap strings vector, through the
+    /// SourceCode struct.
+    pub(crate) source_code: SourceCode,
 }
 
 unsafe impl Send for Script {}
 
-pub type ScriptOrErrors = Result<Script, (Box<str>, Vec<OxcDiagnostic>)>;
+pub type ScriptOrErrors = Result<Script, Vec<OxcDiagnostic>>;
 
 impl HeapMarkAndSweep for Script {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.realm.mark_values(queues);
+        self.source_code.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.realm.sweep_values(compactions);
+        self.source_code.sweep_values(compactions);
     }
 }
 
 /// ### [16.1.5 ParseScript ( sourceText, realm, hostDefined )](https://tc39.es/ecma262/#sec-parse-script)
 ///
 /// The abstract operation ParseScript takes arguments sourceText (ECMAScript
-/// source text), realm (a Realm Record or undefined), and hostDefined
-/// (anything) and returns a Script Record or a non-empty List of SyntaxError
-/// objects. It creates a Script Record based upon the result of parsing
-/// sourceText as a Script.
-///
-/// NOTE: If parsing fails, the `source_text` is returned so it can be used for
-/// diagnostics.
+/// source text), realm (a Realm Record), and hostDefined (anything) and
+/// returns a Script Record or a non-empty List of SyntaxError objects. It
+/// creates a Script Record based upon the result of parsing sourceText as a
+/// Script.
 pub fn parse_script(
-    allocator: &Allocator,
-    source_text: Box<str>,
+    agent: &mut Agent,
+    source_text: String,
     realm: RealmIdentifier,
     strict_mode: bool,
     host_defined: Option<HostDefined>,
@@ -189,42 +195,30 @@ pub fn parse_script(
     if cfg!(feature = "typescript") {
         source_type = source_type.with_typescript(true);
     }
-    let parser = Parser::new(allocator, &source_text, source_type);
-    let ParserReturn {
-        errors, program, ..
-    } = parser.parse();
 
-    // 2. If script is a List of errors, return script.
-    if !errors.is_empty() {
-        // Make sure `program` can't borrow `source_text` so we can return it.
-        drop(program);
-        return Err((source_text, errors));
-    }
+    // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus
+    // making the Program's references point to a live Allocator.
+    let parse_result = unsafe { SourceCode::parse_source(agent, source_text, source_type) };
 
-    let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new(&source_text, source_type)
-        .with_check_syntax_error(true)
-        .build(&program);
-
-    if !errors.is_empty() {
-        // Make sure `program` can't borrow `source_text` so we can return it.
-        drop(program);
-        return Err((source_text, errors));
-    }
+    let (program, source_code) = match parse_result {
+        // 2. If script is a List of errors, return script.
+        Ok(result) => result,
+        Err(errors) => {
+            return Err(errors);
+        }
+    };
 
     // 3. Return Script Record {
     Ok(Script {
         // [[Realm]]: realm,
         realm,
         // [[ECMAScriptCode]]: script,
-        // SAFETY: Program retains at least a logical connection to `source_text`, possibly even
-        // direct references. This should be safe because we move the `source_text` into the Script
-        // struct, making it self-referential. Hence we must use the 'static lifetime.
-        ecmascript_code: unsafe { std::mem::transmute::<Program<'_>, Program<'static>>(program) },
+        ecmascript_code: ManuallyDrop::new(program),
         // [[LoadedModules]]: « »,
         loaded_modules: (),
         // [[HostDefined]]: hostDefined,
         host_defined,
-        source_text,
+        source_code,
     })
     // }
 }
@@ -237,6 +231,7 @@ pub fn parse_script(
 pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
     let realm_id = script.realm;
     let is_strict_mode = script.ecmascript_code.is_strict();
+    let source_code = script.source_code;
     let script = agent.heap.add_script(script);
     let realm = agent.get_realm(realm_id);
 
@@ -265,6 +260,8 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
             private_environment: None,
 
             is_strict_mode,
+
+            source_code,
         }),
     };
 
@@ -535,17 +532,15 @@ mod test {
         },
         SmallInteger,
     };
-    use oxc_allocator::Allocator;
 
     #[test]
     fn empty_script() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -554,13 +549,12 @@ mod test {
 
     #[test]
     fn basic_constants() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "true".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "true");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -569,13 +563,12 @@ mod test {
 
     #[test]
     fn unary_minus() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "-2".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "-2");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -584,14 +577,12 @@ mod test {
 
     #[test]
     fn unary_void() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script =
-            parse_script(&allocator, "void (2 + 2 + 6)".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "void (2 + 2 + 6)");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -600,13 +591,12 @@ mod test {
 
     #[test]
     fn unary_plus() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "+(54)".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "+(54)");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -615,13 +605,12 @@ mod test {
 
     #[test]
     fn logical_not() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "!true".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "!true");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -630,13 +619,12 @@ mod test {
 
     #[test]
     fn bitwise_not() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "~0b1111".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "~0b1111");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -645,68 +633,64 @@ mod test {
 
     #[test]
     fn unary_typeof() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script =
-            parse_script(&allocator, "typeof undefined".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "typeof undefined");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "undefined"));
 
-        let script = parse_script(&allocator, "typeof null".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "typeof null");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "object"));
 
-        let script =
-            parse_script(&allocator, "typeof \"string\"".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "typeof \"string\"");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "string"));
 
-        let script =
-            parse_script(&allocator, "typeof Symbol()".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "typeof Symbol()");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "symbol"));
 
-        let script = parse_script(&allocator, "typeof true".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "typeof true");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "boolean"));
 
-        let script = parse_script(&allocator, "typeof 3".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "typeof 3");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "number"));
 
-        let script = parse_script(&allocator, "typeof 3n".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "typeof 3n");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "bigint"));
 
-        let script = parse_script(&allocator, "typeof {}".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "typeof {}");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "object"));
 
-        let script = parse_script(
-            &allocator,
-            "typeof (function() {})".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "typeof (function() {})");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "function"));
     }
 
     #[test]
     fn binary_add() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "2 + 2 + 6".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "2 + 2 + 6");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
         let result = script_evaluation(&mut agent, script).unwrap();
 
@@ -715,26 +699,24 @@ mod test {
 
     #[test]
     fn var_assign() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "var foo = 3;".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "var foo = 3;");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Undefined);
     }
 
     #[test]
     fn empty_object() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "var foo = {};".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "var foo = {};");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
         let key = PropertyKey::from_static_str(&mut agent, "foo");
@@ -756,14 +738,12 @@ mod test {
 
     #[test]
     fn non_empty_object() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script =
-            parse_script(&allocator, "var foo = { a: 3 };".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "var foo = { a: 3 };");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
         let key = PropertyKey::from_static_str(&mut agent, "foo");
@@ -791,8 +771,6 @@ mod test {
 
     #[test]
     fn empty_array() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
@@ -804,7 +782,8 @@ mod test {
             script_or_module: None,
         });
 
-        let script = parse_script(&allocator, "var foo = [];".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "var foo = [];");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
         let foo_key = String::from_static_str(&mut agent, "foo");
@@ -824,20 +803,12 @@ mod test {
 
     #[test]
     fn non_empty_array() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(
-            &allocator,
-            "var foo = [ 'a', 3 ];".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "var foo = [ 'a', 3 ];");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
         let foo_key = String::from_static_str(&mut agent, "foo");
@@ -873,96 +844,66 @@ mod test {
 
     #[test]
     fn empty_function() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script =
-            parse_script(&allocator, "function foo() {}".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "function foo() {}");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_function());
     }
 
     #[test]
     fn empty_iife_function_call() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script =
-            parse_script(&allocator, "(function() {})()".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "(function() {})()");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
     }
 
     #[test]
     fn empty_named_function_call() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(
-            &allocator,
-            "var f = function() {}; f();".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "var f = function() {}; f();");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
     }
 
     #[test]
     fn empty_declared_function_call() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(
-            &allocator,
-            "function f() {}; f();".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "function f() {}; f();");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_undefined());
     }
 
     #[test]
     fn non_empty_iife_function_call() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(
-            &allocator,
-            "(function() { return 3 })()".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "(function() { return 3 })()");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Number::from(3).into_value());
     }
 
     #[test]
     fn builtin_function_call() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
@@ -999,141 +940,108 @@ mod test {
 
         create_data_property_or_throw(&mut agent, global, key, func.into_value()).unwrap();
 
-        let script = parse_script(&allocator, "test(true)".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "test(true)");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from(3));
 
-        let script = parse_script(&allocator, "test()".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "test()");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Null);
 
-        let script = parse_script(&allocator, "test({})".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "test({})");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Null);
     }
 
     #[test]
     fn if_statement() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(&allocator, "if (true) 3".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "if (true) 3");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Number::from(3).into_value());
 
-        let script = parse_script(&allocator, "if (false) 3".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "if (false) 3");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Undefined);
     }
 
     #[test]
     fn if_else_statement() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(
-            &allocator,
-            "var foo = function() { if (true) { return 3; } else { return 5; } }; foo()".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(
+            &mut agent,
+            "var foo = function() { if (true) { return 3; } else { return 5; } }; foo()",
+        );
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Number::from(3).into_value());
 
-        let script = parse_script(
-            &allocator,
-            "var bar = function() { if (false) { return 3; } else { return 5; } }; bar()".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(
+            &mut agent,
+            "var bar = function() { if (false) { return 3; } else { return 5; } }; bar()",
+        );
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Number::from(5).into_value());
     }
 
     #[test]
     fn static_property_access() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(
-            &allocator,
-            "var foo = { a: 3 }; foo.a".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "var foo = { a: 3 }; foo.a");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Number::from(3).into_value());
     }
 
     #[test]
     fn deep_static_property_access() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(
-            &allocator,
-            "var fn = function() { return 3; }; var foo = { a: { b: fn } }; foo.a.b()".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(
+            &mut agent,
+            "var fn = function() { return 3; }; var foo = { a: { b: fn } }; foo.a.b()",
+        );
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Number::from(3).into_value());
     }
 
     #[test]
     fn computed_property_access() {
-        let allocator: Allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
-        let script = parse_script(
-            &allocator,
-            "var foo = { a: 3 }; var prop = 'a'; foo[prop]".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text =
+            String::from_static_str(&mut agent, "var foo = { a: 3 }; var prop = 'a'; foo[prop]");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Number::from(3).into_value());
     }
     #[test]
     fn for_loop() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
-        let script = parse_script(
-            &allocator,
-            "var i = 0; for (; i < 3; i++) {}".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "var i = 0; for (; i < 3; i++) {}");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Undefined);
         let key = PropertyKey::from_static_str(&mut agent, "i");
@@ -1150,20 +1058,12 @@ mod test {
 
     #[test]
     fn lexical_declarations() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(
-            &allocator,
-            "let i = 0; const a = 'foo'; i = 3;".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "let i = 0; const a = 'foo'; i = 3;");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         script_evaluation(&mut agent, script).unwrap();
 
         let global_env = agent.get_realm(realm).global_env.unwrap();
@@ -1187,20 +1087,13 @@ mod test {
 
     #[test]
     fn lexical_declarations_in_block() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(
-            &allocator,
-            "{ let i = 0; const a = 'foo'; i = 3; }".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text =
+            String::from_static_str(&mut agent, "{ let i = 0; const a = 'foo'; i = 3; }");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Undefined);
 
@@ -1213,20 +1106,12 @@ mod test {
 
     #[test]
     fn object_property_assignment() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(
-            &allocator,
-            "var foo = {}; foo.a = 42; foo".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "var foo = {}; foo.a = 42; foo");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         let object = Object::try_from(result).unwrap();
 
@@ -1241,209 +1126,157 @@ mod test {
 
     #[test]
     fn try_catch_not_thrown() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(
-            &allocator,
-            "let a = 0; try { a++; } catch { a = 500; }; a++; a".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(
+            &mut agent,
+            "let a = 0; try { a++; } catch { a = 500; }; a++; a",
+        );
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(2)));
     }
 
     #[test]
     fn try_catch_thrown() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(
-            &allocator,
-            "let a = 0; try { throw null; a = 500 } catch { a++; }; a++; a".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(
+            &mut agent,
+            "let a = 0; try { throw null; a = 500 } catch { a++; }; a++; a",
+        );
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(2)));
     }
 
     #[test]
     fn catch_binding() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(
-            &allocator,
-            "let err; try { throw 'thrown'; } catch(e) { err = e; }; err".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(
+            &mut agent,
+            "let err; try { throw 'thrown'; } catch(e) { err = e; }; err",
+        );
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "thrown"));
     }
 
     #[test]
     fn throwing_in_try_restores_lexical_environment() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(
-            &allocator,
-            "let a = 42; try { let a = 62; throw 'thrown'; } catch { }; a".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(
+            &mut agent,
+            "let a = 42; try { let a = 62; throw 'thrown'; } catch { }; a",
+        );
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
     }
 
     #[test]
     fn function_argument_bindings() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(
-            &allocator,
-            "const foo = function (a) { return a + 10; }; foo(32)".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(
+            &mut agent,
+            "const foo = function (a) { return a + 10; }; foo(32)",
+        );
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
     }
 
     #[test]
     fn logical_and() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(&allocator, "true && true".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "true && true");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Boolean(true));
 
-        let script = parse_script(
-            &allocator,
-            "true && false && true".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "true && false && true");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Boolean(false));
     }
 
     #[test]
     fn logical_or() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(&allocator, "false || false".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "false || false");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Boolean(false));
 
-        let script = parse_script(
-            &allocator,
-            "true || false || true".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "true || false || true");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Boolean(true));
     }
 
     #[test]
     fn nullish_coalescing() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(&allocator, "null ?? 42".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "null ?? 42");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
 
-        let script = parse_script(&allocator, "'foo' ?? 12".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "'foo' ?? 12");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "foo"));
 
-        let script =
-            parse_script(&allocator, "undefined ?? null".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "undefined ?? null");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Null);
     }
 
     #[test]
     fn string_concat() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script =
-            parse_script(&allocator, "'foo' + '' + 'bar'".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "'foo' + '' + 'bar'");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "foobar"));
 
-        let script = parse_script(
-            &allocator,
-            "'foo' + ' a heap string'".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "'foo' + ' a heap string'");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(
             result,
             Value::from_static_str(&mut agent, "foo a heap string")
         );
 
-        let script = parse_script(
-            &allocator,
-            "'Concatenating ' + 'two heap strings'".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text =
+            String::from_static_str(&mut agent, "'Concatenating ' + 'two heap strings'");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(
             result,
@@ -1453,85 +1286,66 @@ mod test {
 
     #[test]
     fn property_access_on_functions() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(
-            &allocator,
-            "function foo() {}; foo.bar".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "function foo() {}; foo.bar");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Undefined);
 
-        let script = parse_script(
-            &allocator,
-            "foo.bar = 42; foo.bar".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "foo.bar = 42; foo.bar");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
 
-        let script = parse_script(&allocator, "foo.name".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "foo.name");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "foo"));
 
-        let script = parse_script(&allocator, "foo.length".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "foo.length");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::zero()));
 
-        let script = parse_script(&allocator, "foo.prototype".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "foo.prototype");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert!(result.is_object())
     }
 
     #[test]
     fn name_and_length_on_builtin_functions() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(&allocator, "TypeError.name".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "TypeError.name");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "TypeError"));
 
-        let script =
-            parse_script(&allocator, "TypeError.length".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "TypeError.length");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(1)));
     }
 
     #[test]
     fn constructor() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(
-            &allocator,
-            "function foo() {}; foo.prototype".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "function foo() {}; foo.prototype");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         let foo_prototype = Object::try_from(result).unwrap();
 
-        let script = parse_script(&allocator, "new foo()".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "new foo()");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = match script_evaluation(&mut agent, script) {
             Ok(result) => result,
             Err(err) => panic!("{}", err.to_string(&mut agent).as_str(&agent)),
@@ -1545,145 +1359,91 @@ mod test {
 
     #[test]
     fn this_expression() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(
-            &allocator,
-            "function foo() { this.bar = 42; }; new foo().bar".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(
+            &mut agent,
+            "function foo() { this.bar = 42; }; new foo().bar",
+        );
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
 
-        let script = parse_script(
-            &allocator,
-            "foo.prototype.baz = function() { return this.bar + 10; }; (new foo()).baz()".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(
+            &mut agent,
+            "foo.prototype.baz = function() { return this.bar + 10; }; (new foo()).baz()",
+        );
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(52)));
     }
 
     #[test]
     fn symbol_stringification() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(&allocator, "+Symbol()".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "+Symbol()");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         assert!(script_evaluation(&mut agent, script).is_err());
 
-        let script = parse_script(&allocator, "+Symbol('foo')".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "+Symbol('foo')");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         assert!(script_evaluation(&mut agent, script).is_err());
 
-        let script =
-            parse_script(&allocator, "String(Symbol())".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "String(Symbol())");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let value = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(value, Value::from_static_str(&mut agent, "Symbol()"));
 
-        let script = parse_script(
-            &allocator,
-            "String(Symbol('foo'))".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "String(Symbol('foo'))");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let value = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(value, Value::from_static_str(&mut agent, "Symbol(foo)"));
     }
 
     #[test]
     fn instanceof() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script =
-            parse_script(&allocator, "3 instanceof Number".into(), realm, false, None).unwrap();
+        let source_text = String::from_static_str(&mut agent, "3 instanceof Number");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         assert_eq!(script_evaluation(&mut agent, script).unwrap(), false.into());
 
-        let script = parse_script(
-            &allocator,
-            "'foo' instanceof String".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "'foo' instanceof String");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         assert_eq!(script_evaluation(&mut agent, script).unwrap(), false.into());
 
-        let script = parse_script(
-            &allocator,
-            "({}) instanceof Object".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "({}) instanceof Object");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         assert_eq!(script_evaluation(&mut agent, script).unwrap(), true.into());
 
-        let script = parse_script(
-            &allocator,
-            "({}) instanceof Array".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "({}) instanceof Array");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         assert_eq!(script_evaluation(&mut agent, script).unwrap(), false.into());
 
-        let script = parse_script(
-            &allocator,
-            "([]) instanceof Object".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "([]) instanceof Object");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         assert_eq!(script_evaluation(&mut agent, script).unwrap(), true.into());
 
-        let script = parse_script(
-            &allocator,
-            "([]) instanceof Array".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "([]) instanceof Array");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         assert_eq!(script_evaluation(&mut agent, script).unwrap(), true.into());
     }
 
     #[test]
     fn array_binding_pattern() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(
-            &allocator,
-            "const [a, b, , c] = [1, 2, 3, 4];".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "const [a, b, , c] = [1, 2, 3, 4];");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         script_evaluation(&mut agent, script).unwrap();
         let a_key = String::from_static_str(&mut agent, "a");
         let b_key = String::from_static_str(&mut agent, "b");
@@ -1714,19 +1474,13 @@ mod test {
 
     #[test]
     fn do_while() {
-        let allocator = Allocator::default();
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(
-            &allocator,
-            "let i = 0; do { i++ } while(i < 10)".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text =
+            String::from_static_str(&mut agent, "let i = 0; do { i++ } while(i < 10)");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         script_evaluation(&mut agent, script).unwrap();
 
         let i_key = String::from_static_str(&mut agent, "i");
@@ -1742,20 +1496,12 @@ mod test {
 
     #[test]
     fn no_implicit_return() {
-        let allocator = Allocator::default();
-
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent);
         let realm = agent.current_realm_id();
 
-        let script = parse_script(
-            &allocator,
-            "function foo() { 42; }; foo()".into(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_static_str(&mut agent, "function foo() { 42; }; foo()");
+        let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, script).unwrap();
         assert_eq!(result, Value::Undefined);
     }

@@ -2,7 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use std::{
+    ops::{Index, IndexMut},
+    ptr::NonNull,
+};
 
 use oxc_ast::{
     ast::{FormalParameters, FunctionBody},
@@ -24,7 +27,7 @@ use crate::{
             ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult,
             PrivateEnvironmentIndex, ProtoIntrinsics, RealmIdentifier, ThisBindingStatus,
         },
-        scripts_and_modules::ScriptOrModule,
+        scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
         syntax_directed_operations::{
             function_definitions::evaluate_function_body,
             miscellaneous::instantiate_function_object,
@@ -180,15 +183,15 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
 
     /// \[\[FormalParameters]]
     ///
-    /// SAFETY: ScriptOrModule owns the Program which this refers to.
+    /// SAFETY: SourceCode owns the Allocator into which this refers to.
     /// Our GC algorithm keeps it alive as long as this function is alive.
-    pub formal_parameters: &'static FormalParameters<'static>,
+    pub formal_parameters: NonNull<FormalParameters<'static>>,
 
     /// \[\[ECMAScriptCode]]
     ///
-    /// SAFETY: ScriptOrModule owns the Program which this refers to.
+    /// SAFETY: SourceCode owns the Allocator into which this refers to.
     /// Our GC algorithm keeps it alive as long as this function is alive.
-    pub ecmascript_code: &'static FunctionBody<'static>,
+    pub ecmascript_code: NonNull<FunctionBody<'static>>,
 
     /// True if the function body is a ConciseBody (can only be true for arrow
     /// functions).
@@ -216,8 +219,14 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     /// \[\[HomeObject]]
     pub home_object: Option<Object>,
 
-    ///  [[SourceText]]
+    ///  \[\[SourceText]]
     pub source_text: Span,
+
+    /// \[\[SourceCode]]
+    ///
+    /// Nova specific addition: This SourceCode is where \[\[SourceText]]
+    /// refers to.
+    pub source_code: SourceCode,
     // TODO: [[Fields]],  [[PrivateMethods]], [[ClassFieldInitializerName]]
 }
 
@@ -610,6 +619,7 @@ pub(crate) fn prepare_for_ordinary_call(
     let private_environment = ecmascript_function_object.private_environment;
     let is_strict_mode = ecmascript_function_object.strict;
     let script_or_module = ecmascript_function_object.script_or_module;
+    let source_code = ecmascript_function_object.source_code;
     // 1. Let callerContext be the running execution context.
     let _caller_context = agent.running_execution_context();
     // 4. Let calleeRealm be F.[[Realm]].
@@ -626,6 +636,7 @@ pub(crate) fn prepare_for_ordinary_call(
             variable_environment: EnvironmentIndex::Function(local_env),
             private_environment,
             is_strict_mode,
+            source_code,
         }),
         // 3. Set the Function of calleeContext to F.
         function: Some(f.into()),
@@ -713,10 +724,14 @@ pub(crate) fn evaluate_body(
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
     let function_heap_data = &agent[function_object].ecmascript_function;
-    // SAFETY: Heap is self-referential: This
     let heap_data = function_heap_data;
-    if heap_data.ecmascript_code.statements.is_empty()
-        && heap_data.formal_parameters.is_simple_parameter_list()
+    // SAFETY: AS the ECMAScriptFunction is alive in the heap, its referred
+    // SourceCode must be as well. Thus the Allocator is live as well, and no
+    // other references to it can exist.
+    if unsafe { heap_data.ecmascript_code.as_ref() }
+        .statements
+        .is_empty()
+        && unsafe { heap_data.formal_parameters.as_ref() }.is_simple_parameter_list()
     {
         // Optimisation: Empty body and only simple parameters means no code will effectively run.
         return Ok(Value::Undefined);
@@ -782,13 +797,10 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
     agent: &'agent mut Agent,
     params: OrdinaryFunctionCreateParams<'agent, 'program>,
 ) -> ECMAScriptFunction {
+    let running_ecmascript_code = &agent.running_execution_context().ecmascript_code.unwrap();
+    let source_code = running_ecmascript_code.source_code;
     // 7. If the source text matched by Body is strict mode code, let Strict be true; else let Strict be false.
-    let strict = params.body.has_use_strict_directive()
-        || agent
-            .running_execution_context()
-            .ecmascript_code
-            .unwrap()
-            .is_strict_mode;
+    let strict = params.body.has_use_strict_directive() || running_ecmascript_code.is_strict_mode;
 
     // 1. Let internalSlotsList be the internal slots listed in Table 30.
     // 2. Let F be OrdinaryObjectCreate(functionPrototype, internalSlotsList).
@@ -803,19 +815,16 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
         // and is valid until it gets dropped. Our GC keeps ScriptOrModule
         // alive until this ECMAScriptFunction gets dropped, hence the 'static
         // lifetime here is justified.
-        formal_parameters: unsafe {
-            std::mem::transmute::<
-                &'agent FormalParameters<'program>,
-                &'static FormalParameters<'static>,
-            >(params.parameters_list)
-        },
+        formal_parameters: NonNull::from(unsafe {
+            std::mem::transmute::<&FormalParameters<'program>, &FormalParameters<'static>>(
+                params.parameters_list,
+            )
+        }),
         // 6. Set F.[[ECMAScriptCode]] to Body.
         // SAFETY: Same as above: Self-referential reference to ScriptOrModule.
-        ecmascript_code: unsafe {
-            std::mem::transmute::<&'agent FunctionBody<'program>, &FunctionBody<'static>>(
-                params.body,
-            )
-        },
+        ecmascript_code: NonNull::from(unsafe {
+            std::mem::transmute::<&FunctionBody<'program>, &FunctionBody<'static>>(params.body)
+        }),
         is_concise_arrow_function: params.is_concise_arrow_function,
         // 12. Set F.[[IsClassConstructor]] to false.
         constructor_status: ConstructorStatus::NonConstructor,
@@ -839,6 +848,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
         home_object: None,
         // 4. Set F.[[SourceText]] to sourceText.
         source_text: params.source_text,
+        source_code,
     };
 
     let mut function = ECMAScriptFunctionHeapData {
@@ -1089,7 +1099,13 @@ pub(crate) fn function_declaration_instantiation(
     } = *callee_context.ecmascript_code.as_ref().unwrap();
     // 2. Let code be func.[[ECMAScriptCode]].
     let (var_names, var_declarations, lexical_names, lex_declarations) = {
-        let code = agent[function_object].ecmascript_function.ecmascript_code;
+        // SAFETY: We're alive so SourceCode must be too.
+        let code = unsafe {
+            agent[function_object]
+                .ecmascript_function
+                .ecmascript_code
+                .as_ref()
+        };
         // 9. Let varNames be the VarDeclaredNames of code.
         let var_names = function_body_var_declared_names(code)
             .iter()
@@ -1110,21 +1126,14 @@ pub(crate) fn function_declaration_instantiation(
     // 3. Let strict be func.[[Strict]].
     let strict = heap_data.ecmascript_function.strict;
     // 4. Let formals be func.[[FormalParameters]].
-    let formals = heap_data.ecmascript_function.formal_parameters;
+    // SAFETY: We're alive, thus SourceCode must be alive as well.
+    let formals = unsafe { heap_data.ecmascript_function.formal_parameters.as_ref() };
     let this_mode = heap_data.ecmascript_function.this_mode;
     // 5. Let parameterNames be the BoundNames of formals.
-    let mut parameter_names = Vec::with_capacity(
-        heap_data
-            .ecmascript_function
-            .formal_parameters
-            .parameters_count(),
-    );
-    heap_data
-        .ecmascript_function
-        .formal_parameters
-        .bound_names(&mut |identifier| {
-            parameter_names.push(String::from_str(agent, identifier.name.as_str()));
-        });
+    let mut parameter_names = Vec::with_capacity(formals.parameters_count());
+    formals.bound_names(&mut |identifier| {
+        parameter_names.push(String::from_str(agent, identifier.name.as_str()));
+    });
     // 6. If parameterNames has any duplicate entries, let hasDuplicates be true. Otherwise, let hasDuplicates be false.
     // TODO: Check duplicates
     let has_duplicates = false;

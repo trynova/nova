@@ -8,8 +8,6 @@ use oxc_ast::{
     ast::{BindingIdentifier, Program, VariableDeclarationKind},
     syntax_directed_operations::BoundNames,
 };
-use oxc_parser::{Parser, ParserReturn};
-use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
 
 use crate::{
@@ -21,6 +19,7 @@ use crate::{
             ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult,
             PrivateEnvironmentIndex, RealmIdentifier,
         },
+        scripts_and_modules::source_code::SourceCode,
         syntax_directed_operations::{
             miscellaneous::instantiate_function_object,
             scope_analysis::{
@@ -205,54 +204,27 @@ pub fn perform_eval(
 
     // 11. Perform the following substeps in an implementation-defined order, possibly interleaving parsing and error detection:
     // a. Let script be ParseText(x, Script).
-    // HACK: Because we rely on the allocator outliving the Agent we leak the
-    // allocator here . See https://github.com/trynova/nova/pull/278#discussion_r1663233064
-    // for more information.
-    let allocator = Box::leak(Box::default());
-    let source_text = x.as_str(agent).to_owned();
     let source_type = SourceType::default().with_always_strict(strict_caller);
-    let parser = Parser::new(allocator, &source_text, source_type);
-    let ParserReturn {
-        errors,
-        program: script,
-        ..
-    } = parser.parse();
+    // SAFETY: Script is only kept alive for the duration of this call, and any
+    // references made to it by functions being created in the eval call will
+    // take a copy of the SourceCode. The SourceCode is also kept in the
+    // evaluation context and thus cannot be garbage collected while the eval
+    // call happens.
+    // The Program thus refers to a valid, live Allocator for the duration of
+    // this call.
+    let parse_result = unsafe { SourceCode::parse_source(agent, x, source_type) };
 
     // b. If script is a List of errors, throw a SyntaxError exception.
-    if !errors.is_empty() {
-        // Make sure `script` can't borrow `source_text` so we can return it.
-        drop(script);
-        // SAFETY: It is safe to drop the leaked allocator here because it is known to be unused.
-        drop(unsafe { Box::from_raw(allocator) });
+    let Ok((script, source_code)) = parse_result else {
         // TODO: Include error messages in the exception.
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::SyntaxError,
             "Invalid eval source text.",
         ));
-    }
-
-    let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new(&source_text, source_type)
-        .with_check_syntax_error(true)
-        .build(&script);
-
-    if !errors.is_empty() {
-        // Make sure `script` can't borrow `source_text` so we can return it.
-        drop(script);
-        // SAFETY: It is safe to drop the leaked allocator here because it is known to be unused.
-        drop(unsafe { Box::from_raw(allocator) });
-        // TODO: Include error messages in the exception.
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::SyntaxError,
-            "Invalid eval source text.",
-        ));
-    }
+    };
 
     // c. If script Contains ScriptBody is false, return undefined.
     if script.is_empty() {
-        // Make sure `script` can't borrow `source_text` so we can drop the allocator. Because the script is empty this is fine.
-        drop(script);
-        // SAFETY: It is safe to drop the leaked allocator here because it is known to be unused.
-        drop(unsafe { Box::from_raw(allocator) });
         return Ok(Value::Undefined);
     }
 
@@ -297,6 +269,8 @@ pub fn perform_eval(
             // c. Let privateEnv be runningContext's PrivateEnvironment.
             private_environment: running_context_private_env,
             is_strict_mode: strict_eval,
+            // The code running inside eval is defined inside the eval source.
+            source_code,
         }
     } else {
         // 17. Else,
@@ -313,6 +287,8 @@ pub fn perform_eval(
             // c. Let privateEnv be null.
             private_environment: None,
             is_strict_mode: strict_eval,
+            // The code running inside eval is defined inside the eval source.
+            source_code,
         }
     };
 
