@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use rustc_hash::FxHashMap;
+use ahash::AHashMap;
 
 use super::{DeclarativeEnvironmentIndex, OuterEnv};
 use crate::{
@@ -27,7 +27,7 @@ pub(crate) struct DeclarativeEnvironment {
     pub(crate) outer_env: OuterEnv,
 
     /// The environment's bindings.
-    pub(crate) bindings: FxHashMap<String, Binding>,
+    pub(crate) bindings: AHashMap<String, Binding>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -51,7 +51,7 @@ impl DeclarativeEnvironment {
         // 3. Return env.
         DeclarativeEnvironment {
             outer_env,
-            bindings: FxHashMap::default(),
+            bindings: AHashMap::default(),
         }
     }
 

@@ -7,7 +7,7 @@
 //! - This is inspired by and/or copied from Kiesel engine:
 //!   Copyright (c) 2023-2024 Linus Groh
 
-use rustc_hash::FxHashMap;
+use ahash::AHashMap;
 
 use super::{
     environments::get_identifier_reference, initialize_default_realm, initialize_host_defined_realm, EnvironmentIndex, ExecutionContext, Realm, RealmIdentifier
@@ -256,7 +256,7 @@ pub struct Agent {
     // pre_allocated: PreAllocated,
     pub(crate) exception: Option<Value>,
     pub(crate) symbol_id: usize,
-    pub(crate) global_symbol_registry: FxHashMap<&'static str, Symbol>,
+    pub(crate) global_symbol_registry: AHashMap<&'static str, Symbol>,
     pub(crate) host_hooks: &'static dyn HostHooks,
     pub(crate) execution_context_stack: Vec<ExecutionContext>,
 }
@@ -268,7 +268,7 @@ impl Agent {
             options,
             exception: None,
             symbol_id: 0,
-            global_symbol_registry: FxHashMap::default(),
+            global_symbol_registry: AHashMap::default(),
             host_hooks,
             execution_context_stack: Vec::new(),
         }

@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use ahash::AHashSet;
 use oxc_ast::{
     ast::{BindingIdentifier, Program, VariableDeclarationKind},
     syntax_directed_operations::BoundNames,
@@ -9,7 +10,6 @@ use oxc_ast::{
 use oxc_parser::{Parser, ParserReturn};
 use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
-use rustc_hash::FxHashSet;
 
 use crate::{
     ecmascript::{
@@ -469,7 +469,7 @@ pub fn eval_declaration_instantiation(
     // 8. Let functionsToInitialize be a new empty List.
     let mut functions_to_initialize = vec![];
     // 9. Let declaredFunctionNames be a new empty List.
-    let mut declared_function_names = FxHashSet::default();
+    let mut declared_function_names = AHashSet::default();
 
     // 10. For each element d of varDeclarations, in reverse List order, do
     for d in var_declarations.iter().rev() {
@@ -512,7 +512,7 @@ pub fn eval_declaration_instantiation(
     }
 
     // 11. Let declaredVarNames be a new empty List.
-    let mut declared_var_names = FxHashSet::default();
+    let mut declared_var_names = AHashSet::default();
 
     // 12. For each element d of varDeclarations, do
     for d in var_declarations {

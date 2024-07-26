@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use rustc_hash::FxHashMap;
+use ahash::AHashMap;
 
 use crate::{
     ecmascript::types::{Function, Value},
@@ -46,7 +46,7 @@ pub struct PrivateEnvironment {
     /// ### \[\[Names\]\]
     ///
     /// The Private Names declared by this class.
-    pub(crate) names: FxHashMap<String, PrivateName>,
+    pub(crate) names: AHashMap<String, PrivateName>,
 }
 
 impl HeapMarkAndSweep for PrivateEnvironment {
