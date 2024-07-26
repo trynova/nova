@@ -189,7 +189,9 @@ pub fn parse_script(
         source_type = source_type.with_typescript(true);
     }
 
-    let parse_result = SourceCode::parse_source(agent, source_text, source_type);
+    // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus
+    // making the Program's references point to a live Allocator.
+    let parse_result = unsafe { SourceCode::parse_source(agent, source_text, source_type) };
 
     let (program, source_code) = match parse_result {
         // 2. If script is a List of errors, return script.
@@ -204,9 +206,6 @@ pub fn parse_script(
         // [[Realm]]: realm,
         realm,
         // [[ECMAScriptCode]]: script,
-        // SAFETY: Program retains at least a logical connection to `source_text`, possibly even
-        // direct references. This should be safe because we keep a reference to the `source_text`
-        // in the Script struct. This is Heap-level self-referential, hence the 'static lifetime.
         ecmascript_code: program,
         // [[LoadedModules]]: « »,
         loaded_modules: (),

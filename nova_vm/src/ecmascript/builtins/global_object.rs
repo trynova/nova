@@ -205,7 +205,14 @@ pub fn perform_eval(
     // 11. Perform the following substeps in an implementation-defined order, possibly interleaving parsing and error detection:
     // a. Let script be ParseText(x, Script).
     let source_type = SourceType::default().with_always_strict(strict_caller);
-    let parse_result = SourceCode::parse_source(agent, x, source_type);
+    // SAFETY: Script is only kept alive for the duration of this call, and any
+    // references made to it by functions being created in the eval call will
+    // take a copy of the SourceCode. The SourceCode is also kept in the
+    // evaluation context and thus cannot be garbage collected while the eval
+    // call happens.
+    // The Program thus refers to a valid, live Allocator for the duration of
+    // this call.
+    let parse_result = unsafe { SourceCode::parse_source(agent, x, source_type) };
 
     // b. If script is a List of errors, throw a SyntaxError exception.
     let Ok((script, source_code)) = parse_result else {

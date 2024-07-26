@@ -35,9 +35,11 @@ impl SourceCode {
     /// Parses the given source string as JavaScript code and returns the
     /// parsed result and a SourceCode heap reference.
     ///
+    /// ### Safety
+    ///
     /// The caller must keep the SourceCode from being garbage collected until
     /// they drop the parsed code.
-    pub(crate) fn parse_source(
+    pub(crate) unsafe fn parse_source(
         agent: &mut Agent,
         source: String,
         source_type: SourceType,
