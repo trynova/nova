@@ -221,8 +221,8 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
 
     /// \[\[SourceCode]]
     ///
-    /// Nova specific addition: This SoureCode is where \[\[SourceText]] refers
-    /// to.
+    /// Nova specific addition: This SourceCode is where \[\[SourceText]]
+    /// refers to.
     pub source_code: SourceCode,
     // TODO: [[Fields]],  [[PrivateMethods]], [[ClassFieldInitializerName]]
 }
