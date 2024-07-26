@@ -4,13 +4,14 @@
 
 use crate::{
     ecmascript::{
+        abstract_operations::{operations_on_objects::get, type_conversion::to_string},
         builders::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{IntoValue, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -228,8 +229,50 @@ impl RegExpPrototype {
         todo!()
     }
 
-    fn to_string(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [22.2.6.17 RegExp.prototype.toString ( )](https://tc39.es/ecma262/#sec-regexp.prototype.tostring)
+    ///
+    /// > #### Note
+    /// >
+    /// > The returned String has the form of a RegularExpressionLiteral that
+    /// > evaluates to another RegExp object with the same behaviour as this
+    /// > object.
+    fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let R be the this value.
+        // 2. If R is not an Object, throw a TypeError exception.
+        let Ok(r) = Object::try_from(this_value) else {
+            let error_message = format!(
+                "{} is not an object",
+                this_value.string_repr(agent).as_str(agent)
+            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
+        };
+        if let Object::RegExp(r) = r {
+            // Fast path for RegExp objects: This is not actually proper as it
+            // does not take into account prototype mutations.
+            let data = &agent[r];
+            let string_length = data.original_source.len(agent);
+            let flags_length = data.original_flags.iter().count();
+            let mut regexp_string =
+                std::string::String::with_capacity(1 + string_length + 1 + flags_length);
+            regexp_string.push('/');
+            regexp_string.push_str(data.original_source.as_str(agent));
+            regexp_string.push('/');
+            data.original_flags.iter_names().for_each(|(flag, _)| {
+                regexp_string.push_str(flag);
+            });
+            return Ok(String::from_string(agent, regexp_string).into_value());
+        }
+        // 3. Let pattern be ? ToString(? Get(R, "source")).
+        let pattern = get(agent, r, BUILTIN_STRING_MEMORY.source.into())?;
+        let pattern = to_string(agent, pattern)?;
+        // 4. Let flags be ? ToString(? Get(R, "flags")).
+        let flags = get(agent, r, BUILTIN_STRING_MEMORY.flags.into())?;
+        let flags = to_string(agent, flags)?;
+        // 5. Let result be the string-concatenation of "/", pattern, "/", and flags.
+        let result = format!("/{}/{}", pattern.as_str(agent), flags.as_str(agent));
+        let result = String::from_string(agent, result);
+        // 6. Return result.
+        Ok(result.into_value())
     }
 
     fn get_unicode(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {

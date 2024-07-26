@@ -141,9 +141,10 @@ impl ArrayConstructor {
                 let int_len = len.to_uint32(agent).unwrap();
                 // ii. If SameValueZero(intLen, len) is false, throw a RangeError exception.
                 if !same_value_zero(agent, int_len, len) {
-                    return Err(
-                        agent.throw_exception(ExceptionType::RangeError, "Invalid array length")
-                    );
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "Invalid array length",
+                    ));
                 }
                 let array = array_create(agent, int_len as usize, int_len as usize, proto).unwrap();
                 // e. Perform ! Set(array, "length", intLen, true).
@@ -205,7 +206,7 @@ impl ArrayConstructor {
             // 3. Else,
             // a. If IsCallable(mapfn) is false, throw a TypeError exception.
             let Some(mapfn) = is_callable(mapfn) else {
-                return Err(agent.throw_exception(
+                return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "The map function of Array.from is not callable",
                 ));
@@ -231,7 +232,7 @@ impl ArrayConstructor {
             };
 
             // c. Let iteratorRecord be ? GetIteratorFromMethod(items, usingIterator).
-            let iterator_record = get_iterator_from_method(agent, items, using_iterator)?;
+            let mut iterator_record = get_iterator_from_method(agent, items, using_iterator)?;
 
             // d. Let k be 0.
             let mut k = 0;
@@ -242,7 +243,7 @@ impl ArrayConstructor {
                 // i. If k ≥ 2**53 - 1, then
                 if k >= u32::MAX as usize {
                     // 1. Let error be ThrowCompletion(a newly created TypeError object).
-                    let error = agent.throw_exception(
+                    let error = agent.throw_exception_with_static_message(
                         ExceptionType::TypeError,
                         "Maximum array size of 2**53-1 exceeded",
                     );
@@ -258,7 +259,7 @@ impl ArrayConstructor {
                 let pk = PropertyKey::from(sk);
 
                 // iii. Let next be ? IteratorStepValue(iteratorRecord).
-                let Some(next) = iterator_step_value(agent, &iterator_record)? else {
+                let Some(next) = iterator_step_value(agent, &mut iterator_record)? else {
                     // iv. If next is done, then
                     // 1. Perform ? Set(A, "length", 𝔽(k), true).
                     set(

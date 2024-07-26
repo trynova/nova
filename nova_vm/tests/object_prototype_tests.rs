@@ -5,7 +5,10 @@
 use std::{fs, path::PathBuf};
 
 use nova_vm::ecmascript::{
-    execution::{agent::Options, initialize_default_realm, Agent, DefaultHostHooks},
+    execution::{
+        agent::{GcAgent, Options},
+        DefaultHostHooks,
+    },
     scripts_and_modules::script::{parse_script, script_evaluation},
 };
 use oxc_allocator::Allocator;
@@ -23,15 +26,18 @@ fn object_prototype_tests() {
     let contents = fs::read_to_string(d.clone()).expect("Should have been able to read the file");
 
     let allocator = Allocator::default();
-    let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-    initialize_default_realm(&mut agent);
-    let realm = agent.current_realm_id();
-    let script = parse_script(&allocator, contents.into_boxed_str(), realm, false, None).unwrap();
-    let _ = script_evaluation(&mut agent, script).unwrap_or_else(|err| {
-        panic!(
-            "Test '{}' failed: {:?}",
-            d.display(),
-            err.to_string(&mut agent).as_str(&agent)
-        )
+    let mut agent = GcAgent::new(Options::default(), &DefaultHostHooks);
+    let realm = agent.create_default_realm();
+    agent.run_in_realm(&realm, |agent| {
+        let realm = agent.current_realm_id();
+        let script =
+            parse_script(&allocator, contents.into_boxed_str(), realm, false, None).unwrap();
+        let _ = script_evaluation(agent, script).unwrap_or_else(|err| {
+            panic!(
+                "Test '{}' failed: {:?}",
+                d.display(),
+                err.to_string(agent).as_str(agent)
+            )
+        });
     });
 }

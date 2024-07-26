@@ -112,6 +112,14 @@ impl HeapMarkAndSweep for GlobalEnvironment {
         self.declarative_record.sweep_values(compactions);
         self.global_this_value.sweep_values(compactions);
         self.object_record.sweep_values(compactions);
+        for key in self.var_names.clone() {
+            let mut new_key = key;
+            new_key.sweep_values(compactions);
+            if key != new_key {
+                self.var_names.remove(&key);
+                self.var_names.insert(new_key);
+            }
+        }
     }
 }
 
@@ -156,7 +164,9 @@ impl GlobalEnvironmentIndex {
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, throw a TypeError exception.
         if dcl_rec.has_binding(agent, name) {
-            Err(agent.throw_exception(ExceptionType::TypeError, "Binding exists"))
+            let error_message =
+                format!("Redeclaration of global binding '{}'.", name.as_str(agent));
+            Err(agent.throw_exception(ExceptionType::TypeError, error_message))
         } else {
             // 3. Return ! DclRec.CreateMutableBinding(N, D).
             dcl_rec.create_mutable_binding(agent, name, is_deletable);
@@ -184,7 +194,9 @@ impl GlobalEnvironmentIndex {
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, throw a TypeError exception.
         if dcl_rec.has_binding(agent, name) {
-            Err(agent.throw_exception(ExceptionType::TypeError, "Binding exists"))
+            let error_message =
+                format!("Redeclaration of global binding '{}'.", name.as_str(agent));
+            Err(agent.throw_exception(ExceptionType::TypeError, error_message))
         } else {
             // 3. Return ! DclRec.CreateImmutableBinding(N, S).
             dcl_rec.create_immutable_binding(agent, name, is_strict);
@@ -609,8 +621,8 @@ impl HeapMarkAndSweep for GlobalEnvironmentIndex {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(
+        let self_index = self.into_u32_index();
+        *self = Self::from_u32_index(
             self_index
                 - compactions
                     .global_environments

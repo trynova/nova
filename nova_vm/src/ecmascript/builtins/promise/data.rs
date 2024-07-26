@@ -94,16 +94,47 @@ impl HeapMarkAndSweep for PromiseReactions {
 impl HeapMarkAndSweep for PromiseHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.object_index.mark_values(queues);
-        match self.promise_state {
-            PromiseState::Fulfilled { promise_result }
-            | PromiseState::Rejected { promise_result, .. } => {
-                promise_result.mark_values(queues);
-            }
-            _ => {}
-        }
+        self.promise_state.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.object_index.sweep_values(compactions);
+        self.promise_state.sweep_values(compactions);
+    }
+}
+
+impl HeapMarkAndSweep for PromiseState {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            PromiseState::Pending {
+                fulfill_reactions,
+                reject_reactions,
+                ..
+            } => {
+                fulfill_reactions.mark_values(queues);
+                reject_reactions.mark_values(queues);
+            }
+            PromiseState::Fulfilled { promise_result }
+            | PromiseState::Rejected { promise_result, .. } => {
+                promise_result.mark_values(queues);
+            }
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            PromiseState::Pending {
+                fulfill_reactions,
+                reject_reactions,
+                ..
+            } => {
+                fulfill_reactions.sweep_values(compactions);
+                reject_reactions.sweep_values(compactions);
+            }
+            PromiseState::Fulfilled { promise_result }
+            | PromiseState::Rejected { promise_result, .. } => {
+                promise_result.sweep_values(compactions);
+            }
+        }
     }
 }

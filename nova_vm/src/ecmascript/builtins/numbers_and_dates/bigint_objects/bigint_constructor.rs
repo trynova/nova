@@ -65,9 +65,10 @@ impl BigIntConstructor {
         new_target: Option<Object>,
     ) -> JsResult<Value> {
         if new_target.is_some() {
-            return Err(
-                agent.throw_exception(ExceptionType::TypeError, "BigInt is not a constructor")
-            );
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "BigInt is not a constructor",
+            ));
         }
         let value = arguments.get(0);
         let prim = to_primitive(agent, value, Some(PreferredType::Number))?;
@@ -84,13 +85,12 @@ impl BigIntConstructor {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let bits = to_index(agent, arguments.get(0))?;
-        if bits as u32 as i64 != bits {
-            return Err(agent.throw_exception(
+        let Ok(bits) = u32::try_from(bits) else {
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
                 "Ridiculous bits value for BigInt.asIntN",
             ));
-        }
-        let bits = bits as u32;
+        };
         let bigint = to_big_int(agent, arguments.get(1))?;
         match bigint {
             BigInt::BigInt(_) => todo!(),
@@ -113,13 +113,12 @@ impl BigIntConstructor {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let bits = to_index(agent, arguments.get(0))?;
-        if bits as u32 as i64 != bits {
-            return Err(agent.throw_exception(
+        let Ok(bits) = u32::try_from(bits) else {
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
                 "Ridiculous bits value for BigInt.asUintN",
             ));
-        }
-        let bits = bits as u32;
+        };
         let bigint = to_big_int(agent, arguments.get(1))?;
         match bigint {
             BigInt::BigInt(_) => todo!(),
@@ -146,7 +145,7 @@ impl BigIntConstructor {
 
 fn number_to_big_int(agent: &mut Agent, value: Number) -> JsResult<BigInt> {
     if !is_integral_number(agent, value) {
-        Err(agent.throw_exception(ExceptionType::RangeError, "Not an integer"))
+        Err(agent.throw_exception_with_static_message(ExceptionType::RangeError, "Not an integer"))
     } else {
         match value {
             Number::Number(idx) => {
@@ -159,7 +158,8 @@ fn number_to_big_int(agent: &mut Agent, value: Number) -> JsResult<BigInt> {
                 }
             }
             Number::Integer(int) => Ok(BigInt::SmallBigInt(int.into())),
-            Number::Float(value) => {
+            Number::SmallF64(value) => {
+                let value = value.into_f64();
                 if let Ok(data) = SmallInteger::try_from(value) {
                     Ok(BigInt::SmallBigInt(data.into()))
                 } else {

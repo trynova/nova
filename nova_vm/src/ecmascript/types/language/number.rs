@@ -15,6 +15,7 @@ use crate::{
         abstract_operations::type_conversion::{to_int32, to_uint32},
         execution::{Agent, JsResult},
     },
+    engine::small_f64::SmallF64,
     heap::{
         indexes::NumberIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
@@ -22,7 +23,7 @@ use crate::{
 };
 
 pub use data::NumberHeapData;
-use num_traits::PrimInt;
+use num_traits::{PrimInt, Zero};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -42,10 +43,13 @@ impl HeapNumber {
 #[derive(Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Number {
+    /// f64 on the heap. Accessing the data must be done through the Agent.
     Number(HeapNumber) = NUMBER_DISCRIMINANT,
-    // 56-bit signed integer.
+    /// 53-bit signed integer on the stack.
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
-    Float(f32) = FLOAT_DISCRIMINANT,
+    /// 56-bit f64 on the stack. The missing byte is a zero least significant
+    /// byte.
+    SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
 }
 
 impl IntoValue for HeapNumber {
@@ -65,7 +69,7 @@ impl IntoValue for Number {
         match self {
             Number::Number(idx) => Value::Number(idx),
             Number::Integer(data) => Value::Integer(data),
-            Number::Float(data) => Value::Float(data),
+            Number::SmallF64(data) => Value::SmallF64(data),
         }
     }
 }
@@ -81,7 +85,7 @@ impl IntoPrimitive for Number {
         match self {
             Number::Number(idx) => Primitive::Number(idx),
             Number::Integer(data) => Primitive::Integer(data),
-            Number::Float(data) => Primitive::Float(data),
+            Number::SmallF64(data) => Primitive::SmallF64(data),
         }
     }
 }
@@ -91,7 +95,7 @@ impl IntoNumeric for Number {
         match self {
             Number::Number(idx) => Numeric::Number(idx),
             Number::Integer(data) => Numeric::Integer(data),
-            Number::Float(data) => Numeric::Float(data),
+            Number::SmallF64(data) => Numeric::Float(data),
         }
     }
 }
@@ -101,7 +105,7 @@ impl std::fmt::Debug for Number {
         match &self {
             Number::Number(idx) => write!(f, "Number({:?})", idx),
             Number::Integer(value) => write!(f, "{}", value.into_i64()),
-            Number::Float(value) => write!(f, "{}", value),
+            Number::SmallF64(value) => write!(f, "{}", value.into_f64()),
         }
     }
 }
@@ -118,9 +122,15 @@ impl From<SmallInteger> for Number {
     }
 }
 
+impl From<SmallF64> for Number {
+    fn from(value: SmallF64) -> Self {
+        Number::SmallF64(value)
+    }
+}
+
 impl From<f32> for Number {
     fn from(value: f32) -> Self {
-        Number::Float(value)
+        Number::SmallF64(SmallF64::from(value))
     }
 }
 
@@ -155,8 +165,8 @@ impl TryFrom<f64> for Number {
         {
             debug_assert_eq!(value as i64 as f64, value);
             Ok(Number::try_from(value as i64).unwrap())
-        } else if value as f32 as f64 == value {
-            Ok(Number::Float(value as f32))
+        } else if let Ok(value) = SmallF64::try_from(value) {
+            Ok(Number::SmallF64(value))
         } else {
             Err(())
         }
@@ -169,7 +179,7 @@ impl TryFrom<Value> for Number {
         match value {
             Value::Number(data) => Ok(Number::Number(data)),
             Value::Integer(data) => Ok(Number::Integer(data)),
-            Value::Float(data) => Ok(Number::Float(data)),
+            Value::SmallF64(data) => Ok(Number::SmallF64(data)),
             _ => Err(()),
         }
     }
@@ -181,7 +191,7 @@ impl TryFrom<Primitive> for Number {
         match value {
             Primitive::Number(data) => Ok(Number::Number(data)),
             Primitive::Integer(data) => Ok(Number::Integer(data)),
-            Primitive::Float(data) => Ok(Number::Float(data)),
+            Primitive::SmallF64(data) => Ok(Number::SmallF64(data)),
             _ => Err(()),
         }
     }
@@ -193,7 +203,7 @@ impl TryFrom<Numeric> for Number {
         match value {
             Numeric::Number(data) => Ok(Number::Number(data)),
             Numeric::Integer(data) => Ok(Number::Integer(data)),
-            Numeric::Float(data) => Ok(Number::Float(data)),
+            Numeric::Float(data) => Ok(Number::SmallF64(data)),
             _ => Err(()),
         }
     }
@@ -235,7 +245,7 @@ impl Number {
         match self {
             Number::Number(n) => agent[n].is_nan(),
             Number::Integer(_) => false,
-            Number::Float(n) => n.is_nan(),
+            Number::SmallF64(n) => n.into_f64().is_nan(),
         }
     }
 
@@ -243,7 +253,7 @@ impl Number {
         match self {
             Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(agent[n]),
             Number::Integer(n) => 0i64 == n.into(),
-            Number::Float(n) => f32::to_bits(0.0) == f32::to_bits(n),
+            Number::SmallF64(n) => n.into_f64().to_bits() == 0.0f64.to_bits(),
         }
     }
 
@@ -251,7 +261,7 @@ impl Number {
         match self {
             Number::Number(n) => f64::to_bits(-0.0) == f64::to_bits(agent[n]),
             Number::Integer(_) => false,
-            Number::Float(n) => f32::to_bits(-0.0) == f32::to_bits(n),
+            Number::SmallF64(n) => n.into_f64().to_bits() == (-0.0f64).to_bits(),
         }
     }
 
@@ -259,7 +269,7 @@ impl Number {
         match self {
             Number::Number(n) => agent[n] == f64::INFINITY,
             Number::Integer(_) => false,
-            Number::Float(n) => n == f32::INFINITY,
+            Number::SmallF64(n) => n.into_f64() == f64::INFINITY,
         }
     }
 
@@ -267,7 +277,7 @@ impl Number {
         match self {
             Number::Number(n) => agent[n] == f64::NEG_INFINITY,
             Number::Integer(_) => false,
-            Number::Float(n) => n == f32::NEG_INFINITY,
+            Number::SmallF64(n) => n.into_f64() == f64::NEG_INFINITY,
         }
     }
 
@@ -275,7 +285,7 @@ impl Number {
         match self {
             Number::Number(n) => agent[n].is_finite(),
             Number::Integer(_) => true,
-            Number::Float(n) => n.is_finite(),
+            Number::SmallF64(n) => n.into_f64().is_finite(),
         }
     }
 
@@ -283,7 +293,7 @@ impl Number {
         match self {
             Number::Number(n) => 0.0 != agent[n],
             Number::Integer(n) => 0i64 != n.into(),
-            Number::Float(n) => 0.0 != n,
+            Number::SmallF64(n) => !n.into_f64().is_zero(),
         }
     }
 
@@ -297,8 +307,8 @@ impl Number {
                 debug_assert_ne!(agent[n], 1.0);
                 false
             }
-            Number::Float(n) => {
-                debug_assert_ne!(n, 1.0);
+            Number::SmallF64(n) => {
+                debug_assert_ne!(n.into_f64(), 1.0);
                 false
             }
         }
@@ -311,8 +321,8 @@ impl Number {
                 debug_assert_ne!(agent[n], -1.0);
                 false
             }
-            Number::Float(n) => {
-                debug_assert_ne!(n, -1.0);
+            Number::SmallF64(n) => {
+                debug_assert_ne!(n.into_f64(), -1.0);
                 false
             }
         }
@@ -322,7 +332,7 @@ impl Number {
         match self {
             Number::Number(n) => agent[n].is_sign_positive(),
             Number::Integer(n) => n.into_i64().is_positive(),
-            Number::Float(n) => n.is_sign_positive(),
+            Number::SmallF64(n) => n.into_f64().is_sign_positive(),
         }
     }
 
@@ -330,7 +340,7 @@ impl Number {
         match self {
             Number::Number(n) => agent[n].is_sign_negative(),
             Number::Integer(n) => n.into_i64().is_negative(),
-            Number::Float(n) => n.is_sign_negative(),
+            Number::SmallF64(n) => n.into_f64().is_sign_negative(),
         }
     }
 
@@ -342,7 +352,7 @@ impl Number {
                 agent.heap.create(n)
             }
             Number::Integer(_) => self,
-            Number::Float(n) => n.trunc().into(),
+            Number::SmallF64(n) => Number::from_f64(agent, n.into_f64().trunc()),
         }
     }
 
@@ -350,7 +360,7 @@ impl Number {
         match self {
             Number::Number(n) => agent[n],
             Number::Integer(n) => Into::<i64>::into(n) as f64,
-            Number::Float(n) => n as f64,
+            Number::SmallF64(n) => n.into_f64(),
         }
     }
 
@@ -358,7 +368,7 @@ impl Number {
         match self {
             Number::Number(n) => agent[n] as f32,
             Number::Integer(n) => Into::<i64>::into(n) as f32,
-            Number::Float(n) => n,
+            Number::SmallF64(n) => n.into_f64() as f32,
         }
     }
 
@@ -372,7 +382,7 @@ impl Number {
         match self {
             Number::Number(n) => agent[n] as i64,
             Number::Integer(n) => Into::<i64>::into(n),
-            Number::Float(n) => n as i64,
+            Number::SmallF64(n) => n.into_f64() as i64,
         }
     }
 
@@ -393,7 +403,7 @@ impl Number {
                     usize::try_from(i64).unwrap_or(usize::MAX)
                 }
             }
-            Number::Float(n) => n as usize,
+            Number::SmallF64(n) => n.into_f64() as usize,
         }
     }
 
@@ -407,15 +417,15 @@ impl Number {
             // Optimisation: First compare by-reference; only read from heap if needed.
             (Number::Number(x), Number::Number(y)) => x == y || agent[x] == agent[y],
             (Number::Integer(x), Number::Integer(y)) => x == y,
-            (Number::Float(x), Number::Float(y)) => x == y,
+            (Number::SmallF64(x), Number::SmallF64(y)) => x == y,
             (Number::Number(x), Number::Integer(y)) => {
                 // Optimisation: Integers should never be allocated into the heap as f64s.
                 debug_assert!(agent[x] != y.into_i64() as f64);
                 false
             }
-            (Number::Number(x), Number::Float(y)) => {
+            (Number::Number(x), Number::SmallF64(y)) => {
                 // Optimisation: f32s should never be allocated into the heap
-                debug_assert!(agent[x] != y as f64);
+                debug_assert!(agent[x] != y.into_f64());
                 false
             }
             (Number::Integer(x), Number::Number(y)) => {
@@ -423,20 +433,22 @@ impl Number {
                 debug_assert!((x.into_i64() as f64) != agent[y]);
                 false
             }
-            (Number::Integer(x), Number::Float(y)) => {
+            (Number::Integer(x), Number::SmallF64(y)) => {
                 debug_assert!(
-                    y.to_bits() == (-0f32).to_bits() || (x.into_i64() as f64) != y as f64
+                    y.into_f64().to_bits() == (-0.0f64).to_bits()
+                        || (x.into_i64() as f64) != y.into_f64()
                 );
                 false
             }
-            (Number::Float(x), Number::Number(y)) => {
+            (Number::SmallF64(x), Number::Number(y)) => {
                 // Optimisation: f32s should never be allocated into the heap
-                debug_assert!((x as f64) != agent[y]);
+                debug_assert!(x.into_f64() != agent[y]);
                 false
             }
-            (Number::Float(x), Number::Integer(y)) => {
+            (Number::SmallF64(x), Number::Integer(y)) => {
                 debug_assert!(
-                    x.to_bits() == (-0f32).to_bits() || (x as f64) != y.into_i64() as f64
+                    x.into_f64().to_bits() == (-0.0f64).to_bits()
+                        || x.into_f64() != y.into_i64() as f64
                 );
                 false
             }
@@ -447,7 +459,7 @@ impl Number {
         match self {
             Number::Number(n) => agent[n] % 2.0 == 1.0,
             Number::Integer(n) => Into::<i64>::into(n) % 2 == 1,
-            Number::Float(n) => n % 2.0 == 1.0,
+            Number::SmallF64(n) => n.into_f64() % 2.0 == 1.0,
         }
     }
 
@@ -465,13 +477,14 @@ impl Number {
                 let n = n.into_i64();
                 Number::Integer(SmallInteger::try_from(n.abs()).unwrap())
             }
-            Number::Float(n) => {
+            Number::SmallF64(n) => {
+                let n = n.into_f64();
                 if n == 0.0 {
                     // Negative zero needs to be turned into a Number::Integer
                     debug_assert!(n.is_sign_negative());
                     Number::Integer(SmallInteger::zero())
                 } else {
-                    Number::Float(n.abs())
+                    Number::SmallF64(SmallF64::try_from(n.abs()).unwrap())
                 }
             }
         }
@@ -495,17 +508,18 @@ impl Number {
             Number::Integer(n) => {
                 let n = n.into_i64();
                 if n == 0 {
-                    Number::Float(-0.0)
+                    Number::SmallF64(SmallF64::try_from(-0.0).unwrap())
                 } else {
                     SmallInteger::try_from(-n).unwrap().into()
                 }
             }
-            Number::Float(n) => {
+            Number::SmallF64(n) => {
+                let n = n.into_f64();
                 if n == 0.0 {
                     debug_assert!(n.is_sign_negative());
                     SmallInteger::zero().into()
                 } else {
-                    (-n).into()
+                    (-n).try_into().unwrap()
                 }
             }
         }
@@ -1038,13 +1052,13 @@ impl Number {
         Some(match (x, y) {
             (Number::Number(x), Number::Number(y)) => agent[x] < agent[y],
             (Number::Number(x), Number::Integer(y)) => agent[x] < y.into_i64() as f64,
-            (Number::Number(x), Number::Float(y)) => agent[x] < y as f64,
+            (Number::Number(x), Number::SmallF64(y)) => agent[x] < y.into_f64(),
             (Number::Integer(x), Number::Number(y)) => (x.into_i64() as f64) < agent[y],
             (Number::Integer(x), Number::Integer(y)) => x.into_i64() < y.into_i64(),
-            (Number::Integer(x), Number::Float(y)) => (x.into_i64() as f64) < y as f64,
-            (Number::Float(x), Number::Number(y)) => (x as f64) < agent[y],
-            (Number::Float(x), Number::Integer(y)) => (x as f64) < y.into_i64() as f64,
-            (Number::Float(x), Number::Float(y)) => x < y,
+            (Number::Integer(x), Number::SmallF64(y)) => (x.into_i64() as f64) < y.into_f64(),
+            (Number::SmallF64(x), Number::Number(y)) => x.into_f64() < agent[y],
+            (Number::SmallF64(x), Number::Integer(y)) => x.into_f64() < y.into_i64() as f64,
+            (Number::SmallF64(x), Number::SmallF64(y)) => x.into_f64() < y.into_f64(),
         })
     }
 
@@ -1201,9 +1215,12 @@ impl Number {
                 let x = x.into_i64();
                 Ok(String::from_string(agent, format!("{x}")))
             }
-            Number::Float(x) => {
+            Number::SmallF64(x) => {
                 let mut buffer = ryu_js::Buffer::new();
-                Ok(String::from_string(agent, buffer.format(x).to_string()))
+                Ok(String::from_string(
+                    agent,
+                    buffer.format(x.into_f64()).to_string(),
+                ))
             }
         }
     }
@@ -1213,7 +1230,7 @@ impl Number {
         match self {
             Self::Number(n) => agent[n],
             Self::Integer(i) => i.into_i64() as f64,
-            Self::Float(f) => f as f64,
+            Self::SmallF64(f) => f.into_f64(),
         }
     }
 }
@@ -1316,8 +1333,6 @@ impl HeapMarkAndSweep for HeapNumber {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.0.into_u32();
-        self.0 =
-            NumberIndex::from_u32(self_index - compactions.numbers.get_shift_for_index(self_index));
+        compactions.numbers.shift_index(&mut self.0);
     }
 }

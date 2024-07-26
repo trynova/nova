@@ -142,10 +142,10 @@ impl FunctionEnvironmentIndex {
         match env_rec.this_binding_status {
             ThisBindingStatus::Lexical => unreachable!(),
             ThisBindingStatus::Initialized => Ok(env_rec.this_value.unwrap()),
-            ThisBindingStatus::Uninitialized => {
-                Err(agent
-                    .throw_exception(ExceptionType::ReferenceError, "Uninitialized this binding"))
-            }
+            ThisBindingStatus::Uninitialized => Err(agent.throw_exception_with_static_message(
+                ExceptionType::ReferenceError,
+                "Uninitialized this binding",
+            )),
         }
     }
 
@@ -194,8 +194,8 @@ impl FunctionEnvironmentIndex {
         if !dcl_rec.has_binding(agent, name) {
             // a. If S is true, throw a ReferenceError exception.
             if is_strict {
-                return Err(agent
-                    .throw_exception(ExceptionType::ReferenceError, "Identifier is not defined."));
+                let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
+                return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message));
             }
 
             // b. Perform ! envRec.CreateMutableBinding(N, true).
@@ -218,9 +218,11 @@ impl FunctionEnvironmentIndex {
         // 3. If the binding for N in envRec has not yet been initialized, then
         if binding.value.is_none() {
             // a. Throw a ReferenceError exception.
-            return Err(
-                agent.throw_exception(ExceptionType::ReferenceError, "Identifier is not defined.")
+            let error_message = format!(
+                "Identifier '{}' has not been initialized.",
+                name.as_str(agent)
             );
+            return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message));
         }
 
         // 4. Else if the binding for N in envRec is a mutable binding, then
@@ -235,9 +237,11 @@ impl FunctionEnvironmentIndex {
 
             // b. If S is true, throw a TypeError exception.
             if is_strict {
-                return Err(
-                    agent.throw_exception(ExceptionType::TypeError, "Cannot assign to constant.")
+                let error_message = format!(
+                    "Cannot assign to immutable identifier '{}' in strict mode.",
+                    name.as_str(agent)
                 );
+                return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
             }
         }
 
@@ -284,7 +288,7 @@ impl FunctionEnvironmentIndex {
         // 2. If envRec.[[ThisBindingStatus]] is INITIALIZED, throw a
         // ReferenceError exception.
         if env_rec.this_binding_status == ThisBindingStatus::Initialized {
-            return Err(agent.throw_exception(
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::ReferenceError,
                 "[[ThisBindingStatus]] is INITIALIZED",
             ));
@@ -382,8 +386,8 @@ impl HeapMarkAndSweep for FunctionEnvironmentIndex {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(
+        let self_index = self.into_u32_index();
+        *self = Self::from_u32_index(
             self_index
                 - compactions
                     .function_environments

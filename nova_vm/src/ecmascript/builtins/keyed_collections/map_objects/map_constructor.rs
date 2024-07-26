@@ -65,9 +65,10 @@ impl MapConstructor {
     ) -> JsResult<Value> {
         // If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
-            return Err(
-                agent.throw_exception(ExceptionType::TypeError, "Constructor Map requires 'new'")
-            );
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Constructor Map requires 'new'",
+            ));
         };
         let new_target = Function::try_from(new_target).unwrap();
         // 2. Let map be ? OrdinaryCreateFromConstructor(NewTarget, "%Map.prototype%", « [[MapData]] »).
@@ -99,7 +100,7 @@ impl MapConstructor {
             )?;
             // 6. If IsCallable(adder) is false, throw a TypeError exception.
             let Some(adder) = is_callable(adder) else {
-                return Err(agent.throw_exception(
+                return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "Map.prototype.set is not callable",
                 ));
@@ -234,11 +235,11 @@ pub(crate) fn add_entries_from_iterable(
     adder: Function,
 ) -> JsResult<Object> {
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-    let iterator_record = get_iterator(agent, iterable, false)?;
+    let mut iterator_record = get_iterator(agent, iterable, false)?;
     // 2. Repeat,
     loop {
         // a. Let next be ? IteratorStepValue(iteratorRecord).
-        let next = iterator_step_value(agent, &iterator_record)?;
+        let next = iterator_step_value(agent, &mut iterator_record)?;
         // b. If next is DONE, return target.
         let Some(next) = next else {
             return Ok(target);
@@ -246,7 +247,7 @@ pub(crate) fn add_entries_from_iterable(
         // c. If next is not an Object, then
         let Ok(next) = Object::try_from(next) else {
             // i. Let error be ThrowCompletion(a newly created TypeError object).
-            let error = agent.throw_exception(
+            let error = agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Invalid iterator next return value",
             );

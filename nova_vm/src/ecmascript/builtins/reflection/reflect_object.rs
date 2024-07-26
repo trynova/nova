@@ -153,7 +153,10 @@ impl ReflectObject {
 
         // 1. If IsCallable(target) is false, throw a TypeError exception.
         let Some(target) = is_callable(target) else {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not callable"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Value is not callable",
+            ));
         };
         // 2. Let args be ? CreateListFromArrayLike(argumentsList).
         let args = create_list_from_array_like(agent, arguments_list)?;
@@ -173,9 +176,10 @@ impl ReflectObject {
 
         // 1. If IsConstructor(target) is false, throw a TypeError exception.
         let Some(target) = is_constructor(agent, target) else {
-            return Err(
-                agent.throw_exception(ExceptionType::TypeError, "Value is not a constructor")
-            );
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Value is not a constructor",
+            ));
         };
 
         // 2. If newTarget is not present, set newTarget to target.
@@ -183,9 +187,10 @@ impl ReflectObject {
         let new_target = if arguments.len() > 2 {
             let new_target = arguments.get(2);
             let Some(new_target) = is_constructor(agent, new_target) else {
-                return Err(
-                    agent.throw_exception(ExceptionType::TypeError, "Value is not a constructor")
-                );
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Value is not a constructor",
+                ));
             };
             new_target
         } else {
@@ -207,7 +212,10 @@ impl ReflectObject {
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not an object"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Value is not an object",
+            ));
         }
         let target = Object::try_from(arguments.get(0)).unwrap();
 
@@ -228,7 +236,10 @@ impl ReflectObject {
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not an object"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Value is not an object",
+            ));
         }
         let target = Object::try_from(arguments.get(0)).unwrap();
 
@@ -243,7 +254,10 @@ impl ReflectObject {
     fn get(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not an object"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Value is not an object",
+            ));
         }
         let target = Object::try_from(arguments.get(0)).unwrap();
 
@@ -268,7 +282,10 @@ impl ReflectObject {
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not an object"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Value is not an object",
+            ));
         }
         let target = Object::try_from(arguments.get(0)).unwrap();
 
@@ -291,7 +308,10 @@ impl ReflectObject {
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not an object"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Value is not an object",
+            ));
         }
         let target = Object::try_from(arguments.get(0)).unwrap();
         // 2. Return ? target.[[GetPrototypeOf]]().
@@ -305,7 +325,10 @@ impl ReflectObject {
     fn has(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not an object"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Value is not an object",
+            ));
         }
         let target = Object::try_from(arguments.get(0)).unwrap();
 
@@ -324,7 +347,10 @@ impl ReflectObject {
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not an object"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Value is not an object",
+            ));
         }
         let target = Object::try_from(arguments.get(0)).unwrap();
         // 2. Return ? target.[[IsExtensible]]().
@@ -340,7 +366,10 @@ impl ReflectObject {
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(arguments.get(0)) else {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not an object"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Value is not an object",
+            ));
         };
 
         // 2. Let keys be ? target.[[OwnPropertyKeys]]().
@@ -363,7 +392,10 @@ impl ReflectObject {
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not an object"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Value is not an object",
+            ));
         }
         let target = Object::try_from(arguments.get(0)).unwrap();
         // 2. Return ? target.[[PreventExtensions]]().
@@ -375,7 +407,10 @@ impl ReflectObject {
     fn set(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not an object"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Value is not an object",
+            ));
         }
         let target = Object::try_from(arguments.get(0)).unwrap();
 
@@ -404,7 +439,10 @@ impl ReflectObject {
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Value is not an object"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Value is not an object",
+            ));
         }
         let target = Object::try_from(arguments.get(0)).unwrap();
 
@@ -415,7 +453,7 @@ impl ReflectObject {
         } else if proto.is_null() {
             None
         } else {
-            return Err(agent.throw_exception(
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Prototype must be an object or null",
             ));

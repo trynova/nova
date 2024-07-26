@@ -343,7 +343,11 @@ impl ObjectConstructor {
         } else if let Ok(o) = Object::try_from(o) {
             agent.heap.create_object_with_prototype(o, &[])
         } else {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "fail"));
+            let error_message = format!(
+                "{} is not an object or null",
+                o.string_repr(agent).as_str(agent)
+            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
         let properties = arguments.get(1);
         if properties != Value::Undefined {
@@ -361,9 +365,8 @@ impl ObjectConstructor {
         let properties = arguments.get(1);
         // 1. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(o) else {
-            return Err(
-                agent.throw_exception(ExceptionType::TypeError, "Argument is not an object")
-            );
+            let error_message = format!("{} is not an object", o.string_repr(agent).as_str(agent));
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
         // 2. Return ? ObjectDefineProperties(O, Properties).
         let result = object_define_properties(agent, o, properties)?;
@@ -380,9 +383,8 @@ impl ObjectConstructor {
         let attributes = arguments.get(2);
         // 1. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(o) else {
-            return Err(
-                agent.throw_exception(ExceptionType::TypeError, "Argument is not an object")
-            );
+            let error_message = format!("{} is not an object", o.string_repr(agent).as_str(agent));
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
         // 2. Let key be ? ToPropertyKey(P).
         let key = to_property_key(agent, p)?;
@@ -416,7 +418,10 @@ impl ObjectConstructor {
         let status = set_integrity_level::<Frozen>(agent, o)?;
         if !status {
             // 3. If status is false, throw a TypeError exception.
-            Err(agent.throw_exception(ExceptionType::TypeError, "Could not freeze object"))
+            Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Could not freeze object",
+            ))
         } else {
             // 4. Return O.
             Ok(o.into_value())
@@ -701,7 +706,10 @@ impl ObjectConstructor {
         let status = o.internal_prevent_extensions(agent)?;
         // 3. If status is false, throw a TypeError exception.
         if !status {
-            Err(agent.throw_exception(ExceptionType::TypeError, "Could not prevent extensions"))
+            Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Could not prevent extensions",
+            ))
         } else {
             // 4. Return O.
             Ok(o.into_value())
@@ -719,7 +727,10 @@ impl ObjectConstructor {
         let status = set_integrity_level::<Sealed>(agent, o)?;
         if !status {
             // 3. If status is false, throw a TypeError exception.
-            Err(agent.throw_exception(ExceptionType::TypeError, "Could not seal object"))
+            Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Could not seal object",
+            ))
         } else {
             // 4. Return O.
             Ok(o.into_value())
@@ -738,7 +749,11 @@ impl ObjectConstructor {
         } else if proto.is_null() {
             None
         } else {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Invalid prototype"));
+            let error_message = format!(
+                "{} is not an object or null",
+                proto.string_repr(agent).as_str(agent)
+            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
         // 3. If O is not an Object, return O.
         let Ok(o) = Object::try_from(o) else {
@@ -748,7 +763,10 @@ impl ObjectConstructor {
         let status = o.internal_set_prototype_of(agent, proto)?;
         // 5. If status is false, throw a TypeError exception.
         if !status {
-            return Err(agent.throw_exception(ExceptionType::TypeError, "Could not set prototype"));
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Could not set prototype",
+            ));
         }
         // 6. Return O.
         Ok(o.into_value())
@@ -867,11 +885,12 @@ pub fn add_entries_from_iterable_from_entries(
     iterable: Value,
 ) -> JsResult<OrdinaryObject> {
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-    let iterator_record = get_iterator(agent, iterable, false)?;
+    let mut iterator_record = get_iterator(agent, iterable, false)?;
+
     // 2. Repeat,
     loop {
         // a. Let next be ? IteratorStepValue(iteratorRecord).
-        let next = iterator_step_value(agent, &iterator_record)?;
+        let next = iterator_step_value(agent, &mut iterator_record)?;
         // b. If next is DONE, return target.
         let Some(next) = next else {
             return Ok(target);
@@ -879,10 +898,11 @@ pub fn add_entries_from_iterable_from_entries(
         // c. If next is not an Object, then
         let Ok(next) = Object::try_from(next) else {
             // i. Let error be ThrowCompletion(a newly created TypeError object).
-            let error = agent.throw_exception(
-                ExceptionType::TypeError,
-                "Invalid iterator next return value",
+            let error_message = format!(
+                "Invalid iterator next return value: {} is not an object",
+                next.string_repr(agent).as_str(agent)
             );
+            let error = agent.throw_exception(ExceptionType::TypeError, error_message);
             // ii. Return ? IteratorClose(iteratorRecord, error).
             iterator_close(agent, &iterator_record, Err(error))?;
             return Ok(target);

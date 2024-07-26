@@ -317,7 +317,7 @@ impl HeapMarkAndSweep for ElementsVector {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.elements_index.into_u32();
+        let self_index = self.elements_index.into_u32_index();
         let shift = match self.cap {
             ElementArrayKey::Empty => {
                 return;
@@ -331,7 +331,7 @@ impl HeapMarkAndSweep for ElementsVector {
             ElementArrayKey::E24 => compactions.e_2_24.get_shift_for_index(self_index),
             ElementArrayKey::E32 => compactions.e_2_32.get_shift_for_index(self_index),
         };
-        self.elements_index = ElementIndex::from_u32(self_index - shift);
+        self.elements_index = ElementIndex::from_u32_index(self_index - shift);
     }
 }
 
@@ -496,7 +496,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub(crate) fn from_property_descriptor(
+    pub(crate) fn from_object_entry_property_descriptor(
         desc: &ObjectEntryPropertyDescriptor,
     ) -> (Option<ElementDescriptor>, Option<Value>) {
         match desc {
@@ -633,6 +633,51 @@ impl ElementDescriptor {
                 ),
             },
         }
+    }
+
+    pub fn from_property_descriptor(descriptor: PropertyDescriptor) -> Option<Self> {
+        let configurable = descriptor.configurable.unwrap_or(false);
+        let enumerable = descriptor.enumerable.unwrap_or(false);
+        let writable = descriptor.writable.unwrap_or(false);
+        if configurable
+            && enumerable
+            && descriptor.get.is_none()
+            && descriptor.set.is_none()
+            && writable
+        {
+            // Default data descriptor, return None.
+            return None;
+        }
+        Some(match (descriptor.get, descriptor.set) {
+            (None, None) => match (writable, enumerable, configurable) {
+                (true, true, true) => unreachable!(),
+                (true, true, false) => Self::WritableEnumerableUnconfigurableData,
+                (true, false, true) => Self::WritableUnenumerableConfigurableData,
+                (true, false, false) => Self::WritableUnenumerableUnconfigurableData,
+                (false, true, true) => Self::ReadOnlyEnumerableConfigurableData,
+                (false, true, false) => Self::ReadOnlyEnumerableUnconfigurableData,
+                (false, false, true) => Self::ReadOnlyUnenumerableConfigurableData,
+                (false, false, false) => Self::ReadOnlyUnenumerableUnconfigurableData,
+            },
+            (None, Some(set)) => match (enumerable, configurable) {
+                (true, true) => Self::WriteOnlyEnumerableConfigurableAccessor { set },
+                (true, false) => Self::WriteOnlyEnumerableUnconfigurableAccessor { set },
+                (false, true) => Self::WriteOnlyUnenumerableConfigurableAccessor { set },
+                (false, false) => Self::WriteOnlyUnenumerableUnconfigurableAccessor { set },
+            },
+            (Some(get), None) => match (enumerable, configurable) {
+                (true, true) => Self::ReadOnlyEnumerableConfigurableAccessor { get },
+                (true, false) => Self::ReadOnlyEnumerableUnconfigurableAccessor { get },
+                (false, true) => Self::ReadOnlyUnenumerableConfigurableAccessor { get },
+                (false, false) => Self::ReadOnlyUnenumerableUnconfigurableAccessor { get },
+            },
+            (Some(get), Some(set)) => match (enumerable, configurable) {
+                (true, true) => Self::ReadWriteEnumerableConfigurableAccessor { get, set },
+                (true, false) => Self::ReadWriteEnumerableUnconfigurableAccessor { get, set },
+                (false, true) => Self::ReadWriteUnenumerableConfigurableAccessor { get, set },
+                (false, false) => Self::ReadWriteUnenumerableUnconfigurableAccessor { get, set },
+            },
+        })
     }
 
     pub fn to_property_descriptor(
@@ -829,7 +874,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub fn getter_index(&self) -> Option<Function> {
+    pub fn getter_function(&self) -> Option<Function> {
         match self {
             ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }
             | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }
@@ -845,7 +890,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub fn setter_index(&self) -> Option<Function> {
+    pub fn setter_function(&self) -> Option<Function> {
         match self {
             ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set }
             | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set }
@@ -859,6 +904,70 @@ impl ElementDescriptor {
             }
             _ => None,
         }
+    }
+
+    pub fn is_writable(&self) -> Option<bool> {
+        match self {
+            ElementDescriptor::WritableEnumerableConfigurableData
+            | ElementDescriptor::WritableEnumerableUnconfigurableData
+            | ElementDescriptor::WritableUnenumerableConfigurableData
+            | ElementDescriptor::WritableUnenumerableUnconfigurableData => Some(true),
+            ElementDescriptor::ReadOnlyEnumerableConfigurableData
+            | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
+            | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData => Some(false),
+            _ => None,
+        }
+    }
+
+    pub fn is_enumerable(&self) -> bool {
+        matches!(
+            self,
+            ElementDescriptor::WritableEnumerableConfigurableData
+                | ElementDescriptor::WritableEnumerableUnconfigurableData
+                | ElementDescriptor::ReadOnlyEnumerableConfigurableData
+                | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
+                | ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { .. }
+                | ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { .. }
+        )
+    }
+
+    pub fn is_configurable(&self) -> bool {
+        matches!(
+            self,
+            ElementDescriptor::WritableEnumerableConfigurableData
+                | ElementDescriptor::WritableUnenumerableConfigurableData
+                | ElementDescriptor::ReadOnlyEnumerableConfigurableData
+                | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
+                | ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { .. }
+                | ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { .. }
+                | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { .. },
+        )
+    }
+
+    pub fn is_accessor_descriptor(&self) -> bool {
+        !matches!(
+            self,
+            ElementDescriptor::WritableEnumerableConfigurableData
+                | ElementDescriptor::WritableEnumerableUnconfigurableData
+                | ElementDescriptor::WritableUnenumerableConfigurableData
+                | ElementDescriptor::WritableUnenumerableUnconfigurableData
+                | ElementDescriptor::ReadOnlyEnumerableConfigurableData
+                | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
+                | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
+                | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData
+        )
+    }
+
+    pub fn is_data_descriptor(&self) -> bool {
+        self.is_accessor_descriptor()
     }
 }
 
@@ -1114,6 +1223,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1151,6 +1263,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1188,6 +1303,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1225,6 +1343,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1262,6 +1383,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1299,6 +1423,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1336,6 +1463,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1373,6 +1503,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1440,6 +1573,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1472,6 +1608,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1504,6 +1643,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1536,6 +1678,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1568,6 +1713,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1600,6 +1748,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1632,6 +1783,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1664,6 +1818,9 @@ impl ElementArrays {
                 unsafe {
                     elements.values.set_len(elements.values.len() + 1);
                 }
+                // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
+                // array is indeed Some(_) afterwards.
+                assert!(elements.values.last().unwrap().is_some());
                 let index = ElementIndex::last_element_index(&elements.values);
                 if let Some(descriptors) = descriptors {
                     elements.descriptors.insert(index, descriptors);
@@ -1741,7 +1898,7 @@ impl ElementArrays {
         entries.iter().enumerate().for_each(|(index, entry)| {
             let ObjectEntry { key, value } = entry;
             let (maybe_descriptor, maybe_value) =
-                ElementDescriptor::from_property_descriptor(value);
+                ElementDescriptor::from_object_entry_property_descriptor(value);
             let key = match key {
                 PropertyKey::Integer(data) => Value::Integer(*data),
                 PropertyKey::SmallString(data) => Value::SmallString(*data),
@@ -2145,6 +2302,72 @@ impl ElementArrays {
             ElementArrayKey::E32 => self.e2pow32.values[vector.elements_index].as_slice()
                 [0..vector.len as usize]
                 .contains(&Some(element)),
+        }
+    }
+}
+
+impl HeapMarkAndSweep for ElementDescriptor {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            ElementDescriptor::WritableEnumerableConfigurableData
+            | ElementDescriptor::WritableEnumerableUnconfigurableData
+            | ElementDescriptor::WritableUnenumerableConfigurableData
+            | ElementDescriptor::WritableUnenumerableUnconfigurableData
+            | ElementDescriptor::ReadOnlyEnumerableConfigurableData
+            | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
+            | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData => {}
+            ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }
+            | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }
+            | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get }
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { get } => {
+                get.mark_values(queues)
+            }
+            ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set }
+            | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set }
+            | ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { set }
+            | ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor { set } => {
+                set.mark_values(queues)
+            }
+            ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { get, set }
+            | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { get, set }
+            | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { get, set }
+            | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { get, set } => {
+                get.mark_values(queues);
+                set.mark_values(queues);
+            }
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            ElementDescriptor::WritableEnumerableConfigurableData
+            | ElementDescriptor::WritableEnumerableUnconfigurableData
+            | ElementDescriptor::WritableUnenumerableConfigurableData
+            | ElementDescriptor::WritableUnenumerableUnconfigurableData
+            | ElementDescriptor::ReadOnlyEnumerableConfigurableData
+            | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
+            | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData => {}
+            ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }
+            | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }
+            | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get }
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { get } => {
+                get.sweep_values(compactions)
+            }
+            ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set }
+            | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set }
+            | ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { set }
+            | ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor { set } => {
+                set.sweep_values(compactions)
+            }
+            ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { get, set }
+            | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { get, set }
+            | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { get, set }
+            | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { get, set } => {
+                get.sweep_values(compactions);
+                set.sweep_values(compactions);
+            }
         }
     }
 }

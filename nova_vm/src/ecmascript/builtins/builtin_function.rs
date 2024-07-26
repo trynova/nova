@@ -529,7 +529,10 @@ pub(crate) fn builtin_call_or_construct(
     let result = match func {
         Behaviour::Regular(func) => {
             if new_target.is_some() {
-                Err(agent.throw_exception(ExceptionType::TypeError, "Not a constructor"))
+                Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Not a constructor",
+                ))
             } else {
                 func(
                     agent,
@@ -685,14 +688,6 @@ pub fn define_builtin_property(
     Ok(())
 }
 
-pub fn todo_builtin(agent: &mut Agent, _: Value, _: ArgumentsList) -> JsResult<Value> {
-    agent.throw_exception(
-        crate::ecmascript::execution::agent::ExceptionType::SyntaxError,
-        "TODO: Builtin not implemented.",
-    );
-    Err(Default::default())
-}
-
 impl CreateHeapData<BuiltinFunctionHeapData, BuiltinFunction> for Heap {
     fn create(&mut self, data: BuiltinFunctionHeapData) -> BuiltinFunction {
         self.builtin_functions.push(Some(data));
@@ -706,23 +701,19 @@ impl HeapMarkAndSweep for BuiltinFunction {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.0.into_u32();
-        self.0 = BuiltinFunctionIndex::from_u32(
-            self_index
-                - compactions
-                    .builtin_functions
-                    .get_shift_for_index(self_index),
-        );
+        compactions.builtin_functions.shift_index(&mut self.0);
     }
 }
 
 impl HeapMarkAndSweep for BuiltinFunctionHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
+        self.realm.mark_values(queues);
         self.initial_name.mark_values(queues);
         self.object_index.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.realm.sweep_values(compactions);
         self.initial_name.sweep_values(compactions);
         self.object_index.sweep_values(compactions);
     }

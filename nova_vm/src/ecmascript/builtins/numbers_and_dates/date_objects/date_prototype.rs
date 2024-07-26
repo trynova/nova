@@ -6,13 +6,14 @@ use std::time::SystemTime;
 
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::{ordinary_to_primitive, PreferredType},
         builders::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
         builtins::{date::Date, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, Number, Object, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
     SmallInteger,
@@ -574,8 +575,50 @@ impl DatePrototype {
         }
     }
 
-    fn to_primitive(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [21.4.4.45 Date.prototype \[ %Symbol.toPrimitive% \] ( hint )](https://tc39.es/ecma262/#sec-date.prototype-%symbol.toprimitive%)
+    ///
+    /// This method is called by ECMAScript language operators to convert a
+    /// Date to a primitive value. The allowed values for hint are "default",
+    /// "number", and "string". Dates are unique among built-in ECMAScript
+    /// object in that they treat "default" as being equivalent to "string".
+    /// All other built-in ECMAScript objects treat "default" as being
+    /// equivalent to "number".
+    fn to_primitive(
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let hint = arguments.get(0);
+        // 1. Let O be the this value.
+        // 2. If O is not an Object, throw a TypeError exception.
+        let Ok(o) = Object::try_from(this_value) else {
+            let error_message = format!(
+                "{} is not an object",
+                this_value.string_repr(agent).as_str(agent)
+            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
+        };
+        // 3. If hint is either "string" or "default", then
+        let try_first = if hint == BUILTIN_STRING_MEMORY.string.into_value()
+            || hint == BUILTIN_STRING_MEMORY.default.into_value()
+        {
+            // a. Let tryFirst be string.
+            PreferredType::String
+        } else if hint == BUILTIN_STRING_MEMORY.number.into_value() {
+            // 4. Else if hint is "number", then
+            // a. Let tryFirst be number.
+            PreferredType::Number
+        } else {
+            // 5. Else,
+            // a. Throw a TypeError exception.
+            let error_message = format!(
+                "Expected 'hint' to be \"string\", \"default\", or \"number\", got {}",
+                hint.string_repr(agent).as_str(agent)
+            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
+        };
+        // 6. Return ? OrdinaryToPrimitive(O, tryFirst).
+        ordinary_to_primitive(agent, o, try_first).map(|result| result.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -651,6 +694,9 @@ impl DatePrototype {
 fn check_date_object(agent: &mut Agent, this_value: Value) -> JsResult<Date> {
     match this_value {
         Value::Date(date) => Ok(date),
-        _ => Err(agent.throw_exception(ExceptionType::TypeError, "this is not a Date object.")),
+        _ => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "this is not a Date object.",
+        )),
     }
 }

@@ -32,7 +32,10 @@ pub fn array_create(
 ) -> JsResult<Array> {
     // 1. If length > 2**32 - 1, throw a RangeError exception.
     if length > (2usize.pow(32) - 1) {
-        return Err(agent.throw_exception(ExceptionType::RangeError, "invalid array length"));
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "invalid array length",
+        ));
     }
     // 2. If proto is not present, set proto to %Array.prototype%.
     let object_index = if let Some(proto) = proto {
@@ -131,7 +134,8 @@ pub(crate) fn array_species_create(
     }
     // 7. If IsConstructor(C) is false, throw a TypeError exception.
     let Some(c) = is_constructor(agent, c) else {
-        return Err(agent.throw_exception(ExceptionType::TypeError, "Not a constructor"));
+        return Err(agent
+            .throw_exception_with_static_message(ExceptionType::TypeError, "Not a constructor"));
     };
     // 8. Return ? Construct(C, « 𝔽(length) »).
     let length = Value::from_f64(agent, length as f64);
@@ -175,7 +179,10 @@ pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -
     let number_len = to_number(agent, desc_value)?;
     // 5. If SameValueZero(newLen, numberLen) is false, throw a RangeError exception.
     if !Number::same_value_zero(agent, number_len, new_len.into()) {
-        return Err(agent.throw_exception(ExceptionType::RangeError, "invalid array length"));
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "invalid array length",
+        ));
     }
     // 6. Set newLenDesc.[[Value]] to newLen.
     // 7. Let oldLenDesc be OrdinaryGetOwnProperty(A, "length").

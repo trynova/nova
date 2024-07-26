@@ -21,6 +21,7 @@ use crate::{
             SYMBOL_DISCRIMINANT,
         },
     },
+    engine::small_f64::SmallF64,
     heap::{
         indexes::PrimitiveObjectIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues,
@@ -426,7 +427,7 @@ pub(crate) enum PrimitiveObjectData {
     Symbol(Symbol) = SYMBOL_DISCRIMINANT,
     Number(HeapNumber) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
-    Float(f32) = FLOAT_DISCRIMINANT,
+    Float(SmallF64) = FLOAT_DISCRIMINANT,
     BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
@@ -450,7 +451,7 @@ impl TryFrom<PrimitiveObjectData> for Number {
         match value {
             PrimitiveObjectData::Number(data) => Ok(Number::Number(data)),
             PrimitiveObjectData::Integer(data) => Ok(Number::Integer(data)),
-            PrimitiveObjectData::Float(data) => Ok(Number::Float(data)),
+            PrimitiveObjectData::Float(data) => Ok(Number::SmallF64(data)),
             _ => Err(()),
         }
     }
@@ -508,7 +509,7 @@ impl PrimitiveObjectHeapData {
         let data = match number {
             Number::Number(data) => PrimitiveObjectData::Number(data),
             Number::Integer(data) => PrimitiveObjectData::Integer(data),
-            Number::Float(data) => PrimitiveObjectData::Float(data),
+            Number::SmallF64(data) => PrimitiveObjectData::Float(data),
         };
         Self {
             object_index: None,
@@ -565,13 +566,7 @@ impl HeapMarkAndSweep for PrimitiveObject {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.0.into_u32();
-        self.0 = PrimitiveObjectIndex::from_u32(
-            self_index
-                - compactions
-                    .primitive_objects
-                    .get_shift_for_index(self_index),
-        );
+        compactions.primitive_objects.shift_index(&mut self.0);
     }
 }
 

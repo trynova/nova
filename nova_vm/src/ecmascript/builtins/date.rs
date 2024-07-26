@@ -146,9 +146,7 @@ impl HeapMarkAndSweep for Date {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.0.into_u32();
-        self.0 =
-            DateIndex::from_u32(self_index - compactions.dates.get_shift_for_index(self_index));
+        compactions.dates.shift_index(&mut self.0);
     }
 }
 

@@ -65,7 +65,7 @@ impl TypedArrayIntrinsicObject {
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
     ) -> JsResult<Value> {
-        Err(agent.throw_exception(
+        Err(agent.throw_exception_with_static_message(
             crate::ecmascript::execution::agent::ExceptionType::TypeError,
             "Abstract class TypedArray not directly constructable",
         ))
@@ -313,12 +313,6 @@ impl Builtin for TypedArrayPrototypeToSorted {
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayPrototype::to_sorted);
 }
-struct TypedArrayPrototypeToString;
-impl Builtin for TypedArrayPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
-    const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayPrototype::to_string);
-}
 struct TypedArrayPrototypeValues;
 impl Builtin for TypedArrayPrototypeValues {
     const NAME: String = BUILTIN_STRING_MEMORY.values;
@@ -493,10 +487,6 @@ impl TypedArrayPrototype {
         todo!();
     }
 
-    fn to_string(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!();
-    }
-
     fn values(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         todo!();
     }
@@ -519,6 +509,7 @@ impl TypedArrayPrototype {
         let this = intrinsics.typed_array_prototype();
         let typed_array_constructor = intrinsics.typed_array();
         let typed_array_prototype_values = intrinsics.typed_array_prototype_values();
+        let array_prototype_to_string = intrinsics.array_prototype_to_string();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(38)
@@ -556,7 +547,14 @@ impl TypedArrayPrototype {
             .with_builtin_function_property::<TypedArrayPrototypeToLocaleString>()
             .with_builtin_function_property::<TypedArrayPrototypeToReversed>()
             .with_builtin_function_property::<TypedArrayPrototypeToSorted>()
-            .with_builtin_function_property::<TypedArrayPrototypeToString>()
+            .with_property(|builder| {
+                builder
+                    .with_key(BUILTIN_STRING_MEMORY.toString.into())
+                    .with_value(array_prototype_to_string.into_value())
+                    .with_enumerable(false)
+                    .with_configurable(true)
+                    .build()
+            })
             .with_builtin_intrinsic_function_property::<TypedArrayPrototypeValues>()
             .with_builtin_function_property::<TypedArrayPrototypeWith>()
             .with_builtin_function_getter_property::<TypedArrayPrototypeGetToStringTag>()

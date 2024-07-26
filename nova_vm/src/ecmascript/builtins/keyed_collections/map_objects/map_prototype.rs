@@ -183,7 +183,7 @@ impl MapPrototype {
         let m = require_map_data_internal_slot(agent, this_value)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
-            return Err(agent.throw_exception(
+            return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function parameter is not callable",
             ));
@@ -369,7 +369,8 @@ impl MapPrototype {
 fn require_map_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<Map> {
     match value {
         Value::Map(map) => Ok(map),
-        _ => Err(agent.throw_exception(ExceptionType::TypeError, "Object is not a Map")),
+        _ => Err(agent
+            .throw_exception_with_static_message(ExceptionType::TypeError, "Object is not a Map")),
     }
 }
 
@@ -379,9 +380,9 @@ fn require_map_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<M
 /// (an ECMAScript language value) and returns an ECMAScript language value.
 pub(crate) fn canonicalize_keyed_collection_key(agent: &Agent, key: Value) -> Value {
     // 1. If key is -0𝔽, return +0𝔽.
-    if let Value::Float(key) = key {
+    if let Value::SmallF64(key) = key {
         // Note: Only f32 should hold -0.
-        if key == -0.0 {
+        if key.into_f64() == -0.0 {
             return 0.into();
         }
     } else if let Value::Number(key) = key {

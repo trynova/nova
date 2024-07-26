@@ -21,7 +21,7 @@ use super::type_conversion::{string_to_big_int, to_number, to_primitive, Preferr
 /// ToObject. It is defined by [Table 14](https://tc39.es/ecma262/#table-requireobjectcoercible-results):
 pub(crate) fn require_object_coercible(agent: &mut Agent, argument: Value) -> JsResult<Value> {
     if argument.is_undefined() || argument.is_null() {
-        Err(agent.throw_exception(
+        Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Argument cannot be converted into an object",
         ))

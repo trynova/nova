@@ -163,6 +163,16 @@ impl HeapMarkAndSweep for DeclarativeEnvironment {
         for binding in self.bindings.values_mut() {
             binding.value.sweep_values(compactions);
         }
+        let keys = self.bindings.keys().copied().collect::<Box<[_]>>();
+        for key in keys.iter() {
+            let mut new_key = *key;
+            new_key.sweep_values(compactions);
+            if *key != new_key {
+                let mut binding = self.bindings.remove(key).unwrap();
+                binding.value.sweep_values(compactions);
+                self.bindings.insert(new_key, binding);
+            }
+        }
     }
 }
 
@@ -243,8 +253,8 @@ impl DeclarativeEnvironmentIndex {
         let Some(binding) = env_rec.bindings.get_mut(&name) else {
             // a. If S is true, throw a ReferenceError exception.
             if is_strict {
-                return Err(agent
-                    .throw_exception(ExceptionType::ReferenceError, "Identifier is not defined."));
+                let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
+                return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message));
             }
 
             // b. Perform ! envRec.CreateMutableBinding(N, true).
@@ -265,9 +275,11 @@ impl DeclarativeEnvironmentIndex {
         // 3. If the binding for N in envRec has not yet been initialized, then
         if binding.value.is_none() {
             // a. Throw a ReferenceError exception.
-            return Err(
-                agent.throw_exception(ExceptionType::ReferenceError, "Identifier is not defined.")
+            let error_message = format!(
+                "Identifier '{}' has not been initialized.",
+                name.as_str(agent)
             );
+            return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message));
         }
 
         // 4. Else if the binding for N in envRec is a mutable binding, then
@@ -282,9 +294,11 @@ impl DeclarativeEnvironmentIndex {
 
             // b. If S is true, throw a TypeError exception.
             if is_strict {
-                return Err(
-                    agent.throw_exception(ExceptionType::TypeError, "Cannot assign to constant.")
+                let error_message = format!(
+                    "Cannot assign to immutable identifier '{}' in strict mode.",
+                    name.as_str(agent)
                 );
+                return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
             }
         }
 
@@ -312,8 +326,8 @@ impl DeclarativeEnvironmentIndex {
             || {
                 // 2. If the binding for N in envRec is an uninitialized binding, throw
                 // a ReferenceError exception.
-                Err(agent
-                    .throw_exception(ExceptionType::ReferenceError, "Identifier is not defined."))
+                let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
+                Err(agent.throw_exception(ExceptionType::ReferenceError, error_message))
             },
             Ok,
         )
@@ -365,8 +379,8 @@ impl HeapMarkAndSweep for DeclarativeEnvironmentIndex {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(
+        let self_index = self.into_u32_index();
+        *self = Self::from_u32_index(
             self_index
                 - compactions
                     .declarative_environments

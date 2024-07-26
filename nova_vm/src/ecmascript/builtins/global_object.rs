@@ -7,6 +7,7 @@ use oxc_ast::{
     syntax_directed_operations::BoundNames,
 };
 use oxc_parser::{Parser, ParserReturn};
+use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
 use rustc_hash::FxHashSet;
 
@@ -223,7 +224,26 @@ pub fn perform_eval(
         // SAFETY: It is safe to drop the leaked allocator here because it is known to be unused.
         drop(unsafe { Box::from_raw(allocator) });
         // TODO: Include error messages in the exception.
-        return Err(agent.throw_exception(ExceptionType::SyntaxError, "Invalid eval source text."));
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::SyntaxError,
+            "Invalid eval source text.",
+        ));
+    }
+
+    let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new(&source_text, source_type)
+        .with_check_syntax_error(true)
+        .build(&script);
+
+    if !errors.is_empty() {
+        // Make sure `script` can't borrow `source_text` so we can return it.
+        drop(script);
+        // SAFETY: It is safe to drop the leaked allocator here because it is known to be unused.
+        drop(unsafe { Box::from_raw(allocator) });
+        // TODO: Include error messages in the exception.
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::SyntaxError,
+            "Invalid eval source text.",
+        ));
     }
 
     // c. If script Contains ScriptBody is false, return undefined.
@@ -381,8 +401,13 @@ pub fn eval_declaration_instantiation(
                 // 1. If varEnv.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
                 // 2. NOTE: eval will not create a global var declaration that would be shadowed by a global lexical declaration.
                 if var_env.has_lexical_declaration(agent, name) {
-                    return Err(agent
-                        .throw_exception(ExceptionType::SyntaxError, "Variable already defined."));
+                    return Err(agent.throw_exception(
+                        ExceptionType::SyntaxError,
+                        format!(
+                            "Redeclaration of lexical declaration '{}'",
+                            name.as_str(agent)
+                        ),
+                    ));
                 }
             }
         }
@@ -406,7 +431,7 @@ pub fn eval_declaration_instantiation(
                         // ii. NOTE: Annex B.3.4 defines alternate semantics for the above step.
                         return Err(agent.throw_exception(
                             ExceptionType::SyntaxError,
-                            "Variable already defined.",
+                            format!("Redeclaration of variable '{}'", name.as_str(agent)),
                         ));
                     }
                 }
@@ -471,7 +496,10 @@ pub fn eval_declaration_instantiation(
                     if !fn_definable {
                         return Err(agent.throw_exception(
                             ExceptionType::TypeError,
-                            "Cannot declare global function.",
+                            format!(
+                                "Cannot declare global function '{}'.",
+                                function_name.as_str(agent)
+                            ),
                         ));
                     }
                 }
@@ -507,7 +535,7 @@ pub fn eval_declaration_instantiation(
                         if !vn_definable {
                             return Err(agent.throw_exception(
                                 ExceptionType::TypeError,
-                                "Cannot declare global variable.",
+                                format!("Cannot declare global variable '{}'.", vn.as_str(agent)),
                             ));
                         }
                     }

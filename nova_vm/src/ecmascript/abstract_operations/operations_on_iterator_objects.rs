@@ -10,9 +10,11 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::{call_function, get_method},
-        builtins::ArgumentsList,
-        execution::{agent::ExceptionType, Agent, JsResult},
+        abstract_operations::operations_on_objects::{
+            call_function, create_data_property_or_throw, get_method,
+        },
+        builtins::{ordinary::ordinary_object_create_with_intrinsics, ArgumentsList},
+        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{Function, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
@@ -45,7 +47,10 @@ pub(crate) fn get_iterator_from_method(
 
     // 2. If iterator is not an Object, throw a TypeError exception.
     let Ok(iterator) = to_object(agent, iterator) else {
-        return Err(agent.throw_exception(ExceptionType::TypeError, "Iterator is not an object"));
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Iterator is not an object",
+        ));
     };
 
     // 3. Let nextMethod be ? Get(iterator, "next").
@@ -89,9 +94,10 @@ pub(crate) fn get_iterator(
             )?
             else {
                 // ii. If syncMethod is undefined, throw a TypeError exception.
-                return Err(
-                    agent.throw_exception(ExceptionType::TypeError, "No iterator on object")
-                );
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "No iterator on object",
+                ));
             };
 
             // iii. Let syncIteratorRecord be ? GetIteratorFromMethod(obj, syncMethod).
@@ -114,7 +120,7 @@ pub(crate) fn get_iterator(
 
     // 3. If method is undefined, throw a TypeError exception.
     let Some(method) = method else {
-        return Err(agent.throw_exception(
+        return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Iterator method cannot be undefined",
         ));
@@ -150,10 +156,12 @@ pub(crate) fn iterator_next(
 
     // 3. If result is not an Object, throw a TypeError exception.
     // 4. Return result.
-    result.try_into().or(Err(agent.throw_exception(
-        ExceptionType::TypeError,
-        "The iterator result was not an object",
-    )))
+    result
+        .try_into()
+        .or(Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "The iterator result was not an object",
+        )))
 }
 
 /// ### [7.4.5 IteratorComplete ( iterResult )](https://tc39.es/ecma262/#sec-iteratorcomplete)
@@ -217,27 +225,61 @@ pub(crate) fn iterator_step(
 /// iterator has reached its end or the value from the IteratorResult object if
 /// a next value is available.
 pub(crate) fn iterator_step_value(
-    _agent: &mut Agent,
-    _iterator_record: &IteratorRecord,
+    agent: &mut Agent,
+    iterator_record: &mut IteratorRecord,
 ) -> JsResult<Option<Value>> {
     // 1. Let result be Completion(IteratorNext(iteratorRecord)).
+    let result = iterator_next(agent, iterator_record, None);
+
     // 2. If result is a throw completion, then
-    // a. Set iteratorRecord.[[Done]] to true.
-    // b. Return ? result.
-    // 3. Set result to ! result.
+    let result = match result {
+        Err(err) => {
+            // a. Set iteratorRecord.[[Done]] to true.
+            iterator_record.done = true;
+
+            // b. Return ? result.
+            return Err(err);
+        }
+        // 3. Set result to ! result.
+        Ok(result) => result,
+    };
+
     // 4. Let done be Completion(IteratorComplete(result)).
+    let done = iterator_complete(agent, result);
+
     // 5. If done is a throw completion, then
-    // a. Set iteratorRecord.[[Done]] to true.
-    // b. Return ? done.
-    // 6. Set done to ! done.
+    let done = match done {
+        Err(err) => {
+            // a. Set iteratorRecord.[[Done]] to true.
+            iterator_record.done = true;
+
+            // b. Return ? done.
+            return Err(err);
+        }
+        // 6. Set done to ! done.
+        Ok(done) => done,
+    };
+
     // 7. If done is true, then
-    // a. Set iteratorRecord.[[Done]] to true.
-    // b. Return done.
+    if done {
+        // a. Set iteratorRecord.[[Done]] to true.
+        iterator_record.done = true;
+
+        // b. Return done.
+        return Ok(None);
+    }
+
     // 8. Let value be Completion(Get(result, "value")).
+    let value = get(agent, result, BUILTIN_STRING_MEMORY.value.into());
+
     // 9. If value is a throw completion, then
-    // a. Set iteratorRecord.[[Done]] to true.
+    if value.is_err() {
+        // a. Set iteratorRecord.[[Done]] to true.
+        iterator_record.done = true;
+    }
+
     // 10. Return ? value.
-    todo!()
+    value.map(Some)
 }
 
 /// ### [7.4.9 IteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-iteratorclose)
@@ -280,7 +322,7 @@ pub(crate) fn iterator_close<T>(
     let inner_result = inner_result?;
     // 7. If innerResult.[[Value]] is not an Object, throw a TypeError exception.
     if !inner_result.is_object() {
-        return Err(agent.throw_exception(
+        return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Invalid iterator 'return' method return value",
         ));
@@ -342,12 +384,27 @@ pub(crate) fn async_iterator_close(
 /// ECMAScript language value) and done (a Boolean) and returns an Object that
 /// conforms to the IteratorResult interface. It creates an object that
 /// conforms to the IteratorResult interface.
-pub(crate) fn create_iter_result_object(_agent: &mut Agent, _value: Value, _done: bool) -> Value {
+pub(crate) fn create_iter_result_object(agent: &mut Agent, value: Value, done: bool) -> Object {
     // 1. Let obj be OrdinaryObjectCreate(%Object.prototype%).
+    let obj = ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
     // 2. Perform ! CreateDataPropertyOrThrow(obj, "value", value).
+    create_data_property_or_throw(
+        agent,
+        obj,
+        BUILTIN_STRING_MEMORY.value.to_property_key(),
+        value,
+    )
+    .unwrap();
     // 3. Perform ! CreateDataPropertyOrThrow(obj, "done", done).
+    create_data_property_or_throw(
+        agent,
+        obj,
+        BUILTIN_STRING_MEMORY.done.to_property_key(),
+        done.into(),
+    )
+    .unwrap();
     // 4. Return obj.
-    todo!()
+    obj
 }
 
 /// ### [7.4.13 CreateListIteratorRecord ( list )](https://tc39.es/ecma262/#sec-createlistiteratorRecord)

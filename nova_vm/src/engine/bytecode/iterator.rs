@@ -50,7 +50,7 @@ impl VmIterator {
             VmIterator::GenericIterator(iter) => {
                 let result = call(agent, iter.next_method, iter.iterator.into_value(), None)?;
                 let Ok(result) = Object::try_from(result) else {
-                    return Err(agent.throw_exception(
+                    return Err(agent.throw_exception_with_static_message(
                         ExceptionType::TypeError,
                         "Iterator returned a non-object result",
                     ));

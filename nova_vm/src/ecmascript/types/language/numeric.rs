@@ -7,6 +7,7 @@ use crate::{
         abstract_operations::type_conversion::to_number,
         execution::{Agent, JsResult},
     },
+    engine::small_f64::SmallF64,
     SmallInteger,
 };
 
@@ -25,7 +26,7 @@ use super::{
 pub enum Numeric {
     Number(HeapNumber) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
-    Float(f32) = FLOAT_DISCRIMINANT,
+    Float(SmallF64) = FLOAT_DISCRIMINANT,
     BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
@@ -74,7 +75,7 @@ impl Numeric {
         Ok(match self {
             Self::Number(n) => agent[n],
             Self::Integer(i) => i.into_i64() as f64,
-            Self::Float(f) => f as f64,
+            Self::Float(f) => f.into_f64(),
             // NOTE: Converting to a number should give us a nice error message.
             _ => to_number(agent, self)?.into_f64(agent),
         })
@@ -86,7 +87,7 @@ impl IntoValue for Numeric {
         match self {
             Numeric::Number(data) => Value::Number(data),
             Numeric::Integer(data) => Value::Integer(data),
-            Numeric::Float(data) => Value::Float(data),
+            Numeric::Float(data) => Value::SmallF64(data),
             Numeric::BigInt(data) => Value::BigInt(data),
             Numeric::SmallBigInt(data) => Value::SmallBigInt(data),
         }
@@ -98,7 +99,7 @@ impl IntoPrimitive for Numeric {
         match self {
             Numeric::Number(data) => Primitive::Number(data),
             Numeric::Integer(data) => Primitive::Integer(data),
-            Numeric::Float(data) => Primitive::Float(data),
+            Numeric::Float(data) => Primitive::SmallF64(data),
             Numeric::BigInt(data) => Primitive::BigInt(data),
             Numeric::SmallBigInt(data) => Primitive::SmallBigInt(data),
         }
@@ -124,7 +125,7 @@ impl TryFrom<Value> for Numeric {
         match value {
             Value::Number(data) => Ok(Numeric::Number(data)),
             Value::Integer(data) => Ok(Numeric::Integer(data)),
-            Value::Float(data) => Ok(Numeric::Float(data)),
+            Value::SmallF64(data) => Ok(Numeric::Float(data)),
             Value::BigInt(data) => Ok(Numeric::BigInt(data)),
             Value::SmallBigInt(data) => Ok(Numeric::SmallBigInt(data)),
             _ => Err(()),
@@ -139,7 +140,7 @@ impl TryFrom<Primitive> for Numeric {
         match value {
             Primitive::Number(data) => Ok(Numeric::Number(data)),
             Primitive::Integer(data) => Ok(Numeric::Integer(data)),
-            Primitive::Float(data) => Ok(Numeric::Float(data)),
+            Primitive::SmallF64(data) => Ok(Numeric::Float(data)),
             Primitive::BigInt(data) => Ok(Numeric::BigInt(data)),
             Primitive::SmallBigInt(data) => Ok(Numeric::SmallBigInt(data)),
             _ => Err(()),
