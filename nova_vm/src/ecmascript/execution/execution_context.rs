@@ -3,7 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{Agent, EnvironmentIndex, PrivateEnvironmentIndex, RealmIdentifier};
-use crate::ecmascript::{scripts_and_modules::ScriptOrModule, types::*};
+use crate::ecmascript::{
+    scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
+    types::*,
+};
 
 // TODO: Remove this.
 pub(crate) type ECMAScriptCode = ECMAScriptCodeEvaluationState;
@@ -37,6 +40,12 @@ pub(crate) struct ECMAScriptCodeEvaluationState {
     /// [`ECMAScriptCodeEvaluationState`] to track whether some ECMAScript code
     /// is in strict mode.
     pub(crate) is_strict_mode: bool,
+
+    /// Nova-specific piece of data that identifiers in which source code the
+    /// currently evaluated code was defined in. Note that this is also
+    /// defined for builtin functions: A builtin function's source code will
+    /// point to the source code that called it.
+    pub(crate) source_code: SourceCode,
 }
 
 /// ### [9.4 Execution Contexts](https://tc39.es/ecma262/#sec-execution-contexts)

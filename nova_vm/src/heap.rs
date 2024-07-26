@@ -51,6 +51,7 @@ use crate::ecmascript::{
         weak_ref::data::WeakRefHeapData,
         weak_set::data::WeakSetHeapData,
     },
+    scripts_and_modules::source_code::SourceCodeHeapData,
     types::{HeapNumber, HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
 };
 use crate::ecmascript::{
@@ -85,9 +86,8 @@ pub struct Heap {
     pub environments: Environments,
     pub errors: Vec<Option<ErrorHeapData>>,
     pub finalization_registrys: Vec<Option<FinalizationRegistryHeapData>>,
-    pub globals: Vec<Value>,
+    pub globals: Vec<Option<Value>>,
     pub maps: Vec<Option<MapHeapData>>,
-    pub modules: Vec<Option<ModuleHeapData>>,
     pub numbers: Vec<Option<NumberHeapData>>,
     pub objects: Vec<Option<ObjectHeapData>>,
     pub primitive_objects: Vec<Option<PrimitiveObjectHeapData>>,
@@ -97,15 +97,21 @@ pub struct Heap {
     pub proxys: Vec<Option<ProxyHeapData>>,
     pub realms: Vec<Option<Realm>>,
     pub regexps: Vec<Option<RegExpHeapData>>,
-    pub scripts: Vec<Option<Script>>,
     pub sets: Vec<Option<SetHeapData>>,
     pub shared_array_buffers: Vec<Option<SharedArrayBufferHeapData>>,
-    pub strings: Vec<Option<StringHeapData>>,
     pub symbols: Vec<Option<SymbolHeapData>>,
     pub typed_arrays: Vec<Option<TypedArrayHeapData>>,
     pub weak_maps: Vec<Option<WeakMapHeapData>>,
     pub weak_refs: Vec<Option<WeakRefHeapData>>,
     pub weak_sets: Vec<Option<WeakSetHeapData>>,
+    pub modules: Vec<Option<ModuleHeapData>>,
+    pub scripts: Vec<Option<Script>>,
+    // Parsed ASTs referred by functions must be dropped after functions.
+    // These are held in the SourceCodeHeapData structs.
+    pub(crate) source_codes: Vec<Option<SourceCodeHeapData>>,
+    // But: Source code string data is in the string heap. We need to thus drop
+    // the strings only after the source ASTs drop.
+    pub strings: Vec<Option<StringHeapData>>,
 }
 
 pub trait CreateHeapData<T, F> {
@@ -160,6 +166,7 @@ impl Heap {
             embedder_objects: Vec::with_capacity(0),
             environments: Default::default(),
             errors: Vec::with_capacity(1024),
+            source_codes: Vec::with_capacity(0),
             finalization_registrys: Vec::with_capacity(0),
             globals: Vec::with_capacity(1024),
             maps: Vec::with_capacity(128),

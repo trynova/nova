@@ -6,9 +6,8 @@ use nova_vm::ecmascript::{
         Agent, DefaultHostHooks,
     },
     scripts_and_modules::script::{parse_script, script_evaluation},
-    types::{Object, Value},
+    types::{Object, String, Value},
 };
-use oxc_allocator::Allocator;
 
 fn initialize_global_object(agent: &mut Agent, global: Object) {
     use nova_vm::ecmascript::{
@@ -67,7 +66,6 @@ fn garbage_collection_tests() {
     let call_contents =
         fs::read_to_string(d.clone()).expect("Should have been able to read the file");
 
-    let allocator = Allocator::default();
     let mut agent = GcAgent::new(Options::default(), &DefaultHostHooks);
     let create_global_object: Option<fn(&mut Agent) -> Object> = None;
     let create_global_this_value: Option<fn(&mut Agent) -> Object> = None;
@@ -78,14 +76,8 @@ fn garbage_collection_tests() {
     );
     agent.run_in_realm(&realm, |agent| {
         let realm = agent.current_realm_id();
-        let script = parse_script(
-            &allocator,
-            header_contents.into_boxed_str(),
-            realm,
-            false,
-            None,
-        )
-        .unwrap();
+        let source_text = String::from_string(agent, header_contents);
+        let script = parse_script(agent, source_text, realm, false, None).unwrap();
         let _ = script_evaluation(agent, script).unwrap_or_else(|err| {
             panic!(
                 "Header evaluation failed: '{}' failed: {:?}",
@@ -99,14 +91,8 @@ fn garbage_collection_tests() {
     for i in 0..2 {
         agent.run_in_realm(&realm, |agent| {
             let realm = agent.current_realm_id();
-            let script = parse_script(
-                &allocator,
-                call_contents.clone().into_boxed_str(),
-                realm,
-                false,
-                None,
-            )
-            .unwrap();
+            let source_text = String::from_string(agent, call_contents.clone());
+            let script = parse_script(agent, source_text, realm, false, None).unwrap();
             let _ = script_evaluation(agent, script).unwrap_or_else(|err| {
                 println!("Error kind: {:?}", err.value());
                 panic!(
