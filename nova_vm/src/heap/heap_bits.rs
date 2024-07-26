@@ -1,9 +1,8 @@
+use ahash::AHashMap;
+
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-
-use std::collections::HashMap;
-
 use super::{
     element_array::{ElementArrayKey, ElementDescriptor, ElementsVector},
     indexes::{BaseIndex, ElementIndex, TypedArrayIndex},
@@ -745,7 +744,7 @@ pub(crate) fn mark_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
 }
 
 pub(crate) fn mark_descriptors(
-    descriptors: &HashMap<u32, ElementDescriptor>,
+    descriptors: &AHashMap<u32, ElementDescriptor>,
     queues: &mut WorkQueues,
 ) {
     for descriptor in descriptors.values() {
@@ -841,7 +840,7 @@ pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
 }
 
 pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
-    descriptors: &mut HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+    descriptors: &mut AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
     compactions: &CompactionLists,
     self_compactions: &CompactionList,
     marks: &[(bool, T)],

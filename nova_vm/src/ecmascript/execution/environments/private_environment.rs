@@ -2,11 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use ahash::AHashMap;
+
 use crate::{
     ecmascript::types::{Function, Value},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
-use std::collections::HashMap;
 
 use super::PrivateEnvironmentIndex;
 
@@ -45,7 +46,7 @@ pub struct PrivateEnvironment {
     /// ### \[\[Names\]\]
     ///
     /// The Private Names declared by this class.
-    pub(crate) names: HashMap<String, PrivateName>,
+    pub(crate) names: AHashMap<String, PrivateName>,
 }
 
 impl HeapMarkAndSweep for PrivateEnvironment {

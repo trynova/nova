@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use ahash::AHashMap;
+
 use super::{
     indexes::ElementIndex,
     object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor},
@@ -13,7 +15,6 @@ use crate::ecmascript::{
     types::{Function, PropertyDescriptor, PropertyKey, Value},
 };
 use std::{
-    collections::HashMap,
     mem::MaybeUninit,
     ops::{Index, IndexMut},
 };
@@ -283,7 +284,7 @@ impl ElementsVector {
         self.len -= 1;
 
         if let Some(descriptor_map) = descriptors {
-            let mut new_map = HashMap::new();
+            let mut new_map = AHashMap::default();
             for (k, v) in descriptor_map.drain() {
                 match usize::try_from(k).unwrap().cmp(&index) {
                     std::cmp::Ordering::Less => {
@@ -974,7 +975,7 @@ impl ElementDescriptor {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow4 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 4)]>>,
-    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow4 {
@@ -990,7 +991,7 @@ impl ElementArray2Pow4 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow6 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 6)]>>,
-    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow6 {
@@ -1006,7 +1007,7 @@ impl ElementArray2Pow6 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow8 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 8)]>>,
-    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow8 {
@@ -1022,7 +1023,7 @@ impl ElementArray2Pow8 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow10 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 10)]>>,
-    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow10 {
@@ -1038,7 +1039,7 @@ impl ElementArray2Pow10 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow12 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 12)]>>,
-    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow12 {
@@ -1054,7 +1055,7 @@ impl ElementArray2Pow12 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow16 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 16)]>>,
-    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow16 {
@@ -1070,7 +1071,7 @@ impl ElementArray2Pow16 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow24 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 24)]>>,
-    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow24 {
@@ -1086,7 +1087,7 @@ impl ElementArray2Pow24 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow32 {
     pub values: Vec<Option<[Option<Value>; usize::pow(2, 32)]>>,
-    pub descriptors: HashMap<ElementIndex, HashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow32 {
@@ -1179,7 +1180,7 @@ impl ElementArrays {
         &mut self,
         key: ElementArrayKey,
         vector: &[Option<Value>],
-        descriptors: Option<HashMap<u32, ElementDescriptor>>,
+        descriptors: Option<AHashMap<u32, ElementDescriptor>>,
     ) -> ElementIndex {
         debug_assert_eq!(
             std::mem::size_of::<Option<[Option<Value>; 1]>>(),
@@ -1847,7 +1848,7 @@ impl ElementArrays {
         let length = entries.len();
         let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
-        let mut descriptors: Option<HashMap<u32, ElementDescriptor>> = None;
+        let mut descriptors: Option<AHashMap<u32, ElementDescriptor>> = None;
         entries.drain(..).enumerate().for_each(|(index, entry)| {
             let (key, maybe_descriptor, maybe_value) = entry;
             let key = match key {
@@ -1893,7 +1894,7 @@ impl ElementArrays {
         let length = entries.len();
         let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
-        let mut descriptors: Option<HashMap<u32, ElementDescriptor>> = None;
+        let mut descriptors: Option<AHashMap<u32, ElementDescriptor>> = None;
         entries.iter().enumerate().for_each(|(index, entry)| {
             let ObjectEntry { key, value } = entry;
             let (maybe_descriptor, maybe_value) =
@@ -1989,7 +1990,7 @@ impl ElementArrays {
     pub fn get_descriptors_and_slice(
         &self,
         vector: ElementsVector,
-    ) -> (Option<&HashMap<u32, ElementDescriptor>>, &[Option<Value>]) {
+    ) -> (Option<&AHashMap<u32, ElementDescriptor>>, &[Option<Value>]) {
         let usize_index = vector.elements_index.into_index();
         match vector.cap {
             ElementArrayKey::Empty => (None, &[]),
@@ -2104,7 +2105,7 @@ impl ElementArrays {
         &mut self,
         vector: ElementsVector,
     ) -> (
-        Option<&mut HashMap<u32, ElementDescriptor>>,
+        Option<&mut AHashMap<u32, ElementDescriptor>>,
         &mut [Option<Value>],
     ) {
         let usize_index = vector.elements_index.into_index();
@@ -2268,7 +2269,7 @@ impl ElementArrays {
                 inner_map.remove(&index);
             }
         } else if let Some(descriptor) = descriptor {
-            let mut inner_map = HashMap::new();
+            let mut inner_map = AHashMap::default();
             inner_map.insert(index, descriptor);
             descriptors.insert(vector.elements_index, inner_map);
         }
