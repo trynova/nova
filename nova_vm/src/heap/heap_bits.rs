@@ -66,7 +66,7 @@ pub struct HeapBits {
     pub ecmascript_functions: Box<[bool]>,
     pub embedder_objects: Box<[bool]>,
     pub errors: Box<[bool]>,
-    pub eval_sources: Box<[bool]>,
+    pub source_codes: Box<[bool]>,
     pub finalization_registrys: Box<[bool]>,
     pub function_environments: Box<[bool]>,
     pub global_environments: Box<[bool]>,
@@ -113,7 +113,7 @@ pub(crate) struct WorkQueues {
     pub e_2_8: Vec<(ElementIndex, u32)>,
     pub ecmascript_functions: Vec<ECMAScriptFunction>,
     pub embedder_objects: Vec<EmbedderObject>,
-    pub eval_sources: Vec<SourceCode>,
+    pub source_codes: Vec<SourceCode>,
     pub errors: Vec<Error>,
     pub finalization_registrys: Vec<FinalizationRegistry>,
     pub function_environments: Vec<FunctionEnvironmentIndex>,
@@ -162,7 +162,7 @@ impl HeapBits {
         let ecmascript_functions = vec![false; heap.ecmascript_functions.len()];
         let embedder_objects = vec![false; heap.embedder_objects.len()];
         let errors = vec![false; heap.errors.len()];
-        let eval_sources = vec![false; heap.source_codes.len()];
+        let source_codes = vec![false; heap.source_codes.len()];
         let finalization_registrys = vec![false; heap.finalization_registrys.len()];
         let function_environments = vec![false; heap.environments.function.len()];
         let global_environments = vec![false; heap.environments.global.len()];
@@ -207,7 +207,7 @@ impl HeapBits {
             ecmascript_functions: ecmascript_functions.into_boxed_slice(),
             embedder_objects: embedder_objects.into_boxed_slice(),
             errors: errors.into_boxed_slice(),
-            eval_sources: eval_sources.into_boxed_slice(),
+            source_codes: source_codes.into_boxed_slice(),
             finalization_registrys: finalization_registrys.into_boxed_slice(),
             function_environments: function_environments.into_boxed_slice(),
             global_environments: global_environments.into_boxed_slice(),
@@ -258,7 +258,7 @@ impl WorkQueues {
             ecmascript_functions: Vec::with_capacity(heap.ecmascript_functions.len() / 4),
             embedder_objects: Vec::with_capacity(heap.embedder_objects.len() / 4),
             errors: Vec::with_capacity(heap.errors.len() / 4),
-            eval_sources: Vec::with_capacity(heap.source_codes.len() / 4),
+            source_codes: Vec::with_capacity(heap.source_codes.len() / 4),
             finalization_registrys: Vec::with_capacity(heap.finalization_registrys.len() / 4),
             function_environments: Vec::with_capacity(heap.environments.function.len() / 4),
             global_environments: Vec::with_capacity(heap.environments.global.len() / 4),
@@ -563,7 +563,7 @@ pub(crate) struct CompactionLists {
     pub e_2_8: CompactionList,
     pub ecmascript_functions: CompactionList,
     pub embedder_objects: CompactionList,
-    pub eval_sources: CompactionList,
+    pub source_codes: CompactionList,
     pub errors: CompactionList,
     pub finalization_registrys: CompactionList,
     pub function_environments: CompactionList,
@@ -627,7 +627,7 @@ impl CompactionLists {
             builtin_functions: CompactionList::from_mark_bits(&bits.builtin_functions),
             ecmascript_functions: CompactionList::from_mark_bits(&bits.ecmascript_functions),
             embedder_objects: CompactionList::from_mark_bits(&bits.embedder_objects),
-            eval_sources: CompactionList::from_mark_bits(&bits.eval_sources),
+            source_codes: CompactionList::from_mark_bits(&bits.source_codes),
             dates: CompactionList::from_mark_bits(&bits.dates),
             errors: CompactionList::from_mark_bits(&bits.errors),
             maps: CompactionList::from_mark_bits(&bits.maps),

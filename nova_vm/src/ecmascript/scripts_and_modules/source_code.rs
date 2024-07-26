@@ -189,10 +189,10 @@ impl HeapMarkAndSweep for SourceCodeHeapData {
 
 impl HeapMarkAndSweep for SourceCode {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.eval_sources.push(*self);
+        queues.source_codes.push(*self);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions.eval_sources.shift_index(&mut self.0);
+        compactions.source_codes.shift_index(&mut self.0);
     }
 }

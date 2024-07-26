@@ -32,6 +32,7 @@ use std::{
     any::Any,
     collections::HashSet,
     marker::PhantomData,
+    mem::ManuallyDrop,
     ops::{Index, IndexMut},
 };
 
@@ -131,7 +132,13 @@ pub struct Script {
     /// ### \[\[ECMAScriptCode]]
     ///
     /// The result of parsing the source text of this script.
-    pub(crate) ecmascript_code: Program<'static>,
+    ///
+    /// Note: The Program's drop code is never run. The referred structures
+    /// live in the SourceCode heap data in its contained Allocator. The bump
+    /// allocator drops all of the data in a single go. All that needs to be
+    /// dropped here is the local Program itself, not any of its referred
+    /// parts.
+    pub(crate) ecmascript_code: ManuallyDrop<Program<'static>>,
 
     /// ### \[\[LoadedModules]]
     ///
@@ -206,7 +213,7 @@ pub fn parse_script(
         // [[Realm]]: realm,
         realm,
         // [[ECMAScriptCode]]: script,
-        ecmascript_code: program,
+        ecmascript_code: ManuallyDrop::new(program),
         // [[LoadedModules]]: « »,
         loaded_modules: (),
         // [[HostDefined]]: hostDefined,
