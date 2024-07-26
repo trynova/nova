@@ -140,12 +140,6 @@ pub(crate) struct SourceCodeHeapData {
 
 unsafe impl Send for SourceCodeHeapData {}
 
-impl SourceCodeHeapData {
-    pub(crate) fn get_allocator(&self) -> NonNull<Allocator> {
-        self.allocator
-    }
-}
-
 impl Debug for SourceCodeHeapData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SourceCodeHeapData")
