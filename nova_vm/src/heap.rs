@@ -51,7 +51,7 @@ use crate::ecmascript::{
         weak_ref::data::WeakRefHeapData,
         weak_set::data::WeakSetHeapData,
     },
-    scripts_and_modules::eval_source::SourceCodeHeapData,
+    scripts_and_modules::source_code::SourceCodeHeapData,
     types::{HeapNumber, HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
 };
 use crate::ecmascript::{

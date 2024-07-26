@@ -4,7 +4,7 @@
 
 use super::{Agent, EnvironmentIndex, PrivateEnvironmentIndex, RealmIdentifier};
 use crate::ecmascript::{
-    scripts_and_modules::{eval_source::SourceCode, ScriptOrModule},
+    scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
     types::*,
 };
 
@@ -41,10 +41,11 @@ pub(crate) struct ECMAScriptCodeEvaluationState {
     /// is in strict mode.
     pub(crate) is_strict_mode: bool,
 
-    /// Nova-specific piece of data that identifiers an eval source string if
-    /// the currently evaluated ECMAScript code comes is running inside an eval
-    /// call.
-    pub(crate) eval_source: Option<SourceCode>,
+    /// Nova-specific piece of data that identifiers in which source code the
+    /// currently evaluated code was defined in. Note that this is also
+    /// defined for builtin functions: A builtin function's source code will
+    /// point to the source code that called it.
+    pub(crate) source_code: SourceCode,
 }
 
 /// ### [9.4 Execution Contexts](https://tc39.es/ecma262/#sec-execution-contexts)

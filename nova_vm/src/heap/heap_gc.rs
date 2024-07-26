@@ -44,7 +44,7 @@ use crate::ecmascript::{
         DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
     },
-    scripts_and_modules::{eval_source::SourceCode, script::ScriptIdentifier},
+    scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
     types::{
         bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
         BUILTIN_STRINGS_LIST,

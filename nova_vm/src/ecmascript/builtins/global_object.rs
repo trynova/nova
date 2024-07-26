@@ -19,7 +19,7 @@ use crate::{
             ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult,
             PrivateEnvironmentIndex, RealmIdentifier,
         },
-        scripts_and_modules::eval_source::SourceCode,
+        scripts_and_modules::source_code::SourceCode,
         syntax_directed_operations::{
             miscellaneous::instantiate_function_object,
             scope_analysis::{
@@ -208,7 +208,7 @@ pub fn perform_eval(
     let parse_result = SourceCode::parse_source(agent, x, source_type);
 
     // b. If script is a List of errors, throw a SyntaxError exception.
-    let Ok((script, eval_source)) = parse_result else {
+    let Ok((script, source_code)) = parse_result else {
         // TODO: Include error messages in the exception.
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::SyntaxError,
@@ -262,7 +262,8 @@ pub fn perform_eval(
             // c. Let privateEnv be runningContext's PrivateEnvironment.
             private_environment: running_context_private_env,
             is_strict_mode: strict_eval,
-            eval_source: Some(eval_source),
+            // The code running inside eval is defined inside the eval source.
+            source_code,
         }
     } else {
         // 17. Else,
@@ -279,7 +280,8 @@ pub fn perform_eval(
             // c. Let privateEnv be null.
             private_environment: None,
             is_strict_mode: strict_eval,
-            eval_source: Some(eval_source),
+            // The code running inside eval is defined inside the eval source.
+            source_code,
         }
     };
 

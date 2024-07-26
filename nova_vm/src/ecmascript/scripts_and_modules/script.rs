@@ -35,7 +35,7 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use super::eval_source::SourceCode;
+use super::source_code::SourceCode;
 
 pub type HostDefined = &'static mut dyn Any;
 
@@ -150,7 +150,7 @@ pub struct Script {
     ///
     /// The source text is kept in the heap strings vector, through the
     /// SourceCode struct.
-    pub(crate) source_text: SourceCode,
+    pub(crate) source_code: SourceCode,
 }
 
 unsafe impl Send for Script {}
@@ -160,10 +160,12 @@ pub type ScriptOrErrors = Result<Script, Vec<OxcDiagnostic>>;
 impl HeapMarkAndSweep for Script {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.realm.mark_values(queues);
+        self.source_code.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.realm.sweep_values(compactions);
+        self.source_code.sweep_values(compactions);
     }
 }
 
@@ -210,7 +212,7 @@ pub fn parse_script(
         loaded_modules: (),
         // [[HostDefined]]: hostDefined,
         host_defined,
-        source_text: source_code,
+        source_code,
     })
     // }
 }
@@ -223,6 +225,7 @@ pub fn parse_script(
 pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
     let realm_id = script.realm;
     let is_strict_mode = script.ecmascript_code.is_strict();
+    let source_code = script.source_code;
     let script = agent.heap.add_script(script);
     let realm = agent.get_realm(realm_id);
 
@@ -252,7 +255,7 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
 
             is_strict_mode,
 
-            eval_source: None,
+            source_code,
         }),
     };
 

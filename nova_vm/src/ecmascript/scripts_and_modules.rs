@@ -8,9 +8,9 @@ use self::script::ScriptIdentifier;
 
 use super::builtins::module::Module;
 
-pub mod eval_source;
 pub mod module;
 pub mod script;
+pub mod source_code;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ScriptOrModule {
