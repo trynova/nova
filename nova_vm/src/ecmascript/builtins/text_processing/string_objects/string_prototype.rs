@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::iter::repeat;
-
 use small_string::SmallString;
 
 use crate::{
@@ -603,7 +601,10 @@ impl StringPrototype {
         }
 
         // 6. Return the String value that is made from n copies of S appended together.
-        Ok(String::concat(agent, repeat(s).take(n as usize).collect::<Vec<String>>()).into_value())
+        Ok(Value::from_string(
+            agent,
+            s.as_str(agent).repeat(n as usize),
+        ))
     }
 
     fn replace(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
