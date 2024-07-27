@@ -8,7 +8,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call, call_function, create_data_property_or_throw, delete_property_or_throw, get,
+                call_function, create_data_property_or_throw, delete_property_or_throw, get,
                 has_property, length_of_array_like, set,
             },
             testing_and_comparison::{is_array, is_callable, is_strictly_equal, same_value_zero},
@@ -1892,9 +1892,9 @@ impl ArrayPrototype {
                 let k_value = get(agent, o, pk)?;
 
                 // ii. Set accumulator to ? Call(callbackfn, undefined, « accumulator, kValue, 𝔽(k), O »).
-                accumulator = call(
+                accumulator = call_function(
                     agent,
-                    callback_fn.into_value(),
+                    callback_fn,
                     Value::Undefined,
                     Some(ArgumentsList(&[
                         accumulator,
