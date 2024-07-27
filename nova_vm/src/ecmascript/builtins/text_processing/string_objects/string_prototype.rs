@@ -266,7 +266,7 @@ fn string_padding_builtins_impl(
     let int_max_length = to_length(agent, max_length)?;
 
     // 3. Let stringLength be the length of S.
-    let string_length = s.len(agent) as i64;
+    let string_length = s.utf16_len(agent) as i64;
 
     // 4. If intMaxLength ≤ stringLength, return S.
     if int_max_length <= string_length {
@@ -298,7 +298,7 @@ fn string_pad(
     placement_start: bool,
 ) -> JsResult<Value> {
     // 1. Let stringLength be the length of S.
-    let string_length = s.len(agent) as i64;
+    let string_length = s.utf16_len(agent) as i64;
 
     // 2. If maxLength ≤ stringLength, return S.
     if max_len <= string_length {
@@ -312,7 +312,7 @@ fn string_pad(
 
     // 4. Let fillLen be maxLength - stringLength.
     let fill_len = max_len - string_length;
-    let fill_string_length = fill_string.len(agent) as i64;
+    let fill_string_length = fill_string.utf16_len(agent) as i64;
 
     // 5. Let truncatedStringFiller be the String value consisting of repeated concatenations of fillString truncated to length fillLen.
     let mut strings = if fill_len == fill_string_length {
