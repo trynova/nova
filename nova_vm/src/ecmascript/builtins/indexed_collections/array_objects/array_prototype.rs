@@ -8,7 +8,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call_function, create_data_property_or_throw, delete_property_or_throw, get,
+                call, call_function, create_data_property_or_throw, delete_property_or_throw, get,
                 has_property, length_of_array_like, set,
             },
             testing_and_comparison::{is_array, is_callable, is_strictly_equal, same_value_zero},
@@ -1577,7 +1577,7 @@ impl ArrayPrototype {
     /// > callbackfn will be the value at the time map visits them; elements
     /// > that are deleted after the call to map begins and before being
     /// > visited are not visited.
-    ///        
+    ///
     /// > #### Note 2
     /// >
     /// > This method is intentionally generic; it does not require that its
@@ -1777,8 +1777,138 @@ impl ArrayPrototype {
         Ok(len)
     }
 
-    fn reduce(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// #### [23.1.3.24 Array.prototype.reduce ( callbackfn \[ , initialValue \] )](https://tc39.es/ecma262/indexed-collections.html#sec-array.prototype.reduce)
+    ///
+    /// > Note 1
+    /// >
+    /// > callbackfn should be a function that takes four arguments. reduce
+    /// > calls the callback, as a function, once for each element after the
+    /// > first element present in the array, in ascending order.
+    /// >
+    /// > callbackfn is called with four arguments: the previousValue (value
+    /// > from the previous call to callbackfn), the currentValue (value of the
+    /// > current element), the currentIndex, and the object being traversed.
+    /// > The first time that callback is called, the previousValue and
+    /// > currentValue can be one of two values. If an initialValue was
+    /// > supplied in the call to reduce, then previousValue will be
+    /// > initialValue and currentValue will be the first value in the array.
+    /// > If no initialValue was supplied, then previousValue will be the first
+    /// > value in the array and currentValue will be the second. It is a
+    /// > TypeError if the array contains no elements and initialValue is not
+    /// > provided.
+    /// >
+    /// > reduce does not directly mutate the object on which it is called but
+    /// > the object may be mutated by the calls to callbackfn.
+    /// >
+    /// > The range of elements processed by reduce is set before the first
+    /// > call to callbackfn. Elements that are appended to the array after the
+    /// > call to reduce begins will not be visited by callbackfn. If existing
+    /// > elements of the array are changed, their value as passed to callbackfn
+    /// > will be the value at the time reduce visits them; elements that are
+    /// > deleted after the call to reduce begins and before being visited are
+    /// > not visited.
+    ///
+    /// > Note 2
+    /// >
+    /// > This method is intentionally generic; it does not require that
+    /// > its this value be an Array. Therefore it can be transferred to
+    /// > other kinds of objects for use as a method.
+    fn reduce(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let callback_fn = arguments.get(0);
+        let initial_value = arguments.get(1);
+
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        // NOTE: Guaranteed to be a valid u32 because it's the length of an array-like object.
+        let len = length_of_array_like(agent, o)? as u32;
+
+        // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
+        let Some(callback_fn) = is_callable(callback_fn) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Callback function is not a function",
+            ));
+        };
+
+        // 4. If len = 0 and initialValue is not present, throw a TypeError exception.
+        if len == 0 && initial_value.is_undefined() {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Array length is 0 and no initial value provided",
+            ));
+        }
+
+        // 5. Let k be 0.
+        let mut k: u32 = 0;
+        // 6. Let accumulator be undefined.
+        // 7. If initialValue is present,
+        // a. Set accumulator to initialValue.
+        let mut accumulator = initial_value;
+
+        // 8. Else,
+        if accumulator.is_undefined() {
+            // a. Let kPresent be false.
+            let mut k_present = false;
+
+            // b. Repeat, while kPresent is false and k < len,
+            while !k_present && k < len {
+                // i. Let Pk be ! ToString(𝔽(k)).
+                let pk = PropertyKey::from(k);
+
+                // ii. Set kPresent to ? HasProperty(O, Pk).
+                k_present = has_property(agent, o, pk)?;
+
+                // iii. If kPresent is true, then
+                if k_present {
+                    // 1. Set accumulator to ? Get(O, Pk).
+                    accumulator = get(agent, o, pk)?;
+                }
+
+                // iv. Set k to k + 1.
+                k += 1;
+            }
+
+            // c. If kPresent is false, throw a TypeError exception.
+            if !k_present {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Array length is 0 and no initial value provided",
+                ));
+            }
+        }
+
+        // 9. Repeat, while k < len,
+        while k < len {
+            // a. Let Pk be ! ToString(𝔽(k)).
+            let pk = PropertyKey::from(k);
+
+            // b. Let kPresent be ? HasProperty(O, Pk).
+            let k_present = has_property(agent, o, pk)?;
+
+            // c. If kPresent is true, then
+            if k_present {
+                // i. Let kValue be ? Get(O, Pk).
+                let k_value = get(agent, o, pk)?;
+
+                // ii. Set accumulator to ? Call(callbackfn, undefined, « accumulator, kValue, 𝔽(k), O »).
+                accumulator = call(
+                    agent,
+                    callback_fn.into_value(),
+                    Value::Undefined,
+                    Some(ArgumentsList(&[
+                        accumulator,
+                        k_value,
+                        k.into(),
+                        o.into_value(),
+                    ])),
+                )?;
+            }
+
+            // d. Set k to k + 1.
+            k += 1;
+        }
+        Ok(accumulator)
     }
 
     fn reduce_right(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
