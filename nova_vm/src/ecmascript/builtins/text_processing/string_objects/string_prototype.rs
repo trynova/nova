@@ -594,8 +594,12 @@ impl StringPrototype {
         }
 
         // 5. If n = 0, return the empty String.
-        if n == 0 {
+        if n == 0 || s.is_empty_string() {
             return Ok(String::EMPTY_STRING.into());
+        }
+
+        if n == 1 {
+            return Ok(s.into_value());
         }
 
         // 6. Return the String value that is made from n copies of S appended together.
