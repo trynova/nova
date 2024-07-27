@@ -326,6 +326,7 @@ fn string_pad(
         vec
     } else if fill_len < fill_string_length {
         let mut vec = VecDeque::with_capacity(2);
+        // TODO: Deal with surrogates.
         let sub_string = &fill_string.as_str(agent)[..fill_len as usize];
         vec.push_back(String::from_string(agent, sub_string.to_owned()));
         vec
@@ -333,6 +334,7 @@ fn string_pad(
         let fill_count = (fill_len / fill_string_length) as usize;
         let mut vec = VecDeque::with_capacity(fill_count + 2);
         vec.extend(repeat(fill_string).take(fill_count));
+        // TODO: Deal with surrogates.
         let last_sub_string =
             &fill_string.as_str(agent)[..(fill_len % fill_string_length) as usize];
         vec.push_back(String::from_string(agent, last_sub_string.to_owned()));
