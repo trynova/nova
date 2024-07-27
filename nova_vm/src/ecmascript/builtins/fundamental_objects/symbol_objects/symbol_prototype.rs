@@ -63,12 +63,18 @@ impl Builtin for SymbolPrototypeToPrimitive {
 }
 
 impl SymbolPrototype {
-    fn get_description(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
-        todo!();
+    /// ### [20.4.3.2 get Symbol.prototype.description](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-symbol.prototype.description)
+    ///
+    /// Symbol.prototype.description is an accessor property whose set accessor
+    /// function is undefined.
+    fn get_description(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let s be the this value.
+        // 2. Let sym be ? ThisSymbolValue(s).
+        let sym = this_symbol_value(agent, this_value)?;
+        // 3. Return sym.[[Description]].
+        agent[sym]
+            .descriptor
+            .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into_value()))
     }
 
     fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
