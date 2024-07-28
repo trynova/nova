@@ -1815,7 +1815,7 @@ impl ArrayPrototype {
     /// > other kinds of objects for use as a method.
     fn reduce(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         let callback_fn = arguments.get(0);
-        let initial_value = if arguments.len() >= 1 {
+        let initial_value = if arguments.len() >= 2 {
             Some(arguments.get(1))
         } else {
             None
@@ -1959,7 +1959,7 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let callback_fn = arguments.get(0);
-        let initial_value = if arguments.len() >= 1 {
+        let initial_value = if arguments.len() >= 2 {
             Some(arguments.get(1))
         } else {
             None
