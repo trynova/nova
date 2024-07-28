@@ -95,6 +95,7 @@ impl FunctionPrototype {
         Ok(Value::Undefined)
     }
 
+    /// ### [20.2.3.1 Function.prototype.apply ( thisArg, argArray )](https://tc39.es/ecma262/#sec-function.prototype.apply)
     fn apply(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
         // 1. Let func be the this value.
         let Some(func) = is_callable(this_value) else {
