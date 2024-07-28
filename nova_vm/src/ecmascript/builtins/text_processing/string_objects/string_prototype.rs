@@ -955,7 +955,6 @@ impl StringPrototype {
     }
 }
 
-
 /// ### [22.1.3.17.1 StringPaddingBuiltinsImpl ( O, maxLength, fillString, placement )](https://tc39.es/ecma262/#sec-stringpaddingbuiltinsimpl)
 ///
 /// The abstract operation StringPaddingBuiltinsImpl takes arguments O (an
