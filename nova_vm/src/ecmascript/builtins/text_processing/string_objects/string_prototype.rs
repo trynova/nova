@@ -1008,10 +1008,10 @@ fn string_pad(
     placement_start: bool,
 ) -> JsResult<Value> {
     // 1. Let stringLength be the length of S.
-    let string_length = s.utf16_len(agent) as i64;
+    let string_len = s.utf16_len(agent) as i64;
 
     // 2. If maxLength ≤ stringLength, return S.
-    if max_len <= string_length {
+    if max_len <= string_len {
         return Ok(s.into());
     }
 
@@ -1021,33 +1021,40 @@ fn string_pad(
     }
 
     // 4. Let fillLen be maxLength - stringLength.
-    let fill_len = max_len - string_length;
-    let fill_string_length = fill_string.utf16_len(agent) as i64;
+    let fill_len = max_len - string_len;
+    let fill_string_len = fill_string.utf16_len(agent) as i64;
 
     // 5. Let truncatedStringFiller be the String value consisting of repeated concatenations of fillString truncated to length fillLen.
-    let mut strings = if fill_len == fill_string_length {
+    let mut strings = if fill_len == fill_string_len {
         let mut vec = VecDeque::with_capacity(2);
         vec.push_back(fill_string);
         vec
-    } else if fill_len % fill_string_length == 0 {
-        let fill_count = (fill_len / fill_string_length) as usize;
+    } else if fill_len % fill_string_len == 0 {
+        let fill_count = (fill_len / fill_string_len) as usize;
         let mut vec = VecDeque::with_capacity(fill_count + 1);
         vec.extend(repeat(fill_string).take(fill_count));
         vec
-    } else if fill_len < fill_string_length {
+    } else if fill_len < fill_string_len {
         let mut vec = VecDeque::with_capacity(2);
-        // TODO: Deal with surrogates.
-        let sub_string = &fill_string.as_str(agent)[..fill_len as usize];
+        let mut sub_string = vec![0; fill_len as usize];
+        for i in 0..fill_len {
+            fill_string.utf16_char(agent, i as usize).encode_utf8(&mut sub_string[fill_string.utf8_index(agent, i as usize).unwrap() as usize..]);
+        }
+        let sub_string = std::str::from_utf8(&sub_string).unwrap();
+        // let sub_string = &fill_string.as_str(agent)[..fill_len as usize];
         vec.push_back(String::from_string(agent, sub_string.to_owned()));
         vec
     } else {
-        let fill_count = (fill_len / fill_string_length) as usize;
+        let fill_count = (fill_len / fill_string_len) as usize;
         let mut vec = VecDeque::with_capacity(fill_count + 2);
         vec.extend(repeat(fill_string).take(fill_count));
-        // TODO: Deal with surrogates.
-        let last_sub_string =
-            &fill_string.as_str(agent)[..(fill_len % fill_string_length) as usize];
-        vec.push_back(String::from_string(agent, last_sub_string.to_owned()));
+        let sub_string_len = (fill_len % fill_string_len) as usize;
+        let mut sub_string = vec![0; sub_string_len];
+        for i in 0..sub_string_len {
+            fill_string.utf16_char(agent, i).encode_utf8(&mut sub_string[fill_string.utf8_index(agent, i).unwrap() as usize..]);
+        }
+        let sub_string = std::str::from_utf8(&sub_string).unwrap();
+        vec.push_back(String::from_string(agent, sub_string.to_owned()));
         vec
     };
 
