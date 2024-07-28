@@ -5,7 +5,9 @@
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, ordinary_has_instance},
+            operations_on_objects::{
+                call_function, create_list_from_array_like, ordinary_has_instance,
+            },
             testing_and_comparison::is_callable,
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
@@ -93,8 +95,11 @@ impl FunctionPrototype {
         Ok(Value::Undefined)
     }
 
+    /// ### [20.2.3.1 Function.prototype.apply ( thisArg, argArray )](https://tc39.es/ecma262/#sec-function.prototype.apply)
     fn apply(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+        // 1. Let func be the this value.
         let Some(func) = is_callable(this_value) else {
+            // 2. If IsCallable(func) is false, throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Not a callable value",
@@ -103,26 +108,17 @@ impl FunctionPrototype {
         let this_arg = args.get(0);
         let arg_array = args.get(1);
         if arg_array.is_undefined() || arg_array.is_null() {
-            // TODO: PrepareForTailCall
+            // 3. If argArray is either undefined or null, then
+            //   a. TODO: Perform PrepareForTailCall().
+            //   b. Return ? Call(func, thisArg).
             return call_function(agent, func, this_arg, None);
         }
-        // TODO: let arg_list = create_list_from_array_like(arg_array);
-        let elements = match arg_array {
-            Value::Array(array) => array.as_slice(agent),
-            _ => {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Not a valid arguments array",
-                ));
-            }
-        };
-        let args: Vec<Value> = elements
-            .iter()
-            .map(|value| value.unwrap_or(Value::Undefined))
-            .collect();
-        let arg_list = ArgumentsList(&args);
-        // TODO: PrepareForTailCall
-        call_function(agent, func, this_arg, Some(arg_list))
+        // 4. Let argList be ? CreateListFromArrayLike(argArray).
+        let args = create_list_from_array_like(agent, arg_array)?;
+        let args_list = ArgumentsList(&args);
+        // 5. TODO: Perform PrepareForTailCall().
+        // 6.Return ? Call(func, thisArg, argList).
+        call_function(agent, func, this_arg, Some(args_list))
     }
 
     fn bind(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
