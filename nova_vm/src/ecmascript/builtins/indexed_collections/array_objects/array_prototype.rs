@@ -1815,13 +1815,16 @@ impl ArrayPrototype {
     /// > other kinds of objects for use as a method.
     fn reduce(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         let callback_fn = arguments.get(0);
-        let initial_value = arguments.get(1);
+        let initial_value = if arguments.len() >= 1 {
+            Some(arguments.get(1))
+        } else {
+            None
+        };
 
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        // NOTE: Guaranteed to be a valid u32 because it's the length of an array-like object.
-        let len = length_of_array_like(agent, o)? as u32;
+        let len = length_of_array_like(agent, o)?;
 
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
@@ -1832,7 +1835,7 @@ impl ArrayPrototype {
         };
 
         // 4. If len = 0 and initialValue is not present, throw a TypeError exception.
-        if len == 0 && initial_value.is_undefined() {
+        if len == 0 && initial_value.is_none() {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Array length is 0 and no initial value provided",
@@ -1840,21 +1843,21 @@ impl ArrayPrototype {
         }
 
         // 5. Let k be 0.
-        let mut k: u32 = 0;
+        let mut k = 0;
         // 6. Let accumulator be undefined.
         // 7. If initialValue is present,
         // a. Set accumulator to initialValue.
-        let mut accumulator = initial_value;
+        let mut accumulator = initial_value.unwrap_or(Value::Undefined);
 
         // 8. Else,
-        if accumulator.is_undefined() {
+        if initial_value.is_none() {
             // a. Let kPresent be false.
             let mut k_present = false;
 
             // b. Repeat, while kPresent is false and k < len,
             while !k_present && k < len {
                 // i. Let Pk be ! ToString(𝔽(k)).
-                let pk = PropertyKey::from(k);
+                let pk = PropertyKey::Integer(k.try_into().unwrap());
 
                 // ii. Set kPresent to ? HasProperty(O, Pk).
                 k_present = has_property(agent, o, pk)?;
@@ -1880,8 +1883,9 @@ impl ArrayPrototype {
 
         // 9. Repeat, while k < len,
         while k < len {
+            let k_int = k.try_into().unwrap();
             // a. Let Pk be ! ToString(𝔽(k)).
-            let pk = PropertyKey::from(k);
+            let pk = PropertyKey::Integer(k_int);
 
             // b. Let kPresent be ? HasProperty(O, Pk).
             let k_present = has_property(agent, o, pk)?;
@@ -1899,7 +1903,7 @@ impl ArrayPrototype {
                     Some(ArgumentsList(&[
                         accumulator,
                         k_value,
-                        k.into(),
+                        Number::from(k_int).into_value(),
                         o.into_value(),
                     ])),
                 )?;
@@ -1955,7 +1959,11 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let callback_fn = arguments.get(0);
-        let initial_value = arguments.get(1);
+        let initial_value = if arguments.len() >= 1 {
+            Some(arguments.get(1))
+        } else {
+            None
+        };
 
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
@@ -1972,7 +1980,7 @@ impl ArrayPrototype {
         };
 
         // 4. If len = 0 and initialValue is not present, throw a TypeError exception.
-        if len == 0 && initial_value.is_undefined() {
+        if len == 0 && initial_value.is_none() {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Array length is 0 and no initial value provided",
@@ -1984,10 +1992,10 @@ impl ArrayPrototype {
         // 6. Let accumulator be undefined.
         // 7. If initialValue is present, then
         // a. Set accumulator to initialValue.
-        let mut accumulator = initial_value;
+        let mut accumulator = initial_value.unwrap_or(Value::Undefined);
 
         // 8. Else,
-        if accumulator.is_undefined() {
+        if initial_value.is_none() {
             // a. Let kPresent be false.
             let mut k_present = false;
 
