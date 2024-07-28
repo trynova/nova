@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use clap::{Args, Parser as ClapParser, Subcommand};
+use clap::{builder::ArgPredicate, Args, Parser as ClapParser, Subcommand};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -374,8 +374,29 @@ struct Test262Runner {
 
 #[derive(Debug, Default)]
 struct Test262RunnerState {
-    num_tests_run: usize,
     unexpected_results: HashMap<PathBuf, TestExpectation>,
+    num_tests_run: usize,
+    num_tests_pass: usize,
+    num_tests_fail: usize,
+    num_tests_unresolved: usize,
+    num_tests_crash: usize,
+    num_tests_timeout: usize,
+}
+
+#[derive(Serialize)]
+struct Test262RunnerMetrics {
+    total: usize,
+    results: Test262RunnerMetricsResults,
+}
+
+#[derive(Serialize)]
+struct Test262RunnerMetricsResults {
+    pass: usize,
+    fail: usize,
+    unresolved: usize,
+    crash: usize,
+    timeout: usize,
+    skip: usize,
 }
 
 thread_local! {
@@ -413,6 +434,11 @@ impl Test262Runner {
             .into_iter()
             .reduce(|mut acc, el| {
                 acc.num_tests_run += el.num_tests_run;
+                acc.num_tests_pass += el.num_tests_pass;
+                acc.num_tests_fail += el.num_tests_fail;
+                acc.num_tests_unresolved += el.num_tests_unresolved;
+                acc.num_tests_crash += el.num_tests_crash;
+                acc.num_tests_timeout += el.num_tests_timeout;
                 acc.unexpected_results.extend(el.unexpected_results);
                 acc
             })
@@ -445,7 +471,16 @@ impl Test262Runner {
             return;
         };
 
-        RUNNER_STATE.with_borrow_mut(|state| state.num_tests_run += 1);
+        RUNNER_STATE.with_borrow_mut(|state| {
+            state.num_tests_run += 1;
+            match test_result {
+                TestExpectation::Pass => state.num_tests_pass += 1,
+                TestExpectation::Fail => state.num_tests_fail += 1,
+                TestExpectation::Unresolved => state.num_tests_unresolved += 1,
+                TestExpectation::Crash => state.num_tests_crash += 1,
+                TestExpectation::Timeout => state.num_tests_timeout += 1,
+            }
+        });
 
         let relpath = path.strip_prefix(&self.inner.tests_base).unwrap();
 
@@ -740,9 +775,23 @@ struct RunTestsArgs {
     #[arg(short = 'j', long)]
     num_threads: Option<NonZeroUsize>,
 
-    /// Update the expectations file with the results of the test run.
+    /// Updates the expectations and metrics files with the results of the test.
     #[arg(short, long)]
+    update: bool,
+
+    /// Update the expectations file with the results of the test run.
+    #[arg(
+        long,
+        default_value_if("update", ArgPredicate::IsPresent, Some("true"))
+    )]
     update_expectations: bool,
+
+    /// Update the metrics file with the metrics of the test run.
+    #[arg(
+        long,
+        default_value_if("update", ArgPredicate::IsPresent, Some("true"))
+    )]
+    update_metrics: bool,
 
     /// If true, crashes and failures are not distinguished as test
     /// expectations, i.e. if a test should crash in the expectation file but it
@@ -845,6 +894,7 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
     base_runner.in_test_eval = false;
 
     let expectation_path = base_runner.runner_base_path.join("expectations.json");
+    let metrics_path = base_runner.runner_base_path.join("metrics.json");
     let expectations = {
         if args.update_expectations && !expectation_path.is_file() {
             Default::default()
@@ -912,6 +962,24 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
     } else {
         Default::default()
     };
+
+    if args.update_metrics {
+        let num_tests_skip = filters.denylist.len();
+        let json = serde_json::to_value(Test262RunnerMetrics {
+            total: run_result.num_tests_run + num_tests_skip,
+            results: Test262RunnerMetricsResults {
+                pass: run_result.num_tests_pass,
+                fail: run_result.num_tests_fail,
+                unresolved: run_result.num_tests_unresolved,
+                crash: run_result.num_tests_crash,
+                timeout: run_result.num_tests_timeout,
+                skip: num_tests_skip,
+            },
+        })
+        .unwrap();
+        let mut file = File::create(metrics_path).unwrap();
+        serde_json::to_writer_pretty(&mut file, &json).unwrap();
+    }
 
     if run_result.num_tests_run == 0 {
         println!("No tests found. Check your filters.");
