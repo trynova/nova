@@ -890,8 +890,6 @@ fn eval_test(mut base_runner: BaseTest262Runner, path: PathBuf) {
 }
 
 fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
-    dbg!(&args);
-
     base_runner.print_progress = !args.noprogress;
     base_runner.in_test_eval = false;
 
