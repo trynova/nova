@@ -29,7 +29,7 @@ use crate::{
         },
         scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
         syntax_directed_operations::{
-            function_definitions::evaluate_function_body,
+            function_definitions::{evaluate_async_function_body, evaluate_function_body},
             miscellaneous::instantiate_function_object,
             scope_analysis::{
                 function_body_lexically_declared_names, function_body_lexically_scoped_decarations,
@@ -738,30 +738,39 @@ pub(crate) fn evaluate_body(
 ) -> JsResult<Value> {
     let function_heap_data = &agent[function_object].ecmascript_function;
     let heap_data = function_heap_data;
-    // SAFETY: AS the ECMAScriptFunction is alive in the heap, its referred
-    // SourceCode must be as well. Thus the Allocator is live as well, and no
-    // other references to it can exist.
-    if unsafe { heap_data.ecmascript_code.as_ref() }
-        .statements
-        .is_empty()
-        && unsafe { heap_data.formal_parameters.as_ref() }.is_simple_parameter_list()
-    {
-        // Optimisation: Empty body and only simple parameters means no code will effectively run.
-        return Ok(Value::Undefined);
+    match (heap_data.is_generator, heap_data.is_async) {
+        (false, true) => {
+            // AsyncFunctionBody : FunctionBody
+            // 1. Return ? EvaluateAsyncFunctionBody of AsyncFunctionBody with arguments functionObject and argumentsList.
+            // AsyncConciseBody : ExpressionBody
+            // 1. Return ? EvaluateAsyncConciseBody of AsyncConciseBody with arguments functionObject and argumentsList.
+            Ok(evaluate_async_function_body(agent, function_object, arguments_list).into_value())
+        }
+        (false, false) => {
+            // SAFETY: AS the ECMAScriptFunction is alive in the heap, its referred
+            // SourceCode must be as well. Thus the Allocator is live as well, and no
+            // other references to it can exist.
+            if unsafe { heap_data.ecmascript_code.as_ref() }
+                .statements
+                .is_empty()
+                && unsafe { heap_data.formal_parameters.as_ref() }.is_simple_parameter_list()
+            {
+                // Optimisation: Empty body and only simple parameters means no code will effectively run.
+                return Ok(Value::Undefined);
+            }
+            // FunctionBody : FunctionStatementList
+            // 1. Return ? EvaluateFunctionBody of FunctionBody with arguments functionObject and argumentsList.
+            // ConciseBody : ExpressionBody
+            // 1. Return ? EvaluateConciseBody of ConciseBody with arguments functionObject and argumentsList.
+            evaluate_function_body(agent, function_object, arguments_list)
+        }
+        // GeneratorBody : FunctionBody
+        // 1. Return ? EvaluateGeneratorBody of GeneratorBody with arguments functionObject and argumentsList.
+        // AsyncGeneratorBody : FunctionBody
+        // 1. Return ? EvaluateAsyncGeneratorBody of AsyncGeneratorBody with arguments functionObject and argumentsList.
+        _ => todo!(),
     }
-    // FunctionBody : FunctionStatementList
-    // 1. Return ? EvaluateFunctionBody of FunctionBody with arguments functionObject and argumentsList.
-    evaluate_function_body(agent, function_object, arguments_list)
-    // ConciseBody : ExpressionBody
-    // 1. Return ? EvaluateConciseBody of ConciseBody with arguments functionObject and argumentsList.
-    // GeneratorBody : FunctionBody
-    // 1. Return ? EvaluateGeneratorBody of GeneratorBody with arguments functionObject and argumentsList.
-    // AsyncGeneratorBody : FunctionBody
-    // 1. Return ? EvaluateAsyncGeneratorBody of AsyncGeneratorBody with arguments functionObject and argumentsList.
-    // AsyncFunctionBody : FunctionBody
-    // 1. Return ? EvaluateAsyncFunctionBody of AsyncFunctionBody with arguments functionObject and argumentsList.
-    // AsyncConciseBody : ExpressionBody
-    // 1. Return ? EvaluateAsyncConciseBody of AsyncConciseBody with arguments functionObject and argumentsList.
+
     // Initializer :
     // = AssignmentExpression
     // 1. Assert: argumentsList is empty.

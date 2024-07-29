@@ -5,8 +5,7 @@
 use crate::{
     ecmascript::{
         builtins::{
-            function_declaration_instantiation, make_constructor, ordinary_function_create,
-            set_function_name, ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams,
+            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, function_declaration_instantiation, make_constructor, ordinary_function_create, promise::Promise, set_function_name, ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams
         },
         execution::{
             Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult,
@@ -169,4 +168,41 @@ pub(crate) fn evaluate_function_body(
         .is_concise_arrow_function;
     let exe = Executable::compile_function_body(agent, body, is_concise_arrow_function);
     Ok(Vm::execute(agent, &exe)?.unwrap_or(Value::Undefined))
+}
+
+/// ### [15.8.4 Runtime Semantics: EvaluateAsyncFunctionBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluateasyncfunctionbody)
+pub(crate) fn evaluate_async_function_body(
+    agent: &mut Agent,
+    function_object: ECMAScriptFunction,
+    arguments_list: ArgumentsList,
+) -> Promise {
+    // 1. Let promiseCapability be ! NewPromiseCapability(%Promise%).
+    let promise_capability = PromiseCapability::new(agent);
+    // 2. Let declResult be Completion(FunctionDeclarationInstantiation(functionObject, argumentsList)).
+    // 3. If declResult is an abrupt completion, then
+    if let Err(err) = function_declaration_instantiation(agent, function_object, arguments_list) {
+        // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « declResult.[[Value]] »).
+        promise_capability.reject(agent, err.value());
+    } else {
+        // 4. Else,
+        // a. Perform AsyncFunctionStart(promiseCapability, FunctionBody).
+        let body = unsafe {
+            agent[function_object]
+                .ecmascript_function
+                .ecmascript_code
+                .as_ref()
+        };
+        let is_concise_arrow_function = agent[function_object]
+            .ecmascript_function
+            .is_concise_arrow_function;
+        let exe = Executable::compile_function_body(agent, body, is_concise_arrow_function);
+
+        match Vm::execute(agent, &exe) {
+            Ok(result) => promise_capability.resolve(agent, result.unwrap_or(Value::Undefined)),
+            Err(err) => promise_capability.reject(agent, err.value()),
+        }
+    }
+
+    // 5. Return Completion Record { [[Type]]: return, [[Value]]: promiseCapability.[[Promise]], [[Target]]: empty }.
+    promise_capability.promise()
 }

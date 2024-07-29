@@ -50,7 +50,7 @@ pub(crate) fn instantiate_function_object(
     // async function ( FormalParameters ) { AsyncFunctionBody }
     if function.r#async && !function.generator {
         // 1. Return InstantiateAsyncFunctionObject of AsyncFunctionDeclaration with arguments env and privateEnv.
-        todo!("InstantiateAsyncFunctionObject");
+        return instantiate_ordinary_function_object(agent, function, env, private_env);
     }
     unreachable!();
 }
