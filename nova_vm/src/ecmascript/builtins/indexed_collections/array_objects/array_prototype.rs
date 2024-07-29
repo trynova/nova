@@ -2047,7 +2047,7 @@ impl ArrayPrototype {
                     Some(ArgumentsList(&[
                         accumulator,
                         k_value,
-                        (k as u32).into(),
+                        Number::try_from(k).unwrap().into(),
                         o.into_value(),
                     ])),
                 )?;
