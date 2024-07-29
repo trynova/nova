@@ -339,10 +339,6 @@ impl WorkQueues {
             }
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
-            Value::ECMAScriptAsyncFunction => todo!(),
-            Value::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Value::ECMAScriptConstructorFunction => todo!(),
-            Value::ECMAScriptGeneratorFunction => todo!(),
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),

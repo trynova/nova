@@ -200,6 +200,10 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     /// return or not.
     pub is_concise_arrow_function: bool,
 
+    pub is_async: bool,
+
+    pub is_generator: bool,
+
     /// \[\[ConstructorKind]]
     /// \[\[IsClassConstructor]]
     pub constructor_status: ConstructorStatus,
@@ -236,6 +240,8 @@ pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
     pub parameters_list: &'agent FormalParameters<'program>,
     pub body: &'agent FunctionBody<'program>,
     pub is_concise_arrow_function: bool,
+    pub is_async: bool,
+    pub is_generator: bool,
     pub lexical_this: bool,
     pub env: EnvironmentIndex,
     pub private_env: Option<PrivateEnvironmentIndex>,
@@ -342,12 +348,19 @@ impl InternalSlots for ECMAScriptFunction {
             object_index.internal_prototype(agent)
         } else {
             let realm = agent[self].ecmascript_function.realm;
-            Some(
-                agent
-                    .get_realm(realm)
-                    .intrinsics()
-                    .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE),
-            )
+            let intrinsics = agent[realm].intrinsics();
+            let proto = match (
+                agent[self].ecmascript_function.is_async,
+                agent[self].ecmascript_function.is_generator,
+            ) {
+                (false, false) => intrinsics.function_prototype().into_object(),
+                (false, true) => intrinsics.generator_function_prototype().into_object(),
+                (true, false) => intrinsics.async_function_prototype().into_object(),
+                (true, true) => intrinsics
+                    .async_generator_function_prototype()
+                    .into_object(),
+            };
+            Some(proto)
         }
     }
 }
@@ -826,6 +839,8 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
             std::mem::transmute::<&FunctionBody<'program>, &FunctionBody<'static>>(params.body)
         }),
         is_concise_arrow_function: params.is_concise_arrow_function,
+        is_async: params.is_async,
+        is_generator: params.is_generator,
         // 12. Set F.[[IsClassConstructor]] to false.
         constructor_status: ConstructorStatus::NonConstructor,
         // 16. Set F.[[Realm]] to the current Realm Record.
@@ -925,10 +940,6 @@ pub(crate) fn make_constructor(
         Function::BuiltinPromiseResolvingFunction(_) => todo!(),
         Function::BuiltinPromiseCollectorFunction => todo!(),
         Function::BuiltinProxyRevokerFunction => todo!(),
-        Function::ECMAScriptAsyncFunction => todo!(),
-        Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-        Function::ECMAScriptConstructorFunction => todo!(),
-        Function::ECMAScriptGeneratorFunction => todo!(),
     }
     // 5. If prototype is not present, then
     let prototype = prototype.unwrap_or_else(|| {
@@ -1036,10 +1047,6 @@ pub(crate) fn set_function_name(
         Function::BuiltinPromiseResolvingFunction(_) => todo!(),
         Function::BuiltinPromiseCollectorFunction => todo!(),
         Function::BuiltinProxyRevokerFunction => todo!(),
-        Function::ECMAScriptAsyncFunction => todo!(),
-        Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-        Function::ECMAScriptConstructorFunction => todo!(),
-        Function::ECMAScriptGeneratorFunction => todo!(),
     }
 }
 
