@@ -125,8 +125,8 @@ pub(crate) fn instantiate_ordinary_function_expression(
             parameters_list: &function.expression.get().params,
             body: function.expression.get().body.as_ref().unwrap(),
             is_concise_arrow_function: false,
-            is_async: function.expression.r#async,
-            is_generator: function.expression.generator,
+            is_async: function.expression.get().r#async,
+            is_generator: function.expression.get().generator,
             lexical_this: false,
             env: lexical_environment,
             private_env: private_environment,
@@ -136,7 +136,7 @@ pub(crate) fn instantiate_ordinary_function_expression(
         let name = PropertyKey::from(name);
         set_function_name(agent, closure, name, None);
         // 7. Perform MakeConstructor(closure).
-        if !function.expression.r#async && !function.expression.generator {
+        if !function.expression.get().r#async && !function.expression.get().generator {
             make_constructor(agent, closure, None, None);
         }
         // 8. Return closure.
