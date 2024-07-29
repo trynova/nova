@@ -4,15 +4,18 @@
 
 use std::collections::VecDeque;
 
-use crate::ecmascript::{
-    abstract_operations::{
-        operations_on_iterator_objects::IteratorRecord,
-        operations_on_objects::{call, get},
-        type_conversion::to_boolean,
+use crate::{
+    ecmascript::{
+        abstract_operations::{
+            operations_on_iterator_objects::IteratorRecord,
+            operations_on_objects::{call, get},
+            type_conversion::to_boolean,
+        },
+        builtins::Array,
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{InternalMethods, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
     },
-    builtins::Array,
-    execution::{agent::ExceptionType, Agent, JsResult},
-    types::{InternalMethods, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug)]
@@ -164,5 +167,51 @@ impl ArrayValuesIterator {
         // a. Let result be elementValue.
         // vii. Perform ? GeneratorYield(CreateIterResultObject(result, false)).
         Ok(Some(element_value))
+    }
+}
+
+impl HeapMarkAndSweep for ObjectPropertiesIterator {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.object.mark_values(queues);
+        self.visited_keys.as_slice().mark_values(queues);
+        for key in self.remaining_keys.iter() {
+            key.mark_values(queues);
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.object.sweep_values(compactions);
+        self.visited_keys.as_mut_slice().sweep_values(compactions);
+        for key in self.remaining_keys.iter_mut() {
+            key.sweep_values(compactions);
+        }
+    }
+}
+
+impl HeapMarkAndSweep for ArrayValuesIterator {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.array.mark_values(queues)
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.array.sweep_values(compactions);
+    }
+}
+
+impl HeapMarkAndSweep for VmIterator {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            VmIterator::ObjectProperties(iter) => iter.mark_values(queues),
+            VmIterator::ArrayValues(iter) => iter.mark_values(queues),
+            VmIterator::GenericIterator(iter) => iter.mark_values(queues),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            VmIterator::ObjectProperties(iter) => iter.sweep_values(compactions),
+            VmIterator::ArrayValues(iter) => iter.sweep_values(compactions),
+            VmIterator::GenericIterator(iter) => iter.sweep_values(compactions),
+        }
     }
 }

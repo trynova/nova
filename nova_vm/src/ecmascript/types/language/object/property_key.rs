@@ -17,6 +17,7 @@ use crate::{
             String, Symbol, Value,
         },
     },
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     SmallInteger, SmallString,
 };
 
@@ -241,6 +242,26 @@ impl TryFrom<usize> for PropertyKey {
             Self::try_from(i64)
         } else {
             Err(())
+        }
+    }
+}
+
+impl HeapMarkAndSweep for PropertyKey {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            PropertyKey::Integer(_) => {}
+            PropertyKey::SmallString(_) => {}
+            PropertyKey::String(string) => string.mark_values(queues),
+            PropertyKey::Symbol(symbol) => symbol.mark_values(queues),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            PropertyKey::Integer(_) => {}
+            PropertyKey::SmallString(_) => {}
+            PropertyKey::String(string) => string.sweep_values(compactions),
+            PropertyKey::Symbol(symbol) => symbol.sweep_values(compactions),
         }
     }
 }
