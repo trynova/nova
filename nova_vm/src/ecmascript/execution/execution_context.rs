@@ -101,12 +101,14 @@ impl HeapMarkAndSweep for ECMAScriptCodeEvaluationState {
         self.lexical_environment.mark_values(queues);
         self.variable_environment.mark_values(queues);
         self.private_environment.mark_values(queues);
+        self.source_code.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.lexical_environment.sweep_values(compactions);
         self.variable_environment.sweep_values(compactions);
         self.private_environment.sweep_values(compactions);
+        self.source_code.sweep_values(compactions);
     }
 }
 
