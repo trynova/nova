@@ -340,7 +340,7 @@ impl HeapMarkAndSweep for Base {
         match self {
             Base::Value(value) => value.sweep_values(compactions),
             Base::Environment(idx) => idx.sweep_values(compactions),
-            Base::Unresolvable => todo!(),
+            Base::Unresolvable => {}
         }
     }
 }
