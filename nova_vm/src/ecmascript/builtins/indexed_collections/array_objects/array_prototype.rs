@@ -2002,8 +2002,7 @@ impl ArrayPrototype {
             // b. Repeat, while kPresent is false and k ≥ 0,
             while !k_present && k >= 0 {
                 // i. Let Pk be ! ToString(𝔽(k)).
-                // NOTE: Guaranteed to be a valid u32 because it's max is the length of an array-like object.
-                let pk = PropertyKey::from(k as u32);
+                let pk = PropertyKey::try_from(k).unwrap();
 
                 // ii. Set kPresent to ? HasProperty(O, Pk).
                 k_present = has_property(agent, o, pk)?;
@@ -2030,8 +2029,7 @@ impl ArrayPrototype {
         // 9. Repeat, while k ≥ 0,
         while k >= 0 {
             // a. Let Pk be ! ToString(𝔽(k)).
-            // NOTE: Guaranteed to be a valid u32 because it's max is the length of an array-like object.
-            let pk = PropertyKey::from(k as u32);
+            let pk = PropertyKey::try_from(k).unwrap();
 
             // b. Let kPresent be ? HasProperty(O, Pk).
             let k_present = has_property(agent, o, pk)?;
