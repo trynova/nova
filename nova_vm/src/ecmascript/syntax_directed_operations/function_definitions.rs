@@ -109,13 +109,13 @@ pub(crate) fn instantiate_ordinary_function_expression(
             .as_ref()
             .unwrap();
         // 4. Let sourceText be the source text matched by FunctionExpression.
-        let source_text = function.expression.span;
+        let source_text = function.expression.get().span;
         // 5. Let closure be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
         let params = OrdinaryFunctionCreateParams {
             function_prototype: None,
             source_text,
-            parameters_list: &function.expression.params,
-            body: function.expression.body.as_ref().unwrap(),
+            parameters_list: &function.expression.get().params,
+            body: function.expression.get().body.as_ref().unwrap(),
             is_concise_arrow_function: false,
             lexical_this: false,
             env: lexical_environment,

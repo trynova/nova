@@ -15,7 +15,7 @@ use crate::{
         },
         types::{BigIntHeapData, PropertyKey, Reference, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::CreateHeapData,
+    heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
 };
 use num_bigint::BigInt;
 use num_traits::Num;
@@ -70,15 +70,42 @@ impl CompileContext<'_> {
 }
 
 #[derive(Debug)]
+/// A `Send` and `Sync` wrapper over a `&'static T` where `T` might not itself
+/// be `Sync`. This is safe because the reference can only be obtained from the
+/// same thread in which the `SendableRef` was created.
+pub(crate) struct SendableRef<T: 'static> {
+    reference: &'static T,
+    thread_id: std::thread::ThreadId,
+}
+
+impl<T> SendableRef<T> {
+    pub(crate) fn new(reference: &'static T) -> Self {
+        Self {
+            reference,
+            thread_id: std::thread::current().id(),
+        }
+    }
+    pub(crate) fn get(&self) -> &T {
+        assert_eq!(std::thread::current().id(), self.thread_id);
+        self.reference
+    }
+}
+
+// SAFETY: The reference will only be dereferenced in a thread in which the
+// reference is valid, so it's fine to send or use this type from other threads.
+unsafe impl<T> Send for SendableRef<T> {}
+unsafe impl<T> Sync for SendableRef<T> {}
+
+#[derive(Debug)]
 pub(crate) struct FunctionExpression {
-    pub(crate) expression: &'static ast::Function<'static>,
+    pub(crate) expression: SendableRef<ast::Function<'static>>,
     pub(crate) identifier: Option<NamedEvaluationParameter>,
     pub(crate) home_object: Option<usize>,
 }
 
 #[derive(Debug)]
 pub(crate) struct ArrowFunctionExpression {
-    pub(crate) expression: &'static ast::ArrowFunctionExpression<'static>,
+    pub(crate) expression: SendableRef<ast::ArrowFunctionExpression<'static>>,
     pub(crate) identifier: Option<NamedEvaluationParameter>,
     pub(crate) home_object: Option<usize>,
 }
@@ -861,12 +888,12 @@ impl CompileEvaluation for ast::ArrowFunctionExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         ctx.exe
             .add_arrow_function_expression(ArrowFunctionExpression {
-                expression: unsafe {
+                expression: SendableRef::new(unsafe {
                     std::mem::transmute::<
                         &ast::ArrowFunctionExpression<'_>,
                         &'static ast::ArrowFunctionExpression<'static>,
                     >(self)
-                },
+                }),
                 // CompileContext holds a name identifier for us if this is NamedEvaluation.
                 identifier: ctx.name_identifier.take(),
                 home_object: None,
@@ -879,9 +906,9 @@ impl CompileEvaluation for ast::Function<'_> {
         ctx.exe.add_instruction_with_function_expression(
             Instruction::InstantiateOrdinaryFunctionExpression,
             FunctionExpression {
-                expression: unsafe {
+                expression: SendableRef::new(unsafe {
                     std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(self)
-                },
+                }),
                 // CompileContext holds a name identifier for us if this is NamedEvaluation.
                 identifier: ctx.name_identifier.take(),
                 home_object: None,
@@ -999,14 +1026,14 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                                     Instruction::ObjectSetSetter
                                 },
                                 FunctionExpression {
-                                    expression: unsafe {
+                                    expression: SendableRef::new(unsafe {
                                         std::mem::transmute::<
                                             &ast::Function<'_>,
                                             &'static ast::Function<'static>,
                                         >(
                                             function_expression
                                         )
-                                    },
+                                    }),
                                     identifier: None,
                                     home_object: None,
                                 },
@@ -2754,5 +2781,19 @@ fn is_anonymous_function_definition(expression: &ast::Expression) -> bool {
         ast::Expression::ArrowFunctionExpression(_) => true,
         ast::Expression::FunctionExpression(f) => f.id.is_none(),
         _ => false,
+    }
+}
+
+impl HeapMarkAndSweep for Executable {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.constants.as_slice().mark_values(queues);
+        self.identifiers.as_slice().mark_values(queues);
+        self.references.as_slice().mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.constants.as_mut_slice().sweep_values(compactions);
+        self.identifiers.as_mut_slice().sweep_values(compactions);
+        self.references.as_mut_slice().sweep_values(compactions);
     }
 }

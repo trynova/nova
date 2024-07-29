@@ -41,7 +41,7 @@ use crate::{
             Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
 struct EmptyParametersList(ast::FormalParameters<'static>);
@@ -347,9 +347,9 @@ impl Vm {
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
                     // 4. Let sourceText be the source text matched by MethodDefinition.
-                    source_text: function_expression.expression.span,
+                    source_text: function_expression.expression.get().span,
                     parameters_list: &empty_parameters.0,
-                    body: function_expression.expression.body.as_ref().unwrap(),
+                    body: function_expression.expression.get().body.as_ref().unwrap(),
                     is_concise_arrow_function: false,
                     lexical_this: false,
                     env,
@@ -407,9 +407,9 @@ impl Vm {
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
                     // 4. Let sourceText be the source text matched by MethodDefinition.
-                    source_text: function_expression.expression.span,
-                    parameters_list: &function_expression.expression.params,
-                    body: function_expression.expression.body.as_ref().unwrap(),
+                    source_text: function_expression.expression.get().span,
+                    parameters_list: &function_expression.expression.get().params,
+                    body: function_expression.expression.get().body.as_ref().unwrap(),
                     is_concise_arrow_function: false,
                     lexical_this: false,
                     env,
@@ -516,10 +516,10 @@ impl Vm {
                 // 1. If name is not present, set name to "".
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
-                    source_text: function_expression.expression.span,
-                    parameters_list: &function_expression.expression.params,
-                    body: &function_expression.expression.body,
-                    is_concise_arrow_function: function_expression.expression.expression,
+                    source_text: function_expression.expression.get().span,
+                    parameters_list: &function_expression.expression.get().params,
+                    body: &function_expression.expression.get().body,
+                    is_concise_arrow_function: function_expression.expression.get().expression,
                     lexical_this: true,
                     env: lexical_environment,
                     private_env: private_environment,
@@ -564,7 +564,7 @@ impl Vm {
                 let (name, env, init_binding) = if let Some(parameter) =
                     function_expression.identifier
                 {
-                    debug_assert!(function_expression.expression.id.is_none());
+                    debug_assert!(function_expression.expression.get().id.is_none());
                     let name = match parameter {
                         NamedEvaluationParameter::Result => {
                             to_property_key(agent, vm.result.unwrap())?
@@ -580,7 +580,7 @@ impl Vm {
                         }
                     };
                     (name, lexical_environment, false)
-                } else if let Some(binding_identifier) = &function_expression.expression.id {
+                } else if let Some(binding_identifier) = &function_expression.expression.get().id {
                     let name = String::from_str(agent, &binding_identifier.name);
                     let func_env = new_declarative_environment(agent, Some(lexical_environment));
                     func_env.create_immutable_binding(agent, name, false);
@@ -590,9 +590,9 @@ impl Vm {
                 };
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
-                    source_text: function_expression.expression.span,
-                    parameters_list: &function_expression.expression.params,
-                    body: function_expression.expression.body.as_ref().unwrap(),
+                    source_text: function_expression.expression.get().span,
+                    parameters_list: &function_expression.expression.get().params,
+                    body: function_expression.expression.get().body.as_ref().unwrap(),
                     is_concise_arrow_function: false,
                     lexical_this: false,
                     env,
@@ -600,8 +600,8 @@ impl Vm {
                 };
                 let function = ordinary_function_create(agent, params);
                 set_function_name(agent, function, name, None);
-                if !function_expression.expression.r#async
-                    && !function_expression.expression.generator
+                if !function_expression.expression.get().r#async
+                    && !function_expression.expression.get().generator
                 {
                     make_constructor(agent, function, None, None);
                 }
@@ -1562,5 +1562,43 @@ pub(crate) fn instanceof_operator(
         };
         // 5. Return ? OrdinaryHasInstance(target, V).
         Ok(ordinary_has_instance(agent, target, value)?)
+    }
+}
+
+impl HeapMarkAndSweep for ExceptionJumpTarget {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.lexical_environment.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.lexical_environment.sweep_values(compactions);
+    }
+}
+
+impl HeapMarkAndSweep for Vm {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.stack.as_slice().mark_values(queues);
+        self.reference_stack.as_slice().mark_values(queues);
+        self.iterator_stack.as_slice().mark_values(queues);
+        self.exception_jump_target_stack
+            .as_slice()
+            .mark_values(queues);
+        self.result.mark_values(queues);
+        self.exception.mark_values(queues);
+        self.reference.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.stack.as_mut_slice().sweep_values(compactions);
+        self.reference_stack
+            .as_mut_slice()
+            .sweep_values(compactions);
+        self.iterator_stack.as_mut_slice().sweep_values(compactions);
+        self.exception_jump_target_stack
+            .as_mut_slice()
+            .sweep_values(compactions);
+        self.result.sweep_values(compactions);
+        self.exception.sweep_values(compactions);
+        self.reference.sweep_values(compactions);
     }
 }

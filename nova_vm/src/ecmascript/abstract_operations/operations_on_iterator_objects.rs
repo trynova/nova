@@ -17,7 +17,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{Function, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
 /// ### [7.4.1 Iterator Records](https://tc39.es/ecma262/#sec-iterator-records)
@@ -447,4 +447,16 @@ pub(crate) fn iterator_to_list(
 
     // 4. Return values.
     Ok(values)
+}
+
+impl HeapMarkAndSweep for IteratorRecord {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.iterator.mark_values(queues);
+        self.next_method.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.iterator.sweep_values(compactions);
+        self.next_method.sweep_values(compactions);
+    }
 }
