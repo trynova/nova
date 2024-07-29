@@ -2,13 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::{
-    abstract_operations::{operations_on_objects::set, type_conversion::to_object},
-    execution::{
-        agent::{self, ExceptionType},
-        get_global_object, EnvironmentIndex,
+use crate::{
+    ecmascript::{
+        abstract_operations::{operations_on_objects::set, type_conversion::to_object},
+        execution::{
+            agent::{self, ExceptionType},
+            get_global_object, EnvironmentIndex,
+        },
+        types::{InternalMethods, Object, PropertyKey, String, Value},
     },
-    types::{InternalMethods, Object, PropertyKey, String, Value},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 use agent::{Agent, JsResult};
 
@@ -308,4 +311,36 @@ pub(crate) enum Base {
     Value(Value),
     Environment(EnvironmentIndex),
     Unresolvable,
+}
+
+impl HeapMarkAndSweep for Reference {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.base.mark_values(queues);
+        self.referenced_name.mark_values(queues);
+        self.this_value.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.base.sweep_values(compactions);
+        self.referenced_name.sweep_values(compactions);
+        self.this_value.sweep_values(compactions);
+    }
+}
+
+impl HeapMarkAndSweep for Base {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            Base::Value(value) => value.mark_values(queues),
+            Base::Environment(idx) => idx.mark_values(queues),
+            Base::Unresolvable => {}
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            Base::Value(value) => value.sweep_values(compactions),
+            Base::Environment(idx) => idx.sweep_values(compactions),
+            Base::Unresolvable => todo!(),
+        }
+    }
 }
