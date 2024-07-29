@@ -782,14 +782,14 @@ struct RunTestsArgs {
     /// Update the expectations file with the results of the test run.
     #[arg(
         long,
-        default_value_if("update", ArgPredicate::IsPresent, Some("true"))
+        default_value_if("update", ArgPredicate::Equals("true".into()), Some("true"))
     )]
     update_expectations: bool,
 
     /// Update the metrics file with the metrics of the test run.
     #[arg(
         long,
-        default_value_if("update", ArgPredicate::IsPresent, Some("true"))
+        default_value_if("update", ArgPredicate::Equals("true".into()), Some("true"))
     )]
     update_metrics: bool,
 
@@ -890,6 +890,8 @@ fn eval_test(mut base_runner: BaseTest262Runner, path: PathBuf) {
 }
 
 fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
+    dbg!(&args);
+
     base_runner.print_progress = !args.noprogress;
     base_runner.in_test_eval = false;
 
