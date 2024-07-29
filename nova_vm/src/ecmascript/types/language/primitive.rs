@@ -21,7 +21,7 @@ use super::{
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum Primitive {
+pub enum Primitive<'gen> {
     /// ### [6.1.1 The Undefined Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-undefined-type)
     Undefined = UNDEFINED_DISCRIMINANT,
     /// ### [6.1.2 The Null Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-null-type)
@@ -33,7 +33,7 @@ pub enum Primitive {
     /// UTF-8 string on the heap. Accessing the data must be done through the
     /// Agent. ECMAScript specification compliant UTF-16 indexing is
     /// implemented through an index mapping.
-    String(HeapString) = STRING_DISCRIMINANT,
+    String(HeapString<'gen>) = STRING_DISCRIMINANT,
     /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
     ///
     /// 7-byte UTF-8 string on the stack. End of the string is determined by
@@ -41,11 +41,11 @@ pub enum Primitive {
     /// demand from the data.
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
     /// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
-    Symbol(Symbol) = SYMBOL_DISCRIMINANT,
+    Symbol(Symbol<'gen>) = SYMBOL_DISCRIMINANT,
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// f64 on the heap. Accessing the data must be done through the Agent.
-    Number(HeapNumber) = NUMBER_DISCRIMINANT,
+    Number(HeapNumber<'gen>) = NUMBER_DISCRIMINANT,
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// 53-bit signed integer on the stack.
@@ -59,15 +59,15 @@ pub enum Primitive {
     ///
     /// Unlimited size integer data on the heap. Accessing the data must be
     /// done through the Agent.
-    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt<'gen>) = BIGINT_DISCRIMINANT,
     /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
     /// 56-bit signed integer on the stack.
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
-impl IntoValue for Primitive {
-    fn into_value(self) -> super::Value {
+impl<'gen> IntoValue<'gen> for Primitive<'gen> {
+    fn into_value(self) -> super::Value<'gen> {
         match self {
             Primitive::Undefined => Value::Undefined,
             Primitive::Null => Value::Null,
@@ -84,7 +84,7 @@ impl IntoValue for Primitive {
     }
 }
 
-impl Primitive {
+impl Primitive<'_> {
     pub fn is_boolean(self) -> bool {
         matches!(self, Self::Boolean(_))
     }
@@ -113,16 +113,16 @@ impl Primitive {
     }
 }
 
-impl From<Primitive> for Value {
+impl<'gen> From<Primitive<'gen>> for Value<'gen> {
     fn from(value: Primitive) -> Self {
         value.into_value()
     }
 }
 
-impl TryFrom<Value> for Primitive {
+impl<'gen> TryFrom<Value<'gen>> for Primitive<'gen> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'gen>) -> Result<Self, Self::Error> {
         match value {
             Value::Undefined => Ok(Primitive::Undefined),
             Value::Null => Ok(Primitive::Null),

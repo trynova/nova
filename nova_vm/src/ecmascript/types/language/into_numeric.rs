@@ -4,9 +4,9 @@
 
 use super::Numeric;
 
-pub trait IntoNumeric
+pub trait IntoNumeric<'gen>
 where
     Self: Sized + Copy,
 {
-    fn into_numeric(self) -> Numeric;
+    fn into_numeric(self) -> Numeric<'gen>;
 }

@@ -57,11 +57,11 @@ pub enum PreferredType {
 /// > this specification only Dates (see 21.4.4.45) and Symbol objects (see
 /// > 20.4.3.5) over-ride the default ToPrimitive behaviour. Dates treat the
 /// > absence of a hint as if the hint were STRING.
-pub(crate) fn to_primitive(
-    agent: &mut Agent,
-    input: impl Into<Value> + Copy,
+pub(crate) fn to_primitive<'gen>(
+    agent: &mut Agent<'gen>,
+    input: impl Into<Value<'gen>> + Copy,
     preferred_type: Option<PreferredType>,
-) -> JsResult<Primitive> {
+) -> JsResult<'gen, Primitive> {
     let input: Value = input.into();
     // 1. If input is an Object, then
     if let Ok(input) = Object::try_from(input) {
@@ -120,11 +120,11 @@ pub(crate) fn to_primitive(
 /// The abstract operation OrdinaryToPrimitive takes arguments O (an Object)
 /// and hint (STRING or NUMBER) and returns either a normal completion
 /// containing an ECMAScript language value or a throw completion.
-pub(crate) fn ordinary_to_primitive(
-    agent: &mut Agent,
-    o: Object,
+pub(crate) fn ordinary_to_primitive<'gen>(
+    agent: &mut Agent<'gen>,
+    o: Object<'gen>,
     hint: PreferredType,
-) -> JsResult<Primitive> {
+) -> JsResult<'gen, Primitive> {
     let to_string_key = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
     let value_of_key = PropertyKey::from(BUILTIN_STRING_MEMORY.valueOf);
     let method_names = match hint {
@@ -161,7 +161,7 @@ pub(crate) fn ordinary_to_primitive(
 }
 
 /// ### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
-pub(crate) fn to_boolean(agent: &mut Agent, argument: Value) -> bool {
+pub(crate) fn to_boolean<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> bool {
     // 1. If argument is a Boolean, return argument.
     if let Value::Boolean(ret) = argument {
         return ret;
@@ -186,7 +186,7 @@ pub(crate) fn to_boolean(agent: &mut Agent, argument: Value) -> bool {
 }
 
 /// ### [7.1.3 ToNumeric ( value )](https://tc39.es/ecma262/#sec-tonumeric)
-pub(crate) fn to_numeric(agent: &mut Agent, value: impl Into<Value> + Copy) -> JsResult<Numeric> {
+pub(crate) fn to_numeric<'gen>(agent: &mut Agent<'gen>, value: impl Into<Value<'gen>> + Copy) -> JsResult<'gen, Numeric> {
     // 1. Let primValue be ? ToPrimitive(value, number).
     let prim_value = to_primitive(agent, value, Some(PreferredType::Number))?;
 
@@ -200,7 +200,7 @@ pub(crate) fn to_numeric(agent: &mut Agent, value: impl Into<Value> + Copy) -> J
 }
 
 /// ### [7.1.4 ToNumber ( argument )](https://tc39.es/ecma262/#sec-tonumber)
-pub(crate) fn to_number(agent: &mut Agent, argument: impl Into<Value> + Copy) -> JsResult<Number> {
+pub(crate) fn to_number<'gen>(agent: &mut Agent<'gen>, argument: impl Into<Value<'gen>> + Copy) -> JsResult<'gen, Number<'gen>> {
     let argument: Value = argument.into();
 
     match argument {
@@ -246,7 +246,7 @@ pub(crate) fn to_number(agent: &mut Agent, argument: impl Into<Value> + Copy) ->
 /// Copied from Boa JS engine. Source https://github.com/boa-dev/boa/blob/183e763c32710e4e3ea83ba762cf815b7a89cd1f/core/string/src/lib.rs#L560
 ///
 /// Copyright (c) 2019 Jason Williams
-fn string_to_number(agent: &mut Agent, str: String) -> Number {
+fn string_to_number<'gen>(agent: &mut Agent<'gen>, str: String<'gen>) -> Number<'gen> {
     // 1. Let literal be ParseText(str, StringNumericLiteral).
     // 2. If literal is a List of errors, return NaN.
     // 3. Return the StringNumericValue of literal.
@@ -312,7 +312,7 @@ fn string_to_number(agent: &mut Agent, str: String) -> Number {
 
 /// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
 // TODO: Should we add another [`Value`] newtype for IntegerOrInfinity?
-pub(crate) fn to_integer_or_infinity(agent: &mut Agent, argument: Value) -> JsResult<Number> {
+pub(crate) fn to_integer_or_infinity<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, Number> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(int) = argument {
         return Ok(int.into());
@@ -340,7 +340,7 @@ pub(crate) fn to_integer_or_infinity(agent: &mut Agent, argument: Value) -> JsRe
 }
 
 /// ### [7.1.6 ToInt32 ( argument )](https://tc39.es/ecma262/#sec-toint32)
-pub(crate) fn to_int32(agent: &mut Agent, argument: Value) -> JsResult<i32> {
+pub(crate) fn to_int32<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, i32> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly int32 already.
         let int = int.into_i64();
@@ -376,7 +376,7 @@ pub(crate) fn to_int32(agent: &mut Agent, argument: Value) -> JsResult<i32> {
 }
 
 /// ### [7.1.7 ToUint32 ( argument )](https://tc39.es/ecma262/#sec-touint32)
-pub(crate) fn to_uint32(agent: &mut Agent, argument: Value) -> JsResult<u32> {
+pub(crate) fn to_uint32<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, u32> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly uint32 already.
         let int = int.into_i64();
@@ -407,7 +407,7 @@ pub(crate) fn to_uint32(agent: &mut Agent, argument: Value) -> JsResult<u32> {
 }
 
 /// ### [7.1.8 ToInt16 ( argument )](https://tc39.es/ecma262/#sec-toint16)
-pub(crate) fn to_int16(agent: &mut Agent, argument: Value) -> JsResult<i16> {
+pub(crate) fn to_int16<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, i16> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly int16 already.
         let int = int.into_i64();
@@ -443,7 +443,7 @@ pub(crate) fn to_int16(agent: &mut Agent, argument: Value) -> JsResult<i16> {
 }
 
 /// ### [7.1.9 ToUint16 ( argument )](https://tc39.es/ecma262/#sec-touint16)
-pub(crate) fn to_uint16(agent: &mut Agent, argument: Value) -> JsResult<u16> {
+pub(crate) fn to_uint16<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, u16> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly uint16 already.
         let int = int.into_i64();
@@ -475,7 +475,7 @@ pub(crate) fn to_uint16(agent: &mut Agent, argument: Value) -> JsResult<u16> {
 }
 
 /// ### [7.1.10 ToInt8 ( argument )](https://tc39.es/ecma262/#sec-toint8)
-pub(crate) fn to_int8(agent: &mut Agent, argument: Value) -> JsResult<i8> {
+pub(crate) fn to_int8<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, i8> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly int8 already.
         let int = int.into_i64();
@@ -511,7 +511,7 @@ pub(crate) fn to_int8(agent: &mut Agent, argument: Value) -> JsResult<i8> {
 }
 
 /// ### [7.1.11 ToUint8 ( argument )](https://tc39.es/ecma262/#sec-touint8)
-pub(crate) fn to_uint8(agent: &mut Agent, argument: Value) -> JsResult<u8> {
+pub(crate) fn to_uint8<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, u8> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly uint32 already.
         let int = int.into_i64();
@@ -543,7 +543,7 @@ pub(crate) fn to_uint8(agent: &mut Agent, argument: Value) -> JsResult<u8> {
 }
 
 /// ### [7.1.12 ToUint8Clamp ( argument )](https://tc39.es/ecma262/#sec-touint8clamp)
-pub(crate) fn to_uint8_clamp(agent: &mut Agent, argument: Value) -> JsResult<u8> {
+pub(crate) fn to_uint8_clamp<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, u8> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly uint8 already.
         let int = int.into_i64().clamp(0, 255);
@@ -594,7 +594,7 @@ pub(crate) fn to_uint8_clamp(agent: &mut Agent, argument: Value) -> JsResult<u8>
 
 /// ### [7.1.13 ToBigInt ( argument )](https://tc39.es/ecma262/#sec-tobigint)
 #[inline(always)]
-pub(crate) fn to_big_int(agent: &mut Agent, argument: Value) -> JsResult<BigInt> {
+pub(crate) fn to_big_int<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, BigInt<'gen>> {
     // 1. Let prim be ? ToPrimitive(argument, number).
     let prim = to_primitive(agent, argument, Some(PreferredType::Number))?;
 
@@ -650,7 +650,7 @@ pub(crate) fn to_big_int(agent: &mut Agent, argument: Value) -> JsResult<BigInt>
 }
 
 /// ### [7.1.14 StringToBigInt ( str )](https://tc39.es/ecma262/#sec-stringtobigint)
-pub(crate) fn string_to_big_int(_agent: &mut Agent, _argument: String) -> Option<BigInt> {
+pub(crate) fn string_to_big_int<'gen>(_agent: &mut Agent<'gen>, _argument: String<'gen>) -> Option<BigInt<'gen>> {
     // 1. Let text be StringToCodePoints(str).
     // 2. Let literal be ParseText(text, StringIntegerLiteral).
     // 3. If literal is a List of errors, return undefined.
@@ -662,7 +662,7 @@ pub(crate) fn string_to_big_int(_agent: &mut Agent, _argument: String) -> Option
 }
 
 /// ### [7.1.17 ToString ( argument )](https://tc39.es/ecma262/#sec-tostring)
-pub(crate) fn to_string(agent: &mut Agent, argument: impl Into<Value> + Copy) -> JsResult<String> {
+pub(crate) fn to_string<'gen>(agent: &mut Agent<'gen>, argument: impl Into<Value<'gen>> + Copy) -> JsResult<'gen, String<'gen>> {
     let argument: Value = argument.into();
     // 1. If argument is a String, return argument.
     match argument {
@@ -712,7 +712,7 @@ pub(crate) fn to_string(agent: &mut Agent, argument: impl Into<Value> + Copy) ->
 /// language value) and returns either a normal completion containing an Object
 /// or a throw completion. It converts argument to a value of type Object
 /// according to [Table 13](https://tc39.es/ecma262/#table-toobject-conversions):
-pub(crate) fn to_object(agent: &mut Agent, argument: Value) -> JsResult<Object> {
+pub(crate) fn to_object<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, Object<'gen>> {
     match argument {
         Value::Undefined | Value::Null => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
@@ -791,7 +791,7 @@ pub(crate) fn to_object(agent: &mut Agent, argument: Value) -> JsResult<Object> 
 }
 
 /// ### [7.1.19 ToPropertyKey ( argument )](https://tc39.es/ecma262/#sec-topropertykey)
-pub(crate) fn to_property_key(agent: &mut Agent, argument: Value) -> JsResult<PropertyKey> {
+pub(crate) fn to_property_key<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, PropertyKey<'gen>> {
     // Note: Fast path and non-standard special case combined. Usually the
     // argument is already a valid property key. We also need to parse integer
     // strings back into integer property keys.
@@ -843,10 +843,10 @@ pub(crate) fn to_property_key(agent: &mut Agent, argument: Value) -> JsResult<Pr
 ///
 /// If a complex case is found, the function returns None to indicate that the
 /// caller should handle the uncommon case.
-pub(crate) fn to_property_key_simple(
-    agent: &Agent,
-    argument: impl IntoValue,
-) -> Option<PropertyKey> {
+pub(crate) fn to_property_key_simple<'gen>(
+    agent: &Agent<'gen>,
+    argument: impl IntoValue<'gen>,
+) -> Option<PropertyKey<'gen>> {
     let argument = argument.into_value();
     match argument {
         Value::String(_) | Value::SmallString(_) => {
@@ -882,7 +882,7 @@ pub(crate) fn to_property_key_simple(
     }
 }
 
-pub(crate) fn parse_string_to_integer_property_key(str: &str) -> Option<PropertyKey> {
+pub(crate) fn parse_string_to_integer_property_key(str: &str) -> Option<PropertyKey<'gen>> {
     // i64::from_string will accept eg. 0123 as 123 but JS property keys do
     // not agree. Hence, only "0" can start with "0", all other integer
     // keys must start with one of "1".."9".
@@ -901,7 +901,7 @@ pub(crate) fn parse_string_to_integer_property_key(str: &str) -> Option<Property
 }
 
 /// ### [7.1.20 ToLength ( argument )](https://tc39.es/ecma262/#sec-tolength)
-pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<i64> {
+pub(crate) fn to_length<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, i64> {
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
     // 1. Let len be ? ToIntegerOrInfinity(argument).
@@ -926,8 +926,8 @@ pub(crate) fn to_length(agent: &mut Agent, argument: Value) -> JsResult<i64> {
 
 /// ### [7.1.21 CanonicalNumericIndexString ( argument )](https://tc39.es/ecma262/#sec-canonicalnumericindexstring)
 pub(crate) fn canonical_numeric_index_string(
-    agent: &mut Agent,
-    argument: String,
+    agent: &mut Agent<'gen>,
+    argument: String<'gen>,
 ) -> Option<Number> {
     // 1. If argument is "-0", return -0𝔽.
     if argument == BUILTIN_STRING_MEMORY.__0 {
@@ -947,7 +947,7 @@ pub(crate) fn canonical_numeric_index_string(
 }
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
-pub(crate) fn to_index(agent: &mut Agent, argument: Value) -> JsResult<i64> {
+pub(crate) fn to_index<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, i64> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(integer) = argument {
         let integer = integer.into_i64();

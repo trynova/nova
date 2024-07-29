@@ -14,7 +14,7 @@ use crate::{
 
 pub(crate) struct ProxyConstructor;
 impl Builtin for ProxyConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Proxy;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Proxy;
 
     const LENGTH: u8 = 2;
 
@@ -26,7 +26,7 @@ impl BuiltinIntrinsicConstructor for ProxyConstructor {
 
 struct ProxyRevocable;
 impl Builtin for ProxyRevocable {
-    const NAME: String = BUILTIN_STRING_MEMORY.revocable;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.revocable;
 
     const LENGTH: u8 = 2;
 
@@ -34,24 +34,24 @@ impl Builtin for ProxyRevocable {
 }
 
 impl ProxyConstructor {
-    fn behaviour(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+        _new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn revocable(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn revocable<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ProxyConstructor>(agent, realm)
             .with_property_capacity(1)
             .with_builtin_function_property::<ProxyRevocable>()

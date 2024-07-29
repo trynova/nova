@@ -22,8 +22,8 @@ impl From<NumberHeapData> for f64 {
     }
 }
 
-impl HeapMarkAndSweep for NumberHeapData {
-    fn mark_values(&self, _queues: &mut WorkQueues) {}
+impl<'gen> HeapMarkAndSweep<'gen> for NumberHeapData {
+    fn mark_values(&self, _queues: &mut WorkQueues<'gen>) {}
 
     fn sweep_values(&mut self, _compactions: &CompactionLists) {}
 }

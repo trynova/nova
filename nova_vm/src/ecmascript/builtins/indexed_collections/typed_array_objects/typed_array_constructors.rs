@@ -19,7 +19,7 @@ pub(crate) struct TypedArrayConstructors;
 
 struct Int8ArrayConstructor;
 impl Builtin for Int8ArrayConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Int8Array;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Int8Array;
 
     const LENGTH: u8 = 3;
 
@@ -31,7 +31,7 @@ impl BuiltinIntrinsicConstructor for Int8ArrayConstructor {
 }
 struct Uint8ArrayConstructor;
 impl Builtin for Uint8ArrayConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Uint8Array;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Uint8Array;
 
     const LENGTH: u8 = 3;
 
@@ -43,7 +43,7 @@ impl BuiltinIntrinsicConstructor for Uint8ArrayConstructor {
 }
 struct Uint8ClampedArrayConstructor;
 impl Builtin for Uint8ClampedArrayConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Uint8ClampedArray;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Uint8ClampedArray;
 
     const LENGTH: u8 = 3;
 
@@ -55,7 +55,7 @@ impl BuiltinIntrinsicConstructor for Uint8ClampedArrayConstructor {
 }
 struct Int16ArrayConstructor;
 impl Builtin for Int16ArrayConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Int16Array;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Int16Array;
 
     const LENGTH: u8 = 3;
 
@@ -67,7 +67,7 @@ impl BuiltinIntrinsicConstructor for Int16ArrayConstructor {
 }
 struct Uint16ArrayConstructor;
 impl Builtin for Uint16ArrayConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Uint16Array;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Uint16Array;
 
     const LENGTH: u8 = 3;
 
@@ -79,7 +79,7 @@ impl BuiltinIntrinsicConstructor for Uint16ArrayConstructor {
 }
 struct Int32ArrayConstructor;
 impl Builtin for Int32ArrayConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Int32Array;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Int32Array;
 
     const LENGTH: u8 = 3;
 
@@ -91,7 +91,7 @@ impl BuiltinIntrinsicConstructor for Int32ArrayConstructor {
 }
 struct Uint32ArrayConstructor;
 impl Builtin for Uint32ArrayConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Uint32Array;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Uint32Array;
 
     const LENGTH: u8 = 3;
 
@@ -103,7 +103,7 @@ impl BuiltinIntrinsicConstructor for Uint32ArrayConstructor {
 }
 struct BigInt64ArrayConstructor;
 impl Builtin for BigInt64ArrayConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.BigInt64Array;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.BigInt64Array;
 
     const LENGTH: u8 = 3;
 
@@ -115,7 +115,7 @@ impl BuiltinIntrinsicConstructor for BigInt64ArrayConstructor {
 }
 struct BigUint64ArrayConstructor;
 impl Builtin for BigUint64ArrayConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.BigUint64Array;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.BigUint64Array;
 
     const LENGTH: u8 = 3;
 
@@ -127,7 +127,7 @@ impl BuiltinIntrinsicConstructor for BigUint64ArrayConstructor {
 }
 struct Float32ArrayConstructor;
 impl Builtin for Float32ArrayConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Float32Array;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Float32Array;
 
     const LENGTH: u8 = 3;
 
@@ -139,7 +139,7 @@ impl BuiltinIntrinsicConstructor for Float32ArrayConstructor {
 }
 struct Float64ArrayConstructor;
 impl Builtin for Float64ArrayConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Float64Array;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Float64Array;
 
     const LENGTH: u8 = 3;
 
@@ -151,106 +151,106 @@ impl BuiltinIntrinsicConstructor for Float64ArrayConstructor {
 }
 
 impl TypedArrayConstructors {
-    fn int8_array_constructor(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn int8_array_constructor<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+        _new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn uint8_array_constructor(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn uint8_array_constructor<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+        _new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn uint8_clamped_array_constructor(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn uint8_clamped_array_constructor<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+        _new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn int16_array_constructor(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn int16_array_constructor<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+        _new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn uint16_array_constructor(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn uint16_array_constructor<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+        _new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn int32_array_constructor(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn int32_array_constructor<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+        _new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn uint32_array_constructor(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn uint32_array_constructor<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+        _new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn big_int64_array_constructor(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn big_int64_array_constructor<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+        _new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn big_uint64_array_constructor(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn big_uint64_array_constructor<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+        _new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn float32_array_constructor(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn float32_array_constructor<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+        _new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn float64_array_constructor(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn float64_array_constructor<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+        _new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let typed_array_constructor = intrinsics.typed_array().into_object();
 
@@ -428,7 +428,7 @@ impl TypedArrayConstructors {
 
 pub(crate) struct TypedArrayPrototypes;
 impl TypedArrayPrototypes {
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let typed_array_prototype = intrinsics.typed_array_prototype();
 

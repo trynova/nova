@@ -13,7 +13,7 @@ use super::DeclarativeEnvironment;
 ///
 /// Module Environment Records support all of the Declarative Environment
 /// Record methods listed in Table 16 and share the same specifications for all
-/// of those methods except for GetBindingValue, DeleteBinding, HasThisBinding
+/// of those methods except for GetBindingValue<'gen>, DeleteBinding, HasThisBinding
 /// and GetThisBinding.
 ///
 /// NOTE: There is no data-wise difference between a DeclarativeEnvironment and

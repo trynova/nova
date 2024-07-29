@@ -16,7 +16,7 @@ pub(crate) struct ArrayIteratorPrototype;
 
 struct ArrayIteratorPrototypeNext;
 impl Builtin for ArrayIteratorPrototypeNext {
-    const NAME: String = BUILTIN_STRING_MEMORY.next;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.next;
 
     const LENGTH: u8 = 0;
 
@@ -25,11 +25,11 @@ impl Builtin for ArrayIteratorPrototypeNext {
 }
 
 impl ArrayIteratorPrototype {
-    fn next(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn next<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let this = intrinsics.array_iterator_prototype();
         let iterator_prototype = intrinsics.iterator_prototype();

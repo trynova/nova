@@ -14,7 +14,7 @@ use crate::{
 
 pub(crate) struct ArrayBufferConstructor;
 impl Builtin for ArrayBufferConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.ArrayBuffer;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.ArrayBuffer;
 
     const LENGTH: u8 = 1;
 
@@ -26,7 +26,7 @@ impl BuiltinIntrinsicConstructor for ArrayBufferConstructor {
 
 struct ArrayBufferIsView;
 impl Builtin for ArrayBufferIsView {
-    const NAME: String = BUILTIN_STRING_MEMORY.isView;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isView;
 
     const LENGTH: u8 = 1;
 
@@ -35,7 +35,7 @@ impl Builtin for ArrayBufferIsView {
 
 struct ArrayBufferGetSpecies;
 impl Builtin for ArrayBufferGetSpecies {
-    const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
 
@@ -46,32 +46,32 @@ impl Builtin for ArrayBufferGetSpecies {
 impl BuiltinGetter for ArrayBufferGetSpecies {}
 
 impl ArrayBufferConstructor {
-    fn behaviour(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+        _new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn is_view(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn is_view<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn species(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn species<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let array_buffer_prototype = intrinsics.array_buffer_prototype();
 

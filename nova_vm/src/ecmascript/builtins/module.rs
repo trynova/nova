@@ -28,62 +28,62 @@ use super::ordinary::{
 pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Module(pub(crate) ModuleIdentifier);
+pub struct Module<'gen>(pub(crate) ModuleIdentifier<'gen>);
 
-impl From<Module> for ModuleIdentifier {
-    fn from(val: Module) -> Self {
+impl<'gen> From<Module<'gen>> for ModuleIdentifier<'gen> {
+    fn from(val: Module<'gen>) -> Self {
         val.0
     }
 }
 
-impl From<ModuleIdentifier> for Module {
-    fn from(value: ModuleIdentifier) -> Self {
+impl<'gen> From<ModuleIdentifier<'gen>> for Module<'gen> {
+    fn from(value: ModuleIdentifier<'gen>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for Module {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for Module<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for Module {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for Module<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<Module> for Value {
-    fn from(val: Module) -> Self {
+impl<'gen> From<Module<'gen>> for Value<'gen> {
+    fn from(val: Module<'gen>) -> Self {
         Value::Module(val)
     }
 }
 
-impl From<Module> for Object {
-    fn from(val: Module) -> Self {
+impl<'gen> From<Module<'gen>> for Object<'gen> {
+    fn from(val: Module<'gen>) -> Self {
         Object::Module(val)
     }
 }
 
-impl Index<Module> for Agent {
+impl<'gen> Index<Module<'gen>> for Agent<'gen> {
     type Output = ModuleHeapData;
 
-    fn index(&self, index: Module) -> &Self::Output {
+    fn index(&self, index: Module<'gen>) -> &Self::Output {
         &self.heap.modules[index]
     }
 }
 
-impl IndexMut<Module> for Agent {
-    fn index_mut(&mut self, index: Module) -> &mut Self::Output {
+impl<'gen> IndexMut<Module<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: Module<'gen>) -> &mut Self::Output {
         &mut self.heap.modules[index]
     }
 }
 
-impl Index<Module> for Vec<Option<ModuleHeapData>> {
+impl<'gen> Index<Module<'gen>> for Vec<Option<ModuleHeapData>> {
     type Output = ModuleHeapData;
 
-    fn index(&self, index: Module) -> &Self::Output {
+    fn index(&self, index: Module<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("Module out of bounds")
             .as_ref()
@@ -91,8 +91,8 @@ impl Index<Module> for Vec<Option<ModuleHeapData>> {
     }
 }
 
-impl IndexMut<Module> for Vec<Option<ModuleHeapData>> {
-    fn index_mut(&mut self, index: Module) -> &mut Self::Output {
+impl<'gen> IndexMut<Module<'gen>> for Vec<Option<ModuleHeapData>> {
+    fn index_mut(&mut self, index: Module<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Module out of bounds")
             .as_mut()
@@ -100,7 +100,7 @@ impl IndexMut<Module> for Vec<Option<ModuleHeapData>> {
     }
 }
 
-impl Module {
+impl Module<'_> {
     pub(crate) const fn _def() -> Self {
         Self(ModuleIdentifier::from_u32(0))
     }
@@ -110,60 +110,60 @@ impl Module {
     }
 }
 
-impl InternalSlots for Module {
+impl<'gen> InternalSlots<'gen> for Module<'_> {
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, _: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, _: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         unreachable!();
     }
 
-    fn internal_extensible(self, _agent: &Agent) -> bool {
+    fn internal_extensible(self, _agent: &Agent<'gen>) -> bool {
         false
     }
 
-    fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {}
+    fn internal_set_extensible(self, _agent: &mut Agent<'gen>, _value: bool) {}
 
-    fn internal_prototype(self, _agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, _agent: &Agent<'gen>) -> Option<Object<'gen>> {
         None
     }
 
-    fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {}
+    fn internal_set_prototype(self, _agent: &mut Agent<'gen>, _prototype: Option<Object<'gen>>) {}
 }
 
-impl InternalMethods for Module {
+impl<'gen> InternalMethods<'gen> for Module<'gen> {
     /// ### [10.4.6.1 \[\[GetPrototypeOf\]\] ( )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-getprototypeof)
-    fn internal_get_prototype_of(self, _agent: &mut Agent) -> JsResult<Option<Object>> {
+    fn internal_get_prototype_of(self, _agent: &mut Agent<'gen>) -> JsResult<'gen, Option<Object<'gen>>> {
         Ok(None)
     }
 
     /// ### [10.4.6.2 \[\[SetPrototypeOf\]\] ( V )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-setprototypeof-v)
     fn internal_set_prototype_of(
         self,
-        agent: &mut Agent,
-        prototype: Option<Object>,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        prototype: Option<Object<'gen>>,
+    ) -> JsResult<'gen, bool> {
         set_immutable_prototype(agent, self.into_object(), prototype)
     }
 
     /// ### [10.4.6.3 \[\[IsExtensible\]\] ( )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-isextensible)
-    fn internal_is_extensible(self, _agent: &mut Agent) -> JsResult<bool> {
+    fn internal_is_extensible(self, _agent: &mut Agent<'gen>) -> JsResult<'gen, bool> {
         Ok(false)
     }
 
     /// ### [10.4.6.4 \[\[PreventExtensions\]\] ( )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-preventextensions)
-    fn internal_prevent_extensions(self, _agent: &mut Agent) -> JsResult<bool> {
+    fn internal_prevent_extensions(self, _agent: &mut Agent<'gen>) -> JsResult<'gen, bool> {
         Ok(true)
     }
 
     /// 10.4.6.5 \[\[GetOwnProperty\]\] ( P )
     fn internal_get_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+    ) -> JsResult<'gen, Option<PropertyDescriptor<'gen>>> {
         match property_key {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return OrdinaryGetOwnProperty(O, P).
@@ -206,10 +206,10 @@ impl InternalMethods for Module {
     /// ### [10.4.6.6 \[\[DefineOwnProperty\]\] ( P, Desc )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-defineownproperty-p-desc)
     fn internal_define_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        property_descriptor: PropertyDescriptor<'gen>,
+    ) -> JsResult<'gen, bool> {
         match property_key {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
@@ -261,7 +261,7 @@ impl InternalMethods for Module {
     }
 
     /// ### [10.4.6.7 \[\[HasProperty\]\] ( P )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-hasproperty-p)
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         match property_key {
             PropertyKey::Integer(_) => Ok(false),
             PropertyKey::SmallString(_) | PropertyKey::String(_) => {
@@ -292,10 +292,10 @@ impl InternalMethods for Module {
     /// ### [10.4.6.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-get-p-receiver)
     fn internal_get(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // NOTE: ResolveExport is side-effect free. Each time this operation
         // is called with a specific exportName, resolveSet pair as arguments
         // it must return the same result. An implementation might choose to
@@ -367,16 +367,16 @@ impl InternalMethods for Module {
     /// ### [10.4.6.9 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-set-p-v-receiver)
     fn internal_set(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _value: Value,
-        _receiver: Value,
-    ) -> JsResult<bool> {
+        _agent: &mut Agent<'gen>,
+        _property_key: PropertyKey<'gen>,
+        _value: Value<'gen>,
+        _receiver: Value<'gen>,
+    ) -> JsResult<'gen, bool> {
         Ok(false)
     }
 
     /// ### [10.4.6.10 \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-delete-p)
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         match property_key {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, then
@@ -406,7 +406,7 @@ impl InternalMethods for Module {
     }
 
     /// ### [10.4.6.11 \[\[OwnPropertyKeys\]\] ( )])(https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-ownpropertykeys)
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Vec<PropertyKey<'gen>>> {
         // 1. Let exports be O.[[Exports]].
         let exports = agent[self]
             .exports
@@ -428,8 +428,8 @@ impl InternalMethods for Module {
     }
 }
 
-impl HeapMarkAndSweep for Module {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Module<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.modules.push(*self);
     }
 

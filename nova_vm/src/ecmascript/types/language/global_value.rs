@@ -11,12 +11,12 @@ use super::{IntoValue, Value};
 /// unique pointer to a heap allocation in system programming languages. As
 /// long as the pointer lives, the memory on the heap will not be released.
 #[derive(Debug, PartialEq)]
-pub struct Global<T: IntoValue + TryFrom<Value>>(u32, PhantomData<T>);
+pub struct Global<T: IntoValue + TryFrom<Value<'gen>>>(u32, PhantomData<T>);
 
-impl<T: IntoValue + TryFrom<Value>> Global<T> {
+impl<T: IntoValue + TryFrom<Value<'gen>>> Global<T> {
     /// Register a value as global.
     #[must_use]
-    pub fn new(agent: &mut Agent, value: T) -> Self {
+    pub fn new<'gen>(agent: &mut Agent<'gen>, value: T) -> Self {
         let reused_index = agent
             .heap
             .globals
@@ -42,7 +42,7 @@ impl<T: IntoValue + TryFrom<Value>> Global<T> {
     }
 
     /// Unregister this global value.
-    pub fn take(self, agent: &mut Agent) -> T {
+    pub fn take(self, agent: &mut Agent<'gen>) -> T {
         // Leave a `None` in the index and return the value
         let value = agent
             .heap
@@ -57,7 +57,7 @@ impl<T: IntoValue + TryFrom<Value>> Global<T> {
         value
     }
 
-    pub fn get(&self, agent: &mut Agent) -> T {
+    pub fn get(&self, agent: &mut Agent<'gen>) -> T {
         let value = *agent
             .heap
             .globals
@@ -72,7 +72,7 @@ impl<T: IntoValue + TryFrom<Value>> Global<T> {
     }
 
     #[must_use]
-    pub fn clone(&self, agent: &mut Agent) -> Self {
+    pub fn clone(&self, agent: &mut Agent<'gen>) -> Self {
         let value = self.get(agent);
         Self::new(agent, value)
     }

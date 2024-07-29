@@ -33,175 +33,175 @@ pub(crate) struct ArrayPrototype;
 
 struct ArrayPrototypeAt;
 impl Builtin for ArrayPrototypeAt {
-    const NAME: String = BUILTIN_STRING_MEMORY.at;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.at;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::at);
 }
 struct ArrayPrototypeConcat;
 impl Builtin for ArrayPrototypeConcat {
-    const NAME: String = BUILTIN_STRING_MEMORY.concat;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.concat;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::concat);
 }
 struct ArrayPrototypeCopyWithin;
 impl Builtin for ArrayPrototypeCopyWithin {
-    const NAME: String = BUILTIN_STRING_MEMORY.copyWithin;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.copyWithin;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::copy_within);
 }
 struct ArrayPrototypeEntries;
 impl Builtin for ArrayPrototypeEntries {
-    const NAME: String = BUILTIN_STRING_MEMORY.entries;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.entries;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::entries);
 }
 struct ArrayPrototypeEvery;
 impl Builtin for ArrayPrototypeEvery {
-    const NAME: String = BUILTIN_STRING_MEMORY.every;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.every;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::every);
 }
 struct ArrayPrototypeFill;
 impl Builtin for ArrayPrototypeFill {
-    const NAME: String = BUILTIN_STRING_MEMORY.fill;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fill;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::fill);
 }
 struct ArrayPrototypeFilter;
 impl Builtin for ArrayPrototypeFilter {
-    const NAME: String = BUILTIN_STRING_MEMORY.filter;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.filter;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::filter);
 }
 struct ArrayPrototypeFind;
 impl Builtin for ArrayPrototypeFind {
-    const NAME: String = BUILTIN_STRING_MEMORY.find;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.find;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::find);
 }
 struct ArrayPrototypeFindIndex;
 impl Builtin for ArrayPrototypeFindIndex {
-    const NAME: String = BUILTIN_STRING_MEMORY.findIndex;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.findIndex;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::find_index);
 }
 struct ArrayPrototypeFindLast;
 impl Builtin for ArrayPrototypeFindLast {
-    const NAME: String = BUILTIN_STRING_MEMORY.findLast;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.findLast;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::find_last);
 }
 struct ArrayPrototypeFindLastIndex;
 impl Builtin for ArrayPrototypeFindLastIndex {
-    const NAME: String = BUILTIN_STRING_MEMORY.findLastIndex;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.findLastIndex;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::find_last_index);
 }
 struct ArrayPrototypeFlat;
 impl Builtin for ArrayPrototypeFlat {
-    const NAME: String = BUILTIN_STRING_MEMORY.flat;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.flat;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::flat);
 }
 struct ArrayPrototypeFlatMap;
 impl Builtin for ArrayPrototypeFlatMap {
-    const NAME: String = BUILTIN_STRING_MEMORY.flatMap;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.flatMap;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::flat_map);
 }
 struct ArrayPrototypeForEach;
 impl Builtin for ArrayPrototypeForEach {
-    const NAME: String = BUILTIN_STRING_MEMORY.forEach;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.forEach;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::for_each);
 }
 struct ArrayPrototypeIncludes;
 impl Builtin for ArrayPrototypeIncludes {
-    const NAME: String = BUILTIN_STRING_MEMORY.includes;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.includes;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::includes);
 }
 struct ArrayPrototypeIndexOf;
 impl Builtin for ArrayPrototypeIndexOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.indexOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.indexOf;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::index_of);
 }
 struct ArrayPrototypeJoin;
 impl Builtin for ArrayPrototypeJoin {
-    const NAME: String = BUILTIN_STRING_MEMORY.join;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.join;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::join);
 }
 struct ArrayPrototypeKeys;
 impl Builtin for ArrayPrototypeKeys {
-    const NAME: String = BUILTIN_STRING_MEMORY.keys;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.keys;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::keys);
 }
 struct ArrayPrototypeLastIndexOf;
 impl Builtin for ArrayPrototypeLastIndexOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.lastIndexOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.lastIndexOf;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::last_index_of);
 }
 struct ArrayPrototypeMap;
 impl Builtin for ArrayPrototypeMap {
-    const NAME: String = BUILTIN_STRING_MEMORY.map;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.map;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::map);
 }
 struct ArrayPrototypePop;
 impl Builtin for ArrayPrototypePop {
-    const NAME: String = BUILTIN_STRING_MEMORY.pop;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.pop;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::pop);
 }
 struct ArrayPrototypePush;
 impl Builtin for ArrayPrototypePush {
-    const NAME: String = BUILTIN_STRING_MEMORY.push;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.push;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::push);
 }
 struct ArrayPrototypeReduce;
 impl Builtin for ArrayPrototypeReduce {
-    const NAME: String = BUILTIN_STRING_MEMORY.reduce;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.reduce;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::reduce);
 }
 struct ArrayPrototypeReduceRight;
 impl Builtin for ArrayPrototypeReduceRight {
-    const NAME: String = BUILTIN_STRING_MEMORY.reduceRight;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.reduceRight;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::reduce_right);
 }
 struct ArrayPrototypeReverse;
 impl Builtin for ArrayPrototypeReverse {
-    const NAME: String = BUILTIN_STRING_MEMORY.reverse;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.reverse;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::reverse);
 }
 struct ArrayPrototypeShift;
 impl Builtin for ArrayPrototypeShift {
-    const NAME: String = BUILTIN_STRING_MEMORY.shift;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.shift;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::shift);
 }
 struct ArrayPrototypeSlice;
 impl Builtin for ArrayPrototypeSlice {
-    const NAME: String = BUILTIN_STRING_MEMORY.slice;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.slice;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::slice);
 }
 struct ArrayPrototypeSome;
 impl Builtin for ArrayPrototypeSome {
-    const NAME: String = BUILTIN_STRING_MEMORY.some;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.some;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::some);
 }
 struct ArrayPrototypeSort;
 impl Builtin for ArrayPrototypeSort {
-    const NAME: String = BUILTIN_STRING_MEMORY.sort;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.sort;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::sort);
 }
@@ -210,37 +210,37 @@ impl BuiltinIntrinsic for ArrayPrototypeSort {
 }
 struct ArrayPrototypeSplice;
 impl Builtin for ArrayPrototypeSplice {
-    const NAME: String = BUILTIN_STRING_MEMORY.splice;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.splice;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::splice);
 }
 struct ArrayPrototypeToLocaleString;
 impl Builtin for ArrayPrototypeToLocaleString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toLocaleString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_locale_string);
 }
 struct ArrayPrototypeToReversed;
 impl Builtin for ArrayPrototypeToReversed {
-    const NAME: String = BUILTIN_STRING_MEMORY.toReversed;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toReversed;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_reversed);
 }
 struct ArrayPrototypeToSorted;
 impl Builtin for ArrayPrototypeToSorted {
-    const NAME: String = BUILTIN_STRING_MEMORY.toSorted;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toSorted;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_sorted);
 }
 struct ArrayPrototypeToSpliced;
 impl Builtin for ArrayPrototypeToSpliced {
-    const NAME: String = BUILTIN_STRING_MEMORY.toSpliced;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toSpliced;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_spliced);
 }
 struct ArrayPrototypeToString;
 impl Builtin for ArrayPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_string);
 }
@@ -249,13 +249,13 @@ impl BuiltinIntrinsic for ArrayPrototypeToString {
 }
 struct ArrayPrototypeUnshift;
 impl Builtin for ArrayPrototypeUnshift {
-    const NAME: String = BUILTIN_STRING_MEMORY.unshift;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.unshift;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::unshift);
 }
 struct ArrayPrototypeValues;
 impl Builtin for ArrayPrototypeValues {
-    const NAME: String = BUILTIN_STRING_MEMORY.values;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.values;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::values);
 }
@@ -264,14 +264,14 @@ impl BuiltinIntrinsic for ArrayPrototypeValues {
 }
 struct ArrayPrototypeWith;
 impl Builtin for ArrayPrototypeWith {
-    const NAME: String = BUILTIN_STRING_MEMORY.with;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.with;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::with);
 }
 
 impl ArrayPrototype {
     /// ### [23.1.3.1 Array.prototype.at ( index )](https://tc39.es/ecma262/#sec-array.prototype.at)
-    fn at(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn at<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
@@ -318,7 +318,7 @@ impl ArrayPrototype {
     /// > Note 2: This method is intentionally generic; it does not require
     /// > that its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn concat(agent: &mut Agent, this_value: Value, items: ArgumentsList) -> JsResult<Value> {
+    fn concat<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, items: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let A be ? ArraySpeciesCreate(O, 0).
@@ -420,10 +420,10 @@ impl ArrayPrototype {
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
     fn copy_within(
-        agent: &mut Agent,
-        this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let target = arguments.get(0);
         let start = arguments.get(1);
         let end = if arguments.len() >= 3 {
@@ -554,7 +554,7 @@ impl ArrayPrototype {
             if from_present {
                 // i. Let fromValue be ? Get(O, fromKey).
                 let from_value = get(agent, o, from_key)?;
-                // ii. Perform ? Set(O, toKey, fromValue, true).
+                // ii. Perform ? Set(O, toKey, fromValue<'gen>, true).
                 set(agent, o, to_key, from_value, true)?;
             } else {
                 // e. Else,
@@ -573,7 +573,7 @@ impl ArrayPrototype {
         Ok(o.into_value())
     }
 
-    fn entries(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn entries<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -613,7 +613,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its this
     /// > value be an Array. Therefore it can be transferred to other kinds of
     /// > objects for use as a method.
-    fn every(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn every<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
@@ -639,7 +639,7 @@ impl ArrayPrototype {
             if k_present {
                 // i. Let kValue be ? Get(O, Pk).
                 let k_value = get(agent, o, pk)?;
-                // ii. Let testResult be ToBoolean(? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »)).
+                // ii. Let testResult be ToBoolean(? Call(callbackfn, thisArg, « kValue<'gen>, 𝔽(k), O »)).
                 let f_k = Number::try_from(k).unwrap().into_value();
                 let test_result = call_function(
                     agent,
@@ -680,7 +680,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn fill(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn fill<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let value = arguments.get(0);
         let start = arguments.get(1);
         let end = arguments.get(2);
@@ -806,7 +806,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > **this** value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn filter(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn filter<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let callback_fn = arguments.get(0);
         let this_arg = arguments.get(1);
 
@@ -837,7 +837,7 @@ impl ArrayPrototype {
             if k_present {
                 // i. Let kValue be ? Get(O, Pk).
                 let k_value = get(agent, o, pk)?;
-                // ii. Let selected be ToBoolean(? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »)).
+                // ii. Let selected be ToBoolean(? Call(callbackfn, thisArg, « kValue<'gen>, 𝔽(k), O »)).
                 let result = call_function(
                     agent,
                     callback_fn,
@@ -881,7 +881,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn find(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn find<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
@@ -912,10 +912,10 @@ impl ArrayPrototype {
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
     fn find_index(
-        agent: &mut Agent,
-        this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
@@ -930,10 +930,10 @@ impl ArrayPrototype {
 
     /// ### [23.1.3.11 Array.prototype.findLast ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findlast)
     fn find_last(
-        agent: &mut Agent,
-        this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
@@ -948,10 +948,10 @@ impl ArrayPrototype {
 
     /// ### [23.1.3.12 Array.prototype.findLastIndex ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findlastindex)
     fn find_last_index(
-        agent: &mut Agent,
-        this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
@@ -965,7 +965,7 @@ impl ArrayPrototype {
     }
 
     /// ### [23.1.3.13 Array.prototype.flat ( \[ depth \] )]()
-    fn flat(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn flat<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let depth = arguments.get(0);
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
@@ -1000,7 +1000,7 @@ impl ArrayPrototype {
     }
 
     /// ### [23.1.3.14 Array.prototype.flatMap ( mapperFunction \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.flatmap)
-    fn flat_map(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn flat_map<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let mapper_function = arguments.get(0);
         let this_arg = arguments.get(1);
 
@@ -1066,7 +1066,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn for_each(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn for_each<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
@@ -1095,7 +1095,7 @@ impl ArrayPrototype {
             if k_present {
                 // i. Let kValue be ? Get(O, Pk).
                 let k_value = get(agent, o, pk)?;
-                // ii. Perform ? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »).
+                // ii. Perform ? Call(callbackfn, thisArg, « kValue<'gen>, 𝔽(k), O »).
                 call_function(
                     agent,
                     callback_fn,
@@ -1143,7 +1143,7 @@ impl ArrayPrototype {
     /// > of IsStrictlyEqual, allowing it to detect NaN array elements.
     /// > Second, it does not skip missing array elements, instead treating
     /// > them as undefined.
-    fn includes(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn includes<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let search_element = arguments.get(0);
         let from_index = arguments.get(1);
         if let (Value::Array(array), Value::Undefined | Value::Integer(_)) =
@@ -1261,7 +1261,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn index_of(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn index_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let search_element = arguments.get(0);
         let from_index = arguments.get(1);
         if let (Value::Array(array), Value::Undefined | Value::Integer(_)) =
@@ -1369,7 +1369,7 @@ impl ArrayPrototype {
     /// This method converts the elements of the array to Strings, and then
     /// concatenates these Strings, separated by occurrences of the separator.
     /// If no separator is provided, a single comma is used as the separator.
-    fn join(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn join<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let separator = arguments.get(0);
 
         // 1. Let O be ? ToObject(this value).
@@ -1420,7 +1420,7 @@ impl ArrayPrototype {
         Ok(Value::from_string(agent, r).into_value())
     }
 
-    fn keys(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn keys<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -1446,10 +1446,10 @@ impl ArrayPrototype {
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
     fn last_index_of(
-        agent: &mut Agent,
-        this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let search_element = arguments.get(0);
         let from_index = if arguments.len() > 1 {
             Some(arguments.get(1))
@@ -1583,7 +1583,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn map(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn map<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let callback_fn = arguments.get(0);
         let this_arg = arguments.get(1);
 
@@ -1612,7 +1612,7 @@ impl ArrayPrototype {
             if k_present {
                 // i. Let kValue be ? Get(O, Pk).
                 let k_value = get(agent, o, pk)?;
-                // ii. Let mappedValue be ? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »).
+                // ii. Let mappedValue be ? Call(callbackfn, thisArg, « kValue<'gen>, 𝔽(k), O »).
                 let mapped_value = call_function(
                     agent,
                     callback_fn,
@@ -1644,7 +1644,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn pop(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn pop<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         if let Value::Array(array) = this_value {
             // Fast path: Trivial (no descriptors) array means mutating
             // elements is direct.
@@ -1733,7 +1733,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn push(agent: &mut Agent, this_value: Value, items: ArgumentsList) -> JsResult<Value> {
+    fn push<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, items: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
@@ -1813,7 +1813,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn reduce(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn reduce<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let callback_fn = arguments.get(0);
         let initial_value = if arguments.len() >= 2 {
             Some(arguments.get(1))
@@ -1953,11 +1953,11 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn reduce_right(
-        agent: &mut Agent,
-        this_value: Value,
+    fn reduce_right<'gen>(
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
         arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    ) -> JsResult<'gen, Value<'gen>> {
         let callback_fn = arguments.get(0);
         let initial_value = if arguments.len() >= 2 {
             Some(arguments.get(1))
@@ -2061,7 +2061,7 @@ impl ArrayPrototype {
         Ok(accumulator)
     }
 
-    fn reverse(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn reverse<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -2074,7 +2074,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn shift(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn shift<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         if let Value::Array(array) = this_value {
             if array.is_empty(agent) {
                 if agent[array].elements.len_writable {
@@ -2148,7 +2148,7 @@ impl ArrayPrototype {
             if from_present {
                 // i. Let fromValue be ? Get(O, from).
                 let from_value = get(agent, o, from)?;
-                // ii. Perform ? Set(O, to, fromValue, true).
+                // ii. Perform ? Set(O, to, fromValue<'gen>, true).
                 set(agent, o, to, from_value, true)?;
             } else {
                 // e. Else,
@@ -2190,7 +2190,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn slice(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn slice<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let start = arguments.get(0);
         let end = arguments.get(1);
         if let (
@@ -2394,7 +2394,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn some(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn some<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let callback_fn = arguments.get(0);
         let this_arg = arguments.get(1);
 
@@ -2421,7 +2421,7 @@ impl ArrayPrototype {
             if k_present {
                 // i. Let kValue be ? Get(O, Pk).
                 let k_value = get(agent, o, pk)?;
-                // ii. Let testResult be ToBoolean(? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »)).
+                // ii. Let testResult be ToBoolean(? Call(callbackfn, thisArg, « kValue<'gen>, 𝔽(k), O »)).
                 let test_result = call_function(
                     agent,
                     callback_fn,
@@ -2444,36 +2444,36 @@ impl ArrayPrototype {
         Ok(false.into())
     }
 
-    fn sort(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn sort<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn splice(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn splice<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn to_locale_string(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn to_locale_string<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn to_reversed(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_reversed<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn to_sorted(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_sorted<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn to_spliced(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_spliced<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
     /// ### [23.1.3.36 Array.prototype.toString ( )](https://tc39.es/ecma262/#sec-array.prototype.tostring)
-    fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let array be ? ToObject(this value).
         let array = to_object(agent, this_value)?;
         // 2. Let func be ? Get(array, "join").
@@ -2490,19 +2490,19 @@ impl ArrayPrototype {
         call_function(agent, func, array.into_value(), None)
     }
 
-    fn unshift(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn unshift<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn values(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn values<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn with(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn with<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.array_prototype();
@@ -2618,9 +2618,9 @@ impl ArrayPrototype {
 /// language value) and returns either a normal completion containing a Boolean
 /// or a throw completion.
 ///
-/// > Note: Instead of returning a bool, Nova returns an Option<Object>.
+/// > Note: Instead of returning a bool, Nova returns an Option<Object<'gen>>.
 
-fn is_concat_spreadable(agent: &mut Agent, o: Value) -> JsResult<Option<Object>> {
+fn is_concat_spreadable<'gen>(agent: &mut Agent<'gen>, o: Value<'gen>) -> JsResult<'gen, Option<Object<'gen>>> {
     // 1. If O is not an Object, return false.
     if let Ok(o) = Object::try_from(o) {
         // 2. Let spreadable be ? Get(O, @@isConcatSpreadable).
@@ -2682,13 +2682,13 @@ fn is_concat_spreadable(agent: &mut Agent, o: Value) -> JsResult<Option<Object>>
 /// traversal begins and before being visited are still visited and are either
 /// looked up from the prototype or are undefined.
 fn find_via_predicate(
-    agent: &mut Agent,
-    o: Object,
+    agent: &mut Agent<'gen>,
+    o: Object<'gen>,
     len: i64,
     ascending: bool,
-    predicate: Value,
-    this_arg: Value,
-) -> JsResult<(i64, Value)> {
+    predicate: Value<'gen>,
+    this_arg: Value<'gen>,
+) -> JsResult<'gen, (i64, Value)> {
     // 1. If IsCallable(predicate) is false, throw a TypeError exception.
     let Some(predicate) = is_callable(predicate) else {
         return Err(agent.throw_exception_with_static_message(
@@ -2697,18 +2697,18 @@ fn find_via_predicate(
         ));
     };
     // 4. For each integer k of indices, do
-    let check = |agent: &mut Agent,
-                 o: Object,
-                 predicate: Function,
-                 this_arg: Value,
+    let check = |agent: &mut Agent<'gen>,
+                 o: Object<'gen>,
+                 predicate: Function<'gen>,
+                 this_arg: Value<'gen>,
                  k: i64|
-     -> JsResult<Option<(i64, Value)>> {
+     -> JsResult<'gen, Option<(i64, Value)>> {
         // a. Let Pk be ! ToString(𝔽(k)).
         let pk = PropertyKey::Integer(k.try_into().unwrap());
         // b. NOTE: If O is a TypedArray, the following invocation of Get will return a normal completion.
         // c. Let kValue be ? Get(O, Pk).
         let k_value = get(agent, o, pk)?;
-        // d. Let testResult be ? Call(predicate, thisArg, « kValue, 𝔽(k), O »).
+        // d. Let testResult be ? Call(predicate, thisArg, « kValue<'gen>, 𝔽(k), O »).
         let test_result = call_function(
             agent,
             predicate,
@@ -2756,15 +2756,15 @@ fn find_via_predicate(
 /// containing a non-negative integer or a throw completion.
 #[allow(clippy::too_many_arguments)]
 fn flatten_into_array(
-    agent: &mut Agent,
-    target: Object,
-    source: Object,
+    agent: &mut Agent<'gen>,
+    target: Object<'gen>,
+    source: Object<'gen>,
     source_len: usize,
     start: usize,
     depth: Option<usize>,
-    mapper_function: Option<Function>,
-    this_arg: Option<Value>,
-) -> JsResult<usize> {
+    mapper_function: Option<Function<'gen>>,
+    this_arg: Option<Value<'gen>>,
+) -> JsResult<'gen, usize> {
     // 1. Assert: If mapperFunction is present, then IsCallable(mapperFunction) is true, thisArg is present, and depth is 1.
     assert!(mapper_function.is_none() || this_arg.is_some() && depth == Some(1));
     // 2. Let targetIndex be start.

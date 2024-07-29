@@ -31,11 +31,11 @@ use crate::{
 /// if the Writable attribute of the corresponding property is false. Immutable
 /// bindings do not exist for Object Environment Records.
 #[derive(Debug, Clone)]
-pub struct ObjectEnvironment {
+pub struct ObjectEnvironment<'gen> {
     /// ### \[\[BindingObject\]\]
     ///
     /// The binding object of this Environment Record.
-    pub(crate) binding_object: Object,
+    pub(crate) binding_object: Object<'gen>,
 
     /// ### \[\[IsWithEnvironment\]\]
     ///
@@ -46,20 +46,20 @@ pub struct ObjectEnvironment {
     /// ### \[\[OuterEnv\]\]
     ///
     /// See [OuterEnv].
-    pub(crate) outer_env: OuterEnv,
+    pub(crate) outer_env: OuterEnv<'gen>,
 }
 
-impl ObjectEnvironment {
+impl<'gen> ObjectEnvironment<'gen> {
     /// ### [9.1.2.3 NewObjectEnvironment ( O, W, E )](https://tc39.es/ecma262/#sec-newobjectenvironmenthttps://tc39.es/ecma262/#sec-newobjectenvironment)
     ///
     /// The abstract operation NewObjectEnvironment takes arguments O (an
     /// Object), W (a Boolean), and E (an Environment Record or null) and
     /// returns an Object Environment Record.
     pub(crate) fn new(
-        binding_object: Object,
+        binding_object: Object<'gen>,
         is_with_environment: bool,
-        outer_env: OuterEnv,
-    ) -> ObjectEnvironment {
+        outer_env: OuterEnv<'gen>,
+    ) -> ObjectEnvironment<'gen> {
         // 1. Let env be a new Object Environment Record.
         ObjectEnvironment {
             // 2. Set env.[[BindingObject]] to O.
@@ -73,8 +73,8 @@ impl ObjectEnvironment {
     }
 }
 
-impl HeapMarkAndSweep for ObjectEnvironment {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ObjectEnvironment<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.outer_env.mark_values(queues);
         self.binding_object.mark_values(queues);
     }
@@ -85,14 +85,14 @@ impl HeapMarkAndSweep for ObjectEnvironment {
     }
 }
 
-impl ObjectEnvironmentIndex {
+impl<'gen> ObjectEnvironmentIndex<'gen> {
     /// ### [9.1.1.2.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of an Object Environment Record envRec
     /// takes argument N (a String) and returns either a normal completion
     /// containing a Boolean or a throw completion. It determines if its
     /// associated binding object has a property whose name is N.
-    pub(crate) fn has_binding(self, agent: &mut Agent, n: String) -> JsResult<bool> {
+    pub(crate) fn has_binding(self, agent: &mut Agent<'gen>, n: String<'gen>) -> JsResult<'gen, bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
@@ -137,10 +137,10 @@ impl ObjectEnvironmentIndex {
     /// is set to true; otherwise it is set to false.
     pub(crate) fn create_mutable_binding(
         self,
-        agent: &mut Agent,
-        n: String,
+        agent: &mut Agent<'gen>,
+        n: String<'gen>,
         d: bool,
-    ) -> JsResult<()> {
+    ) -> JsResult<'gen, ()> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
@@ -169,7 +169,7 @@ impl ObjectEnvironmentIndex {
     }
 
     /// ### [9.1.1.2.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-object-environment-records-createimmutablebinding-n-s)
-    pub(crate) fn create_immutable_binding(self, _: &mut Agent, _: String, _: bool) {
+    pub(crate) fn create_immutable_binding(self, _: &mut Agent<'gen>, _: String<'gen>, _: bool) {
         unreachable!("The CreateImmutableBinding concrete method of an Object Environment Record is never used within this specification.")
     }
     /// ### [9.1.1.2.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-object-environment-records-initializebinding-n-v)
@@ -179,7 +179,7 @@ impl ObjectEnvironmentIndex {
     /// value) and returns either a normal completion containing UNUSED or a
     /// throw completion. It is used to set the bound value of the current
     /// binding of the identifier whose name is N to the value V.
-    pub(crate) fn initialize_binding(self, agent: &mut Agent, n: String, v: Value) -> JsResult<()> {
+    pub(crate) fn initialize_binding(self, agent: &mut Agent<'gen>, n: String<'gen>, v: Value<'gen>) -> JsResult<'gen, ()> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
         self.set_mutable_binding(agent, n, v, false)?;
         // 2. Return UNUSED.
@@ -204,11 +204,11 @@ impl ObjectEnvironmentIndex {
     /// S.
     pub(crate) fn set_mutable_binding(
         self,
-        agent: &mut Agent,
-        n: String,
-        v: Value,
+        agent: &mut Agent<'gen>,
+        n: String<'gen>,
+        v: Value<'gen>,
         s: bool,
-    ) -> JsResult<()> {
+    ) -> JsResult<'gen, ()> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
@@ -241,10 +241,10 @@ impl ObjectEnvironmentIndex {
     /// but if it does not the result depends upon S.
     pub(crate) fn get_binding_value(
         self,
-        agent: &mut Agent,
-        n: String,
+        agent: &mut Agent<'gen>,
+        n: String<'gen>,
         s: bool,
-    ) -> JsResult<Value> {
+    ) -> JsResult<'gen, Value<'gen>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
@@ -278,7 +278,7 @@ impl ObjectEnvironmentIndex {
     /// completion containing a Boolean or a throw completion. It can only
     /// delete bindings that correspond to properties of the environment
     /// object whose [[Configurable]] attribute have the value true.
-    pub(crate) fn delete_binding(self, agent: &mut Agent, name: String) -> JsResult<bool> {
+    pub(crate) fn delete_binding(self, agent: &mut Agent<'gen>, name: String<'gen>) -> JsResult<'gen, bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_boject = env_rec.binding_object;
@@ -313,7 +313,7 @@ impl ObjectEnvironmentIndex {
     ///
     /// The WithBaseObject concrete method of an Object Environment Record
     /// envRec takes no arguments and returns an Object or undefined.
-    pub(crate) fn with_base_object(self, agent: &Agent) -> Option<Object> {
+    pub(crate) fn with_base_object(self, agent: &Agent<'gen>) -> Option<Object<'gen>> {
         let env_rec = &agent[self];
         // 1. If envRec.[[IsWithEnvironment]] is true, return envRec.[[BindingObject]].
         if env_rec.is_with_environment {
@@ -325,8 +325,8 @@ impl ObjectEnvironmentIndex {
     }
 }
 
-impl HeapMarkAndSweep for ObjectEnvironmentIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ObjectEnvironmentIndex<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.object_environments.push(*self);
     }
 

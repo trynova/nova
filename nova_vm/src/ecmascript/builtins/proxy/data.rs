@@ -8,12 +8,12 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct ProxyHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+pub struct ProxyHeapData<'gen> {
+    pub(crate) object_index: Option<OrdinaryObject<'gen>>,
 }
 
-impl HeapMarkAndSweep for ProxyHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ProxyHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.object_index.mark_values(queues);
     }
 

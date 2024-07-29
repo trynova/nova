@@ -27,9 +27,9 @@ use super::ArgumentsList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct BoundFunction(BoundFunctionIndex);
+pub struct BoundFunction<'gen>(BoundFunctionIndex<'gen>);
 
-impl BoundFunction {
+impl<'gen> BoundFunction<'gen> {
     pub(crate) const fn _def() -> Self {
         BoundFunction(BoundFunctionIndex::from_u32_index(0))
     }
@@ -38,40 +38,40 @@ impl BoundFunction {
         self.0.into_index()
     }
 
-    pub fn is_constructor(self, agent: &Agent) -> bool {
+    pub fn is_constructor(self, agent: &Agent<'gen>) -> bool {
         // A bound function has the [[Construct]] method if the target function
         // does.
         agent[self].bound_target_function.is_constructor(agent)
     }
 }
 
-impl IntoValue for BoundFunction {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for BoundFunction<'gen> {
+    fn into_value(self) -> Value<'gen> {
         Value::BoundFunction(self)
     }
 }
 
-impl IntoObject for BoundFunction {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for BoundFunction<'gen> {
+    fn into_object(self) -> Object<'gen> {
         Object::BoundFunction(self)
     }
 }
 
-impl IntoFunction for BoundFunction {
-    fn into_function(self) -> Function {
+impl<'gen> IntoFunction<'gen> for BoundFunction<'gen> {
+    fn into_function(self) -> Function<'gen> {
         Function::BoundFunction(self)
     }
 }
 
-impl InternalSlots for BoundFunction {
+impl<'gen> InternalSlots<'gen> for BoundFunction<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         let prototype = agent
             .current_realm()
             .intrinsics()
@@ -112,12 +112,12 @@ impl InternalSlots for BoundFunction {
     }
 }
 
-impl InternalMethods for BoundFunction {
+impl<'gen> InternalMethods<'gen> for BoundFunction<'gen> {
     fn internal_get_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+    ) -> JsResult<'gen, Option<PropertyDescriptor<'gen>>> {
         if let Some(backing_object) = self.get_backing_object(agent) {
             backing_object.internal_get_own_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -143,17 +143,17 @@ impl InternalMethods for BoundFunction {
 
     fn internal_define_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        property_descriptor: PropertyDescriptor<'gen>,
+    ) -> JsResult<'gen, bool> {
         let backing_object = self
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent));
         backing_object.internal_define_own_property(agent, property_key, property_descriptor)
     }
 
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         if let Some(backing_object) = self.get_backing_object(agent) {
             backing_object.internal_has_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
@@ -170,10 +170,10 @@ impl InternalMethods for BoundFunction {
 
     fn internal_get(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         if let Some(backing_object) = self.get_backing_object(agent) {
             backing_object.internal_get(agent, property_key, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -190,11 +190,11 @@ impl InternalMethods for BoundFunction {
 
     fn internal_set(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        value: Value<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, bool> {
         if let Some(backing_object) = self.get_backing_object(agent) {
             backing_object.internal_set(agent, property_key, value, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
@@ -208,7 +208,7 @@ impl InternalMethods for BoundFunction {
         }
     }
 
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         if let Some(backing_object) = self.get_backing_object(agent) {
             backing_object.internal_delete(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
@@ -222,7 +222,7 @@ impl InternalMethods for BoundFunction {
         }
     }
 
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Vec<PropertyKey<'gen>>> {
         if let Some(backing_object) = self.get_backing_object(agent) {
             backing_object.internal_own_property_keys(agent)
         } else {
@@ -242,10 +242,10 @@ impl InternalMethods for BoundFunction {
     /// completion.
     fn internal_call(
         self,
-        agent: &mut Agent,
-        _: Value,
-        arguments_list: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments_list: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. Let target be F.[[BoundTargetFunction]].
         let target = agent[self].bound_target_function;
         // 2. Let boundThis be F.[[BoundThis]].
@@ -280,10 +280,10 @@ impl InternalMethods for BoundFunction {
     /// containing an Object or a throw completion.
     fn internal_construct(
         self,
-        agent: &mut Agent,
-        arguments_list: ArgumentsList,
-        new_target: Function,
-    ) -> JsResult<Object> {
+        agent: &mut Agent<'gen>,
+        arguments_list: ArgumentsList<'_, 'gen>,
+        new_target: Function<'gen>,
+    ) -> JsResult<'gen, Object<'gen>> {
         // 1. Let target be F.[[BoundTargetFunction]].
         let target = agent[self].bound_target_function;
         // 2. Assert: IsConstructor(target) is true.
@@ -311,24 +311,24 @@ impl InternalMethods for BoundFunction {
     }
 }
 
-impl Index<BoundFunction> for Agent {
-    type Output = BoundFunctionHeapData;
+impl<'gen> Index<BoundFunction<'gen>> for Agent<'gen> {
+    type Output = BoundFunctionHeapData<'gen>;
 
-    fn index(&self, index: BoundFunction) -> &Self::Output {
+    fn index(&self, index: BoundFunction<'gen>) -> &Self::Output {
         &self.heap.bound_functions[index]
     }
 }
 
-impl IndexMut<BoundFunction> for Agent {
-    fn index_mut(&mut self, index: BoundFunction) -> &mut Self::Output {
+impl<'gen> IndexMut<BoundFunction<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: BoundFunction<'gen>) -> &mut Self::Output {
         &mut self.heap.bound_functions[index]
     }
 }
 
-impl Index<BoundFunction> for Vec<Option<BoundFunctionHeapData>> {
-    type Output = BoundFunctionHeapData;
+impl<'gen> Index<BoundFunction<'gen>> for Vec<Option<BoundFunctionHeapData<'gen>>> {
+    type Output = BoundFunctionHeapData<'gen>;
 
-    fn index(&self, index: BoundFunction) -> &Self::Output {
+    fn index(&self, index: BoundFunction<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("BoundFunction out of bounds")
             .as_ref()
@@ -336,8 +336,8 @@ impl Index<BoundFunction> for Vec<Option<BoundFunctionHeapData>> {
     }
 }
 
-impl IndexMut<BoundFunction> for Vec<Option<BoundFunctionHeapData>> {
-    fn index_mut(&mut self, index: BoundFunction) -> &mut Self::Output {
+impl<'gen> IndexMut<BoundFunction<'gen>> for Vec<Option<BoundFunctionHeapData<'gen>>> {
+    fn index_mut(&mut self, index: BoundFunction<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BoundFunction out of bounds")
             .as_mut()
@@ -345,15 +345,15 @@ impl IndexMut<BoundFunction> for Vec<Option<BoundFunctionHeapData>> {
     }
 }
 
-impl CreateHeapData<BoundFunctionHeapData, BoundFunction> for Heap {
-    fn create(&mut self, data: BoundFunctionHeapData) -> BoundFunction {
+impl<'gen> CreateHeapData<BoundFunctionHeapData<'gen>, BoundFunction<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: BoundFunctionHeapData<'gen>) -> BoundFunction<'gen> {
         self.bound_functions.push(Some(data));
         BoundFunction(BoundFunctionIndex::last(&self.bound_functions))
     }
 }
 
-impl HeapMarkAndSweep for BoundFunction {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for BoundFunction<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.bound_functions.push(*self);
     }
 
@@ -362,8 +362,8 @@ impl HeapMarkAndSweep for BoundFunction {
     }
 }
 
-impl HeapMarkAndSweep for BoundFunctionHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for BoundFunctionHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.name.mark_values(queues);
         self.bound_target_function.mark_values(queues);
         self.object_index.mark_values(queues);

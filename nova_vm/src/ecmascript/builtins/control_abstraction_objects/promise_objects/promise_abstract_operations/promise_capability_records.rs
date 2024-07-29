@@ -38,31 +38,31 @@ use super::promise_jobs::new_promise_resolve_thenable_job;
 /// state is Fulfilled or Rejected. If true, it also counts as already resolved
 /// if it's Pending but `is_resolved` is set to true.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PromiseCapability {
-    promise: Promise,
+pub struct PromiseCapability<'gen> {
+    promise: Promise<'gen>,
     must_be_unresolved: bool,
 }
 
-impl PromiseCapability {
+impl<'gen> PromiseCapability<'gen> {
     /// [27.2.1.5 NewPromiseCapability ( C )](https://tc39.es/ecma262/#sec-newpromisecapability)
     /// NOTE: Our implementation doesn't take C as a parameter, since we don't
     /// yet support promise subclassing.
-    pub fn new(agent: &mut Agent) -> Self {
+    pub fn new(agent: &mut Agent<'gen>) -> Self {
         Self::from_promise(agent.heap.create(PromiseHeapData::default()), true)
     }
 
-    pub fn from_promise(promise: Promise, must_be_unresolved: bool) -> Self {
+    pub fn from_promise(promise: Promise<'gen>, must_be_unresolved: bool) -> Self {
         Self {
             promise,
             must_be_unresolved,
         }
     }
 
-    pub fn promise(&self) -> Promise {
+    pub fn promise(&self) -> Promise<'gen> {
         self.promise
     }
 
-    fn is_already_resolved(self, agent: &mut Agent) -> bool {
+    fn is_already_resolved(self, agent: &mut Agent<'gen>) -> bool {
         // If `self.must_be_unresolved` is true, then `alreadyResolved`
         // corresponds with the `is_resolved` flag in PromiseState::Pending.
         // Otherwise, it corresponds to `promise_state` not being Pending.
@@ -79,7 +79,7 @@ impl PromiseCapability {
     }
 
     /// [27.2.1.4 FulfillPromise ( promise, value )](https://tc39.es/ecma262/#sec-fulfillpromise)
-    fn internal_fulfill(self, agent: &mut Agent, value: Value) {
+    fn internal_fulfill(self, agent: &mut Agent<'gen>, value: Value<'gen>) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseFulfillReactions]].
         let promise_state = &mut agent[self.promise].promise_state;
@@ -103,7 +103,7 @@ impl PromiseCapability {
     }
 
     /// [27.2.1.7 RejectPromise ( promise, reason )](https://tc39.es/ecma262/#sec-rejectpromise)
-    fn internal_reject(self, agent: &mut Agent, reason: Value) {
+    fn internal_reject(self, agent: &mut Agent<'gen>, reason: Value<'gen>) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseRejectReactions]].
         let promise_state = &mut agent[self.promise].promise_state;
@@ -136,7 +136,7 @@ impl PromiseCapability {
     }
 
     /// [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
-    pub fn resolve(self, agent: &mut Agent, resolution: Value) {
+    pub fn resolve(self, agent: &mut Agent<'gen>, resolution: Value<'gen>) {
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].
@@ -205,7 +205,7 @@ impl PromiseCapability {
     }
 
     /// [27.2.1.3.1 Promise Reject Functions](https://tc39.es/ecma262/#sec-promise-reject-functions)
-    pub fn reject(self, agent: &mut Agent, reason: Value) {
+    pub fn reject(self, agent: &mut Agent<'gen>, reason: Value<'gen>) {
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].
@@ -226,8 +226,8 @@ impl PromiseCapability {
     }
 }
 
-impl HeapMarkAndSweep for PromiseCapability {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for PromiseCapability<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.promise.mark_values(queues);
     }
 
@@ -255,11 +255,11 @@ impl HeapMarkAndSweep for PromiseCapability {
 ///     a. Set value to ! value.
 /// ```
 #[inline(always)]
-pub(crate) fn if_abrupt_reject_promise<T>(
-    agent: &mut Agent,
-    value: JsResult<T>,
-    capability: PromiseCapability,
-) -> JsResult<T> {
+pub(crate) fn if_abrupt_reject_promise<'gen, T>(
+    agent: &mut Agent<'gen>,
+    value: JsResult<'gen, T>,
+    capability: PromiseCapability<'gen>,
+) -> JsResult<'gen, T> {
     value.map_err(|err| {
         capability.reject(agent, err.value());
 

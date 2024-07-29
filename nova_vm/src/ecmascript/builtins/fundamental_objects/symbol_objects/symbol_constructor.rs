@@ -27,7 +27,7 @@ use crate::heap::WellKnownSymbolIndexes;
 pub(crate) struct SymbolConstructor;
 
 impl Builtin for SymbolConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Symbol;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Symbol;
 
     const LENGTH: u8 = 0;
 
@@ -40,7 +40,7 @@ impl BuiltinIntrinsicConstructor for SymbolConstructor {
 struct SymbolFor;
 
 impl Builtin for SymbolFor {
-    const NAME: String = BUILTIN_STRING_MEMORY.r#for;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.r#for;
 
     const LENGTH: u8 = 1;
 
@@ -50,7 +50,7 @@ impl Builtin for SymbolFor {
 struct SymbolKeyFor;
 
 impl Builtin for SymbolKeyFor {
-    const NAME: String = BUILTIN_STRING_MEMORY.keyFor;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.keyFor;
 
     const LENGTH: u8 = 1;
 
@@ -58,12 +58,12 @@ impl Builtin for SymbolKeyFor {
 }
 
 impl SymbolConstructor {
-    fn behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -85,19 +85,19 @@ impl SymbolConstructor {
             .into_value())
     }
 
-    fn r#for(_agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn r#for(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         Ok(arguments.get(0))
     }
 
-    fn key_for(
-        _agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn key_for<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         Ok(arguments.get(0))
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let symbol_prototype = intrinsics.symbol_prototype();
 

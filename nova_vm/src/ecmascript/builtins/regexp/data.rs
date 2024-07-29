@@ -10,14 +10,14 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct RegExpHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+pub struct RegExpHeapData<'gen> {
+    pub(crate) object_index: Option<OrdinaryObject<'gen>>,
     // _regex: RegExp,
-    pub(crate) original_source: String,
+    pub(crate) original_source: String<'gen>,
     pub(crate) original_flags: RegExpFlags,
 }
 
-impl Default for RegExpHeapData {
+impl Default for RegExpHeapData<'_> {
     fn default() -> Self {
         Self {
             object_index: Default::default(),
@@ -27,8 +27,8 @@ impl Default for RegExpHeapData {
     }
 }
 
-impl HeapMarkAndSweep for RegExpHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for RegExpHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.object_index.mark_values(queues);
         self.original_source.mark_values(queues);
     }

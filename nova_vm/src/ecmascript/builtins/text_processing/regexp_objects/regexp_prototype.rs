@@ -17,7 +17,7 @@ pub(crate) struct RegExpPrototype;
 
 struct RegExpPrototypeExec;
 impl Builtin for RegExpPrototypeExec {
-    const NAME: String = BUILTIN_STRING_MEMORY.exec;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.exec;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::exec);
 }
@@ -26,198 +26,198 @@ impl BuiltinIntrinsic for RegExpPrototypeExec {
 }
 struct RegExpPrototypeGetDotAll;
 impl Builtin for RegExpPrototypeGetDotAll {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_dotAll;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.dotAll.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_dotAll;
+    const KEY: Option<PropertyKey<'static>> = Some(BUILTIN_STRING_MEMORY.dotAll.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_dot_all);
 }
 impl BuiltinGetter for RegExpPrototypeGetDotAll {}
 struct RegExpPrototypeGetFlags;
 impl Builtin for RegExpPrototypeGetFlags {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_flags;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.flags.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_flags;
+    const KEY: Option<PropertyKey<'static>> = Some(BUILTIN_STRING_MEMORY.flags.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_flags);
 }
 impl BuiltinGetter for RegExpPrototypeGetFlags {}
 struct RegExpPrototypeGetGlobal;
 impl Builtin for RegExpPrototypeGetGlobal {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_global;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.global.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_global;
+    const KEY: Option<PropertyKey<'static>> = Some(BUILTIN_STRING_MEMORY.global.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_global);
 }
 impl BuiltinGetter for RegExpPrototypeGetGlobal {}
 struct RegExpPrototypeGetHasIndices;
 impl Builtin for RegExpPrototypeGetHasIndices {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_hasIndices;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.hasIndices.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_hasIndices;
+    const KEY: Option<PropertyKey<'static>> = Some(BUILTIN_STRING_MEMORY.hasIndices.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_has_indices);
 }
 impl BuiltinGetter for RegExpPrototypeGetHasIndices {}
 struct RegExpPrototypeGetIgnoreCase;
 impl Builtin for RegExpPrototypeGetIgnoreCase {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_ignoreCase;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.ignoreCase.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_ignoreCase;
+    const KEY: Option<PropertyKey<'static>> = Some(BUILTIN_STRING_MEMORY.ignoreCase.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_ignore_case);
 }
 impl BuiltinGetter for RegExpPrototypeGetIgnoreCase {}
 struct RegExpPrototypeMatch;
 impl Builtin for RegExpPrototypeMatch {
-    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_match_;
-    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Match.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_match_;
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbolIndexes::Match.to_property_key());
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::r#match);
 }
 struct RegExpPrototypeMatchAll;
 impl Builtin for RegExpPrototypeMatchAll {
-    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_matchAll_;
-    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::MatchAll.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_matchAll_;
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbolIndexes::MatchAll.to_property_key());
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::match_all);
 }
 struct RegExpPrototypeGetMultiline;
 impl Builtin for RegExpPrototypeGetMultiline {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_multiline;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.multiline.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_multiline;
+    const KEY: Option<PropertyKey<'static>> = Some(BUILTIN_STRING_MEMORY.multiline.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_multiline);
 }
 impl BuiltinGetter for RegExpPrototypeGetMultiline {}
 struct RegExpPrototypeReplace;
 impl Builtin for RegExpPrototypeReplace {
-    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_replace_;
-    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Replace.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_replace_;
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbolIndexes::Replace.to_property_key());
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::replace);
 }
 struct RegExpPrototypeSearch;
 impl Builtin for RegExpPrototypeSearch {
-    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_search_;
-    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Search.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_search_;
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbolIndexes::Search.to_property_key());
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::search);
 }
 struct RegExpPrototypeGetSource;
 impl Builtin for RegExpPrototypeGetSource {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_source;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.source.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_source;
+    const KEY: Option<PropertyKey<'static>> = Some(BUILTIN_STRING_MEMORY.source.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_source);
 }
 impl BuiltinGetter for RegExpPrototypeGetSource {}
 struct RegExpPrototypeSplit;
 impl Builtin for RegExpPrototypeSplit {
-    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_split_;
-    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Split.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_split_;
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbolIndexes::Split.to_property_key());
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::split);
 }
 struct RegExpPrototypeGetSticky;
 impl Builtin for RegExpPrototypeGetSticky {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_sticky;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.sticky.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_sticky;
+    const KEY: Option<PropertyKey<'static>> = Some(BUILTIN_STRING_MEMORY.sticky.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_sticky);
 }
 impl BuiltinGetter for RegExpPrototypeGetSticky {}
 struct RegExpPrototypeTest;
 impl Builtin for RegExpPrototypeTest {
-    const NAME: String = BUILTIN_STRING_MEMORY.test;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.test;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::test);
 }
 struct RegExpPrototypeToString;
 impl Builtin for RegExpPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::to_string);
 }
 struct RegExpPrototypeGetUnicode;
 impl Builtin for RegExpPrototypeGetUnicode {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_unicode;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.unicode.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_unicode;
+    const KEY: Option<PropertyKey<'static>> = Some(BUILTIN_STRING_MEMORY.unicode.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_unicode);
 }
 impl BuiltinGetter for RegExpPrototypeGetUnicode {}
 struct RegExpPrototypeGetUnicodeSets;
 impl Builtin for RegExpPrototypeGetUnicodeSets {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_unicodeSets;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.unicodeSets.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_unicodeSets;
+    const KEY: Option<PropertyKey<'static>> = Some(BUILTIN_STRING_MEMORY.unicodeSets.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_unicode_sets);
 }
 impl BuiltinGetter for RegExpPrototypeGetUnicodeSets {}
 
 impl RegExpPrototype {
-    fn exec(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn exec<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_dot_all(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_dot_all<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_flags(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_flags<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_global(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_global<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_has_indices(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_has_indices<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_ignore_case(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_ignore_case<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn r#match(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn r#match(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn match_all(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn match_all<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_multiline(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_multiline<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn replace(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn replace<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn search(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn search<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_source(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_source<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn split(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn split<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_sticky(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_sticky<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn test(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn test<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -228,7 +228,7 @@ impl RegExpPrototype {
     /// > The returned String has the form of a RegularExpressionLiteral that
     /// > evaluates to another RegExp object with the same behaviour as this
     /// > object.
-    fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let R be the this value.
         // 2. If R is not an Object, throw a TypeError exception.
         let Ok(r) = Object::try_from(this_value) else {
@@ -267,19 +267,19 @@ impl RegExpPrototype {
         Ok(result.into_value())
     }
 
-    fn get_unicode(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_unicode<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_unicode_sets(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_unicode_sets<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.reg_exp_prototype();

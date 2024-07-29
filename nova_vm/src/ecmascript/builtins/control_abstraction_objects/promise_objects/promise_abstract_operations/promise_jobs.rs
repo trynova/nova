@@ -24,13 +24,13 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct PromiseResolveThenableJob {
-    promise_to_resolve: Promise,
-    thenable: Object,
-    then: Function,
+pub(crate) struct PromiseResolveThenableJob<'gen> {
+    promise_to_resolve: Promise<'gen>,
+    thenable: Object<'gen>,
+    then: Function<'gen>,
 }
-impl PromiseResolveThenableJob {
-    pub(crate) fn run(self, agent: &mut Agent) -> JsResult<()> {
+impl<'gen> PromiseResolveThenableJob<'gen> {
+    pub(crate) fn run(self, agent: &mut Agent<'gen>) -> JsResult<'gen, ()> {
         // The following are substeps of point 1 in NewPromiseResolveThenableJob.
         // a. Let resolvingFunctions be CreateResolvingFunctions(promiseToResolve).
         let promise_capability = PromiseCapability::from_promise(self.promise_to_resolve, false);
@@ -73,12 +73,12 @@ impl PromiseResolveThenableJob {
 }
 
 /// ### [27.2.2.2 NewPromiseResolveThenableJob ( promiseToResolve, thenable, then )](https://tc39.es/ecma262/#sec-newpromiseresolvethenablejob)
-pub(crate) fn new_promise_resolve_thenable_job(
-    agent: &mut Agent,
-    promise_to_resolve: Promise,
-    thenable: Object,
-    then: Function,
-) -> Job {
+pub(crate) fn new_promise_resolve_thenable_job<'gen>(
+    agent: &mut Agent<'gen>,
+    promise_to_resolve: Promise<'gen>,
+    thenable: Object<'gen>,
+    then: Function<'gen>,
+) -> Job<'gen> {
     // 2. Let getThenRealmResult be Completion(GetFunctionRealm(then.[[Callback]])).
     // 5. NOTE: thenRealm is never null. When then.[[Callback]] is a revoked Proxy and no code runs, thenRealm is used to create error objects.
     let then_realm = match get_function_realm(agent, then) {
@@ -99,12 +99,12 @@ pub(crate) fn new_promise_resolve_thenable_job(
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct PromiseReactionJob {
-    reaction: PromiseReaction,
-    argument: Value,
+pub(crate) struct PromiseReactionJob<'gen> {
+    reaction: PromiseReaction<'gen>,
+    argument: Value<'gen>,
 }
-impl PromiseReactionJob {
-    pub(crate) fn run(self, agent: &mut Agent) -> JsResult<()> {
+impl<'gen> PromiseReactionJob<'gen> {
+    pub(crate) fn run(self, agent: &mut Agent<'gen>) -> JsResult<'gen, ()> {
         // The following are substeps of point 1 in NewPromiseReactionJob.
         let handler_result = match agent[self.reaction].handler {
             PromiseReactionHandler::Empty => match agent[self.reaction].reaction_type {
@@ -162,11 +162,11 @@ impl PromiseReactionJob {
 }
 
 /// ### [27.2.2.1 NewPromiseReactionJob ( reaction, argument )](https://tc39.es/ecma262/#sec-newpromisereactionjob)
-pub(crate) fn new_promise_reaction_job(
-    agent: &mut Agent,
-    reaction: PromiseReaction,
-    argument: Value,
-) -> Job {
+pub(crate) fn new_promise_reaction_job<'gen>(
+    agent: &mut Agent<'gen>,
+    reaction: PromiseReaction<'gen>,
+    argument: Value<'gen>,
+) -> Job<'gen> {
     let handler_realm = match agent[reaction].handler {
         // 3. If reaction.[[Handler]] is not empty, then
         PromiseReactionHandler::JobCallback(callback) => {

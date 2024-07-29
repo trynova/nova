@@ -120,10 +120,10 @@ use super::{ordinary::ordinary_object_create_with_intrinsics, ArgumentsList};
 /// The abstract operation CreateUnmappedArgumentsObject takes argument
 /// argumentsList (a List of ECMAScript language values) and returns an
 /// ordinary object.
-pub(crate) fn create_unmapped_arguments_object(
-    agent: &mut Agent,
-    arguments_list: ArgumentsList,
-) -> Object {
+pub(crate) fn create_unmapped_arguments_object<'gen>(
+    agent: &mut Agent<'gen>,
+    arguments_list: ArgumentsList<'_, 'gen>,
+) -> Object<'gen> {
     // 1. Let len be the number of elements in argumentsList.
     let len = arguments_list.len();
     let len = Number::from_f64(agent, len as f64).into_value();

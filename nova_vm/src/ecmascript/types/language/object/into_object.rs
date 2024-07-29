@@ -6,9 +6,9 @@ use crate::ecmascript::types::language::into_value::IntoValue;
 
 use super::Object;
 
-pub trait IntoObject
+pub trait IntoObject<'gen>
 where
-    Self: Sized + Copy + IntoValue,
+    Self: Sized + Copy + IntoValue<'gen>,
 {
     fn into_object(self) -> Object;
 }

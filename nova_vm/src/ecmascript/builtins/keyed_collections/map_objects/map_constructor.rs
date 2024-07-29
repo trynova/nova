@@ -31,7 +31,7 @@ use crate::{
 
 pub(crate) struct MapConstructor;
 impl Builtin for MapConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Map;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Map;
 
     const LENGTH: u8 = 0;
 
@@ -44,24 +44,24 @@ struct MapGroupBy;
 impl Builtin for MapGroupBy {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapConstructor::group_by);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.groupBy;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.groupBy;
 }
 struct MapGetSpecies;
 impl Builtin for MapGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapConstructor::get_species);
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 }
 impl BuiltinGetter for MapGetSpecies {}
 
 impl MapConstructor {
-    fn behaviour(
-        agent: &mut Agent,
-        _: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -110,19 +110,19 @@ impl MapConstructor {
         }
     }
 
-    fn group_by(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn group_by<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_species(_: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_species(_: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         Ok(this_value)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let map_prototype = intrinsics.map_prototype();
 
@@ -141,11 +141,11 @@ impl MapConstructor {
 ///
 /// This is a specialization for the `new Map()` use case.
 pub fn add_entries_from_iterable_map_constructor(
-    agent: &mut Agent,
+    agent: &mut Agent<'gen>,
     target: Map,
-    iterable: Value,
-    adder: Function,
-) -> JsResult<Map> {
+    iterable: Value<'gen>,
+    adder: Function<'gen>,
+) -> JsResult<'gen, Map> {
     if let Function::BuiltinFunction(adder) = adder {
         if agent[adder].behaviour == MapPrototypeSet::BEHAVIOUR {
             // Normal Map.prototype.set
@@ -228,11 +228,11 @@ pub fn add_entries_from_iterable_map_constructor(
 /// > as a Map key and whose second element is the value to associate with that
 /// > key.
 pub(crate) fn add_entries_from_iterable(
-    agent: &mut Agent,
-    target: Object,
-    iterable: Value,
-    adder: Function,
-) -> JsResult<Object> {
+    agent: &mut Agent<'gen>,
+    target: Object<'gen>,
+    iterable: Value<'gen>,
+    adder: Function<'gen>,
+) -> JsResult<'gen, Object<'gen>> {
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
     let mut iterator_record = get_iterator(agent, iterable, false)?;
     // 2. Repeat,

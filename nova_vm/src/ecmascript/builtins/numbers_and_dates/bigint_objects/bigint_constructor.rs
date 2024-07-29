@@ -38,7 +38,7 @@ pub struct BigIntConstructor;
 impl Builtin for BigIntConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.BigInt;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.BigInt;
 }
 impl BuiltinIntrinsicConstructor for BigIntConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::BigInt;
@@ -48,22 +48,22 @@ struct BigIntAsIntN;
 impl Builtin for BigIntAsIntN {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(BigIntConstructor::as_int_n);
     const LENGTH: u8 = 2;
-    const NAME: String = BUILTIN_STRING_MEMORY.asIntN;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.asIntN;
 }
 struct BigIntAsUintN;
 impl Builtin for BigIntAsUintN {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(BigIntConstructor::as_uint_n);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.asUintN;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.asUintN;
 }
 
 impl BigIntConstructor {
-    fn behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -79,11 +79,11 @@ impl BigIntConstructor {
         }
     }
 
-    fn as_int_n(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn as_int_n<'gen>(
+        agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let bits = to_index(agent, arguments.get(0))?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
@@ -107,11 +107,11 @@ impl BigIntConstructor {
         }
     }
 
-    fn as_uint_n(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn as_uint_n<'gen>(
+        agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let bits = to_index(agent, arguments.get(0))?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
@@ -130,7 +130,7 @@ impl BigIntConstructor {
         }
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let big_int_prototype = intrinsics.big_int_prototype();
 
@@ -143,7 +143,7 @@ impl BigIntConstructor {
     }
 }
 
-fn number_to_big_int(agent: &mut Agent, value: Number) -> JsResult<BigInt> {
+fn number_to_big_int<'gen>(agent: &mut Agent<'gen>, value: Number<'gen>) -> JsResult<'gen, BigInt<'gen>> {
     if !is_integral_number(agent, value) {
         Err(agent.throw_exception_with_static_message(ExceptionType::RangeError, "Not an integer"))
     } else {

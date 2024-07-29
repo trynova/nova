@@ -22,9 +22,9 @@ use self::data::DateHeapData;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Date(pub(crate) DateIndex);
+pub struct Date<'gen>(pub(crate) DateIndex<'gen>);
 
-impl Date {
+impl<'gen> Date<'gen> {
     pub(crate) const fn _def() -> Self {
         Self(DateIndex::from_u32_index(0))
     }
@@ -34,34 +34,34 @@ impl Date {
     }
 }
 
-impl IntoValue for Date {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for Date<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl From<Date> for Value {
-    fn from(value: Date) -> Self {
+impl<'gen> From<Date<'gen>> for Value<'gen> {
+    fn from(value: Date<'gen>) -> Self {
         Value::Date(value)
     }
 }
 
-impl IntoObject for Date {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for Date<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<Date> for Object {
-    fn from(value: Date) -> Self {
+impl<'gen> From<Date<'gen>> for Object<'gen> {
+    fn from(value: Date<'gen>) -> Self {
         Object::Date(value)
     }
 }
 
-impl TryFrom<Value> for Date {
+impl<'gen> TryFrom<Value<'gen>> for Date<'gen> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, ()> {
+    fn try_from(value: Value<'gen>) -> Result<Self, ()> {
         match value {
             Value::Date(idx) => Ok(idx),
             _ => Err(()),
@@ -69,10 +69,10 @@ impl TryFrom<Value> for Date {
     }
 }
 
-impl TryFrom<Object> for Date {
+impl<'gen> TryFrom<Object<'gen>> for Date<'gen> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, ()> {
+    fn try_from(value: Object<'gen>) -> Result<Self, ()> {
         match value {
             Object::Date(idx) => Ok(idx),
             _ => Err(()),
@@ -80,15 +80,15 @@ impl TryFrom<Object> for Date {
     }
 }
 
-impl InternalSlots for Date {
+impl<'gen> InternalSlots<'gen> for Date<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Date;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         let prototype = agent
             .current_realm()
             .intrinsics()
@@ -104,26 +104,26 @@ impl InternalSlots for Date {
     }
 }
 
-impl InternalMethods for Date {}
+impl<'gen> InternalMethods<'gen> for Date<'gen> {}
 
-impl Index<Date> for Agent {
-    type Output = DateHeapData;
+impl<'gen> Index<Date<'gen>> for Agent<'gen> {
+    type Output = DateHeapData<'gen>;
 
     fn index(&self, index: Date) -> &Self::Output {
         &self.heap.dates[index]
     }
 }
 
-impl IndexMut<Date> for Agent {
+impl<'gen> IndexMut<Date<'gen>> for Agent<'gen> {
     fn index_mut(&mut self, index: Date) -> &mut Self::Output {
         &mut self.heap.dates[index]
     }
 }
 
-impl Index<Date> for Vec<Option<DateHeapData>> {
-    type Output = DateHeapData;
+impl<'gen> Index<Date<'gen>> for Vec<Option<DateHeapData<'gen>>> {
+    type Output = DateHeapData<'gen>;
 
-    fn index(&self, index: Date) -> &Self::Output {
+    fn index(&self, index: Date<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("Date out of bounds")
             .as_ref()
@@ -131,8 +131,8 @@ impl Index<Date> for Vec<Option<DateHeapData>> {
     }
 }
 
-impl IndexMut<Date> for Vec<Option<DateHeapData>> {
-    fn index_mut(&mut self, index: Date) -> &mut Self::Output {
+impl<'gen> IndexMut<Date<'gen>> for Vec<Option<DateHeapData<'gen>>> {
+    fn index_mut(&mut self, index: Date<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Date out of bounds")
             .as_mut()
@@ -140,8 +140,8 @@ impl IndexMut<Date> for Vec<Option<DateHeapData>> {
     }
 }
 
-impl HeapMarkAndSweep for Date {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Date<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.dates.push(*self);
     }
 
@@ -150,8 +150,8 @@ impl HeapMarkAndSweep for Date {
     }
 }
 
-impl CreateHeapData<DateHeapData, Date> for Heap {
-    fn create(&mut self, data: DateHeapData) -> Date {
+impl<'gen> CreateHeapData<DateHeapData<'gen>, Date<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: DateHeapData<'gen>) -> Date<'gen> {
         self.dates.push(Some(data));
         Date(DateIndex::last(&self.dates))
     }

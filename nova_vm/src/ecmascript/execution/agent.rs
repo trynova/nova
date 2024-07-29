@@ -30,21 +30,21 @@ pub struct Options {
     pub print_internals: bool,
 }
 
-pub type JsResult<T> = std::result::Result<T, JsError>;
+pub type JsResult<'gen, T> = std::result::Result<T, JsError<'gen>>;
 
 #[derive(Debug, Default, Clone, Copy)]
-pub struct JsError(Value);
+pub struct JsError<'gen>(Value<'gen>);
 
-impl JsError {
-    pub(crate) fn new(value: Value) -> Self {
+impl<'gen> JsError<'gen> {
+    pub(crate) fn new(value: Value<'gen>) -> Self {
         Self(value)
     }
 
-    pub fn value(self) -> Value {
+    pub fn value(self) -> Value<'gen> {
         self.0
     }
 
-    pub fn to_string(self, agent: &mut Agent) -> String {
+    pub fn to_string(self, agent: &mut Agent<'gen>) -> String<'gen> {
         to_string(agent, self.0).unwrap()
     }
 }
@@ -52,22 +52,22 @@ impl JsError {
 // #[derive(Debug)]
 // pub struct PreAllocated;
 
-pub(crate) enum InnerJob {
-    PromiseResolveThenable(PromiseResolveThenableJob),
-    PromiseReaction(PromiseReactionJob),
+pub(crate) enum InnerJob<'gen> {
+    PromiseResolveThenable(PromiseResolveThenableJob<'gen>),
+    PromiseReaction(PromiseReactionJob<'gen>),
 }
 
-pub struct Job {
-    pub(crate) realm: Option<RealmIdentifier>,
-    pub(crate) inner: InnerJob,
+pub struct Job<'gen> {
+    pub(crate) realm: Option<RealmIdentifier<'gen>>,
+    pub(crate) inner: InnerJob<'gen>,
 }
 
-impl Job {
-    pub fn realm(&self) -> Option<RealmIdentifier> {
+impl<'gen> Job<'gen> {
+    pub fn realm(&self) -> Option<RealmIdentifier<'gen>> {
         self.realm
     }
 
-    pub fn run(&self, agent: &mut Agent) -> JsResult<()> {
+    pub fn run(&self, agent: &mut Agent<'gen>) -> JsResult<'gen, ()> {
         let mut pushed_context = false;
         if let Some(realm) = self.realm {
             if agent.current_realm_id() != realm {
@@ -101,24 +101,24 @@ pub enum PromiseRejectionTrackerOperation {
 
 pub trait HostHooks: std::fmt::Debug {
     /// ### [19.2.1.2 HostEnsureCanCompileStrings ( calleeRealm )](https://tc39.es/ecma262/#sec-hostensurecancompilestrings)
-    fn host_ensure_can_compile_strings(&self, _callee_realm: &mut Realm) -> JsResult<()> {
+    fn host_ensure_can_compile_strings<'gen>(&self, _callee_realm: &mut Realm<'gen>) -> JsResult<'gen, ()> {
         // The default implementation of HostEnsureCanCompileStrings is to return NormalCompletion(unused).
         Ok(())
     }
 
     /// ### [20.2.5 HostHasSourceTextAvailable ( func )](https://tc39.es/ecma262/#sec-hosthassourcetextavailable)
-    fn host_has_source_text_available(&self, _func: Function) -> bool {
+    fn host_has_source_text_available<'gen>(&self, _func: Function<'gen>) -> bool {
         // The default implementation of HostHasSourceTextAvailable is to return true.
         true
     }
 
     /// ### [9.5.5 HostEnqueuePromiseJob ( job, realm )](https://tc39.es/ecma262/#sec-hostenqueuepromisejob)
-    fn enqueue_promise_job(&self, job: Job);
+    fn enqueue_promise_job<'gen>(&self, job: Job<'gen>);
 
     /// ### [27.2.1.9 HostPromiseRejectionTracker ( promise, operation )](https://tc39.es/ecma262/#sec-host-promise-rejection-tracker)
-    fn promise_rejection_tracker(
+    fn promise_rejection_tracker<'gen>(
         &self,
-        _promise: Promise,
+        _promise: Promise<'gen>,
         _operation: PromiseRejectionTrackerOperation,
     ) {
         // The default implementation of HostPromiseRejectionTracker is to return unused.
@@ -135,8 +135,8 @@ pub trait HostHooks: std::fmt::Debug {
 /// Owned ECMAScript Agent that can be used to run code but also to run garbage
 /// collection on the Agent heap.
 pub struct GcAgent {
-    agent: Agent,
-    realm_roots: Vec<Option<RealmIdentifier>>,
+    agent: Agent<'static>,
+    realm_roots: Vec<Option<RealmIdentifier<'static>>>,
 }
 
 /// ECMAScript Realm root
@@ -159,7 +159,8 @@ impl GcAgent {
         }
     }
 
-    fn root_realm(&mut self, identifier: RealmIdentifier) -> RealmRoot {
+    fn root_realm(&mut self, identifier: RealmIdentifier<'_>) -> RealmRoot {
+        let identifier = unsafe { std::mem::transmute::<RealmIdentifier<'_>, RealmIdentifier<'static>>(identifier) };
         let index = if let Some((index, deleted_entry)) = self
             .realm_roots
             .iter_mut()
@@ -169,6 +170,7 @@ impl GcAgent {
             *deleted_entry = Some(identifier);
             index
         } else {
+            // SAFETY: Self-referential
             self.realm_roots.push(Some(identifier));
             self.realm_roots.len() - 1
         };
@@ -184,11 +186,11 @@ impl GcAgent {
     ///
     /// The Realm will not be removed by garbage collection until
     /// [`GcAgent::remove_realm`] is called.
-    pub fn create_realm(
+    pub fn create_realm<'gen>(
         &mut self,
-        create_global_object: Option<impl FnOnce(&mut Agent) -> Object>,
-        create_global_this_value: Option<impl FnOnce(&mut Agent) -> Object>,
-        initialize_global_object: Option<impl FnOnce(&mut Agent, Object)>,
+        create_global_object: Option<impl FnOnce(&mut Agent<'gen>) -> Object<'gen>>,
+        create_global_this_value: Option<impl FnOnce(&mut Agent<'gen>) -> Object<'gen>>,
+        initialize_global_object: Option<impl FnOnce(&mut Agent<'gen>, Object<'gen>)>,
     ) -> RealmRoot {
         let realm = self.agent.create_realm(
             create_global_object,
@@ -223,7 +225,7 @@ impl GcAgent {
 
     pub fn run_in_realm<F, R>(&mut self, realm: &RealmRoot, func: F) -> R
     where
-        F: for<'agent> FnOnce(&'agent mut Agent) -> R,
+        F: for<'agent, 'gen> FnOnce(&'agent mut Agent<'gen>) -> R,
     {
         let index = realm.index;
         let error_message = "Attempted to run in non-existing Realm";
@@ -250,18 +252,18 @@ impl GcAgent {
 
 /// ### [9.7 Agents](https://tc39.es/ecma262/#sec-agents)
 #[derive(Debug)]
-pub struct Agent {
-    pub(crate) heap: Heap,
+pub struct Agent<'gen> {
+    pub(crate) heap: Heap<'gen>,
     pub(crate) options: Options,
     // pre_allocated: PreAllocated,
-    pub(crate) exception: Option<Value>,
+    pub(crate) exception: Option<Value<'gen>>,
     pub(crate) symbol_id: usize,
-    pub(crate) global_symbol_registry: AHashMap<&'static str, Symbol>,
+    pub(crate) global_symbol_registry: AHashMap<&'static str, Symbol<'gen>>,
     pub(crate) host_hooks: &'static dyn HostHooks,
-    pub(crate) execution_context_stack: Vec<ExecutionContext>,
+    pub(crate) execution_context_stack: Vec<ExecutionContext<'gen>>,
 }
 
-impl Agent {
+impl<'gen> Agent<'gen> {
     pub(crate) fn new(options: Options, host_hooks: &'static dyn HostHooks) -> Self {
         Self {
             heap: Heap::new(),
@@ -274,7 +276,7 @@ impl Agent {
         }
     }
 
-    fn get_created_realm_root(&mut self) -> RealmIdentifier {
+    fn get_created_realm_root(&mut self) -> RealmIdentifier<'gen> {
         assert!(!self.execution_context_stack.is_empty());
         let identifier = self.current_realm_id();
         let _ = self.execution_context_stack.pop();
@@ -286,10 +288,10 @@ impl Agent {
     /// This is intended for usage within BuiltinFunction calls.
     pub fn create_realm(
         &mut self,
-        create_global_object: Option<impl FnOnce(&mut Agent) -> Object>,
-        create_global_this_value: Option<impl FnOnce(&mut Agent) -> Object>,
-        initialize_global_object: Option<impl FnOnce(&mut Agent, Object)>,
-    ) -> RealmIdentifier {
+        create_global_object: Option<impl FnOnce(&mut Agent<'gen>) -> Object<'gen>>,
+        create_global_this_value: Option<impl FnOnce(&mut Agent<'gen>) -> Object<'gen>>,
+        initialize_global_object: Option<impl FnOnce(&mut Agent<'gen>, Object<'gen>)>,
+    ) -> RealmIdentifier<'gen> {
         initialize_host_defined_realm(
             self,
             create_global_object,
@@ -302,12 +304,12 @@ impl Agent {
     /// Creates a default realm suitable for basic testing only.
     ///
     /// This is intended for usage within BuiltinFunction calls.
-    pub fn create_default_realm(&mut self) -> RealmIdentifier {
+    pub fn create_default_realm(&mut self) -> RealmIdentifier<'gen> {
         initialize_default_realm(self);
         self.get_created_realm_root()
     }
 
-    pub fn run_in_realm<F, R>(&mut self, realm: RealmIdentifier, func: F) -> R
+    pub fn run_in_realm<F, R>(&mut self, realm: RealmIdentifier<'gen>, func: F) -> R
     where
         F: for<'agent> FnOnce(&'agent mut Agent) -> R,
     {
@@ -327,23 +329,23 @@ impl Agent {
         result
     }
 
-    pub fn current_realm_id(&self) -> RealmIdentifier {
+    pub fn current_realm_id(&self) -> RealmIdentifier<'gen> {
         self.execution_context_stack.last().unwrap().realm
     }
 
-    pub fn current_realm(&self) -> &Realm {
+    pub fn current_realm<'a>(&'a self) -> &'a Realm<'gen> {
         self.get_realm(self.current_realm_id())
     }
 
-    pub fn current_realm_mut(&mut self) -> &mut Realm {
+    pub fn current_realm_mut<'a>(&'a mut self) -> &'a mut Realm<'gen> {
         self.get_realm_mut(self.current_realm_id())
     }
 
-    pub fn get_realm(&self, id: RealmIdentifier) -> &Realm {
+    pub fn get_realm(&self, id: RealmIdentifier<'gen>) -> &Realm<'gen> {
         &self[id]
     }
 
-    pub fn get_realm_mut(&mut self, id: RealmIdentifier) -> &mut Realm {
+    pub fn get_realm_mut(&mut self, id: RealmIdentifier<'gen>) -> &mut Realm<'gen> {
         &mut self[id]
     }
 
@@ -351,7 +353,7 @@ impl Agent {
         &mut self,
         kind: ExceptionType,
         message: &'static str,
-    ) -> Value {
+    ) -> Value<'gen> {
         let message = String::from_static_str(self, message);
         self.heap
             .create(ErrorHeapData::new(kind, Some(message), None))
@@ -363,7 +365,7 @@ impl Agent {
         &mut self,
         kind: ExceptionType,
         message: &'static str,
-    ) -> JsError {
+    ) -> JsError<'gen> {
         JsError(self.create_exception_with_static_message(kind, message))
     }
 
@@ -371,7 +373,7 @@ impl Agent {
         &mut self,
         kind: ExceptionType,
         message: std::string::String,
-    ) -> JsError {
+    ) -> JsError<'gen> {
         let message = String::from_string(self, message);
         JsError(
             self.heap
@@ -380,11 +382,11 @@ impl Agent {
         )
     }
 
-    pub(crate) fn running_execution_context(&self) -> &ExecutionContext {
+    pub(crate) fn running_execution_context<'a>(&'a self) -> &'a ExecutionContext<'gen> {
         self.execution_context_stack.last().unwrap()
     }
 
-    pub(crate) fn running_execution_context_mut(&mut self) -> &mut ExecutionContext {
+    pub(crate) fn running_execution_context_mut<'a>(&'a mut self) -> &'a mut ExecutionContext<'gen> {
         self.execution_context_stack.last_mut().unwrap()
     }
 
@@ -401,7 +403,7 @@ impl Agent {
 /// The abstract operation GetActiveScriptOrModule takes no arguments and
 /// returns a Script Record, a Module Record, or null. It is used to determine
 /// the running script or module, based on the running execution context.
-pub(crate) fn get_active_script_or_module(agent: &mut Agent) -> Option<ScriptOrModule> {
+pub(crate) fn get_active_script_or_module<'gen>(agent: &mut Agent<'gen>) -> Option<ScriptOrModule<'gen>> {
     if agent.execution_context_stack.is_empty() {
         return None;
     }
@@ -421,11 +423,11 @@ pub(crate) fn get_active_script_or_module(agent: &mut Agent) -> Option<ScriptOrM
 /// completion. It is used to determine the binding of name. env can be used to
 /// explicitly provide the Environment Record that is to be searched for the
 /// binding.
-pub(crate) fn resolve_binding(
-    agent: &mut Agent,
-    name: String,
-    env: Option<EnvironmentIndex>,
-) -> JsResult<Reference> {
+pub(crate) fn resolve_binding<'gen>(
+    agent: &mut Agent<'gen>,
+    name: String<'gen>,
+    env: Option<EnvironmentIndex<'gen>>,
+) -> JsResult<'gen, Reference<'gen>> {
     let env = env.unwrap_or_else(|| {
         // 1. If env is not present or env is undefined, then
         //    a. Set env to the running execution context's LexicalEnvironment.

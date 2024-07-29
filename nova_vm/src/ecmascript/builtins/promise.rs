@@ -25,9 +25,9 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Promise(pub(crate) PromiseIndex);
+pub struct Promise<'gen>(pub(crate) PromiseIndex<'gen>);
 
-impl Promise {
+impl<'gen> Promise<'gen> {
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -55,51 +55,51 @@ impl Promise {
     }
 }
 
-impl From<Promise> for PromiseIndex {
-    fn from(val: Promise) -> Self {
+impl<'gen> From<Promise<'gen>> for PromiseIndex<'gen> {
+    fn from(val: Promise<'gen>) -> Self {
         val.0
     }
 }
 
-impl From<PromiseIndex> for Promise {
-    fn from(value: PromiseIndex) -> Self {
+impl<'gen> From<PromiseIndex<'gen>> for Promise<'gen> {
+    fn from(value: PromiseIndex<'gen>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for Promise {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for Promise<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for Promise {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for Promise<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<Promise> for Value {
-    fn from(val: Promise) -> Self {
+impl<'gen> From<Promise<'gen>> for Value<'gen> {
+    fn from(val: Promise<'gen>) -> Self {
         Value::Promise(val)
     }
 }
 
-impl From<Promise> for Object {
-    fn from(val: Promise) -> Self {
+impl<'gen> From<Promise<'gen>> for Object<'gen> {
+    fn from(val: Promise<'gen>) -> Self {
         Object::Promise(val)
     }
 }
 
-impl InternalSlots for Promise {
+impl<'gen> InternalSlots<'gen> for Promise<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Promise;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         let prototype = agent
             .current_realm()
             .intrinsics()
@@ -115,33 +115,33 @@ impl InternalSlots for Promise {
     }
 }
 
-impl InternalMethods for Promise {}
+impl<'gen> InternalMethods<'gen> for Promise<'gen> {}
 
-impl CreateHeapData<PromiseHeapData, Promise> for Heap {
-    fn create(&mut self, data: PromiseHeapData) -> Promise {
+impl<'gen> CreateHeapData<PromiseHeapData<'gen>, Promise<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: PromiseHeapData<'gen>) -> Promise<'gen> {
         self.promises.push(Some(data));
         Promise(PromiseIndex::last(&self.promises))
     }
 }
 
-impl Index<Promise> for Agent {
-    type Output = PromiseHeapData;
+impl<'gen> Index<Promise<'gen>> for Agent<'gen> {
+    type Output = PromiseHeapData<'gen>;
 
-    fn index(&self, index: Promise) -> &Self::Output {
+    fn index(&self, index: Promise<'gen>) -> &Self::Output {
         &self.heap.promises[index]
     }
 }
 
-impl IndexMut<Promise> for Agent {
-    fn index_mut(&mut self, index: Promise) -> &mut Self::Output {
+impl<'gen> IndexMut<Promise<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: Promise<'gen>) -> &mut Self::Output {
         &mut self.heap.promises[index]
     }
 }
 
-impl Index<Promise> for Vec<Option<PromiseHeapData>> {
-    type Output = PromiseHeapData;
+impl<'gen> Index<Promise<'gen>> for Vec<Option<PromiseHeapData<'gen>>> {
+    type Output = PromiseHeapData<'gen>;
 
-    fn index(&self, index: Promise) -> &Self::Output {
+    fn index(&self, index: Promise<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("Promise out of bounds")
             .as_ref()
@@ -149,8 +149,8 @@ impl Index<Promise> for Vec<Option<PromiseHeapData>> {
     }
 }
 
-impl IndexMut<Promise> for Vec<Option<PromiseHeapData>> {
-    fn index_mut(&mut self, index: Promise) -> &mut Self::Output {
+impl<'gen> IndexMut<Promise<'gen>> for Vec<Option<PromiseHeapData<'gen>>> {
+    fn index_mut(&mut self, index: Promise<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Promise out of bounds")
             .as_mut()
@@ -158,8 +158,8 @@ impl IndexMut<Promise> for Vec<Option<PromiseHeapData>> {
     }
 }
 
-impl HeapMarkAndSweep for Promise {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Promise<'gen> {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues<'gen>) {
         queues.promises.push(*self);
     }
 

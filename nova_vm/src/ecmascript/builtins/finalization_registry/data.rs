@@ -8,12 +8,12 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Default)]
-pub struct FinalizationRegistryHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+pub struct FinalizationRegistryHeapData<'gen> {
+    pub(crate) object_index: Option<OrdinaryObject<'gen>>,
 }
 
-impl HeapMarkAndSweep for FinalizationRegistryHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for FinalizationRegistryHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.object_index.mark_values(queues);
     }
 

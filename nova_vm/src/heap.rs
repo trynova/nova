@@ -74,47 +74,47 @@ pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 #[derive(Debug)]
 pub struct Heap {
-    pub array_buffers: Vec<Option<ArrayBufferHeapData>>,
-    pub arrays: Vec<Option<ArrayHeapData>>,
-    pub(crate) await_reactions: Vec<Option<AwaitReaction>>,
+    pub array_buffers: Vec<Option<ArrayBufferHeapData<'gen>>>,
+    pub arrays: Vec<Option<ArrayHeapData<'gen>>>,
+    pub(crate) await_reactions: Vec<Option<AwaitReaction<'gen>>>,
     pub bigints: Vec<Option<BigIntHeapData>>,
-    pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
-    pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
-    pub data_views: Vec<Option<DataViewHeapData>>,
-    pub dates: Vec<Option<DateHeapData>>,
-    pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,
+    pub bound_functions: Vec<Option<BoundFunctionHeapData<'gen>>>,
+    pub builtin_functions: Vec<Option<BuiltinFunctionHeapData<'gen>>>,
+    pub data_views: Vec<Option<DataViewHeapData<'gen>>>,
+    pub dates: Vec<Option<DateHeapData<'gen>>>,
+    pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData<'gen>>>,
     /// ElementsArrays is where all element arrays live;
     /// Element arrays are static arrays of Values plus
     /// a HashMap of possible property descriptors.
-    pub elements: ElementArrays,
+    pub elements: ElementArrays<'gen>,
     pub embedder_objects: Vec<Option<EmbedderObjectHeapData>>,
-    pub environments: Environments,
-    pub errors: Vec<Option<ErrorHeapData>>,
-    pub finalization_registrys: Vec<Option<FinalizationRegistryHeapData>>,
-    pub generators: Vec<Option<GeneratorHeapData>>,
-    pub globals: Vec<Option<Value>>,
-    pub maps: Vec<Option<MapHeapData>>,
+    pub environments: Environments<'gen>,
+    pub errors: Vec<Option<ErrorHeapData<'gen>>>,
+    pub finalization_registrys: Vec<Option<FinalizationRegistryHeapData<'gen>>>,
+    pub generators: Vec<Option<GeneratorHeapData<'gen>>>,
+    pub globals: Vec<Option<Value<'gen>>>,
+    pub maps: Vec<Option<MapHeapData<'gen>>>,
     pub numbers: Vec<Option<NumberHeapData>>,
     pub objects: Vec<Option<ObjectHeapData>>,
-    pub primitive_objects: Vec<Option<PrimitiveObjectHeapData>>,
-    pub promise_reaction_records: Vec<Option<PromiseReactionRecord>>,
-    pub promise_resolving_functions: Vec<Option<PromiseResolvingFunctionHeapData>>,
-    pub promises: Vec<Option<PromiseHeapData>>,
-    pub proxys: Vec<Option<ProxyHeapData>>,
-    pub realms: Vec<Option<Realm>>,
-    pub regexps: Vec<Option<RegExpHeapData>>,
-    pub sets: Vec<Option<SetHeapData>>,
-    pub shared_array_buffers: Vec<Option<SharedArrayBufferHeapData>>,
-    pub symbols: Vec<Option<SymbolHeapData>>,
-    pub typed_arrays: Vec<Option<TypedArrayHeapData>>,
-    pub weak_maps: Vec<Option<WeakMapHeapData>>,
-    pub weak_refs: Vec<Option<WeakRefHeapData>>,
-    pub weak_sets: Vec<Option<WeakSetHeapData>>,
-    pub modules: Vec<Option<ModuleHeapData>>,
-    pub scripts: Vec<Option<Script>>,
+    pub primitive_objects: Vec<Option<PrimitiveObjectHeapData<'gen>>>,
+    pub promise_reaction_records: Vec<Option<PromiseReactionRecord<'gen>>>,
+    pub promise_resolving_functions: Vec<Option<PromiseResolvingFunctionHeapData<'gen>>>,
+    pub promises: Vec<Option<PromiseHeapData<'gen>>>,
+    pub proxys: Vec<Option<ProxyHeapData<'gen>>>,
+    pub realms: Vec<Option<Realm<'gen>>>,
+    pub regexps: Vec<Option<RegExpHeapData<'gen>>>,
+    pub sets: Vec<Option<SetHeapData<'gen>>>,
+    pub shared_array_buffers: Vec<Option<SharedArrayBufferHeapData<'gen>>>,
+    pub symbols: Vec<Option<SymbolHeapData<'gen>>>,
+    pub typed_arrays: Vec<Option<TypedArrayHeapData<'gen>>>,
+    pub weak_maps: Vec<Option<WeakMapHeapData<'gen>>>,
+    pub weak_refs: Vec<Option<WeakRefHeapData<'gen>>>,
+    pub weak_sets: Vec<Option<WeakSetHeapData<'gen>>>,
+    pub modules: Vec<Option<ModuleHeapData<'gen>>>,
+    pub scripts: Vec<Option<Script<'gen>>>,
     // Parsed ASTs referred by functions must be dropped after functions.
     // These are held in the SourceCodeHeapData structs.
-    pub(crate) source_codes: Vec<Option<SourceCodeHeapData>>,
+    pub(crate) source_codes: Vec<Option<SourceCodeHeapData<'gen>>>,
     // But: Source code string data is in the string heap. We need to thus drop
     // the strings only after the source ASTs drop.
     pub strings: Vec<Option<StringHeapData>>,
@@ -126,8 +126,8 @@ pub trait CreateHeapData<T, F> {
     fn create(&mut self, data: T) -> F;
 }
 
-impl CreateHeapData<&str, String> for Heap {
-    fn create(&mut self, data: &str) -> String {
+impl<'gen> CreateHeapData<&str, String<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: &str) -> String<'gen> {
         if let Ok(value) = String::try_from(data) {
             value
         } else {
@@ -137,8 +137,8 @@ impl CreateHeapData<&str, String> for Heap {
     }
 }
 
-impl CreateHeapData<std::string::String, String> for Heap {
-    fn create(&mut self, data: std::string::String) -> String {
+impl<'gen> CreateHeapData<std::string::String, String<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: std::string::String) -> String<'gen> {
         if let Ok(value) = String::try_from(data.as_str()) {
             value
         } else {
@@ -148,8 +148,8 @@ impl CreateHeapData<std::string::String, String> for Heap {
     }
 }
 
-impl Heap {
-    pub fn new() -> Heap {
+impl<'gen> Heap<'gen> {
+    pub fn new() -> Heap<'gen> {
         let mut heap = Heap {
             array_buffers: Vec::with_capacity(1024),
             arrays: Vec::with_capacity(1024),
@@ -207,17 +207,17 @@ impl Heap {
         heap
     }
 
-    pub(crate) fn add_module(&mut self, module: ModuleHeapData) -> ModuleIdentifier {
+    pub(crate) fn add_module(&mut self, module: ModuleHeapData<'gen>) -> ModuleIdentifier<'gen> {
         self.modules.push(Some(module));
         ModuleIdentifier::last(&self.modules)
     }
 
-    pub(crate) fn add_realm(&mut self, realm: Realm) -> RealmIdentifier {
+    pub(crate) fn add_realm(&mut self, realm: Realm<'gen>) -> RealmIdentifier<'gen> {
         self.realms.push(Some(realm));
         RealmIdentifier::last(&self.realms)
     }
 
-    pub(crate) fn add_script(&mut self, script: Script) -> ScriptIdentifier {
+    pub(crate) fn add_script(&mut self, script: Script<'gen>) -> ScriptIdentifier<'gen> {
         self.scripts.push(Some(script));
         ScriptIdentifier::last(&self.scripts)
     }
@@ -234,7 +234,7 @@ impl Heap {
     /// SmallString. All SmallStrings must be kept on the stack to ensure that
     /// comparison between heap allocated strings and SmallStrings can be
     /// guaranteed to never equal true.
-    pub(crate) unsafe fn alloc_str(&mut self, message: &str) -> String {
+    pub(crate) unsafe fn alloc_str(&mut self, message: &str) -> String<'gen> {
         let found = self.find_equal_string(message);
         if let Some(idx) = found {
             return idx;
@@ -255,7 +255,7 @@ impl Heap {
     /// SmallString. All SmallStrings must be kept on the stack to ensure that
     /// comparison between heap allocated strings and SmallStrings can be
     /// guaranteed to never equal true.
-    unsafe fn alloc_string(&mut self, message: std::string::String) -> String {
+    unsafe fn alloc_string(&mut self, message: std::string::String) -> String<'gen> {
         let found = self.find_equal_string(message.as_str());
         if let Some(idx) = found {
             return idx;
@@ -276,7 +276,7 @@ impl Heap {
     /// SmallString. All SmallStrings must be kept on the stack to ensure that
     /// comparison between heap allocated strings and SmallStrings can be
     /// guaranteed to never equal true.
-    pub(crate) unsafe fn alloc_static_str(&mut self, message: &'static str) -> String {
+    pub(crate) unsafe fn alloc_static_str(&mut self, message: &'static str) -> String<'gen> {
         let found = self.find_equal_string(message);
         if let Some(idx) = found {
             return idx;
@@ -285,7 +285,7 @@ impl Heap {
         self.create(data)
     }
 
-    fn find_equal_string(&self, message: &str) -> Option<String> {
+    fn find_equal_string(&self, message: &str) -> Option<String<'gen>> {
         debug_assert!(message.len() > 7);
         self.strings
             .iter()
@@ -300,13 +300,13 @@ impl Heap {
     /// The number being allocated must not be representable
     /// as a SmallInteger or f32. All stack-allocated numbers must be
     /// inequal to any heap-allocated number.
-    pub unsafe fn alloc_number(&mut self, number: f64) -> HeapNumber {
+    pub unsafe fn alloc_number(&mut self, number: f64) -> HeapNumber<'gen> {
         debug_assert!(number.fract() != 0.0 || number as f32 as f64 != number);
         self.numbers.push(Some(number.into()));
         HeapNumber(NumberIndex::last(&self.numbers))
     }
 
-    pub(crate) fn create_null_object(&mut self, entries: &[ObjectEntry]) -> OrdinaryObject {
+    pub(crate) fn create_null_object(&mut self, entries: &[ObjectEntry<'gen>]) -> OrdinaryObject<'gen> {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -320,9 +320,9 @@ impl Heap {
 
     pub(crate) fn create_object_with_prototype(
         &mut self,
-        prototype: Object,
+        prototype: Object<'gen>,
         entries: &[ObjectEntry],
-    ) -> OrdinaryObject {
+    ) -> OrdinaryObject<'gen> {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -335,7 +335,7 @@ impl Heap {
     }
 }
 
-impl Default for Heap {
+impl<'gen> Default for Heap<'gen> {
     fn default() -> Self {
         Self::new()
     }

@@ -23,9 +23,9 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct WeakRef(pub(crate) WeakRefIndex);
+pub struct WeakRef<'gen>(pub(crate) WeakRefIndex<'gen>);
 
-impl WeakRef {
+impl WeakRef<'_> {
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -35,51 +35,51 @@ impl WeakRef {
     }
 }
 
-impl From<WeakRef> for WeakRefIndex {
-    fn from(val: WeakRef) -> Self {
+impl<'gen> From<WeakRef<'gen>> for WeakRefIndex<'gen> {
+    fn from(val: WeakRef<'gen>) -> Self {
         val.0
     }
 }
 
-impl From<WeakRefIndex> for WeakRef {
-    fn from(value: WeakRefIndex) -> Self {
+impl<'gen> From<WeakRefIndex<'gen>> for WeakRef<'gen> {
+    fn from(value: WeakRefIndex<'gen>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for WeakRef {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for WeakRef<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for WeakRef {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for WeakRef<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<WeakRef> for Value {
-    fn from(val: WeakRef) -> Self {
+impl<'gen> From<WeakRef<'gen>> for Value<'gen> {
+    fn from(val: WeakRef<'gen>) -> Self {
         Value::WeakRef(val)
     }
 }
 
-impl From<WeakRef> for Object {
-    fn from(val: WeakRef) -> Self {
+impl<'gen> From<WeakRef<'gen>> for Object<'gen> {
+    fn from(val: WeakRef<'gen>) -> Self {
         Object::WeakRef(val)
     }
 }
 
-impl InternalSlots for WeakRef {
+impl<'gen> InternalSlots<'gen> for WeakRef<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::WeakRef;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         debug_assert!(self.get_backing_object(agent).is_none());
         let prototype = agent
             .current_realm()
@@ -96,26 +96,26 @@ impl InternalSlots for WeakRef {
     }
 }
 
-impl InternalMethods for WeakRef {}
+impl<'gen> InternalMethods<'gen> for WeakRef<'gen> {}
 
-impl Index<WeakRef> for Agent {
-    type Output = WeakRefHeapData;
+impl<'gen> Index<WeakRef<'gen>> for Agent<'gen> {
+    type Output = WeakRefHeapData<'gen>;
 
-    fn index(&self, index: WeakRef) -> &Self::Output {
+    fn index(&self, index: WeakRef<'gen>) -> &Self::Output {
         &self.heap.weak_refs[index]
     }
 }
 
-impl IndexMut<WeakRef> for Agent {
-    fn index_mut(&mut self, index: WeakRef) -> &mut Self::Output {
+impl<'gen> IndexMut<WeakRef<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: WeakRef<'gen>) -> &mut Self::Output {
         &mut self.heap.weak_refs[index]
     }
 }
 
-impl Index<WeakRef> for Vec<Option<WeakRefHeapData>> {
-    type Output = WeakRefHeapData;
+impl<'gen> Index<WeakRef<'gen>> for Vec<Option<WeakRefHeapData<'gen>>> {
+    type Output = WeakRefHeapData<'gen>;
 
-    fn index(&self, index: WeakRef) -> &Self::Output {
+    fn index(&self, index: WeakRef<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("WeakRef out of bounds")
             .as_ref()
@@ -123,8 +123,8 @@ impl Index<WeakRef> for Vec<Option<WeakRefHeapData>> {
     }
 }
 
-impl IndexMut<WeakRef> for Vec<Option<WeakRefHeapData>> {
-    fn index_mut(&mut self, index: WeakRef) -> &mut Self::Output {
+impl<'gen> IndexMut<WeakRef<'gen>> for Vec<Option<WeakRefHeapData<'gen>>> {
+    fn index_mut(&mut self, index: WeakRef<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("WeakRef out of bounds")
             .as_mut()
@@ -132,16 +132,16 @@ impl IndexMut<WeakRef> for Vec<Option<WeakRefHeapData>> {
     }
 }
 
-impl CreateHeapData<WeakRefHeapData, WeakRef> for Heap {
-    fn create(&mut self, data: WeakRefHeapData) -> WeakRef {
+impl<'gen> CreateHeapData<WeakRefHeapData<'gen>, WeakRef<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: WeakRefHeapData<'gen>) -> WeakRef<'gen> {
         self.weak_refs.push(Some(data));
         // TODO: The type should be checked based on data or something equally stupid
         WeakRef(WeakRefIndex::last(&self.weak_refs))
     }
 }
 
-impl HeapMarkAndSweep for WeakRef {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for WeakRef<'gen> {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues<'gen>) {
         queues.weak_refs.push(*self);
     }
 

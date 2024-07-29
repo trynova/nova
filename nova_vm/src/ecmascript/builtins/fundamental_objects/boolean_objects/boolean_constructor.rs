@@ -26,7 +26,7 @@ use crate::heap::IntrinsicConstructorIndexes;
 pub(crate) struct BooleanConstructor;
 
 impl Builtin for BooleanConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Boolean;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Boolean;
 
     const LENGTH: u8 = 1;
 
@@ -37,12 +37,12 @@ impl BuiltinIntrinsicConstructor for BooleanConstructor {
 }
 
 impl BooleanConstructor {
-    fn behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let value = arguments.get(0);
         let b = to_boolean(agent, value);
         let Some(new_target) = new_target else {
@@ -59,7 +59,7 @@ impl BooleanConstructor {
         Ok(o.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let boolean_prototype = intrinsics.boolean_prototype();
 

@@ -16,7 +16,7 @@ pub(crate) struct AsyncGeneratorPrototype;
 
 struct AsyncGeneratorPrototypeNext;
 impl Builtin for AsyncGeneratorPrototypeNext {
-    const NAME: String = BUILTIN_STRING_MEMORY.next;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.next;
 
     const LENGTH: u8 = 1;
 
@@ -24,7 +24,7 @@ impl Builtin for AsyncGeneratorPrototypeNext {
 }
 struct AsyncGeneratorPrototypeReturn;
 impl Builtin for AsyncGeneratorPrototypeReturn {
-    const NAME: String = BUILTIN_STRING_MEMORY.r#return;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.r#return;
 
     const LENGTH: u8 = 1;
 
@@ -32,7 +32,7 @@ impl Builtin for AsyncGeneratorPrototypeReturn {
 }
 struct AsyncGeneratorPrototypeThrow;
 impl Builtin for AsyncGeneratorPrototypeThrow {
-    const NAME: String = BUILTIN_STRING_MEMORY.throw;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.throw;
 
     const LENGTH: u8 = 1;
 
@@ -40,23 +40,23 @@ impl Builtin for AsyncGeneratorPrototypeThrow {
 }
 
 impl AsyncGeneratorPrototype {
-    fn next(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn next<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
     fn r#return(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn throw(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn throw<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let async_iterator_prototype = intrinsics.async_iterator_prototype();
         let async_generator_function_prototype = intrinsics.async_generator_function_prototype();

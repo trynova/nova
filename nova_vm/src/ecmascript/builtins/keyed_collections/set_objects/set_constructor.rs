@@ -27,7 +27,7 @@ use crate::{
 
 pub(crate) struct SetConstructor;
 impl Builtin for SetConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Set;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Set;
 
     const LENGTH: u8 = 0;
 
@@ -41,18 +41,18 @@ impl Builtin for SetGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetConstructor::get_species);
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 }
 impl BuiltinGetter for SetGetSpecies {}
 
 impl SetConstructor {
     /// ### [24.2.2.1 Set ( \[ iterable \] )](https://tc39.es/ecma262/#sec-set-iterable)
-    fn behaviour(
-        agent: &mut Agent,
-        _: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let iterable = arguments.get(0);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
@@ -127,11 +127,11 @@ impl SetConstructor {
         }
     }
 
-    fn get_species(_: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_species(_: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         Ok(this_value)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let set_prototype = intrinsics.set_prototype();
 

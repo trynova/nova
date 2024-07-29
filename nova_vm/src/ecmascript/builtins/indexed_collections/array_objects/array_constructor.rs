@@ -53,7 +53,7 @@ pub struct ArrayConstructor;
 impl Builtin for ArrayConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.Array;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Array;
 }
 impl BuiltinIntrinsicConstructor for ArrayConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Array;
@@ -63,38 +63,38 @@ struct ArrayFrom;
 impl Builtin for ArrayFrom {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::from);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.from;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.from;
 }
 struct ArrayIsArray;
 impl Builtin for ArrayIsArray {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::is_array);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.isArray;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isArray;
 }
 struct ArrayOf;
 impl Builtin for ArrayOf {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::of);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.of;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.of;
 }
 struct ArrayGetSpecies;
 impl Builtin for ArrayGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::get_species);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
-    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbolIndexes::Species.to_property_key());
 }
 impl BuiltinGetter for ArrayGetSpecies {}
 
 /// ### [23.1.1 The Array Constructor](https://tc39.es/ecma262/#sec-array-constructor)
 impl ArrayConstructor {
     /// ### [23.1.1.1 Array ( ...values )](https://tc39.es/ecma262/#sec-array)
-    fn behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. If NewTarget is undefined, let newTarget be the active function object; else let newTarget be NewTarget.
         let new_target = new_target.map_or_else(
             || agent.running_execution_context().function.unwrap(),
@@ -191,7 +191,7 @@ impl ArrayConstructor {
     }
 
     /// ### [23.1.2.1 Array.from ( items \[ , mapfn \[ , thisArg \] \] )](https://tc39.es/ecma262/#sec-array.from)
-    fn from(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn from<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let items = arguments.get(0);
         let mapfn = arguments.get(1);
         let this_arg = arguments.get(2);
@@ -279,7 +279,7 @@ impl ArrayConstructor {
                     let mapped_value =
                         call_function(agent, mapping, this_arg, Some(ArgumentsList(&[next, fk])));
 
-                    // 2. IfAbruptCloseIterator(mappedValue, iteratorRecord).
+                    // 2. IfAbruptCloseIterator(mappedValue<'gen>, iteratorRecord).
                     let _ = if_abrupt_close_iterator(agent, mapped_value, &iterator_record);
 
                     mapped_value.unwrap()
@@ -339,7 +339,7 @@ impl ArrayConstructor {
 
             // c. If mapping is true, then
             let mapped_value = if let Some(mapping) = mapping {
-                // i. Let mappedValue be ? Call(mapfn, thisArg, « kValue, 𝔽(k) »).
+                // i. Let mappedValue be ? Call(mapfn, thisArg, « kValue<'gen>, 𝔽(k) »).
                 call_function(
                     agent,
                     mapping,
@@ -373,16 +373,16 @@ impl ArrayConstructor {
     }
 
     /// ### [23.1.2.2 Array.isArray ( arg )](https://tc39.es/ecma262/#sec-array.isarray)
-    fn is_array(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn is_array<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         is_array(agent, arguments.get(0)).map(Value::Boolean)
     }
 
     /// ### [23.1.2.3 Array.of ( ...items )](https://tc39.es/ecma262/#sec-array.of)
-    fn of(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let len be the number of elements in items.
         let len = arguments.len();
 
@@ -432,11 +432,11 @@ impl ArrayConstructor {
         Ok(a.into_value())
     }
 
-    fn get_species(_: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_species(_: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         Ok(this_value)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let function_prototype = intrinsics.function_prototype().into_object();
         let array_prototype = intrinsics.array_prototype();

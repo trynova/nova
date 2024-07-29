@@ -24,9 +24,9 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct EmbedderObject(pub(crate) EmbedderObjectIndex);
+pub struct EmbedderObject<'gen>(pub(crate) EmbedderObjectIndex<'gen>);
 
-impl EmbedderObject {
+impl<'gen> EmbedderObject<'gen> {
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -36,164 +36,164 @@ impl EmbedderObject {
     }
 }
 
-impl From<EmbedderObject> for EmbedderObjectIndex {
-    fn from(val: EmbedderObject) -> Self {
+impl<'gen> From<EmbedderObject<'gen>> for EmbedderObjectIndex<'gen> {
+    fn from(val: EmbedderObject<'gen>) -> Self {
         val.0
     }
 }
 
-impl From<EmbedderObjectIndex> for EmbedderObject {
-    fn from(value: EmbedderObjectIndex) -> Self {
+impl<'gen> From<EmbedderObjectIndex<'gen>> for EmbedderObject<'gen> {
+    fn from(value: EmbedderObjectIndex<'gen>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for EmbedderObject {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for EmbedderObject<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for EmbedderObject {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for EmbedderObject<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<EmbedderObject> for Value {
-    fn from(val: EmbedderObject) -> Self {
+impl<'gen> From<EmbedderObject<'gen>> for Value<'gen> {
+    fn from(val: EmbedderObject<'gen>) -> Self {
         Value::EmbedderObject(val)
     }
 }
 
-impl From<EmbedderObject> for Object {
-    fn from(val: EmbedderObject) -> Self {
+impl<'gen> From<EmbedderObject<'gen>> for Object<'gen> {
+    fn from(val: EmbedderObject<'gen>) -> Self {
         Object::EmbedderObject(val)
     }
 }
 
-impl InternalSlots for EmbedderObject {
+impl<'gen> InternalSlots<'gen> for EmbedderObject<'gen> {
     #[inline(always)]
     fn get_backing_object(
         self,
-        _agent: &Agent,
-    ) -> Option<crate::ecmascript::types::OrdinaryObject> {
+        _agent: &Agent<'gen>,
+    ) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         todo!();
     }
 
-    fn create_backing_object(self, _agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, _agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         todo!();
     }
-    fn internal_extensible(self, _agent: &Agent) -> bool {
-        todo!();
-    }
-
-    fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {
+    fn internal_extensible(self, _agent: &Agent<'gen>) -> bool {
         todo!();
     }
 
-    fn internal_prototype(self, _agent: &Agent) -> Option<Object> {
+    fn internal_set_extensible(self, _agent: &mut Agent<'gen>, _value: bool) {
         todo!();
     }
 
-    fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
+    fn internal_prototype(self, _agent: &Agent<'gen>) -> Option<Object<'gen>> {
+        todo!();
+    }
+
+    fn internal_set_prototype(self, _agent: &mut Agent<'gen>, _prototype: Option<Object<'gen>>) {
         todo!();
     }
 }
 
-impl InternalMethods for EmbedderObject {
-    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
+impl<'gen> InternalMethods<'gen> for EmbedderObject<'gen> {
+    fn internal_get_prototype_of(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Option<Object<'gen>>> {
         Ok(self.internal_prototype(agent))
     }
 
     fn internal_set_prototype_of(
         self,
-        _agent: &mut Agent,
-        _prototype: Option<Object>,
-    ) -> JsResult<bool> {
+        _agent: &mut Agent<'gen>,
+        _prototype: Option<Object<'gen>>,
+    ) -> JsResult<'gen, bool> {
         todo!();
     }
 
-    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_is_extensible(self, agent: &mut Agent<'gen>) -> JsResult<'gen, bool> {
         Ok(self.internal_extensible(agent))
     }
 
-    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_prevent_extensions(self, agent: &mut Agent<'gen>) -> JsResult<'gen, bool> {
         self.internal_set_extensible(agent, false);
         Ok(true)
     }
 
     fn internal_get_own_property(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        _agent: &mut Agent<'gen>,
+        _property_key: PropertyKey<'gen>,
+    ) -> JsResult<'gen, Option<PropertyDescriptor<'gen>>> {
         todo!();
     }
 
     fn internal_define_own_property(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
+        _agent: &mut Agent<'gen>,
+        _property_key: PropertyKey<'gen>,
+        _property_descriptor: PropertyDescriptor<'gen>,
+    ) -> JsResult<'gen, bool> {
         todo!();
     }
 
     fn internal_has_property(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-    ) -> JsResult<bool> {
+        _agent: &mut Agent<'gen>,
+        _property_key: PropertyKey<'gen>,
+    ) -> JsResult<'gen, bool> {
         todo!();
     }
 
     fn internal_get(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _receiver: Value,
-    ) -> JsResult<Value> {
+        _agent: &mut Agent<'gen>,
+        _property_key: PropertyKey<'gen>,
+        _receiver: Value<'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
     fn internal_set(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _value: Value,
-        _receiver: Value,
-    ) -> JsResult<bool> {
+        _agent: &mut Agent<'gen>,
+        _property_key: PropertyKey<'gen>,
+        _value: Value<'gen>,
+        _receiver: Value<'gen>,
+    ) -> JsResult<'gen, bool> {
         todo!();
     }
 
-    fn internal_delete(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, _agent: &mut Agent<'gen>, _property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         todo!();
     }
 
-    fn internal_own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, _agent: &mut Agent<'gen>) -> JsResult<'gen, Vec<PropertyKey<'gen>>> {
         todo!();
     }
 }
 
-impl Index<EmbedderObject> for Agent {
+impl<'gen> Index<EmbedderObject<'gen>> for Agent<'gen> {
     type Output = EmbedderObjectHeapData;
 
-    fn index(&self, index: EmbedderObject) -> &Self::Output {
+    fn index(&self, index: EmbedderObject<'gen>) -> &Self::Output {
         &self.heap.embedder_objects[index]
     }
 }
 
-impl IndexMut<EmbedderObject> for Agent {
-    fn index_mut(&mut self, index: EmbedderObject) -> &mut Self::Output {
+impl<'gen> IndexMut<EmbedderObject<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: EmbedderObject<'gen>) -> &mut Self::Output {
         &mut self.heap.embedder_objects[index]
     }
 }
 
-impl Index<EmbedderObject> for Vec<Option<EmbedderObjectHeapData>> {
+impl<'gen> Index<EmbedderObject<'gen>> for Vec<Option<EmbedderObjectHeapData>> {
     type Output = EmbedderObjectHeapData;
 
-    fn index(&self, index: EmbedderObject) -> &Self::Output {
+    fn index(&self, index: EmbedderObject<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("EmbedderObject out of bounds")
             .as_ref()
@@ -201,8 +201,8 @@ impl Index<EmbedderObject> for Vec<Option<EmbedderObjectHeapData>> {
     }
 }
 
-impl IndexMut<EmbedderObject> for Vec<Option<EmbedderObjectHeapData>> {
-    fn index_mut(&mut self, index: EmbedderObject) -> &mut Self::Output {
+impl<'gen> IndexMut<EmbedderObject<'gen>> for Vec<Option<EmbedderObjectHeapData>> {
+    fn index_mut(&mut self, index: EmbedderObject<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("EmbedderObject out of bounds")
             .as_mut()
@@ -210,8 +210,8 @@ impl IndexMut<EmbedderObject> for Vec<Option<EmbedderObjectHeapData>> {
     }
 }
 
-impl HeapMarkAndSweep for EmbedderObject {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for EmbedderObject<'gen> {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues<'gen>) {
         queues.embedder_objects.push(*self);
     }
 

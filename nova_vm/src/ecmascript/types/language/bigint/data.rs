@@ -15,7 +15,7 @@ pub struct BigIntHeapData {
 }
 
 impl TryInto<f64> for BigIntHeapData {
-    type Error = JsError;
+    type Error = JsError<'static>;
 
     fn try_into(self) -> Result<f64, Self::Error> {
         // self.data.to_f64()
@@ -23,9 +23,9 @@ impl TryInto<f64> for BigIntHeapData {
     }
 }
 
-impl HeapMarkAndSweep for BigIntHeapData {
+impl<'gen> HeapMarkAndSweep<'gen> for BigIntHeapData {
     #[inline(always)]
-    fn mark_values(&self, _queues: &mut WorkQueues) {}
+    fn mark_values(&self, _queues: &mut WorkQueues<'gen>) {}
 
     #[inline(always)]
     fn sweep_values(&mut self, _compactions: &CompactionLists) {}

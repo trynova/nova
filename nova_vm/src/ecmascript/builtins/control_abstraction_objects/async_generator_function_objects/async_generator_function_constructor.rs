@@ -14,7 +14,7 @@ use crate::{
 
 pub(crate) struct AsyncGeneratorFunctionConstructor;
 impl Builtin for AsyncGeneratorFunctionConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.AsyncGeneratorFunction;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.AsyncGeneratorFunction;
 
     const LENGTH: u8 = 1;
 
@@ -26,16 +26,16 @@ impl BuiltinIntrinsicConstructor for AsyncGeneratorFunctionConstructor {
 }
 
 impl AsyncGeneratorFunctionConstructor {
-    fn behaviour(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+        _new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let function_constructor = intrinsics.function();
         let async_generator_function_prototype = intrinsics.async_generator_function_prototype();

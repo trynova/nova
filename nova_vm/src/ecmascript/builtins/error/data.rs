@@ -11,16 +11,16 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct ErrorHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+pub struct ErrorHeapData<'gen> {
+    pub(crate) object_index: Option<OrdinaryObject<'gen>>,
     pub(crate) kind: ExceptionType,
-    pub(crate) message: Option<String>,
-    pub(crate) cause: Option<Value>,
+    pub(crate) message: Option<String<'gen>>,
+    pub(crate) cause: Option<Value<'gen>>,
     // TODO: stack? name?
 }
 
-impl ErrorHeapData {
-    pub(crate) fn new(kind: ExceptionType, message: Option<String>, cause: Option<Value>) -> Self {
+impl<'gen> ErrorHeapData<'gen> {
+    pub(crate) fn new(kind: ExceptionType, message: Option<String<'gen>>, cause: Option<Value<'gen>>) -> Self {
         Self {
             object_index: None,
             kind,
@@ -30,8 +30,8 @@ impl ErrorHeapData {
     }
 }
 
-impl HeapMarkAndSweep for ErrorHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ErrorHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.object_index.mark_values(queues);
         self.message.mark_values(queues);
         self.cause.mark_values(queues);

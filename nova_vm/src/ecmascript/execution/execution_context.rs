@@ -12,32 +12,32 @@ use crate::{
 };
 
 // TODO: Remove this.
-pub(crate) type ECMAScriptCode = ECMAScriptCodeEvaluationState;
+pub(crate) type ECMAScriptCode<'gen> = ECMAScriptCodeEvaluationState<'gen>;
 
 /// ### [code evaluation state](https://tc39.es/ecma262/#table-state-components-for-all-execution-contexts)
 ///
 /// ECMAScript code execution contexts have the additional state components
 /// listed in Table 26.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ECMAScriptCodeEvaluationState {
+pub(crate) struct ECMAScriptCodeEvaluationState<'gen> {
     /// ### LexicalEnvironment
     ///
     /// Identifies the Environment Record used to resolve identifier references
     /// made by code within this execution context.
-    pub(crate) lexical_environment: EnvironmentIndex,
+    pub(crate) lexical_environment: EnvironmentIndex<'gen>,
 
     /// ### VariableEnvironment
     ///
     /// Identifies the Environment Record that holds bindings created by
     /// VariableStatements within this execution context.
-    pub(crate) variable_environment: EnvironmentIndex,
+    pub(crate) variable_environment: EnvironmentIndex<'gen>,
 
     /// ### PrivateEnvironment
     ///
     /// Identifies the PrivateEnvironment Record that holds Private Names
     /// created by ClassElements in the nearest containing class. null if there
     /// is no containing class.
-    pub(crate) private_environment: Option<PrivateEnvironmentIndex>,
+    pub(crate) private_environment: Option<PrivateEnvironmentIndex<'gen>>,
 
     /// Although the spec does not track this here, we also use
     /// [`ECMAScriptCodeEvaluationState`] to track whether some ECMAScript code
@@ -48,7 +48,7 @@ pub(crate) struct ECMAScriptCodeEvaluationState {
     /// currently evaluated code was defined in. Note that this is also
     /// defined for builtin functions: A builtin function's source code will
     /// point to the source code that called it.
-    pub(crate) source_code: SourceCode,
+    pub(crate) source_code: SourceCode<'gen>,
 }
 
 /// ### [9.4 Execution Contexts](https://tc39.es/ecma262/#sec-execution-contexts)
@@ -60,12 +60,12 @@ pub(crate) struct ECMAScriptCodeEvaluationState {
 /// references to the running execution context in this specification denote
 /// the running execution context of the surrounding agent.
 #[derive(Debug, Clone)]
-pub(crate) struct ExecutionContext {
+pub(crate) struct ExecutionContext<'gen> {
     /// ### code evaluation state
     ///
     /// Any state needed to perform, suspend, and resume evaluation of the code
     /// associated with this execution context.
-    pub ecmascript_code: Option<ECMAScriptCodeEvaluationState>,
+    pub ecmascript_code: Option<ECMAScriptCodeEvaluationState<'gen>>,
 
     /// ### Function
     ///
@@ -73,13 +73,13 @@ pub(crate) struct ExecutionContext {
     /// then the value of this component is that function object. If the
     /// context is evaluating the code of a Script or Module, the value is
     /// null.
-    pub function: Option<Function>,
+    pub function: Option<Function<'gen>>,
 
     /// ### Realm
     ///
     /// The Realm Record from which associated code accesses ECMAScript
     /// resources.
-    pub realm: RealmIdentifier,
+    pub realm: RealmIdentifier<'gen>,
 
     /// ### ScriptOrModule
     ///
@@ -87,17 +87,17 @@ pub(crate) struct ExecutionContext {
     /// originates. If there is no originating script or module, as is the case
     /// for the original execution context created in
     /// InitializeHostDefinedRealm, the value is null.
-    pub script_or_module: Option<ScriptOrModule>,
+    pub script_or_module: Option<ScriptOrModule<'gen>>,
 }
 
-impl ExecutionContext {
+impl ExecutionContext<'_> {
     pub(crate) fn suspend(&self) {
         // TODO: What does this actually mean in the end?
     }
 }
 
-impl HeapMarkAndSweep for ECMAScriptCodeEvaluationState {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ECMAScriptCodeEvaluationState<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.lexical_environment.mark_values(queues);
         self.variable_environment.mark_values(queues);
         self.private_environment.mark_values(queues);
@@ -112,8 +112,8 @@ impl HeapMarkAndSweep for ECMAScriptCodeEvaluationState {
     }
 }
 
-impl HeapMarkAndSweep for ExecutionContext {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ExecutionContext<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.ecmascript_code.mark_values(queues);
         self.function.mark_values(queues);
         self.realm.mark_values(queues);
@@ -133,7 +133,7 @@ impl HeapMarkAndSweep for ExecutionContext {
 /// The abstract operation GetGlobalObject takes no arguments and returns an
 /// Object. It returns the global object used by the currently running
 /// execution context.
-pub(crate) fn get_global_object(agent: &Agent) -> Object {
+pub(crate) fn get_global_object<'gen>(agent: &Agent<'gen>) -> Object<'gen> {
     // 1. Let currentRealm be the current Realm Record.
     let current_realm = agent.current_realm();
     // 2. Return currentRealm.[[GlobalObject]].

@@ -31,7 +31,7 @@ pub struct DateConstructor;
 impl Builtin for DateConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 7;
-    const NAME: String = BUILTIN_STRING_MEMORY.Date;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Date;
 }
 impl BuiltinIntrinsicConstructor for DateConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Date;
@@ -41,27 +41,27 @@ struct DateNow;
 impl Builtin for DateNow {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DateConstructor::now);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.now;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.now;
 }
 struct DateParse;
 impl Builtin for DateParse {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DateConstructor::parse);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.parse;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.parse;
 }
 struct DateUTC;
 impl Builtin for DateUTC {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DateConstructor::utc);
     const LENGTH: u8 = 7;
-    const NAME: String = BUILTIN_STRING_MEMORY.utc;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.utc;
 }
 impl DateConstructor {
-    fn behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. If NewTarget is undefined, then
         let Some(new_target) = new_target else {
             // a. Let now be the time value (UTC) identifying the current time.
@@ -122,7 +122,7 @@ impl DateConstructor {
     }
 
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
-    fn now(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn now<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let time_value = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
@@ -136,12 +136,12 @@ impl DateConstructor {
     }
 
     /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
-    fn parse(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn parse<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
     /// ### [21.4.3.4 Date.UTC ( year \[ , month \[ , date \[ , hours \[ , minutes \[ , seconds \[ , ms \] \] \] \] \] \] )](https://tc39.es/ecma262/#sec-date.utc)
-    fn utc(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn utc<'gen>(agent: &mut Agent<'gen>, _this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let _ns = arguments.get(0);
         // 1. Let y be ? ToNumber(year).
         let _y = to_number(agent, arguments.get(0))?;
@@ -191,7 +191,7 @@ impl DateConstructor {
         // and it interprets the arguments in UTC rather than as local time.
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let date_prototype = intrinsics.date_prototype();
 

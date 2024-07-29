@@ -20,7 +20,7 @@ use super::error_constructor::get_error_cause;
 
 struct EvalErrorConstructor;
 impl Builtin for EvalErrorConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.EvalError;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.EvalError;
 
     const LENGTH: u8 = 1;
 
@@ -31,7 +31,7 @@ impl BuiltinIntrinsicConstructor for EvalErrorConstructor {
 }
 struct RangeErrorConstructor;
 impl Builtin for RangeErrorConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.RangeError;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.RangeError;
 
     const LENGTH: u8 = 1;
 
@@ -42,7 +42,7 @@ impl BuiltinIntrinsicConstructor for RangeErrorConstructor {
 }
 struct ReferenceErrorConstructor;
 impl Builtin for ReferenceErrorConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.ReferenceError;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.ReferenceError;
 
     const LENGTH: u8 = 1;
 
@@ -54,7 +54,7 @@ impl BuiltinIntrinsicConstructor for ReferenceErrorConstructor {
 }
 struct SyntaxErrorConstructor;
 impl Builtin for SyntaxErrorConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.SyntaxError;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.SyntaxError;
 
     const LENGTH: u8 = 1;
 
@@ -65,7 +65,7 @@ impl BuiltinIntrinsicConstructor for SyntaxErrorConstructor {
 }
 struct TypeErrorConstructor;
 impl Builtin for TypeErrorConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.TypeError;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.TypeError;
 
     const LENGTH: u8 = 1;
 
@@ -76,7 +76,7 @@ impl BuiltinIntrinsicConstructor for TypeErrorConstructor {
 }
 struct URIErrorConstructor;
 impl Builtin for URIErrorConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.URIError;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.URIError;
 
     const LENGTH: u8 = 1;
 
@@ -89,12 +89,12 @@ impl BuiltinIntrinsicConstructor for URIErrorConstructor {
 pub(crate) struct NativeErrorConstructors;
 impl NativeErrorConstructors {
     #[inline(always)]
-    fn behaviour(
-        agent: &mut Agent,
+    fn behaviour<'gen>(
+        agent: &mut Agent<'gen>,
         error_kind: ExceptionType,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let message = arguments.get(0);
         let options = arguments.get(1);
 
@@ -136,61 +136,61 @@ impl NativeErrorConstructors {
         Ok(o.into_value())
     }
 
-    fn eval_behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn eval_behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         Self::behaviour(agent, ExceptionType::EvalError, arguments, new_target)
     }
 
-    fn range_behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn range_behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         Self::behaviour(agent, ExceptionType::RangeError, arguments, new_target)
     }
 
-    fn reference_behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn reference_behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         Self::behaviour(agent, ExceptionType::ReferenceError, arguments, new_target)
     }
 
-    fn syntax_behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn syntax_behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         Self::behaviour(agent, ExceptionType::SyntaxError, arguments, new_target)
     }
 
-    fn type_behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn type_behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         Self::behaviour(agent, ExceptionType::TypeError, arguments, new_target)
     }
 
-    fn uri_behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn uri_behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         Self::behaviour(agent, ExceptionType::UriError, arguments, new_target)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let error_constructor = intrinsics.error().into_object();
         let eval_error_prototype = intrinsics.eval_error_prototype();

@@ -16,7 +16,7 @@ pub(crate) struct BooleanPrototype;
 
 struct BooleanPrototypeToString;
 impl Builtin for BooleanPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -26,7 +26,7 @@ impl Builtin for BooleanPrototypeToString {
 
 struct BooleanPrototypeValueOf;
 impl Builtin for BooleanPrototypeValueOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.valueOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.valueOf;
 
     const LENGTH: u8 = 0;
 
@@ -35,7 +35,7 @@ impl Builtin for BooleanPrototypeValueOf {
 }
 
 impl BooleanPrototype {
-    fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let b = this_boolean_value(agent, this_value)?;
         if b {
             Ok(BUILTIN_STRING_MEMORY.r#true.into())
@@ -44,11 +44,11 @@ impl BooleanPrototype {
         }
     }
 
-    fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn value_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         this_boolean_value(agent, this_value).map(|result| result.into())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.boolean_prototype();
@@ -81,7 +81,7 @@ impl BooleanPrototype {
 /// The abstract operation ThisBooleanValue takes argument value (an
 /// ECMAScript language value) and returns either a normal completion
 /// containing a Boolean or a throw completion.
-fn this_boolean_value(agent: &mut Agent, value: Value) -> JsResult<bool> {
+fn this_boolean_value<'gen>(agent: &mut Agent<'gen>, value: Value<'gen>) -> JsResult<'gen, bool> {
     // 1. If value is a Boolean, return value.
     if let Value::Boolean(value) = value {
         return Ok(value);

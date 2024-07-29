@@ -23,15 +23,15 @@ use super::{
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum Numeric {
-    Number(HeapNumber) = NUMBER_DISCRIMINANT,
+pub enum Numeric<'gen> {
+    Number(HeapNumber<'gen>) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     Float(SmallF64) = FLOAT_DISCRIMINANT,
-    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt<'gen>) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
-impl Numeric {
+impl Numeric<'_> {
     pub fn is_bigint(self) -> bool {
         matches!(self, Self::BigInt(_) | Self::SmallBigInt(_))
     }
@@ -40,38 +40,38 @@ impl Numeric {
         matches!(self, Self::Number(_) | Self::Float(_) | Self::Integer(_))
     }
 
-    pub fn is_pos_zero(self, agent: &mut Agent) -> bool {
+    pub fn is_pos_zero(self, agent: &mut Agent<'gen>) -> bool {
         Number::try_from(self)
             .map(|n| n.is_pos_zero(agent))
             .unwrap_or(false)
     }
 
-    pub fn is_neg_zero(self, agent: &mut Agent) -> bool {
+    pub fn is_neg_zero(self, agent: &mut Agent<'gen>) -> bool {
         Number::try_from(self)
             .map(|n| n.is_neg_zero(agent))
             .unwrap_or(false)
     }
 
-    pub fn is_pos_infinity(self, agent: &mut Agent) -> bool {
+    pub fn is_pos_infinity(self, agent: &mut Agent<'gen>) -> bool {
         Number::try_from(self)
             .map(|n| n.is_pos_infinity(agent))
             .unwrap_or(false)
     }
 
-    pub fn is_neg_infinity(self, agent: &mut Agent) -> bool {
+    pub fn is_neg_infinity(self, agent: &mut Agent<'gen>) -> bool {
         Number::try_from(self)
             .map(|n| n.is_neg_infinity(agent))
             .unwrap_or(false)
     }
 
-    pub fn is_nan(self, agent: &mut Agent) -> bool {
+    pub fn is_nan(self, agent: &mut Agent<'gen>) -> bool {
         Number::try_from(self)
             .map(|n| n.is_nan(agent))
             .unwrap_or(false)
     }
 
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
-    pub fn to_real(self, agent: &mut Agent) -> JsResult<f64> {
+    pub fn to_real(self, agent: &mut Agent<'gen>) -> JsResult<'gen, f64> {
         Ok(match self {
             Self::Number(n) => agent[n],
             Self::Integer(i) => i.into_i64() as f64,
@@ -82,8 +82,8 @@ impl Numeric {
     }
 }
 
-impl IntoValue for Numeric {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for Numeric<'gen> {
+    fn into_value(self) -> Value<'gen> {
         match self {
             Numeric::Number(data) => Value::Number(data),
             Numeric::Integer(data) => Value::Integer(data),
@@ -94,8 +94,8 @@ impl IntoValue for Numeric {
     }
 }
 
-impl IntoPrimitive for Numeric {
-    fn into_primitive(self) -> Primitive {
+impl<'gen> IntoPrimitive<'gen> for Numeric<'gen> {
+    fn into_primitive(self) -> Primitive<'gen> {
         match self {
             Numeric::Number(data) => Primitive::Number(data),
             Numeric::Integer(data) => Primitive::Integer(data),
@@ -106,22 +106,22 @@ impl IntoPrimitive for Numeric {
     }
 }
 
-impl From<Numeric> for Value {
-    fn from(value: Numeric) -> Self {
+impl<'gen> From<Numeric<'gen>> for Value<'gen> {
+    fn from(value: Numeric<'gen>) -> Self {
         value.into_value()
     }
 }
 
-impl From<Numeric> for Primitive {
-    fn from(value: Numeric) -> Self {
+impl<'gen> From<Numeric<'gen>> for Primitive<'gen> {
+    fn from(value: Numeric<'gen>) -> Self {
         value.into_primitive()
     }
 }
 
-impl TryFrom<Value> for Numeric {
+impl<'gen> TryFrom<Value<'gen>> for Numeric<'gen> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'gen>) -> Result<Self, Self::Error> {
         match value {
             Value::Number(data) => Ok(Numeric::Number(data)),
             Value::Integer(data) => Ok(Numeric::Integer(data)),
@@ -133,10 +133,10 @@ impl TryFrom<Value> for Numeric {
     }
 }
 
-impl TryFrom<Primitive> for Numeric {
+impl<'gen> TryFrom<Primitive<'gen>> for Numeric<'gen> {
     type Error = ();
 
-    fn try_from(value: Primitive) -> Result<Self, Self::Error> {
+    fn try_from(value: Primitive<'gen>) -> Result<Self, Self::Error> {
         match value {
             Primitive::Number(data) => Ok(Numeric::Number(data)),
             Primitive::Integer(data) => Ok(Numeric::Integer(data)),

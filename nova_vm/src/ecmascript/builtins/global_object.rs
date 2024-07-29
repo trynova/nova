@@ -38,7 +38,7 @@ pub(crate) struct GlobalObject;
 
 struct GlobalObjectEval;
 impl Builtin for GlobalObjectEval {
-    const NAME: String = BUILTIN_STRING_MEMORY.eval;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.eval;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::eval);
 }
@@ -47,7 +47,7 @@ impl BuiltinIntrinsic for GlobalObjectEval {
 }
 struct GlobalObjectIsFinite;
 impl Builtin for GlobalObjectIsFinite {
-    const NAME: String = BUILTIN_STRING_MEMORY.isFinite;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isFinite;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::is_finite);
 }
@@ -56,7 +56,7 @@ impl BuiltinIntrinsic for GlobalObjectIsFinite {
 }
 struct GlobalObjectIsNaN;
 impl Builtin for GlobalObjectIsNaN {
-    const NAME: String = BUILTIN_STRING_MEMORY.isNaN;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isNaN;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::is_nan);
 }
@@ -65,7 +65,7 @@ impl BuiltinIntrinsic for GlobalObjectIsNaN {
 }
 struct GlobalObjectParseFloat;
 impl Builtin for GlobalObjectParseFloat {
-    const NAME: String = BUILTIN_STRING_MEMORY.parseFloat;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.parseFloat;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::parse_float);
 }
@@ -74,7 +74,7 @@ impl BuiltinIntrinsic for GlobalObjectParseFloat {
 }
 struct GlobalObjectParseInt;
 impl Builtin for GlobalObjectParseInt {
-    const NAME: String = BUILTIN_STRING_MEMORY.parseInt;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.parseInt;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::parse_int);
 }
@@ -83,7 +83,7 @@ impl BuiltinIntrinsic for GlobalObjectParseInt {
 }
 struct GlobalObjectDecodeURI;
 impl Builtin for GlobalObjectDecodeURI {
-    const NAME: String = BUILTIN_STRING_MEMORY.decodeURI;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.decodeURI;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::decode_uri);
 }
@@ -92,7 +92,7 @@ impl BuiltinIntrinsic for GlobalObjectDecodeURI {
 }
 struct GlobalObjectDecodeURIComponent;
 impl Builtin for GlobalObjectDecodeURIComponent {
-    const NAME: String = BUILTIN_STRING_MEMORY.decodeURIComponent;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.decodeURIComponent;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::decode_uri_component);
 }
@@ -101,7 +101,7 @@ impl BuiltinIntrinsic for GlobalObjectDecodeURIComponent {
 }
 struct GlobalObjectEncodeURI;
 impl Builtin for GlobalObjectEncodeURI {
-    const NAME: String = BUILTIN_STRING_MEMORY.encodeURI;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.encodeURI;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::encode_uri);
 }
@@ -110,7 +110,7 @@ impl BuiltinIntrinsic for GlobalObjectEncodeURI {
 }
 struct GlobalObjectEncodeURIComponent;
 impl Builtin for GlobalObjectEncodeURIComponent {
-    const NAME: String = BUILTIN_STRING_MEMORY.encodeURIComponent;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.encodeURIComponent;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::encode_uri_component);
 }
@@ -119,7 +119,7 @@ impl BuiltinIntrinsic for GlobalObjectEncodeURIComponent {
 }
 struct GlobalObjectEscape;
 impl Builtin for GlobalObjectEscape {
-    const NAME: String = BUILTIN_STRING_MEMORY.escape;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.escape;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::escape);
 }
@@ -128,7 +128,7 @@ impl BuiltinIntrinsic for GlobalObjectEscape {
 }
 struct GlobalObjectUnescape;
 impl Builtin for GlobalObjectUnescape {
-    const NAME: String = BUILTIN_STRING_MEMORY.unescape;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.unescape;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::unescape);
 }
@@ -142,12 +142,12 @@ impl BuiltinIntrinsic for GlobalObjectUnescape {
 /// language value), strictCaller (a Boolean), and direct (a Boolean) and
 /// returns either a normal completion containing an ECMAScript language value
 /// or a throw completion.
-pub fn perform_eval(
-    agent: &mut Agent,
-    x: Value,
+pub fn perform_eval<'gen>(
+    agent: &mut Agent<'gen>,
+    x: Value<'gen>,
     direct: bool,
     strict_caller: bool,
-) -> JsResult<Value> {
+) -> JsResult<'gen, Value<'gen>> {
     // 1. Assert: If direct is false, then strictCaller is also false.
     assert!(direct || !strict_caller);
 
@@ -353,14 +353,14 @@ pub fn perform_eval(
 /// Declarative Environment Record), privateEnv (a PrivateEnvironment Record or
 /// null), and strict (a Boolean) and returns either a normal completion
 /// containing UNUSED or a throw completion.
-pub fn eval_declaration_instantiation(
-    agent: &mut Agent,
+pub fn eval_declaration_instantiation<'gen>(
+    agent: &mut Agent<'gen>,
     script: &Program,
     var_env: EnvironmentIndex,
     lex_env: EnvironmentIndex,
-    private_env: Option<PrivateEnvironmentIndex>,
+    private_env: Option<PrivateEnvironmentIndex<'gen>>,
     strict_eval: bool,
-) -> JsResult<()> {
+) -> JsResult<'gen, ()> {
     // 1. Let varNames be the VarDeclaredNames of body.
     let var_names = script_var_declared_names(script);
 
@@ -640,7 +640,7 @@ impl GlobalObject {
     /// ### [19.2.1 eval ( x )](https://tc39.es/ecma262/#sec-eval-x)
     ///
     /// This function is the %eval% intrinsic object.
-    fn eval(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn eval<'gen>(agent: &mut Agent<'gen>, _this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let x = arguments.get(0);
 
         // 1. Return ? PerformEval(x, false, false).
@@ -650,7 +650,7 @@ impl GlobalObject {
     /// ### [19.2.2 isFinite ( number )](https://tc39.es/ecma262/#sec-isfinite-number)
     ///
     /// This function is the %isFinite% intrinsic object.
-    fn is_finite(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn is_finite<'gen>(agent: &mut Agent<'gen>, _: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let number = arguments.get(0);
         // 1. Let num be ? ToNumber(number).
         let num = to_number(agent, number)?;
@@ -666,7 +666,7 @@ impl GlobalObject {
     /// > NOTE: A reliable way for ECMAScript code to test if a value X is NaN
     /// > is an expression of the form X !== X. The result will be true if and
     /// > only if X is NaN.
-    fn is_nan(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn is_nan<'gen>(agent: &mut Agent<'gen>, _: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let number = arguments.get(0);
         // 1. Let num be ? ToNumber(number).
         let num = to_number(agent, number)?;
@@ -674,40 +674,40 @@ impl GlobalObject {
         // 3. Otherwise, return false.
         Ok(num.is_nan(agent).into())
     }
-    fn parse_float(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn parse_float<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
-    fn parse_int(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn parse_int<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
-    fn decode_uri(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn decode_uri<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
-    fn decode_uri_component(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn decode_uri_component<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
-    fn encode_uri(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn encode_uri<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
-    fn encode_uri_component(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn encode_uri_component<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
-    fn escape(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn escape<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
-    fn unescape(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn unescape<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         BuiltinFunctionBuilder::new_intrinsic_function::<GlobalObjectEval>(agent, realm).build();
         BuiltinFunctionBuilder::new_intrinsic_function::<GlobalObjectIsFinite>(agent, realm)
             .build();

@@ -22,18 +22,18 @@ use agent::{Agent, JsResult};
 /// and other language features. For example, the left-hand operand of an
 /// assignment is expected to produce a Reference Record.
 #[derive(Debug)]
-pub struct Reference {
+pub struct Reference<'gen> {
     /// ### \[\[Base]]
     ///
     /// The value or Environment Record which holds the binding. A \[\[Base]]
     /// of UNRESOLVABLE indicates that the binding could not be resolved.
-    pub(crate) base: Base,
+    pub(crate) base: Base<'gen>,
 
     /// ### \[\[ReferencedName]]
     ///
     /// The name of the binding. Always a String if \[\[Base]] value is an
     /// Environment Record.
-    pub(crate) referenced_name: PropertyKey,
+    pub(crate) referenced_name: PropertyKey<'gen>,
 
     /// ### \[\[Strict]]
     ///
@@ -48,14 +48,14 @@ pub struct Reference {
     /// Record and its \[\[Base]] value will never be an Environment Record. In
     /// that case, the \[\[ThisValue]] field holds the this value at the time
     /// the Reference Record was created.
-    pub(crate) this_value: Option<Value>,
+    pub(crate) this_value: Option<Value<'gen>>,
 }
 
 /// ### [6.2.5.1 IsPropertyReference ( V )](https://tc39.es/ecma262/#sec-ispropertyreference)
 ///
 /// The abstract operation IsPropertyReference takes argument V (a Reference
 /// Record) and returns a Boolean.
-pub(crate) fn is_property_reference(reference: &Reference) -> bool {
+pub(crate) fn is_property_reference(reference: &Reference<'_>) -> bool {
     match reference.base {
         // 1. if V.[[Base]] is unresolvable, return false.
         Base::Unresolvable => false,
@@ -70,7 +70,7 @@ pub(crate) fn is_property_reference(reference: &Reference) -> bool {
 ///
 /// The abstract operation IsUnresolvableReference takes argument V (a
 /// Reference Record) and returns a Boolean.
-pub(crate) fn is_unresolvable_reference(reference: &Reference) -> bool {
+pub(crate) fn is_unresolvable_reference(reference: &Reference<'_>) -> bool {
     // 1. If V.[[Base]] is unresolvable, return true; otherwise return false.
     matches!(reference.base, Base::Unresolvable)
 }
@@ -79,7 +79,7 @@ pub(crate) fn is_unresolvable_reference(reference: &Reference) -> bool {
 ///
 /// The abstract operation IsSuperReference takes argument V (a Reference
 /// Record) and returns a Boolean.
-pub(crate) fn is_super_reference(reference: &Reference) -> bool {
+pub(crate) fn is_super_reference(reference: &Reference<'_>) -> bool {
     // 1. If V.[[ThisValue]] is not empty, return true; otherwise return false.
     reference.this_value.is_some()
 }
@@ -88,7 +88,7 @@ pub(crate) fn is_super_reference(reference: &Reference) -> bool {
 ///
 /// The abstract operation IsPrivateReference takes argument V (a Reference
 /// Record) and returns a Boolean.
-pub(crate) fn is_private_reference(_: &Reference) -> bool {
+pub(crate) fn is_private_reference(_: &Reference<'_>) -> bool {
     // 1. If V.[[ReferencedName]] is a Private Name, return true; otherwise return false.
     // matches!(reference.referenced_name, PropertyKey::PrivateName)
     false
@@ -98,7 +98,7 @@ pub(crate) fn is_private_reference(_: &Reference) -> bool {
 /// The abstract operation GetValue takes argument V (a Reference Record or an
 /// ECMAScript language value) and returns either a normal completion
 /// containing an ECMAScript language value or an abrupt completion.
-pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Value> {
+pub(crate) fn get_value<'gen>(agent: &mut Agent<'gen>, reference: &Reference) -> JsResult<'gen, Value<'gen>> {
     let referenced_name = reference.referenced_name;
     match reference.base {
         Base::Value(value) => {
@@ -197,7 +197,7 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
 /// The abstract operation PutValue takes arguments V (a Reference Record or an
 /// ECMAScript language value) and W (an ECMAScript language value) and returns
 /// either a normal completion containing UNUSED or an abrupt completion.
-pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<()> {
+pub(crate) fn put_value<'gen>(agent: &mut Agent<'gen>, v: &Reference, w: Value<'gen>) -> JsResult<'gen, ()> {
     // 1. If V is not a Reference Record, throw a ReferenceError exception.
     // 2. If IsUnresolvableReference(V) is true, then
     if is_unresolvable_reference(v) {
@@ -269,11 +269,11 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
 /// The abstract operation InitializeReferencedBinding takes arguments V (a Reference Record) and W
 /// (an ECMAScript language value) and returns either a normal completion containing unused or an
 /// abrupt completion.
-pub(crate) fn initialize_referenced_binding(
-    agent: &mut Agent,
+pub(crate) fn initialize_referenced_binding<'gen>(
+    agent: &mut Agent<'gen>,
     v: Reference,
-    w: Value,
-) -> JsResult<()> {
+    w: Value<'gen>,
+) -> JsResult<'gen, ()> {
     // 1. Assert: IsUnresolvableReference(V) is false.
     debug_assert!(!is_unresolvable_reference(&v));
     // 2. Let base be V.[[Base]].
@@ -294,7 +294,7 @@ pub(crate) fn initialize_referenced_binding(
 /// ### {6.2.5.7 GetThisValue ( V )}(https://tc39.es/ecma262/#sec-getthisvalue)
 /// The abstract operation GetThisValue takes argument V (a Reference Record)
 /// and returns an ECMAScript language value.
-pub(crate) fn get_this_value(reference: &Reference) -> Value {
+pub(crate) fn get_this_value<'gen>(reference: &Reference<'gen>) -> Value<'gen> {
     // 1. Assert: IsPropertyReference(V) is true.
     debug_assert!(is_property_reference(reference));
     // 2. If IsSuperReference(V) is true, return V.[[ThisValue]]; otherwise return V.[[Base]].
@@ -307,14 +307,14 @@ pub(crate) fn get_this_value(reference: &Reference) -> Value {
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum Base {
-    Value(Value),
-    Environment(EnvironmentIndex),
+pub(crate) enum Base<'gen> {
+    Value(Value<'gen>),
+    Environment(EnvironmentIndex<'gen>),
     Unresolvable,
 }
 
-impl HeapMarkAndSweep for Reference {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Reference<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.base.mark_values(queues);
         self.referenced_name.mark_values(queues);
         self.this_value.mark_values(queues);
@@ -327,8 +327,8 @@ impl HeapMarkAndSweep for Reference {
     }
 }
 
-impl HeapMarkAndSweep for Base {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Base<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         match self {
             Base::Value(value) => value.mark_values(queues),
             Base::Environment(idx) => idx.mark_values(queues),

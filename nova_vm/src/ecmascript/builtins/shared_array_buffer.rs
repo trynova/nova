@@ -23,9 +23,9 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct SharedArrayBuffer(pub(crate) SharedArrayBufferIndex);
+pub struct SharedArrayBuffer<'gen>(pub(crate) SharedArrayBufferIndex<'gen>);
 
-impl SharedArrayBuffer {
+impl<'gen> SharedArrayBuffer<'gen> {
     pub(crate) const fn _def() -> Self {
         SharedArrayBuffer(SharedArrayBufferIndex::from_u32_index(0))
     }
@@ -35,58 +35,58 @@ impl SharedArrayBuffer {
     }
 }
 
-impl From<SharedArrayBuffer> for SharedArrayBufferIndex {
-    fn from(val: SharedArrayBuffer) -> Self {
+impl<'gen> From<SharedArrayBuffer<'gen>> for SharedArrayBufferIndex<'gen> {
+    fn from(val: SharedArrayBuffer<'gen>) -> Self {
         val.0
     }
 }
 
-impl From<SharedArrayBufferIndex> for SharedArrayBuffer {
-    fn from(value: SharedArrayBufferIndex) -> Self {
+impl<'gen> From<SharedArrayBufferIndex<'gen>> for SharedArrayBuffer<'gen> {
+    fn from(value: SharedArrayBufferIndex<'gen>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for SharedArrayBuffer {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for SharedArrayBuffer<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for SharedArrayBuffer {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for SharedArrayBuffer<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<SharedArrayBuffer> for Value {
-    fn from(val: SharedArrayBuffer) -> Self {
+impl<'gen> From<SharedArrayBuffer<'gen>> for Value<'gen> {
+    fn from(val: SharedArrayBuffer<'gen>) -> Self {
         Value::SharedArrayBuffer(val)
     }
 }
 
-impl From<SharedArrayBuffer> for Object {
-    fn from(val: SharedArrayBuffer) -> Self {
+impl<'gen> From<SharedArrayBuffer<'gen>> for Object<'gen> {
+    fn from(val: SharedArrayBuffer<'gen>) -> Self {
         Object::SharedArrayBuffer(val)
     }
 }
 
-impl Index<SharedArrayBuffer> for Agent {
-    type Output = SharedArrayBufferHeapData;
+impl<'gen> Index<SharedArrayBuffer<'gen>> for Agent<'gen> {
+    type Output = SharedArrayBufferHeapData<'gen>;
 
-    fn index(&self, index: SharedArrayBuffer) -> &Self::Output {
+    fn index(&self, index: SharedArrayBuffer<'gen>) -> &Self::Output {
         &self.heap.shared_array_buffers[index]
     }
 }
 
-impl IndexMut<SharedArrayBuffer> for Agent {
-    fn index_mut(&mut self, index: SharedArrayBuffer) -> &mut Self::Output {
+impl<'gen> IndexMut<SharedArrayBuffer<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: SharedArrayBuffer<'gen>) -> &mut Self::Output {
         &mut self.heap.shared_array_buffers[index]
     }
 }
 
-impl Index<SharedArrayBuffer> for Vec<Option<SharedArrayBufferHeapData>> {
-    type Output = SharedArrayBufferHeapData;
+impl<'gen> Index<SharedArrayBuffer<'gen>> for Vec<Option<SharedArrayBufferHeapData<'gen>>> {
+    type Output = SharedArrayBufferHeapData<'gen>;
 
     fn index(&self, index: SharedArrayBuffer) -> &Self::Output {
         self.get(index.get_index())
@@ -96,8 +96,8 @@ impl Index<SharedArrayBuffer> for Vec<Option<SharedArrayBufferHeapData>> {
     }
 }
 
-impl IndexMut<SharedArrayBuffer> for Vec<Option<SharedArrayBufferHeapData>> {
-    fn index_mut(&mut self, index: SharedArrayBuffer) -> &mut Self::Output {
+impl<'gen> IndexMut<SharedArrayBuffer<'gen>> for Vec<Option<SharedArrayBufferHeapData<'gen>>> {
+    fn index_mut(&mut self, index: SharedArrayBuffer<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("SharedArrayBuffer out of bounds")
             .as_mut()
@@ -105,15 +105,15 @@ impl IndexMut<SharedArrayBuffer> for Vec<Option<SharedArrayBufferHeapData>> {
     }
 }
 
-impl InternalSlots for SharedArrayBuffer {
+impl<'gen> InternalSlots<'gen> for SharedArrayBuffer<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::SharedArrayBuffer;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         debug_assert!(self.get_backing_object(agent).is_none());
         let prototype = agent
             .current_realm()
@@ -130,10 +130,10 @@ impl InternalSlots for SharedArrayBuffer {
     }
 }
 
-impl InternalMethods for SharedArrayBuffer {}
+impl<'gen> InternalMethods<'gen> for SharedArrayBuffer<'gen> {}
 
-impl HeapMarkAndSweep for SharedArrayBuffer {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for SharedArrayBuffer<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.shared_array_buffers.push(*self);
     }
 
@@ -142,8 +142,8 @@ impl HeapMarkAndSweep for SharedArrayBuffer {
     }
 }
 
-impl CreateHeapData<SharedArrayBufferHeapData, SharedArrayBuffer> for Heap {
-    fn create(&mut self, data: SharedArrayBufferHeapData) -> SharedArrayBuffer {
+impl<'gen> CreateHeapData<SharedArrayBufferHeapData<'gen>, SharedArrayBuffer<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: SharedArrayBufferHeapData<'gen>) -> SharedArrayBuffer<'gen> {
         self.shared_array_buffers.push(Some(data));
         SharedArrayBuffer(SharedArrayBufferIndex::last(&self.shared_array_buffers))
     }

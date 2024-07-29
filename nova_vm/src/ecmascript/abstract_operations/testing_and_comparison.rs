@@ -19,7 +19,7 @@ use super::type_conversion::{string_to_big_int, to_number, to_primitive, Preferr
 /// containing an ECMAScript language value or a throw completion. It throws an
 /// error if argument is a value that cannot be converted to an Object using
 /// ToObject. It is defined by [Table 14](https://tc39.es/ecma262/#table-requireobjectcoercible-results):
-pub(crate) fn require_object_coercible(agent: &mut Agent, argument: Value) -> JsResult<Value> {
+pub(crate) fn require_object_coercible<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, Value<'gen>> {
     if argument.is_undefined() || argument.is_null() {
         Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
@@ -35,7 +35,7 @@ pub(crate) fn require_object_coercible(agent: &mut Agent, argument: Value) -> Js
 /// The abstract operation IsArray takes argument argument (an ECMAScript
 /// language value) and returns either a normal completion containing a Boolean
 /// or a throw completion.
-pub(crate) fn is_array(_agent: &Agent, argument: Value) -> JsResult<bool> {
+pub(crate) fn is_array(_agent: &Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, bool> {
     // 1. If argument is not an Object, return false.
     // 2. If argument is an Array exotic object, return true.
     Ok(matches!(argument, Value::Array(_)))
@@ -55,9 +55,9 @@ pub(crate) fn is_array(_agent: &Agent, argument: Value) -> JsResult<bool> {
 ///
 /// > #### Note
 /// > Nova breaks with the specification to narrow the types automatically, and
-/// > returns an `Option<Function>`. Eventually this should become
+/// > returns an `Option<Function<'gen>>`. Eventually this should become
 /// > `Option<Callable>` once callable proxies are supported.
-pub(crate) fn is_callable(argument: impl TryInto<Function>) -> Option<Function> {
+pub(crate) fn is_callable<'gen>(argument: impl TryInto<Function<'gen>>) -> Option<Function<'gen>> {
     // 1. If argument is not an Object, return false.
     // 2. If argument has a [[Call]] internal method, return true.
     // 3. Return false.
@@ -72,13 +72,13 @@ pub(crate) fn is_callable(argument: impl TryInto<Function>) -> Option<Function> 
 ///
 /// > #### Note
 /// > Nova breaks with the specification to narrow the types automatically, and
-/// > returns an `Option<Function>`. Eventually this should become
+/// > returns an `Option<Function<'gen>>`. Eventually this should become
 /// > `Option<Callable>` or `Option<Constructable>` once callable proxies are
 /// > supported.
-pub(crate) fn is_constructor(
-    agent: &mut Agent,
-    constructor: impl TryInto<Function>,
-) -> Option<Function> {
+pub(crate) fn is_constructor<'gen>(
+    agent: &mut Agent<'gen>,
+    constructor: impl TryInto<Function<'gen>>,
+) -> Option<Function<'gen>> {
     // 1. If argument is not an Object, return false.
     // TODO: Proxy
     let Ok(constructor) = constructor.try_into() else {
@@ -99,12 +99,12 @@ pub(crate) fn is_constructor(
 /// returns either a normal completion containing a Boolean or a throw
 /// completion. It is used to determine whether additional properties can be
 /// added to O.
-pub(crate) fn is_extensible(agent: &mut Agent, o: Object) -> JsResult<bool> {
+pub(crate) fn is_extensible<'gen>(agent: &mut Agent<'gen>, o: Object<'gen>) -> JsResult<'gen, bool> {
     // 1. Return ? O.[[IsExtensible]]().
     o.internal_is_extensible(agent)
 }
 
-pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1, y: V2) -> bool {
+pub(crate) fn is_same_type<'gen, V1: Copy + Into<Value<'gen>>, V2: Copy + Into<Value<'gen>>>(x: V1, y: V2) -> bool {
     (x.into().is_undefined() && y.into().is_undefined())
         || (x.into().is_null() && y.into().is_null())
         || (x.into().is_boolean() && y.into().is_boolean())
@@ -116,7 +116,7 @@ pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1
 }
 
 /// ### [7.2.6 IsIntegralNumber ( argument )](https://tc39.es/ecma262/#sec-isintegralnumber)
-pub(crate) fn is_integral_number(agent: &mut Agent, argument: impl Copy + Into<Value>) -> bool {
+pub(crate) fn is_integral_number<'gen>(agent: &mut Agent<'gen>, argument: impl Copy + Into<Value<'gen>>) -> bool {
     let argument = argument.into();
 
     // OPTIMIZATION: If the number is a small integer, then know that it must be
@@ -143,8 +143,8 @@ pub(crate) fn is_integral_number(agent: &mut Agent, argument: impl Copy + Into<V
 }
 
 /// ### [7.2.10 SameValue ( x, y )](https://tc39.es/ecma262/#sec-samevalue)
-pub(crate) fn same_value<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(
-    agent: &Agent,
+pub(crate) fn same_value<V1: Copy + Into<Value<'gen>>, V2: Copy + Into<Value<'gen>>>(
+    agent: &Agent<'gen>,
     x: V1,
     y: V2,
 ) -> bool {
@@ -173,11 +173,11 @@ pub(crate) fn same_value<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(
 /// the difference between +0𝔽 and -0𝔽). It performs the following steps when
 /// called:
 pub(crate) fn same_value_zero(
-    agent: &Agent,
-    x: impl Copy + Into<Value>,
-    y: impl Copy + Into<Value>,
+    agent: &Agent<'gen>,
+    x: impl Copy + Into<Value<'gen>>,
+    y: impl Copy + Into<Value<'gen>>,
 ) -> bool {
-    let (x, y) = (Into::<Value>::into(x), Into::<Value>::into(y));
+    let (x, y) = (Into::<Value<'gen>>::into(x), Into::<Value<'gen>>::into(y));
 
     // 1. If Type(x) is not Type(y), return false.
     if !is_same_type(x, y) {
@@ -197,7 +197,7 @@ pub(crate) fn same_value_zero(
 }
 
 /// ### [7.2.12 SameValueNonNumber ( x, y )](https://tc39.es/ecma262/#sec-samevaluenonnumber)
-pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(agent: &Agent, x: T, y: T) -> bool {
+pub(crate) fn same_value_non_number<T: Copy + Into<Value<'gen>>>(agent: &Agent<'gen>, x: T, y: T) -> bool {
     let x: Value = x.into();
     let y: Value = y.into();
 
@@ -247,10 +247,10 @@ pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(agent: &Agent, x: T, 
 /// corresponding expression. If LeftFirst is false, the reverse is the case
 /// and operations must be performed upon y before x.
 pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
-    agent: &mut Agent,
-    x: impl Into<Value> + Copy,
-    y: impl Into<Value> + Copy,
-) -> JsResult<Option<bool>> {
+    agent: &mut Agent<'gen>,
+    x: impl Into<Value<'gen>> + Copy,
+    y: impl Into<Value<'gen>> + Copy,
+) -> JsResult<'gen, Option<bool>> {
     // 1. If LeftFirst is true, then
     let (px, py) = if LEFT_FIRST {
         // a. Let px be ? ToPrimitive(x, NUMBER).
@@ -367,10 +367,10 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
 /// normal completion containing a Boolean or a throw completion. It provides
 /// the semantics for the == operator.
 pub(crate) fn is_loosely_equal(
-    agent: &mut Agent,
-    x: impl Into<Value> + Copy,
-    y: impl Into<Value> + Copy,
-) -> JsResult<bool> {
+    agent: &mut Agent<'gen>,
+    x: impl Into<Value<'gen>> + Copy,
+    y: impl Into<Value<'gen>> + Copy,
+) -> JsResult<'gen, bool> {
     let x: Value = x.into();
     let y: Value = y.into();
 
@@ -473,9 +473,9 @@ pub(crate) fn is_loosely_equal(
 /// language value) and y (an ECMAScript language value) and returns a Boolean.
 /// It provides the semantics for the === operator.
 pub(crate) fn is_strictly_equal(
-    agent: &Agent,
-    x: impl Into<Value> + Copy,
-    y: impl Into<Value> + Copy,
+    agent: &Agent<'gen>,
+    x: impl Into<Value<'gen>> + Copy,
+    y: impl Into<Value<'gen>> + Copy,
 ) -> bool {
     let (x, y) = (x.into(), y.into());
 

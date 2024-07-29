@@ -28,7 +28,7 @@ enum IteratorKind {
 
 fn for_in_of_head_evaluation(
     ctx: &mut CompileContext,
-    uninitialized_bound_names: Vec<String>,
+    uninitialized_bound_names: Vec<String<'gen>>,
     expr: &ast::Expression<'_>,
     iteration_kind: IterationKind,
 ) -> Option<JumpIndex> {
@@ -92,13 +92,13 @@ fn for_in_of_head_evaluation(
         // a. Assert: iterationKind is either ITERATE or ASYNC-ITERATE.
         IterationKind::AsyncIterate => {
             // b. If iterationKind is ASYNC-ITERATE, let iteratorKind be ASYNC.
-            // d. Return ? GetIterator(exprValue, iteratorKind).
+            // d. Return ? GetIterator(exprValue<'gen>, iteratorKind).
             ctx.exe.add_instruction(Instruction::GetIteratorAsync);
             None
         }
         IterationKind::Iterate => {
             // c. Else, let iteratorKind be SYNC.
-            // d. Return ? GetIterator(exprValue, iteratorKind).
+            // d. Return ? GetIterator(exprValue<'gen>, iteratorKind).
             ctx.exe.add_instruction(Instruction::GetIteratorSync);
             None
         }

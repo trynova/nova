@@ -20,13 +20,13 @@ pub(crate) enum InternalBuffer {
 }
 
 #[derive(Debug)]
-pub struct ArrayBufferHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+pub struct ArrayBufferHeapData<'gen> {
+    pub(crate) object_index: Option<OrdinaryObject<'gen>>,
     pub(super) buffer: InternalBuffer,
     // detach_key
 }
 
-impl Default for ArrayBufferHeapData {
+impl Default for ArrayBufferHeapData<'_> {
     #[inline(always)]
     fn default() -> Self {
         Self {
@@ -36,9 +36,9 @@ impl Default for ArrayBufferHeapData {
     }
 }
 
-unsafe impl Send for ArrayBufferHeapData {}
+unsafe impl Send for ArrayBufferHeapData<'_> {}
 
-impl ArrayBufferHeapData {
+impl ArrayBufferHeapData<'_> {
     pub(crate) fn new_resizable(db: DataBlock) -> Self {
         Self {
             object_index: None,
@@ -58,8 +58,8 @@ impl ArrayBufferHeapData {
     }
 }
 
-impl HeapMarkAndSweep for ArrayBufferHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ArrayBufferHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.object_index.mark_values(queues);
     }
 

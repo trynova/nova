@@ -24,9 +24,9 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct WeakSet(pub(crate) WeakSetIndex);
+pub struct WeakSet<'gen>(pub(crate) WeakSetIndex<'gen>);
 
-impl WeakSet {
+impl WeakSet<'_> {
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -36,51 +36,51 @@ impl WeakSet {
     }
 }
 
-impl From<WeakSet> for WeakSetIndex {
-    fn from(val: WeakSet) -> Self {
+impl<'gen> From<WeakSet<'gen>> for WeakSetIndex<'gen> {
+    fn from(val: WeakSet<'gen>) -> Self {
         val.0
     }
 }
 
-impl From<WeakSetIndex> for WeakSet {
-    fn from(value: WeakSetIndex) -> Self {
+impl<'gen> From<WeakSetIndex<'gen>> for WeakSet<'gen> {
+    fn from(value: WeakSetIndex<'gen>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for WeakSet {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for WeakSet<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for WeakSet {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for WeakSet<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<WeakSet> for Value {
-    fn from(val: WeakSet) -> Self {
+impl<'gen> From<WeakSet<'gen>> for Value<'gen> {
+    fn from(val: WeakSet<'gen>) -> Self {
         Value::WeakSet(val)
     }
 }
 
-impl From<WeakSet> for Object {
-    fn from(val: WeakSet) -> Self {
+impl<'gen> From<WeakSet<'gen>> for Object<'gen> {
+    fn from(val: WeakSet<'gen>) -> Self {
         Object::WeakSet(val)
     }
 }
 
-impl InternalSlots for WeakSet {
+impl<'gen> InternalSlots<'gen> for WeakSet<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::WeakSet;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         debug_assert!(self.get_backing_object(agent).is_none());
         let prototype = agent
             .current_realm()
@@ -97,10 +97,10 @@ impl InternalSlots for WeakSet {
     }
 }
 
-impl InternalMethods for WeakSet {}
+impl<'gen> InternalMethods<'gen> for WeakSet<'gen> {}
 
-impl HeapMarkAndSweep for WeakSetHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for WeakSetHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.object_index.mark_values(queues);
     }
 
@@ -109,24 +109,24 @@ impl HeapMarkAndSweep for WeakSetHeapData {
     }
 }
 
-impl Index<WeakSet> for Agent {
-    type Output = WeakSetHeapData;
+impl<'gen> Index<WeakSet<'gen>> for Agent<'gen> {
+    type Output = WeakSetHeapData<'gen>;
 
-    fn index(&self, index: WeakSet) -> &Self::Output {
+    fn index(&self, index: WeakSet<'gen>) -> &Self::Output {
         &self.heap.weak_sets[index]
     }
 }
 
-impl IndexMut<WeakSet> for Agent {
-    fn index_mut(&mut self, index: WeakSet) -> &mut Self::Output {
+impl<'gen> IndexMut<WeakSet<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: WeakSet<'gen>) -> &mut Self::Output {
         &mut self.heap.weak_sets[index]
     }
 }
 
-impl Index<WeakSet> for Vec<Option<WeakSetHeapData>> {
-    type Output = WeakSetHeapData;
+impl<'gen> Index<WeakSet<'gen>> for Vec<Option<WeakSetHeapData<'gen>>> {
+    type Output = WeakSetHeapData<'gen>;
 
-    fn index(&self, index: WeakSet) -> &Self::Output {
+    fn index(&self, index: WeakSet<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("WeakSet out of bounds")
             .as_ref()
@@ -134,8 +134,8 @@ impl Index<WeakSet> for Vec<Option<WeakSetHeapData>> {
     }
 }
 
-impl IndexMut<WeakSet> for Vec<Option<WeakSetHeapData>> {
-    fn index_mut(&mut self, index: WeakSet) -> &mut Self::Output {
+impl<'gen> IndexMut<WeakSet<'gen>> for Vec<Option<WeakSetHeapData<'gen>>> {
+    fn index_mut(&mut self, index: WeakSet<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("WeakSet out of bounds")
             .as_mut()
@@ -143,16 +143,16 @@ impl IndexMut<WeakSet> for Vec<Option<WeakSetHeapData>> {
     }
 }
 
-impl CreateHeapData<WeakSetHeapData, WeakSet> for Heap {
-    fn create(&mut self, data: WeakSetHeapData) -> WeakSet {
+impl<'gen> CreateHeapData<WeakSetHeapData<'gen>, WeakSet<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: WeakSetHeapData<'gen>) -> WeakSet<'gen> {
         self.weak_sets.push(Some(data));
         // TODO: The type should be checked based on data or something equally stupid
         WeakSet(WeakSetIndex::last(&self.weak_sets))
     }
 }
 
-impl HeapMarkAndSweep for WeakSet {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for WeakSet<'gen> {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues<'gen>) {
         queues.weak_sets.push(*self);
     }
 

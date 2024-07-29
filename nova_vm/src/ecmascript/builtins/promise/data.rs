@@ -14,30 +14,30 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Default)]
-pub struct PromiseHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
-    pub(crate) promise_state: PromiseState,
+pub struct PromiseHeapData<'gen> {
+    pub(crate) object_index: Option<OrdinaryObject<'gen>>,
+    pub(crate) promise_state: PromiseState<'gen>,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum PromiseState {
+pub(crate) enum PromiseState<'gen> {
     Pending {
-        fulfill_reactions: Option<PromiseReactions>,
-        reject_reactions: Option<PromiseReactions>,
+        fulfill_reactions: Option<PromiseReactions<'gen>>,
+        reject_reactions: Option<PromiseReactions<'gen>>,
         /// True if the resolution state of this promise depends on another
         /// promise or thenable that hasn't fulfilled or rejected yet.
         is_resolved: bool,
     },
     Fulfilled {
-        promise_result: Value,
+        promise_result: Value<'gen>,
     },
     Rejected {
-        promise_result: Value,
+        promise_result: Value<'gen>,
         is_handled: bool,
     },
 }
 
-impl Default for PromiseState {
+impl Default for PromiseState<'_> {
     fn default() -> Self {
         Self::Pending {
             fulfill_reactions: None,
@@ -48,14 +48,14 @@ impl Default for PromiseState {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum PromiseReactions {
-    One(PromiseReaction),
-    Many(Vec<PromiseReaction>),
+pub(crate) enum PromiseReactions<'gen> {
+    One(PromiseReaction<'gen>),
+    Many(Vec<PromiseReaction<'gen>>),
 }
 
-impl PromiseReactions {
+impl<'gen> PromiseReactions<'gen> {
     /// ### [27.2.1.8 TriggerPromiseReactions ( reactions, argument )](https://tc39.es/ecma262/#sec-triggerpromisereactions)
-    pub(crate) fn trigger(&self, agent: &mut Agent, argument: Value) {
+    pub(crate) fn trigger(&self, agent: &mut Agent<'gen>, argument: Value<'gen>) {
         match self {
             PromiseReactions::One(reaction) => {
                 let job = new_promise_reaction_job(agent, *reaction, argument);
@@ -71,8 +71,8 @@ impl PromiseReactions {
     }
 }
 
-impl HeapMarkAndSweep for PromiseReactions {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for PromiseReactions<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         match self {
             PromiseReactions::One(reaction) => reaction.mark_values(queues),
             PromiseReactions::Many(reactions) => reactions
@@ -91,8 +91,8 @@ impl HeapMarkAndSweep for PromiseReactions {
     }
 }
 
-impl HeapMarkAndSweep for PromiseHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for PromiseHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.object_index.mark_values(queues);
         self.promise_state.mark_values(queues);
     }
@@ -103,8 +103,8 @@ impl HeapMarkAndSweep for PromiseHeapData {
     }
 }
 
-impl HeapMarkAndSweep for PromiseState {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for PromiseState<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         match self {
             PromiseState::Pending {
                 fulfill_reactions,

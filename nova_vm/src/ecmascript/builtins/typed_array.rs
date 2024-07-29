@@ -26,21 +26,21 @@ pub mod data;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum TypedArray {
-    Int8Array(TypedArrayIndex) = INT_8_ARRAY_DISCRIMINANT,
-    Uint8Array(TypedArrayIndex) = UINT_8_ARRAY_DISCRIMINANT,
-    Uint8ClampedArray(TypedArrayIndex) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
-    Int16Array(TypedArrayIndex) = INT_16_ARRAY_DISCRIMINANT,
-    Uint16Array(TypedArrayIndex) = UINT_16_ARRAY_DISCRIMINANT,
-    Int32Array(TypedArrayIndex) = INT_32_ARRAY_DISCRIMINANT,
-    Uint32Array(TypedArrayIndex) = UINT_32_ARRAY_DISCRIMINANT,
-    BigInt64Array(TypedArrayIndex) = BIGINT_64_ARRAY_DISCRIMINANT,
-    BigUint64Array(TypedArrayIndex) = BIGUINT_64_ARRAY_DISCRIMINANT,
-    Float32Array(TypedArrayIndex) = FLOAT_32_ARRAY_DISCRIMINANT,
-    Float64Array(TypedArrayIndex) = FLOAT_64_ARRAY_DISCRIMINANT,
+pub enum TypedArray<'gen> {
+    Int8Array(TypedArrayIndex<'gen>) = INT_8_ARRAY_DISCRIMINANT,
+    Uint8Array(TypedArrayIndex<'gen>) = UINT_8_ARRAY_DISCRIMINANT,
+    Uint8ClampedArray(TypedArrayIndex<'gen>) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    Int16Array(TypedArrayIndex<'gen>) = INT_16_ARRAY_DISCRIMINANT,
+    Uint16Array(TypedArrayIndex<'gen>) = UINT_16_ARRAY_DISCRIMINANT,
+    Int32Array(TypedArrayIndex<'gen>) = INT_32_ARRAY_DISCRIMINANT,
+    Uint32Array(TypedArrayIndex<'gen>) = UINT_32_ARRAY_DISCRIMINANT,
+    BigInt64Array(TypedArrayIndex<'gen>) = BIGINT_64_ARRAY_DISCRIMINANT,
+    BigUint64Array(TypedArrayIndex<'gen>) = BIGUINT_64_ARRAY_DISCRIMINANT,
+    Float32Array(TypedArrayIndex<'gen>) = FLOAT_32_ARRAY_DISCRIMINANT,
+    Float64Array(TypedArrayIndex<'gen>) = FLOAT_64_ARRAY_DISCRIMINANT,
 }
 
-impl TypedArray {
+impl TypedArray<'_> {
     pub(crate) fn get_index(self) -> usize {
         match self {
             TypedArray::Int8Array(index)
@@ -58,8 +58,8 @@ impl TypedArray {
     }
 }
 
-impl From<TypedArray> for TypedArrayIndex {
-    fn from(val: TypedArray) -> Self {
+impl<'gen> From<TypedArray<'gen>> for TypedArrayIndex<'gen> {
+    fn from(val: TypedArray<'gen>) -> Self {
         match val {
             TypedArray::Int8Array(idx)
             | TypedArray::Uint8Array(idx)
@@ -76,20 +76,20 @@ impl From<TypedArray> for TypedArrayIndex {
     }
 }
 
-impl IntoValue for TypedArray {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for TypedArray<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for TypedArray {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for TypedArray<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<TypedArray> for Value {
-    fn from(val: TypedArray) -> Self {
+impl<'gen> From<TypedArray<'gen>> for Value<'gen> {
+    fn from(val: TypedArray<'gen>) -> Self {
         match val {
             TypedArray::Int8Array(idx) => Value::Int8Array(idx),
             TypedArray::Uint8Array(idx) => Value::Uint8Array(idx),
@@ -106,8 +106,8 @@ impl From<TypedArray> for Value {
     }
 }
 
-impl From<TypedArray> for Object {
-    fn from(val: TypedArray) -> Self {
+impl<'gen> From<TypedArray<'gen>> for Object<'gen> {
+    fn from(val: TypedArray<'gen>) -> Self {
         match val {
             TypedArray::Int8Array(idx) => Object::Int8Array(idx),
             TypedArray::Uint8Array(idx) => Object::Uint8Array(idx),
@@ -124,24 +124,24 @@ impl From<TypedArray> for Object {
     }
 }
 
-impl Index<TypedArray> for Agent {
-    type Output = TypedArrayHeapData;
+impl<'gen> Index<TypedArray<'gen>> for Agent<'gen> {
+    type Output = TypedArrayHeapData<'gen>;
 
-    fn index(&self, index: TypedArray) -> &Self::Output {
+    fn index(&self, index: TypedArray<'gen>) -> &Self::Output {
         &self.heap.typed_arrays[index]
     }
 }
 
-impl IndexMut<TypedArray> for Agent {
-    fn index_mut(&mut self, index: TypedArray) -> &mut Self::Output {
+impl<'gen> IndexMut<TypedArray<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: TypedArray<'gen>) -> &mut Self::Output {
         &mut self.heap.typed_arrays[index]
     }
 }
 
-impl Index<TypedArray> for Vec<Option<TypedArrayHeapData>> {
-    type Output = TypedArrayHeapData;
+impl<'gen> Index<TypedArray<'gen>> for Vec<Option<TypedArrayHeapData<'gen>>> {
+    type Output = TypedArrayHeapData<'gen>;
 
-    fn index(&self, index: TypedArray) -> &Self::Output {
+    fn index(&self, index: TypedArray<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("TypedArray out of bounds")
             .as_ref()
@@ -149,8 +149,8 @@ impl Index<TypedArray> for Vec<Option<TypedArrayHeapData>> {
     }
 }
 
-impl IndexMut<TypedArray> for Vec<Option<TypedArrayHeapData>> {
-    fn index_mut(&mut self, index: TypedArray) -> &mut Self::Output {
+impl<'gen> IndexMut<TypedArray<'gen>> for Vec<Option<TypedArrayHeapData<'gen>>> {
+    fn index_mut(&mut self, index: TypedArray<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("TypedArray out of bounds")
             .as_mut()
@@ -158,13 +158,13 @@ impl IndexMut<TypedArray> for Vec<Option<TypedArrayHeapData>> {
     }
 }
 
-impl InternalSlots for TypedArray {
+impl<'gen> InternalSlots<'gen> for TypedArray<'gen> {
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         debug_assert!(self.get_backing_object(agent).is_none());
         let prototype = self.internal_prototype(agent);
         let backing_object = agent.heap.create(ObjectHeapData {
@@ -177,7 +177,7 @@ impl InternalSlots for TypedArray {
         backing_object
     }
 
-    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, agent: &Agent<'gen>) -> Option<Object<'gen>> {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_prototype(agent)
         } else {
@@ -192,18 +192,18 @@ impl InternalSlots for TypedArray {
     }
 }
 
-impl InternalMethods for TypedArray {}
+impl<'gen> InternalMethods<'gen> for TypedArray<'gen> {}
 
-impl CreateHeapData<TypedArrayHeapData, TypedArray> for Heap {
-    fn create(&mut self, data: TypedArrayHeapData) -> TypedArray {
+impl<'gen> CreateHeapData<TypedArrayHeapData<'gen>, TypedArray<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: TypedArrayHeapData<'gen>) -> TypedArray<'gen> {
         self.typed_arrays.push(Some(data));
         // TODO: The type should be checked based on data or something equally stupid
         TypedArray::Uint8Array(TypedArrayIndex::last(&self.typed_arrays))
     }
 }
 
-impl HeapMarkAndSweep for TypedArrayIndex {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for TypedArrayIndex<'gen> {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues<'gen>) {
         queues.typed_arrays.push(*self);
     }
 
@@ -212,8 +212,8 @@ impl HeapMarkAndSweep for TypedArrayIndex {
     }
 }
 
-impl HeapMarkAndSweep for TypedArray {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for TypedArray<'gen> {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues<'gen>) {
         match self {
             TypedArray::Int8Array(data)
             | TypedArray::Uint8Array(data)

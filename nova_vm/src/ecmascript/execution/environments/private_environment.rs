@@ -12,14 +12,14 @@ use crate::{
 use super::PrivateEnvironmentIndex;
 
 #[derive(Debug)]
-pub enum PrivateName {
-    Field(Option<Value>),
-    Method(Option<Function>),
+pub enum PrivateName<'gen> {
+    Field(Option<Value<'gen>>),
+    Method(Option<Function<'gen>>),
     /// Accessor(get, set)
-    Accessor(Option<Function>, Option<Function>),
+    Accessor(Option<Function<'gen>>, Option<Function<'gen>>),
 }
 
-impl PrivateName {
+impl PrivateName<'_> {
     pub fn description(&self) -> &'static str {
         "identifier"
     }
@@ -35,22 +35,22 @@ impl PrivateName {
 /// evaluated, a new PrivateEnvironment Record is created to record the Private
 /// Names declared by that class.
 #[derive(Debug)]
-pub struct PrivateEnvironment {
+pub struct PrivateEnvironment<'gen> {
     /// ### \[\[OuterPrivateEnvironment\]\]
     ///
     /// The PrivateEnvironment Record of the nearest containing class. null if
     /// the class with which this PrivateEnvironment Record is associated is
     /// not contained in any other class.
-    pub(crate) outer_private_environment: Option<PrivateEnvironmentIndex>,
+    pub(crate) outer_private_environment: Option<PrivateEnvironmentIndex<'gen>>,
 
     /// ### \[\[Names\]\]
     ///
     /// The Private Names declared by this class.
-    pub(crate) names: AHashMap<String, PrivateName>,
+    pub(crate) names: AHashMap<String, PrivateName<'gen>>,
 }
 
-impl HeapMarkAndSweep for PrivateEnvironment {
-    fn mark_values(&self, _queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for PrivateEnvironment<'gen> {
+    fn mark_values(&self, _queues: &mut WorkQueues<'gen>) {
         todo!()
     }
 
@@ -63,9 +63,9 @@ impl HeapMarkAndSweep for PrivateEnvironment {
 ///
 /// The abstract operation NewPrivateEnvironment takes argument outerPrivEnv (a
 /// PrivateEnvironment Record or null) and returns a PrivateEnvironment Record.
-pub(crate) fn new_private_environment(
-    outer_private_environment: Option<PrivateEnvironmentIndex>,
-) -> PrivateEnvironment {
+pub(crate) fn new_private_environment<'gen>(
+    outer_private_environment: Option<PrivateEnvironmentIndex<'gen>>,
+) -> PrivateEnvironment<'gen> {
     // 1. Let names be a new empty List.
     // 2. Return the PrivateEnvironment Record {
     PrivateEnvironment {
@@ -77,8 +77,8 @@ pub(crate) fn new_private_environment(
     // }.
 }
 
-impl HeapMarkAndSweep for PrivateEnvironmentIndex {
-    fn mark_values(&self, _queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for PrivateEnvironmentIndex<'gen> {
+    fn mark_values(&self, _queues: &mut WorkQueues<'gen>) {
         todo!()
     }
 

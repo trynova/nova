@@ -24,57 +24,57 @@ pub(crate) struct SetPrototype;
 
 struct SetPrototypeAdd;
 impl Builtin for SetPrototypeAdd {
-    const NAME: String = BUILTIN_STRING_MEMORY.add;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.add;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::add);
 }
 struct SetPrototypeClear;
 impl Builtin for SetPrototypeClear {
-    const NAME: String = BUILTIN_STRING_MEMORY.clear;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.clear;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::clear);
 }
 struct SetPrototypeDelete;
 impl Builtin for SetPrototypeDelete {
-    const NAME: String = BUILTIN_STRING_MEMORY.delete;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.delete;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::delete);
 }
 struct SetPrototypeEntries;
 impl Builtin for SetPrototypeEntries {
-    const NAME: String = BUILTIN_STRING_MEMORY.entries;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.entries;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::entries);
 }
 struct SetPrototypeForEach;
 impl Builtin for SetPrototypeForEach {
-    const NAME: String = BUILTIN_STRING_MEMORY.forEach;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.forEach;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::for_each);
 }
 struct SetPrototypeHas;
 impl Builtin for SetPrototypeHas {
-    const NAME: String = BUILTIN_STRING_MEMORY.has;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.has;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::has);
 }
 struct SetPrototypeKeys;
 impl Builtin for SetPrototypeKeys {
-    const NAME: String = BUILTIN_STRING_MEMORY.keys;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.keys;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::keys);
 }
 struct SetPrototypeGetSize;
 impl Builtin for SetPrototypeGetSize {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_size;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.size.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_size;
+    const KEY: Option<PropertyKey<'static>> = Some(BUILTIN_STRING_MEMORY.size.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::get_size);
 }
 impl BuiltinGetter for SetPrototypeGetSize {}
 struct SetPrototypeValues;
 impl Builtin for SetPrototypeValues {
-    const NAME: String = BUILTIN_STRING_MEMORY.values;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.values;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::values);
 }
@@ -84,7 +84,7 @@ impl BuiltinIntrinsic for SetPrototypeValues {
 
 impl SetPrototype {
     /// #### [24.2.4.1 Set.prototype.add ( value )](https://tc39.es/ecma262/#sec-set.prototype.add)
-    fn add(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn add<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value)?;
@@ -111,7 +111,7 @@ impl SetPrototype {
     /// > The existing \[\[SetData]] List is preserved because there may be
     /// > existing Set Iterator objects that are suspended midway through
     /// > iterating over that List.
-    fn clear(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn clear<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value)?;
@@ -132,7 +132,7 @@ impl SetPrototype {
     /// > The value EMPTY is used as a specification device to indicate that an
     /// > entry has been deleted. Actual implementations may take other actions
     /// > such as physically removing the entry from internal data structures.
-    fn delete(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn delete<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value)?;
@@ -152,7 +152,7 @@ impl SetPrototype {
         Ok(false.into())
     }
 
-    fn entries(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn entries<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -189,7 +189,7 @@ impl SetPrototype {
     /// > are not visited unless the value is added again before the
     /// > **forEach** call completes. New values added after the call to
     /// > **forEach** begins are visited.
-    fn for_each(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn for_each<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let callback_fn = arguments.get(0);
         let this_arg = arguments.get(1);
         // 1. Let S be the this value.
@@ -232,7 +232,7 @@ impl SetPrototype {
     }
 
     /// ### [24.2.4.8 Set.prototype.has ( value )](https://tc39.es/ecma262/#sec-set.prototype.has)
-    fn has(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn has<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value)?;
@@ -248,7 +248,7 @@ impl SetPrototype {
         Ok(result.into())
     }
 
-    fn keys(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn keys<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -256,7 +256,7 @@ impl SetPrototype {
     ///
     /// Set.prototype.size is an accessor property whose set accessor function
     /// is undefined.
-    fn get_size(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_size<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value)?;
@@ -266,11 +266,11 @@ impl SetPrototype {
         Ok(Number::try_from(size).unwrap().into_value())
     }
 
-    fn values(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn values<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.set_prototype();
@@ -311,7 +311,7 @@ impl SetPrototype {
 }
 
 #[inline(always)]
-fn require_set_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<Set> {
+fn require_set_data_internal_slot<'gen>(agent: &mut Agent<'gen>, value: Value<'gen>) -> JsResult<'gen, Set> {
     match value {
         Value::Set(map) => Ok(map),
         _ => Err(agent

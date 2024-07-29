@@ -32,7 +32,7 @@ impl VmIterator {
     /// function implements much the same intent. It does the IteratorNext
     /// step, followed by a completion check, and finally extracts the value
     /// if the iterator did not complete yet.
-    pub(super) fn step_value(&mut self, agent: &mut Agent) -> JsResult<Option<Value>> {
+    pub(super) fn step_value(&mut self, agent: &mut Agent<'gen>) -> JsResult<'gen, Option<Value<'gen>>> {
         match self {
             VmIterator::ObjectProperties(iter) => {
                 let result = iter.next(agent)?;
@@ -75,14 +75,14 @@ impl VmIterator {
 
 #[derive(Debug)]
 pub(super) struct ObjectPropertiesIterator {
-    object: Object,
+    object: Object<'gen>,
     object_was_visited: bool,
-    visited_keys: Vec<PropertyKey>,
-    remaining_keys: VecDeque<PropertyKey>,
+    visited_keys: Vec<PropertyKey<'gen>>,
+    remaining_keys: VecDeque<PropertyKey<'gen>>,
 }
 
 impl ObjectPropertiesIterator {
-    pub(super) fn new(object: Object) -> Self {
+    pub(super) fn new(object: Object<'gen>) -> Self {
         Self {
             object,
             object_was_visited: false,
@@ -91,7 +91,7 @@ impl ObjectPropertiesIterator {
         }
     }
 
-    pub(super) fn next(&mut self, agent: &mut Agent) -> JsResult<Option<PropertyKey>> {
+    pub(super) fn next(&mut self, agent: &mut Agent<'gen>) -> JsResult<'gen, Option<PropertyKey<'gen>>> {
         loop {
             let object = self.object;
             if !self.object_was_visited {
@@ -130,12 +130,12 @@ impl ObjectPropertiesIterator {
 
 #[derive(Debug)]
 pub(super) struct ArrayValuesIterator {
-    array: Array,
+    array: Array<'gen>,
     index: u32,
 }
 
 impl ArrayValuesIterator {
-    pub(super) fn new(array: Array) -> Self {
+    pub(super) fn new(array: Array<'gen>) -> Self {
         Self {
             array,
             // a. Let index be 0.
@@ -143,7 +143,7 @@ impl ArrayValuesIterator {
         }
     }
 
-    pub(super) fn next(&mut self, agent: &mut Agent) -> JsResult<Option<Value>> {
+    pub(super) fn next(&mut self, agent: &mut Agent<'gen>) -> JsResult<'gen, Option<Value<'gen>>> {
         // b. Repeat,
         let array = self.array;
         // iv. Let indexNumber be 𝔽(index).
@@ -157,7 +157,7 @@ impl ArrayValuesIterator {
         // viii. Set index to index + 1.
         self.index += 1;
         if let Some(element_value) = array.as_slice(agent)[index as usize] {
-            // Fast path: If the element at this index has a Value, then it is
+            // Fast path: If the element at this index has a Value<'gen>, then it is
             // not an accessor nor a hole. Yield the result as-is.
             return Ok(Some(element_value));
         }
@@ -170,8 +170,8 @@ impl ArrayValuesIterator {
     }
 }
 
-impl HeapMarkAndSweep for ObjectPropertiesIterator {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ObjectPropertiesIterator {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.object.mark_values(queues);
         self.visited_keys.as_slice().mark_values(queues);
         for key in self.remaining_keys.iter() {
@@ -188,8 +188,8 @@ impl HeapMarkAndSweep for ObjectPropertiesIterator {
     }
 }
 
-impl HeapMarkAndSweep for ArrayValuesIterator {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ArrayValuesIterator {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.array.mark_values(queues)
     }
 
@@ -198,8 +198,8 @@ impl HeapMarkAndSweep for ArrayValuesIterator {
     }
 }
 
-impl HeapMarkAndSweep for VmIterator {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for VmIterator {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         match self {
             VmIterator::ObjectProperties(iter) => iter.mark_values(queues),
             VmIterator::ArrayValues(iter) => iter.mark_values(queues),

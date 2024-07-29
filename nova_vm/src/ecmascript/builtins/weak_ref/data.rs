@@ -8,13 +8,13 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct WeakRefHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
-    pub(crate) value: Value,
+pub struct WeakRefHeapData<'gen> {
+    pub(crate) object_index: Option<OrdinaryObject<'gen>>,
+    pub(crate) value: Value<'gen>,
     pub(crate) is_strong: bool,
 }
 
-impl Default for WeakRefHeapData {
+impl Default for WeakRefHeapData<'static> {
     fn default() -> Self {
         Self {
             object_index: None,
@@ -24,8 +24,8 @@ impl Default for WeakRefHeapData {
     }
 }
 
-impl HeapMarkAndSweep for WeakRefHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for WeakRefHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.object_index.mark_values(queues);
         if self.is_strong {
             self.value.mark_values(queues);

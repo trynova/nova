@@ -34,7 +34,7 @@ use crate::{
 pub(crate) struct ObjectConstructor;
 
 impl Builtin for ObjectConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Object;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Object;
 
     const LENGTH: u8 = 1;
 
@@ -47,7 +47,7 @@ impl BuiltinIntrinsicConstructor for ObjectConstructor {
 struct ObjectAssign;
 
 impl Builtin for ObjectAssign {
-    const NAME: String = BUILTIN_STRING_MEMORY.assign;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.assign;
 
     const LENGTH: u8 = 2;
 
@@ -57,7 +57,7 @@ impl Builtin for ObjectAssign {
 struct ObjectCreate;
 
 impl Builtin for ObjectCreate {
-    const NAME: String = BUILTIN_STRING_MEMORY.create;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.create;
 
     const LENGTH: u8 = 2;
 
@@ -66,7 +66,7 @@ impl Builtin for ObjectCreate {
 struct ObjectDefineProperties;
 
 impl Builtin for ObjectDefineProperties {
-    const NAME: String = BUILTIN_STRING_MEMORY.defineProperties;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.defineProperties;
 
     const LENGTH: u8 = 2;
 
@@ -75,7 +75,7 @@ impl Builtin for ObjectDefineProperties {
 struct ObjectDefineProperty;
 
 impl Builtin for ObjectDefineProperty {
-    const NAME: String = BUILTIN_STRING_MEMORY.defineProperty;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.defineProperty;
 
     const LENGTH: u8 = 2;
 
@@ -84,7 +84,7 @@ impl Builtin for ObjectDefineProperty {
 struct ObjectEntries;
 
 impl Builtin for ObjectEntries {
-    const NAME: String = BUILTIN_STRING_MEMORY.entries;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.entries;
 
     const LENGTH: u8 = 1;
 
@@ -93,7 +93,7 @@ impl Builtin for ObjectEntries {
 struct ObjectFreeze;
 
 impl Builtin for ObjectFreeze {
-    const NAME: String = BUILTIN_STRING_MEMORY.freeze;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.freeze;
 
     const LENGTH: u8 = 1;
 
@@ -102,7 +102,7 @@ impl Builtin for ObjectFreeze {
 struct ObjectFromEntries;
 
 impl Builtin for ObjectFromEntries {
-    const NAME: String = BUILTIN_STRING_MEMORY.fromEntries;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromEntries;
 
     const LENGTH: u8 = 1;
 
@@ -111,7 +111,7 @@ impl Builtin for ObjectFromEntries {
 struct ObjectGetOwnPropertyDescriptor;
 
 impl Builtin for ObjectGetOwnPropertyDescriptor {
-    const NAME: String = BUILTIN_STRING_MEMORY.getOwnPropertyDescriptor;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getOwnPropertyDescriptor;
 
     const LENGTH: u8 = 2;
 
@@ -120,7 +120,7 @@ impl Builtin for ObjectGetOwnPropertyDescriptor {
 struct ObjectGetOwnPropertyDescriptors;
 
 impl Builtin for ObjectGetOwnPropertyDescriptors {
-    const NAME: String = BUILTIN_STRING_MEMORY.getOwnPropertyDescriptors;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getOwnPropertyDescriptors;
 
     const LENGTH: u8 = 1;
 
@@ -130,7 +130,7 @@ impl Builtin for ObjectGetOwnPropertyDescriptors {
 struct ObjectGetOwnPropertyNames;
 
 impl Builtin for ObjectGetOwnPropertyNames {
-    const NAME: String = BUILTIN_STRING_MEMORY.getOwnPropertyNames;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getOwnPropertyNames;
 
     const LENGTH: u8 = 1;
 
@@ -139,7 +139,7 @@ impl Builtin for ObjectGetOwnPropertyNames {
 struct ObjectGetOwnPropertySymbols;
 
 impl Builtin for ObjectGetOwnPropertySymbols {
-    const NAME: String = BUILTIN_STRING_MEMORY.getOwnPropertySymbols;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getOwnPropertySymbols;
 
     const LENGTH: u8 = 1;
 
@@ -148,7 +148,7 @@ impl Builtin for ObjectGetOwnPropertySymbols {
 struct ObjectGetPrototypeOf;
 
 impl Builtin for ObjectGetPrototypeOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.getPrototypeOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getPrototypeOf;
 
     const LENGTH: u8 = 1;
 
@@ -157,7 +157,7 @@ impl Builtin for ObjectGetPrototypeOf {
 struct ObjectGroupBy;
 
 impl Builtin for ObjectGroupBy {
-    const NAME: String = BUILTIN_STRING_MEMORY.groupBy;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.groupBy;
 
     const LENGTH: u8 = 2;
 
@@ -166,7 +166,7 @@ impl Builtin for ObjectGroupBy {
 struct ObjectHasOwn;
 
 impl Builtin for ObjectHasOwn {
-    const NAME: String = BUILTIN_STRING_MEMORY.hasOwn;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.hasOwn;
 
     const LENGTH: u8 = 2;
 
@@ -175,7 +175,7 @@ impl Builtin for ObjectHasOwn {
 struct ObjectIs;
 
 impl Builtin for ObjectIs {
-    const NAME: String = BUILTIN_STRING_MEMORY.is;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.is;
 
     const LENGTH: u8 = 2;
 
@@ -184,7 +184,7 @@ impl Builtin for ObjectIs {
 struct ObjectIsExtensible;
 
 impl Builtin for ObjectIsExtensible {
-    const NAME: String = BUILTIN_STRING_MEMORY.isExtensible;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isExtensible;
 
     const LENGTH: u8 = 1;
 
@@ -193,7 +193,7 @@ impl Builtin for ObjectIsExtensible {
 struct ObjectIsFrozen;
 
 impl Builtin for ObjectIsFrozen {
-    const NAME: String = BUILTIN_STRING_MEMORY.isFrozen;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isFrozen;
 
     const LENGTH: u8 = 1;
 
@@ -202,7 +202,7 @@ impl Builtin for ObjectIsFrozen {
 struct ObjectIsSealed;
 
 impl Builtin for ObjectIsSealed {
-    const NAME: String = BUILTIN_STRING_MEMORY.isSealed;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isSealed;
 
     const LENGTH: u8 = 1;
 
@@ -211,7 +211,7 @@ impl Builtin for ObjectIsSealed {
 struct ObjectKeys;
 
 impl Builtin for ObjectKeys {
-    const NAME: String = BUILTIN_STRING_MEMORY.keys;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.keys;
 
     const LENGTH: u8 = 1;
 
@@ -220,7 +220,7 @@ impl Builtin for ObjectKeys {
 struct ObjectPreventExtensions;
 
 impl Builtin for ObjectPreventExtensions {
-    const NAME: String = BUILTIN_STRING_MEMORY.preventExtensions;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.preventExtensions;
 
     const LENGTH: u8 = 1;
 
@@ -230,7 +230,7 @@ impl Builtin for ObjectPreventExtensions {
 struct ObjectSeal;
 
 impl Builtin for ObjectSeal {
-    const NAME: String = BUILTIN_STRING_MEMORY.seal;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.seal;
 
     const LENGTH: u8 = 1;
 
@@ -239,7 +239,7 @@ impl Builtin for ObjectSeal {
 struct ObjectSetPrototypeOf;
 
 impl Builtin for ObjectSetPrototypeOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.setPrototypeOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setPrototypeOf;
 
     const LENGTH: u8 = 2;
 
@@ -248,7 +248,7 @@ impl Builtin for ObjectSetPrototypeOf {
 struct ObjectValues;
 
 impl Builtin for ObjectValues {
-    const NAME: String = BUILTIN_STRING_MEMORY.values;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.values;
 
     const LENGTH: u8 = 1;
 
@@ -257,12 +257,12 @@ impl Builtin for ObjectValues {
 
 impl ObjectConstructor {
     /// ### [20.1.1.1 Object ( \[ value \] )](https://tc39.es/ecma262/#sec-object-value)
-    fn behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let value = arguments.get(0);
         // 1. If NewTarget is neither undefined nor the active function object, then
         if new_target.is_some()
@@ -296,7 +296,7 @@ impl ObjectConstructor {
     ///
     /// This function copies the values of all of the enumerable own properties
     /// from one or more source objects to a target object.
-    fn assign(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn assign<'gen>(agent: &mut Agent<'gen>, _: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let target = arguments.get(0);
         // 1. Let to be ? ToObject(target).
         let to = to_object(agent, target)?;
@@ -328,7 +328,7 @@ impl ObjectConstructor {
                 }
                 // a. Let propValue be ? Get(from, nextKey).
                 let prop_value = get(agent, from, next_key)?;
-                // b. Perform ? Set(to, nextKey, propValue, true).
+                // b. Perform ? Set(to, nextKey, propValue<'gen>, true).
                 set(agent, to, next_key, prop_value, true)?;
             }
         }
@@ -336,7 +336,7 @@ impl ObjectConstructor {
         Ok(to.into_value())
     }
 
-    fn create(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn create<'gen>(agent: &mut Agent<'gen>, _this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let o = arguments.get(0);
         let obj: OrdinaryObject = if o == Value::Null {
             agent.heap.create_null_object(&[])
@@ -360,7 +360,7 @@ impl ObjectConstructor {
     ///
     /// This function adds own properties and/or updates the attributes of
     /// existing own properties of an object.
-    fn define_properties(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn define_properties<'gen>(agent: &mut Agent<'gen>, _: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let o = arguments.get(0);
         let properties = arguments.get(1);
         // 1. If O is not an Object, throw a TypeError exception.
@@ -377,7 +377,7 @@ impl ObjectConstructor {
     ///
     /// This function adds an own property and/or updates the attributes of an
     /// existing own property of an object.
-    fn define_property(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn define_property<'gen>(agent: &mut Agent<'gen>, _: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let o = arguments.get(0);
         let p = arguments.get(1);
         let attributes = arguments.get(2);
@@ -396,7 +396,7 @@ impl ObjectConstructor {
         Ok(o.into_value())
     }
 
-    fn entries(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn entries<'gen>(agent: &mut Agent<'gen>, _: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let o = arguments.get(0);
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o)?;
@@ -408,7 +408,7 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.6 Object.freeze ( O )](https://tc39.es/ecma262/#sec-object.freeze)
-    fn freeze(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn freeze<'gen>(agent: &mut Agent<'gen>, _: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. If O is not an Object, return O.
         let o = arguments.get(0);
         let Ok(o) = Object::try_from(o) else {
@@ -429,7 +429,7 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.7 Object.fromEntries ( iterable )](https://tc39.es/ecma262/#sec-object.fromentries)
-    fn from_entries(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn from_entries<'gen>(agent: &mut Agent<'gen>, _: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let iterable = arguments.get(0);
         // Fast path: Simple, dense array of N simple, dense arrays.
         if let Value::Array(entries_array) = iterable {
@@ -457,7 +457,7 @@ impl ObjectConstructor {
                 // Note: Separate vector for keys to detect duplicates.
                 // This is optimal until ~20 keys, after which a HashMap would
                 // be better.
-                let mut entry_keys: Vec<PropertyKey> = Vec::with_capacity(entries_elements.len());
+                let mut entry_keys: Vec<PropertyKey<'gen>> = Vec::with_capacity(entries_elements.len());
                 let mut object_entries: Vec<ObjectEntry> =
                     Vec::with_capacity(entries_elements.len());
                 // Fast path is valid if each entry in the array is itself a
@@ -538,11 +538,11 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.8 Object.getOwnPropertyDescriptor ( O, P )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptor)
-    fn get_own_property_descriptor(
-        agent: &mut Agent,
-        _: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_own_property_descriptor<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let o = arguments.get(0);
         let p = arguments.get(1);
         // 1. Let obj be ? ToObject(O).
@@ -557,11 +557,11 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.9 Object.getOwnPropertyDescriptors ( O )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptors)
-    fn get_own_property_descriptors(
-        agent: &mut Agent,
-        _: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_own_property_descriptors<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let o = arguments.get(0);
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o)?;
@@ -594,11 +594,11 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.10 Object.getOwnPropertyNames ( O )](https://tc39.es/ecma262/#sec-object.getownpropertynames)
-    fn get_own_property_names(
-        agent: &mut Agent,
-        _: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_own_property_names<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let o = arguments.get(0);
         // 1. Return CreateArrayFromList(? GetOwnPropertyKeys(O, STRING)).
         let keys = get_own_string_property_keys(agent, o)?;
@@ -606,46 +606,46 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.11 Object.getOwnPropertySymbols ( O )](https://tc39.es/ecma262/#sec-object.getownpropertysymbols)
-    fn get_own_property_symbols(
-        agent: &mut Agent,
-        _: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_own_property_symbols<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let o = arguments.get(0);
         // 1. Return CreateArrayFromList(? GetOwnPropertyKeys(O, SYMBOL)).
         let keys = get_own_symbol_property_keys(agent, o)?;
         Ok(create_array_from_list(agent, &keys).into_value())
     }
 
-    fn get_prototype_of(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_prototype_of<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let obj = to_object(agent, arguments.get(0))?;
         obj.internal_get_prototype_of(agent)
             .map(|proto| proto.map_or(Value::Null, |proto| proto.into_value()))
     }
 
-    fn group_by(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn group_by<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn has_own(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn has_own<'gen>(agent: &mut Agent<'gen>, _this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let obj = to_object(agent, arguments.get(0))?;
         let key = to_property_key(agent, arguments.get(1))?;
         has_own_property(agent, obj, key).map(|result| result.into())
     }
 
-    fn is(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn is<'gen>(agent: &mut Agent<'gen>, _this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         Ok(same_value(agent, arguments.get(0), arguments.get(1)).into())
     }
 
-    fn is_extensible(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn is_extensible<'gen>(agent: &mut Agent<'gen>, _: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let o = arguments.get(0);
         let result = match Object::try_from(o) {
             Ok(o) => o.internal_is_extensible(agent)?,
@@ -654,11 +654,11 @@ impl ObjectConstructor {
         Ok(result.into())
     }
 
-    fn is_frozen(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn is_frozen<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let o = arguments.get(0);
         let result = match Object::try_from(o) {
             Ok(o) => test_integrity_level::<Frozen>(agent, o)?,
@@ -667,11 +667,11 @@ impl ObjectConstructor {
         Ok(result.into())
     }
 
-    fn is_sealed(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn is_sealed<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let o = arguments.get(0);
         let result = match Object::try_from(o) {
             Ok(o) => test_integrity_level::<Sealed>(agent, o)?,
@@ -681,7 +681,7 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.19 Object.keys ( O )](https://tc39.es/ecma262/#sec-object.keys)
-    fn keys(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn keys<'gen>(agent: &mut Agent<'gen>, _: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let o = arguments.get(0);
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o)?;
@@ -692,11 +692,11 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.20 Object.preventExtensions ( O )](https://tc39.es/ecma262/#sec-object.preventextensions)
-    fn prevent_extensions(
-        agent: &mut Agent,
-        _: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn prevent_extensions<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. If O is not an Object, return O.
         let o = arguments.get(0);
         let Ok(o) = Object::try_from(o) else {
@@ -717,7 +717,7 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.22 Object.seal ( O )](https://tc39.es/ecma262/#sec-object.seal)
-    fn seal(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn seal<'gen>(agent: &mut Agent<'gen>, _: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. If O is not an Object, return O.
         let o = arguments.get(0);
         let Ok(o) = Object::try_from(o) else {
@@ -738,7 +738,7 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.23 Object.setPrototypeOf ( O, proto )](https://tc39.es/ecma262/#sec-object.setprototypeof)
-    fn set_prototype_of(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn set_prototype_of<'gen>(agent: &mut Agent<'gen>, _: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let o = arguments.get(0);
         let proto = arguments.get(1);
         // 1. Set O to ? RequireObjectCoercible(O).
@@ -772,7 +772,7 @@ impl ObjectConstructor {
         Ok(o.into_value())
     }
 
-    fn values(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn values<'gen>(agent: &mut Agent<'gen>, _: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let o = arguments.get(0);
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o)?;
@@ -783,7 +783,7 @@ impl ObjectConstructor {
         Ok(create_array_from_list(agent, &value_list).into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
 
@@ -796,7 +796,7 @@ impl ObjectConstructor {
             .with_builtin_function_property::<ObjectEntries>()
             .with_builtin_function_property::<ObjectFreeze>()
             .with_builtin_function_property::<ObjectFromEntries>()
-            .with_builtin_function_property::<ObjectGetOwnPropertyDescriptor>()
+            .with_builtin_function_property::<ObjectGetOwnPropertyDescriptor<'gen>>()
             .with_builtin_function_property::<ObjectGetOwnPropertyDescriptors>()
             .with_builtin_function_property::<ObjectGetOwnPropertyNames>()
             .with_builtin_function_property::<ObjectGetOwnPropertySymbols>()
@@ -823,10 +823,10 @@ impl ObjectConstructor {
 /// and Properties (an ECMAScript language value) and returns either a normal
 /// completion containing an Object or a throw completion.
 fn object_define_properties<T: InternalMethods>(
-    agent: &mut Agent,
+    agent: &mut Agent<'gen>,
     o: T,
-    properties: Value,
-) -> JsResult<T> {
+    properties: Value<'gen>,
+) -> JsResult<'gen, T> {
     // 1. Let props be ? ToObject(Properties).
     let props = to_object(agent, properties)?;
     // 2. Let keys be ? props.[[OwnPropertyKeys]]().
@@ -880,10 +880,10 @@ fn object_define_properties<T: InternalMethods>(
 /// know what adder does and that it is never seen from JavaScript: As such it
 /// does not need to be defined as a JavaScript function.
 pub fn add_entries_from_iterable_from_entries(
-    agent: &mut Agent,
-    target: OrdinaryObject,
-    iterable: Value,
-) -> JsResult<OrdinaryObject> {
+    agent: &mut Agent<'gen>,
+    target: OrdinaryObject<'gen>,
+    iterable: Value<'gen>,
+) -> JsResult<'gen, OrdinaryObject<'gen>> {
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
     let mut iterator_record = get_iterator(agent, iterable, false)?;
 
@@ -939,7 +939,7 @@ pub fn add_entries_from_iterable_from_entries(
 /// The abstract operation GetOwnPropertyKeys takes arguments O (an ECMAScript
 /// language value) and type (STRING or SYMBOL) and returns either a normal
 /// completion containing a List of property keys or a throw completion.
-fn get_own_string_property_keys(agent: &mut Agent, o: Value) -> JsResult<Vec<Value>> {
+fn get_own_string_property_keys<'gen>(agent: &mut Agent<'gen>, o: Value<'gen>) -> JsResult<'gen, Vec<Value<'gen>>> {
     // 1. Let obj be ? ToObject(O).
     let obj = to_object(agent, o)?;
     // 2. Let keys be ? obj.[[OwnPropertyKeys]]().
@@ -964,7 +964,7 @@ fn get_own_string_property_keys(agent: &mut Agent, o: Value) -> JsResult<Vec<Val
     Ok(name_list)
 }
 
-fn get_own_symbol_property_keys(agent: &mut Agent, o: Value) -> JsResult<Vec<Value>> {
+fn get_own_symbol_property_keys<'gen>(agent: &mut Agent<'gen>, o: Value<'gen>) -> JsResult<'gen, Vec<Value<'gen>>> {
     // 1. Let obj be ? ToObject(O).
     let obj = to_object(agent, o)?;
     // 2. Let keys be ? obj.[[OwnPropertyKeys]]().

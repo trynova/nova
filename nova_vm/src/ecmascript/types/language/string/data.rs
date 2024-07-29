@@ -231,7 +231,7 @@ impl StringHeapData {
         }
     }
 
-    pub fn from_string(str: String) -> Self {
+    pub fn from_string(str: String<'gen>) -> Self {
         debug_assert!(str.len() > 7);
         assert!(str.len() <= Self::MAX_UTF8_LENGTH, "String is too long.");
         StringHeapData {
@@ -241,8 +241,8 @@ impl StringHeapData {
     }
 }
 
-impl HeapMarkAndSweep for StringHeapData {
-    fn mark_values(&self, _queues: &mut WorkQueues) {}
+impl<'gen> HeapMarkAndSweep<'gen> for StringHeapData {
+    fn mark_values(&self, _queues: &mut WorkQueues<'gen>) {}
 
     fn sweep_values(&mut self, _compactions: &CompactionLists) {}
 }

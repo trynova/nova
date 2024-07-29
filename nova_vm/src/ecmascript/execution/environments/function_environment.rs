@@ -31,11 +31,11 @@ pub(crate) enum ThisBindingStatus {
 /// Record also contains the state that is used to perform super method
 /// invocations from within the function.
 #[derive(Debug)]
-pub(crate) struct FunctionEnvironment {
+pub(crate) struct FunctionEnvironment<'gen> {
     /// ### \[\[ThisValue\]\]
     ///
     /// This is the this value used for this invocation of the function.
-    pub(crate) this_value: Option<Value>,
+    pub(crate) this_value: Option<Value<'gen>>,
 
     /// ### \[\[ThisBindingStatus\]\]
     ///
@@ -47,7 +47,7 @@ pub(crate) struct FunctionEnvironment {
     ///
     /// The function object whose invocation caused this Environment Record to
     /// be created.
-    pub(crate) function_object: Function,
+    pub(crate) function_object: Function<'gen>,
 
     /// ### \[\[NewTarget\]\]
     ///
@@ -55,7 +55,7 @@ pub(crate) struct FunctionEnvironment {
     /// internal method, \[\[NewTarget\]\] is the value of the
     /// \[\[Construct\]\] newTarget parameter. Otherwise, its value is
     /// undefined.
-    pub(crate) new_target: Option<Object>,
+    pub(crate) new_target: Option<Object<'gen>>,
 
     /// Function Environment Records support all of the Declarative Environment
     /// Record methods listed in Table 16 and share the same specifications for
@@ -63,11 +63,11 @@ pub(crate) struct FunctionEnvironment {
     ///
     /// TODO: Use Struct of Arrays to keep the DeclarativeEnvironment alignside
     /// FunctionEnvironment
-    pub(crate) declarative_environment: DeclarativeEnvironmentIndex,
+    pub(crate) declarative_environment: DeclarativeEnvironmentIndex<'gen>,
 }
 
-impl HeapMarkAndSweep for FunctionEnvironment {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for FunctionEnvironment<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.declarative_environment.mark_values(queues);
         self.function_object.mark_values(queues);
         self.new_target.mark_values(queues);
@@ -87,11 +87,11 @@ impl HeapMarkAndSweep for FunctionEnvironment {
 /// The abstract operation NewFunctionEnvironment takes arguments F (an
 /// ECMAScript function object) and newTarget (an Object or undefined) and
 /// returns a Function Environment Record.
-pub(crate) fn new_function_environment(
-    agent: &mut Agent,
-    f: ECMAScriptFunction,
-    new_target: Option<Object>,
-) -> FunctionEnvironmentIndex {
+pub(crate) fn new_function_environment<'gen>(
+    agent: &mut Agent<'gen>,
+    f: ECMAScriptFunction<'gen>,
+    new_target: Option<Object<'gen>>,
+) -> FunctionEnvironmentIndex<'gen> {
     let ecmascript_function_object = &agent[f].ecmascript_function;
     let this_mode = ecmascript_function_object.this_mode;
     // 1. Let env be a new Function Environment Record containing no bindings.
@@ -125,8 +125,8 @@ pub(crate) fn new_function_environment(
     agent.heap.environments.push_function_environment(env)
 }
 
-impl FunctionEnvironmentIndex {
-    pub(crate) fn get_this_binding_status(self, agent: &Agent) -> ThisBindingStatus {
+impl<'gen> FunctionEnvironmentIndex<'gen> {
+    pub(crate) fn get_this_binding_status(self, agent: &Agent<'gen>) -> ThisBindingStatus {
         agent[self].this_binding_status
     }
 
@@ -134,7 +134,7 @@ impl FunctionEnvironmentIndex {
     /// The GetThisBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns either a normal completion
     /// containing an ECMAScript language value or a throw completion.
-    pub(crate) fn get_this_binding(self, agent: &mut Agent) -> JsResult<Value> {
+    pub(crate) fn get_this_binding(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Assert: envRec.[[ThisBindingStatus]] is not lexical.
         // 2. If envRec.[[ThisBindingStatus]] is uninitialized, throw a ReferenceError exception.
         // 3. Return envRec.[[ThisValue]].
@@ -150,15 +150,15 @@ impl FunctionEnvironmentIndex {
     }
 
     /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
-    pub(crate) fn has_binding(self, agent: &Agent, name: String) -> bool {
+    pub(crate) fn has_binding(self, agent: &Agent<'gen>, name: String<'gen>) -> bool {
         agent[self].declarative_environment.has_binding(agent, name)
     }
 
     /// ### [9.1.1.1.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-declarative-environment-records-createmutablebinding-n-d)
     pub(crate) fn create_mutable_binding(
         self,
-        agent: &mut Agent,
-        name: String,
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
         is_deletable: bool,
     ) {
         agent[self]
@@ -167,14 +167,14 @@ impl FunctionEnvironmentIndex {
     }
 
     /// ### [9.1.1.1.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-createimmutablebinding-n-s)
-    pub(crate) fn create_immutable_binding(self, agent: &mut Agent, name: String, is_strict: bool) {
+    pub(crate) fn create_immutable_binding(self, agent: &mut Agent<'gen>, name: String<'gen>, is_strict: bool) {
         agent[self]
             .declarative_environment
             .create_immutable_binding(agent, name, is_strict)
     }
 
     /// ### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
-    pub(crate) fn initialize_binding(self, agent: &mut Agent, name: String, value: Value) {
+    pub(crate) fn initialize_binding(self, agent: &mut Agent<'gen>, name: String<'gen>, value: Value<'gen>) {
         agent[self]
             .declarative_environment
             .initialize_binding(agent, name, value)
@@ -183,11 +183,11 @@ impl FunctionEnvironmentIndex {
     /// ### [9.1.1.1.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-setmutablebinding-n-v-s)
     pub(crate) fn set_mutable_binding(
         self,
-        agent: &mut Agent,
-        name: String,
-        value: Value,
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
+        value: Value<'gen>,
         mut is_strict: bool,
-    ) -> JsResult<()> {
+    ) -> JsResult<'gen, ()> {
         let env_rec = &agent[self];
         let dcl_rec = env_rec.declarative_environment;
         // 1. If envRec does not have a binding for N, then
@@ -252,24 +252,24 @@ impl FunctionEnvironmentIndex {
     /// ### [9.1.1.1.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-getbindingvalue-n-s)
     pub(crate) fn get_binding_value(
         self,
-        agent: &mut Agent,
-        name: String,
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
         is_strict: bool,
-    ) -> JsResult<Value> {
+    ) -> JsResult<'gen, Value<'gen>> {
         agent[self]
             .declarative_environment
             .get_binding_value(agent, name, is_strict)
     }
 
     /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
-    pub(crate) fn delete_binding(self, agent: &mut Agent, name: String) -> bool {
+    pub(crate) fn delete_binding(self, agent: &mut Agent<'gen>, name: String<'gen>) -> bool {
         agent[self]
             .declarative_environment
             .delete_binding(agent, name)
     }
 
     /// ### [9.1.1.1.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-declarative-environment-records-withbaseobject)
-    pub(crate) fn with_base_object(self) -> Option<Object> {
+    pub(crate) fn with_base_object(self) -> Option<Object<'gen>> {
         // 1. Return undefined.
         None
     }
@@ -280,7 +280,7 @@ impl FunctionEnvironmentIndex {
     /// envRec takes argument V (an ECMAScript language value) and returns
     /// either a normal completion containing an ECMAScript language value or a
     /// throw completion.
-    pub(crate) fn bind_this_value(self, agent: &mut Agent, value: Value) -> JsResult<Value> {
+    pub(crate) fn bind_this_value(self, agent: &mut Agent<'gen>, value: Value<'gen>) -> JsResult<'gen, Value<'gen>> {
         let env_rec = &mut agent[self];
         // 1. Assert: envRec.[[ThisBindingStatus]] is not LEXICAL.
         debug_assert!(env_rec.this_binding_status != ThisBindingStatus::Lexical);
@@ -308,7 +308,7 @@ impl FunctionEnvironmentIndex {
     ///
     /// The HasThisBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns a Boolean.
-    pub(crate) fn has_this_binding(self, agent: &Agent) -> bool {
+    pub(crate) fn has_this_binding(self, agent: &Agent<'gen>) -> bool {
         let env_rec = &agent[self];
         // 1. If envRec.[[ThisBindingStatus]] is LEXICAL, return false;
         // otherwise, return true.
@@ -319,7 +319,7 @@ impl FunctionEnvironmentIndex {
     ///
     /// The HasSuperBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns a Boolean.
-    pub(crate) fn has_super_binding(self, agent: &Agent) -> bool {
+    pub(crate) fn has_super_binding(self, agent: &Agent<'gen>) -> bool {
         let env_rec = &agent[self];
         // 1. If envRec.[[ThisBindingStatus]] is LEXICAL, return false.
         if env_rec.this_binding_status == ThisBindingStatus::Lexical {
@@ -346,7 +346,7 @@ impl FunctionEnvironmentIndex {
     /// The GetSuperBase concrete method of a Function Environment Record
     /// envRec takes no arguments and returns either a normal completion
     /// containing either an Object, null, or undefined, or a throw completion.
-    pub(crate) fn get_super_base(self, agent: &mut Agent) -> JsResult<Value> {
+    pub(crate) fn get_super_base(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Value<'gen>> {
         let env_rec: &FunctionEnvironment = &agent[self];
 
         // 1. Let home be envRec.[[FunctionObject]].[[HomeObject]].
@@ -372,8 +372,8 @@ impl FunctionEnvironmentIndex {
     }
 }
 
-impl HeapMarkAndSweep for FunctionEnvironmentIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for FunctionEnvironmentIndex<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.function_environments.push(*self);
     }
 

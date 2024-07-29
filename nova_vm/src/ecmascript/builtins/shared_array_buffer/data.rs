@@ -8,12 +8,12 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Default)]
-pub struct SharedArrayBufferHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+pub struct SharedArrayBufferHeapData<'gen> {
+    pub(crate) object_index: Option<OrdinaryObject<'gen>>,
 }
 
-impl HeapMarkAndSweep for SharedArrayBufferHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for SharedArrayBufferHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.object_index.mark_values(queues);
     }
 

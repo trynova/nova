@@ -40,9 +40,9 @@ pub(crate) enum NamedEvaluationParameter {
     ReferenceStack,
 }
 
-pub(crate) struct CompileContext<'agent> {
-    agent: &'agent mut Agent,
-    exe: Executable,
+pub(crate) struct CompileContext<'agent, 'gen> {
+    agent: &'agent mut Agent<'gen>,
+    exe: Executable<'gen>,
     /// NamedEvaluation name parameter
     name_identifier: Option<NamedEvaluationParameter>,
     /// If true, indicates that all bindings being created are lexical.
@@ -55,8 +55,8 @@ pub(crate) struct CompileContext<'agent> {
     current_break: Option<Vec<JumpIndex>>,
 }
 
-impl CompileContext<'_> {
-    pub(crate) fn create_identifier(&mut self, atom: &Atom<'_>) -> String {
+impl<'agent, 'gen> CompileContext<'agent, 'gen> {
+    pub(crate) fn create_identifier(&mut self, atom: &Atom<'_>) -> String<'gen> {
         let existing =
             self.exe.identifiers.iter().find(|existing_identifier| {
                 existing_identifier.as_str(self.agent) == atom.as_str()
@@ -115,16 +115,16 @@ pub(crate) struct ArrowFunctionExpression {
 /// - This is inspired by and/or copied from Kiesel engine:
 ///   Copyright (c) 2023-2024 Linus Groh
 #[derive(Debug)]
-pub(crate) struct Executable {
+pub(crate) struct Executable<'gen> {
     pub instructions: Vec<u8>,
-    pub(crate) constants: Vec<Value>,
-    pub(crate) identifiers: Vec<String>,
-    pub(crate) references: Vec<Reference>,
+    pub(crate) constants: Vec<Value<'gen>>,
+    pub(crate) identifiers: Vec<String<'gen>>,
+    pub(crate) references: Vec<Reference<'gen>>,
     pub(crate) function_expressions: Vec<FunctionExpression>,
     pub(crate) arrow_function_expressions: Vec<ArrowFunctionExpression>,
 }
 
-impl Executable {
+impl<'gen> Executable<'gen> {
     pub(super) fn get_instruction(&self, ip: &mut usize) -> Option<Instr> {
         if *ip >= self.instructions.len() {
             return None;
@@ -166,7 +166,7 @@ impl Executable {
         None
     }
 
-    pub(crate) fn compile_script(agent: &mut Agent, script: ScriptIdentifier) -> Executable {
+    pub(crate) fn compile_script(agent: &mut Agent<'gen>, script: ScriptIdentifier<'gen>) -> Executable<'gen> {
         if agent.options.print_internals {
             eprintln!();
             eprintln!("=== Compiling Script ===");
@@ -181,10 +181,10 @@ impl Executable {
     }
 
     pub(crate) fn compile_function_body(
-        agent: &mut Agent,
+        agent: &mut Agent<'gen>,
         body: &FunctionBody<'_>,
         is_concise_body: bool,
-    ) -> Executable {
+    ) -> Executable<'gen> {
         if agent.options.print_internals {
             eprintln!();
             eprintln!("=== Compiling Function ===");
@@ -198,7 +198,7 @@ impl Executable {
         Self::_compile_statements(agent, body, is_concise_body)
     }
 
-    pub(crate) fn compile_eval_body(agent: &mut Agent, body: &[Statement]) -> Executable {
+    pub(crate) fn compile_eval_body(agent: &mut Agent<'gen>, body: &[Statement<'_>]) -> Executable<'gen> {
         if agent.options.print_internals {
             eprintln!();
             eprintln!("=== Compiling Eval Body ===");
@@ -209,10 +209,10 @@ impl Executable {
     }
 
     fn _compile_statements(
-        agent: &mut Agent,
+        agent: &mut Agent<'gen>,
         body: &[Statement],
         implicit_return: bool,
-    ) -> Executable {
+    ) -> Executable<'gen> {
         let mut ctx = CompileContext {
             agent,
             exe: Executable {
@@ -278,7 +278,7 @@ impl Executable {
         }
     }
 
-    fn add_constant(&mut self, constant: Value) -> usize {
+    fn add_constant(&mut self, constant: Value<'gen>) -> usize {
         let duplicate = self
             .constants
             .iter()
@@ -293,7 +293,7 @@ impl Executable {
         })
     }
 
-    fn add_identifier(&mut self, identifier: String) -> usize {
+    fn add_identifier(&mut self, identifier: String<'gen>) -> usize {
         let duplicate = self
             .identifiers
             .iter()
@@ -317,7 +317,7 @@ impl Executable {
     fn add_instruction_with_constant(
         &mut self,
         instruction: Instruction,
-        constant: impl Into<Value>,
+        constant: impl Into<Value<'gen>>,
     ) {
         debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_constant_index());
@@ -326,7 +326,7 @@ impl Executable {
         self.add_index(constant);
     }
 
-    fn add_instruction_with_identifier(&mut self, instruction: Instruction, identifier: String) {
+    fn add_instruction_with_identifier(&mut self, instruction: Instruction, identifier: String<'gen>) {
         debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_identifier_index());
         self._push_instruction(instruction);
@@ -337,8 +337,8 @@ impl Executable {
     fn add_instruction_with_identifier_and_constant(
         &mut self,
         instruction: Instruction,
-        identifier: String,
-        constant: impl Into<Value>,
+        identifier: String<'gen>,
+        constant: impl Into<Value<'gen>>,
     ) {
         debug_assert_eq!(instruction.argument_count(), 2);
         debug_assert!(instruction.has_identifier_index() && instruction.has_constant_index());
@@ -1292,7 +1292,7 @@ impl CompileEvaluation for ast::ComputedMemberExpression<'_> {
         }
         ctx.exe.add_instruction(Instruction::Load);
 
-        // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
+        // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue<'gen>, Expression, strict).
         self.expression.compile(ctx);
         if is_reference(&self.expression) {
             ctx.exe.add_instruction(Instruction::GetValue);
@@ -1313,7 +1313,7 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
             ctx.exe.add_instruction(Instruction::GetValue);
         }
 
-        // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
+        // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue<'gen>, IdentifierName, strict).
         let identifier = String::from_str(ctx.agent, self.property.name.as_str());
         ctx.exe.add_instruction_with_identifier(
             Instruction::EvaluatePropertyAccessWithIdentifierKey,
@@ -2809,8 +2809,8 @@ fn is_anonymous_function_definition(expression: &ast::Expression) -> bool {
     }
 }
 
-impl HeapMarkAndSweep for Executable {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Executable {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.constants.as_slice().mark_values(queues);
         self.identifiers.as_slice().mark_values(queues);
         self.references.as_slice().mark_values(queues);

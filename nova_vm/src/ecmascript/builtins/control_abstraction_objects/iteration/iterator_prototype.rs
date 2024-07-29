@@ -16,18 +16,18 @@ pub(crate) struct IteratorPrototype;
 
 struct IteratorPrototypeIterator;
 impl Builtin for IteratorPrototypeIterator {
-    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_iterator_;
-    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Iterator.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_iterator_;
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbolIndexes::Iterator.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::iterator);
 }
 
 impl IteratorPrototype {
-    fn iterator(_agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn iterator<'gen>(_agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         Ok(this_value)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.iterator_prototype();

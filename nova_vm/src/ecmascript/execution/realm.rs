@@ -27,9 +27,9 @@ use std::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct RealmIdentifier(NonZeroU32, PhantomData<Realm>);
+pub struct RealmIdentifier<'gen>(NonZeroU32, PhantomData<&'gen Realm<'gen>>);
 
-impl RealmIdentifier {
+impl<'gen> RealmIdentifier<'gen> {
     /// Creates a realm identififer from a usize.
     ///
     /// ## Panics
@@ -63,22 +63,22 @@ impl RealmIdentifier {
     }
 }
 
-impl Index<RealmIdentifier> for Agent {
-    type Output = Realm;
+impl<'gen> Index<RealmIdentifier<'gen>> for Agent<'gen> {
+    type Output = Realm<'gen>;
 
-    fn index(&self, index: RealmIdentifier) -> &Self::Output {
+    fn index(&self, index: RealmIdentifier<'gen>) -> &Self::Output {
         &self.heap.realms[index]
     }
 }
 
-impl IndexMut<RealmIdentifier> for Agent {
-    fn index_mut(&mut self, index: RealmIdentifier) -> &mut Self::Output {
+impl<'gen> IndexMut<RealmIdentifier<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: RealmIdentifier<'gen>) -> &mut Self::Output {
         &mut self.heap.realms[index]
     }
 }
 
-impl Index<RealmIdentifier> for Vec<Option<Realm>> {
-    type Output = Realm;
+impl<'gen> Index<RealmIdentifier<'gen>> for Vec<Option<Realm<'gen>>> {
+    type Output = Realm<'gen>;
 
     fn index(&self, index: RealmIdentifier) -> &Self::Output {
         self.get(index.into_index())
@@ -88,7 +88,7 @@ impl Index<RealmIdentifier> for Vec<Option<Realm>> {
     }
 }
 
-impl IndexMut<RealmIdentifier> for Vec<Option<Realm>> {
+impl<'gen> IndexMut<RealmIdentifier<'gen>> for Vec<Option<Realm<'gen>>> {
     fn index_mut(&mut self, index: RealmIdentifier) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("RealmIdentifier out of bounds")
@@ -97,8 +97,8 @@ impl IndexMut<RealmIdentifier> for Vec<Option<Realm>> {
     }
 }
 
-impl HeapMarkAndSweep for RealmIdentifier {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for RealmIdentifier<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.realms.push(*self);
     }
 
@@ -116,26 +116,26 @@ impl HeapMarkAndSweep for RealmIdentifier {
 /// within the scope of that global environment, and other associated state and
 /// resources.
 #[derive(Debug)]
-pub struct Realm {
+pub struct Realm<'gen> {
     /// ### \[\[AgentSignifier]]
     ///
     /// The agent that owns this realm
-    agent_signifier: PhantomData<Agent>,
+    agent_signifier: PhantomData<Agent<'gen>>,
 
     /// ### \[\[Intrinsics]]
     ///
     /// The intrinsic values used by code associated with this realm.
-    intrinsics: Intrinsics,
+    intrinsics: Intrinsics<'gen>,
 
     /// ### \[\[GlobalObject]]
     ///
     /// The global object for this realm.
-    pub(crate) global_object: Object,
+    pub(crate) global_object: Object<'gen>,
 
     /// ### \[\[GlobalEnv]]
     ///
     /// The global environment for this realm.
-    pub(crate) global_env: Option<GlobalEnvironmentIndex>,
+    pub(crate) global_env: Option<GlobalEnvironmentIndex<'gen>>,
 
     /// ### \[\[TemplateMap]]
     ///
@@ -161,9 +161,9 @@ pub struct Realm {
     pub(crate) host_defined: Option<&'static dyn Any>,
 }
 
-unsafe impl Send for Realm {}
+unsafe impl Send for Realm<'_> {}
 
-impl Realm {
+impl<'gen> Realm<'gen> {
     pub(crate) fn intrinsics(&self) -> &Intrinsics {
         &self.intrinsics
     }
@@ -173,8 +173,8 @@ impl Realm {
     }
 }
 
-impl HeapMarkAndSweep for Realm {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Realm<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.intrinsics().mark_values(queues);
         self.global_env.mark_values(queues);
         self.global_object.mark_values(queues);
@@ -191,7 +191,7 @@ impl HeapMarkAndSweep for Realm {
 ///
 /// The abstract operation CreateRealm takes no arguments and returns a Realm
 /// Record.
-pub fn create_realm(agent: &mut Agent) -> RealmIdentifier {
+pub fn create_realm<'gen>(agent: &mut Agent<'gen>) -> RealmIdentifier<'gen> {
     // 1. Let realmRec be a new Realm Record.
     let realm_rec = Realm {
         // 2. Perform CreateIntrinsics(realmRec).
@@ -224,7 +224,7 @@ pub fn create_realm(agent: &mut Agent) -> RealmIdentifier {
 ///
 /// The abstract operation CreateIntrinsics takes argument realmRec (a Realm
 /// Record) and returns UNUSED.
-pub(crate) fn create_intrinsics(agent: &mut Agent) -> Intrinsics {
+pub(crate) fn create_intrinsics<'gen>(agent: &mut Agent<'gen>) -> Intrinsics<'gen> {
     // TODO: Follow the specification.
     // 1. Set realmRec.[[Intrinsics]] to a new Record.
     // 2. Set fields of realmRec.[[Intrinsics]] with the values listed in
@@ -253,11 +253,11 @@ pub(crate) fn create_intrinsics(agent: &mut Agent) -> Intrinsics {
 }
 
 /// ### [9.3.3 SetRealmGlobalObject ( realmRec, globalObj, thisValue )](https://tc39.es/ecma262/#sec-setrealmglobalobject)
-pub(crate) fn set_realm_global_object(
-    agent: &mut Agent,
-    realm_id: RealmIdentifier,
-    global_object: Option<Object>,
-    this_value: Option<Object>,
+pub(crate) fn set_realm_global_object<'gen>(
+    agent: &mut Agent<'gen>,
+    realm_id: RealmIdentifier<'gen>,
+    global_object: Option<Object<'gen>>,
+    this_value: Option<Object<'gen>>,
 ) {
     // 1. If globalObj is undefined, then
     let global_object = global_object.unwrap_or_else(|| {
@@ -299,10 +299,10 @@ pub(crate) fn set_realm_global_object(
 /// The abstract operation SetDefaultGlobalBindings takes argument realmRec (a
 /// Realm Record) and returns either a normal completion containing an Object
 /// or a throw completion.
-pub(crate) fn set_default_global_bindings(
-    agent: &mut Agent,
-    realm_id: RealmIdentifier,
-) -> JsResult<Object> {
+pub(crate) fn set_default_global_bindings<'gen>(
+    agent: &mut Agent<'gen>,
+    realm_id: RealmIdentifier<'gen>,
+) -> JsResult<'gen, Object<'gen>> {
     // 1. Let global be realmRec.[[GlobalObject]].
     let global = agent[realm_id].global_object;
 
@@ -1018,11 +1018,11 @@ pub(crate) fn set_default_global_bindings(
 }
 
 /// ### [9.6 InitializeHostDefinedRealm ( )](https://tc39.es/ecma262/#sec-initializehostdefinedrealm)
-pub(crate) fn initialize_host_defined_realm(
-    agent: &mut Agent,
-    create_global_object: Option<impl FnOnce(&mut Agent) -> Object>,
-    create_global_this_value: Option<impl FnOnce(&mut Agent) -> Object>,
-    initialize_global_object: Option<impl FnOnce(&mut Agent, Object)>,
+pub(crate) fn initialize_host_defined_realm<'gen>(
+    agent: &mut Agent<'gen>,
+    create_global_object: Option<impl FnOnce(&mut Agent<'gen>) -> Object<'gen>>,
+    create_global_this_value: Option<impl FnOnce(&mut Agent<'gen>) -> Object<'gen>>,
+    initialize_global_object: Option<impl FnOnce(&mut Agent<'gen>, Object<'gen>)>,
 ) {
     // 1. Let realm be CreateRealm().
     let realm = create_realm(agent);
@@ -1071,10 +1071,10 @@ pub(crate) fn initialize_host_defined_realm(
     // 12. Return UNUSED.
 }
 
-pub(crate) fn initialize_default_realm(agent: &mut Agent) {
-    let create_global_object: Option<fn(&mut Agent) -> Object> = None;
-    let create_global_this_value: Option<fn(&mut Agent) -> Object> = None;
-    let initialize_global_object: Option<fn(&mut Agent, Object)> = None;
+pub(crate) fn initialize_default_realm<'gen>(agent: &mut Agent<'gen>) {
+    let create_global_object: Option<fn(&mut Agent<'gen>) -> Object<'gen>> = None;
+    let create_global_this_value: Option<fn(&mut Agent<'gen>) -> Object<'gen>> = None;
+    let initialize_global_object: Option<fn(&mut Agent<'gen>, Object<'gen>)> = None;
     initialize_host_defined_realm(
         agent,
         create_global_object,

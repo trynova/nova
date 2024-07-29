@@ -29,11 +29,11 @@ pub struct CreatorPrototype<T: IntoObject>(T);
 pub struct NoProperties;
 
 #[derive(Clone)]
-pub struct CreatorProperties(Vec<(PropertyKey, Option<ElementDescriptor>, Option<Value>)>);
+pub struct CreatorProperties(Vec<(PropertyKey, Option<ElementDescriptor<'gen>>, Option<Value<'gen>>)>);
 
 pub struct OrdinaryObjectBuilder<'agent, P, Pr> {
     pub(crate) agent: &'agent mut Agent,
-    this: OrdinaryObject,
+    this: OrdinaryObject<'gen>,
     realm: RealmIdentifier,
     prototype: P,
     extensible: bool,
@@ -59,7 +59,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
     pub(crate) fn new_intrinsic_object(
         agent: &'agent mut Agent,
         realm: RealmIdentifier,
-        this: OrdinaryObject,
+        this: OrdinaryObject<'gen>,
     ) -> Self {
         Self {
             agent,
@@ -122,7 +122,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, NoProperties> {
 
 impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
     #[must_use]
-    pub fn with_data_property(mut self, key: PropertyKey, value: Value) -> Self {
+    pub fn with_data_property(mut self, key: PropertyKey<'gen>, value: Value<'gen>) -> Self {
         self.properties.0.push((key, None, Some(value)));
         OrdinaryObjectBuilder {
             agent: self.agent,
@@ -139,7 +139,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
         mut self,
         creator: impl FnOnce(
             PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
-        ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
+        ) -> (PropertyKey, Option<ElementDescriptor<'gen>>, Option<Value<'gen>>),
     ) -> Self {
         let builder = PropertyBuilder::new(self.agent);
         let property = creator(builder);
@@ -155,7 +155,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
     }
 
     #[must_use]
-    pub fn with_constructor_property(mut self, constructor: BuiltinFunction) -> Self {
+    pub fn with_constructor_property(mut self, constructor: BuiltinFunction<'gen>) -> Self {
         let property = PropertyBuilder::new(self.agent)
             .with_enumerable(false)
             .with_key(BUILTIN_STRING_MEMORY.constructor.into())
@@ -251,7 +251,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
 }
 
 impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
-    pub fn build(self) -> OrdinaryObject {
+    pub fn build(self) -> OrdinaryObject<'gen> {
         let (keys, values) = self.agent.heap.elements.create_with_stuff(vec![]);
         let slot = self
             .agent
@@ -271,7 +271,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
 }
 
 impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, NoProperties> {
-    pub fn build(self) -> OrdinaryObject {
+    pub fn build(self) -> OrdinaryObject<'gen> {
         let (keys, values) = self.agent.heap.elements.create_with_stuff(vec![]);
         let slot = self
             .agent
@@ -291,7 +291,7 @@ impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, N
 }
 
 impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, CreatorProperties> {
-    pub fn build(self) -> OrdinaryObject {
+    pub fn build(self) -> OrdinaryObject<'gen> {
         assert_eq!(self.properties.0.len(), self.properties.0.capacity());
         {
             let slice = self.properties.0.as_slice();
@@ -327,7 +327,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, CreatorProperties> {
 }
 
 impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, CreatorProperties> {
-    pub fn build(self) -> OrdinaryObject {
+    pub fn build(self) -> OrdinaryObject<'gen> {
         assert_eq!(self.properties.0.len(), self.properties.0.capacity());
         {
             let slice = self.properties.0.as_slice();

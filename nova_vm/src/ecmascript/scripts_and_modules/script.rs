@@ -41,9 +41,9 @@ use super::source_code::SourceCode;
 pub type HostDefined = &'static mut dyn Any;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct ScriptIdentifier(u32, PhantomData<Script>);
+pub(crate) struct ScriptIdentifier<'gen>(u32, PhantomData<&'gen Script<'gen>>);
 
-impl ScriptIdentifier {
+impl<'gen> ScriptIdentifier<'gen> {
     /// Creates a script identififer from a usize.
     ///
     /// ## Panics
@@ -58,7 +58,7 @@ impl ScriptIdentifier {
         Self(value, PhantomData)
     }
 
-    pub(crate) fn last(scripts: &[Option<Script>]) -> Self {
+    pub(crate) fn last(scripts: &[Option<Script<'gen>>]) -> Self {
         let index = scripts.len() - 1;
         Self::from_index(index)
     }
@@ -72,24 +72,24 @@ impl ScriptIdentifier {
     }
 }
 
-impl Index<ScriptIdentifier> for Agent {
-    type Output = Script;
+impl<'gen> Index<ScriptIdentifier<'gen>> for Agent<'gen> {
+    type Output = Script<'gen>;
 
-    fn index(&self, index: ScriptIdentifier) -> &Self::Output {
+    fn index(&self, index: ScriptIdentifier<'gen>) -> &Self::Output {
         &self.heap.scripts[index]
     }
 }
 
-impl IndexMut<ScriptIdentifier> for Agent {
-    fn index_mut(&mut self, index: ScriptIdentifier) -> &mut Self::Output {
+impl<'gen> IndexMut<ScriptIdentifier<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: ScriptIdentifier<'gen>) -> &mut Self::Output {
         &mut self.heap.scripts[index]
     }
 }
 
-impl Index<ScriptIdentifier> for Vec<Option<Script>> {
-    type Output = Script;
+impl<'gen> Index<ScriptIdentifier<'gen>> for Vec<Option<Script<'gen>>> {
+    type Output = Script<'gen>;
 
-    fn index(&self, index: ScriptIdentifier) -> &Self::Output {
+    fn index(&self, index: ScriptIdentifier<'gen>) -> &Self::Output {
         self.get(index.into_index())
             .expect("ScriptIdentifier out of bounds")
             .as_ref()
@@ -97,8 +97,8 @@ impl Index<ScriptIdentifier> for Vec<Option<Script>> {
     }
 }
 
-impl IndexMut<ScriptIdentifier> for Vec<Option<Script>> {
-    fn index_mut(&mut self, index: ScriptIdentifier) -> &mut Self::Output {
+impl<'gen> IndexMut<ScriptIdentifier<'gen>> for Vec<Option<Script<'gen>>> {
+    fn index_mut(&mut self, index: ScriptIdentifier<'gen>) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("ScriptIdentifier out of bounds")
             .as_mut()
@@ -106,8 +106,8 @@ impl IndexMut<ScriptIdentifier> for Vec<Option<Script>> {
     }
 }
 
-impl HeapMarkAndSweep for ScriptIdentifier {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ScriptIdentifier<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.scripts.push(*self);
     }
 
@@ -121,13 +121,13 @@ impl HeapMarkAndSweep for ScriptIdentifier {
 ///
 /// A Script Record encapsulates information about a script being evaluated.
 #[derive(Debug)]
-pub struct Script {
+pub struct Script<'gen> {
     /// ### \[\[Realm]]
     ///
     /// The realm within which this script was created. undefined if not yet
     /// assigned.
     // TODO: This should be able to be undefined sometimes.
-    pub(crate) realm: RealmIdentifier,
+    pub(crate) realm: RealmIdentifier<'gen>,
 
     /// ### \[\[ECMAScriptCode]]
     ///
@@ -157,15 +157,15 @@ pub struct Script {
     ///
     /// The source text is kept in the heap strings vector, through the
     /// SourceCode struct.
-    pub(crate) source_code: SourceCode,
+    pub(crate) source_code: SourceCode<'gen>,
 }
 
-unsafe impl Send for Script {}
+unsafe impl<'gen> Send for Script<'gen> {}
 
-pub type ScriptOrErrors = Result<Script, Vec<OxcDiagnostic>>;
+pub type ScriptOrErrors<'gen> = Result<Script<'gen>, Vec<OxcDiagnostic>>;
 
-impl HeapMarkAndSweep for Script {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Script<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.realm.mark_values(queues);
         self.source_code.mark_values(queues);
     }
@@ -183,13 +183,13 @@ impl HeapMarkAndSweep for Script {
 /// returns a Script Record or a non-empty List of SyntaxError objects. It
 /// creates a Script Record based upon the result of parsing sourceText as a
 /// Script.
-pub fn parse_script(
-    agent: &mut Agent,
-    source_text: String,
-    realm: RealmIdentifier,
+pub fn parse_script<'gen>(
+    agent: &mut Agent<'gen>,
+    source_text: String<'gen>,
+    realm: RealmIdentifier<'gen>,
     strict_mode: bool,
     host_defined: Option<HostDefined>,
-) -> ScriptOrErrors {
+) -> ScriptOrErrors<'gen> {
     // 1. Let script be ParseText(sourceText, Script).
     let mut source_type = SourceType::default().with_always_strict(strict_mode);
     if cfg!(feature = "typescript") {
@@ -228,7 +228,7 @@ pub fn parse_script(
 /// The abstract operation ScriptEvaluation takes argument scriptRecord (a
 /// Script Record) and returns either a normal completion containing an
 /// ECMAScript language value or an abrupt completion.
-pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
+pub fn script_evaluation<'gen>(agent: &mut Agent<'gen>, script: Script<'gen>) -> JsResult<'gen, Value<'gen>> {
     let realm_id = script.realm;
     let is_strict_mode = script.ecmascript_code.is_strict();
     let source_code = script.source_code;
@@ -277,7 +277,7 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
     let result = global_declaration_instantiation(agent, script, global_env.unwrap());
 
     // 13. If result.[[Type]] is normal, then
-    let result: JsResult<Value> = if result.is_ok() {
+    let result: JsResult<'gen, Value<'gen>> = if result.is_ok() {
         let exe = Executable::compile_script(agent, script);
         // a. Set result to Completion(Evaluation of script).
         // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
@@ -309,11 +309,11 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
 /// returns either a normal completion containing UNUSED or a throw completion.
 /// script is the Script for which the execution context is being established.
 /// env is the global environment in which bindings are to be created.
-pub(crate) fn global_declaration_instantiation(
-    agent: &mut Agent,
-    script: ScriptIdentifier,
-    env: GlobalEnvironmentIndex,
-) -> JsResult<()> {
+pub(crate) fn global_declaration_instantiation<'gen>(
+    agent: &mut Agent<'gen>,
+    script: ScriptIdentifier<'gen>,
+    env: GlobalEnvironmentIndex<'gen>,
+) -> JsResult<'gen, ()> {
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
     // SAFETY: Analysing the script cannot cause the environment to move even though we change other parts of the Heap.
     let (lex_names, var_names, var_declarations, lex_declarations) = {
@@ -912,12 +912,12 @@ mod test {
         struct TestBuiltinFunction;
 
         impl Builtin for TestBuiltinFunction {
-            const NAME: String = String::from_small_string("test");
+            const NAME: String<'static> = String::from_small_string("test");
 
             const LENGTH: u8 = 1;
 
             const BEHAVIOUR: Behaviour =
-                Behaviour::Regular(|_: &mut Agent, _: Value, arguments_list: ArgumentsList| {
+                Behaviour::Regular(|_: &mut Agent<'_>, _: Value<'_>, arguments_list: ArgumentsList<'_>| {
                     let arg_0 = arguments_list.get(0);
                     if Value::Boolean(true) == arg_0 {
                         Ok(Value::from(3))

@@ -26,7 +26,7 @@ pub struct RegExpConstructor;
 impl Builtin for RegExpConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.RegExp;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.RegExp;
 }
 impl BuiltinIntrinsicConstructor for RegExpConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::RegExp;
@@ -36,26 +36,26 @@ struct RegExpGetSpecies;
 impl Builtin for RegExpGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpConstructor::get_species);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
-    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbolIndexes::Species.to_property_key());
 }
 impl BuiltinGetter for RegExpGetSpecies {}
 
 impl RegExpConstructor {
-    fn behaviour(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+        _new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn get_species(_: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_species(_: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         Ok(this_value)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let regexp_prototype = intrinsics.reg_exp_prototype();
 

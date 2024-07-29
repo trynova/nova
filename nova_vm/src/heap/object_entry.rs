@@ -5,13 +5,13 @@
 use crate::ecmascript::types::{Function, PropertyDescriptor, PropertyKey, Value};
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ObjectEntry {
-    pub key: PropertyKey,
-    pub value: ObjectEntryPropertyDescriptor,
+pub(crate) struct ObjectEntry<'gen> {
+    pub key: PropertyKey<'gen>,
+    pub value: ObjectEntryPropertyDescriptor<'gen>,
 }
 
-impl ObjectEntry {
-    pub(crate) fn new_data_entry(key: PropertyKey, value: Value) -> Self {
+impl<'gen> ObjectEntry<'gen> {
+    pub(crate) fn new_data_entry(key: PropertyKey<'gen>, value: Value<'gen>) -> Self {
         Self {
             key,
             value: ObjectEntryPropertyDescriptor::Data {
@@ -24,8 +24,8 @@ impl ObjectEntry {
     }
 }
 
-impl From<PropertyDescriptor> for ObjectEntryPropertyDescriptor {
-    fn from(value: PropertyDescriptor) -> Self {
+impl<'gen> From<PropertyDescriptor<'gen>> for ObjectEntryPropertyDescriptor<'gen> {
+    fn from(value: PropertyDescriptor<'gen>) -> Self {
         let configurable = value.configurable.unwrap_or(true);
         let enumerable = value.enumerable.unwrap_or(true);
         if value.get.is_some() && value.set.is_some() {
@@ -66,9 +66,9 @@ impl From<PropertyDescriptor> for ObjectEntryPropertyDescriptor {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ObjectEntryPropertyDescriptor {
+pub(crate) enum ObjectEntryPropertyDescriptor<'gen> {
     Data {
-        value: Value,
+        value: Value<'gen>,
         writable: bool,
         enumerable: bool,
         configurable: bool,
@@ -78,18 +78,18 @@ pub(crate) enum ObjectEntryPropertyDescriptor {
         configurable: bool,
     },
     ReadOnly {
-        get: Function,
+        get: Function<'gen>,
         enumerable: bool,
         configurable: bool,
     },
     WriteOnly {
-        set: Function,
+        set: Function<'gen>,
         enumerable: bool,
         configurable: bool,
     },
     ReadWrite {
-        get: Function,
-        set: Function,
+        get: Function<'gen>,
+        set: Function<'gen>,
         enumerable: bool,
         configurable: bool,
     },

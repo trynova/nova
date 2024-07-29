@@ -9,7 +9,7 @@ use nova_vm::ecmascript::{
     types::{Object, String, Value},
 };
 
-fn initialize_global_object(agent: &mut Agent, global: Object) {
+fn initialize_global_object<'gen>(agent: &mut Agent<'gen>, global: Object<'gen>) {
     use nova_vm::ecmascript::{
         builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
         execution::JsResult,
@@ -17,7 +17,7 @@ fn initialize_global_object(agent: &mut Agent, global: Object) {
     };
 
     // `print` function
-    fn print(agent: &mut Agent, _this: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn print<'gen>(agent: &mut Agent<'gen>, _this: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         if args.len() == 0 {
             println!();
         } else {
@@ -67,8 +67,8 @@ fn garbage_collection_tests() {
         fs::read_to_string(d.clone()).expect("Should have been able to read the file");
 
     let mut agent = GcAgent::new(Options::default(), &DefaultHostHooks);
-    let create_global_object: Option<fn(&mut Agent) -> Object> = None;
-    let create_global_this_value: Option<fn(&mut Agent) -> Object> = None;
+    let create_global_object: Option<fn(&mut Agent<'gen>) -> Object> = None;
+    let create_global_this_value: Option<fn(&mut Agent<'gen>) -> Object> = None;
     let realm = agent.create_realm(
         create_global_object,
         create_global_this_value,
