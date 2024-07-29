@@ -18,9 +18,12 @@ use super::{
 use crate::ecmascript::{
     builtins::{
         bound_function::BoundFunction,
-        control_abstraction_objects::promise_objects::promise_abstract_operations::{
-            promise_reaction_records::PromiseReaction,
-            promise_resolving_functions::BuiltinPromiseResolvingFunction,
+        control_abstraction_objects::{
+            async_function_objects::await_reaction::AwaitReactionIdentifier,
+            promise_objects::promise_abstract_operations::{
+                promise_reaction_records::PromiseReaction,
+                promise_resolving_functions::BuiltinPromiseResolvingFunction,
+            },
         },
         data_view::DataView,
         date::Date,
@@ -104,6 +107,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
         let Heap {
             array_buffers,
             arrays,
+            await_reactions,
             bigints,
             bound_functions,
             builtin_functions,
@@ -276,6 +280,20 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 }
                 *marked = true;
                 array_buffers.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut await_reaction_marks: Box<[AwaitReactionIdentifier]> =
+            queues.await_reactions.drain(..).collect();
+        await_reaction_marks.sort();
+        await_reaction_marks.iter().for_each(|&idx| {
+            let index = idx.into_index();
+            if let Some(marked) = bits.await_reactions.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                await_reactions.get(index).mark_values(&mut queues);
             }
         });
         let mut bigint_marks: Box<[HeapBigInt]> = queues.bigints.drain(..).collect();
@@ -824,6 +842,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
     let Heap {
         array_buffers,
         arrays,
+        await_reactions,
         bigints,
         bound_functions,
         builtin_functions,
@@ -998,6 +1017,11 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         if !arrays.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(arrays, &compactions, &bits.arrays);
+            });
+        }
+        if !await_reactions.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(await_reactions, &compactions, &bits.await_reactions);
             });
         }
         if !bigints.is_empty() {

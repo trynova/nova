@@ -331,7 +331,7 @@ pub fn perform_eval(
         // a. Set result to Completion(Evaluation of body).
         // 30. If result is a normal completion and result.[[Value]] is empty, then
         // a. Set result to NormalCompletion(undefined).
-        Vm::execute(agent, &exe).map(|value| value.unwrap_or(Value::Undefined))
+        Vm::execute(agent, &exe).into_js_result()
     } else {
         Err(result.err().unwrap())
     };

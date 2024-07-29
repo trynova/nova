@@ -5,7 +5,19 @@
 use crate::{
     ecmascript::{
         builtins::{
-            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, function_declaration_instantiation, make_constructor, ordinary_function_create, promise::Promise, set_function_name, ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams
+            control_abstraction_objects::{
+                async_function_objects::await_reaction::AwaitReaction,
+                promise_objects::{
+                    promise_abstract_operations::{
+                        promise_capability_records::PromiseCapability,
+                        promise_reaction_records::PromiseReactionHandler,
+                    },
+                    promise_prototype::inner_promise_then,
+                },
+            },
+            function_declaration_instantiation, make_constructor, ordinary_function_create,
+            promise::Promise,
+            set_function_name, ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams,
         },
         execution::{
             Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult,
@@ -13,7 +25,8 @@ use crate::{
         },
         types::{PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
-    engine::{Executable, FunctionExpression, Vm},
+    engine::{Executable, ExecutionResult, FunctionExpression, Vm},
+    heap::CreateHeapData,
 };
 use oxc_ast::ast::{self};
 
@@ -167,7 +180,7 @@ pub(crate) fn evaluate_function_body(
         .ecmascript_function
         .is_concise_arrow_function;
     let exe = Executable::compile_function_body(agent, body, is_concise_arrow_function);
-    Ok(Vm::execute(agent, &exe)?.unwrap_or(Value::Undefined))
+    Vm::execute(agent, &exe).into_js_result()
 }
 
 /// ### [15.8.4 Runtime Semantics: EvaluateAsyncFunctionBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluateasyncfunctionbody)
@@ -197,9 +210,41 @@ pub(crate) fn evaluate_async_function_body(
             .is_concise_arrow_function;
         let exe = Executable::compile_function_body(agent, body, is_concise_arrow_function);
 
+        // AsyncFunctionStart will run the function until it returns, throws or gets suspended with
+        // an await.
         match Vm::execute(agent, &exe) {
-            Ok(result) => promise_capability.resolve(agent, result.unwrap_or(Value::Undefined)),
-            Err(err) => promise_capability.reject(agent, err.value()),
+            ExecutionResult::Return(result) => {
+                // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
+                // 2. e. If result is a normal completion, then
+                //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
+                //    f. Else if result is a return completion, then
+                //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
+                promise_capability.resolve(agent, result);
+            }
+            ExecutionResult::Throw(err) => {
+                // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
+                // 2. g. i. Assert: result is a throw completion.
+                //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
+                promise_capability.reject(agent, err.value());
+            }
+            ExecutionResult::Await { vm, awaited_value } => {
+                // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
+                // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
+                // which resume execution of the function.
+                // NOTE: the execution context has to be cloned because it will be popped when we
+                // return to `ECMAScriptFunction::internal_call`. Popping it here rather than
+                // cloning it would mess up the execution context stack.
+                let handler = PromiseReactionHandler::Await(agent.heap.create(AwaitReaction {
+                    vm: Some(vm),
+                    executable: Some(exe),
+                    execution_context: Some(agent.running_execution_context().clone()),
+                    return_promise_capability: promise_capability,
+                }));
+                // 2. Let promise be ? PromiseResolve(%Promise%, value).
+                let promise = Promise::resolve(agent, awaited_value);
+                // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
+                inner_promise_then(agent, promise, handler, handler, None);
+            }
         }
     }
 
