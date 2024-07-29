@@ -22,8 +22,8 @@ use crate::{
 
 pub use data::BigIntHeapData;
 
-impl IntoValue for BigInt {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for BigInt<'gen> {
+    fn into_value(self) -> Value<'gen> {
         match self {
             BigInt::BigInt(data) => Value::BigInt(data),
             BigInt::SmallBigInt(data) => Value::SmallBigInt(data),
@@ -31,23 +31,23 @@ impl IntoValue for BigInt {
     }
 }
 
-impl IntoPrimitive for BigInt {
-    fn into_primitive(self) -> Primitive {
+impl<'gen> IntoPrimitive<'gen> for BigInt<'gen> {
+    fn into_primitive(self) -> Primitive<'gen> {
         self.into()
     }
 }
 
-impl IntoNumeric for BigInt {
-    fn into_numeric(self) -> Numeric {
+impl<'gen> IntoNumeric<'gen> for BigInt<'gen> {
+    fn into_numeric(self) -> Numeric<'gen> {
         self.into()
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct HeapBigInt(BigIntIndex);
+pub struct HeapBigInt<'gen>(BigIntIndex<'gen>);
 
-impl HeapBigInt {
+impl HeapBigInt<'_> {
     pub(crate) const fn _def() -> Self {
         Self(BigIntIndex::from_u32_index(0))
     }
@@ -93,25 +93,25 @@ impl std::ops::Neg for SmallBigInt {
     }
 }
 
-impl From<HeapBigInt> for BigInt {
-    fn from(value: HeapBigInt) -> Self {
+impl<'gen> From<HeapBigInt<'gen>> for BigInt<'gen> {
+    fn from(value: HeapBigInt<'gen>) -> Self {
         Self::BigInt(value)
     }
 }
 
-impl From<SmallBigInt> for BigInt {
+impl From<SmallBigInt> for BigInt<'static> {
     fn from(value: SmallBigInt) -> Self {
         Self::SmallBigInt(value)
     }
 }
 
-impl From<HeapBigInt> for Value {
-    fn from(value: HeapBigInt) -> Self {
+impl<'gen> From<HeapBigInt<'gen>> for Value<'gen> {
+    fn from(value: HeapBigInt<'gen>) -> Self {
         Self::BigInt(value)
     }
 }
 
-impl From<SmallBigInt> for Value {
+impl From<SmallBigInt> for Value<'static> {
     fn from(value: SmallBigInt) -> Self {
         Self::SmallBigInt(value)
     }
@@ -142,17 +142,17 @@ impl TryFrom<i64> for SmallBigInt {
 /// left.
 #[derive(Clone, Copy)]
 #[repr(u8)]
-pub enum BigInt {
-    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+pub enum BigInt<'gen> {
+    BigInt(HeapBigInt<'gen>) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
-impl BigInt {
+impl<'gen> BigInt<'gen> {
     /// ### [6.1.6.2.1 BigInt::unaryMinus ( x )](https://tc39.es/ecma262/#sec-numeric-types-bigint-unaryMinus)
     ///
     /// The abstract operation BigInt::unaryMinus takes argument x (a BigInt)
     /// and returns a BigInt.
-    pub(crate) fn unary_minus(agent: &mut Agent, x: BigInt) -> BigInt {
+    pub(crate) fn unary_minus(agent: &mut Agent<'gen>, x: BigInt<'gen>) -> Self {
         // 1. If x is 0ℤ, return 0ℤ.
         // NOTE: This is handled with the negation below.
 
@@ -181,7 +181,7 @@ impl BigInt {
     ///
     /// The abstract operation BigInt::bitwiseNOT takes argument x (a BigInt)
     /// and returns a BigInt. It returns the one's complement of x.
-    pub(crate) fn bitwise_not(agent: &mut Agent, x: BigInt) -> BigInt {
+    pub(crate) fn bitwise_not(agent: &mut Agent<'gen>, x: BigInt<'gen>) -> Self {
         // 1. Return -x - 1ℤ.
         // NOTE: We can use the builtin bitwise not operations instead.
         match x {
@@ -201,10 +201,10 @@ impl BigInt {
     /// BigInt) and exponent (a BigInt) and returns either a normal completion
     /// containing a BigInt or a throw completion.
     pub(crate) fn exponentiate(
-        agent: &mut Agent,
-        _base: BigInt,
-        exponent: BigInt,
-    ) -> JsResult<BigInt> {
+        agent: &mut Agent<'gen>,
+        _base: Self,
+        exponent: Self,
+    ) -> JsResult<'gen, Self> {
         // 1. If exponent < 0ℤ, throw a RangeError exception.
         if match exponent {
             BigInt::SmallBigInt(x) if x.into_i64() < 0 => true,
@@ -232,7 +232,7 @@ impl BigInt {
     ///
     /// The abstract operation BigInt::multiply takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a BigInt.
-    pub(crate) fn multiply(agent: &mut Agent, x: BigInt, y: BigInt) -> BigInt {
+    pub(crate) fn multiply(agent: &mut Agent<'gen>, x: Self, y: Self) -> Self {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
                 let (x, y) = (x.into_i64() as i128, y.into_i64() as i128);
@@ -265,7 +265,7 @@ impl BigInt {
     ///
     /// The abstract operation BigInt::lessThan takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a Boolean.
-    pub(crate) fn less_than(agent: &mut Agent, x: BigInt, y: BigInt) -> bool {
+    pub(crate) fn less_than(agent: &mut Agent<'gen>, x: BigInt, y: BigInt<'gen>) -> bool {
         // 1. If ℝ(x) < ℝ(y), return true; otherwise return false.
         match (x, y) {
             (BigInt::BigInt(_), BigInt::SmallBigInt(_)) => false,
@@ -282,7 +282,7 @@ impl BigInt {
     ///
     /// The abstract operation BigInt::equal takes arguments x (a BigInt) and y
     /// (a BigInt) and returns a Boolean.
-    pub(crate) fn equal(agent: &Agent, x: BigInt, y: BigInt) -> bool {
+    pub(crate) fn equal(agent: &Agent<'gen>, x: BigInt, y: BigInt<'gen>) -> bool {
         // 1. If ℝ(x) = ℝ(y), return true; otherwise return false.
         match (x, y) {
             (BigInt::BigInt(x), BigInt::BigInt(y)) => {
@@ -295,7 +295,7 @@ impl BigInt {
     }
 
     // ### [6.1.6.2.21 BigInt::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-bigint-tostring)
-    pub(crate) fn to_string_radix_10(agent: &mut Agent, x: Self) -> JsResult<String> {
+    pub(crate) fn to_string_radix_10(agent: &mut Agent<'gen>, x: Self) -> JsResult<'gen, String<'gen>> {
         Ok(String::from_string(
             agent,
             match x {
@@ -308,15 +308,15 @@ impl BigInt {
 
 // Note: SmallInteger can be a number or BigInt.
 // Hence there are no further impls here.
-// impl From<SmallInteger> for BigInt {
+// impl From<SmallInteger> for BigInt<'static> {
 //     fn from(value: SmallInteger) -> Self {
 //         BigInt::SmallBigInt(value)
 //     }
 // }
 
-impl TryFrom<Value> for BigInt {
+impl<'gen> TryFrom<Value<'gen>> for BigInt<'gen> {
     type Error = ();
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'gen>) -> Result<Self, Self::Error> {
         match value {
             Value::BigInt(x) => Ok(BigInt::BigInt(x)),
             Value::SmallBigInt(x) => Ok(BigInt::SmallBigInt(x)),
@@ -325,9 +325,9 @@ impl TryFrom<Value> for BigInt {
     }
 }
 
-impl TryFrom<Primitive> for BigInt {
+impl<'gen> TryFrom<Primitive<'gen>> for BigInt<'gen> {
     type Error = ();
-    fn try_from(value: Primitive) -> Result<Self, Self::Error> {
+    fn try_from(value: Primitive<'gen>) -> Result<Self, Self::Error> {
         match value {
             Primitive::BigInt(x) => Ok(BigInt::BigInt(x)),
             Primitive::SmallBigInt(x) => Ok(BigInt::SmallBigInt(x)),
@@ -336,9 +336,9 @@ impl TryFrom<Primitive> for BigInt {
     }
 }
 
-impl TryFrom<Numeric> for BigInt {
+impl<'gen> TryFrom<Numeric<'gen>> for BigInt<'gen> {
     type Error = ();
-    fn try_from(value: Numeric) -> Result<Self, Self::Error> {
+    fn try_from(value: Numeric<'gen>) -> Result<Self, Self::Error> {
         match value {
             Numeric::BigInt(x) => Ok(BigInt::BigInt(x)),
             Numeric::SmallBigInt(x) => Ok(BigInt::SmallBigInt(x)),
@@ -347,8 +347,8 @@ impl TryFrom<Numeric> for BigInt {
     }
 }
 
-impl From<BigInt> for Value {
-    fn from(value: BigInt) -> Value {
+impl<'gen> From<BigInt<'gen>> for Value<'gen> {
+    fn from(value: BigInt<'gen>) -> Value<'gen> {
         match value {
             BigInt::BigInt(x) => Value::BigInt(x),
             BigInt::SmallBigInt(x) => Value::SmallBigInt(x),
@@ -356,8 +356,8 @@ impl From<BigInt> for Value {
     }
 }
 
-impl From<BigInt> for Primitive {
-    fn from(value: BigInt) -> Primitive {
+impl<'gen> From<BigInt<'gen>> for Primitive<'gen> {
+    fn from(value: BigInt<'gen>) -> Primitive<'gen> {
         match value {
             BigInt::BigInt(x) => Primitive::BigInt(x),
             BigInt::SmallBigInt(x) => Primitive::SmallBigInt(x),
@@ -365,8 +365,8 @@ impl From<BigInt> for Primitive {
     }
 }
 
-impl From<BigInt> for Numeric {
-    fn from(value: BigInt) -> Numeric {
+impl<'gen> From<BigInt<'gen>> for Numeric<'gen> {
+    fn from(value: BigInt<'gen>) -> Numeric<'gen> {
         match value {
             BigInt::BigInt(x) => Numeric::BigInt(x),
             BigInt::SmallBigInt(x) => Numeric::SmallBigInt(x),
@@ -376,7 +376,7 @@ impl From<BigInt> for Numeric {
 
 macro_rules! impl_value_from_n {
     ($size: ty) => {
-        impl From<$size> for BigInt {
+        impl From<$size> for BigInt<'static> {
             fn from(value: $size) -> Self {
                 BigInt::SmallBigInt(SmallBigInt(SmallInteger::from(value)))
             }
@@ -391,24 +391,24 @@ impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
 
-impl Index<HeapBigInt> for Agent {
+impl<'gen> Index<HeapBigInt<'gen>> for Agent<'gen> {
     type Output = BigIntHeapData;
 
-    fn index(&self, index: HeapBigInt) -> &Self::Output {
+    fn index(&self, index: HeapBigInt<'gen>) -> &Self::Output {
         &self.heap.bigints[index]
     }
 }
 
-impl IndexMut<HeapBigInt> for Agent {
-    fn index_mut(&mut self, index: HeapBigInt) -> &mut Self::Output {
+impl<'gen> IndexMut<HeapBigInt<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: HeapBigInt<'gen>) -> &mut Self::Output {
         &mut self.heap.bigints[index]
     }
 }
 
-impl Index<HeapBigInt> for Vec<Option<BigIntHeapData>> {
+impl<'gen> Index<HeapBigInt<'gen>> for Vec<Option<BigIntHeapData>> {
     type Output = BigIntHeapData;
 
-    fn index(&self, index: HeapBigInt) -> &Self::Output {
+    fn index(&self, index: HeapBigInt<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("BigInt out of bounds")
             .as_ref()
@@ -416,8 +416,8 @@ impl Index<HeapBigInt> for Vec<Option<BigIntHeapData>> {
     }
 }
 
-impl IndexMut<HeapBigInt> for Vec<Option<BigIntHeapData>> {
-    fn index_mut(&mut self, index: HeapBigInt) -> &mut Self::Output {
+impl<'gen> IndexMut<HeapBigInt<'gen>> for Vec<Option<BigIntHeapData>> {
+    fn index_mut(&mut self, index: HeapBigInt<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BigInt out of bounds")
             .as_mut()
@@ -425,15 +425,15 @@ impl IndexMut<HeapBigInt> for Vec<Option<BigIntHeapData>> {
     }
 }
 
-impl CreateHeapData<BigIntHeapData, BigInt> for Heap {
-    fn create(&mut self, data: BigIntHeapData) -> BigInt {
+impl<'gen> CreateHeapData<BigIntHeapData, BigInt<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: BigIntHeapData) -> BigInt<'gen> {
         self.bigints.push(Some(data));
         BigInt::BigInt(HeapBigInt(BigIntIndex::last(&self.bigints)))
     }
 }
 
-impl HeapMarkAndSweep for HeapBigInt {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for HeapBigInt<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.bigints.push(*self);
     }
 

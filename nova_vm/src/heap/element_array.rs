@@ -106,13 +106,13 @@ impl From<usize> for ElementArrayKey {
 }
 
 #[derive(Default, Debug, Clone, Copy)]
-pub struct ElementsVector {
-    pub(crate) elements_index: ElementIndex,
+pub struct ElementsVector<'gen> {
+    pub(crate) elements_index: ElementIndex<'gen>,
     pub(crate) cap: ElementArrayKey,
     pub(crate) len: u32,
 }
 
-impl ElementsVector {
+impl<'gen> ElementsVector<'gen> {
     pub fn cap(&self) -> u32 {
         self.cap.cap()
     }
@@ -130,7 +130,7 @@ impl ElementsVector {
     }
 
     /// An elements vector is simple if it contains no accessor descriptors.
-    pub(crate) fn is_simple(&self, agent: &Agent) -> bool {
+    pub(crate) fn is_simple(&self, agent: &Agent<'gen>) -> bool {
         let backing_store = agent.heap.elements.get_descriptors_and_slice(*self);
         backing_store.0.map_or(true, |hashmap| {
             !hashmap
@@ -140,12 +140,12 @@ impl ElementsVector {
     }
 
     /// An elements vector is trivial if it contains no descriptors.
-    pub(crate) fn is_trivial(&self, agent: &Agent) -> bool {
+    pub(crate) fn is_trivial(&self, agent: &Agent<'gen>) -> bool {
         let backing_store = agent.heap.elements.get_descriptors_and_slice(*self);
         backing_store.0.is_none()
     }
 
-    pub(crate) fn is_dense(&self, agent: &Agent) -> bool {
+    pub(crate) fn is_dense(&self, agent: &Agent<'gen>) -> bool {
         let (descriptors, elements) = agent.heap.elements.get_descriptors_and_slice(*self);
         if let Some(descriptors) = descriptors {
             for (index, ele) in elements.iter().enumerate() {
@@ -173,7 +173,7 @@ impl ElementsVector {
         true
     }
 
-    pub fn reserve(&mut self, elements: &mut ElementArrays, new_len: u32) {
+    pub fn reserve(&mut self, elements: &mut ElementArrays<'gen>, new_len: u32) {
         if new_len <= self.cap() {
             // Enough capacity present already
             return;
@@ -184,9 +184,9 @@ impl ElementsVector {
 
     pub fn push(
         &mut self,
-        elements: &mut ElementArrays,
-        value: Option<Value>,
-        descriptor: Option<ElementDescriptor>,
+        elements: &mut ElementArrays<'gen>,
+        value: Option<Value<'gen>>,
+        descriptor: Option<ElementDescriptor<'gen>>,
     ) {
         if self.is_full() {
             self.reserve(elements, self.len() + 1);
@@ -239,7 +239,7 @@ impl ElementsVector {
         self.len += 1;
     }
 
-    pub fn remove(&mut self, elements: &mut ElementArrays, index: usize) {
+    pub fn remove(&mut self, elements: &mut ElementArrays<'gen>, index: usize) {
         let len = usize::try_from(self.len()).unwrap();
         assert!(index < len);
 
@@ -301,8 +301,8 @@ impl ElementsVector {
     }
 }
 
-impl HeapMarkAndSweep for ElementsVector {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ElementsVector<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         match self.cap {
             ElementArrayKey::Empty => {}
             ElementArrayKey::E4 => queues.e_2_4.push((self.elements_index, self.len)),
@@ -337,7 +337,7 @@ impl HeapMarkAndSweep for ElementsVector {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum ElementDescriptor {
+pub enum ElementDescriptor<'gen> {
     /// ```js
     /// { value, writable: true, enumerable: true, configurable: true }
     /// ```
@@ -375,54 +375,54 @@ pub enum ElementDescriptor {
     /// ```js
     /// { get, enumerable: true, configurable: true }
     /// ```
-    ReadOnlyEnumerableConfigurableAccessor { get: Function },
+    ReadOnlyEnumerableConfigurableAccessor { get: Function<'gen> },
     /// ```js
     /// { get, enumerable: true, configurable: false }
     /// ```
-    ReadOnlyEnumerableUnconfigurableAccessor { get: Function },
+    ReadOnlyEnumerableUnconfigurableAccessor { get: Function<'gen> },
     /// ```js
     /// { get, enumerable: false, configurable: true }
     /// ```
-    ReadOnlyUnenumerableConfigurableAccessor { get: Function },
+    ReadOnlyUnenumerableConfigurableAccessor { get: Function<'gen> },
     /// ```js
     /// { get, enumerable: false, configurable: false }
     /// ```
-    ReadOnlyUnenumerableUnconfigurableAccessor { get: Function },
+    ReadOnlyUnenumerableUnconfigurableAccessor { get: Function<'gen> },
     /// ```js
     /// { set, enumerable: true, configurable: true }
     /// ```
-    WriteOnlyEnumerableConfigurableAccessor { set: Function },
+    WriteOnlyEnumerableConfigurableAccessor { set: Function<'gen> },
     /// ```js
     /// { set, enumerable: true, configurable: false }
     /// ```
-    WriteOnlyEnumerableUnconfigurableAccessor { set: Function },
+    WriteOnlyEnumerableUnconfigurableAccessor { set: Function<'gen> },
     /// ```js
     /// { set, enumerable: false, configurable: true }
     /// ```
-    WriteOnlyUnenumerableConfigurableAccessor { set: Function },
+    WriteOnlyUnenumerableConfigurableAccessor { set: Function<'gen> },
     /// ```js
     /// { set, enumerable: false, configurable: false }
     /// ```
-    WriteOnlyUnenumerableUnconfigurableAccessor { set: Function },
+    WriteOnlyUnenumerableUnconfigurableAccessor { set: Function<'gen> },
     /// ```js
     /// { get, set, enumerable: true, configurable: true }
     /// ```
-    ReadWriteEnumerableConfigurableAccessor { get: Function, set: Function },
+    ReadWriteEnumerableConfigurableAccessor { get: Function<'gen>, set: Function<'gen> },
     /// ```js
     /// { get, set, enumerable: true, configurable: false }
     /// ```
-    ReadWriteEnumerableUnconfigurableAccessor { get: Function, set: Function },
+    ReadWriteEnumerableUnconfigurableAccessor { get: Function<'gen>, set: Function<'gen> },
     /// ```js
     /// { get, set, enumerable: false, configurable: true }
     /// ```
-    ReadWriteUnenumerableConfigurableAccessor { get: Function, set: Function },
+    ReadWriteUnenumerableConfigurableAccessor { get: Function<'gen>, set: Function<'gen> },
     /// ```js
     /// { get, set, enumerable: false, configurable: false }
     /// ```
-    ReadWriteUnenumerableUnconfigurableAccessor { get: Function, set: Function },
+    ReadWriteUnenumerableUnconfigurableAccessor { get: Function<'gen>, set: Function<'gen> },
 }
 
-impl ElementDescriptor {
+impl<'gen> ElementDescriptor<'gen> {
     pub(crate) fn has_getter(&self) -> bool {
         matches!(
             self,
@@ -464,7 +464,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub(crate) const fn new_with_get_ec(get: Function, e: bool, c: bool) -> Self {
+    pub(crate) const fn new_with_get_ec(get: Function<'gen>, e: bool, c: bool) -> Self {
         match (e, c) {
             (true, true) => Self::ReadOnlyEnumerableConfigurableAccessor { get },
             (true, false) => Self::ReadOnlyEnumerableUnconfigurableAccessor { get },
@@ -473,7 +473,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub(crate) const fn new_with_set_ec(set: Function, e: bool, c: bool) -> Self {
+    pub(crate) const fn new_with_set_ec(set: Function<'gen>, e: bool, c: bool) -> Self {
         match (e, c) {
             (true, true) => Self::WriteOnlyEnumerableConfigurableAccessor { set },
             (true, false) => Self::WriteOnlyEnumerableUnconfigurableAccessor { set },
@@ -483,8 +483,8 @@ impl ElementDescriptor {
     }
 
     pub(crate) const fn new_with_get_set_ec(
-        get: Function,
-        set: Function,
+        get: Function<'gen>,
+        set: Function<'gen>,
         e: bool,
         c: bool,
     ) -> Self {
@@ -497,8 +497,8 @@ impl ElementDescriptor {
     }
 
     pub(crate) fn from_object_entry_property_descriptor(
-        desc: &ObjectEntryPropertyDescriptor,
-    ) -> (Option<ElementDescriptor>, Option<Value>) {
+        desc: &ObjectEntryPropertyDescriptor<'gen>,
+    ) -> (Option<ElementDescriptor<'gen>>, Option<Value<'gen>>) {
         match desc {
             ObjectEntryPropertyDescriptor::Data {
                 value,
@@ -635,7 +635,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub fn from_property_descriptor(descriptor: PropertyDescriptor) -> Option<Self> {
+    pub fn from_property_descriptor(descriptor: PropertyDescriptor<'gen>) -> Option<Self> {
         let configurable = descriptor.configurable.unwrap_or(false);
         let enumerable = descriptor.enumerable.unwrap_or(false);
         let writable = descriptor.writable.unwrap_or(false);
@@ -682,7 +682,7 @@ impl ElementDescriptor {
 
     pub fn to_property_descriptor(
         descriptor: Option<Self>,
-        value: Option<Value>,
+        value: Option<Value<'gen>>,
     ) -> PropertyDescriptor {
         let descriptor =
             descriptor.unwrap_or(ElementDescriptor::WritableEnumerableConfigurableData);
@@ -874,7 +874,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub fn getter_function(&self) -> Option<Function> {
+    pub fn getter_function(&self) -> Option<Function<'gen>> {
         match self {
             ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }
             | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }
@@ -890,7 +890,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub fn setter_function(&self) -> Option<Function> {
+    pub fn setter_function(&self) -> Option<Function<'gen>> {
         match self {
             ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set }
             | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set }
@@ -973,12 +973,12 @@ impl ElementDescriptor {
 
 /// Element arrays of up to 16 elements
 #[derive(Debug, Default)]
-pub struct ElementArray2Pow4 {
-    pub values: Vec<Option<[Option<Value>; usize::pow(2, 4)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow4<'gen> {
+    pub values: Vec<Option<[Option<Value<'gen>>; usize::pow(2, 4)]>>,
+    pub descriptors: AHashMap<ElementIndex<'gen>, AHashMap<u32, ElementDescriptor<'gen>>>,
 }
 
-impl ElementArray2Pow4 {
+impl ElementArray2Pow4<'_> {
     pub fn with_capacity(cap: usize) -> Self {
         Self {
             values: Vec::with_capacity(cap),
@@ -989,12 +989,12 @@ impl ElementArray2Pow4 {
 
 /// Element arrays of up to 64 elements
 #[derive(Debug, Default)]
-pub struct ElementArray2Pow6 {
-    pub values: Vec<Option<[Option<Value>; usize::pow(2, 6)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow6<'gen> {
+    pub values: Vec<Option<[Option<Value<'gen>>; usize::pow(2, 6)]>>,
+    pub descriptors: AHashMap<ElementIndex<'gen>, AHashMap<u32, ElementDescriptor<'gen>>>,
 }
 
-impl ElementArray2Pow6 {
+impl ElementArray2Pow6<'_> {
     pub fn with_capacity(cap: usize) -> Self {
         Self {
             values: Vec::with_capacity(cap),
@@ -1005,12 +1005,12 @@ impl ElementArray2Pow6 {
 
 /// Element arrays of up to 256 elements
 #[derive(Debug, Default)]
-pub struct ElementArray2Pow8 {
-    pub values: Vec<Option<[Option<Value>; usize::pow(2, 8)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow8<'gen> {
+    pub values: Vec<Option<[Option<Value<'gen>>; usize::pow(2, 8)]>>,
+    pub descriptors: AHashMap<ElementIndex<'gen>, AHashMap<u32, ElementDescriptor<'gen>>>,
 }
 
-impl ElementArray2Pow8 {
+impl ElementArray2Pow8<'_> {
     pub fn with_capacity(cap: usize) -> Self {
         Self {
             values: Vec::with_capacity(cap),
@@ -1021,12 +1021,12 @@ impl ElementArray2Pow8 {
 
 /// Element arrays of up to 1024 elements
 #[derive(Debug, Default)]
-pub struct ElementArray2Pow10 {
-    pub values: Vec<Option<[Option<Value>; usize::pow(2, 10)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow10<'gen> {
+    pub values: Vec<Option<[Option<Value<'gen>>; usize::pow(2, 10)]>>,
+    pub descriptors: AHashMap<ElementIndex<'gen>, AHashMap<u32, ElementDescriptor<'gen>>>,
 }
 
-impl ElementArray2Pow10 {
+impl ElementArray2Pow10<'_> {
     pub fn with_capacity(cap: usize) -> Self {
         Self {
             values: Vec::with_capacity(cap),
@@ -1037,12 +1037,12 @@ impl ElementArray2Pow10 {
 
 /// Element arrays of up to 4096 elements
 #[derive(Debug, Default)]
-pub struct ElementArray2Pow12 {
-    pub values: Vec<Option<[Option<Value>; usize::pow(2, 12)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow12<'gen> {
+    pub values: Vec<Option<[Option<Value<'gen>>; usize::pow(2, 12)]>>,
+    pub descriptors: AHashMap<ElementIndex<'gen>, AHashMap<u32, ElementDescriptor<'gen>>>,
 }
 
-impl ElementArray2Pow12 {
+impl ElementArray2Pow12<'_> {
     pub fn with_capacity(cap: usize) -> Self {
         Self {
             values: Vec::with_capacity(cap),
@@ -1053,12 +1053,12 @@ impl ElementArray2Pow12 {
 
 /// Element arrays of up to 65536 elements
 #[derive(Debug, Default)]
-pub struct ElementArray2Pow16 {
-    pub values: Vec<Option<[Option<Value>; usize::pow(2, 16)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow16<'gen> {
+    pub values: Vec<Option<[Option<Value<'gen>>; usize::pow(2, 16)]>>,
+    pub descriptors: AHashMap<ElementIndex<'gen>, AHashMap<u32, ElementDescriptor<'gen>>>,
 }
 
-impl ElementArray2Pow16 {
+impl ElementArray2Pow16<'_> {
     pub fn with_capacity(cap: usize) -> Self {
         Self {
             values: Vec::with_capacity(cap),
@@ -1069,12 +1069,12 @@ impl ElementArray2Pow16 {
 
 /// Element arrays of up to 16777216 elements
 #[derive(Debug, Default)]
-pub struct ElementArray2Pow24 {
-    pub values: Vec<Option<[Option<Value>; usize::pow(2, 24)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow24<'gen> {
+    pub values: Vec<Option<[Option<Value<'gen>>; usize::pow(2, 24)]>>,
+    pub descriptors: AHashMap<ElementIndex<'gen>, AHashMap<u32, ElementDescriptor<'gen>>>,
 }
 
-impl ElementArray2Pow24 {
+impl ElementArray2Pow24<'_> {
     pub fn with_capacity(cap: usize) -> Self {
         Self {
             values: Vec::with_capacity(cap),
@@ -1085,12 +1085,12 @@ impl ElementArray2Pow24 {
 
 /// Element arrays of up to 4294967296 elements
 #[derive(Debug, Default)]
-pub struct ElementArray2Pow32 {
-    pub values: Vec<Option<[Option<Value>; usize::pow(2, 32)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+pub struct ElementArray2Pow32<'gen> {
+    pub values: Vec<Option<[Option<Value<'gen>>; usize::pow(2, 32)]>>,
+    pub descriptors: AHashMap<ElementIndex<'gen>, AHashMap<u32, ElementDescriptor<'gen>>>,
 }
 
-impl ElementArray2Pow32 {
+impl ElementArray2Pow32<'_> {
     pub fn with_capacity(cap: usize) -> Self {
         Self {
             values: Vec::with_capacity(cap),
@@ -1100,91 +1100,91 @@ impl ElementArray2Pow32 {
 }
 
 #[derive(Debug)]
-pub struct ElementArrays {
+pub struct ElementArrays<'gen> {
     /// up to 16 elements
-    pub e2pow4: ElementArray2Pow4,
+    pub e2pow4: ElementArray2Pow4<'gen>,
     /// up to 64 elements
-    pub e2pow6: ElementArray2Pow6,
+    pub e2pow6: ElementArray2Pow6<'gen>,
     /// up to 256 elements
-    pub e2pow8: ElementArray2Pow8,
+    pub e2pow8: ElementArray2Pow8<'gen>,
     /// up to 1024 elements
-    pub e2pow10: ElementArray2Pow10,
+    pub e2pow10: ElementArray2Pow10<'gen>,
     /// up to 4096 elements
-    pub e2pow12: ElementArray2Pow12,
+    pub e2pow12: ElementArray2Pow12<'gen>,
     /// up to 65536 elements
-    pub e2pow16: ElementArray2Pow16,
+    pub e2pow16: ElementArray2Pow16<'gen>,
     /// up to 16777216 elements
-    pub e2pow24: ElementArray2Pow24,
+    pub e2pow24: ElementArray2Pow24<'gen>,
     /// up to 4294967296 elements
-    pub e2pow32: ElementArray2Pow32,
+    pub e2pow32: ElementArray2Pow32<'gen>,
 }
 
-impl Index<ElementsVector> for ElementArrays {
-    type Output = [Option<Value>];
+impl<'gen> Index<ElementsVector<'gen>> for ElementArrays<'gen> {
+    type Output = [Option<Value<'gen>>];
 
-    fn index(&self, index: ElementsVector) -> &Self::Output {
+    fn index(&self, index: ElementsVector<'gen>) -> &Self::Output {
         self.get(index)
     }
 }
 
-impl IndexMut<ElementsVector> for ElementArrays {
-    fn index_mut(&mut self, index: ElementsVector) -> &mut Self::Output {
+impl<'gen> IndexMut<ElementsVector<'gen>> for ElementArrays<'gen> {
+    fn index_mut(&mut self, index: ElementsVector<'gen>) -> &mut Self::Output {
         self.get_mut(index)
     }
 }
 
-impl Index<ElementsVector> for Agent {
-    type Output = [Option<Value>];
+impl<'gen> Index<ElementsVector<'gen>> for Agent<'gen> {
+    type Output = [Option<Value<'gen>>];
 
-    fn index(&self, index: ElementsVector) -> &Self::Output {
+    fn index(&self, index: ElementsVector<'gen>) -> &Self::Output {
         &self.heap.elements[index]
     }
 }
 
-impl IndexMut<ElementsVector> for Agent {
-    fn index_mut(&mut self, index: ElementsVector) -> &mut Self::Output {
+impl<'gen> IndexMut<ElementsVector<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: ElementsVector<'gen>) -> &mut Self::Output {
         &mut self.heap.elements[index]
     }
 }
 
-impl Index<SealableElementsVector> for ElementArrays {
-    type Output = [Option<Value>];
+impl<'gen> Index<SealableElementsVector<'gen>> for ElementArrays<'gen> {
+    type Output = [Option<Value<'gen>>];
 
-    fn index(&self, index: SealableElementsVector) -> &Self::Output {
+    fn index(&self, index: SealableElementsVector<'gen>) -> &Self::Output {
         self.get(index.into())
     }
 }
 
-impl IndexMut<SealableElementsVector> for ElementArrays {
-    fn index_mut(&mut self, index: SealableElementsVector) -> &mut Self::Output {
+impl<'gen> IndexMut<SealableElementsVector<'gen>> for ElementArrays<'gen> {
+    fn index_mut(&mut self, index: SealableElementsVector<'gen>) -> &mut Self::Output {
         self.get_mut(index.into())
     }
 }
 
-impl Index<SealableElementsVector> for Agent {
-    type Output = [Option<Value>];
+impl<'gen> Index<SealableElementsVector<'gen>> for Agent<'gen> {
+    type Output = [Option<Value<'gen>>];
 
-    fn index(&self, index: SealableElementsVector) -> &Self::Output {
+    fn index(&self, index: SealableElementsVector<'gen>) -> &Self::Output {
         &self.heap.elements[index]
     }
 }
 
-impl IndexMut<SealableElementsVector> for Agent {
-    fn index_mut(&mut self, index: SealableElementsVector) -> &mut Self::Output {
+impl<'gen> IndexMut<SealableElementsVector<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: SealableElementsVector<'gen>) -> &mut Self::Output {
         &mut self.heap.elements[index]
     }
 }
 
-impl ElementArrays {
+impl<'gen> ElementArrays<'gen> {
     fn push_with_key(
         &mut self,
         key: ElementArrayKey,
-        vector: &[Option<Value>],
-        descriptors: Option<AHashMap<u32, ElementDescriptor>>,
-    ) -> ElementIndex {
+        vector: &[Option<Value<'gen>>],
+        descriptors: Option<AHashMap<u32, ElementDescriptor<'gen>>>,
+    ) -> ElementIndex<'gen> {
         debug_assert_eq!(
-            std::mem::size_of::<Option<[Option<Value>; 1]>>(),
-            std::mem::size_of::<[Option<Value>; 1]>()
+            std::mem::size_of::<Option<[Option<Value<'gen>>; 1]>>(),
+            std::mem::size_of::<[Option<Value<'gen>>; 1]>()
         );
         let length = vector.len();
         match key {
@@ -1200,8 +1200,8 @@ impl ElementArrays {
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1209,13 +1209,13 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let last = unsafe {
                     std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)
                 };
                 // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
                 let len_slice = unsafe {
-                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                    std::mem::transmute::<&[Option<Value<'gen>>], &[MaybeUninit<Option<Value<'gen>>>]>(vector)
                 };
                 last[..length].copy_from_slice(len_slice);
                 last[length..].fill(MaybeUninit::new(None));
@@ -1240,8 +1240,8 @@ impl ElementArrays {
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1249,13 +1249,13 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let last = unsafe {
                     std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)
                 };
                 // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
                 let len_slice = unsafe {
-                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                    std::mem::transmute::<&[Option<Value<'gen>>], &[MaybeUninit<Option<Value<'gen>>>]>(vector)
                 };
                 last[..length].copy_from_slice(len_slice);
                 last[length..].fill(MaybeUninit::new(None));
@@ -1280,8 +1280,8 @@ impl ElementArrays {
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1289,13 +1289,13 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let last = unsafe {
                     std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)
                 };
                 // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
                 let len_slice = unsafe {
-                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                    std::mem::transmute::<&[Option<Value<'gen>>], &[MaybeUninit<Option<Value<'gen>>>]>(vector)
                 };
                 last[..length].copy_from_slice(len_slice);
                 last[length..].fill(MaybeUninit::new(None));
@@ -1320,8 +1320,8 @@ impl ElementArrays {
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1329,13 +1329,13 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let last = unsafe {
                     std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)
                 };
                 // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
                 let len_slice = unsafe {
-                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                    std::mem::transmute::<&[Option<Value<'gen>>], &[MaybeUninit<Option<Value<'gen>>>]>(vector)
                 };
                 last[..length].copy_from_slice(len_slice);
                 last[length..].fill(MaybeUninit::new(None));
@@ -1360,8 +1360,8 @@ impl ElementArrays {
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1369,13 +1369,13 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let last = unsafe {
                     std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)
                 };
                 // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
                 let len_slice = unsafe {
-                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                    std::mem::transmute::<&[Option<Value<'gen>>], &[MaybeUninit<Option<Value<'gen>>>]>(vector)
                 };
                 last[..length].copy_from_slice(len_slice);
                 last[length..].fill(MaybeUninit::new(None));
@@ -1400,8 +1400,8 @@ impl ElementArrays {
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1409,13 +1409,13 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let last = unsafe {
                     std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)
                 };
                 // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
                 let len_slice = unsafe {
-                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                    std::mem::transmute::<&[Option<Value<'gen>>], &[MaybeUninit<Option<Value<'gen>>>]>(vector)
                 };
                 last[..length].copy_from_slice(len_slice);
                 last[length..].fill(MaybeUninit::new(None));
@@ -1440,8 +1440,8 @@ impl ElementArrays {
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1449,13 +1449,13 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let last = unsafe {
                     std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)
                 };
                 // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
                 let len_slice = unsafe {
-                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                    std::mem::transmute::<&[Option<Value<'gen>>], &[MaybeUninit<Option<Value<'gen>>>]>(vector)
                 };
                 last[..length].copy_from_slice(len_slice);
                 last[length..].fill(MaybeUninit::new(None));
@@ -1480,8 +1480,8 @@ impl ElementArrays {
                 assert!(length <= N);
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1489,13 +1489,13 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let last = unsafe {
                     std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)
                 };
                 // SAFETY: Interpreting any T as MaybeUninit<T> is always safe.
                 let len_slice = unsafe {
-                    std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(vector)
+                    std::mem::transmute::<&[Option<Value<'gen>>], &[MaybeUninit<Option<Value<'gen>>>]>(vector)
                 };
                 last[..length].copy_from_slice(len_slice);
                 last[length..].fill(MaybeUninit::new(None));
@@ -1515,7 +1515,7 @@ impl ElementArrays {
         }
     }
 
-    fn reserve(&mut self, elements_vector: &mut ElementsVector, new_len: u32) {
+    fn reserve(&mut self, elements_vector: &mut ElementsVector<'gen>, new_len: u32) {
         if new_len <= elements_vector.cap() {
             // Already big enough, no need to grow
             return;
@@ -1526,7 +1526,7 @@ impl ElementArrays {
         assert_ne!(new_key, elements_vector.cap);
         // SAFETY: It is always safe to interpret a T as MU<T>.
         let source_slice = unsafe {
-            std::mem::transmute::<&[Option<Value>], &[MaybeUninit<Option<Value>>]>(source_slice)
+            std::mem::transmute::<&[Option<Value<'gen>>], &[MaybeUninit<Option<Value<'gen>>>]>(source_slice)
         };
         let ElementArrays {
             e2pow4,
@@ -1539,8 +1539,8 @@ impl ElementArrays {
             e2pow32,
         } = self;
         debug_assert_eq!(
-            std::mem::size_of::<Option<[Option<Value>; 1]>>(),
-            std::mem::size_of::<[Option<Value>; 1]>()
+            std::mem::size_of::<Option<[Option<Value<'gen>>; 1]>>(),
+            std::mem::size_of::<[Option<Value<'gen>>; 1]>()
         );
         let new_index = match new_key {
             ElementArrayKey::Empty => {
@@ -1554,8 +1554,8 @@ impl ElementArrays {
                 let remaining = elements.values.spare_capacity_mut();
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1563,8 +1563,8 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let target_slice = unsafe {
                     &mut std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)[..]
                 };
                 let length = source_slice.len();
@@ -1589,8 +1589,8 @@ impl ElementArrays {
                 let remaining = elements.values.spare_capacity_mut();
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1598,8 +1598,8 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let target_slice = unsafe {
                     &mut std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)[..]
                 };
                 let length = source_slice.len();
@@ -1624,8 +1624,8 @@ impl ElementArrays {
                 let remaining = elements.values.spare_capacity_mut();
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1633,8 +1633,8 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let target_slice = unsafe {
                     &mut std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)[..]
                 };
                 let length = source_slice.len();
@@ -1659,8 +1659,8 @@ impl ElementArrays {
                 let remaining = elements.values.spare_capacity_mut();
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1668,8 +1668,8 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let target_slice = unsafe {
                     &mut std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)[..]
                 };
                 let length = source_slice.len();
@@ -1694,8 +1694,8 @@ impl ElementArrays {
                 let remaining = elements.values.spare_capacity_mut();
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1703,8 +1703,8 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let target_slice = unsafe {
                     &mut std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)[..]
                 };
                 let length = source_slice.len();
@@ -1729,8 +1729,8 @@ impl ElementArrays {
                 let remaining = elements.values.spare_capacity_mut();
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1738,8 +1738,8 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let target_slice = unsafe {
                     &mut std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)[..]
                 };
                 let length = source_slice.len();
@@ -1764,8 +1764,8 @@ impl ElementArrays {
                 let remaining = elements.values.spare_capacity_mut();
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1773,8 +1773,8 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let target_slice = unsafe {
                     &mut std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)[..]
                 };
                 let length = source_slice.len();
@@ -1799,8 +1799,8 @@ impl ElementArrays {
                 let remaining = elements.values.spare_capacity_mut();
                 let last = remaining.get_mut(0).unwrap();
                 debug_assert_eq!(
-                    std::mem::size_of::<Option<[Option<Value>; N]>>(),
-                    std::mem::size_of::<[Option<Value>; N]>()
+                    std::mem::size_of::<Option<[Option<Value<'gen>>; N]>>(),
+                    std::mem::size_of::<[Option<Value<'gen>>; N]>()
                 );
                 // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
                 // Moving inside the Option<[_]> is less well defined; the size is asserted to be the same
@@ -1808,8 +1808,8 @@ impl ElementArrays {
                 // Experimentally however, this works and we do not copy None but Some([_]).
                 let target_slice = unsafe {
                     &mut std::mem::transmute::<
-                        &mut MaybeUninit<Option<[Option<Value>; N]>>,
-                        &mut [MaybeUninit<Option<Value>>; N],
+                        &mut MaybeUninit<Option<[Option<Value<'gen>>; N]>>,
+                        &mut [MaybeUninit<Option<Value<'gen>>>; N],
                     >(last)[..]
                 };
                 let length = source_slice.len();
@@ -1843,11 +1843,11 @@ impl ElementArrays {
 
     pub(crate) fn create_with_stuff(
         &mut self,
-        mut entries: Vec<(PropertyKey, Option<ElementDescriptor>, Option<Value>)>,
-    ) -> (ElementsVector, ElementsVector) {
+        mut entries: Vec<(PropertyKey<'gen>, Option<ElementDescriptor<'gen>>, Option<Value<'gen>>)>,
+    ) -> (ElementsVector<'gen>, ElementsVector<'gen>) {
         let length = entries.len();
-        let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);
-        let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
+        let mut keys: Vec<Option<Value<'gen>>> = Vec::with_capacity(length);
+        let mut values: Vec<Option<Value<'gen>>> = Vec::with_capacity(length);
         let mut descriptors: Option<AHashMap<u32, ElementDescriptor>> = None;
         entries.drain(..).enumerate().for_each(|(index, entry)| {
             let (key, maybe_descriptor, maybe_value) = entry;
@@ -1889,11 +1889,11 @@ impl ElementArrays {
 
     pub(crate) fn create_object_entries(
         &mut self,
-        entries: &[ObjectEntry],
-    ) -> (ElementsVector, ElementsVector) {
+        entries: &[ObjectEntry<'gen>],
+    ) -> (ElementsVector<'gen>, ElementsVector<'gen>) {
         let length = entries.len();
-        let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);
-        let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
+        let mut keys: Vec<Option<Value<'gen>>> = Vec::with_capacity(length);
+        let mut values: Vec<Option<Value<'gen>>> = Vec::with_capacity(length);
         let mut descriptors: Option<AHashMap<u32, ElementDescriptor>> = None;
         entries.iter().enumerate().for_each(|(index, entry)| {
             let ObjectEntry { key, value } = entry;
@@ -1935,7 +1935,7 @@ impl ElementArrays {
         )
     }
 
-    pub fn get(&self, vector: ElementsVector) -> &[Option<Value>] {
+    pub fn get(&self, vector: ElementsVector<'gen>) -> &[Option<Value<'gen>>] {
         match vector.cap {
             ElementArrayKey::Empty => &[],
             ElementArrayKey::E4 => {
@@ -1965,7 +1965,7 @@ impl ElementArrays {
         }
     }
 
-    pub fn get_mut(&mut self, vector: ElementsVector) -> &mut [Option<Value>] {
+    pub fn get_mut(&mut self, vector: ElementsVector<'gen>) -> &mut [Option<Value<'gen>>] {
         match vector.cap {
             ElementArrayKey::Empty => &mut [],
             ElementArrayKey::E4 => &mut self.e2pow4.values[vector.elements_index].as_mut_slice()
@@ -1989,8 +1989,8 @@ impl ElementArrays {
 
     pub fn get_descriptors_and_slice(
         &self,
-        vector: ElementsVector,
-    ) -> (Option<&AHashMap<u32, ElementDescriptor>>, &[Option<Value>]) {
+        vector: ElementsVector<'gen>,
+    ) -> (Option<&AHashMap<u32, ElementDescriptor<'gen>>>, &[Option<Value<'gen>>]) {
         let usize_index = vector.elements_index.into_index();
         match vector.cap {
             ElementArrayKey::Empty => (None, &[]),
@@ -2103,10 +2103,10 @@ impl ElementArrays {
 
     pub fn get_descriptors_and_slice_mut(
         &mut self,
-        vector: ElementsVector,
+        vector: ElementsVector<'gen>,
     ) -> (
-        Option<&mut AHashMap<u32, ElementDescriptor>>,
-        &mut [Option<Value>],
+        Option<&mut AHashMap<u32, ElementDescriptor<'gen>>>,
+        &mut [Option<Value<'gen>>],
     ) {
         let usize_index = vector.elements_index.into_index();
         match vector.cap {
@@ -2220,9 +2220,9 @@ impl ElementArrays {
 
     pub fn get_descriptor(
         &self,
-        vector: ElementsVector,
+        vector: ElementsVector<'gen>,
         index: usize,
-    ) -> Option<ElementDescriptor> {
+    ) -> Option<ElementDescriptor<'gen>> {
         let Ok(index) = u32::try_from(index) else {
             return None;
         };
@@ -2245,9 +2245,9 @@ impl ElementArrays {
 
     pub fn set_descriptor(
         &mut self,
-        vector: ElementsVector,
+        vector: ElementsVector<'gen>,
         index: usize,
-        descriptor: Option<ElementDescriptor>,
+        descriptor: Option<ElementDescriptor<'gen>>,
     ) {
         let index: u32 = index.try_into().unwrap();
         assert!(index < vector.len);
@@ -2275,7 +2275,7 @@ impl ElementArrays {
         }
     }
 
-    pub fn has(&self, vector: ElementsVector, element: Value) -> bool {
+    pub fn has(&self, vector: ElementsVector<'gen>, element: Value<'gen>) -> bool {
         match vector.cap {
             ElementArrayKey::Empty => false,
             ElementArrayKey::E4 => self.e2pow4.values[vector.elements_index].as_slice()
@@ -2306,8 +2306,8 @@ impl ElementArrays {
     }
 }
 
-impl HeapMarkAndSweep for ElementDescriptor {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ElementDescriptor<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         match self {
             ElementDescriptor::WritableEnumerableConfigurableData
             | ElementDescriptor::WritableEnumerableUnconfigurableData

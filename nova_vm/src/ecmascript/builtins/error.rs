@@ -24,9 +24,9 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Error(pub(crate) ErrorIndex);
+pub struct Error<'gen>(pub(crate) ErrorIndex<'gen>);
 
-impl Error {
+impl<'gen> Error<'gen> {
     pub(crate) const fn _def() -> Self {
         Self(ErrorIndex::from_u32_index(0))
     }
@@ -36,34 +36,34 @@ impl Error {
     }
 }
 
-impl IntoValue for Error {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for Error<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl From<Error> for Value {
-    fn from(value: Error) -> Self {
+impl<'gen> From<Error<'gen>> for Value<'gen> {
+    fn from(value: Error<'gen>) -> Self {
         Value::Error(value)
     }
 }
 
-impl IntoObject for Error {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for Error<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<Error> for Object {
-    fn from(value: Error) -> Self {
+impl<'gen> From<Error<'gen>> for Object<'gen> {
+    fn from(value: Error<'gen>) -> Self {
         Object::Error(value)
     }
 }
 
-impl TryFrom<Value> for Error {
+impl<'gen> TryFrom<Value<'gen>> for Error<'gen> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, ()> {
+    fn try_from(value: Value<'gen>) -> Result<Self, ()> {
         match value {
             Value::Error(idx) => Ok(idx),
             _ => Err(()),
@@ -71,10 +71,10 @@ impl TryFrom<Value> for Error {
     }
 }
 
-impl TryFrom<Object> for Error {
+impl<'gen> TryFrom<Object<'gen>> for Error<'gen> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, ()> {
+    fn try_from(value: Object<'gen>) -> Result<Self, ()> {
         match value {
             Object::Error(idx) => Ok(idx),
             _ => Err(()),
@@ -82,15 +82,15 @@ impl TryFrom<Object> for Error {
     }
 }
 
-impl InternalSlots for Error {
+impl<'gen> InternalSlots<'gen> for Error<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Error;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         let prototype = self.internal_prototype(agent).unwrap();
         let message_entry = agent[self].message.map(|message| ObjectEntry {
             key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
@@ -133,7 +133,7 @@ impl InternalSlots for Error {
         backing_object
     }
 
-    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, agent: &Agent<'gen>) -> Option<Object<'gen>> {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_prototype(agent)
         } else {
@@ -157,12 +157,12 @@ impl InternalSlots for Error {
     }
 }
 
-impl InternalMethods for Error {
+impl<'gen> InternalMethods<'gen> for Error<'gen> {
     fn internal_get_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<crate::ecmascript::types::PropertyDescriptor>> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+    ) -> JsResult<'gen, Option<crate::ecmascript::types::PropertyDescriptor<'gen>>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.internal_get_own_property(agent, property_key),
             None => {
@@ -186,7 +186,7 @@ impl InternalMethods for Error {
         }
     }
 
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.internal_has_property(agent, property_key),
             None => Ok(
@@ -203,10 +203,10 @@ impl InternalMethods for Error {
 
     fn internal_get(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.internal_get(agent, property_key, receiver),
             None => {
@@ -230,7 +230,7 @@ impl InternalMethods for Error {
         }
     }
 
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Vec<PropertyKey<'gen>>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.internal_own_property_keys(agent),
             None => {
@@ -247,8 +247,8 @@ impl InternalMethods for Error {
     }
 }
 
-impl HeapMarkAndSweep for Error {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Error<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.errors.push(*self);
     }
 
@@ -257,31 +257,31 @@ impl HeapMarkAndSweep for Error {
     }
 }
 
-impl CreateHeapData<ErrorHeapData, Error> for Heap {
-    fn create(&mut self, data: ErrorHeapData) -> Error {
+impl<'gen> CreateHeapData<ErrorHeapData<'gen>, Error<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: ErrorHeapData<'gen>) -> Error<'gen> {
         self.errors.push(Some(data));
         Error(ErrorIndex::last(&self.errors))
     }
 }
 
-impl Index<Error> for Agent {
-    type Output = ErrorHeapData;
+impl<'gen> Index<Error<'gen>> for Agent<'gen> {
+    type Output = ErrorHeapData<'gen>;
 
-    fn index(&self, index: Error) -> &Self::Output {
+    fn index(&self, index: Error<'gen>) -> &Self::Output {
         &self.heap.errors[index]
     }
 }
 
-impl IndexMut<Error> for Agent {
-    fn index_mut(&mut self, index: Error) -> &mut Self::Output {
+impl<'gen> IndexMut<Error<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: Error<'gen>) -> &mut Self::Output {
         &mut self.heap.errors[index]
     }
 }
 
-impl Index<Error> for Vec<Option<ErrorHeapData>> {
-    type Output = ErrorHeapData;
+impl<'gen> Index<Error<'gen>> for Vec<Option<ErrorHeapData<'gen>>> {
+    type Output = ErrorHeapData<'gen>;
 
-    fn index(&self, index: Error) -> &Self::Output {
+    fn index(&self, index: Error<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("Error out of bounds")
             .as_ref()
@@ -289,8 +289,8 @@ impl Index<Error> for Vec<Option<ErrorHeapData>> {
     }
 }
 
-impl IndexMut<Error> for Vec<Option<ErrorHeapData>> {
-    fn index_mut(&mut self, index: Error) -> &mut Self::Output {
+impl<'gen> IndexMut<Error<'gen>> for Vec<Option<ErrorHeapData<'gen>>> {
+    fn index_mut(&mut self, index: Error<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Error out of bounds")
             .as_mut()

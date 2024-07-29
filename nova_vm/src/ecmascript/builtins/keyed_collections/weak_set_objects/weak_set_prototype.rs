@@ -16,37 +16,37 @@ pub(crate) struct WeakSetPrototype;
 
 struct WeakSetPrototypeAdd;
 impl Builtin for WeakSetPrototypeAdd {
-    const NAME: String = BUILTIN_STRING_MEMORY.add;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.add;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakSetPrototype::add);
 }
 struct WeakSetPrototypeDelete;
 impl Builtin for WeakSetPrototypeDelete {
-    const NAME: String = BUILTIN_STRING_MEMORY.delete;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.delete;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakSetPrototype::delete);
 }
 struct WeakSetPrototypeHas;
 impl Builtin for WeakSetPrototypeHas {
-    const NAME: String = BUILTIN_STRING_MEMORY.has;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.has;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakSetPrototype::has);
 }
 
 impl WeakSetPrototype {
-    fn add(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn add<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn delete(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn delete<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn has(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn has<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.weak_set_prototype();

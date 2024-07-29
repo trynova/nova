@@ -61,7 +61,7 @@ use super::{Agent, JsResult};
 /// nested FunctionDeclarations then the Environment Records of each of the
 /// nested functions will have as their outer Environment Record the
 /// Environment Record of the current evaluation of the surrounding function.
-pub(super) type OuterEnv = Option<EnvironmentIndex>;
+pub(super) type OuterEnv<'gen> = Option<EnvironmentIndex<'gen>>;
 
 macro_rules! create_environment_index {
     ($name: ident, $index: ident, $entry: ident) => {
@@ -71,9 +71,9 @@ macro_rules! create_environment_index {
         /// the zero index while still saving room for a [`None`] value when
         /// stored in an [`Option`].
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-        pub(crate) struct $index(NonZeroU32, PhantomData<$name>);
+        pub(crate) struct $index<'gen>(NonZeroU32, PhantomData<&'gen $name<'gen>>);
 
-        impl $index {
+        impl<'gen> $index<'gen> {
             /// Creates a new index from a u32.
             ///
             /// ## Panics
@@ -103,29 +103,29 @@ macro_rules! create_environment_index {
                 self.0.get() - 1
             }
 
-            pub(crate) fn last(vec: &[Option<$name>]) -> Self {
+            pub(crate) fn last(vec: &[Option<$name<'gen>>]) -> Self {
                 Self::from_u32(vec.len() as u32)
             }
         }
 
-        impl std::ops::Index<$index> for Agent {
-            type Output = $name;
+        impl<'gen> std::ops::Index<$index<'gen>> for Agent<'gen> {
+            type Output = $name<'gen>;
 
-            fn index(&self, index: $index) -> &Self::Output {
+            fn index(&self, index: $index<'gen>) -> &Self::Output {
                 &self.heap.environments.$entry[index]
             }
         }
 
-        impl std::ops::IndexMut<$index> for Agent {
-            fn index_mut(&mut self, index: $index) -> &mut Self::Output {
+        impl<'gen> std::ops::IndexMut<$index<'gen>> for Agent<'gen> {
+            fn index_mut(&mut self, index: $index<'gen>) -> &mut Self::Output {
                 &mut self.heap.environments.$entry[index]
             }
         }
 
-        impl std::ops::Index<$index> for Vec<Option<$name>> {
-            type Output = $name;
+        impl<'gen> std::ops::Index<$index<'gen>> for Vec<Option<$name<'gen>>> {
+            type Output = $name<'gen>;
 
-            fn index(&self, index: $index) -> &Self::Output {
+            fn index(&self, index: $index<'gen>) -> &Self::Output {
                 self.get(index.into_index())
                     .expect("Environment out of bounds")
                     .as_ref()
@@ -133,8 +133,8 @@ macro_rules! create_environment_index {
             }
         }
 
-        impl std::ops::IndexMut<$index> for Vec<Option<$name>> {
-            fn index_mut(&mut self, index: $index) -> &mut Self::Output {
+        impl<'gen> std::ops::IndexMut<$index<'gen>> for Vec<Option<$name<'gen>>> {
+            fn index_mut(&mut self, index: $index<'gen>) -> &mut Self::Output {
                 self.get_mut(index.into_index())
                     .expect("Environment out of bounds")
                     .as_mut()
@@ -155,8 +155,8 @@ create_environment_index!(ObjectEnvironment, ObjectEnvironmentIndex, object);
 create_environment_index!(PrivateEnvironment, PrivateEnvironmentIndex, private);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct ModuleEnvironmentIndex(NonZeroU32, PhantomData<DeclarativeEnvironment>);
-impl ModuleEnvironmentIndex {
+pub(crate) struct ModuleEnvironmentIndex<'gen>(NonZeroU32, PhantomData<&'gen DeclarativeEnvironment<'gen>>);
+impl<'gen> ModuleEnvironmentIndex<'gen> {
     /// Creates a new index from a u32.
     ///
     /// ## Panics
@@ -191,17 +191,17 @@ impl ModuleEnvironmentIndex {
 /// Environment Record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub(crate) enum EnvironmentIndex {
+pub(crate) enum EnvironmentIndex<'gen> {
     // Leave 0 for None option
-    Declarative(DeclarativeEnvironmentIndex) = 1,
-    Function(FunctionEnvironmentIndex),
-    Global(GlobalEnvironmentIndex),
+    Declarative(DeclarativeEnvironmentIndex<'gen>) = 1,
+    Function(FunctionEnvironmentIndex<'gen>),
+    Global(GlobalEnvironmentIndex<'gen>),
     // Module(ModuleEnvironmentIndex),
-    Object(ObjectEnvironmentIndex),
+    Object(ObjectEnvironmentIndex<'gen>),
 }
 
-impl EnvironmentIndex {
-    pub(crate) fn get_outer_env(self, agent: &Agent) -> OuterEnv {
+impl<'gen> EnvironmentIndex<'gen> {
+    pub(crate) fn get_outer_env(self, agent: &Agent<'gen>) -> OuterEnv<'gen> {
         match self {
             EnvironmentIndex::Declarative(index) => agent[index].outer_env,
             EnvironmentIndex::Function(index) => {
@@ -216,7 +216,7 @@ impl EnvironmentIndex {
     ///
     /// Determine if an Environment Record has a binding for the String value
     /// N. Return true if it does and false if it does not.
-    pub(crate) fn has_binding(self, agent: &mut Agent, name: String) -> JsResult<bool> {
+    pub(crate) fn has_binding(self, agent: &mut Agent<'gen>, name: String<'gen>) -> JsResult<'gen, bool> {
         match self {
             EnvironmentIndex::Declarative(idx) => Ok(idx.has_binding(agent, name)),
             EnvironmentIndex::Function(idx) => Ok(idx.has_binding(agent, name)),
@@ -232,10 +232,10 @@ impl EnvironmentIndex {
     /// Boolean argument D is true the binding may be subsequently deleted.
     pub(crate) fn create_mutable_binding(
         self,
-        agent: &mut Agent,
-        name: String,
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
         is_deletable: bool,
-    ) -> JsResult<()> {
+    ) -> JsResult<'gen, ()> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
                 idx.create_mutable_binding(agent, name, is_deletable);
@@ -259,10 +259,10 @@ impl EnvironmentIndex {
     /// reference that binding.
     pub(crate) fn create_immutable_binding(
         self,
-        agent: &mut Agent,
-        name: String,
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
         is_strict: bool,
-    ) -> JsResult<()> {
+    ) -> JsResult<'gen, ()> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
                 idx.create_immutable_binding(agent, name, is_strict);
@@ -288,10 +288,10 @@ impl EnvironmentIndex {
     /// language type.
     pub(crate) fn initialize_binding(
         self,
-        agent: &mut Agent,
-        name: String,
-        value: Value,
-    ) -> JsResult<()> {
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
+        value: Value<'gen>,
+    ) -> JsResult<'gen, ()> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
                 idx.initialize_binding(agent, name, value);
@@ -315,11 +315,11 @@ impl EnvironmentIndex {
     /// throw a TypeError exception.
     pub(crate) fn set_mutable_binding(
         self,
-        agent: &mut Agent,
-        name: String,
-        value: Value,
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
+        value: Value<'gen>,
         is_strict: bool,
-    ) -> JsResult<()> {
+    ) -> JsResult<'gen, ()> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
                 idx.set_mutable_binding(agent, name, value, is_strict)
@@ -343,10 +343,10 @@ impl EnvironmentIndex {
     /// value of S.
     pub(crate) fn get_binding_value(
         self,
-        agent: &mut Agent,
-        name: String,
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
         is_strict: bool,
-    ) -> JsResult<Value> {
+    ) -> JsResult<'gen, Value<'gen>> {
         match self {
             EnvironmentIndex::Declarative(idx) => idx.get_binding_value(agent, name, is_strict),
             EnvironmentIndex::Function(idx) => idx.get_binding_value(agent, name, is_strict),
@@ -361,7 +361,7 @@ impl EnvironmentIndex {
     /// text of the bound name. If a binding for N exists, remove the binding
     /// and return true. If the binding exists but cannot be removed return
     /// false.
-    pub(crate) fn delete_binding(self, agent: &mut Agent, name: String) -> JsResult<bool> {
+    pub(crate) fn delete_binding(self, agent: &mut Agent<'gen>, name: String<'gen>) -> JsResult<'gen, bool> {
         match self {
             EnvironmentIndex::Declarative(idx) => Ok(idx.delete_binding(agent, name)),
             EnvironmentIndex::Function(idx) => Ok(idx.delete_binding(agent, name)),
@@ -374,7 +374,7 @@ impl EnvironmentIndex {
     ///
     /// Determine if an Environment Record establishes a this binding. Return
     /// true if it does and false if it does not.
-    pub(crate) fn has_this_binding(self, agent: &mut Agent) -> bool {
+    pub(crate) fn has_this_binding(self, agent: &mut Agent<'gen>) -> bool {
         match self {
             EnvironmentIndex::Declarative(idx) => idx.has_this_binding(),
             EnvironmentIndex::Function(idx) => idx.has_this_binding(agent),
@@ -387,7 +387,7 @@ impl EnvironmentIndex {
     ///
     /// Determine if an Environment Record establishes a super method binding.
     /// Return true if it does and false if it does not.
-    pub(crate) fn has_super_binding(self, agent: &mut Agent) -> bool {
+    pub(crate) fn has_super_binding(self, agent: &mut Agent<'gen>) -> bool {
         match self {
             EnvironmentIndex::Declarative(idx) => idx.has_super_binding(),
             EnvironmentIndex::Function(idx) => idx.has_super_binding(agent),
@@ -400,7 +400,7 @@ impl EnvironmentIndex {
     ///
     /// If this Environment Record is associated with a with statement, return
     /// the with object. Otherwise, return undefined.
-    pub(crate) fn with_base_object(self, agent: &mut Agent) -> Option<Object> {
+    pub(crate) fn with_base_object(self, agent: &mut Agent<'gen>) -> Option<Object<'gen>> {
         match self {
             EnvironmentIndex::Declarative(idx) => idx.with_base_object(),
             EnvironmentIndex::Function(idx) => idx.with_base_object(),
@@ -410,8 +410,8 @@ impl EnvironmentIndex {
     }
 }
 
-impl HeapMarkAndSweep for EnvironmentIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for EnvironmentIndex<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         match self {
             EnvironmentIndex::Declarative(idx) => idx.mark_values(queues),
             EnvironmentIndex::Function(idx) => idx.mark_values(queues),
@@ -431,15 +431,15 @@ impl HeapMarkAndSweep for EnvironmentIndex {
 }
 
 #[derive(Debug)]
-pub struct Environments {
-    pub(crate) declarative: Vec<Option<DeclarativeEnvironment>>,
-    pub(crate) function: Vec<Option<FunctionEnvironment>>,
-    pub(crate) global: Vec<Option<GlobalEnvironment>>,
-    pub(crate) object: Vec<Option<ObjectEnvironment>>,
-    pub(crate) private: Vec<Option<PrivateEnvironment>>,
+pub struct Environments<'gen> {
+    pub(crate) declarative: Vec<Option<DeclarativeEnvironment<'gen>>>,
+    pub(crate) function: Vec<Option<FunctionEnvironment<'gen>>>,
+    pub(crate) global: Vec<Option<GlobalEnvironment<'gen>>>,
+    pub(crate) object: Vec<Option<ObjectEnvironment<'gen>>>,
+    pub(crate) private: Vec<Option<PrivateEnvironment<'gen>>>,
 }
 
-impl Default for Environments {
+impl Default for Environments<'_> {
     fn default() -> Self {
         Self {
             declarative: Vec::with_capacity(256),
@@ -457,12 +457,12 @@ impl Default for Environments {
 /// Environment Record or null), name (a String), and strict (a Boolean) and
 /// returns either a normal completion containing a Reference Record or a throw
 /// completion.
-pub(crate) fn get_identifier_reference(
-    agent: &mut Agent,
-    env: Option<EnvironmentIndex>,
-    name: String,
+pub(crate) fn get_identifier_reference<'gen>(
+    agent: &mut Agent<'gen>,
+    env: Option<EnvironmentIndex<'gen>>,
+    name: String<'gen>,
     strict: bool,
-) -> JsResult<Reference> {
+) -> JsResult<'gen, Reference<'gen>> {
     // 1. If env is null, then
     let Some(env) = env else {
         // a. Return the Reference Record {
@@ -507,43 +507,43 @@ pub(crate) fn get_identifier_reference(
     }
 }
 
-impl Environments {
+impl<'gen> Environments<'gen> {
     pub(crate) fn push_declarative_environment(
         &mut self,
-        env: DeclarativeEnvironment,
-    ) -> DeclarativeEnvironmentIndex {
+        env: DeclarativeEnvironment<'gen>,
+    ) -> DeclarativeEnvironmentIndex<'gen> {
         self.declarative.push(Some(env));
         DeclarativeEnvironmentIndex::from_u32(self.declarative.len() as u32)
     }
 
     pub(crate) fn push_function_environment(
         &mut self,
-        env: FunctionEnvironment,
-    ) -> FunctionEnvironmentIndex {
+        env: FunctionEnvironment<'gen>,
+    ) -> FunctionEnvironmentIndex<'gen> {
         self.function.push(Some(env));
         FunctionEnvironmentIndex::from_u32(self.function.len() as u32)
     }
 
     pub(crate) fn push_global_environment(
         &mut self,
-        env: GlobalEnvironment,
-    ) -> GlobalEnvironmentIndex {
+        env: GlobalEnvironment<'gen>,
+    ) -> GlobalEnvironmentIndex<'gen> {
         self.global.push(Some(env));
         GlobalEnvironmentIndex::from_u32(self.global.len() as u32)
     }
 
     pub(crate) fn push_object_environment(
         &mut self,
-        env: ObjectEnvironment,
-    ) -> ObjectEnvironmentIndex {
+        env: ObjectEnvironment<'gen>,
+    ) -> ObjectEnvironmentIndex<'gen> {
         self.object.push(Some(env));
         ObjectEnvironmentIndex::from_u32(self.object.len() as u32)
     }
 
     pub(crate) fn get_declarative_environment(
         &self,
-        index: DeclarativeEnvironmentIndex,
-    ) -> &DeclarativeEnvironment {
+        index: DeclarativeEnvironmentIndex<'gen>,
+    ) -> &DeclarativeEnvironment<'gen> {
         self.declarative
             .get(index.into_index())
             .expect("DeclarativeEnvironmentIndex did not match to any vector index")
@@ -553,8 +553,8 @@ impl Environments {
 
     pub(crate) fn get_declarative_environment_mut(
         &mut self,
-        index: DeclarativeEnvironmentIndex,
-    ) -> &mut DeclarativeEnvironment {
+        index: DeclarativeEnvironmentIndex<'gen>,
+    ) -> &mut DeclarativeEnvironment<'gen> {
         self.declarative
             .get_mut(index.into_index())
             .expect("DeclarativeEnvironmentIndex did not match to any vector index")
@@ -564,8 +564,8 @@ impl Environments {
 
     pub(crate) fn get_function_environment(
         &self,
-        index: FunctionEnvironmentIndex,
-    ) -> &FunctionEnvironment {
+        index: FunctionEnvironmentIndex<'gen>,
+    ) -> &FunctionEnvironment<'gen> {
         self.function
             .get(index.into_index())
             .expect("FunctionEnvironmentIndex did not match to any vector index")
@@ -575,8 +575,8 @@ impl Environments {
 
     pub(crate) fn get_function_environment_mut(
         &mut self,
-        index: FunctionEnvironmentIndex,
-    ) -> &mut FunctionEnvironment {
+        index: FunctionEnvironmentIndex<'gen>,
+    ) -> &mut FunctionEnvironment<'gen> {
         self.function
             .get_mut(index.into_index())
             .expect("FunctionEnvironmentIndex did not match to any vector index")
@@ -586,8 +586,8 @@ impl Environments {
 
     pub(crate) fn get_global_environment(
         &self,
-        index: GlobalEnvironmentIndex,
-    ) -> &GlobalEnvironment {
+        index: GlobalEnvironmentIndex<'gen>,
+    ) -> &GlobalEnvironment<'gen> {
         self.global
             .get(index.into_index())
             .expect("GlobalEnvironmentIndex did not match to any vector index")
@@ -597,8 +597,8 @@ impl Environments {
 
     pub(crate) fn get_global_environment_mut(
         &mut self,
-        index: GlobalEnvironmentIndex,
-    ) -> &mut GlobalEnvironment {
+        index: GlobalEnvironmentIndex<'gen>,
+    ) -> &mut GlobalEnvironment<'gen> {
         self.global
             .get_mut(index.into_index())
             .expect("GlobalEnvironmentIndex did not match to any vector index")
@@ -608,8 +608,8 @@ impl Environments {
 
     pub(crate) fn get_object_environment(
         &self,
-        index: ObjectEnvironmentIndex,
-    ) -> &ObjectEnvironment {
+        index: ObjectEnvironmentIndex<'gen>,
+    ) -> &ObjectEnvironment<'gen> {
         self.object
             .get(index.into_index())
             .expect("ObjectEnvironmentIndex did not match to any vector index")
@@ -619,8 +619,8 @@ impl Environments {
 
     pub(crate) fn get_object_environment_mut(
         &mut self,
-        index: ObjectEnvironmentIndex,
-    ) -> &mut ObjectEnvironment {
+        index: ObjectEnvironmentIndex<'gen>,
+    ) -> &mut ObjectEnvironment<'gen> {
         self.object
             .get_mut(index.into_index())
             .expect("ObjectEnvironmentIndex did not match to any vector index")
@@ -633,7 +633,7 @@ impl Environments {
 /// The abstract operation GetThisEnvironment takes no arguments and returns an
 /// Environment Record. It finds the Environment Record that currently supplies
 /// the binding of the keyword this.
-pub(crate) fn get_this_environment(agent: &mut Agent) -> EnvironmentIndex {
+pub(crate) fn get_this_environment<'gen>(agent: &mut Agent<'gen>) -> EnvironmentIndex<'gen> {
     // 1. Let env be the running execution context's LexicalEnvironment.
     let mut env = agent
         .running_execution_context()

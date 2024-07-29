@@ -9,12 +9,12 @@ use crate::{
 use std::time::SystemTime;
 
 #[derive(Debug, Clone, Copy)]
-pub struct DateHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+pub struct DateHeapData<'gen> {
+    pub(crate) object_index: Option<OrdinaryObject<'gen>>,
     pub(crate) date: Option<SystemTime>,
 }
 
-impl DateHeapData {
+impl DateHeapData<'static> {
     pub(crate) fn new_invalid() -> Self {
         Self {
             object_index: None,
@@ -23,8 +23,8 @@ impl DateHeapData {
     }
 }
 
-impl HeapMarkAndSweep for DateHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for DateHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.object_index.mark_values(queues);
     }
 

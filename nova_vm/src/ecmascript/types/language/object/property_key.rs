@@ -23,32 +23,32 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum PropertyKey {
+pub enum PropertyKey<'gen> {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
-    String(HeapString) = STRING_DISCRIMINANT,
-    Symbol(Symbol) = SYMBOL_DISCRIMINANT,
+    String(HeapString<'gen>) = STRING_DISCRIMINANT,
+    Symbol(Symbol<'gen>) = SYMBOL_DISCRIMINANT,
     // TODO: PrivateKey
 }
 
-impl PropertyKey {
+impl<'gen> PropertyKey<'gen> {
     // FIXME: This API is not necessarily in the right place.
-    pub fn from_str(agent: &mut Agent, str: &str) -> Self {
+    pub fn from_str<'gen>(agent: &mut Agent<'gen>, str: &str) -> Self {
         parse_string_to_integer_property_key(str)
             .unwrap_or_else(|| String::from_str(agent, str).into())
     }
 
-    pub fn from_static_str(agent: &mut Agent, str: &'static str) -> Self {
+    pub fn from_static_str<'gen>(agent: &mut Agent<'gen>, str: &'static str) -> Self {
         parse_string_to_integer_property_key(str)
             .unwrap_or_else(|| String::from_static_str(agent, str).into())
     }
 
-    pub fn from_string(agent: &mut Agent, string: std::string::String) -> Self {
+    pub fn from_string<'gen>(agent: &mut Agent<'gen>, string: std::string::String) -> Self {
         parse_string_to_integer_property_key(&string)
             .unwrap_or_else(|| String::from_string(agent, string).into())
     }
 
-    pub fn into_value(self) -> Value {
+    pub fn into_value(self) -> Value<'gen> {
         self.into()
     }
 
@@ -62,7 +62,7 @@ impl PropertyKey {
         s == n.to_string()
     }
 
-    pub fn equals(self, agent: &mut Agent, y: Self) -> bool {
+    pub fn equals(self, agent: &mut Agent<'gen>, y: Self) -> bool {
         let x = self;
 
         match (x, y) {
@@ -85,17 +85,17 @@ impl PropertyKey {
         }
     }
 
-    pub(crate) fn as_display<'a, 'b>(&'a self, agent: &'b Agent) -> DisplayablePropertyKey<'a, 'b> {
+    pub(crate) fn as_display<'a, 'b>(&'a self, agent: &'b Agent<'gen>) -> DisplayablePropertyKey<'gen, 'a, 'b> {
         DisplayablePropertyKey { key: self, agent }
     }
 }
 
-pub(crate) struct DisplayablePropertyKey<'a, 'b> {
-    key: &'a PropertyKey,
-    agent: &'b Agent,
+pub(crate) struct DisplayablePropertyKey<'gen, 'a, 'b> {
+    key: &'a PropertyKey<'gen>,
+    agent: &'b Agent<'gen>,
 }
 
-impl<'a, 'b> core::fmt::Display for DisplayablePropertyKey<'a, 'b> {
+impl<'a, 'b> core::fmt::Display for DisplayablePropertyKey<'_, 'a, 'b> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.key {
             PropertyKey::Integer(data) => data.into_i64().fmt(f),
@@ -113,68 +113,68 @@ impl<'a, 'b> core::fmt::Display for DisplayablePropertyKey<'a, 'b> {
     }
 }
 
-impl From<u32> for PropertyKey {
+impl From<u32> for PropertyKey<'static> {
     fn from(value: u32) -> Self {
         PropertyKey::Integer(value.into())
     }
 }
 
-impl From<u16> for PropertyKey {
+impl From<u16> for PropertyKey<'static> {
     fn from(value: u16) -> Self {
         PropertyKey::Integer(value.into())
     }
 }
 
-impl From<u8> for PropertyKey {
+impl From<u8> for PropertyKey<'static> {
     fn from(value: u8) -> Self {
         PropertyKey::Integer(value.into())
     }
 }
 
-impl From<i32> for PropertyKey {
+impl From<i32> for PropertyKey<'static> {
     fn from(value: i32) -> Self {
         PropertyKey::Integer(value.into())
     }
 }
 
-impl From<i16> for PropertyKey {
+impl From<i16> for PropertyKey<'static> {
     fn from(value: i16) -> Self {
         PropertyKey::Integer(value.into())
     }
 }
 
-impl From<i8> for PropertyKey {
+impl From<i8> for PropertyKey<'static> {
     fn from(value: i8) -> Self {
         PropertyKey::Integer(value.into())
     }
 }
 
-impl From<SmallInteger> for PropertyKey {
+impl From<SmallInteger> for PropertyKey<'static> {
     fn from(value: SmallInteger) -> Self {
         PropertyKey::Integer(value)
     }
 }
 
-impl From<SmallString> for PropertyKey {
+impl From<SmallString> for PropertyKey<'static> {
     fn from(value: SmallString) -> Self {
         PropertyKey::SmallString(value)
     }
 }
 
-impl From<HeapString> for PropertyKey {
-    fn from(value: HeapString) -> Self {
+impl<'gen> From<HeapString<'gen>> for PropertyKey<'gen> {
+    fn from(value: HeapString<'gen>) -> Self {
         PropertyKey::String(value)
     }
 }
 
-impl From<Symbol> for PropertyKey {
-    fn from(value: Symbol) -> Self {
+impl<'gen> From<Symbol<'gen>> for PropertyKey<'gen> {
+    fn from(value: Symbol<'gen>) -> Self {
         PropertyKey::Symbol(value)
     }
 }
 
-impl From<String> for PropertyKey {
-    fn from(value: String) -> Self {
+impl<'gen> From<String<'gen>> for PropertyKey<'gen> {
+    fn from(value: String<'gen>) -> Self {
         match value {
             String::String(x) => PropertyKey::String(x),
             String::SmallString(x) => PropertyKey::SmallString(x),
@@ -182,8 +182,8 @@ impl From<String> for PropertyKey {
     }
 }
 
-impl From<PropertyKey> for Value {
-    fn from(value: PropertyKey) -> Self {
+impl<'gen> From<PropertyKey<'gen>> for Value<'gen> {
+    fn from(value: PropertyKey<'gen>) -> Self {
         match value {
             PropertyKey::Integer(x) => Value::Integer(x),
             PropertyKey::SmallString(x) => Value::SmallString(x),
@@ -193,11 +193,11 @@ impl From<PropertyKey> for Value {
     }
 }
 
-impl TryFrom<Value> for PropertyKey {
+impl<'gen> TryFrom<Value<'gen>> for PropertyKey<'gen> {
     type Error = ();
 
     #[inline(always)]
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'gen>) -> Result<Self, Self::Error> {
         match value {
             Value::Integer(x) => Ok(PropertyKey::Integer(x)),
             Value::SmallF64(x) => {
@@ -226,7 +226,7 @@ impl TryFrom<Value> for PropertyKey {
     }
 }
 
-impl TryFrom<i64> for PropertyKey {
+impl TryFrom<i64> for PropertyKey<'static> {
     type Error = ();
 
     fn try_from(value: i64) -> Result<Self, ()> {
@@ -234,7 +234,7 @@ impl TryFrom<i64> for PropertyKey {
     }
 }
 
-impl TryFrom<usize> for PropertyKey {
+impl TryFrom<usize> for PropertyKey<'static> {
     type Error = ();
 
     fn try_from(value: usize) -> Result<Self, ()> {
@@ -246,8 +246,8 @@ impl TryFrom<usize> for PropertyKey {
     }
 }
 
-impl HeapMarkAndSweep for PropertyKey {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for PropertyKey<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         match self {
             PropertyKey::Integer(_) => {}
             PropertyKey::SmallString(_) => {}

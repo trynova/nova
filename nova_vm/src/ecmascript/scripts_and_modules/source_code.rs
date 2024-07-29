@@ -26,12 +26,12 @@ use crate::{
     },
 };
 
-type SourceCodeIndex = BaseIndex<SourceCodeHeapData>;
+type SourceCodeIndex<'gen> = BaseIndex<'gen, SourceCodeHeapData<'gen>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct SourceCode(SourceCodeIndex);
+pub(crate) struct SourceCode<'gen>(SourceCodeIndex<'gen>);
 
-impl SourceCode {
+impl<'gen> SourceCode<'gen> {
     /// Parses the given source string as JavaScript code and returns the
     /// parsed result and a SourceCode heap reference.
     ///
@@ -40,8 +40,8 @@ impl SourceCode {
     /// The caller must keep the SourceCode from being garbage collected until
     /// they drop the parsed code.
     pub(crate) unsafe fn parse_source(
-        agent: &mut Agent,
-        source: String,
+        agent: &mut Agent<'gen>,
+        source: String<'gen>,
         source_type: SourceType,
     ) -> Result<(Program<'static>, Self), Vec<OxcDiagnostic>> {
         // If the source code is not a heap string, pad it with whitespace and
@@ -118,7 +118,7 @@ impl SourceCode {
         Ok((program, source_code))
     }
 
-    pub(crate) fn get_source_text(self, agent: &Agent) -> &str {
+    pub(crate) fn get_source_text<'a>(self, agent: &'a Agent<'gen>) -> &'a str {
         agent[agent[self].source].as_str()
     }
 
@@ -127,20 +127,20 @@ impl SourceCode {
     }
 }
 
-pub(crate) struct SourceCodeHeapData {
+pub(crate) struct SourceCodeHeapData<'gen> {
     /// The source JavaScript string data the eval was called with. The string
     /// is known and required to be a HeapString because functions created
     /// in the eval call may keep references to the string data. If the eval
     /// string was small-string optimised and on the stack, then those
     /// references would necessarily and definitely be invalid.
-    source: HeapString,
+    source: HeapString<'gen>,
     /// The arena that contains the parsed data of the eval source.
     allocator: NonNull<Allocator>,
 }
 
-unsafe impl Send for SourceCodeHeapData {}
+unsafe impl Send for SourceCodeHeapData<'_> {}
 
-impl Debug for SourceCodeHeapData {
+impl Debug for SourceCodeHeapData<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SourceCodeHeapData")
             .field("source", &self.source)
@@ -149,7 +149,7 @@ impl Debug for SourceCodeHeapData {
     }
 }
 
-impl Drop for SourceCodeHeapData {
+impl Drop for SourceCodeHeapData<'_> {
     fn drop(&mut self) {
         // SAFETY: All references to this SourceCode should have been dropped
         // before we drop this.
@@ -157,10 +157,10 @@ impl Drop for SourceCodeHeapData {
     }
 }
 
-impl Index<SourceCode> for Agent {
-    type Output = SourceCodeHeapData;
+impl<'gen> Index<SourceCode<'gen>> for Agent<'gen> {
+    type Output = SourceCodeHeapData<'gen>;
 
-    fn index(&self, index: SourceCode) -> &Self::Output {
+    fn index(&self, index: SourceCode<'gen>) -> &Self::Output {
         self.heap
             .source_codes
             .get(index.get_index())
@@ -170,15 +170,15 @@ impl Index<SourceCode> for Agent {
     }
 }
 
-impl CreateHeapData<SourceCodeHeapData, SourceCode> for Heap {
-    fn create(&mut self, data: SourceCodeHeapData) -> SourceCode {
+impl<'gen> CreateHeapData<SourceCodeHeapData<'gen>, SourceCode<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: SourceCodeHeapData<'gen>) -> SourceCode<'gen> {
         self.source_codes.push(Some(data));
         SourceCode(SourceCodeIndex::last(&self.source_codes))
     }
 }
 
-impl HeapMarkAndSweep for SourceCodeHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for SourceCodeHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.source.mark_values(queues);
     }
 
@@ -187,8 +187,8 @@ impl HeapMarkAndSweep for SourceCodeHeapData {
     }
 }
 
-impl HeapMarkAndSweep for SourceCode {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for SourceCode<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.source_codes.push(*self);
     }
 

@@ -26,7 +26,7 @@ use super::property_builder::{self, PropertyBuilder};
 pub struct NoPrototype;
 
 #[derive(Clone, Copy)]
-pub struct CreatorPrototype(Option<Object>);
+pub struct CreatorPrototype(Option<Object<'gen>>);
 
 #[derive(Default, Clone, Copy)]
 pub struct NoLength;
@@ -50,12 +50,12 @@ pub struct CreatorBehaviour(Behaviour);
 pub struct NoProperties;
 
 #[derive(Clone)]
-pub struct CreatorProperties(Vec<(PropertyKey, Option<ElementDescriptor>, Option<Value>)>);
+pub struct CreatorProperties(Vec<(PropertyKey, Option<ElementDescriptor<'gen>>, Option<Value<'gen>>)>);
 
 pub struct BuiltinFunctionBuilder<'agent, P, L, N, B, Pr> {
     pub(crate) agent: &'agent mut Agent,
     this: BuiltinFunction,
-    object_index: Option<OrdinaryObject>,
+    object_index: Option<OrdinaryObject<'gen>>,
     realm: RealmIdentifier,
     prototype: P,
     length: L,
@@ -181,7 +181,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
     #[must_use]
     pub fn with_prototype(
         self,
-        prototype: Object,
+        prototype: Object<'gen>,
     ) -> BuiltinFunctionBuilder<'agent, CreatorPrototype, L, N, B, Pr> {
         let object_index = if prototype
             != self
@@ -258,7 +258,7 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
     #[must_use]
     pub fn with_name(
         self,
-        name: String,
+        name: String<'gen>,
     ) -> BuiltinFunctionBuilder<'agent, P, L, CreatorName, B, Pr> {
         BuiltinFunctionBuilder {
             agent: self.agent,
@@ -317,8 +317,8 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
     #[must_use]
     pub fn with_data_property(
         self,
-        key: PropertyKey,
-        value: Value,
+        key: PropertyKey<'gen>,
+        value: Value<'gen>,
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
@@ -355,7 +355,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
         self,
         creator: impl FnOnce(
             PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
-        ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
+        ) -> (PropertyKey, Option<ElementDescriptor<'gen>>, Option<Value<'gen>>),
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
@@ -396,8 +396,8 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
     #[must_use]
     pub fn with_data_property(
         mut self,
-        key: PropertyKey,
-        value: Value,
+        key: PropertyKey<'gen>,
+        value: Value<'gen>,
     ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
         self.properties.0.push((key, None, Some(value)));
         BuiltinFunctionBuilder {
@@ -418,7 +418,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         mut self,
         creator: impl FnOnce(
             PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
-        ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
+        ) -> (PropertyKey, Option<ElementDescriptor<'gen>>, Option<Value<'gen>>),
     ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
         let builder = PropertyBuilder::new(self.agent);
         let property = creator(builder);
@@ -437,7 +437,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
     }
 
     #[must_use]
-    pub fn with_prototype_property(mut self, prototype: Object) -> Self {
+    pub fn with_prototype_property(mut self, prototype: Object<'gen>) -> Self {
         let property = PropertyBuilder::new(self.agent)
             .with_configurable(false)
             .with_enumerable(false)

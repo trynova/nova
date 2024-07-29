@@ -8,12 +8,12 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct SymbolHeapData {
-    pub(crate) descriptor: Option<String>,
+pub struct SymbolHeapData<'gen> {
+    pub(crate) descriptor: Option<String<'gen>>,
 }
 
-impl HeapMarkAndSweep for SymbolHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for SymbolHeapData<'_> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.descriptor.mark_values(queues);
     }
 

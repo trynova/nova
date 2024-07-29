@@ -25,9 +25,9 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Set(pub(crate) SetIndex);
+pub struct Set<'gen>(pub(crate) SetIndex<'gen>);
 
-impl Set {
+impl Set<'_> {
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -37,46 +37,46 @@ impl Set {
     }
 }
 
-impl From<Set> for SetIndex {
-    fn from(val: Set) -> Self {
+impl<'gen> From<Set<'gen>> for SetIndex<'gen> {
+    fn from(val: Set<'gen>) -> Self {
         val.0
     }
 }
 
-impl From<SetIndex> for Set {
-    fn from(value: SetIndex) -> Self {
+impl<'gen> From<SetIndex<'gen>> for Set<'gen> {
+    fn from(value: SetIndex<'gen>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for Set {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for Set<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for Set {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for Set<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<Set> for Value {
-    fn from(val: Set) -> Self {
+impl<'gen> From<Set<'gen>> for Value<'gen> {
+    fn from(val: Set<'gen>) -> Self {
         Value::Set(val)
     }
 }
 
-impl From<Set> for Object {
-    fn from(val: Set) -> Self {
+impl<'gen> From<Set<'gen>> for Object<'gen> {
+    fn from(val: Set<'gen>) -> Self {
         Object::Set(val)
     }
 }
 
-impl TryFrom<Value> for Set {
+impl<'gen> TryFrom<Value<'gen>> for Set<'gen> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'gen>) -> Result<Self, Self::Error> {
         if let Value::Set(set) = value {
             Ok(set)
         } else {
@@ -85,10 +85,10 @@ impl TryFrom<Value> for Set {
     }
 }
 
-impl TryFrom<Object> for Set {
+impl<'gen> TryFrom<Object<'gen>> for Set<'gen> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'gen>) -> Result<Self, Self::Error> {
         if let Object::Set(set) = value {
             Ok(set)
         } else {
@@ -97,7 +97,7 @@ impl TryFrom<Object> for Set {
     }
 }
 
-fn create_set_base_object(agent: &mut Agent, set: Set, entries: &[ObjectEntry]) -> OrdinaryObject {
+fn create_set_base_object<'gen>(agent: &mut Agent<'gen>, set: Set<'gen>, entries: &[ObjectEntry<'gen>]) -> OrdinaryObject<'gen> {
     // TODO: An issue crops up if multiple realms are in play:
     // The prototype should not be dependent on the realm we're operating in
     // but should instead be bound to the realm the object was created in.
@@ -111,15 +111,15 @@ fn create_set_base_object(agent: &mut Agent, set: Set, entries: &[ObjectEntry]) 
     object_index
 }
 
-impl InternalSlots for Set {
+impl<'gen> InternalSlots<'gen> for Set<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Set;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         let prototype = agent
             .current_realm()
             .intrinsics()
@@ -135,10 +135,10 @@ impl InternalSlots for Set {
     }
 }
 
-impl InternalMethods for Set {}
+impl<'gen> InternalMethods<'gen> for Set<'gen> {}
 
-impl HeapMarkAndSweep for Set {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Set<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.sets.push(*self);
     }
 
@@ -147,24 +147,24 @@ impl HeapMarkAndSweep for Set {
     }
 }
 
-impl Index<Set> for Agent {
-    type Output = SetHeapData;
+impl<'gen> Index<Set<'gen>> for Agent<'gen> {
+    type Output = SetHeapData<'gen>;
 
-    fn index(&self, index: Set) -> &Self::Output {
+    fn index(&self, index: Set<'gen>) -> &Self::Output {
         &self.heap.sets[index]
     }
 }
 
-impl IndexMut<Set> for Agent {
-    fn index_mut(&mut self, index: Set) -> &mut Self::Output {
+impl<'gen> IndexMut<Set<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: Set<'gen>) -> &mut Self::Output {
         &mut self.heap.sets[index]
     }
 }
 
-impl Index<Set> for Vec<Option<SetHeapData>> {
-    type Output = SetHeapData;
+impl<'gen> Index<Set<'gen>> for Vec<Option<SetHeapData<'gen>>> {
+    type Output = SetHeapData<'gen>;
 
-    fn index(&self, index: Set) -> &Self::Output {
+    fn index(&self, index: Set<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("Set out of bounds")
             .as_ref()
@@ -172,8 +172,8 @@ impl Index<Set> for Vec<Option<SetHeapData>> {
     }
 }
 
-impl IndexMut<Set> for Vec<Option<SetHeapData>> {
-    fn index_mut(&mut self, index: Set) -> &mut Self::Output {
+impl<'gen> IndexMut<Set<'gen>> for Vec<Option<SetHeapData<'gen>>> {
+    fn index_mut(&mut self, index: Set<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Set out of bounds")
             .as_mut()
@@ -181,8 +181,8 @@ impl IndexMut<Set> for Vec<Option<SetHeapData>> {
     }
 }
 
-impl CreateHeapData<SetHeapData, Set> for Heap {
-    fn create(&mut self, data: SetHeapData) -> Set {
+impl<'gen> CreateHeapData<SetHeapData<'gen>, Set<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: SetHeapData<'gen>) -> Set<'gen> {
         self.sets.push(Some(data));
         Set(SetIndex::last(&self.sets))
     }

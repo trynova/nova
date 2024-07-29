@@ -5,9 +5,9 @@
 use super::Function;
 use crate::ecmascript::types::language::IntoObject;
 
-pub trait IntoFunction
+pub trait IntoFunction<'gen>
 where
-    Self: Sized + Copy + IntoObject,
+    Self: Sized + Copy + IntoObject<'gen>,
 {
-    fn into_function(self) -> Function;
+    fn into_function(self) -> Function<'gen>;
 }

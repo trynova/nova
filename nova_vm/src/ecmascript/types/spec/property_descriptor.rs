@@ -19,18 +19,18 @@ use crate::{
 
 /// ### [6.2.6 The Property Descriptor Specification Type](https://tc39.es/ecma262/#sec-property-descriptor-specification-type)
 #[derive(Debug, Clone, Default)]
-pub struct PropertyDescriptor {
+pub struct PropertyDescriptor<'gen> {
     /// \[\[Value]]
-    pub value: Option<Value>,
+    pub value: Option<Value<'gen>>,
 
     /// \[\[Writable]]
     pub writable: Option<bool>,
 
     /// \[\[Get]]
-    pub get: Option<Function>,
+    pub get: Option<Function<'gen>>,
 
     /// \[\[Set]]
-    pub set: Option<Function>,
+    pub set: Option<Function<'gen>>,
 
     /// \[\[Enumerable]]
     pub enumerable: Option<bool>,
@@ -39,8 +39,8 @@ pub struct PropertyDescriptor {
     pub configurable: Option<bool>,
 }
 
-impl PropertyDescriptor {
-    pub fn new_data_descriptor(value: Value) -> Self {
+impl<'gen> PropertyDescriptor<'gen> {
+    pub fn new_data_descriptor(value: Value<'gen>) -> Self {
         Self {
             value: Some(value),
             writable: Some(true),
@@ -92,8 +92,8 @@ impl PropertyDescriptor {
     /// Property Descriptor or undefined) and returns an Object or undefined.
     pub fn from_property_descriptor(
         desc: Option<Self>,
-        agent: &mut Agent,
-    ) -> Option<OrdinaryObject> {
+        agent: &mut Agent<'gen>,
+    ) -> Option<OrdinaryObject<'gen>> {
         // 1. If Desc is undefined, return undefined.
         let desc = desc?;
 
@@ -175,7 +175,7 @@ impl PropertyDescriptor {
     /// The abstract operation ToPropertyDescriptor takes argument Obj (an
     /// ECMAScript language value) and returns either a normal completion
     /// containing a Property Descriptor or a throw completion.
-    pub fn to_property_descriptor(agent: &mut Agent, obj: Value) -> JsResult<Self> {
+    pub fn to_property_descriptor<'gen>(agent: &mut Agent<'gen>, obj: Value<'gen>) -> JsResult<'gen, Self> {
         // 1. If Obj is not an Object, throw a TypeError exception.
         let Ok(obj) = Object::try_from(obj) else {
             let obj_repr = obj.string_repr(agent);

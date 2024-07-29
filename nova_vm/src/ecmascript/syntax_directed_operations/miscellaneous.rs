@@ -18,12 +18,12 @@ use oxc_ast::ast;
 /// The syntax-directed operation InstantiateFunctionObject takes arguments env
 /// (an Environment Record) and privateEnv (a PrivateEnvironment Record or
 /// null) and returns an ECMAScript function object.
-pub(crate) fn instantiate_function_object(
-    agent: &mut Agent,
+pub(crate) fn instantiate_function_object<'gen>(
+    agent: &mut Agent<'gen>,
     function: &ast::Function<'_>,
-    env: EnvironmentIndex,
-    private_env: Option<PrivateEnvironmentIndex>,
-) -> ECMAScriptFunction {
+    env: EnvironmentIndex<'gen>,
+    private_env: Option<PrivateEnvironmentIndex<'gen>>,
+) -> ECMAScriptFunction<'gen> {
     // FunctionDeclaration :
     // function BindingIdentifier ( FormalParameters ) { FunctionBody }
     // function ( FormalParameters ) { FunctionBody }

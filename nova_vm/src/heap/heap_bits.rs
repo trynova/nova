@@ -93,51 +93,51 @@ pub struct HeapBits {
 }
 
 #[derive(Debug)]
-pub(crate) struct WorkQueues {
-    pub array_buffers: Vec<ArrayBuffer>,
-    pub arrays: Vec<Array>,
-    pub bigints: Vec<HeapBigInt>,
-    pub bound_functions: Vec<BoundFunction>,
-    pub builtin_functions: Vec<BuiltinFunction>,
-    pub data_views: Vec<DataView>,
-    pub dates: Vec<Date>,
-    pub declarative_environments: Vec<DeclarativeEnvironmentIndex>,
-    pub e_2_10: Vec<(ElementIndex, u32)>,
-    pub e_2_12: Vec<(ElementIndex, u32)>,
-    pub e_2_16: Vec<(ElementIndex, u32)>,
-    pub e_2_24: Vec<(ElementIndex, u32)>,
-    pub e_2_32: Vec<(ElementIndex, u32)>,
-    pub e_2_4: Vec<(ElementIndex, u32)>,
-    pub e_2_6: Vec<(ElementIndex, u32)>,
-    pub e_2_8: Vec<(ElementIndex, u32)>,
-    pub ecmascript_functions: Vec<ECMAScriptFunction>,
-    pub embedder_objects: Vec<EmbedderObject>,
-    pub source_codes: Vec<SourceCode>,
-    pub errors: Vec<Error>,
-    pub finalization_registrys: Vec<FinalizationRegistry>,
-    pub function_environments: Vec<FunctionEnvironmentIndex>,
-    pub global_environments: Vec<GlobalEnvironmentIndex>,
-    pub maps: Vec<Map>,
-    pub modules: Vec<Module>,
-    pub numbers: Vec<HeapNumber>,
-    pub object_environments: Vec<ObjectEnvironmentIndex>,
-    pub objects: Vec<OrdinaryObject>,
-    pub primitive_objects: Vec<PrimitiveObject>,
-    pub promises: Vec<Promise>,
-    pub promise_reaction_records: Vec<PromiseReaction>,
-    pub promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction>,
-    pub proxys: Vec<Proxy>,
-    pub realms: Vec<RealmIdentifier>,
-    pub regexps: Vec<RegExp>,
-    pub scripts: Vec<ScriptIdentifier>,
-    pub sets: Vec<Set>,
-    pub shared_array_buffers: Vec<SharedArrayBuffer>,
-    pub strings: Vec<HeapString>,
-    pub symbols: Vec<Symbol>,
-    pub typed_arrays: Vec<TypedArrayIndex>,
-    pub weak_maps: Vec<WeakMap>,
-    pub weak_refs: Vec<WeakRef>,
-    pub weak_sets: Vec<WeakSet>,
+pub(crate) struct WorkQueues<'gen> {
+    pub array_buffers: Vec<ArrayBuffer<'gen>>,
+    pub arrays: Vec<Array<'gen>>,
+    pub bigints: Vec<HeapBigInt<'gen>>,
+    pub bound_functions: Vec<BoundFunction<'gen>>,
+    pub builtin_functions: Vec<BuiltinFunction<'gen>>,
+    pub data_views: Vec<DataView<'gen>>,
+    pub dates: Vec<Date<'gen>>,
+    pub declarative_environments: Vec<DeclarativeEnvironmentIndex<'gen>>,
+    pub e_2_10: Vec<(ElementIndex<'gen>, u32)>,
+    pub e_2_12: Vec<(ElementIndex<'gen>, u32)>,
+    pub e_2_16: Vec<(ElementIndex<'gen>, u32)>,
+    pub e_2_24: Vec<(ElementIndex<'gen>, u32)>,
+    pub e_2_32: Vec<(ElementIndex<'gen>, u32)>,
+    pub e_2_4: Vec<(ElementIndex<'gen>, u32)>,
+    pub e_2_6: Vec<(ElementIndex<'gen>, u32)>,
+    pub e_2_8: Vec<(ElementIndex<'gen>, u32)>,
+    pub ecmascript_functions: Vec<ECMAScriptFunction<'gen>>,
+    pub embedder_objects: Vec<EmbedderObject<'gen>>,
+    pub source_codes: Vec<SourceCode<'gen>>,
+    pub errors: Vec<Error<'gen>>,
+    pub finalization_registrys: Vec<FinalizationRegistry<'gen>>,
+    pub function_environments: Vec<FunctionEnvironmentIndex<'gen>>,
+    pub global_environments: Vec<GlobalEnvironmentIndex<'gen>>,
+    pub maps: Vec<Map<'gen>>,
+    pub modules: Vec<Module<'gen>>,
+    pub numbers: Vec<HeapNumber<'gen>>,
+    pub object_environments: Vec<ObjectEnvironmentIndex<'gen>>,
+    pub objects: Vec<OrdinaryObject<'gen>>,
+    pub primitive_objects: Vec<PrimitiveObject<'gen>>,
+    pub promises: Vec<Promise<'gen>>,
+    pub promise_reaction_records: Vec<PromiseReaction<'gen>>,
+    pub promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction<'gen>>,
+    pub proxys: Vec<Proxy<'gen>>,
+    pub realms: Vec<RealmIdentifier<'gen>>,
+    pub regexps: Vec<RegExp<'gen>>,
+    pub scripts: Vec<ScriptIdentifier<'gen>>,
+    pub sets: Vec<Set<'gen>>,
+    pub shared_array_buffers: Vec<SharedArrayBuffer<'gen>>,
+    pub strings: Vec<HeapString<'gen>>,
+    pub symbols: Vec<Symbol<'gen>>,
+    pub typed_arrays: Vec<TypedArrayIndex<'gen>>,
+    pub weak_maps: Vec<WeakMap<'gen>>,
+    pub weak_refs: Vec<WeakRef<'gen>>,
+    pub weak_sets: Vec<WeakSet<'gen>>,
 }
 
 impl HeapBits {
@@ -235,8 +235,8 @@ impl HeapBits {
     }
 }
 
-impl WorkQueues {
-    pub fn new(heap: &Heap) -> Self {
+impl<'gen> WorkQueues<'gen> {
+    pub fn new(heap: &Heap<'gen>) -> Self {
         Self {
             array_buffers: Vec::with_capacity(heap.array_buffers.len() / 4),
             arrays: Vec::with_capacity(heap.arrays.len() / 4),
@@ -287,7 +287,7 @@ impl WorkQueues {
         }
     }
 
-    pub fn push_value(&mut self, value: Value) {
+    pub fn push_value(&mut self, value: Value<'gen>) {
         match value {
             Value::Array(idx) => self.arrays.push(idx),
             Value::ArrayBuffer(idx) => self.array_buffers.push(idx),
@@ -652,13 +652,13 @@ impl CompactionLists {
     }
 }
 
-pub(crate) trait HeapMarkAndSweep {
+pub(crate) trait HeapMarkAndSweep<'gen> {
     /// Mark all Heap references contained in self
     ///
     /// To mark a HeapIndex, push it into the relevant queue in
     /// WorkQueues.
     #[allow(unused_variables)]
-    fn mark_values(&self, queues: &mut WorkQueues);
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>);
 
     /// Handle potential sweep of and update Heap references in self
     ///
@@ -670,11 +670,11 @@ pub(crate) trait HeapMarkAndSweep {
     fn sweep_values(&mut self, compactions: &CompactionLists);
 }
 
-impl<T> HeapMarkAndSweep for &T
+impl<'gen, T> HeapMarkAndSweep<'gen> for &T
 where
-    T: HeapMarkAndSweep,
+    T: HeapMarkAndSweep<'gen>,
 {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         (*self).mark_values(queues);
     }
 
@@ -683,11 +683,11 @@ where
     }
 }
 
-impl<T> HeapMarkAndSweep for Option<T>
+impl<'gen, T> HeapMarkAndSweep<'gen> for Option<T>
 where
-    T: HeapMarkAndSweep,
+    T: HeapMarkAndSweep<'gen>,
 {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         if let Some(content) = self {
             content.mark_values(queues);
         }
@@ -700,11 +700,11 @@ where
     }
 }
 
-impl<T> HeapMarkAndSweep for &[T]
+impl<'gen, T> HeapMarkAndSweep<'gen> for &[T]
 where
-    T: HeapMarkAndSweep,
+    T: HeapMarkAndSweep<'gen>,
 {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.iter().for_each(|entry| entry.mark_values(queues));
     }
 
@@ -713,11 +713,11 @@ where
     }
 }
 
-impl<T> HeapMarkAndSweep for &mut [T]
+impl<'gen, T> HeapMarkAndSweep<'gen> for &mut [T]
 where
-    T: HeapMarkAndSweep,
+    T: HeapMarkAndSweep<'gen>,
 {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.iter().for_each(|entry| entry.mark_values(queues))
     }
 
@@ -727,9 +727,9 @@ where
     }
 }
 
-pub(crate) fn mark_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
+pub(crate) fn mark_array_with_u32_length<'gen, T: HeapMarkAndSweep<'gen>, const N: usize>(
     array: &Option<[T; N]>,
-    queues: &mut WorkQueues,
+    queues: &mut WorkQueues<'gen>,
     length: u32,
 ) {
     array.as_ref().unwrap()[..length as usize]
@@ -739,16 +739,16 @@ pub(crate) fn mark_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
         });
 }
 
-pub(crate) fn mark_descriptors(
-    descriptors: &AHashMap<u32, ElementDescriptor>,
-    queues: &mut WorkQueues,
+pub(crate) fn mark_descriptors<'gen>(
+    descriptors: &AHashMap<u32, ElementDescriptor<'gen>>,
+    queues: &mut WorkQueues<'gen>,
 ) {
     for descriptor in descriptors.values() {
         descriptor.mark_values(queues);
     }
 }
 
-fn sweep_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
+fn sweep_array_with_u32_length<'gen, T: HeapMarkAndSweep<'gen>, const N: usize>(
     array: &mut Option<[T; N]>,
     compactions: &CompactionLists,
     length: u32,
@@ -763,7 +763,7 @@ fn sweep_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
         });
 }
 
-pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep + std::fmt::Debug>(
+pub(crate) fn sweep_heap_vector_values<'gen, T: HeapMarkAndSweep<'gen> + std::fmt::Debug>(
     vec: &mut Vec<T>,
     compactions: &CompactionLists,
     bits: &[bool],
@@ -781,8 +781,8 @@ pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep + std::fmt::Debug>(
     });
 }
 
-pub(crate) fn sweep_heap_u8_elements_vector_values<const N: usize>(
-    vec: &mut Vec<Option<[Option<Value>; N]>>,
+pub(crate) fn sweep_heap_u8_elements_vector_values<'gen, const N: usize>(
+    vec: &mut Vec<Option<[Option<Value<'gen>>; N]>>,
     compactions: &CompactionLists,
     u8s: &[(bool, u8)],
 ) {
@@ -799,8 +799,8 @@ pub(crate) fn sweep_heap_u8_elements_vector_values<const N: usize>(
     });
 }
 
-pub(crate) fn sweep_heap_u16_elements_vector_values<const N: usize>(
-    vec: &mut Vec<Option<[Option<Value>; N]>>,
+pub(crate) fn sweep_heap_u16_elements_vector_values<'gen, const N: usize>(
+    vec: &mut Vec<Option<[Option<Value<'gen>>; N]>>,
     compactions: &CompactionLists,
     u16s: &[(bool, u16)],
 ) {
@@ -817,8 +817,8 @@ pub(crate) fn sweep_heap_u16_elements_vector_values<const N: usize>(
     });
 }
 
-pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
-    vec: &mut Vec<Option<[Option<Value>; N]>>,
+pub(crate) fn sweep_heap_u32_elements_vector_values<'gen, const N: usize>(
+    vec: &mut Vec<Option<[Option<Value<'gen>>; N]>>,
     compactions: &CompactionLists,
     u32s: &[(bool, u32)],
 ) {
@@ -835,8 +835,8 @@ pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
     });
 }
 
-pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
-    descriptors: &mut AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+pub(crate) fn sweep_heap_elements_vector_descriptors<'gen, T>(
+    descriptors: &mut AHashMap<ElementIndex<'gen>, AHashMap<u32, ElementDescriptor<'gen>>>,
     compactions: &CompactionLists,
     self_compactions: &CompactionList,
     marks: &[(bool, T)],

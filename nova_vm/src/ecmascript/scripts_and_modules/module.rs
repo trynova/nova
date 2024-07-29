@@ -10,9 +10,9 @@ use std::{
 use crate::ecmascript::{builtins::module::data::ModuleHeapData, execution::Agent};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ModuleIdentifier(u32, PhantomData<ModuleHeapData>);
+pub struct ModuleIdentifier<'gen>(u32, PhantomData<&'gen ModuleHeapData>);
 
-impl ModuleIdentifier {
+impl ModuleIdentifier<'_> {
     /// Creates a module identififer from a usize.
     ///
     /// ## Panics
@@ -41,7 +41,7 @@ impl ModuleIdentifier {
     }
 }
 
-impl Index<ModuleIdentifier> for Agent {
+impl<'gen> Index<ModuleIdentifier<'gen>> for Agent<'gen> {
     type Output = ModuleHeapData;
 
     fn index(&self, index: ModuleIdentifier) -> &Self::Output {
@@ -49,13 +49,13 @@ impl Index<ModuleIdentifier> for Agent {
     }
 }
 
-impl IndexMut<ModuleIdentifier> for Agent {
+impl<'gen> IndexMut<ModuleIdentifier<'gen>> for Agent<'gen> {
     fn index_mut(&mut self, index: ModuleIdentifier) -> &mut Self::Output {
         &mut self.heap.modules[index]
     }
 }
 
-impl Index<ModuleIdentifier> for Vec<Option<ModuleHeapData>> {
+impl<'gen> Index<ModuleIdentifier<'gen>> for Vec<Option<ModuleHeapData>> {
     type Output = ModuleHeapData;
 
     fn index(&self, index: ModuleIdentifier) -> &Self::Output {
@@ -66,7 +66,7 @@ impl Index<ModuleIdentifier> for Vec<Option<ModuleHeapData>> {
     }
 }
 
-impl IndexMut<ModuleIdentifier> for Vec<Option<ModuleHeapData>> {
+impl<'gen> IndexMut<ModuleIdentifier<'gen>> for Vec<Option<ModuleHeapData>> {
     fn index_mut(&mut self, index: ModuleIdentifier) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("ModuleIdentifier out of bounds")

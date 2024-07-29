@@ -25,11 +25,11 @@ use super::{data::SealableElementsVector, Array, ArrayHeapData};
 /// normal completion containing an Array exotic object or a throw completion.
 /// It is used to specify the creation of new Arrays.
 pub fn array_create(
-    agent: &mut Agent,
+    agent: &mut Agent<'gen>,
     length: usize,
     capacity: usize,
-    proto: Option<Object>,
-) -> JsResult<Array> {
+    proto: Option<Object<'gen>>,
+) -> JsResult<'gen, Array> {
     // 1. If length > 2**32 - 1, throw a RangeError exception.
     if length > (2usize.pow(32) - 1) {
         return Err(agent.throw_exception_with_static_message(
@@ -87,10 +87,10 @@ pub fn array_create(
 /// > have historically had that behaviour for the Array.prototype methods
 /// > that now are defined using ArraySpeciesCreate.
 pub(crate) fn array_species_create(
-    agent: &mut Agent,
-    original_array: Object,
+    agent: &mut Agent<'gen>,
+    original_array: Object<'gen>,
     length: usize,
-) -> JsResult<Object> {
+) -> JsResult<'gen, Object<'gen>> {
     // 1. Let isArray be ? IsArray(originalArray).
     let original_is_array = is_array(agent, original_array.into_value())?;
     // 2. If isArray is false, return ? ArrayCreate(length).
@@ -145,7 +145,7 @@ pub(crate) fn array_species_create(
 /// ### [10.4.2.4 ArraySetLength ( A, Desc )](https://tc39.es/ecma262/#sec-arraysetlength)
 ///
 /// The abstract operation ArraySetLength takes arguments A (an Array) and Desc (a Property Descriptor) and returns either a normal completion containing a Boolean or a throw completion.
-pub fn array_set_length(agent: &mut Agent, a: Array, desc: PropertyDescriptor) -> JsResult<bool> {
+pub fn array_set_length<'gen>(agent: &mut Agent<'gen>, a: Array<'gen>, desc: PropertyDescriptor<'gen>) -> JsResult<'gen, bool> {
     // 1. If Desc does not have a [[Value]] field, then
     let Some(desc_value) = desc.value else {
         // a. Return ! OrdinaryDefineOwnProperty(A, "length", Desc).

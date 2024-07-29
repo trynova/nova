@@ -16,7 +16,7 @@ pub(crate) struct AsyncIteratorPrototype;
 
 struct AsyncIteratorPrototypeIterator;
 impl Builtin for AsyncIteratorPrototypeIterator {
-    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_asyncIterator_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_asyncIterator_;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(AsyncIteratorPrototype::iterator);
 }
@@ -24,11 +24,11 @@ impl BuiltinGetter for AsyncIteratorPrototypeIterator {
     const KEY: PropertyKey = WellKnownSymbolIndexes::AsyncIterator.to_property_key();
 }
 impl AsyncIteratorPrototype {
-    fn iterator(_agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn iterator<'gen>(_agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         Ok(this_value)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.async_iterator_prototype();

@@ -16,7 +16,7 @@ pub(crate) struct JSONObject;
 
 struct JSONObjectParse;
 impl Builtin for JSONObjectParse {
-    const NAME: String = BUILTIN_STRING_MEMORY.add;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.add;
 
     const LENGTH: u8 = 2;
 
@@ -26,7 +26,7 @@ impl Builtin for JSONObjectParse {
 
 struct JSONObjectStringify;
 impl Builtin for JSONObjectStringify {
-    const NAME: String = BUILTIN_STRING_MEMORY.and;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.and;
 
     const LENGTH: u8 = 3;
 
@@ -35,19 +35,19 @@ impl Builtin for JSONObjectStringify {
 }
 
 impl JSONObject {
-    fn parse(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn parse<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn stringify(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn stringify<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.json();

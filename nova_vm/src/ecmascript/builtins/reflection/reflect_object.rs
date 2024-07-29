@@ -26,7 +26,7 @@ pub(crate) struct ReflectObject;
 
 struct ReflectObjectApply;
 impl Builtin for ReflectObjectApply {
-    const NAME: String = BUILTIN_STRING_MEMORY.apply;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.apply;
 
     const LENGTH: u8 = 3;
 
@@ -36,7 +36,7 @@ impl Builtin for ReflectObjectApply {
 
 struct ReflectObjectConstruct;
 impl Builtin for ReflectObjectConstruct {
-    const NAME: String = BUILTIN_STRING_MEMORY.construct;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.construct;
 
     const LENGTH: u8 = 2;
 
@@ -45,7 +45,7 @@ impl Builtin for ReflectObjectConstruct {
 }
 struct ReflectObjectDefineProperty;
 impl Builtin for ReflectObjectDefineProperty {
-    const NAME: String = BUILTIN_STRING_MEMORY.defineProperty;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.defineProperty;
 
     const LENGTH: u8 = 2;
 
@@ -54,7 +54,7 @@ impl Builtin for ReflectObjectDefineProperty {
 }
 struct ReflectObjectDeleteProperty;
 impl Builtin for ReflectObjectDeleteProperty {
-    const NAME: String = BUILTIN_STRING_MEMORY.deleteProperty;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.deleteProperty;
 
     const LENGTH: u8 = 2;
 
@@ -63,7 +63,7 @@ impl Builtin for ReflectObjectDeleteProperty {
 }
 struct ReflectObjectGet;
 impl Builtin for ReflectObjectGet {
-    const NAME: String = BUILTIN_STRING_MEMORY.get;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get;
 
     const LENGTH: u8 = 2;
 
@@ -72,7 +72,7 @@ impl Builtin for ReflectObjectGet {
 }
 struct ReflectObjectGetOwnPropertyDescriptor;
 impl Builtin for ReflectObjectGetOwnPropertyDescriptor {
-    const NAME: String = BUILTIN_STRING_MEMORY.getOwnPropertyDescriptor;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getOwnPropertyDescriptor;
 
     const LENGTH: u8 = 2;
 
@@ -81,7 +81,7 @@ impl Builtin for ReflectObjectGetOwnPropertyDescriptor {
 }
 struct ReflectObjectGetPrototypeOf;
 impl Builtin for ReflectObjectGetPrototypeOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.getPrototypeOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getPrototypeOf;
 
     const LENGTH: u8 = 1;
 
@@ -91,7 +91,7 @@ impl Builtin for ReflectObjectGetPrototypeOf {
 
 struct ReflectObjectHas;
 impl Builtin for ReflectObjectHas {
-    const NAME: String = BUILTIN_STRING_MEMORY.has;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.has;
 
     const LENGTH: u8 = 2;
 
@@ -100,7 +100,7 @@ impl Builtin for ReflectObjectHas {
 }
 struct ReflectObjectIsExtensible;
 impl Builtin for ReflectObjectIsExtensible {
-    const NAME: String = BUILTIN_STRING_MEMORY.isExtensible;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isExtensible;
 
     const LENGTH: u8 = 1;
 
@@ -109,7 +109,7 @@ impl Builtin for ReflectObjectIsExtensible {
 }
 struct ReflectObjectOwnKeys;
 impl Builtin for ReflectObjectOwnKeys {
-    const NAME: String = BUILTIN_STRING_MEMORY.ownKeys;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.ownKeys;
 
     const LENGTH: u8 = 1;
 
@@ -118,7 +118,7 @@ impl Builtin for ReflectObjectOwnKeys {
 }
 struct ReflectObjectPreventExtensions;
 impl Builtin for ReflectObjectPreventExtensions {
-    const NAME: String = BUILTIN_STRING_MEMORY.preventExtensions;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.preventExtensions;
 
     const LENGTH: u8 = 1;
 
@@ -127,7 +127,7 @@ impl Builtin for ReflectObjectPreventExtensions {
 }
 struct ReflectObjectSet;
 impl Builtin for ReflectObjectSet {
-    const NAME: String = BUILTIN_STRING_MEMORY.set;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.set;
 
     const LENGTH: u8 = 3;
 
@@ -136,7 +136,7 @@ impl Builtin for ReflectObjectSet {
 }
 struct ReflectObjectSetPrototypeOf;
 impl Builtin for ReflectObjectSetPrototypeOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.setPrototypeOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setPrototypeOf;
 
     const LENGTH: u8 = 2;
 
@@ -146,7 +146,7 @@ impl Builtin for ReflectObjectSetPrototypeOf {
 
 impl ReflectObject {
     /// [28.1.1 Reflect.apply ( target, thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-reflect.apply)
-    fn apply(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn apply<'gen>(agent: &mut Agent<'gen>, _this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let target = arguments.get(0);
         let this_argument = arguments.get(1);
         let arguments_list = arguments.get(2);
@@ -166,11 +166,11 @@ impl ReflectObject {
     }
 
     /// [28.1.2 Reflect.construct ( target, argumentsList \[ , newTarget \] )](https://tc39.es/ecma262/#sec-reflect.construct)
-    fn construct(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn construct<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let target = arguments.get(0);
         let arguments_list = arguments.get(1);
 
@@ -205,11 +205,11 @@ impl ReflectObject {
     }
 
     /// [28.1.3 Reflect.defineProperty ( target, propertyKey, attributes )](https://tc39.es/ecma262/#sec-reflect.defineproperty)
-    fn define_property(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn define_property<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
@@ -229,11 +229,11 @@ impl ReflectObject {
     }
 
     /// [28.1.4 Reflect.deleteProperty ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.deleteproperty)
-    fn delete_property(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn delete_property<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
@@ -251,7 +251,7 @@ impl ReflectObject {
     }
 
     /// [28.1.5 Reflect.get ( target, propertyKey \[ , receiver \] )](https://tc39.es/ecma262/#sec-reflect.get)
-    fn get(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn get<'gen>(agent: &mut Agent<'gen>, _this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
@@ -275,11 +275,11 @@ impl ReflectObject {
     }
 
     /// [28.1.6 Reflect.getOwnPropertyDescriptor ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.getownpropertydescriptor)
-    fn get_own_property_descriptor(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_own_property_descriptor<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
@@ -301,11 +301,11 @@ impl ReflectObject {
     }
 
     /// [28.1.7 Reflect.getPrototypeOf ( target )](https://tc39.es/ecma262/#sec-reflect.getprototypeof)
-    fn get_prototype_of(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_prototype_of<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
@@ -322,7 +322,7 @@ impl ReflectObject {
     }
 
     /// [28.1.8 Reflect.has ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.has)
-    fn has(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn has<'gen>(agent: &mut Agent<'gen>, _this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
@@ -340,11 +340,11 @@ impl ReflectObject {
     }
 
     /// [28.1.9 Reflect.isExtensible ( target )](https://tc39.es/ecma262/#sec-reflect.isextensible)
-    fn is_extensible(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn is_extensible<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
@@ -359,11 +359,11 @@ impl ReflectObject {
     }
 
     /// [28.1.10 Reflect.ownKeys ( target )](https://tc39.es/ecma262/#sec-reflect.ownkeys)
-    fn own_keys(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn own_keys<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(arguments.get(0)) else {
             return Err(agent.throw_exception_with_static_message(
@@ -375,7 +375,7 @@ impl ReflectObject {
         // 2. Let keys be ? target.[[OwnPropertyKeys]]().
         // TODO: `PropertyKey::into_value` might not do the right thing for
         // integer keys.
-        let keys: Vec<Value> = target
+        let keys: Vec<Value<'gen>> = target
             .internal_own_property_keys(agent)?
             .into_iter()
             .map(PropertyKey::into_value)
@@ -385,11 +385,11 @@ impl ReflectObject {
     }
 
     /// [28.1.11 Reflect.preventExtensions ( target )](https://tc39.es/ecma262/#sec-reflect.preventextensions)
-    fn prevent_extensions(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn prevent_extensions<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
@@ -404,7 +404,7 @@ impl ReflectObject {
     }
 
     /// [28.1.12 Reflect.set ( target, propertyKey, V \[ , receiver \] )](https://tc39.es/ecma262/#sec-reflect.set)
-    fn set(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn set<'gen>(agent: &mut Agent<'gen>, _this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
@@ -432,11 +432,11 @@ impl ReflectObject {
     }
 
     /// [28.1.13 Reflect.setPrototypeOf ( target, proto )](https://tc39.es/ecma262/#sec-reflect.setprototypeof)
-    fn set_prototype_of(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn set_prototype_of<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
@@ -464,7 +464,7 @@ impl ReflectObject {
         Ok(ret.into())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.reflect();
@@ -477,7 +477,7 @@ impl ReflectObject {
             .with_builtin_function_property::<ReflectObjectDefineProperty>()
             .with_builtin_function_property::<ReflectObjectDeleteProperty>()
             .with_builtin_function_property::<ReflectObjectGet>()
-            .with_builtin_function_property::<ReflectObjectGetOwnPropertyDescriptor>()
+            .with_builtin_function_property::<ReflectObjectGetOwnPropertyDescriptor<'gen>>()
             .with_builtin_function_property::<ReflectObjectGetPrototypeOf>()
             .with_builtin_function_property::<ReflectObjectHas>()
             .with_builtin_function_property::<ReflectObjectIsExtensible>()

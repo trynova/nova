@@ -33,18 +33,18 @@ pub(crate) enum PromiseResolvingFunctionType {
 ///
 /// The "length" property of a promise reject function is 1𝔽.
 #[derive(Debug, Clone, Copy)]
-pub struct PromiseResolvingFunctionHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
-    pub(crate) promise_capability: PromiseCapability,
+pub struct PromiseResolvingFunctionHeapData<'gen> {
+    pub(crate) object_index: Option<OrdinaryObject<'gen>>,
+    pub(crate) promise_capability: PromiseCapability<'gen>,
     pub(crate) resolve_type: PromiseResolvingFunctionType,
 }
 
-pub(crate) type BuiltinPromiseResolvingFunctionIndex = BaseIndex<PromiseResolvingFunctionHeapData>;
+pub(crate) type BuiltinPromiseResolvingFunctionIndex<'gen> = BaseIndex<PromiseResolvingFunctionHeapData<'gen>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BuiltinPromiseResolvingFunction(pub(crate) BuiltinPromiseResolvingFunctionIndex);
+pub struct BuiltinPromiseResolvingFunction<'gen>(pub(crate) BuiltinPromiseResolvingFunctionIndex<'gen>);
 
-impl BuiltinPromiseResolvingFunction {
+impl BuiltinPromiseResolvingFunction<'_>{
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -54,51 +54,51 @@ impl BuiltinPromiseResolvingFunction {
     }
 }
 
-impl From<BuiltinPromiseResolvingFunction> for Function {
-    fn from(value: BuiltinPromiseResolvingFunction) -> Self {
+impl<'gen> From<BuiltinPromiseResolvingFunction<'gen>> for Function<'gen> {
+    fn from(value: BuiltinPromiseResolvingFunction<'gen>) -> Self {
         Self::BuiltinPromiseResolvingFunction(value)
     }
 }
 
-impl IntoFunction for BuiltinPromiseResolvingFunction {
-    fn into_function(self) -> Function {
+impl<'gen> IntoFunction<'gen> for BuiltinPromiseResolvingFunction<'gen> {
+    fn into_function(self) -> Function<'gen> {
         self.into()
     }
 }
 
-impl From<BuiltinPromiseResolvingFunction> for Object {
-    fn from(value: BuiltinPromiseResolvingFunction) -> Self {
+impl<'gen> From<BuiltinPromiseResolvingFunction<'gen>> for Object<'gen> {
+    fn from(value: BuiltinPromiseResolvingFunction<'gen>) -> Self {
         Self::BuiltinPromiseResolvingFunction(value)
     }
 }
 
-impl IntoObject for BuiltinPromiseResolvingFunction {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for BuiltinPromiseResolvingFunction<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<BuiltinPromiseResolvingFunction> for Value {
-    fn from(value: BuiltinPromiseResolvingFunction) -> Self {
+impl<'gen> From<BuiltinPromiseResolvingFunction<'gen>> for Value<'gen> {
+    fn from(value: BuiltinPromiseResolvingFunction<'gen>) -> Self {
         Self::BuiltinPromiseResolvingFunction(value)
     }
 }
 
-impl IntoValue for BuiltinPromiseResolvingFunction {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for BuiltinPromiseResolvingFunction<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl InternalSlots for BuiltinPromiseResolvingFunction {
+impl<'gen> InternalSlots<'gen> for BuiltinPromiseResolvingFunction<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         debug_assert!(self.get_backing_object(agent).is_none());
         let prototype = self.internal_prototype(agent);
         let length_entry = ObjectEntry {
@@ -134,12 +134,12 @@ impl InternalSlots for BuiltinPromiseResolvingFunction {
     }
 }
 
-impl InternalMethods for BuiltinPromiseResolvingFunction {
+impl<'gen> InternalMethods<'gen> for BuiltinPromiseResolvingFunction<'gen> {
     fn internal_get_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+    ) -> JsResult<'gen, Option<PropertyDescriptor<'gen>>> {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_get_own_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -165,17 +165,17 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
 
     fn internal_define_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        property_descriptor: PropertyDescriptor<'gen>,
+    ) -> JsResult<'gen, bool> {
         let object_index = agent[self]
             .object_index
             .unwrap_or_else(|| self.create_backing_object(agent));
         object_index.internal_define_own_property(agent, property_key, property_descriptor)
     }
 
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_has_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
@@ -192,10 +192,10 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
 
     fn internal_get(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_get(agent, property_key, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -212,11 +212,11 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
 
     fn internal_set(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        value: Value<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, bool> {
         if let Some(backing_object) = self.get_backing_object(agent) {
             backing_object.internal_set(agent, property_key, value, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
@@ -230,7 +230,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         }
     }
 
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_delete(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
@@ -244,7 +244,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         }
     }
 
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Vec<PropertyKey<'gen>>> {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_own_property_keys(agent)
         } else {
@@ -257,10 +257,10 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
 
     fn internal_call(
         self,
-        agent: &mut Agent,
-        _this_value: Value,
-        args: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        args: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let arg = args.get(0);
         let promise_capability = agent[self].promise_capability;
         match agent[self].resolve_type {
@@ -271,24 +271,24 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
     }
 }
 
-impl Index<BuiltinPromiseResolvingFunction> for Agent {
-    type Output = PromiseResolvingFunctionHeapData;
+impl<'gen> Index<BuiltinPromiseResolvingFunction<'gen>> for Agent<'gen> {
+    type Output = PromiseResolvingFunctionHeapData<'gen>;
 
-    fn index(&self, index: BuiltinPromiseResolvingFunction) -> &Self::Output {
+    fn index(&self, index: BuiltinPromiseResolvingFunction<'gen>) -> &Self::Output {
         &self.heap.promise_resolving_functions[index]
     }
 }
 
-impl IndexMut<BuiltinPromiseResolvingFunction> for Agent {
-    fn index_mut(&mut self, index: BuiltinPromiseResolvingFunction) -> &mut Self::Output {
+impl<'gen> IndexMut<BuiltinPromiseResolvingFunction<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: BuiltinPromiseResolvingFunction<'gen>) -> &mut Self::Output {
         &mut self.heap.promise_resolving_functions[index]
     }
 }
 
-impl Index<BuiltinPromiseResolvingFunction> for Vec<Option<PromiseResolvingFunctionHeapData>> {
-    type Output = PromiseResolvingFunctionHeapData;
+impl<'gen> Index<BuiltinPromiseResolvingFunction<'gen>> for Vec<Option<PromiseResolvingFunctionHeapData<'gen>>> {
+    type Output = PromiseResolvingFunctionHeapData<'gen>;
 
-    fn index(&self, index: BuiltinPromiseResolvingFunction) -> &Self::Output {
+    fn index(&self, index: BuiltinPromiseResolvingFunction<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("BuiltinPromiseRejectFunction out of bounds")
             .as_ref()
@@ -296,8 +296,8 @@ impl Index<BuiltinPromiseResolvingFunction> for Vec<Option<PromiseResolvingFunct
     }
 }
 
-impl IndexMut<BuiltinPromiseResolvingFunction> for Vec<Option<PromiseResolvingFunctionHeapData>> {
-    fn index_mut(&mut self, index: BuiltinPromiseResolvingFunction) -> &mut Self::Output {
+impl<'gen> IndexMut<BuiltinPromiseResolvingFunction<'gen>> for Vec<Option<PromiseResolvingFunctionHeapData<'gen>>> {
+    fn index_mut(&mut self, index: BuiltinPromiseResolvingFunction<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BuiltinPromiseRejectFunction out of bounds")
             .as_mut()
@@ -305,18 +305,18 @@ impl IndexMut<BuiltinPromiseResolvingFunction> for Vec<Option<PromiseResolvingFu
     }
 }
 
-impl CreateHeapData<PromiseResolvingFunctionHeapData, BuiltinPromiseResolvingFunction> for Heap {
+impl<'gen> CreateHeapData<PromiseResolvingFunctionHeapData<'gen>, BuiltinPromiseResolvingFunction<'gen>> for Heap<'gen> {
     fn create(
         &mut self,
-        data: PromiseResolvingFunctionHeapData,
-    ) -> BuiltinPromiseResolvingFunction {
+        data: PromiseResolvingFunctionHeapData<'gen>,
+    ) -> BuiltinPromiseResolvingFunction<'gen> {
         self.promise_resolving_functions.push(Some(data));
         BuiltinPromiseResolvingFunction(BaseIndex::last(&self.promise_resolving_functions))
     }
 }
 
-impl HeapMarkAndSweep for BuiltinPromiseResolvingFunction {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for BuiltinPromiseResolvingFunction<'gen> {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues<'gen>) {
         queues.promise_resolving_functions.push(*self);
     }
 
@@ -327,8 +327,8 @@ impl HeapMarkAndSweep for BuiltinPromiseResolvingFunction {
     }
 }
 
-impl HeapMarkAndSweep for PromiseResolvingFunctionHeapData {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for PromiseResolvingFunctionHeapData<'gen> {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues<'gen>) {
         self.object_index.mark_values(queues);
         self.promise_capability.mark_values(queues);
     }

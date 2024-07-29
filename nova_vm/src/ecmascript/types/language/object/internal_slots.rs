@@ -6,9 +6,9 @@ use super::{Object, OrdinaryObject};
 use crate::ecmascript::execution::{Agent, ProtoIntrinsics};
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
-pub trait InternalSlots
+pub trait InternalSlots<'gen>
 where
-    Self: Sized + Copy + Into<Object>,
+    Self: Sized + Copy + Into<Object<'gen>>,
 {
     /// Default prototype of the object; this is used by
     /// [OrdinaryObjectInternalSlots::internal_prototype].
@@ -22,20 +22,20 @@ where
     /// found in the heap data as the `object_index` or `backing_object`.
     ///
     /// > NOTE: This should be marked `#[inline(always)]`
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject>;
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<OrdinaryObject<'gen>>;
 
     /// ### \[\[BackingObject\]\]
     ///
     /// Creates the custom \[\[BackingObject]] object data. This is called when
     /// the item's object features are required but the backing object is None.
-    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject;
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> OrdinaryObject<'gen>;
 
     /// #### \[\[Extensible\]\]
     ///
     /// Every ordinary object has a Boolean-valued \[\[Extensible\]\] internal
     /// slot which is used to fulfill the extensibility-related internal method
     /// invariants specified in [6.1.7.3](https://tc39.es/ecma262/#sec-invariants-of-the-essential-internal-methods).
-    fn internal_extensible(self, agent: &Agent) -> bool {
+    fn internal_extensible(self, agent: &Agent<'gen>) -> bool {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_extensible(agent)
         } else {
@@ -44,7 +44,7 @@ where
     }
 
     /// #### \[\[Extensible\]\]
-    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
+    fn internal_set_extensible(self, agent: &mut Agent<'gen>, value: bool) {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_set_extensible(agent, value)
         } else if !value {
@@ -58,7 +58,7 @@ where
     /// All ordinary objects have an internal slot called \[\[Prototype\]\].
     /// The value of this internal slot is either null or an object and is used
     /// for implementing inheritance.
-    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, agent: &Agent<'gen>) -> Option<Object<'gen>> {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_prototype(agent)
         } else {
@@ -72,7 +72,7 @@ where
     }
 
     /// #### \[\[Prototype\]\]
-    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+    fn internal_set_prototype(self, agent: &mut Agent<'gen>, prototype: Option<Object<'gen>>) {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_set_prototype(agent, prototype)
         } else if prototype != self.internal_prototype(agent) {

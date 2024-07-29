@@ -15,7 +15,7 @@ pub(crate) struct ErrorPrototype;
 struct ErrorPrototypeToString;
 
 impl Builtin for ErrorPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -25,7 +25,7 @@ impl Builtin for ErrorPrototypeToString {
 
 impl ErrorPrototype {
     /// ### [20.5.3.4 Error.prototype.toString ( )](https://tc39.es/ecma262/#sec-error.prototype.tostring)
-    fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
@@ -64,7 +64,7 @@ impl ErrorPrototype {
         }
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.error_prototype();

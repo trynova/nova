@@ -25,9 +25,9 @@ pub(crate) use data::RegExpHeapData;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct RegExp(RegExpIndex);
+pub struct RegExp<'gen>(RegExpIndex<'gen>);
 
-impl RegExp {
+impl RegExp<'_> {
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -37,22 +37,22 @@ impl RegExp {
     }
 }
 
-impl From<RegExp> for Value {
-    fn from(value: RegExp) -> Self {
+impl<'gen> From<RegExp<'gen>> for Value<'gen> {
+    fn from(value: RegExp<'gen>) -> Self {
         Self::RegExp(value)
     }
 }
 
-impl From<RegExp> for Object {
-    fn from(value: RegExp) -> Self {
+impl<'gen> From<RegExp<'gen>> for Object<'gen> {
+    fn from(value: RegExp<'gen>) -> Self {
         Self::RegExp(value)
     }
 }
 
-impl TryFrom<Object> for RegExp {
+impl<'gen> TryFrom<Object<'gen>> for RegExp<'gen> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'gen>) -> Result<Self, Self::Error> {
         match value {
             Object::RegExp(regexp) => Ok(regexp),
             _ => Err(()),
@@ -60,10 +60,10 @@ impl TryFrom<Object> for RegExp {
     }
 }
 
-impl TryFrom<Value> for RegExp {
+impl<'gen> TryFrom<Value<'gen>> for RegExp<'gen> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'gen>) -> Result<Self, Self::Error> {
         match value {
             Value::RegExp(regexp) => Ok(regexp),
             _ => Err(()),
@@ -71,26 +71,26 @@ impl TryFrom<Value> for RegExp {
     }
 }
 
-impl IntoValue for RegExp {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for RegExp<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for RegExp {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for RegExp<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl InternalSlots for RegExp {
+impl<'gen> InternalSlots<'gen> for RegExp<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::RegExp;
 
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> OrdinaryObject<'gen> {
         let prototype = agent
             .current_realm()
             .intrinsics()
@@ -106,10 +106,10 @@ impl InternalSlots for RegExp {
     }
 }
 
-impl InternalMethods for RegExp {}
+impl<'gen> InternalMethods<'gen> for RegExp<'gen> {}
 
-impl HeapMarkAndSweep for RegExp {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for RegExp<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.regexps.push(*self);
     }
 
@@ -118,24 +118,24 @@ impl HeapMarkAndSweep for RegExp {
     }
 }
 
-impl Index<RegExp> for Agent {
-    type Output = RegExpHeapData;
+impl<'gen> Index<RegExp<'gen>> for Agent<'gen> {
+    type Output = RegExpHeapData<'gen>;
 
-    fn index(&self, index: RegExp) -> &Self::Output {
+    fn index(&self, index: RegExp<'gen>) -> &Self::Output {
         &self.heap.regexps[index]
     }
 }
 
-impl IndexMut<RegExp> for Agent {
-    fn index_mut(&mut self, index: RegExp) -> &mut Self::Output {
+impl<'gen> IndexMut<RegExp<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: RegExp<'gen>) -> &mut Self::Output {
         &mut self.heap.regexps[index]
     }
 }
 
-impl Index<RegExp> for Vec<Option<RegExpHeapData>> {
-    type Output = RegExpHeapData;
+impl<'gen> Index<RegExp<'gen>> for Vec<Option<RegExpHeapData<'gen>>> {
+    type Output = RegExpHeapData<'gen>;
 
-    fn index(&self, index: RegExp) -> &Self::Output {
+    fn index(&self, index: RegExp<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("RegExp out of bounds")
             .as_ref()
@@ -143,8 +143,8 @@ impl Index<RegExp> for Vec<Option<RegExpHeapData>> {
     }
 }
 
-impl IndexMut<RegExp> for Vec<Option<RegExpHeapData>> {
-    fn index_mut(&mut self, index: RegExp) -> &mut Self::Output {
+impl<'gen> IndexMut<RegExp<'gen>> for Vec<Option<RegExpHeapData<'gen>>> {
+    fn index_mut(&mut self, index: RegExp<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("RegExp out of bounds")
             .as_mut()
@@ -152,8 +152,8 @@ impl IndexMut<RegExp> for Vec<Option<RegExpHeapData>> {
     }
 }
 
-impl CreateHeapData<RegExpHeapData, RegExp> for Heap {
-    fn create(&mut self, data: RegExpHeapData) -> RegExp {
+impl<'gen> CreateHeapData<RegExpHeapData<'gen>, RegExp<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: RegExpHeapData<'gen>) -> RegExp<'gen> {
         self.regexps.push(Some(data));
         RegExp(RegExpIndex::last(&self.regexps))
     }

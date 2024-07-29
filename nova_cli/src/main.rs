@@ -36,7 +36,7 @@ enum Command {
     /// Parses a file and logs out the AST
     Parse {
         /// The path of the file to parse
-        path: String,
+        path: String<'gen>,
     },
 
     /// Evaluates a file
@@ -51,7 +51,7 @@ enum Command {
 
         /// The files to evaluate
         #[arg(required = true)]
-        paths: Vec<String>,
+        paths: Vec<String<'gen>>,
     },
 
     /// Runs the REPL
@@ -124,8 +124,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 host_hooks,
             );
             assert!(!paths.is_empty());
-            let create_global_object: Option<fn(&mut Agent) -> Object> = None;
-            let create_global_this_value: Option<fn(&mut Agent) -> Object> = None;
+            let create_global_object: Option<fn(&mut Agent<'gen>) -> Object> = None;
+            let create_global_this_value: Option<fn(&mut Agent<'gen>) -> Object> = None;
             let realm = agent.create_realm(
                 create_global_object,
                 create_global_this_value,
@@ -189,8 +189,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
                 host_hooks,
             );
-            let create_global_object: Option<fn(&mut Agent) -> Object> = None;
-            let create_global_this_value: Option<fn(&mut Agent) -> Object> = None;
+            let create_global_object: Option<fn(&mut Agent<'gen>) -> Object> = None;
+            let create_global_this_value: Option<fn(&mut Agent<'gen>) -> Object> = None;
             let realm = agent.create_realm(
                 create_global_object,
                 create_global_this_value,

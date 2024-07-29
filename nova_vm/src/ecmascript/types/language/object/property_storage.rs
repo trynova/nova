@@ -16,22 +16,22 @@ use crate::{
 use super::{Object, ObjectHeapData, PropertyKey};
 
 #[derive(Debug, Clone, Copy)]
-pub struct PropertyStorage(Object);
+pub struct PropertyStorage<'gen>(Object<'gen>);
 
-impl PropertyStorage {
-    pub fn new(object: Object) -> Self {
+impl<'gen> PropertyStorage<'gen> {
+    pub fn new(object: Object<'gen>) -> Self {
         Self(object)
     }
 
-    fn into_object(self) -> Object {
+    fn into_object(self) -> Object<'gen> {
         self.0
     }
 
-    fn into_value(self) -> Value {
+    fn into_value(self) -> Value<'gen> {
         self.into_object().into_value()
     }
 
-    pub fn has(self, agent: &mut Agent, key: PropertyKey) -> bool {
+    pub fn has(self, agent: &mut Agent<'gen>, key: PropertyKey<'gen>) -> bool {
         let object = self.into_value();
 
         match object {
@@ -69,7 +69,7 @@ impl PropertyStorage {
         }
     }
 
-    pub fn get(self, agent: &mut Agent, key: PropertyKey) -> Option<PropertyDescriptor> {
+    pub fn get(self, agent: &mut Agent<'gen>, key: PropertyKey<'gen>) -> Option<PropertyDescriptor<'gen>> {
         match self.0 {
             Object::Object(object) => {
                 let ObjectHeapData { keys, values, .. } = agent[object];
@@ -92,7 +92,7 @@ impl PropertyStorage {
         }
     }
 
-    pub fn set(self, agent: &mut Agent, property_key: PropertyKey, descriptor: PropertyDescriptor) {
+    pub fn set(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>, descriptor: PropertyDescriptor<'gen>) {
         match self.0 {
             Object::Object(object) => {
                 let ObjectHeapData { keys, values, .. } = agent[object];
@@ -139,7 +139,7 @@ impl PropertyStorage {
         }
     }
 
-    pub fn remove(self, agent: &mut Agent, property_key: PropertyKey) {
+    pub fn remove(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) {
         match self.0 {
             Object::Object(object) => {
                 let property_key = property_key.into_value();
@@ -167,20 +167,5 @@ impl PropertyStorage {
             }
             _ => todo!(),
         }
-    }
-
-    pub fn entries(self, _agent: &Agent) -> Entries {
-        todo!()
-    }
-}
-
-#[derive(Debug)]
-pub struct Entries<'a> {
-    pub realm: Ref<'a, Realm>,
-}
-
-impl<'a> Entries<'a> {
-    fn new(realm: Ref<'a, Realm>) -> Self {
-        Self { realm }
     }
 }

@@ -16,7 +16,7 @@ pub(crate) struct AtomicsObject;
 
 struct AtomicsObjectAdd;
 impl Builtin for AtomicsObjectAdd {
-    const NAME: String = BUILTIN_STRING_MEMORY.add;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.add;
 
     const LENGTH: u8 = 3;
 
@@ -26,7 +26,7 @@ impl Builtin for AtomicsObjectAdd {
 
 struct AtomicsObjectAnd;
 impl Builtin for AtomicsObjectAnd {
-    const NAME: String = BUILTIN_STRING_MEMORY.and;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.and;
 
     const LENGTH: u8 = 3;
 
@@ -35,7 +35,7 @@ impl Builtin for AtomicsObjectAnd {
 }
 struct AtomicsObjectCompareExchange;
 impl Builtin for AtomicsObjectCompareExchange {
-    const NAME: String = BUILTIN_STRING_MEMORY.compareExchange;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.compareExchange;
 
     const LENGTH: u8 = 4;
 
@@ -44,7 +44,7 @@ impl Builtin for AtomicsObjectCompareExchange {
 }
 struct AtomicsObjectExchange;
 impl Builtin for AtomicsObjectExchange {
-    const NAME: String = BUILTIN_STRING_MEMORY.exchange;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.exchange;
 
     const LENGTH: u8 = 3;
 
@@ -53,7 +53,7 @@ impl Builtin for AtomicsObjectExchange {
 }
 struct AtomicsObjectIsLockFree;
 impl Builtin for AtomicsObjectIsLockFree {
-    const NAME: String = BUILTIN_STRING_MEMORY.isLockFree;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isLockFree;
 
     const LENGTH: u8 = 1;
 
@@ -62,7 +62,7 @@ impl Builtin for AtomicsObjectIsLockFree {
 }
 struct AtomicsObjectLoad;
 impl Builtin for AtomicsObjectLoad {
-    const NAME: String = BUILTIN_STRING_MEMORY.load;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.load;
 
     const LENGTH: u8 = 2;
 
@@ -71,7 +71,7 @@ impl Builtin for AtomicsObjectLoad {
 }
 struct AtomicsObjectOr;
 impl Builtin for AtomicsObjectOr {
-    const NAME: String = BUILTIN_STRING_MEMORY.or;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.or;
 
     const LENGTH: u8 = 3;
 
@@ -80,7 +80,7 @@ impl Builtin for AtomicsObjectOr {
 }
 struct AtomicsObjectStore;
 impl Builtin for AtomicsObjectStore {
-    const NAME: String = BUILTIN_STRING_MEMORY.store;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.store;
 
     const LENGTH: u8 = 3;
 
@@ -89,7 +89,7 @@ impl Builtin for AtomicsObjectStore {
 }
 struct AtomicsObjectSub;
 impl Builtin for AtomicsObjectSub {
-    const NAME: String = BUILTIN_STRING_MEMORY.sub;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.sub;
 
     const LENGTH: u8 = 3;
 
@@ -98,7 +98,7 @@ impl Builtin for AtomicsObjectSub {
 }
 struct AtomicsObjectWait;
 impl Builtin for AtomicsObjectWait {
-    const NAME: String = BUILTIN_STRING_MEMORY.wait;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.wait;
 
     const LENGTH: u8 = 4;
 
@@ -107,7 +107,7 @@ impl Builtin for AtomicsObjectWait {
 }
 struct AtomicsObjectWaitAsync;
 impl Builtin for AtomicsObjectWaitAsync {
-    const NAME: String = BUILTIN_STRING_MEMORY.waitAsync;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.waitAsync;
 
     const LENGTH: u8 = 4;
 
@@ -116,7 +116,7 @@ impl Builtin for AtomicsObjectWaitAsync {
 }
 struct AtomicsObjectNotify;
 impl Builtin for AtomicsObjectNotify {
-    const NAME: String = BUILTIN_STRING_MEMORY.notify;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.notify;
 
     const LENGTH: u8 = 3;
 
@@ -125,7 +125,7 @@ impl Builtin for AtomicsObjectNotify {
 }
 struct AtomicsObjectXor;
 impl Builtin for AtomicsObjectXor {
-    const NAME: String = BUILTIN_STRING_MEMORY.xor;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.xor;
 
     const LENGTH: u8 = 3;
 
@@ -134,79 +134,79 @@ impl Builtin for AtomicsObjectXor {
 }
 
 impl AtomicsObject {
-    fn add(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn add<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn and(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn and<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn compare_exchange(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn compare_exchange<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn exchange(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn exchange<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn is_lock_free(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn is_lock_free<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn load(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn load<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn or(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn or<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn store(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn store<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn sub(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn sub<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn wait(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn wait<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn wait_async(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn wait_async<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn notify(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn notify<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn xor(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn xor<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.atomics();

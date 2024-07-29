@@ -19,12 +19,12 @@ use crate::ecmascript::{
 };
 
 /// ### [6.1.7.2 Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots)
-pub trait InternalMethods
+pub trait InternalMethods<'gen>
 where
-    Self: Sized + Clone + Copy + Into<Object> + InternalSlots,
+    Self: Sized + Clone + Copy + Into<Object<'gen>> + InternalSlots<'gen>,
 {
     /// \[\[GetPrototypeOf\]\]
-    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
+    fn internal_get_prototype_of(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Option<Object<'gen>>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => Ok(ordinary_get_prototype_of(
                 agent,
@@ -37,9 +37,9 @@ where
     /// \[\[SetPrototypeOf\]\]
     fn internal_set_prototype_of(
         self,
-        agent: &mut Agent,
-        prototype: Option<Object>,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        prototype: Option<Object<'gen>>,
+    ) -> JsResult<'gen, bool> {
         match self.get_backing_object(agent) {
             Some(backing_object) => Ok(ordinary_set_prototype_of(
                 agent,
@@ -82,7 +82,7 @@ where
     }
 
     /// \[\[IsExtensible\]\]
-    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_is_extensible(self, agent: &mut Agent<'gen>) -> JsResult<'gen, bool> {
         // 1. Return OrdinaryIsExtensible(O).
         match self.get_backing_object(agent) {
             Some(backing_object) => Ok(ordinary_is_extensible(agent, backing_object.into_object())),
@@ -91,7 +91,7 @@ where
     }
 
     /// \[\[PreventExtensions\]\]
-    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_prevent_extensions(self, agent: &mut Agent<'gen>) -> JsResult<'gen, bool> {
         // 1. Return OrdinaryPreventExtensions(O).
         match self.get_backing_object(agent) {
             Some(backing_object) => Ok(ordinary_prevent_extensions(
@@ -108,9 +108,9 @@ where
     /// \[\[GetOwnProperty\]\]
     fn internal_get_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+    ) -> JsResult<'gen, Option<PropertyDescriptor<'gen>>> {
         // 1. Return OrdinaryGetOwnProperty(O, P).
         match self.get_backing_object(agent) {
             Some(backing_object) => Ok(ordinary_get_own_property(
@@ -125,10 +125,10 @@ where
     /// \[\[DefineOwnProperty\]\]
     fn internal_define_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        property_descriptor: PropertyDescriptor<'gen>,
+    ) -> JsResult<'gen, bool> {
         let backing_object = self
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent))
@@ -137,7 +137,7 @@ where
     }
 
     /// \[\[HasProperty\]\]
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
             Some(backing_object) => {
@@ -162,10 +162,10 @@ where
     /// \[\[Get\]\]
     fn internal_get(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
             Some(backing_object) => {
@@ -187,11 +187,11 @@ where
     /// \[\[Set\]\]
     fn internal_set(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        value: Value<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, bool> {
         // 1. Return ? OrdinarySet(O, P, V, Receiver).
         let backing_object = self
             .get_backing_object(agent)
@@ -201,7 +201,7 @@ where
     }
 
     /// \[\[Delete\]\]
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         // 1. Return ? OrdinaryDelete(O, P).
         match self.get_backing_object(agent) {
             Some(backing_object) => {
@@ -212,7 +212,7 @@ where
     }
 
     /// \[\[OwnPropertyKeys\]\]
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Vec<PropertyKey<'gen>>> {
         // 1. Return OrdinaryOwnPropertyKeys(O).
         match self.get_backing_object(agent) {
             Some(backing_object) => Ok(ordinary_own_property_keys(agent, backing_object)),
@@ -223,20 +223,20 @@ where
     /// \[\[Call\]\]
     fn internal_call(
         self,
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments_list: ArgumentsList,
-    ) -> JsResult<Value> {
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments_list: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         unreachable!()
     }
 
     /// \[\[Construct\]\]
     fn internal_construct(
         self,
-        _agent: &mut Agent,
-        _arguments_list: ArgumentsList,
-        _new_target: Function,
-    ) -> JsResult<Object> {
+        _agent: &mut Agent<'gen>,
+        _arguments_list: ArgumentsList<'_, 'gen>,
+        _new_target: Function<'gen>,
+    ) -> JsResult<'gen, Object<'gen>> {
         unreachable!()
     }
 }

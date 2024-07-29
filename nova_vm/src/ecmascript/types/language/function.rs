@@ -31,19 +31,19 @@ pub use into_function::IntoFunction;
 /// https://tc39.es/ecma262/#function-object
 #[derive(Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum Function {
-    BoundFunction(BoundFunction) = BOUND_FUNCTION_DISCRIMINANT,
-    BuiltinFunction(BuiltinFunction) = BUILTIN_FUNCTION_DISCRIMINANT,
-    ECMAScriptFunction(ECMAScriptFunction) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
+pub enum Function<'gen> {
+    BoundFunction(BoundFunction<'gen>) = BOUND_FUNCTION_DISCRIMINANT,
+    BuiltinFunction(BuiltinFunction<'gen>) = BUILTIN_FUNCTION_DISCRIMINANT,
+    ECMAScriptFunction(ECMAScriptFunction<'gen>) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction = BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
-    BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction) =
+    BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'gen>) =
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
 }
 
-impl std::fmt::Debug for Function {
+impl std::fmt::Debug for Function<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Function::BoundFunction(d) => write!(f, "BoundFunction({:?})", d),
@@ -60,27 +60,27 @@ impl std::fmt::Debug for Function {
     }
 }
 
-impl IntoValue for Function {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for Function<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for Function {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for Function<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<BoundFunction> for Function {
-    fn from(value: BoundFunction) -> Self {
+impl<'gen> From<BoundFunction<'gen>> for Function<'gen> {
+    fn from(value: BoundFunction<'gen>) -> Self {
         Function::BoundFunction(value)
     }
 }
 
-impl TryFrom<Object> for Function {
+impl<'gen> TryFrom<Object<'gen>> for Function<'gen> {
     type Error = ();
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'gen>) -> Result<Self, Self::Error> {
         match value {
             Object::BoundFunction(d) => Ok(Function::from(d)),
             Object::BuiltinFunction(d) => Ok(Function::from(d)),
@@ -99,9 +99,9 @@ impl TryFrom<Object> for Function {
     }
 }
 
-impl TryFrom<Value> for Function {
+impl<'gen> TryFrom<Value<'gen>> for Function<'gen> {
     type Error = ();
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'gen>) -> Result<Self, Self::Error> {
         match value {
             Value::BoundFunction(d) => Ok(Function::BoundFunction(d)),
             Value::BuiltinFunction(d) => Ok(Function::BuiltinFunction(d)),
@@ -118,8 +118,8 @@ impl TryFrom<Value> for Function {
     }
 }
 
-impl From<Function> for Object {
-    fn from(value: Function) -> Self {
+impl<'gen> From<Function<'gen>> for Object<'gen> {
+    fn from(value: Function<'gen>) -> Self {
         match value {
             Function::BoundFunction(d) => Object::from(d),
             Function::BuiltinFunction(d) => Object::from(d),
@@ -135,8 +135,8 @@ impl From<Function> for Object {
     }
 }
 
-impl From<Function> for Value {
-    fn from(value: Function) -> Self {
+impl<'gen> From<Function<'gen>> for Value<'gen> {
+    fn from(value: Function<'gen>) -> Self {
         match value {
             Function::BoundFunction(d) => Value::BoundFunction(d),
             Function::BuiltinFunction(d) => Value::BuiltinFunction(d),
@@ -152,12 +152,12 @@ impl From<Function> for Value {
     }
 }
 
-impl Function {
-    pub(crate) const fn new_builtin_function(idx: BuiltinFunctionIndex) -> Self {
+impl<'gen> Function<'gen> {
+    pub(crate) const fn new_builtin_function(idx: BuiltinFunctionIndex<'gen>) -> Self {
         Self::BuiltinFunction(BuiltinFunction(idx))
     }
 
-    pub fn is_constructor(self, agent: &Agent) -> bool {
+    pub fn is_constructor(self, agent: &Agent<'gen>) -> bool {
         match self {
             Function::BoundFunction(f) => f.is_constructor(agent),
             Function::BuiltinFunction(f) => f.is_constructor(agent),
@@ -171,15 +171,15 @@ impl Function {
     }
 }
 
-impl InternalSlots for Function {
+impl<'gen> InternalSlots<'gen> for Function<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
-    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {
+    fn create_backing_object(self, _: &mut Agent<'gen>) -> OrdinaryObject<'gen> {
         unreachable!("Function should not try to create backing object");
     }
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<OrdinaryObject<'gen>> {
         match self {
             Function::BoundFunction(d) => agent[d].object_index,
             Function::BuiltinFunction(d) => agent[d].object_index,
@@ -192,7 +192,7 @@ impl InternalSlots for Function {
         }
     }
 
-    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
+    fn internal_set_extensible(self, agent: &mut Agent<'gen>, value: bool) {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_set_extensible(agent, value)
         } else if !value {
@@ -201,7 +201,7 @@ impl InternalSlots for Function {
         }
     }
 
-    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+    fn internal_set_prototype(self, agent: &mut Agent<'gen>, prototype: Option<Object<'gen>>) {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_set_prototype(agent, prototype)
         } else if prototype
@@ -219,8 +219,8 @@ impl InternalSlots for Function {
     }
 }
 
-impl InternalMethods for Function {
-    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
+impl<'gen> InternalMethods<'gen> for Function<'gen> {
+    fn internal_get_prototype_of(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Option<Object<'gen>>> {
         match self {
             Function::BoundFunction(x) => x.internal_get_prototype_of(agent),
             Function::BuiltinFunction(x) => x.internal_get_prototype_of(agent),
@@ -235,9 +235,9 @@ impl InternalMethods for Function {
 
     fn internal_set_prototype_of(
         self,
-        agent: &mut Agent,
-        prototype: Option<Object>,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        prototype: Option<Object<'gen>>,
+    ) -> JsResult<'gen, bool> {
         match self {
             Function::BoundFunction(x) => x.internal_set_prototype_of(agent, prototype),
             Function::BuiltinFunction(x) => x.internal_set_prototype_of(agent, prototype),
@@ -252,7 +252,7 @@ impl InternalMethods for Function {
         }
     }
 
-    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_is_extensible(self, agent: &mut Agent<'gen>) -> JsResult<'gen, bool> {
         match self {
             Function::BoundFunction(x) => x.internal_is_extensible(agent),
             Function::BuiltinFunction(x) => x.internal_is_extensible(agent),
@@ -265,7 +265,7 @@ impl InternalMethods for Function {
         }
     }
 
-    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_prevent_extensions(self, agent: &mut Agent<'gen>) -> JsResult<'gen, bool> {
         match self {
             Function::BoundFunction(x) => x.internal_prevent_extensions(agent),
             Function::BuiltinFunction(x) => x.internal_prevent_extensions(agent),
@@ -280,9 +280,9 @@ impl InternalMethods for Function {
 
     fn internal_get_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+    ) -> JsResult<'gen, Option<PropertyDescriptor<'gen>>> {
         match self {
             Function::BoundFunction(x) => x.internal_get_own_property(agent, property_key),
             Function::BuiltinFunction(x) => x.internal_get_own_property(agent, property_key),
@@ -299,10 +299,10 @@ impl InternalMethods for Function {
 
     fn internal_define_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        property_descriptor: PropertyDescriptor<'gen>,
+    ) -> JsResult<'gen, bool> {
         match self {
             Function::BoundFunction(x) => {
                 x.internal_define_own_property(agent, property_key, property_descriptor)
@@ -323,7 +323,7 @@ impl InternalMethods for Function {
         }
     }
 
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         match self {
             Function::BoundFunction(x) => x.internal_has_property(agent, property_key),
             Function::BuiltinFunction(x) => x.internal_has_property(agent, property_key),
@@ -340,10 +340,10 @@ impl InternalMethods for Function {
 
     fn internal_get(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         match self {
             Function::BoundFunction(x) => x.internal_get(agent, property_key, receiver),
             Function::BuiltinFunction(x) => x.internal_get(agent, property_key, receiver),
@@ -360,11 +360,11 @@ impl InternalMethods for Function {
 
     fn internal_set(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        value: Value<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, bool> {
         match self {
             Function::BoundFunction(x) => x.internal_set(agent, property_key, value, receiver),
             Function::BuiltinFunction(x) => x.internal_set(agent, property_key, value, receiver),
@@ -379,7 +379,7 @@ impl InternalMethods for Function {
         }
     }
 
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         match self {
             Function::BoundFunction(x) => x.internal_delete(agent, property_key),
             Function::BuiltinFunction(x) => x.internal_delete(agent, property_key),
@@ -392,7 +392,7 @@ impl InternalMethods for Function {
         }
     }
 
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Vec<PropertyKey<'gen>>> {
         match self {
             Function::BoundFunction(x) => x.internal_own_property_keys(agent),
             Function::BuiltinFunction(x) => x.internal_own_property_keys(agent),
@@ -407,10 +407,10 @@ impl InternalMethods for Function {
 
     fn internal_call(
         self,
-        agent: &mut Agent,
-        this_argument: Value,
-        arguments_list: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_argument: Value<'gen>,
+        arguments_list: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         match self {
             Function::BoundFunction(x) => x.internal_call(agent, this_argument, arguments_list),
             Function::BuiltinFunction(x) => x.internal_call(agent, this_argument, arguments_list),
@@ -429,10 +429,10 @@ impl InternalMethods for Function {
 
     fn internal_construct(
         self,
-        agent: &mut Agent,
-        arguments_list: ArgumentsList,
-        new_target: Function,
-    ) -> JsResult<Object> {
+        agent: &mut Agent<'gen>,
+        arguments_list: ArgumentsList<'_, 'gen>,
+        new_target: Function<'gen>,
+    ) -> JsResult<'gen, Object<'gen>> {
         match self {
             Function::BoundFunction(x) => x.internal_construct(agent, arguments_list, new_target),
             Function::BuiltinFunction(x) => x.internal_construct(agent, arguments_list, new_target),
@@ -450,8 +450,8 @@ impl InternalMethods for Function {
     }
 }
 
-impl HeapMarkAndSweep for Function {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Function<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         match self {
             Function::BoundFunction(x) => x.mark_values(queues),
             Function::BuiltinFunction(x) => x.mark_values(queues),

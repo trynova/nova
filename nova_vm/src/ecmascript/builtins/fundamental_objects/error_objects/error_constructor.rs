@@ -30,7 +30,7 @@ use crate::heap::IntrinsicConstructorIndexes;
 pub(crate) struct ErrorConstructor;
 
 impl Builtin for ErrorConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Error;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Error;
 
     const LENGTH: u8 = 1;
 
@@ -42,12 +42,12 @@ impl BuiltinIntrinsicConstructor for ErrorConstructor {
 
 impl ErrorConstructor {
     /// ### [20.5.1.1 Error ( message \[ , options \] )](https://tc39.es/ecma262/#sec-error-message)
-    fn behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let message = arguments.get(0);
         let options = arguments.get(1);
 
@@ -78,7 +78,7 @@ impl ErrorConstructor {
         Ok(o.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let error_prototype = intrinsics.error_prototype();
 
@@ -89,7 +89,7 @@ impl ErrorConstructor {
     }
 }
 
-pub(super) fn get_error_cause(agent: &mut Agent, options: Value) -> JsResult<Option<Value>> {
+pub(super) fn get_error_cause<'gen>(agent: &mut Agent<'gen>, options: Value<'gen>) -> JsResult<'gen, Option<Value<'gen>>> {
     let Ok(options) = Object::try_from(options) else {
         return Ok(None);
     };

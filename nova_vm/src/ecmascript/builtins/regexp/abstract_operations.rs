@@ -22,17 +22,17 @@ use super::{RegExp, RegExpHeapData};
 /// language value) and F (a String or undefined) and returns either a normal
 /// completion containing an Object or a throw completion.
 pub(crate) fn reg_exp_create(
-    agent: &mut Agent,
-    p: Value,
+    agent: &mut Agent<'gen>,
+    p: Value<'gen>,
     f: Option<RegExpFlags>,
-) -> JsResult<RegExp> {
+) -> JsResult<'gen, RegExp> {
     //     1. Let obj be ! RegExpAlloc(%RegExp%).
     let obj = reg_exp_alloc_intrinsic(agent);
     //     2. Return ? RegExpInitialize(obj, P, F).
     reg_exp_initialize(agent, obj, p, f)
 }
 
-fn reg_exp_alloc_intrinsic(agent: &mut Agent) -> RegExp {
+fn reg_exp_alloc_intrinsic(agent: &mut Agent<'gen>) -> RegExp {
     // 1. Let obj be ? OrdinaryCreateFromConstructor(newTarget, "%RegExp.prototype%", « [[OriginalSource]], [[OriginalFlags]], [[RegExpRecord]], [[RegExpMatcher]] »).
 
     // 2. Perform ! DefinePropertyOrThrow(obj, "lastIndex", PropertyDescriptor { [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
@@ -46,7 +46,7 @@ fn reg_exp_alloc_intrinsic(agent: &mut Agent) -> RegExp {
 /// The abstract operation RegExpAlloc takes argument newTarget (a constructor)
 /// and returns either a normal completion containing an Object or a throw
 /// completion.
-pub(crate) fn reg_exp_alloc(agent: &mut Agent, new_target: Function) -> JsResult<RegExp> {
+pub(crate) fn reg_exp_alloc<'gen>(agent: &mut Agent<'gen>, new_target: Function<'gen>) -> JsResult<'gen, RegExp> {
     // 1. Let obj be ? OrdinaryCreateFromConstructor(newTarget, "%RegExp.prototype%", « [[OriginalSource]], [[OriginalFlags]], [[RegExpRecord]], [[RegExpMatcher]] »).
     let obj = RegExp::try_from(ordinary_create_from_constructor(
         agent,
@@ -67,11 +67,11 @@ pub(crate) fn reg_exp_alloc(agent: &mut Agent, new_target: Function) -> JsResult
 /// value) and returns either a normal completion containing an Object or a
 /// throw completion.
 pub(crate) fn reg_exp_initialize(
-    agent: &mut Agent,
+    agent: &mut Agent<'gen>,
     obj: RegExp,
-    pattern: Value,
+    pattern: Value<'gen>,
     flags: Option<RegExpFlags>,
-) -> JsResult<RegExp> {
+) -> JsResult<'gen, RegExp> {
     //     1. If pattern is undefined, let P be the empty String.
     let p = if pattern.is_undefined() {
         String::EMPTY_STRING

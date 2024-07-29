@@ -16,28 +16,28 @@ use crate::{
 use super::Module;
 
 #[derive(Debug, Clone)]
-pub struct ModuleHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
-    pub(crate) module: ModuleRecord,
-    pub(crate) exports: Box<[String]>,
+pub struct ModuleHeapData<'gen> {
+    pub(crate) object_index: Option<OrdinaryObject<'gen>>,
+    pub(crate) module: ModuleRecord<'gen>,
+    pub(crate) exports: Box<[String<'gen>]>,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ModuleRecord {
+pub(crate) struct ModuleRecord<'gen> {
     /// \[\[Realm]]
     ///
     /// The Realm within which this module was created.
-    realm: RealmIdentifier,
+    realm: RealmIdentifier<'gen>,
     /// \[\[Environment]]
     ///
     /// The Environment Record containing the top level bindings for this
     /// module. This field is set when the module is linked.
-    pub(super) environment: Option<ModuleEnvironmentIndex>,
+    pub(super) environment: Option<ModuleEnvironmentIndex<'gen>>,
     /// \[\[Namespace]]
     ///
     /// The Module Namespace Object (28.3) if one has been created for this
     /// module.
-    namespace: Option<Module>,
+    namespace: Option<Module<'gen>>,
     /// \[\[HostDefined]]
     ///
     /// Field reserved for use by host environments that need to associate
@@ -46,27 +46,27 @@ pub(crate) struct ModuleRecord {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ResolvedBindingName {
-    String(HeapString),
+pub(crate) enum ResolvedBindingName<'gen> {
+    String(HeapString<'gen>),
     SmallString(SmallString),
     Namespace,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ResolvedBinding {
+pub(crate) struct ResolvedBinding<'gen> {
     /// \[\[Module]]
-    pub(super) module: Option<ModuleIdentifier>,
+    pub(super) module: Option<ModuleIdentifier<'gen>>,
     /// \[\[BindingName]]
-    pub(super) binding_name: ResolvedBindingName,
+    pub(super) binding_name: ResolvedBindingName<'gen>,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ResolveExportResult {
+pub(crate) enum ResolveExportResult<'gen> {
     Ambiguous,
-    Resolved(ResolvedBinding),
+    Resolved(ResolvedBinding<'gen>),
 }
 
-impl ModuleRecord {
+impl<'gen> ModuleRecord<'gen> {
     /// Return the binding of a name exported by this module. Bindings are
     /// represented by a ResolvedBinding Record, of the form { \[\[Module]]:
     /// Module Record, \[\[BindingName]]: String | NAMESPACE }. If the export
@@ -79,13 +79,13 @@ impl ModuleRecord {
     ///
     /// LoadRequestedModules must have completed successfully prior to
     /// invoking this method.
-    pub(crate) fn resolve_export(&self, _property_key: PropertyKey) -> Option<ResolveExportResult> {
+    pub(crate) fn resolve_export(&self, _property_key: PropertyKey<'gen>) -> Option<ResolveExportResult<'gen>> {
         todo!()
     }
 }
 
-impl HeapMarkAndSweep for ModuleHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ModuleHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         for ele in self.exports.iter() {
             ele.mark_values(queues);
         }

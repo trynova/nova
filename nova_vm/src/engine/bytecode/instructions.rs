@@ -23,7 +23,7 @@ pub enum Instruction {
     /// Push a value into an array
     ArrayPush,
     /// Set an array's value at the given index.
-    ArraySetValue,
+    ArraySetValue<'gen>,
     /// Push a hole into an array
     ArrayElision,
     /// Performs steps 2-4 from the [UnaryExpression ~ Runtime Semantics](https://tc39.es/ecma262/#sec-bitwise-not-operator-runtime-semantics-evaluation).
@@ -67,7 +67,7 @@ pub enum Instruction {
     /// We only call `GetValue` on reference values. This can be statically
     /// analysed from the AST. Non-reference values are already in the result
     /// value so a `GetValue` call would be a no-op.
-    GetValue,
+    GetValue<'gen>,
     /// Same as GetValue without taking the reference slot. Used for reference
     /// property updates.
     GetValueKeepReference,
@@ -113,7 +113,7 @@ pub enum Instruction {
     LoadConstant,
     /// Determine the this value for an upcoming evaluate_call instruction and
     /// add it to the stack.
-    LoadThisValue,
+    LoadThisValue<'gen>,
     /// Performs steps 2-4 from the [UnaryExpression ! Runtime Semantics](https://tc39.es/ecma262/#sec-logical-not-operator-runtime-semantics-evaluation).
     LogicalNot,
     /// Store OrdinaryObjectCreate(%Object.prototype%) on the stack.
@@ -133,7 +133,7 @@ pub enum Instruction {
     PushReference,
     /// Call PutValue() with the last reference on the reference stack and the
     /// result value.
-    PutValue,
+    PutValue<'gen>,
     /// Store ResolveBinding() as the result value.
     ResolveBinding,
     /// Store ResolveThisBinding() as the result value.
@@ -230,7 +230,7 @@ pub enum Instruction {
     /// const [{ a }] = x;
     /// const { a: [b] } = x;
     /// ```
-    BindingPatternGetValue,
+    BindingPatternGetValue<'gen>,
     /// Load all remaining values onto the stack
     ///
     /// This is used to implement nested binding patterns in rest elements.
@@ -238,7 +238,7 @@ pub enum Instruction {
     /// ```js
     /// const [a, ...[b, c]] = x;
     /// ```
-    BindingPatternGetRestValue,
+    BindingPatternGetRestValue<'gen>,
     /// Finish binding values
     ///
     /// This stops
@@ -252,7 +252,7 @@ pub enum Instruction {
     GetIteratorAsync,
     /// Perform IteratorStepValue on the current iterator and jump to
     /// index if iterator completed.
-    IteratorStepValue,
+    IteratorStepValue<'gen>,
     /// Perform CloseIterator on the current iterator
     IteratorClose,
     /// Perform AsyncCloseIterator on the current iterator

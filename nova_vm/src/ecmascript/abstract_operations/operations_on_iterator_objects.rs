@@ -15,7 +15,7 @@ use crate::{
         },
         builtins::{ordinary::ordinary_object_create_with_intrinsics, ArgumentsList},
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
-        types::{Function, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
+        types::{Function, IntoValue, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
@@ -25,9 +25,9 @@ use crate::{
 /// An Iterator Record is a Record value used to encapsulate an Iterator or
 /// AsyncIterator along with the next method.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct IteratorRecord {
-    pub(crate) iterator: Object,
-    pub(crate) next_method: Value,
+pub(crate) struct IteratorRecord<'gen> {
+    pub(crate) iterator: Object<'gen>,
+    pub(crate) next_method: Value<'gen>,
     pub(crate) done: bool,
 }
 
@@ -37,11 +37,11 @@ pub(crate) struct IteratorRecord {
 /// ECMAScript language value) and method (a function object) and returns
 /// either a normal completion containing an Iterator Record or a throw
 /// completion.
-pub(crate) fn get_iterator_from_method(
-    agent: &mut Agent,
-    obj: Value,
-    method: Function,
-) -> JsResult<IteratorRecord> {
+pub(crate) fn get_iterator_from_method<'gen>(
+    agent: &mut Agent<'gen>,
+    obj: Value<'gen>,
+    method: Function<'gen>,
+) -> JsResult<'gen, IteratorRecord<'gen>> {
     // 1. Let iterator be ? Call(method, obj).
     let iterator = call(agent, method.into(), obj, None)?;
 
@@ -70,11 +70,11 @@ pub(crate) fn get_iterator_from_method(
 /// The abstract operation GetIterator takes arguments obj (an ECMAScript
 /// language value) and kind (sync or async) and returns either a normal
 /// completion containing an Iterator Record or a throw completion.
-pub(crate) fn get_iterator(
-    agent: &mut Agent,
-    obj: Value,
+pub(crate) fn get_iterator<'gen>(
+    agent: &mut Agent<'gen>,
+    obj: Value<'gen>,
     is_async: bool,
-) -> JsResult<IteratorRecord> {
+) -> JsResult<'gen, IteratorRecord<'gen>> {
     // 1. If kind is async, then
     let method = if is_async {
         // a. Let method be ? GetMethod(obj, @@asyncIterator).
@@ -136,11 +136,11 @@ pub(crate) fn get_iterator(
 /// Iterator Record) and optional argument value (an ECMAScript language value)
 /// and returns either a normal completion containing an Object or a throw
 /// completion.
-pub(crate) fn iterator_next(
-    agent: &mut Agent,
-    iterator_record: &IteratorRecord,
-    value: Option<Value>,
-) -> JsResult<Object> {
+pub(crate) fn iterator_next<'gen>(
+    agent: &mut Agent<'gen>,
+    iterator_record: &IteratorRecord<'gen>,
+    value: Option<Value<'gen>>,
+) -> JsResult<'gen, Object<'gen>> {
     // 1. If value is not present, then
     // a. Let result be ? Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]]).
     // 2. Else,
@@ -169,7 +169,7 @@ pub(crate) fn iterator_next(
 /// The abstract operation IteratorComplete takes argument iterResult (an
 /// Object) and returns either a normal completion containing a Boolean or a
 /// throw completion.
-pub(crate) fn iterator_complete(agent: &mut Agent, iter_result: Object) -> JsResult<bool> {
+pub(crate) fn iterator_complete<'gen>(agent: &mut Agent<'gen>, iter_result: Object<'gen>) -> JsResult<'gen, bool> {
     // 1. Return ToBoolean(? Get(iterResult, "done")).
     let done = get(agent, iter_result, BUILTIN_STRING_MEMORY.done.into())?;
     Ok(to_boolean(agent, done))
@@ -180,7 +180,7 @@ pub(crate) fn iterator_complete(agent: &mut Agent, iter_result: Object) -> JsRes
 /// The abstract operation IteratorValue takes argument iterResult (an
 /// Object) and returns either a normal completion containing an ECMAScript
 /// language value or a throw completion.
-pub(crate) fn iterator_value(agent: &mut Agent, iter_result: Object) -> JsResult<Value> {
+pub(crate) fn iterator_value<'gen>(agent: &mut Agent<'gen>, iter_result: Object<'gen>) -> JsResult<'gen, Value<'gen>> {
     // 1. Return ? Get(iterResult, "value").
     get(agent, iter_result, BUILTIN_STRING_MEMORY.value.into())
 }
@@ -197,10 +197,10 @@ pub(crate) fn iterator_value(agent: &mut Agent, iter_result: Object) -> JsResult
 ///
 /// > NOTE: Instead of returning the boolean value false we return an Option
 /// > where the false state is None. That way we can pass the Object as is.
-pub(crate) fn iterator_step(
-    agent: &mut Agent,
-    iterator_record: &IteratorRecord,
-) -> JsResult<Option<Object>> {
+pub(crate) fn iterator_step<'gen>(
+    agent: &mut Agent<'gen>,
+    iterator_record: &IteratorRecord<'gen>,
+) -> JsResult<'gen, Option<Object<'gen>>> {
     // 1. Let result be ? IteratorNext(iteratorRecord).
     let result = iterator_next(agent, iterator_record, None)?;
 
@@ -224,10 +224,10 @@ pub(crate) fn iterator_step(
 /// iteratorRecord.[\[NextMethod\]] and returns either done indicating that the
 /// iterator has reached its end or the value from the IteratorResult object if
 /// a next value is available.
-pub(crate) fn iterator_step_value(
-    agent: &mut Agent,
+pub(crate) fn iterator_step_value<'gen>(
+    agent: &mut Agent<'gen>,
     iterator_record: &mut IteratorRecord,
-) -> JsResult<Option<Value>> {
+) -> JsResult<'gen, Option<Value<'gen>>> {
     // 1. Let result be Completion(IteratorNext(iteratorRecord)).
     let result = iterator_next(agent, iterator_record, None);
 
@@ -289,11 +289,11 @@ pub(crate) fn iterator_step_value(
 /// Completion Record. It is used to notify an iterator that it should perform
 /// any actions it would normally perform when it has reached its completed
 /// state.
-pub(crate) fn iterator_close<T>(
-    agent: &mut Agent,
-    iterator_record: &IteratorRecord,
-    completion: JsResult<T>,
-) -> JsResult<T> {
+pub(crate) fn iterator_close<'gen, T>(
+    agent: &mut Agent<'gen>,
+    iterator_record: &IteratorRecord<'gen>,
+    completion: JsResult<'gen, T>,
+) -> JsResult<'gen, T> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
     let iterator = iterator_record.iterator;
@@ -336,11 +336,11 @@ pub(crate) fn iterator_close<T>(
 /// IfAbruptCloseIterator is a shorthand for a sequence of algorithm steps that
 /// use an Iterator Record.
 #[inline(always)]
-pub(crate) fn if_abrupt_close_iterator<T>(
-    agent: &mut Agent,
-    value: JsResult<T>,
-    iterator_record: &IteratorRecord,
-) -> JsResult<T> {
+pub(crate) fn if_abrupt_close_iterator<'gen, T>(
+    agent: &mut Agent<'gen>,
+    value: JsResult<'gen, T>,
+    iterator_record: &IteratorRecord<'gen>,
+) -> JsResult<'gen, T> {
     // 1. Assert: value is a Completion Record.
     // 2. If value is an abrupt completion, return ? IteratorClose(iteratorRecord, value).
     if value.is_err() {
@@ -358,11 +358,11 @@ pub(crate) fn if_abrupt_close_iterator<T>(
 /// Completion Record. It is used to notify an async iterator that it should
 /// perform any actions it would normally perform when it has reached its
 /// completed state.
-pub(crate) fn async_iterator_close(
-    _agent: &mut Agent,
-    _iterator_record: &IteratorRecord,
-    _completion: JsResult<Value>,
-) -> JsResult<Value> {
+pub(crate) fn async_iterator_close<'gen>(
+    _agent: &mut Agent<'gen>,
+    _iterator_record: &IteratorRecord<'gen>,
+    _completion: JsResult<'gen, Value<'gen>>,
+) -> JsResult<'gen, Value<'gen>> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
     // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
@@ -384,7 +384,7 @@ pub(crate) fn async_iterator_close(
 /// ECMAScript language value) and done (a Boolean) and returns an Object that
 /// conforms to the IteratorResult interface. It creates an object that
 /// conforms to the IteratorResult interface.
-pub(crate) fn create_iter_result_object(agent: &mut Agent, value: Value, done: bool) -> Object {
+pub(crate) fn create_iter_result_object<'gen>(agent: &mut Agent<'gen>, value: Value<'gen>, done: bool) -> Object<'gen> {
     // 1. Let obj be OrdinaryObjectCreate(%Object.prototype%).
     let obj = ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
     // 2. Perform ! CreateDataPropertyOrThrow(obj, "value", value).
@@ -413,7 +413,7 @@ pub(crate) fn create_iter_result_object(agent: &mut Agent, value: Value, done: b
 /// of ECMAScript language values) and returns an Iterator Record. It creates
 /// an Iterator (27.1.1.2) object record whose next method returns the
 /// successive elements of list.
-pub(crate) fn create_list_iterator_record(_agent: &mut Agent, _list: &[Value]) -> JsResult<Value> {
+pub(crate) fn create_list_iterator_record<'gen>(_agent: &mut Agent<'gen>, _list: &[Value]) -> JsResult<'gen, Value<'gen>> {
     // 1. Let closure be a new Abstract Closure with no parameters that captures list and performs the following steps when called:
     // a. For each element E of list, do
     // i. Perform ? GeneratorYield(CreateIterResultObject(E, false)).
@@ -428,10 +428,10 @@ pub(crate) fn create_list_iterator_record(_agent: &mut Agent, _list: &[Value]) -
 /// The abstract operation IteratorToList takes argument iteratorRecord (an
 /// Iterator Record) and returns either a normal completion containing a List
 /// of ECMAScript language values or a throw completion.
-pub(crate) fn iterator_to_list(
-    agent: &mut Agent,
-    iterator_record: &IteratorRecord,
-) -> JsResult<Vec<Value>> {
+pub(crate) fn iterator_to_list<'gen>(
+    agent: &mut Agent<'gen>,
+    iterator_record: &IteratorRecord<'gen>,
+) -> JsResult<'gen, Vec<Value<'gen>>> {
     // 1. Let values be a new empty List.
     let mut values = Vec::new();
 
@@ -449,8 +449,8 @@ pub(crate) fn iterator_to_list(
     Ok(values)
 }
 
-impl HeapMarkAndSweep for IteratorRecord {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for IteratorRecord<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.iterator.mark_values(queues);
         self.next_method.mark_values(queues);
     }

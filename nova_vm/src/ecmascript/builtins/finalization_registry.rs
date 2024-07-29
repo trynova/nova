@@ -23,9 +23,9 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct FinalizationRegistry(pub(crate) FinalizationRegistryIndex);
+pub struct FinalizationRegistry<'gen>(pub(crate) FinalizationRegistryIndex<'gen>);
 
-impl FinalizationRegistry {
+impl<'gen> FinalizationRegistry<'gen> {
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -35,51 +35,51 @@ impl FinalizationRegistry {
     }
 }
 
-impl From<FinalizationRegistry> for FinalizationRegistryIndex {
-    fn from(val: FinalizationRegistry) -> Self {
+impl<'gen> From<FinalizationRegistry<'gen>> for FinalizationRegistryIndex<'gen> {
+    fn from(val: FinalizationRegistry<'gen>) -> Self {
         val.0
     }
 }
 
-impl From<FinalizationRegistryIndex> for FinalizationRegistry {
-    fn from(value: FinalizationRegistryIndex) -> Self {
+impl<'gen> From<FinalizationRegistryIndex<'gen>> for FinalizationRegistry<'gen> {
+    fn from(value: FinalizationRegistryIndex<'gen>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for FinalizationRegistry {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for FinalizationRegistry<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for FinalizationRegistry {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for FinalizationRegistry<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<FinalizationRegistry> for Value {
-    fn from(val: FinalizationRegistry) -> Self {
+impl<'gen> From<FinalizationRegistry<'gen>> for Value<'gen> {
+    fn from(val: FinalizationRegistry<'gen>) -> Self {
         Value::FinalizationRegistry(val)
     }
 }
 
-impl From<FinalizationRegistry> for Object {
-    fn from(val: FinalizationRegistry) -> Self {
+impl<'gen> From<FinalizationRegistry<'gen>> for Object<'gen> {
+    fn from(val: FinalizationRegistry<'gen>) -> Self {
         Object::FinalizationRegistry(val)
     }
 }
 
-impl InternalSlots for FinalizationRegistry {
+impl<'gen> InternalSlots<'gen> for FinalizationRegistry<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::FinalizationRegistry;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         let prototype = agent
             .current_realm()
             .intrinsics()
@@ -95,26 +95,26 @@ impl InternalSlots for FinalizationRegistry {
     }
 }
 
-impl InternalMethods for FinalizationRegistry {}
+impl<'gen> InternalMethods<'gen> for FinalizationRegistry<'gen> {}
 
-impl Index<FinalizationRegistry> for Agent {
-    type Output = FinalizationRegistryHeapData;
+impl<'gen> Index<FinalizationRegistry<'gen>> for Agent<'gen> {
+    type Output = FinalizationRegistryHeapData<'gen>;
 
-    fn index(&self, index: FinalizationRegistry) -> &Self::Output {
+    fn index(&self, index: FinalizationRegistry<'gen>) -> &Self::Output {
         &self.heap.finalization_registrys[index]
     }
 }
 
-impl IndexMut<FinalizationRegistry> for Agent {
-    fn index_mut(&mut self, index: FinalizationRegistry) -> &mut Self::Output {
+impl<'gen> IndexMut<FinalizationRegistry<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: FinalizationRegistry<'gen>) -> &mut Self::Output {
         &mut self.heap.finalization_registrys[index]
     }
 }
 
-impl Index<FinalizationRegistry> for Vec<Option<FinalizationRegistryHeapData>> {
-    type Output = FinalizationRegistryHeapData;
+impl<'gen> Index<FinalizationRegistry<'gen>> for Vec<Option<FinalizationRegistryHeapData<'gen>>> {
+    type Output = FinalizationRegistryHeapData<'gen>;
 
-    fn index(&self, index: FinalizationRegistry) -> &Self::Output {
+    fn index(&self, index: FinalizationRegistry<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("FinalizationRegistry out of bounds")
             .as_ref()
@@ -122,8 +122,8 @@ impl Index<FinalizationRegistry> for Vec<Option<FinalizationRegistryHeapData>> {
     }
 }
 
-impl IndexMut<FinalizationRegistry> for Vec<Option<FinalizationRegistryHeapData>> {
-    fn index_mut(&mut self, index: FinalizationRegistry) -> &mut Self::Output {
+impl<'gen> IndexMut<FinalizationRegistry<'gen>> for Vec<Option<FinalizationRegistryHeapData<'gen>>> {
+    fn index_mut(&mut self, index: FinalizationRegistry<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("FinalizationRegistry out of bounds")
             .as_mut()
@@ -131,8 +131,8 @@ impl IndexMut<FinalizationRegistry> for Vec<Option<FinalizationRegistryHeapData>
     }
 }
 
-impl CreateHeapData<FinalizationRegistryHeapData, FinalizationRegistry> for Heap {
-    fn create(&mut self, data: FinalizationRegistryHeapData) -> FinalizationRegistry {
+impl<'gen> CreateHeapData<FinalizationRegistryHeapData<'gen>, FinalizationRegistry<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: FinalizationRegistryHeapData<'gen>) -> FinalizationRegistry<'gen> {
         self.finalization_registrys.push(Some(data));
         FinalizationRegistry(FinalizationRegistryIndex::last(
             &self.finalization_registrys,
@@ -140,8 +140,8 @@ impl CreateHeapData<FinalizationRegistryHeapData, FinalizationRegistry> for Heap
     }
 }
 
-impl HeapMarkAndSweep for FinalizationRegistry {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for FinalizationRegistry<'gen> {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues<'gen>) {
         queues.finalization_registrys.push(*self);
     }
 

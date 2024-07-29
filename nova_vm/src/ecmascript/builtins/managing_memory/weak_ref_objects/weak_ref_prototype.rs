@@ -16,17 +16,17 @@ pub(crate) struct WeakRefPrototype;
 
 struct WeakRefPrototypeDeref;
 impl Builtin for WeakRefPrototypeDeref {
-    const NAME: String = BUILTIN_STRING_MEMORY.deref;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.deref;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakRefPrototype::deref);
 }
 
 impl WeakRefPrototype {
-    fn deref(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn deref<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.weak_ref_prototype();

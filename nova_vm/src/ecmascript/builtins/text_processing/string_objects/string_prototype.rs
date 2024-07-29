@@ -28,193 +28,193 @@ pub(crate) struct StringPrototype;
 
 struct StringPrototypeGetAt;
 impl Builtin for StringPrototypeGetAt {
-    const NAME: String = BUILTIN_STRING_MEMORY.at;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.at;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::at);
 }
 struct StringPrototypeCharAt;
 impl Builtin for StringPrototypeCharAt {
-    const NAME: String = BUILTIN_STRING_MEMORY.charAt;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.charAt;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::char_at);
 }
 struct StringPrototypeCharCodeAt;
 impl Builtin for StringPrototypeCharCodeAt {
-    const NAME: String = BUILTIN_STRING_MEMORY.charCodeAt;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.charCodeAt;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::char_code_at);
 }
 struct StringPrototypeCodePointAt;
 impl Builtin for StringPrototypeCodePointAt {
-    const NAME: String = BUILTIN_STRING_MEMORY.codePointAt;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.codePointAt;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::code_point_at);
 }
 struct StringPrototypeConcat;
 impl Builtin for StringPrototypeConcat {
-    const NAME: String = BUILTIN_STRING_MEMORY.concat;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.concat;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::concat);
 }
 struct StringPrototypeEndsWith;
 impl Builtin for StringPrototypeEndsWith {
-    const NAME: String = BUILTIN_STRING_MEMORY.endsWith;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.endsWith;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::ends_with);
 }
 struct StringPrototypeIncludes;
 impl Builtin for StringPrototypeIncludes {
-    const NAME: String = BUILTIN_STRING_MEMORY.includes;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.includes;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::includes);
 }
 struct StringPrototypeIndexOf;
 impl Builtin for StringPrototypeIndexOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.indexOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.indexOf;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::index_of);
 }
 struct StringPrototypeIsWellFormed;
 impl Builtin for StringPrototypeIsWellFormed {
-    const NAME: String = BUILTIN_STRING_MEMORY.isWellFormed;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isWellFormed;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::is_well_formed);
 }
 struct StringPrototypeLastIndexOf;
 impl Builtin for StringPrototypeLastIndexOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.lastIndexOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.lastIndexOf;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::last_index_of);
 }
 struct StringPrototypeLocaleCompare;
 impl Builtin for StringPrototypeLocaleCompare {
-    const NAME: String = BUILTIN_STRING_MEMORY.localeCompare;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.localeCompare;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::locale_compare);
 }
 struct StringPrototypeMatch;
 impl Builtin for StringPrototypeMatch {
-    const NAME: String = BUILTIN_STRING_MEMORY.r#match;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.r#match;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::r#match);
 }
 struct StringPrototypeMatchAll;
 impl Builtin for StringPrototypeMatchAll {
-    const NAME: String = BUILTIN_STRING_MEMORY.matchAll;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.matchAll;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::match_all);
 }
 struct StringPrototypeNormalize;
 impl Builtin for StringPrototypeNormalize {
-    const NAME: String = BUILTIN_STRING_MEMORY.normalize;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.normalize;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::normalize);
 }
 struct StringPrototypePadEnd;
 impl Builtin for StringPrototypePadEnd {
-    const NAME: String = BUILTIN_STRING_MEMORY.padEnd;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.padEnd;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::pad_end);
 }
 struct StringPrototypePadStart;
 impl Builtin for StringPrototypePadStart {
-    const NAME: String = BUILTIN_STRING_MEMORY.flatMap;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.flatMap;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::pad_start);
 }
 struct StringPrototypeRepeat;
 impl Builtin for StringPrototypeRepeat {
-    const NAME: String = BUILTIN_STRING_MEMORY.repeat;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.repeat;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::repeat);
 }
 struct StringPrototypeReplace;
 impl Builtin for StringPrototypeReplace {
-    const NAME: String = BUILTIN_STRING_MEMORY.replace;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.replace;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::replace);
 }
 struct StringPrototypeReplaceAll;
 impl Builtin for StringPrototypeReplaceAll {
-    const NAME: String = BUILTIN_STRING_MEMORY.replaceAll;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.replaceAll;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::replace_all);
 }
 struct StringPrototypeSearch;
 impl Builtin for StringPrototypeSearch {
-    const NAME: String = BUILTIN_STRING_MEMORY.search;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.search;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::search);
 }
 struct StringPrototypeSlice;
 impl Builtin for StringPrototypeSlice {
-    const NAME: String = BUILTIN_STRING_MEMORY.slice;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.slice;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::slice);
 }
 struct StringPrototypeSplit;
 impl Builtin for StringPrototypeSplit {
-    const NAME: String = BUILTIN_STRING_MEMORY.split;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.split;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::split);
 }
 struct StringPrototypeStartsWith;
 impl Builtin for StringPrototypeStartsWith {
-    const NAME: String = BUILTIN_STRING_MEMORY.startsWith;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.startsWith;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::starts_with);
 }
 struct StringPrototypeSubstring;
 impl Builtin for StringPrototypeSubstring {
-    const NAME: String = BUILTIN_STRING_MEMORY.substring;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.substring;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::substring);
 }
 struct StringPrototypeToLocaleLowerCase;
 impl Builtin for StringPrototypeToLocaleLowerCase {
-    const NAME: String = BUILTIN_STRING_MEMORY.toLocaleLowerCase;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleLowerCase;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::to_locale_lower_case);
 }
 struct StringPrototypeToLocaleUpperCase;
 impl Builtin for StringPrototypeToLocaleUpperCase {
-    const NAME: String = BUILTIN_STRING_MEMORY.toLocaleUpperCase;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleUpperCase;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::to_locale_upper_case);
 }
 struct StringPrototypeToLowerCase;
 impl Builtin for StringPrototypeToLowerCase {
-    const NAME: String = BUILTIN_STRING_MEMORY.toLowerCase;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLowerCase;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::to_lower_case);
 }
 struct StringPrototypeToString;
 impl Builtin for StringPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::value_of);
 }
 struct StringPrototypeToUpperCase;
 impl Builtin for StringPrototypeToUpperCase {
-    const NAME: String = BUILTIN_STRING_MEMORY.toUpperCase;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toUpperCase;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::to_upper_case);
 }
 struct StringPrototypeToWellFormed;
 impl Builtin for StringPrototypeToWellFormed {
-    const NAME: String = BUILTIN_STRING_MEMORY.toWellFormed;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toWellFormed;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::to_well_formed);
 }
 struct StringPrototypeTrim;
 impl Builtin for StringPrototypeTrim {
-    const NAME: String = BUILTIN_STRING_MEMORY.trim;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.trim;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::trim);
 }
 struct StringPrototypeTrimEnd;
 impl Builtin for StringPrototypeTrimEnd {
-    const NAME: String = BUILTIN_STRING_MEMORY.trimEnd;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.trimEnd;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::trim_end);
 }
@@ -223,7 +223,7 @@ impl BuiltinIntrinsic for StringPrototypeTrimEnd {
 }
 struct StringPrototypeTrimStart;
 impl Builtin for StringPrototypeTrimStart {
-    const NAME: String = BUILTIN_STRING_MEMORY.trimStart;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.trimStart;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::trim_start);
 }
@@ -232,19 +232,19 @@ impl BuiltinIntrinsic for StringPrototypeTrimStart {
 }
 struct StringPrototypeValueOf;
 impl Builtin for StringPrototypeValueOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.valueOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.valueOf;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::value_of);
 }
 struct StringPrototypeIterator;
 impl Builtin for StringPrototypeIterator {
-    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_iterator_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_iterator_;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::iterator);
 }
 
 impl StringPrototype {
-    fn at(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn at<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -272,7 +272,7 @@ impl StringPrototype {
         }
     }
 
-    fn char_at(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn char_at<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -291,7 +291,7 @@ impl StringPrototype {
         }
     }
 
-    fn char_code_at(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn char_code_at<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -311,7 +311,7 @@ impl StringPrototype {
         }
     }
 
-    fn code_point_at(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn code_point_at<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -335,7 +335,7 @@ impl StringPrototype {
         }
     }
 
-    fn concat(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn concat<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -353,7 +353,7 @@ impl StringPrototype {
         Ok(String::concat(agent, &strings).into_value())
     }
 
-    fn ends_with(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn ends_with<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -396,7 +396,7 @@ impl StringPrototype {
         ))
     }
 
-    fn includes(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn includes<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -430,7 +430,7 @@ impl StringPrototype {
         Ok(Value::from(haystack_str.contains(search_str.as_str(agent))))
     }
 
-    fn index_of(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn index_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -466,7 +466,7 @@ impl StringPrototype {
         }
     }
 
-    fn is_well_formed(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn is_well_formed<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -479,7 +479,7 @@ impl StringPrototype {
         Ok(Value::Boolean(true))
     }
 
-    fn last_index_of(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn last_index_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -537,32 +537,32 @@ impl StringPrototype {
         }
     }
 
-    fn locale_compare(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn locale_compare<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn r#match(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn r#match(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn match_all(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn match_all<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn normalize(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn normalize<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn pad_end(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn pad_end<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn pad_start(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn pad_start<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
     /// ### [22.1.3.18 String.prototype.repeat ( count )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.repeat)
-    fn repeat(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn repeat<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let count = arguments.get(0);
 
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -607,19 +607,19 @@ impl StringPrototype {
         ))
     }
 
-    fn replace(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn replace<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn replace_all(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn replace_all<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn search(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn search<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn slice(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn slice<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -696,11 +696,11 @@ impl StringPrototype {
         Ok(String::from_str(agent, substring).into_value())
     }
 
-    fn split(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn split<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn starts_with(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn starts_with<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -747,7 +747,7 @@ impl StringPrototype {
         ))
     }
 
-    fn substring(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn substring<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -807,24 +807,24 @@ impl StringPrototype {
         Ok(String::from_str(agent, substring).into_value())
     }
 
-    fn to_locale_lower_case(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn to_locale_lower_case<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn to_locale_upper_case(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn to_locale_upper_case<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
     /// > NOTE: The implementation might not reflect the spec.
-    fn to_lower_case(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_lower_case<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -839,7 +839,7 @@ impl StringPrototype {
     }
 
     /// > NOTE: The implementation might not reflect the spec.
-    fn to_upper_case(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_upper_case<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -853,7 +853,7 @@ impl StringPrototype {
         Ok(String::from_string(agent, upper_case_string).into_value())
     }
 
-    fn to_well_formed(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_well_formed<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -877,15 +877,15 @@ impl StringPrototype {
         Ok(s.into_value())
     }
 
-    fn trim(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn trim<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn trim_end(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn trim_end<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn trim_start(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn trim_start<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -894,16 +894,16 @@ impl StringPrototype {
     ///
     /// > NOTE: `String.prototype.toString` and `String.prototype.valueOf` are
     /// > different functions but have the exact same steps.
-    fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn value_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Return ? ThisStringValue(this value).
         this_string_value(agent, this_value).map(|string| string.into_value())
     }
 
-    fn iterator(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn iterator<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.string_prototype();
@@ -980,7 +980,7 @@ impl StringPrototype {
 /// The abstract operation ThisStringValue takes argument value (an ECMAScript
 /// language value) and returns either a normal completion containing a String
 /// or a throw completion.
-fn this_string_value(agent: &mut Agent, value: Value) -> JsResult<String> {
+fn this_string_value<'gen>(agent: &mut Agent<'gen>, value: Value<'gen>) -> JsResult<'gen, String<'gen>> {
     match value {
         // 1. If value is a String, return value.
         Value::String(data) => Ok(data.into()),

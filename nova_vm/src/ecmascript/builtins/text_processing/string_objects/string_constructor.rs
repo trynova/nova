@@ -30,7 +30,7 @@ pub struct StringConstructor;
 impl Builtin for StringConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.String;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.String;
 }
 impl BuiltinIntrinsicConstructor for StringConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::String;
@@ -40,27 +40,27 @@ struct StringFromCharCode;
 impl Builtin for StringFromCharCode {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringConstructor::from_char_code);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.fromCharCode;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromCharCode;
 }
 struct StringFromCodePoint;
 impl Builtin for StringFromCodePoint {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringConstructor::from_code_point);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.fromCodePoint;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromCodePoint;
 }
 struct StringRaw;
 impl Builtin for StringRaw {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringConstructor::raw);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.raw;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.raw;
 }
 impl StringConstructor {
-    fn behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. If value is not present, then
         let s = if arguments.is_empty() {
             // a. Let s be the empty String.
@@ -112,27 +112,27 @@ impl StringConstructor {
         Ok(s.into_value())
     }
 
-    fn from_char_code(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn from_char_code<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn from_code_point(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn from_code_point<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn raw(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn raw<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let string_prototype = intrinsics.string_prototype();
 

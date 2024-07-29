@@ -24,9 +24,9 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Proxy(pub(crate) ProxyIndex);
+pub struct Proxy<'gen>(pub(crate) ProxyIndex<'gen>);
 
-impl Proxy {
+impl<'gen> Proxy<'gen> {
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -36,183 +36,183 @@ impl Proxy {
     }
 }
 
-impl From<Proxy> for ProxyIndex {
-    fn from(val: Proxy) -> Self {
+impl<'gen> From<Proxy<'gen>> for ProxyIndex<'gen> {
+    fn from(val: Proxy<'gen>) -> Self {
         val.0
     }
 }
 
-impl From<ProxyIndex> for Proxy {
-    fn from(value: ProxyIndex) -> Self {
+impl<'gen> From<ProxyIndex<'gen>> for Proxy<'gen> {
+    fn from(value: ProxyIndex<'gen>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for Proxy {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for Proxy<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for Proxy {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for Proxy<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<Proxy> for Value {
-    fn from(val: Proxy) -> Self {
+impl<'gen> From<Proxy<'gen>> for Value<'gen> {
+    fn from(val: Proxy<'gen>) -> Self {
         Value::Proxy(val)
     }
 }
 
-impl From<Proxy> for Object {
-    fn from(val: Proxy) -> Self {
+impl<'gen> From<Proxy<'gen>> for Object<'gen> {
+    fn from(val: Proxy<'gen>) -> Self {
         Object::Proxy(val)
     }
 }
 
-impl InternalSlots for Proxy {
+impl<'gen> InternalSlots<'gen> for Proxy<'gen> {
     #[inline(always)]
     fn get_backing_object(
         self,
-        _agent: &Agent,
-    ) -> Option<crate::ecmascript::types::OrdinaryObject> {
+        _agent: &Agent<'gen>,
+    ) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         todo!()
     }
 
-    fn create_backing_object(self, _agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, _agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         todo!()
     }
 
-    fn internal_extensible(self, _agent: &Agent) -> bool {
+    fn internal_extensible(self, _agent: &Agent<'gen>) -> bool {
         todo!();
     }
 
-    fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {
+    fn internal_set_extensible(self, _agent: &mut Agent<'gen>, _value: bool) {
         todo!();
     }
 
-    fn internal_prototype(self, _agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, _agent: &Agent<'gen>) -> Option<Object<'gen>> {
         todo!();
     }
 
-    fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
+    fn internal_set_prototype(self, _agent: &mut Agent<'gen>, _prototype: Option<Object<'gen>>) {
         todo!();
     }
 }
 
-impl InternalMethods for Proxy {
-    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
+impl<'gen> InternalMethods<'gen> for Proxy<'gen> {
+    fn internal_get_prototype_of(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Option<Object<'gen>>> {
         Ok(self.internal_prototype(agent))
     }
 
     fn internal_set_prototype_of(
         self,
-        _agent: &mut Agent,
-        _prototype: Option<Object>,
-    ) -> JsResult<bool> {
+        _agent: &mut Agent<'gen>,
+        _prototype: Option<Object<'gen>>,
+    ) -> JsResult<'gen, bool> {
         todo!();
     }
 
-    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_is_extensible(self, agent: &mut Agent<'gen>) -> JsResult<'gen, bool> {
         Ok(self.internal_extensible(agent))
     }
 
-    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_prevent_extensions(self, agent: &mut Agent<'gen>) -> JsResult<'gen, bool> {
         self.internal_set_extensible(agent, false);
         Ok(true)
     }
 
     fn internal_get_own_property(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        _agent: &mut Agent<'gen>,
+        _property_key: PropertyKey<'gen>,
+    ) -> JsResult<'gen, Option<PropertyDescriptor<'gen>>> {
         todo!();
     }
 
     fn internal_define_own_property(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
+        _agent: &mut Agent<'gen>,
+        _property_key: PropertyKey<'gen>,
+        _property_descriptor: PropertyDescriptor<'gen>,
+    ) -> JsResult<'gen, bool> {
         todo!();
     }
 
     fn internal_has_property(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-    ) -> JsResult<bool> {
+        _agent: &mut Agent<'gen>,
+        _property_key: PropertyKey<'gen>,
+    ) -> JsResult<'gen, bool> {
         todo!();
     }
 
     fn internal_get(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _receiver: Value,
-    ) -> JsResult<Value> {
+        _agent: &mut Agent<'gen>,
+        _property_key: PropertyKey<'gen>,
+        _receiver: Value<'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
     fn internal_set(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _value: Value,
-        _receiver: Value,
-    ) -> JsResult<bool> {
+        _agent: &mut Agent<'gen>,
+        _property_key: PropertyKey<'gen>,
+        _value: Value<'gen>,
+        _receiver: Value<'gen>,
+    ) -> JsResult<'gen, bool> {
         todo!();
     }
 
-    fn internal_delete(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, _agent: &mut Agent<'gen>, _property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         todo!();
     }
 
-    fn internal_own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, _agent: &mut Agent<'gen>) -> JsResult<'gen, Vec<PropertyKey<'gen>>> {
         todo!();
     }
 
     fn internal_call(
         self,
-        _agent: &mut Agent,
-        _this_value: Value,
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
         _arguments_list: super::ArgumentsList,
-    ) -> JsResult<Value> {
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
     fn internal_construct(
         self,
-        _agent: &mut Agent,
+        _agent: &mut Agent<'gen>,
         _arguments_list: super::ArgumentsList,
         _new_target: crate::ecmascript::types::Function,
-    ) -> JsResult<Object> {
+    ) -> JsResult<'gen, Object<'gen>> {
         todo!()
     }
 }
 
-impl Index<Proxy> for Agent {
-    type Output = ProxyHeapData;
+impl<'gen> Index<Proxy<'gen>> for Agent<'gen> {
+    type Output = ProxyHeapData<'gen>;
 
-    fn index(&self, index: Proxy) -> &Self::Output {
+    fn index(&self, index: Proxy<'gen>) -> &Self::Output {
         &self.heap.proxys[index]
     }
 }
 
-impl IndexMut<Proxy> for Agent {
-    fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
+impl<'gen> IndexMut<Proxy<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: Proxy<'gen>) -> &mut Self::Output {
         &mut self.heap.proxys[index]
     }
 }
 
-impl Index<Proxy> for Vec<Option<ProxyHeapData>> {
-    type Output = ProxyHeapData;
+impl<'gen> Index<Proxy<'gen>> for Vec<Option<ProxyHeapData<'gen>>> {
+    type Output = ProxyHeapData<'gen>;
 
-    fn index(&self, index: Proxy) -> &Self::Output {
+    fn index(&self, index: Proxy<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("Proxy out of bounds")
             .as_ref()
@@ -220,8 +220,8 @@ impl Index<Proxy> for Vec<Option<ProxyHeapData>> {
     }
 }
 
-impl IndexMut<Proxy> for Vec<Option<ProxyHeapData>> {
-    fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
+impl<'gen> IndexMut<Proxy<'gen>> for Vec<Option<ProxyHeapData<'gen>>> {
+    fn index_mut(&mut self, index: Proxy<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Proxy out of bounds")
             .as_mut()
@@ -229,15 +229,15 @@ impl IndexMut<Proxy> for Vec<Option<ProxyHeapData>> {
     }
 }
 
-impl CreateHeapData<ProxyHeapData, Proxy> for Heap {
-    fn create(&mut self, data: ProxyHeapData) -> Proxy {
+impl<'gen> CreateHeapData<ProxyHeapData<'gen>, Proxy<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: ProxyHeapData<'gen>) -> Proxy<'gen> {
         self.proxys.push(Some(data));
         Proxy(ProxyIndex::last(&self.proxys))
     }
 }
 
-impl HeapMarkAndSweep for Proxy {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Proxy<'gen> {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues<'gen>) {
         queues.proxys.push(*self);
     }
 

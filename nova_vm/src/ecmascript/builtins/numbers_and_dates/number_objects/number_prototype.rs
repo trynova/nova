@@ -20,7 +20,7 @@ pub(crate) struct NumberPrototype;
 
 struct NumberPrototypeToExponential;
 impl Builtin for NumberPrototypeToExponential {
-    const NAME: String = BUILTIN_STRING_MEMORY.toExponential;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toExponential;
 
     const LENGTH: u8 = 1;
 
@@ -30,7 +30,7 @@ impl Builtin for NumberPrototypeToExponential {
 
 struct NumberPrototypeToFixed;
 impl Builtin for NumberPrototypeToFixed {
-    const NAME: String = BUILTIN_STRING_MEMORY.toFixed;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toFixed;
 
     const LENGTH: u8 = 1;
 
@@ -40,7 +40,7 @@ impl Builtin for NumberPrototypeToFixed {
 
 struct NumberPrototypeToLocaleString;
 impl Builtin for NumberPrototypeToLocaleString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toLocaleString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleString;
 
     const LENGTH: u8 = 0;
 
@@ -50,7 +50,7 @@ impl Builtin for NumberPrototypeToLocaleString {
 
 struct NumberPrototypeToPrecision;
 impl Builtin for NumberPrototypeToPrecision {
-    const NAME: String = BUILTIN_STRING_MEMORY.toPrecision;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toPrecision;
 
     const LENGTH: u8 = 1;
 
@@ -60,7 +60,7 @@ impl Builtin for NumberPrototypeToPrecision {
 
 struct NumberPrototypeToString;
 impl Builtin for NumberPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 1;
 
@@ -70,7 +70,7 @@ impl Builtin for NumberPrototypeToString {
 
 struct NumberPrototypeValueOf;
 impl Builtin for NumberPrototypeValueOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.valueOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.valueOf;
 
     const LENGTH: u8 = 0;
 
@@ -80,10 +80,10 @@ impl Builtin for NumberPrototypeValueOf {
 
 impl NumberPrototype {
     fn to_exponential(
-        agent: &mut Agent,
-        this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let fraction_digits = arguments.get(0);
         // Let x be ? ThisNumberValue(this value).
         let x = this_number_value(agent, this_value)?;
@@ -118,7 +118,7 @@ impl NumberPrototype {
         }
     }
 
-    fn to_fixed(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn to_fixed<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let fraction_digits = arguments.get(0);
         // Let x be ? ThisNumberValue(this value).
         let x = this_number_value(agent, this_value)?;
@@ -153,22 +153,22 @@ impl NumberPrototype {
     }
 
     fn to_locale_string(
-        agent: &mut Agent,
-        this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         Self::to_string(agent, this_value, arguments)
     }
 
-    fn to_precision(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_precision<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
     fn to_string(
-        agent: &mut Agent,
-        this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let x = this_number_value(agent, this_value)?;
         let radix = arguments.get(0);
         if radix.is_undefined() || radix == Value::from(10u8) {
@@ -178,11 +178,11 @@ impl NumberPrototype {
         }
     }
 
-    fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn value_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         this_number_value(agent, this_value).map(|result| result.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.number_prototype();
@@ -214,14 +214,14 @@ impl NumberPrototype {
     }
 }
 
-fn f64_to_exponential(agent: &mut Agent, x: f64) -> Value {
+fn f64_to_exponential<'gen>(agent: &mut Agent<'gen>, x: f64) -> Value<'gen> {
     match x.abs() {
         x if x >= 1.0 || x == 0.0 => Value::from_string(agent, format!("{x:e}").replace('e', "e+")),
         _ => Value::from_string(agent, format!("{x:e}")),
     }
 }
 
-fn f64_to_exponential_with_precision(agent: &mut Agent, x: f64, f: usize) -> Value {
+fn f64_to_exponential_with_precision<'gen>(agent: &mut Agent<'gen>, x: f64, f: usize) -> Value<'gen> {
     let mut res = format!("{x:.f$e}");
     let idx = res.find('e').unwrap();
     if res.as_bytes()[idx + 1] != b'-' {
@@ -234,7 +234,7 @@ fn f64_to_exponential_with_precision(agent: &mut Agent, x: f64, f: usize) -> Val
 ///
 /// The abstract operation ThisNumberValue takes argument value (an ECMAScript language value) and returns either a normal completion containing a Number or a throw completion. It performs the following steps when called:
 #[inline(always)]
-fn this_number_value(agent: &mut Agent, value: Value) -> JsResult<Number> {
+fn this_number_value<'gen>(agent: &mut Agent<'gen>, value: Value<'gen>) -> JsResult<'gen, Number> {
     // 1. If value is a Number, return value.
     if let Ok(value) = Number::try_from(value) {
         return Ok(value);

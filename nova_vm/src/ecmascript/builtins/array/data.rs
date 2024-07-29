@@ -15,15 +15,15 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct SealableElementsVector {
-    pub(crate) elements_index: ElementIndex,
+pub struct SealableElementsVector<'gen> {
+    pub(crate) elements_index: ElementIndex<'gen>,
     pub(crate) cap: ElementArrayKey,
     pub(crate) len: u32,
     /// Array length property can be set to unwritable
     pub(crate) len_writable: bool,
 }
 
-impl SealableElementsVector {
+impl<'gen> SealableElementsVector<'gen> {
     #[inline(always)]
     pub fn cap(&self) -> u32 {
         self.cap.cap()
@@ -46,23 +46,23 @@ impl SealableElementsVector {
     }
 
     /// A sealable elements vector is simple if it contains no accessor descriptors.
-    pub(crate) fn is_simple(&self, agent: &Agent) -> bool {
+    pub(crate) fn is_simple(&self, agent: &Agent<'gen>) -> bool {
         let elements_vector: ElementsVector = (*self).into();
         elements_vector.is_simple(agent)
     }
 
     /// A sealable elements vector is trivial if it contains no descriptors.
-    pub(crate) fn is_trivial(&self, agent: &Agent) -> bool {
+    pub(crate) fn is_trivial(&self, agent: &Agent<'gen>) -> bool {
         let elements_vector: ElementsVector = (*self).into();
         elements_vector.is_trivial(agent)
     }
 
-    pub(crate) fn is_dense(&self, agent: &Agent) -> bool {
+    pub(crate) fn is_dense(&self, agent: &Agent<'gen>) -> bool {
         let elements_vector: ElementsVector = (*self).into();
         elements_vector.is_dense(agent)
     }
 
-    pub(crate) fn from_elements_vector(elements: ElementsVector) -> Self {
+    pub(crate) fn from_elements_vector(elements: ElementsVector<'gen>) -> Self {
         Self {
             elements_index: elements.elements_index,
             cap: elements.cap,
@@ -71,7 +71,7 @@ impl SealableElementsVector {
         }
     }
 
-    pub fn reserve(&mut self, elements: &mut ElementArrays, new_len: u32) {
+    pub fn reserve(&mut self, elements: &mut ElementArrays<'gen>, new_len: u32) {
         let mut elements_vector: ElementsVector = (*self).into();
         elements_vector.reserve(elements, new_len);
         self.cap = elements_vector.cap;
@@ -80,9 +80,9 @@ impl SealableElementsVector {
 
     pub fn push(
         &mut self,
-        elements: &mut ElementArrays,
-        value: Option<Value>,
-        descriptor: Option<ElementDescriptor>,
+        elements: &mut ElementArrays<'gen>,
+        value: Option<Value<'gen>>,
+        descriptor: Option<ElementDescriptor<'gen>>,
     ) {
         let mut elements_vector: ElementsVector = (*self).into();
         elements_vector.push(elements, value, descriptor);
@@ -92,7 +92,7 @@ impl SealableElementsVector {
     }
 }
 
-impl Default for SealableElementsVector {
+impl<'gen> Default for SealableElementsVector<'gen> {
     fn default() -> Self {
         Self {
             elements_index: ElementIndex::from_u32_index(0),
@@ -103,9 +103,9 @@ impl Default for SealableElementsVector {
     }
 }
 
-impl From<SealableElementsVector> for ElementsVector {
+impl<'gen> From<SealableElementsVector<'gen>> for ElementsVector<'gen> {
     #[inline(always)]
-    fn from(value: SealableElementsVector) -> Self {
+    fn from(value: SealableElementsVector<'gen>) -> Self {
         Self {
             elements_index: value.elements_index,
             cap: value.cap,
@@ -120,16 +120,16 @@ impl From<SealableElementsVector> for ElementsVector {
 /// property whose value is always a non-negative integral Number whose
 /// mathematical value is strictly less than 2**32.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ArrayHeapData {
-    pub object_index: Option<OrdinaryObject>,
+pub struct ArrayHeapData<'gen> {
+    pub object_index: Option<OrdinaryObject<'gen>>,
     // TODO: Use enum { ElementsVector, SmallVec<[Value; 3]> }
     // to get some inline benefit together with a 32 byte size
     // for ArrayHeapData to fit two in one cache line.
-    pub elements: SealableElementsVector,
+    pub elements: SealableElementsVector<'gen>,
 }
 
-impl HeapMarkAndSweep for SealableElementsVector {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for SealableElementsVector<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         let item = *self;
         let elements: ElementsVector = item.into();
         elements.mark_values(queues)
@@ -143,8 +143,8 @@ impl HeapMarkAndSweep for SealableElementsVector {
     }
 }
 
-impl HeapMarkAndSweep for ArrayHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ArrayHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.object_index.mark_values(queues);
         self.elements.mark_values(queues);
     }

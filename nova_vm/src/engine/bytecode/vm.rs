@@ -82,12 +82,12 @@ struct ExceptionJumpTarget {
 pub(crate) struct Vm {
     /// Instruction pointer.
     ip: usize,
-    stack: Vec<Value>,
+    stack: Vec<Value<'gen>>,
     reference_stack: Vec<Reference>,
     iterator_stack: Vec<VmIterator>,
     exception_jump_target_stack: Vec<ExceptionJumpTarget>,
-    result: Option<Value>,
-    exception: Option<Value>,
+    result: Option<Value<'gen>>,
+    exception: Option<Value<'gen>>,
     reference: Option<Reference>,
 }
 
@@ -109,12 +109,12 @@ impl Vm {
         exe.identifiers[index]
     }
 
-    fn fetch_constant(&self, exe: &Executable, index: usize) -> Value {
+    fn fetch_constant(&self, exe: &Executable, index: usize) -> Value<'gen> {
         exe.constants[index]
     }
 
     /// Executes an executable using the virtual machine.
-    pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> JsResult<Option<Value>> {
+    pub(crate) fn execute<'gen>(agent: &mut Agent<'gen>, executable: &Executable) -> JsResult<'gen, Option<Value<'gen>>> {
         let mut vm = Vm::new();
 
         if agent.options.print_internals {
@@ -173,11 +173,11 @@ impl Vm {
     }
 
     fn execute_instruction(
-        agent: &mut Agent,
+        agent: &mut Agent<'gen>,
         vm: &mut Vm,
         executable: &Executable,
         instr: &Instr,
-    ) -> JsResult<ContinuationKind> {
+    ) -> JsResult<'gen, ContinuationKind> {
         if agent.options.print_internals {
             eprintln!("Executing instruction {:?}", instr.kind);
         }
@@ -1180,12 +1180,12 @@ impl Vm {
     }
 
     fn execute_simple_array_binding(
-        agent: &mut Agent,
+        agent: &mut Agent<'gen>,
         vm: &mut Vm,
         executable: &Executable,
         instr: &Instr,
-        environment: Option<EnvironmentIndex>,
-    ) -> JsResult<()> {
+        environment: Option<EnvironmentIndex<'gen>>,
+    ) -> JsResult<'gen, ()> {
         let obj = vm.stack.pop().unwrap();
         // 1. Let iteratorRecord be ? GetIterator(value, sync).
         // From GetIterator:
@@ -1248,20 +1248,20 @@ impl Vm {
     }
 
     fn execute_complex_array_binding(
-        _agent: &mut Agent,
+        _agent: &mut Agent<'gen>,
         _vm: &mut Vm,
         _executable: &Executable,
-        _environment: Option<EnvironmentIndex>,
-    ) -> JsResult<()> {
+        _environment: Option<EnvironmentIndex<'gen>>,
+    ) -> JsResult<'gen, ()> {
         todo!();
     }
 
     fn execute_object_binding(
-        agent: &mut Agent,
+        agent: &mut Agent<'gen>,
         vm: &mut Vm,
         executable: &Executable,
-        environment: Option<EnvironmentIndex>,
-    ) -> JsResult<()> {
+        environment: Option<EnvironmentIndex<'gen>>,
+    ) -> JsResult<'gen, ()> {
         let value = vm.stack.pop().unwrap();
 
         loop {
@@ -1323,11 +1323,11 @@ impl Vm {
 /// or a Number, or a throw completion.
 #[inline]
 fn apply_string_or_numeric_binary_operator(
-    agent: &mut Agent,
-    lval: Value,
+    agent: &mut Agent<'gen>,
+    lval: Value<'gen>,
     op_text: BinaryOperator,
-    rval: Value,
-) -> JsResult<Value> {
+    rval: Value<'gen>,
+) -> JsResult<'gen, Value<'gen>> {
     let lnum: Numeric;
     let rnum: Numeric;
     // 1. If opText is +, then
@@ -1443,7 +1443,7 @@ fn apply_string_or_numeric_binary_operator(
 
 /// ### [13.5.3 The typeof operator](https://tc39.es/ecma262/#sec-typeof-operator)
 #[inline]
-fn typeof_operator(_: &mut Agent, val: Value) -> String {
+fn typeof_operator(_: &mut Agent<'gen>, val: Value<'gen>) -> String {
     match val {
         // 4. If val is undefined, return "undefined".
         Value::Undefined => BUILTIN_STRING_MEMORY.undefined,
@@ -1527,10 +1527,10 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
 /// > semantics. If an object does not define or inherit @@hasInstance it uses
 /// > the default instanceof semantics.
 pub(crate) fn instanceof_operator(
-    agent: &mut Agent,
-    value: impl IntoValue,
-    target: impl IntoValue,
-) -> JsResult<bool> {
+    agent: &mut Agent<'gen>,
+    value: impl IntoValue<'gen>,
+    target: impl IntoValue<'gen>,
+) -> JsResult<'gen, bool> {
     // 1. If target is not an Object, throw a TypeError exception.
     let Ok(target) = Object::try_from(target.into_value()) else {
         let error_message = format!(
@@ -1569,8 +1569,8 @@ pub(crate) fn instanceof_operator(
     }
 }
 
-impl HeapMarkAndSweep for ExceptionJumpTarget {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ExceptionJumpTarget {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.lexical_environment.mark_values(queues);
     }
 
@@ -1579,8 +1579,8 @@ impl HeapMarkAndSweep for ExceptionJumpTarget {
     }
 }
 
-impl HeapMarkAndSweep for Vm {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Vm {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.stack.as_slice().mark_values(queues);
         self.reference_stack.as_slice().mark_values(queues);
         self.iterator_stack.as_slice().mark_values(queues);

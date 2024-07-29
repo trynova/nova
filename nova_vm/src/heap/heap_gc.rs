@@ -51,7 +51,7 @@ use crate::ecmascript::{
     },
 };
 
-fn collect_values(queues: &mut WorkQueues, values: &[Option<Value>]) {
+fn collect_values(queues: &mut WorkQueues, values: &[Option<Value<'gen>>]) {
     values.iter().for_each(|maybe_value| {
         if let Some(value) = maybe_value {
             queues.push_value(*value);
