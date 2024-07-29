@@ -97,14 +97,16 @@ impl PromiseReactionJob {
     pub(crate) fn run(self, agent: &mut Agent) -> JsResult<()> {
         // The following are substeps of point 1 in NewPromiseReactionJob.
         let handler_result = match agent[self.reaction].handler {
-            PromiseReactionHandler::Empty(PromiseReactionType::Fulfill) => {
-                // d.i.1. Let handlerResult be NormalCompletion(argument).
-                Ok(self.argument)
-            }
-            PromiseReactionHandler::Empty(PromiseReactionType::Reject) => {
-                // d.ii.1. Let handlerResult be ThrowCompletion(argument).
-                Err(JsError::new(self.argument))
-            }
+            PromiseReactionHandler::Empty => match agent[self.reaction].reaction_type {
+                PromiseReactionType::Fulfill => {
+                    // d.i.1. Let handlerResult be NormalCompletion(argument).
+                    Ok(self.argument)
+                }
+                PromiseReactionType::Reject => {
+                    // d.ii.1. Let handlerResult be ThrowCompletion(argument).
+                    Err(JsError::new(self.argument))
+                }
+            },
             // e.1. Let handlerResult be Completion(HostCallJobCallback(handler, undefined, « argument »)).
             // TODO: Add the HostCallJobCallback host hook. For now we're using its default
             // implementation, which is calling the thenable, since only browsers should use a
@@ -159,7 +161,7 @@ pub(crate) fn new_promise_reaction_job(
             }
         }
         // 2. Let handlerRealm be null.
-        PromiseReactionHandler::Empty(_) => None,
+        PromiseReactionHandler::Empty => None,
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.

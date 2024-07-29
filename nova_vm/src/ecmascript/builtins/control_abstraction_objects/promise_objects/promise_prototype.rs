@@ -86,13 +86,11 @@ impl PromisePrototype {
         let result_capability = PromiseCapability::new(agent);
 
         // 5. Return PerformPromiseThen(promise, onFulfilled, onRejected, resultCapability).
-        let on_fulfilled = Function::try_from(args.get(0)).ok();
-        let on_rejected = Function::try_from(args.get(1)).ok();
         perform_promise_then(
             agent,
             promise,
-            on_fulfilled,
-            on_rejected,
+            args.get(0),
+            args.get(1),
             Some(result_capability),
         );
         Ok(result_capability.promise().into_value())
@@ -127,36 +125,58 @@ impl PromisePrototype {
 pub(crate) fn perform_promise_then(
     agent: &mut Agent,
     promise: Promise,
-    on_fulfilled: Option<Function>,
-    on_rejected: Option<Function>,
+    on_fulfilled: Value,
+    on_rejected: Value,
     result_capability: Option<PromiseCapability>,
 ) {
     // 3. If IsCallable(onFulfilled) is false, then
     //     a. Let onFulfilledJobCallback be empty.
     // 4. Else,
     //     a. Let onFulfilledJobCallback be HostMakeJobCallback(onFulfilled).
+    // TODO: Add the HostMakeJobCallback host hook. Leaving it for later, since in implementations
+    // other than browsers, [[HostDefined]] must be EMPTY.
+    let on_fulfilled_job_callback = match Function::try_from(on_fulfilled) {
+        Ok(callback) => PromiseReactionHandler::JobCallback(callback),
+        Err(_) => PromiseReactionHandler::Empty,
+    };
     // 5. If IsCallable(onRejected) is false, then
     //     a. Let onRejectedJobCallback be empty.
     // 6. Else,
     //     a. Let onRejectedJobCallback be HostMakeJobCallback(onRejected).
-    // TODO: Add the HostMakeJobCallback host hook. Leaving it for later, since in implementations
-    // other than browsers, [[HostDefine]] must be EMPTY.
+    let on_rejected_job_callback = match Function::try_from(on_rejected) {
+        Ok(callback) => PromiseReactionHandler::JobCallback(callback),
+        Err(_) => PromiseReactionHandler::Empty,
+    };
 
+    inner_promise_then(
+        agent,
+        promise,
+        on_fulfilled_job_callback,
+        on_rejected_job_callback,
+        result_capability,
+    )
+}
+
+/// Corresponds to PerformPromiseThen starting at step 7. Useful for Nova-internal promise reaction
+/// handlers, without a JS function.
+pub(crate) fn inner_promise_then(
+    agent: &mut Agent,
+    promise: Promise,
+    on_fulfilled: PromiseReactionHandler,
+    on_rejected: PromiseReactionHandler,
+    result_capability: Option<PromiseCapability>,
+) {
     // 7. Let fulfillReaction be the PromiseReaction Record { [[Capability]]: resultCapability, [[Type]]: fulfill, [[Handler]]: onFulfilledJobCallback }.
     let fulfill_reaction = agent.heap.create(PromiseReactionRecord {
         capability: result_capability,
-        handler: match on_fulfilled {
-            Some(cb) => PromiseReactionHandler::JobCallback(cb),
-            None => PromiseReactionHandler::Empty(PromiseReactionType::Fulfill),
-        },
+        reaction_type: PromiseReactionType::Fulfill,
+        handler: on_fulfilled,
     });
     // 8. Let rejectReaction be the PromiseReaction Record { [[Capability]]: resultCapability, [[Type]]: reject, [[Handler]]: onRejectedJobCallback }.
     let reject_reaction = agent.heap.create(PromiseReactionRecord {
         capability: result_capability,
-        handler: match on_rejected {
-            Some(cb) => PromiseReactionHandler::JobCallback(cb),
-            None => PromiseReactionHandler::Empty(PromiseReactionType::Reject),
-        },
+        reaction_type: PromiseReactionType::Reject,
+        handler: on_rejected,
     });
 
     match &mut agent[promise].promise_state {

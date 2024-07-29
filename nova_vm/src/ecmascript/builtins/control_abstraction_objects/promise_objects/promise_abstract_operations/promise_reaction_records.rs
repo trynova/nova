@@ -33,8 +33,8 @@ pub(crate) enum PromiseReactionType {
 /// \[\[Type\]\] will be used instead.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum PromiseReactionHandler {
-    Empty(PromiseReactionType),
     JobCallback(Function),
+    Empty,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -46,6 +46,8 @@ pub struct PromiseReactionRecord {
     /// The capabilities of the promise for which this record provides a
     /// reaction handler.
     pub(crate) capability: Option<PromiseCapability>,
+    /// \[\[Type\]\]
+    pub(crate) reaction_type: PromiseReactionType,
     /// \[\[Handler\]\]
     ///
     /// a JobCallback Record or empty
