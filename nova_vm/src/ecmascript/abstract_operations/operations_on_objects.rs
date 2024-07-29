@@ -115,7 +115,7 @@ pub(crate) fn set(
 /// > [\[DefineOwnProperty]] will return false.
 pub(crate) fn create_data_property(
     agent: &mut Agent,
-    object: Object,
+    object: impl InternalMethods,
     property_key: PropertyKey,
     value: Value,
 ) -> JsResult<bool> {
@@ -141,7 +141,7 @@ pub(crate) fn create_data_property(
 /// exception if the requested property update cannot be performed.
 pub(crate) fn create_data_property_or_throw(
     agent: &mut Agent,
-    object: Object,
+    object: impl InternalMethods,
     property_key: PropertyKey,
     value: Value,
 ) -> JsResult<()> {

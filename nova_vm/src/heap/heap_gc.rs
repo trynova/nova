@@ -49,18 +49,9 @@ use crate::ecmascript::{
     },
     scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
     types::{
-        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
-        BUILTIN_STRINGS_LIST,
+        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, BUILTIN_STRINGS_LIST,
     },
 };
-
-fn collect_values(queues: &mut WorkQueues, values: &[Option<Value>]) {
-    values.iter().for_each(|maybe_value| {
-        if let Some(value) = maybe_value {
-            queues.push_value(*value);
-        }
-    });
-}
 
 pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
     let mut bits = HeapBits::new(heap);
@@ -75,7 +66,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
     let mut last_filled_global_value = None;
     heap.globals.iter().enumerate().for_each(|(i, &value)| {
         if let Some(value) = value {
-            queues.push_value(value);
+            value.mark_values(&mut queues);
             last_filled_global_value = Some(i);
         }
     });
@@ -1219,6 +1210,8 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
 
 #[test]
 fn test_heap_gc() {
+    use crate::ecmascript::types::Value;
+
     let mut heap: Heap = Default::default();
     assert!(heap.objects.is_empty());
     let obj = Value::Object(heap.create_null_object(&[]));

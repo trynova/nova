@@ -255,7 +255,7 @@ impl Vm {
                 };
                 let len = array.len(agent);
                 let key = PropertyKey::Integer(len.into());
-                create_data_property_or_throw(agent, array.into(), key, value)?
+                create_data_property_or_throw(agent, array, key, value)?
             }
             Instruction::ArrayElision => {
                 let array = *vm.stack.last().unwrap();
@@ -1534,7 +1534,7 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         // 14. Return "object".
         Value::PrimitiveObject(_) |
         Value::RegExp(_) |
-        Value::Arguments |
+        Value::Arguments(_) |
         Value::DataView(_) |
         Value::FinalizationRegistry(_) |
         Value::Map(_) |

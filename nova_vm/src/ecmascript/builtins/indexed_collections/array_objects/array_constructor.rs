@@ -125,7 +125,7 @@ impl ArrayConstructor {
                 // i. Perform ! CreateDataPropertyOrThrow(array, "0", len).
                 create_data_property_or_throw(
                     agent,
-                    array.into(),
+                    array,
                     PropertyKey::from(SmallInteger::zero()),
                     len,
                 )
@@ -177,7 +177,7 @@ impl ArrayConstructor {
             let item_k = arguments.get(k as usize);
 
             // iii. Perform ! CreateDataPropertyOrThrow(array, Pk, itemK).
-            create_data_property_or_throw(agent, array.into(), pk, item_k).unwrap();
+            create_data_property_or_throw(agent, array, pk, item_k).unwrap();
 
             // iv. Set k to k + 1.
             k += 1;
