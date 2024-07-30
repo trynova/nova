@@ -262,7 +262,7 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub(crate) fn new(options: Options, host_hooks: &'static dyn HostHooks) -> Self {
+    pub fn new(options: Options, host_hooks: &'static dyn HostHooks) -> Self {
         Self {
             heap: Heap::new(),
             options,

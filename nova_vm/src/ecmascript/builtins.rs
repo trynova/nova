@@ -54,4 +54,5 @@ pub use builtin_function::{
     BuiltinFunctionArgs, BuiltinGetter, ConstructorFn, RegularFn as JsFunction, RegularFn,
 };
 pub(crate) use builtin_function::{BuiltinIntrinsic, BuiltinIntrinsicConstructor};
+pub use control_abstraction_objects::*;
 pub(crate) use ecmascript_function::*;

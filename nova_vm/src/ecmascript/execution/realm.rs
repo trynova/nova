@@ -1018,7 +1018,7 @@ pub(crate) fn set_default_global_bindings(
 }
 
 /// ### [9.6 InitializeHostDefinedRealm ( )](https://tc39.es/ecma262/#sec-initializehostdefinedrealm)
-pub(crate) fn initialize_host_defined_realm(
+pub fn initialize_host_defined_realm(
     agent: &mut Agent,
     create_global_object: Option<impl FnOnce(&mut Agent) -> Object>,
     create_global_this_value: Option<impl FnOnce(&mut Agent) -> Object>,
@@ -1071,7 +1071,7 @@ pub(crate) fn initialize_host_defined_realm(
     // 12. Return UNUSED.
 }
 
-pub(crate) fn initialize_default_realm(agent: &mut Agent) {
+pub fn initialize_default_realm(agent: &mut Agent) {
     let create_global_object: Option<fn(&mut Agent) -> Object> = None;
     let create_global_this_value: Option<fn(&mut Agent) -> Object> = None;
     let initialize_global_object: Option<fn(&mut Agent, Object)> = None;
