@@ -20224,7 +20224,6 @@
   "language/expressions/object/setter-super-prop.js": "CRASH",
   "language/expressions/optional-chaining/call-expression.js": "CRASH",
   "language/expressions/optional-chaining/eval-optional-call.js": "CRASH",
-  "language/expressions/optional-chaining/iteration-statement-do.js": "CRASH",
   "language/expressions/optional-chaining/iteration-statement-for-await-of.js": "CRASH",
   "language/expressions/optional-chaining/iteration-statement-for-in.js": "CRASH",
   "language/expressions/optional-chaining/iteration-statement-for-of-type-error.js": "CRASH",
