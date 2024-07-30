@@ -201,6 +201,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("\n\n");
             let mut placeholder = "Enter a line of Javascript".to_string();
 
+            // Register a signal handler for Ctrl+C
+            let _ = ctrlc::set_handler(|| {
+                let _ = console::Term::stderr().show_cursor();
+            });
             loop {
                 intro("Nova Repl (type exit or ctrl+c to exit)")?;
                 let input: String = input("").placeholder(&placeholder).interact()?;
