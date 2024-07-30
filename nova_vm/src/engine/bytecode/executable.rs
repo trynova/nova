@@ -1313,16 +1313,17 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
             ctx.exe.add_instruction(Instruction::GetValue);
         }
 
-        ctx.exe.add_instruction(Instruction::LoadCopy);
-        if self.optional {
+        let maybe_jmp = if self.optional {
             ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
-        }
 
-        let jump_to_access = ctx
-            .exe
-            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+            Some(
+                ctx.exe
+                    .add_instruction_with_jump_slot(Instruction::JumpIfNot),
+            )
+        } else {
+            None
+        };
 
-        ctx.exe.add_instruction(Instruction::Store);
         // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
         let identifier = String::from_str(ctx.agent, self.property.name.as_str());
         ctx.exe.add_instruction_with_identifier(
@@ -1330,13 +1331,15 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
             identifier,
         );
 
-        let jump_to_end = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
-        ctx.exe.set_jump_target_here(jump_to_access);
+        if let Some(jmp) = maybe_jmp {
+            let jump_to_end = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+            ctx.exe.set_jump_target_here(jmp);
 
-        // Return undefined.
-        ctx.exe
-            .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-        ctx.exe.set_jump_target_here(jump_to_end);
+            // Return undefined.
+            ctx.exe
+                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            ctx.exe.set_jump_target_here(jump_to_end);
+        }
     }
 }
 
