@@ -8,7 +8,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             testing_and_comparison::require_object_coercible,
-            type_conversion::{to_integer_or_infinity, to_number, to_string},
+            type_conversion::{is_trimmable_whitespace, to_integer_or_infinity, to_number, to_string},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
@@ -899,18 +899,18 @@ impl StringPrototype {
             // 3. If where is start, then
             //   a. Let T be the String value that is a copy of S with leading white space removed.
             TrimWhere::Start => {
-                s.trim_start()
+                s.trim_start_matches(is_trimmable_whitespace)
             }
             // 4. Else if where is end, then
             //   a. Let T be the String value that is a copy of S with trailing white space removed.
             TrimWhere::End => {
-                s.trim_end()
+                s.trim_end_matches(is_trimmable_whitespace)
             }
             // 5. Else,
             //   a. Assert: where is start+end.
             //   b. Let T be the String value that is a copy of S with both leading and trailing white space removed.
             TrimWhere::StartAndEnd => {
-                s.trim()
+                s.trim_matches(is_trimmable_whitespace)
             }
         };
         
