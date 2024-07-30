@@ -1313,12 +1313,30 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
             ctx.exe.add_instruction(Instruction::GetValue);
         }
 
+        ctx.exe.add_instruction(Instruction::LoadCopy);
+        if self.optional {
+            ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
+        }
+
+        let jump_to_access = ctx
+            .exe
+            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+
+        ctx.exe.add_instruction(Instruction::Store);
         // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
         let identifier = String::from_str(ctx.agent, self.property.name.as_str());
         ctx.exe.add_instruction_with_identifier(
             Instruction::EvaluatePropertyAccessWithIdentifierKey,
             identifier,
         );
+
+        let jump_to_end = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+        ctx.exe.set_jump_target_here(jump_to_access);
+
+        // Return undefined.
+        ctx.exe
+            .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        ctx.exe.set_jump_target_here(jump_to_end);
     }
 }
 
@@ -1342,8 +1360,13 @@ impl CompileEvaluation for ast::AwaitExpression<'_> {
 }
 
 impl CompileEvaluation for ast::ChainExpression<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!()
+    fn compile(&self, ctx: &mut CompileContext) {
+        match self.expression {
+            ast::ChainElement::CallExpression(ref call) => call.compile(ctx),
+            ast::ChainElement::ComputedMemberExpression(ref call) => call.compile(ctx),
+            ast::ChainElement::StaticMemberExpression(ref call) => call.compile(ctx),
+            ast::ChainElement::PrivateFieldExpression(ref call) => call.compile(ctx),
+        }
     }
 }
 
