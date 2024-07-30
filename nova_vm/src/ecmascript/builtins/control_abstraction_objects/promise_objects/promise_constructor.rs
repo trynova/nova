@@ -8,7 +8,10 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ordinary::ordinary_create_from_constructor,
-            promise::data::{PromiseHeapData, PromiseState},
+            promise::{
+                data::{PromiseHeapData, PromiseState},
+                Promise,
+            },
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
         },
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
@@ -215,20 +218,8 @@ impl PromiseConstructor {
             agent.current_realm().intrinsics().promise().into_value()
         );
 
-        let x = arguments.get(0);
-        // 1. If IsPromise(x) is true, then
-        if let Value::Promise(x) = x {
-            // a. Let xConstructor be ? Get(x, "constructor").
-            // b. If SameValue(xConstructor, C) is true, return x.
-            // NOTE: Ignoring subclasses.
-            return Ok(x.into_value());
-        }
-        // 2. Let promiseCapability be ? NewPromiseCapability(C).
-        let promise_capability = PromiseCapability::new(agent);
-        // 3. Perform ? Call(promiseCapability.[[Resolve]], undefined, « x »).
-        promise_capability.resolve(agent, x);
-        // 4. Return promiseCapability.[[Promise]].
-        Ok(promise_capability.promise().into_value())
+        // 3. Return ? PromiseResolve(C, x).
+        Ok(Promise::resolve(agent, arguments.get(0)).into_value())
     }
 
     fn with_resolvers(
