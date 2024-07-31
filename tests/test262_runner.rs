@@ -383,13 +383,13 @@ struct Test262RunnerState {
     num_tests_timeout: usize,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct Test262RunnerMetrics {
     total: usize,
     results: Test262RunnerMetricsResults,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct Test262RunnerMetricsResults {
     pass: usize,
     fail: usize,
@@ -894,7 +894,6 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
     base_runner.in_test_eval = false;
 
     let expectation_path = base_runner.runner_base_path.join("expectations.json");
-    let metrics_path = base_runner.runner_base_path.join("metrics.json");
     let expectations = {
         if args.update_expectations && !expectation_path.is_file() {
             Default::default()
@@ -914,6 +913,20 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
                 } else {
                     read_result.unwrap()
                 }
+            }
+        }
+    };
+
+    let metrics_path = base_runner.runner_base_path.join("metrics.json");
+    let metrics: Option<Test262RunnerMetrics> = {
+        if args.update_metrics && !metrics_path.is_file() {
+            None
+        } else {
+            let file = File::open(&metrics_path).unwrap();
+            if args.update_metrics && file.metadata().unwrap().len() == 0 {
+                None
+            } else {
+                serde_json::from_reader(&file).unwrap()
             }
         }
     };
@@ -963,8 +976,9 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
         Default::default()
     };
 
+    let num_tests_skip = filters.denylist.len();
+    let mut metrics_mismatch = false;
     if args.update_metrics {
-        let num_tests_skip = filters.denylist.len();
         let json = serde_json::to_value(Test262RunnerMetrics {
             total: run_result.num_tests_run + num_tests_skip,
             results: Test262RunnerMetricsResults {
@@ -979,6 +993,54 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
         .unwrap();
         let mut file = File::create(metrics_path).unwrap();
         serde_json::to_writer_pretty(&mut file, &json).unwrap();
+    } else if let Some(metrics) = metrics {
+        if run_result.num_tests_run + num_tests_skip != metrics.total {
+            println!(
+                "Total test count mismatch: {: >5} vs {: >5}",
+                run_result.num_tests_run, metrics.total
+            );
+            metrics_mismatch = true;
+        }
+        if run_result.num_tests_pass != metrics.results.pass {
+            println!(
+                "Pass count mismatch:       {: >5} vs {: >5}",
+                run_result.num_tests_pass, metrics.results.pass
+            );
+            metrics_mismatch = true;
+        }
+        if run_result.num_tests_fail != metrics.results.fail {
+            println!(
+                "Fail count mismatch:       {: >5} vs {: >5}",
+                run_result.num_tests_fail, metrics.results.fail
+            );
+            metrics_mismatch = true;
+        }
+        if run_result.num_tests_unresolved != metrics.results.unresolved {
+            println!(
+                "Unresolved count mismatch: {: >5} vs {: >5}",
+                run_result.num_tests_unresolved, metrics.results.unresolved
+            );
+            metrics_mismatch = true;
+        }
+        if run_result.num_tests_crash != metrics.results.crash {
+            println!(
+                "Crash count mismatch:      {: >5} vs {: >5}",
+                run_result.num_tests_crash, metrics.results.crash
+            );
+            metrics_mismatch = true;
+        }
+        if run_result.num_tests_timeout != metrics.results.timeout {
+            println!(
+                "Timeout count mismatch:    {: >5} vs {: >5}",
+                run_result.num_tests_timeout, metrics.results.timeout
+            );
+            metrics_mismatch = true;
+        }
+
+        if metrics_mismatch {
+            println!("                         (found) vs (expected)");
+            println!("Metrics mismatch detected. Please update the metrics file.");
+        }
     }
 
     if run_result.num_tests_run == 0 {
@@ -987,7 +1049,9 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
     }
 
     if run_result.unexpected_results.is_empty() {
-        println!("No unexpected test results");
+        if !metrics_mismatch {
+            println!("No unexpected test results");
+        }
     } else if !args.update_expectations {
         println!(
             "Found {} unexpected test results:",
@@ -1027,5 +1091,9 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
         let json = serde_json::to_value(expectations).unwrap();
         let mut file = File::create(expectation_path).unwrap();
         serde_json::to_writer_pretty(&mut file, &json).unwrap();
+    }
+
+    if metrics_mismatch {
+        std::process::exit(1);
     }
 }
