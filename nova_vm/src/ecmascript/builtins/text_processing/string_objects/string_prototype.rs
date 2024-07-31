@@ -1080,9 +1080,9 @@ fn string_pad(
         let mut vec = VecDeque::with_capacity(2);
         let mut sub_string = vec![0; fill_len as usize];
         for i in 0..fill_len {
-            fill_string.utf16_char(agent, i as usize).encode_utf8(
-                &mut sub_string[fill_string.utf8_index(agent, i as usize).unwrap()..],
-            );
+            fill_string
+                .utf16_char(agent, i as usize)
+                .encode_utf8(&mut sub_string[fill_string.utf8_index(agent, i as usize).unwrap()..]);
         }
         let sub_string = std::str::from_utf8(&sub_string).unwrap();
         // let sub_string = &fill_string.as_str(agent)[..fill_len as usize];
