@@ -59,7 +59,7 @@ pub(crate) struct ECMAScriptCodeEvaluationState {
 /// executing code. This is known as the agent's running execution context. All
 /// references to the running execution context in this specification denote
 /// the running execution context of the surrounding agent.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct ExecutionContext {
     /// ### code evaluation state
     ///

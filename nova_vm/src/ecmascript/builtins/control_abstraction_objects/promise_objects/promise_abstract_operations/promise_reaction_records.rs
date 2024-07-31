@@ -5,7 +5,10 @@
 use std::ops::{Index, IndexMut};
 
 use crate::{
-    ecmascript::{execution::Agent, types::Function},
+    ecmascript::{
+        builtins::control_abstraction_objects::async_function_objects::await_reaction::AwaitReactionIdentifier,
+        execution::Agent, types::Function,
+    },
     heap::{indexes::BaseIndex, CreateHeapData, Heap, HeapMarkAndSweep},
 };
 
@@ -34,6 +37,7 @@ pub(crate) enum PromiseReactionType {
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum PromiseReactionHandler {
     JobCallback(Function),
+    Await(AwaitReactionIdentifier),
     Empty,
 }
 

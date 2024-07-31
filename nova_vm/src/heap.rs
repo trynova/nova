@@ -29,9 +29,12 @@ use self::{
 };
 use crate::ecmascript::{
     builtins::{
-        control_abstraction_objects::promise_objects::promise_abstract_operations::{
-            promise_reaction_records::PromiseReactionRecord,
-            promise_resolving_functions::PromiseResolvingFunctionHeapData,
+        control_abstraction_objects::{
+            async_function_objects::await_reaction::AwaitReaction,
+            promise_objects::promise_abstract_operations::{
+                promise_reaction_records::PromiseReactionRecord,
+                promise_resolving_functions::PromiseResolvingFunctionHeapData,
+            },
         },
         data_view::data::DataViewHeapData,
         date::data::DateHeapData,
@@ -72,6 +75,7 @@ pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 pub struct Heap {
     pub array_buffers: Vec<Option<ArrayBufferHeapData>>,
     pub arrays: Vec<Option<ArrayHeapData>>,
+    pub(crate) await_reactions: Vec<Option<AwaitReaction>>,
     pub bigints: Vec<Option<BigIntHeapData>>,
     pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
     pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
@@ -147,6 +151,7 @@ impl Heap {
         let mut heap = Heap {
             array_buffers: Vec::with_capacity(1024),
             arrays: Vec::with_capacity(1024),
+            await_reactions: Vec::with_capacity(1024),
             bigints: Vec::with_capacity(1024),
             bound_functions: Vec::with_capacity(256),
             builtin_functions: Vec::with_capacity(1024),

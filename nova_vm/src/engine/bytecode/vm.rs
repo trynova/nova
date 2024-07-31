@@ -44,16 +44,32 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
-struct EmptyParametersList(ast::FormalParameters<'static>);
-unsafe impl Send for EmptyParametersList {}
-unsafe impl Sync for EmptyParametersList {}
-
 use super::{
     executable::NamedEvaluationParameter,
     instructions::Instr,
     iterator::{ArrayValuesIterator, ObjectPropertiesIterator, VmIterator},
     Executable, Instruction, InstructionIter,
 };
+
+struct EmptyParametersList(ast::FormalParameters<'static>);
+unsafe impl Send for EmptyParametersList {}
+unsafe impl Sync for EmptyParametersList {}
+
+pub(crate) enum ExecutionResult {
+    Return(Value),
+    Throw(JsError),
+    Await { vm: Vm, awaited_value: Value },
+    // Yield
+}
+impl ExecutionResult {
+    pub(crate) fn into_js_result(self) -> JsResult<Value> {
+        match self {
+            ExecutionResult::Return(value) => Ok(value),
+            ExecutionResult::Throw(err) => Err(err),
+            _ => panic!("Unexpected yield or await"),
+        }
+    }
+}
 
 /// Indicates how the execution of an instruction should affect the remainder of
 /// execution that contains it.
@@ -114,8 +130,8 @@ impl Vm {
     }
 
     /// Executes an executable using the virtual machine.
-    pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> JsResult<Option<Value>> {
-        let mut vm = Vm::new();
+    pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> ExecutionResult {
+        let vm = Vm::new();
 
         if agent.options.print_internals {
             eprintln!();
@@ -146,30 +162,74 @@ impl Vm {
             eprintln!();
         }
 
-        while let Some(instr) = executable.get_instruction(&mut vm.ip) {
-            match Self::execute_instruction(agent, &mut vm, executable, &instr) {
+        vm.inner_execute(agent, executable)
+    }
+
+    pub(crate) fn resume(
+        mut self,
+        agent: &mut Agent,
+        executable: &Executable,
+        value: Value,
+    ) -> ExecutionResult {
+        self.result = Some(value);
+        self.inner_execute(agent, executable)
+    }
+
+    pub(crate) fn resume_throw(
+        mut self,
+        agent: &mut Agent,
+        executable: &Executable,
+        err: Value,
+    ) -> ExecutionResult {
+        let err = JsError::new(err);
+        if !self.handle_error(agent, err) {
+            return ExecutionResult::Throw(err);
+        }
+        self.inner_execute(agent, executable)
+    }
+
+    fn inner_execute(mut self, agent: &mut Agent, executable: &Executable) -> ExecutionResult {
+        while let Some(instr) = executable.get_instruction(&mut self.ip) {
+            match Self::execute_instruction(agent, &mut self, executable, &instr) {
                 Ok(ContinuationKind::Normal) => {}
-                Ok(ContinuationKind::Return) => return Ok(vm.result),
+                Ok(ContinuationKind::Return) => {
+                    let result = self.result.unwrap_or(Value::Undefined);
+                    return ExecutionResult::Return(result);
+                }
                 Ok(ContinuationKind::Yield) => todo!(),
-                Ok(ContinuationKind::Await) => todo!(),
+                Ok(ContinuationKind::Await) => {
+                    let awaited_value = self.result.take().unwrap();
+                    return ExecutionResult::Await {
+                        vm: self,
+                        awaited_value,
+                    };
+                }
                 Err(err) => {
-                    if let Some(ejt) = vm.exception_jump_target_stack.pop() {
-                        vm.ip = ejt.ip;
-                        agent
-                            .running_execution_context_mut()
-                            .ecmascript_code
-                            .as_mut()
-                            .unwrap()
-                            .lexical_environment = ejt.lexical_environment;
-                        vm.exception = Some(err.value());
-                    } else {
-                        return Err(err);
+                    if !self.handle_error(agent, err) {
+                        return ExecutionResult::Throw(err);
                     }
                 }
             }
         }
 
-        Ok(None)
+        ExecutionResult::Return(Value::Undefined)
+    }
+
+    #[must_use]
+    fn handle_error(&mut self, agent: &mut Agent, err: JsError) -> bool {
+        if let Some(ejt) = self.exception_jump_target_stack.pop() {
+            self.ip = ejt.ip;
+            agent
+                .running_execution_context_mut()
+                .ecmascript_code
+                .as_mut()
+                .unwrap()
+                .lexical_environment = ejt.lexical_environment;
+            self.exception = Some(err.value());
+            true
+        } else {
+            false
+        }
     }
 
     fn execute_instruction(
@@ -210,6 +270,7 @@ impl Vm {
                     true,
                 )?;
             }
+            Instruction::Await => return Ok(ContinuationKind::Await),
             Instruction::BitwiseNot => {
                 // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
                 let old_value = to_numeric(agent, vm.result.take().unwrap())?;

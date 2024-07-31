@@ -1329,8 +1329,15 @@ impl CompileEvaluation for ast::PrivateFieldExpression<'_> {
 }
 
 impl CompileEvaluation for ast::AwaitExpression<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!()
+    fn compile(&self, ctx: &mut CompileContext) {
+        // 1. Let exprRef be ? Evaluation of UnaryExpression.
+        self.argument.compile(ctx);
+        // 2. Let value be ? GetValue(exprRef).
+        if is_reference(&self.argument) {
+            ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        // 3. Return ? Await(value).
+        ctx.exe.add_instruction(Instruction::Await);
     }
 }
 

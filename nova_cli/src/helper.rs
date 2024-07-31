@@ -28,6 +28,9 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object) {
             property_key,
             PropertyDescriptor {
                 value: Some(function.into_value()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
                 ..Default::default()
             },
         )
