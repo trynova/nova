@@ -53,6 +53,8 @@ pub(crate) struct CompileContext<'agent> {
     current_continue: Option<Vec<JumpIndex>>,
     /// `break;` statement jumps that were present in the current loop.
     current_break: Option<Vec<JumpIndex>>,
+    /// `?.` chain jumps that were present in a chain expression.
+    optional_chains: Option<Vec<JumpIndex>>,
 }
 
 impl CompileContext<'_> {
@@ -227,6 +229,7 @@ impl Executable {
             lexical_binding_state: false,
             current_continue: None,
             current_break: None,
+            optional_chains: None,
         };
 
         let iter = body.iter();
@@ -435,6 +438,7 @@ fn is_reference(expression: &ast::Expression) -> bool {
         | ast::Expression::StaticMemberExpression(_)
         | ast::Expression::PrivateFieldExpression(_)
         | ast::Expression::Super(_) => true,
+        ast::Expression::ChainExpression(chain) => chain.expression.is_member_expression(),
         ast::Expression::ParenthesizedExpression(parenthesized) => {
             is_reference(&parenthesized.expression)
         }
@@ -1157,7 +1161,10 @@ impl CompileEvaluation for ast::Argument<'_> {
                     ast::Argument::AwaitExpression(x) => x.compile(ctx),
                     ast::Argument::BinaryExpression(x) => x.compile(ctx),
                     ast::Argument::CallExpression(x) => x.compile(ctx),
-                    ast::Argument::ChainExpression(x) => x.compile(ctx),
+                    ast::Argument::ChainExpression(x) => {
+                        x.compile(ctx);
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
                     ast::Argument::ClassExpression(x) => x.compile(ctx),
                     ast::Argument::ConditionalExpression(x) => x.compile(ctx),
                     ast::Argument::FunctionExpression(x) => x.compile(ctx),
@@ -1216,22 +1223,29 @@ impl CompileEvaluation for ast::Argument<'_> {
 impl CompileEvaluation for CallExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         // Direct eval
-        if let ast::Expression::Identifier(ident) = &self.callee {
-            if ident.name == "eval" {
-                for ele in &self.arguments {
-                    ele.compile(ctx);
+        if !self.optional {
+            if let ast::Expression::Identifier(ident) = &self.callee {
+                if ident.name == "eval" {
+                    for ele in &self.arguments {
+                        ele.compile(ctx);
+                    }
+                    ctx.exe.add_instruction_with_immediate(
+                        Instruction::DirectEvalCall,
+                        self.arguments.len(),
+                    );
+                    return;
                 }
-                ctx.exe.add_instruction_with_immediate(
-                    Instruction::DirectEvalCall,
-                    self.arguments.len(),
-                );
-                return;
             }
         }
 
+        // 1. Let ref be ? Evaluation of CallExpression.
         self.callee.compile(ctx);
+        // 2. Let func be ? GetValue(ref).
         let need_pop_reference = if is_reference(&self.callee) {
             ctx.exe.add_instruction(Instruction::GetValueKeepReference);
+            // Optimization: If we know arguments is empty, we don't need to
+            // worry about arguments evaluation clobbering our function's this
+            // reference.
             if !self.arguments.is_empty() {
                 ctx.exe.add_instruction(Instruction::PushReference);
                 true
@@ -1241,7 +1255,41 @@ impl CompileEvaluation for CallExpression<'_> {
         } else {
             false
         };
-        ctx.exe.add_instruction(Instruction::Load);
+
+        if self.optional {
+            // Optional Chains
+
+            // Load copy of func to stack.
+            ctx.exe.add_instruction(Instruction::LoadCopy);
+            // 3. If func is either undefined or null, then
+            ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
+            // a. Return undefined
+
+            // To return undefined we jump over the rest of the call handling.
+            let jump_over_call = if need_pop_reference {
+                // If we need to pop the reference stack, then we must do it
+                // here before we go to the nullish case handling.
+                // Note the inverted jump condition here!
+                let jump_to_call = ctx
+                    .exe
+                    .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+                // Now we're in our local nullish case handling.
+                // First we pop our reference.
+                ctx.exe.add_instruction(Instruction::PopReference);
+                // And now we're ready to jump over the call.
+                let jump_over_call = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+                // But if we're jumping to call then we need to land here.
+                ctx.exe.set_jump_target_here(jump_to_call);
+                jump_over_call
+            } else {
+                ctx.exe
+                    .add_instruction_with_jump_slot(Instruction::JumpIfTrue)
+            };
+            // Register our jump slot to the chain nullish case handling.
+            ctx.optional_chains.as_mut().unwrap().push(jump_over_call);
+        } else {
+            ctx.exe.add_instruction(Instruction::Load);
+        }
         for ele in &self.arguments {
             ele.compile(ctx);
         }
@@ -1249,6 +1297,7 @@ impl CompileEvaluation for CallExpression<'_> {
         if need_pop_reference {
             ctx.exe.add_instruction(Instruction::PopReference);
         }
+        ctx.exe.add_instruction(Instruction::Debug);
         ctx.exe
             .add_instruction_with_immediate(Instruction::EvaluateCall, self.arguments.len());
     }
@@ -1290,7 +1339,29 @@ impl CompileEvaluation for ast::ComputedMemberExpression<'_> {
         if is_reference(&self.object) {
             ctx.exe.add_instruction(Instruction::GetValue);
         }
-        ctx.exe.add_instruction(Instruction::Load);
+
+        if self.optional {
+            // Optional Chains
+
+            // Load copy of baseValue to stack.
+            ctx.exe.add_instruction(Instruction::LoadCopy);
+            // 3. If baseValue is either undefined or null, then
+            ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
+            // a. Return undefined
+
+            // To return undefined we jump over the property access.
+            let jump_over_property_access = ctx
+                .exe
+                .add_instruction_with_jump_slot(Instruction::JumpIfTrue);
+
+            // Register our jump slot to the chain nullish case handling.
+            ctx.optional_chains
+                .as_mut()
+                .unwrap()
+                .push(jump_over_property_access);
+        } else {
+            ctx.exe.add_instruction(Instruction::Load);
+        }
 
         // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
         self.expression.compile(ctx);
@@ -1313,16 +1384,29 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
             ctx.exe.add_instruction(Instruction::GetValue);
         }
 
-        let maybe_jmp = if self.optional {
-            ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
+        if self.optional {
+            // Optional Chains
 
-            Some(
-                ctx.exe
-                    .add_instruction_with_jump_slot(Instruction::JumpIfNot),
-            )
-        } else {
-            None
-        };
+            // Load copy of baseValue to stack.
+            ctx.exe.add_instruction(Instruction::LoadCopy);
+            // 3. If baseValue is either undefined or null, then
+            ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
+            // a. Return undefined
+
+            // To return undefined we jump over the property access.
+            let jump_over_property_access = ctx
+                .exe
+                .add_instruction_with_jump_slot(Instruction::JumpIfTrue);
+
+            // Register our jump slot to the chain nullish case handling.
+            ctx.optional_chains
+                .as_mut()
+                .unwrap()
+                .push(jump_over_property_access);
+
+            // Return copy of baseValue from stack if it is not.
+            ctx.exe.add_instruction(Instruction::Store);
+        }
 
         // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
         let identifier = String::from_str(ctx.agent, self.property.name.as_str());
@@ -1330,16 +1414,6 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
             Instruction::EvaluatePropertyAccessWithIdentifierKey,
             identifier,
         );
-
-        if let Some(jmp) = maybe_jmp {
-            let jump_to_end = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
-            ctx.exe.set_jump_target_here(jmp);
-
-            // Return undefined.
-            ctx.exe
-                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-            ctx.exe.set_jump_target_here(jump_to_end);
-        }
     }
 }
 
@@ -1364,12 +1438,39 @@ impl CompileEvaluation for ast::AwaitExpression<'_> {
 
 impl CompileEvaluation for ast::ChainExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        // It's possible that we're compiling a ChainExpression inside a call
+        // that is itself in a ChainExpression. Thus we need to remember
+        // previous chains. We prepare for at least two chains to exist. One
+        // chain is often enough but two is a bit safer. Three is rare.
+        let previous_chain = ctx.optional_chains.replace(Vec::with_capacity(2));
         match self.expression {
             ast::ChainElement::CallExpression(ref call) => call.compile(ctx),
-            ast::ChainElement::ComputedMemberExpression(ref call) => call.compile(ctx),
-            ast::ChainElement::StaticMemberExpression(ref call) => call.compile(ctx),
-            ast::ChainElement::PrivateFieldExpression(ref call) => call.compile(ctx),
+            ast::ChainElement::ComputedMemberExpression(ref call) => {
+                call.compile(ctx);
+            }
+            ast::ChainElement::StaticMemberExpression(ref call) => {
+                call.compile(ctx);
+            }
+            ast::ChainElement::PrivateFieldExpression(ref call) => {
+                call.compile(ctx);
+            }
         }
+        // If chain succeeded, we come here and should jump over the nullish
+        // case handling.
+        let jump_over_return_undefined = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+        let own_chains = ctx.optional_chains.take().unwrap();
+        // Return previous chains to their place.
+        ctx.optional_chains = previous_chain;
+        for jump_to_return_undefined in own_chains {
+            ctx.exe.set_jump_target_here(jump_to_return_undefined);
+            // All optional chains come here with a copy of their null or
+            // undefined baseValue on the stack. Pop it off.
+            ctx.exe.add_instruction(Instruction::Store);
+            // Replace any possible null with undefined.
+            ctx.exe
+                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        }
+        ctx.exe.set_jump_target_here(jump_over_return_undefined);
     }
 }
 

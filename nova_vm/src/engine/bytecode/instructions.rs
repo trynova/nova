@@ -72,7 +72,8 @@ pub enum Instruction {
     /// value so a `GetValue` call would be a no-op.
     GetValue,
     /// Same as GetValue without taking the reference slot. Used for reference
-    /// property updates.
+    /// property updates and function calls (where `this` comes from the
+    /// reference).
     GetValueKeepReference,
     /// Compare the last two values on the stack using the '>' operator rules.
     GreaterThan,
