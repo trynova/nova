@@ -782,14 +782,14 @@ struct RunTestsArgs {
     /// Update the expectations file with the results of the test run.
     #[arg(
         long,
-        default_value_if("update", ArgPredicate::IsPresent, Some("true"))
+        default_value_if("update", ArgPredicate::Equals("true".into()), Some("true"))
     )]
     update_expectations: bool,
 
     /// Update the metrics file with the metrics of the test run.
     #[arg(
         long,
-        default_value_if("update", ArgPredicate::IsPresent, Some("true"))
+        default_value_if("update", ArgPredicate::Equals("true".into()), Some("true"))
     )]
     update_metrics: bool,
 

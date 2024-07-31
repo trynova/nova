@@ -583,8 +583,50 @@ impl StringPrototype {
         string_padding_builtins_impl(agent, o, max_length, fill_string, true)
     }
 
-    fn repeat(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [22.1.3.18 String.prototype.repeat ( count )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.repeat)
+    fn repeat(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let count = arguments.get(0);
+
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value)?;
+
+        // 2. Let S be ? ToString(O).
+        let s = to_string(agent, o)?;
+
+        // 3. Let n be ? ToIntegerOrInfinity(count).
+        let n = to_integer_or_infinity(agent, count)?;
+
+        // 4. If n < 0 or n = +∞, throw a RangeError exception.
+        if n.is_pos_infinity(agent) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "count must be less than infinity",
+            ));
+        }
+
+        let n = n.into_i64(agent);
+
+        if n < 0 {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "count must not be negative",
+            ));
+        }
+
+        // 5. If n = 0, return the empty String.
+        if n == 0 || s.is_empty_string() {
+            return Ok(String::EMPTY_STRING.into());
+        }
+
+        if n == 1 {
+            return Ok(s.into_value());
+        }
+
+        // 6. Return the String value that is made from n copies of S appended together.
+        Ok(Value::from_string(
+            agent,
+            s.as_str(agent).repeat(n as usize),
+        ))
     }
 
     fn replace(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {

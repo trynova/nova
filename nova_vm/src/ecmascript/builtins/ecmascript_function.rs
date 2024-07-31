@@ -29,7 +29,7 @@ use crate::{
         },
         scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
         syntax_directed_operations::{
-            function_definitions::evaluate_function_body,
+            function_definitions::{evaluate_async_function_body, evaluate_function_body},
             miscellaneous::instantiate_function_object,
             scope_analysis::{
                 function_body_lexically_declared_names, function_body_lexically_scoped_decarations,
@@ -200,6 +200,10 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     /// return or not.
     pub is_concise_arrow_function: bool,
 
+    pub is_async: bool,
+
+    pub is_generator: bool,
+
     /// \[\[ConstructorKind]]
     /// \[\[IsClassConstructor]]
     pub constructor_status: ConstructorStatus,
@@ -236,6 +240,8 @@ pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
     pub parameters_list: &'agent FormalParameters<'program>,
     pub body: &'agent FunctionBody<'program>,
     pub is_concise_arrow_function: bool,
+    pub is_async: bool,
+    pub is_generator: bool,
     pub lexical_this: bool,
     pub env: EnvironmentIndex,
     pub private_env: Option<PrivateEnvironmentIndex>,
@@ -342,12 +348,19 @@ impl InternalSlots for ECMAScriptFunction {
             object_index.internal_prototype(agent)
         } else {
             let realm = agent[self].ecmascript_function.realm;
-            Some(
-                agent
-                    .get_realm(realm)
-                    .intrinsics()
-                    .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE),
-            )
+            let intrinsics = agent[realm].intrinsics();
+            let proto = match (
+                agent[self].ecmascript_function.is_async,
+                agent[self].ecmascript_function.is_generator,
+            ) {
+                (false, false) => intrinsics.function_prototype().into_object(),
+                (false, true) => intrinsics.generator_function_prototype().into_object(),
+                (true, false) => intrinsics.async_function_prototype().into_object(),
+                (true, true) => intrinsics
+                    .async_generator_function_prototype()
+                    .into_object(),
+            };
+            Some(proto)
         }
     }
 }
@@ -725,30 +738,39 @@ pub(crate) fn evaluate_body(
 ) -> JsResult<Value> {
     let function_heap_data = &agent[function_object].ecmascript_function;
     let heap_data = function_heap_data;
-    // SAFETY: AS the ECMAScriptFunction is alive in the heap, its referred
-    // SourceCode must be as well. Thus the Allocator is live as well, and no
-    // other references to it can exist.
-    if unsafe { heap_data.ecmascript_code.as_ref() }
-        .statements
-        .is_empty()
-        && unsafe { heap_data.formal_parameters.as_ref() }.is_simple_parameter_list()
-    {
-        // Optimisation: Empty body and only simple parameters means no code will effectively run.
-        return Ok(Value::Undefined);
+    match (heap_data.is_generator, heap_data.is_async) {
+        (false, true) => {
+            // AsyncFunctionBody : FunctionBody
+            // 1. Return ? EvaluateAsyncFunctionBody of AsyncFunctionBody with arguments functionObject and argumentsList.
+            // AsyncConciseBody : ExpressionBody
+            // 1. Return ? EvaluateAsyncConciseBody of AsyncConciseBody with arguments functionObject and argumentsList.
+            Ok(evaluate_async_function_body(agent, function_object, arguments_list).into_value())
+        }
+        (false, false) => {
+            // SAFETY: AS the ECMAScriptFunction is alive in the heap, its referred
+            // SourceCode must be as well. Thus the Allocator is live as well, and no
+            // other references to it can exist.
+            if unsafe { heap_data.ecmascript_code.as_ref() }
+                .statements
+                .is_empty()
+                && unsafe { heap_data.formal_parameters.as_ref() }.is_simple_parameter_list()
+            {
+                // Optimisation: Empty body and only simple parameters means no code will effectively run.
+                return Ok(Value::Undefined);
+            }
+            // FunctionBody : FunctionStatementList
+            // 1. Return ? EvaluateFunctionBody of FunctionBody with arguments functionObject and argumentsList.
+            // ConciseBody : ExpressionBody
+            // 1. Return ? EvaluateConciseBody of ConciseBody with arguments functionObject and argumentsList.
+            evaluate_function_body(agent, function_object, arguments_list)
+        }
+        // GeneratorBody : FunctionBody
+        // 1. Return ? EvaluateGeneratorBody of GeneratorBody with arguments functionObject and argumentsList.
+        // AsyncGeneratorBody : FunctionBody
+        // 1. Return ? EvaluateAsyncGeneratorBody of AsyncGeneratorBody with arguments functionObject and argumentsList.
+        _ => todo!(),
     }
-    // FunctionBody : FunctionStatementList
-    // 1. Return ? EvaluateFunctionBody of FunctionBody with arguments functionObject and argumentsList.
-    evaluate_function_body(agent, function_object, arguments_list)
-    // ConciseBody : ExpressionBody
-    // 1. Return ? EvaluateConciseBody of ConciseBody with arguments functionObject and argumentsList.
-    // GeneratorBody : FunctionBody
-    // 1. Return ? EvaluateGeneratorBody of GeneratorBody with arguments functionObject and argumentsList.
-    // AsyncGeneratorBody : FunctionBody
-    // 1. Return ? EvaluateAsyncGeneratorBody of AsyncGeneratorBody with arguments functionObject and argumentsList.
-    // AsyncFunctionBody : FunctionBody
-    // 1. Return ? EvaluateAsyncFunctionBody of AsyncFunctionBody with arguments functionObject and argumentsList.
-    // AsyncConciseBody : ExpressionBody
-    // 1. Return ? EvaluateAsyncConciseBody of AsyncConciseBody with arguments functionObject and argumentsList.
+
     // Initializer :
     // = AssignmentExpression
     // 1. Assert: argumentsList is empty.
@@ -826,6 +848,8 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
             std::mem::transmute::<&FunctionBody<'program>, &FunctionBody<'static>>(params.body)
         }),
         is_concise_arrow_function: params.is_concise_arrow_function,
+        is_async: params.is_async,
+        is_generator: params.is_generator,
         // 12. Set F.[[IsClassConstructor]] to false.
         constructor_status: ConstructorStatus::NonConstructor,
         // 16. Set F.[[Realm]] to the current Realm Record.
@@ -925,10 +949,6 @@ pub(crate) fn make_constructor(
         Function::BuiltinPromiseResolvingFunction(_) => todo!(),
         Function::BuiltinPromiseCollectorFunction => todo!(),
         Function::BuiltinProxyRevokerFunction => todo!(),
-        Function::ECMAScriptAsyncFunction => todo!(),
-        Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-        Function::ECMAScriptConstructorFunction => todo!(),
-        Function::ECMAScriptGeneratorFunction => todo!(),
     }
     // 5. If prototype is not present, then
     let prototype = prototype.unwrap_or_else(|| {
@@ -1036,10 +1056,6 @@ pub(crate) fn set_function_name(
         Function::BuiltinPromiseResolvingFunction(_) => todo!(),
         Function::BuiltinPromiseCollectorFunction => todo!(),
         Function::BuiltinProxyRevokerFunction => todo!(),
-        Function::ECMAScriptAsyncFunction => todo!(),
-        Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-        Function::ECMAScriptConstructorFunction => todo!(),
-        Function::ECMAScriptGeneratorFunction => todo!(),
     }
 }
 

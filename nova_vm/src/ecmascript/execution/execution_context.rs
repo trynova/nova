@@ -3,9 +3,12 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{Agent, EnvironmentIndex, PrivateEnvironmentIndex, RealmIdentifier};
-use crate::ecmascript::{
-    scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
-    types::*,
+use crate::{
+    ecmascript::{
+        scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
+        types::*,
+    },
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 // TODO: Remove this.
@@ -56,7 +59,7 @@ pub(crate) struct ECMAScriptCodeEvaluationState {
 /// executing code. This is known as the agent's running execution context. All
 /// references to the running execution context in this specification denote
 /// the running execution context of the surrounding agent.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct ExecutionContext {
     /// ### code evaluation state
     ///
@@ -90,6 +93,38 @@ pub(crate) struct ExecutionContext {
 impl ExecutionContext {
     pub(crate) fn suspend(&self) {
         // TODO: What does this actually mean in the end?
+    }
+}
+
+impl HeapMarkAndSweep for ECMAScriptCodeEvaluationState {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.lexical_environment.mark_values(queues);
+        self.variable_environment.mark_values(queues);
+        self.private_environment.mark_values(queues);
+        self.source_code.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.lexical_environment.sweep_values(compactions);
+        self.variable_environment.sweep_values(compactions);
+        self.private_environment.sweep_values(compactions);
+        self.source_code.sweep_values(compactions);
+    }
+}
+
+impl HeapMarkAndSweep for ExecutionContext {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.ecmascript_code.mark_values(queues);
+        self.function.mark_values(queues);
+        self.realm.mark_values(queues);
+        self.script_or_module.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.ecmascript_code.sweep_values(compactions);
+        self.function.sweep_values(compactions);
+        self.realm.sweep_values(compactions);
+        self.script_or_module.sweep_values(compactions);
     }
 }
 

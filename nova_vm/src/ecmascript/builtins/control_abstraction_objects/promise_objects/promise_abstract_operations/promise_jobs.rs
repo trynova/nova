@@ -4,11 +4,21 @@
 
 //! ## [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
 
-use crate::{ecmascript::{
-    abstract_operations::operations_on_objects::{call_function, get_function_realm}, builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, promise::Promise, ArgumentsList}, execution::{agent::{InnerJob, Job, JsError}, Agent, JsResult}, types::{Function, IntoValue, Object, Value}
-}, heap::CreateHeapData};
+use crate::{
+    ecmascript::{
+        abstract_operations::operations_on_objects::{call_function, get_function_realm},
+        builtins::{promise::Promise, ArgumentsList},
+        execution::{
+            agent::{InnerJob, Job, JsError},
+            Agent, JsResult,
+        },
+        types::{Function, IntoValue, Object, Value},
+    },
+    heap::CreateHeapData,
+};
 
 use super::{
+    promise_capability_records::PromiseCapability,
     promise_reaction_records::{PromiseReaction, PromiseReactionHandler, PromiseReactionType},
     promise_resolving_functions::{PromiseResolvingFunctionHeapData, PromiseResolvingFunctionType},
 };
@@ -97,14 +107,16 @@ impl PromiseReactionJob {
     pub(crate) fn run(self, agent: &mut Agent) -> JsResult<()> {
         // The following are substeps of point 1 in NewPromiseReactionJob.
         let handler_result = match agent[self.reaction].handler {
-            PromiseReactionHandler::Empty(PromiseReactionType::Fulfill) => {
-                // d.i.1. Let handlerResult be NormalCompletion(argument).
-                Ok(self.argument)
-            }
-            PromiseReactionHandler::Empty(PromiseReactionType::Reject) => {
-                // d.ii.1. Let handlerResult be ThrowCompletion(argument).
-                Err(JsError::new(self.argument))
-            }
+            PromiseReactionHandler::Empty => match agent[self.reaction].reaction_type {
+                PromiseReactionType::Fulfill => {
+                    // d.i.1. Let handlerResult be NormalCompletion(argument).
+                    Ok(self.argument)
+                }
+                PromiseReactionType::Reject => {
+                    // d.ii.1. Let handlerResult be ThrowCompletion(argument).
+                    Err(JsError::new(self.argument))
+                }
+            },
             // e.1. Let handlerResult be Completion(HostCallJobCallback(handler, undefined, « argument »)).
             // TODO: Add the HostCallJobCallback host hook. For now we're using its default
             // implementation, which is calling the thenable, since only browsers should use a
@@ -115,6 +127,15 @@ impl PromiseReactionJob {
                 Value::Undefined,
                 Some(ArgumentsList(&[self.argument])),
             ),
+            PromiseReactionHandler::Await(await_reaction) => {
+                assert!(agent[self.reaction].capability.is_none());
+                let reaction_type = agent[self.reaction].reaction_type;
+                await_reaction.resume(agent, reaction_type, self.argument);
+                // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
+                // 3. f. Return undefined.
+                // 5. f. Return undefined.
+                Ok(Value::Undefined)
+            }
         };
 
         // f. If promiseCapability is undefined, then
@@ -158,8 +179,18 @@ pub(crate) fn new_promise_reaction_job(
                 Err(_) => Some(agent.current_realm_id()),
             }
         }
+        // In the spec, await continuations are JS functions created in the `Await()` spec
+        // operation. Since `Await()` is called inside the execution context of the async function,
+        // the realm of the continuation function is the same as the async function's realm.
+        PromiseReactionHandler::Await(await_reaction) => Some(
+            agent[await_reaction]
+                .execution_context
+                .as_ref()
+                .unwrap()
+                .realm,
+        ),
         // 2. Let handlerRealm be null.
-        PromiseReactionHandler::Empty(_) => None,
+        PromiseReactionHandler::Empty => None,
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.
