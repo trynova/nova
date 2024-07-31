@@ -896,7 +896,6 @@ pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
     keys_to_remove.sort();
     keys_to_reassign.sort();
     for old_key in keys_to_remove.iter() {
-        // println!("Dropping descriptors at key {:?}: {:?}", old_key, descriptors.get(old_key).unwrap());
         descriptors.remove(old_key);
     }
     for (old_key, new_key) in keys_to_reassign {
