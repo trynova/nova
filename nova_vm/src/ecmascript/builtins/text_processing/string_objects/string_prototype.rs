@@ -886,32 +886,34 @@ impl StringPrototype {
 
     /// #### [22.1.3.32.1 String.prototype.trimString ( )](https://tc39.es/ecma262/#sec-trimstring)
     fn trim_string(agent: &mut Agent, value: Value, trim_where: TrimWhere) -> JsResult<Value> {
-        let s = {
-            // 1. Let str be ? RequireObjectCoercible(string).
-            let str = require_object_coercible(agent, value)?;
+        // 1. Let str be ? RequireObjectCoercible(string).
+        let str = require_object_coercible(agent, value)?;
 
-            // 2. Let S be ? ToString(str)
-            let s = to_string(agent, str)?;
+        // 2. Let S be ? ToString(str)
+        let s = to_string(agent, str)?;
 
-            s.as_str(agent).to_owned()
-        };
+        let s_str = s.as_str(agent);
 
         let t = match trim_where {
             // 3. If where is start, then
             //   a. Let T be the String value that is a copy of S with leading white space removed.
-            TrimWhere::Start => s.trim_start_matches(is_trimmable_whitespace),
+            TrimWhere::Start => s_str.trim_start_matches(is_trimmable_whitespace),
             // 4. Else if where is end, then
             //   a. Let T be the String value that is a copy of S with trailing white space removed.
-            TrimWhere::End => s.trim_end_matches(is_trimmable_whitespace),
+            TrimWhere::End => s_str.trim_end_matches(is_trimmable_whitespace),
             // 5. Else,
             //   a. Assert: where is start+end.
             //   b. Let T be the String value that is a copy of S with both leading and trailing white space removed.
-            TrimWhere::StartAndEnd => s.trim_matches(is_trimmable_whitespace),
+            TrimWhere::StartAndEnd => s_str.trim_matches(is_trimmable_whitespace),
         };
 
-        let t = String::from_str(agent, t);
-
-        Ok(t.into_value())
+        if t == s_str {
+            // No need to allocate a String if the string was not trimmed
+            Ok(s.into_value())
+        } else {
+            let t = String::from_string(agent, t.to_string());
+            Ok(t.into_value())
+        }
     }
 
     /// ### [22.1.3.33 String.prototype.trimEnd ( )](https://tc39.es/ecma262/#sec-string.prototype.trimend)
