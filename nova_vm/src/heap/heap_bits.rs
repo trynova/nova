@@ -11,9 +11,12 @@ use super::{
 use crate::ecmascript::{
     builtins::{
         bound_function::BoundFunction,
-        control_abstraction_objects::promise_objects::promise_abstract_operations::{
-            promise_reaction_records::PromiseReaction,
-            promise_resolving_functions::BuiltinPromiseResolvingFunction,
+        control_abstraction_objects::{
+            async_function_objects::await_reaction::AwaitReactionIdentifier,
+            promise_objects::promise_abstract_operations::{
+                promise_reaction_records::PromiseReaction,
+                promise_resolving_functions::BuiltinPromiseResolvingFunction,
+            },
         },
         data_view::DataView,
         date::Date,
@@ -48,6 +51,7 @@ use crate::ecmascript::{
 pub struct HeapBits {
     pub array_buffers: Box<[bool]>,
     pub arrays: Box<[bool]>,
+    pub await_reactions: Box<[bool]>,
     pub bigints: Box<[bool]>,
     pub bound_functions: Box<[bool]>,
     pub builtin_functions: Box<[bool]>,
@@ -96,6 +100,7 @@ pub struct HeapBits {
 pub(crate) struct WorkQueues {
     pub array_buffers: Vec<ArrayBuffer>,
     pub arrays: Vec<Array>,
+    pub await_reactions: Vec<AwaitReactionIdentifier>,
     pub bigints: Vec<HeapBigInt>,
     pub bound_functions: Vec<BoundFunction>,
     pub builtin_functions: Vec<BuiltinFunction>,
@@ -144,6 +149,7 @@ impl HeapBits {
     pub fn new(heap: &Heap) -> Self {
         let array_buffers = vec![false; heap.array_buffers.len()];
         let arrays = vec![false; heap.arrays.len()];
+        let await_reactions = vec![false; heap.await_reactions.len()];
         let bigints = vec![false; heap.bigints.len()];
         let bound_functions = vec![false; heap.bound_functions.len()];
         let builtin_functions = vec![false; heap.builtin_functions.len()];
@@ -189,6 +195,7 @@ impl HeapBits {
         Self {
             array_buffers: array_buffers.into_boxed_slice(),
             arrays: arrays.into_boxed_slice(),
+            await_reactions: await_reactions.into_boxed_slice(),
             bigints: bigints.into_boxed_slice(),
             bound_functions: bound_functions.into_boxed_slice(),
             builtin_functions: builtin_functions.into_boxed_slice(),
@@ -240,6 +247,7 @@ impl WorkQueues {
         Self {
             array_buffers: Vec::with_capacity(heap.array_buffers.len() / 4),
             arrays: Vec::with_capacity(heap.arrays.len() / 4),
+            await_reactions: Vec::with_capacity(heap.await_reactions.len() / 4),
             bigints: Vec::with_capacity(heap.bigints.len() / 4),
             bound_functions: Vec::with_capacity(heap.bound_functions.len() / 4),
             builtin_functions: Vec::with_capacity(heap.builtin_functions.len() / 4),
@@ -542,6 +550,7 @@ impl Default for CompactionListBuilder {
 pub(crate) struct CompactionLists {
     pub array_buffers: CompactionList,
     pub arrays: CompactionList,
+    pub await_reactions: CompactionList,
     pub bigints: CompactionList,
     pub bound_functions: CompactionList,
     pub builtin_functions: CompactionList,
@@ -617,6 +626,7 @@ impl CompactionLists {
             e_2_32: CompactionList::from_mark_u32s(&bits.e_2_32),
             arrays: CompactionList::from_mark_bits(&bits.arrays),
             array_buffers: CompactionList::from_mark_bits(&bits.array_buffers),
+            await_reactions: CompactionList::from_mark_bits(&bits.await_reactions),
             bigints: CompactionList::from_mark_bits(&bits.bigints),
             bound_functions: CompactionList::from_mark_bits(&bits.bound_functions),
             builtin_functions: CompactionList::from_mark_bits(&bits.builtin_functions),
