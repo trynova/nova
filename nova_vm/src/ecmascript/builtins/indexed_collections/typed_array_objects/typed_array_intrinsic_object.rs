@@ -54,10 +54,9 @@ impl Builtin for TypedArrayGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayIntrinsicObject::get_species);
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
 }
-impl BuiltinGetter for TypedArrayGetSpecies {
-    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
-}
+impl BuiltinGetter for TypedArrayGetSpecies {}
 impl TypedArrayIntrinsicObject {
     fn behaviour(
         agent: &mut Agent,
@@ -118,30 +117,27 @@ impl Builtin for TypedArrayPrototypeAt {
 struct TypedArrayPrototypeGetBuffer;
 impl Builtin for TypedArrayPrototypeGetBuffer {
     const NAME: String = BUILTIN_STRING_MEMORY.get_buffer;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.buffer.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayPrototype::get_buffer);
 }
-impl BuiltinGetter for TypedArrayPrototypeGetBuffer {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.buffer.to_property_key();
-}
+impl BuiltinGetter for TypedArrayPrototypeGetBuffer {}
 struct TypedArrayPrototypeGetByteLength;
 impl Builtin for TypedArrayPrototypeGetByteLength {
     const NAME: String = BUILTIN_STRING_MEMORY.get_byteLength;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.byteLength.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayPrototype::get_byte_length);
 }
-impl BuiltinGetter for TypedArrayPrototypeGetByteLength {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.byteLength.to_property_key();
-}
+impl BuiltinGetter for TypedArrayPrototypeGetByteLength {}
 struct TypedArrayPrototypeGetByteOffset;
 impl Builtin for TypedArrayPrototypeGetByteOffset {
     const NAME: String = BUILTIN_STRING_MEMORY.get_byteOffset;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.byteOffset.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayPrototype::get_byte_offset);
 }
-impl BuiltinGetter for TypedArrayPrototypeGetByteOffset {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.byteOffset.to_property_key();
-}
+impl BuiltinGetter for TypedArrayPrototypeGetByteOffset {}
 struct TypedArrayPrototypeCopyWithin;
 impl Builtin for TypedArrayPrototypeCopyWithin {
     const NAME: String = BUILTIN_STRING_MEMORY.copyWithin;
@@ -235,12 +231,11 @@ impl Builtin for TypedArrayPrototypeLastIndexOf {
 struct TypedArrayPrototypeGetLength;
 impl Builtin for TypedArrayPrototypeGetLength {
     const NAME: String = BUILTIN_STRING_MEMORY.get_length;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.length.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayPrototype::get_length);
 }
-impl BuiltinGetter for TypedArrayPrototypeGetLength {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.length.to_property_key();
-}
+impl BuiltinGetter for TypedArrayPrototypeGetLength {}
 struct TypedArrayPrototypeMap;
 impl Builtin for TypedArrayPrototypeMap {
     const NAME: String = BUILTIN_STRING_MEMORY.map;
@@ -331,12 +326,11 @@ impl Builtin for TypedArrayPrototypeWith {
 struct TypedArrayPrototypeGetToStringTag;
 impl Builtin for TypedArrayPrototypeGetToStringTag {
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_toStringTag_;
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::ToStringTag.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayPrototype::get_to_string_tag);
 }
-impl BuiltinGetter for TypedArrayPrototypeGetToStringTag {
-    const KEY: PropertyKey = WellKnownSymbolIndexes::ToStringTag.to_property_key();
-}
+impl BuiltinGetter for TypedArrayPrototypeGetToStringTag {}
 
 impl TypedArrayPrototype {
     fn at(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {

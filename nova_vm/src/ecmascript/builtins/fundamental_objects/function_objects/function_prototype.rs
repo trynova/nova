@@ -18,8 +18,8 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         scripts_and_modules::ScriptOrModule,
         types::{
-            Function, InternalSlots, IntoFunction, IntoObject, IntoValue, ObjectHeapData,
-            OrdinaryObject, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            Function, InternalSlots, IntoFunction, IntoObject, ObjectHeapData, OrdinaryObject,
+            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -84,10 +84,15 @@ struct FunctionPrototypeHasInstance;
 impl Builtin for FunctionPrototypeHasInstance {
     const NAME: String = BUILTIN_STRING_MEMORY._Symbol_hasInstance_;
 
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::HasInstance.to_property_key());
+
     const LENGTH: u8 = 0;
 
     const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
         crate::ecmascript::builtins::Behaviour::Regular(FunctionPrototype::has_instance);
+
+    const WRITABLE: bool = false;
+    const CONFIGURABLE: bool = false;
 }
 
 impl FunctionPrototype {
@@ -256,18 +261,7 @@ impl FunctionPrototype {
                     .build()
             })
             .with_builtin_function_property::<FunctionPrototypeToString>()
-            .with_property(|builder| {
-                builder
-                    .with_key(WellKnownSymbolIndexes::HasInstance.into())
-                    .with_value_creator_readonly(|agent| {
-                        BuiltinFunctionBuilder::new::<FunctionPrototypeHasInstance>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .with_configurable(false)
-                    .build()
-            })
+            .with_builtin_function_property::<FunctionPrototypeHasInstance>()
             .build();
     }
 }
