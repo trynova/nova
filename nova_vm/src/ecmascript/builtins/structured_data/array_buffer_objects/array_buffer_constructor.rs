@@ -37,13 +37,13 @@ struct ArrayBufferGetSpecies;
 impl Builtin for ArrayBufferGetSpecies {
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
+
     const LENGTH: u8 = 0;
 
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayBufferConstructor::species);
 }
-impl BuiltinGetter for ArrayBufferGetSpecies {
-    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
-}
+impl BuiltinGetter for ArrayBufferGetSpecies {}
 
 impl ArrayBufferConstructor {
     fn behaviour(

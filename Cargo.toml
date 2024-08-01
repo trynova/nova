@@ -5,6 +5,7 @@ members = ["nova_cli", "nova_vm", "common", "small_string", "tests"]
 [workspace.dependencies]
 clap = { version = "4.5.9", features = ["derive"] }
 cliclack = "0.3.2"
+ctrlc = "3.4.4"
 console = "0.15.8"
 fast-float = "0.2.0"
 miette = { version = "7.2.0", features = ["fancy"] }

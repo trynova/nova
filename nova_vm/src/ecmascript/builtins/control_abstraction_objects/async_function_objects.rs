@@ -4,3 +4,4 @@
 
 pub(crate) mod async_function_constructor;
 pub(crate) mod async_function_prototype;
+pub(crate) mod await_reaction;

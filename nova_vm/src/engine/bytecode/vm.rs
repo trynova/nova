@@ -41,12 +41,8 @@ use crate::{
             Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
-
-struct EmptyParametersList(ast::FormalParameters<'static>);
-unsafe impl Send for EmptyParametersList {}
-unsafe impl Sync for EmptyParametersList {}
 
 use super::{
     executable::NamedEvaluationParameter,
@@ -54,6 +50,26 @@ use super::{
     iterator::{ArrayValuesIterator, ObjectPropertiesIterator, VmIterator},
     Executable, Instruction, InstructionIter,
 };
+
+struct EmptyParametersList(ast::FormalParameters<'static>);
+unsafe impl Send for EmptyParametersList {}
+unsafe impl Sync for EmptyParametersList {}
+
+pub(crate) enum ExecutionResult {
+    Return(Value),
+    Throw(JsError),
+    Await { vm: Vm, awaited_value: Value },
+    // Yield
+}
+impl ExecutionResult {
+    pub(crate) fn into_js_result(self) -> JsResult<Value> {
+        match self {
+            ExecutionResult::Return(value) => Ok(value),
+            ExecutionResult::Throw(err) => Err(err),
+            _ => panic!("Unexpected yield or await"),
+        }
+    }
+}
 
 /// Indicates how the execution of an instruction should affect the remainder of
 /// execution that contains it.
@@ -114,8 +130,8 @@ impl Vm {
     }
 
     /// Executes an executable using the virtual machine.
-    pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> JsResult<Option<Value>> {
-        let mut vm = Vm::new();
+    pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> ExecutionResult {
+        let vm = Vm::new();
 
         if agent.options.print_internals {
             eprintln!();
@@ -146,30 +162,74 @@ impl Vm {
             eprintln!();
         }
 
-        while let Some(instr) = executable.get_instruction(&mut vm.ip) {
-            match Self::execute_instruction(agent, &mut vm, executable, &instr) {
+        vm.inner_execute(agent, executable)
+    }
+
+    pub(crate) fn resume(
+        mut self,
+        agent: &mut Agent,
+        executable: &Executable,
+        value: Value,
+    ) -> ExecutionResult {
+        self.result = Some(value);
+        self.inner_execute(agent, executable)
+    }
+
+    pub(crate) fn resume_throw(
+        mut self,
+        agent: &mut Agent,
+        executable: &Executable,
+        err: Value,
+    ) -> ExecutionResult {
+        let err = JsError::new(err);
+        if !self.handle_error(agent, err) {
+            return ExecutionResult::Throw(err);
+        }
+        self.inner_execute(agent, executable)
+    }
+
+    fn inner_execute(mut self, agent: &mut Agent, executable: &Executable) -> ExecutionResult {
+        while let Some(instr) = executable.get_instruction(&mut self.ip) {
+            match Self::execute_instruction(agent, &mut self, executable, &instr) {
                 Ok(ContinuationKind::Normal) => {}
-                Ok(ContinuationKind::Return) => return Ok(vm.result),
+                Ok(ContinuationKind::Return) => {
+                    let result = self.result.unwrap_or(Value::Undefined);
+                    return ExecutionResult::Return(result);
+                }
                 Ok(ContinuationKind::Yield) => todo!(),
-                Ok(ContinuationKind::Await) => todo!(),
+                Ok(ContinuationKind::Await) => {
+                    let awaited_value = self.result.take().unwrap();
+                    return ExecutionResult::Await {
+                        vm: self,
+                        awaited_value,
+                    };
+                }
                 Err(err) => {
-                    if let Some(ejt) = vm.exception_jump_target_stack.pop() {
-                        vm.ip = ejt.ip;
-                        agent
-                            .running_execution_context_mut()
-                            .ecmascript_code
-                            .as_mut()
-                            .unwrap()
-                            .lexical_environment = ejt.lexical_environment;
-                        vm.exception = Some(err.value());
-                    } else {
-                        return Err(err);
+                    if !self.handle_error(agent, err) {
+                        return ExecutionResult::Throw(err);
                     }
                 }
             }
         }
 
-        Ok(None)
+        ExecutionResult::Return(Value::Undefined)
+    }
+
+    #[must_use]
+    fn handle_error(&mut self, agent: &mut Agent, err: JsError) -> bool {
+        if let Some(ejt) = self.exception_jump_target_stack.pop() {
+            self.ip = ejt.ip;
+            agent
+                .running_execution_context_mut()
+                .ecmascript_code
+                .as_mut()
+                .unwrap()
+                .lexical_environment = ejt.lexical_environment;
+            self.exception = Some(err.value());
+            true
+        } else {
+            false
+        }
     }
 
     fn execute_instruction(
@@ -210,6 +270,7 @@ impl Vm {
                     true,
                 )?;
             }
+            Instruction::Await => return Ok(ContinuationKind::Await),
             Instruction::BitwiseNot => {
                 // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
                 let old_value = to_numeric(agent, vm.result.take().unwrap())?;
@@ -347,9 +408,11 @@ impl Vm {
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
                     // 4. Let sourceText be the source text matched by MethodDefinition.
-                    source_text: function_expression.expression.span,
+                    source_text: function_expression.expression.get().span,
                     parameters_list: &empty_parameters.0,
-                    body: function_expression.expression.body.as_ref().unwrap(),
+                    body: function_expression.expression.get().body.as_ref().unwrap(),
+                    is_async: function_expression.expression.get().r#async,
+                    is_generator: function_expression.expression.get().generator,
                     is_concise_arrow_function: false,
                     lexical_this: false,
                     env,
@@ -407,10 +470,12 @@ impl Vm {
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
                     // 4. Let sourceText be the source text matched by MethodDefinition.
-                    source_text: function_expression.expression.span,
-                    parameters_list: &function_expression.expression.params,
-                    body: function_expression.expression.body.as_ref().unwrap(),
+                    source_text: function_expression.expression.get().span,
+                    parameters_list: &function_expression.expression.get().params,
+                    body: function_expression.expression.get().body.as_ref().unwrap(),
                     is_concise_arrow_function: false,
+                    is_async: function_expression.expression.get().r#async,
+                    is_generator: function_expression.expression.get().generator,
                     lexical_this: false,
                     env,
                     private_env,
@@ -516,10 +581,12 @@ impl Vm {
                 // 1. If name is not present, set name to "".
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
-                    source_text: function_expression.expression.span,
-                    parameters_list: &function_expression.expression.params,
-                    body: &function_expression.expression.body,
-                    is_concise_arrow_function: function_expression.expression.expression,
+                    source_text: function_expression.expression.get().span,
+                    parameters_list: &function_expression.expression.get().params,
+                    body: &function_expression.expression.get().body,
+                    is_concise_arrow_function: function_expression.expression.get().expression,
+                    is_async: function_expression.expression.get().r#async,
+                    is_generator: false,
                     lexical_this: true,
                     env: lexical_environment,
                     private_env: private_environment,
@@ -564,7 +631,7 @@ impl Vm {
                 let (name, env, init_binding) = if let Some(parameter) =
                     function_expression.identifier
                 {
-                    debug_assert!(function_expression.expression.id.is_none());
+                    debug_assert!(function_expression.expression.get().id.is_none());
                     let name = match parameter {
                         NamedEvaluationParameter::Result => {
                             to_property_key(agent, vm.result.unwrap())?
@@ -580,7 +647,7 @@ impl Vm {
                         }
                     };
                     (name, lexical_environment, false)
-                } else if let Some(binding_identifier) = &function_expression.expression.id {
+                } else if let Some(binding_identifier) = &function_expression.expression.get().id {
                     let name = String::from_str(agent, &binding_identifier.name);
                     let func_env = new_declarative_environment(agent, Some(lexical_environment));
                     func_env.create_immutable_binding(agent, name, false);
@@ -590,18 +657,20 @@ impl Vm {
                 };
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
-                    source_text: function_expression.expression.span,
-                    parameters_list: &function_expression.expression.params,
-                    body: function_expression.expression.body.as_ref().unwrap(),
+                    source_text: function_expression.expression.get().span,
+                    parameters_list: &function_expression.expression.get().params,
+                    body: function_expression.expression.get().body.as_ref().unwrap(),
                     is_concise_arrow_function: false,
+                    is_async: function_expression.expression.get().r#async,
+                    is_generator: function_expression.expression.get().generator,
                     lexical_this: false,
                     env,
                     private_env: private_environment,
                 };
                 let function = ordinary_function_create(agent, params);
                 set_function_name(agent, function, name, None);
-                if !function_expression.expression.r#async
-                    && !function_expression.expression.generator
+                if !function_expression.expression.get().r#async
+                    && !function_expression.expression.get().generator
                 {
                     make_constructor(agent, function, None, None);
                 }
@@ -1497,11 +1566,7 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::BuiltinConstructorFunction |
         Value::BuiltinPromiseResolvingFunction(_) |
         Value::BuiltinPromiseCollectorFunction |
-        Value::BuiltinProxyRevokerFunction |
-        Value::ECMAScriptAsyncFunction |
-        Value::ECMAScriptAsyncGeneratorFunction |
-        Value::ECMAScriptConstructorFunction |
-        Value::ECMAScriptGeneratorFunction => BUILTIN_STRING_MEMORY.function,
+        Value::BuiltinProxyRevokerFunction => BUILTIN_STRING_MEMORY.function,
         // TODO: Check [[Call]] slot for Proxy
         Value::Proxy(_) => todo!(),
     }
@@ -1562,5 +1627,43 @@ pub(crate) fn instanceof_operator(
         };
         // 5. Return ? OrdinaryHasInstance(target, V).
         Ok(ordinary_has_instance(agent, target, value)?)
+    }
+}
+
+impl HeapMarkAndSweep for ExceptionJumpTarget {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.lexical_environment.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.lexical_environment.sweep_values(compactions);
+    }
+}
+
+impl HeapMarkAndSweep for Vm {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.stack.as_slice().mark_values(queues);
+        self.reference_stack.as_slice().mark_values(queues);
+        self.iterator_stack.as_slice().mark_values(queues);
+        self.exception_jump_target_stack
+            .as_slice()
+            .mark_values(queues);
+        self.result.mark_values(queues);
+        self.exception.mark_values(queues);
+        self.reference.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.stack.as_mut_slice().sweep_values(compactions);
+        self.reference_stack
+            .as_mut_slice()
+            .sweep_values(compactions);
+        self.iterator_stack.as_mut_slice().sweep_values(compactions);
+        self.exception_jump_target_stack
+            .as_mut_slice()
+            .sweep_values(compactions);
+        self.result.sweep_values(compactions);
+        self.exception.sweep_values(compactions);
+        self.reference.sweep_values(compactions);
     }
 }

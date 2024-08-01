@@ -4,10 +4,7 @@
 
 use crate::{
     ecmascript::{
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Builtin, BuiltinGetter},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
@@ -23,14 +20,14 @@ struct SymbolPrototypeGetDescription;
 impl Builtin for SymbolPrototypeGetDescription {
     const NAME: String = BUILTIN_STRING_MEMORY.get_description;
 
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.description.to_property_key());
+
     const LENGTH: u8 = 0;
 
     const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
         crate::ecmascript::builtins::Behaviour::Regular(SymbolPrototype::get_description);
 }
-impl BuiltinGetter for SymbolPrototypeGetDescription {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.description.to_property_key();
-}
+impl BuiltinGetter for SymbolPrototypeGetDescription {}
 
 struct SymbolPrototypeToString;
 impl Builtin for SymbolPrototypeToString {
@@ -56,10 +53,14 @@ struct SymbolPrototypeToPrimitive;
 impl Builtin for SymbolPrototypeToPrimitive {
     const NAME: String = BUILTIN_STRING_MEMORY._Symbol_toPrimitive_;
 
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::ToPrimitive.to_property_key());
+
     const LENGTH: u8 = 1;
 
     const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
         crate::ecmascript::builtins::Behaviour::Regular(SymbolPrototype::value_of);
+
+    const WRITABLE: bool = false;
 }
 
 impl SymbolPrototype {
@@ -144,17 +145,7 @@ impl SymbolPrototype {
             .with_builtin_function_getter_property::<SymbolPrototypeGetDescription>()
             .with_builtin_function_property::<SymbolPrototypeToString>()
             .with_builtin_function_property::<SymbolPrototypeValueOf>()
-            .with_property(|builder| {
-                builder
-                    .with_key(WellKnownSymbolIndexes::ToPrimitive.into())
-                    .with_value_creator_readonly(|agent| {
-                        BuiltinFunctionBuilder::new::<SymbolPrototypeToPrimitive>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .build()
-            })
+            .with_builtin_function_property::<SymbolPrototypeToPrimitive>()
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())

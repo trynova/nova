@@ -67,12 +67,11 @@ impl Builtin for SetPrototypeKeys {
 struct SetPrototypeGetSize;
 impl Builtin for SetPrototypeGetSize {
     const NAME: String = BUILTIN_STRING_MEMORY.get_size;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.size.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::get_size);
 }
-impl BuiltinGetter for SetPrototypeGetSize {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.size.to_property_key();
-}
+impl BuiltinGetter for SetPrototypeGetSize {}
 struct SetPrototypeValues;
 impl Builtin for SetPrototypeValues {
     const NAME: String = BUILTIN_STRING_MEMORY.values;

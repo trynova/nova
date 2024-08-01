@@ -16,6 +16,7 @@
     "built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-16.js",
     "built-ins/Array/prototype/lastIndexOf/15.4.4.15-8-9.js",
     "built-ins/Array/prototype/push/S15.4.4.7_A3.js",
+    "built-ins/Array/prototype/reduceRight/length-near-integer-limit.js",
     "built-ins/Array/S15.4_A1.1_T10.js",
     "built-ins/Array/S15.4.5.2_A1_T1.js",
     "built-ins/Array/S15.4.5.2_A3_T3.js",

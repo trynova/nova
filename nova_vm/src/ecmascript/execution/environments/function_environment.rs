@@ -338,10 +338,6 @@ impl FunctionEnvironmentIndex {
             Function::BuiltinPromiseResolvingFunction(_) => unreachable!(),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         }
     }
 
@@ -363,10 +359,6 @@ impl FunctionEnvironmentIndex {
             Function::BuiltinPromiseResolvingFunction(_) => unreachable!(),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
-            Function::ECMAScriptAsyncFunction => todo!(),
-            Function::ECMAScriptAsyncGeneratorFunction => todo!(),
-            Function::ECMAScriptConstructorFunction => todo!(),
-            Function::ECMAScriptGeneratorFunction => todo!(),
         };
         // 2. If home is undefined, return undefined.
         let Some(home) = home else {

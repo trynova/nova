@@ -19,6 +19,8 @@ use crate::{
 
 use self::data::PromiseHeapData;
 
+use super::control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability;
+
 pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -32,6 +34,24 @@ impl Promise {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+
+    /// [27.2.4.7.1 PromiseResolve ( C, x )](https://tc39.es/ecma262/#sec-promise-resolve)
+    pub fn resolve(agent: &mut Agent, x: Value) -> Self {
+        // 1. If IsPromise(x) is true, then
+        if let Value::Promise(promise) = x {
+            // a. Let xConstructor be ? Get(x, "constructor").
+            // b. If SameValue(xConstructor, C) is true, return x.
+            // NOTE: Ignoring subclasses.
+            promise
+        } else {
+            // 2. Let promiseCapability be ? NewPromiseCapability(C).
+            let promise_capability = PromiseCapability::new(agent);
+            // 3. Perform ? Call(promiseCapability.[[Resolve]], undefined, « x »).
+            promise_capability.resolve(agent, x);
+            // 4. Return promiseCapability.[[Promise]].
+            promise_capability.promise()
+        }
     }
 }
 

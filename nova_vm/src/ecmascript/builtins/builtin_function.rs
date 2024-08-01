@@ -62,6 +62,9 @@ pub trait Builtin {
     const LENGTH: u8;
     const BEHAVIOUR: Behaviour;
 
+    /// Set to Some if this builtin's property key is different from `NAME`.
+    const KEY: Option<PropertyKey> = None;
+
     /// If the builtin function is created as a property then this controls the
     /// property's `[[Writable]]` value.
     const WRITABLE: bool = true;
@@ -80,9 +83,7 @@ pub(crate) trait BuiltinIntrinsicConstructor: Builtin {
 pub(crate) trait BuiltinIntrinsic: Builtin {
     const INDEX: IntrinsicFunctionIndexes;
 }
-pub trait BuiltinGetter: Builtin {
-    const KEY: PropertyKey;
-}
+pub trait BuiltinGetter: Builtin {}
 
 #[derive(Debug, Default)]
 pub struct BuiltinFunctionArgs {
