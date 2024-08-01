@@ -20226,7 +20226,6 @@
   "language/expressions/optional-chaining/iteration-statement-for-await-of.js": "CRASH",
   "language/expressions/optional-chaining/member-expression.js": "CRASH",
   "language/expressions/optional-chaining/new-target-optional-call.js": "CRASH",
-  "language/expressions/optional-chaining/optional-call-preserves-this.js": "CRASH",
   "language/expressions/optional-chaining/optional-chain-prod-arguments.js": "CRASH",
   "language/expressions/optional-chaining/super-property-optional-call.js": "CRASH",
   "language/expressions/postfix-decrement/S11.3.2_A5_T1.js": "CRASH",
