@@ -1392,7 +1392,9 @@ impl<'a> TopLevelVarScopedDeclarations<'a> for Statement<'a> {
                 // 2. Return a new empty List.
             }
             #[cfg(feature = "typescript")]
-            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) | Statement::TSEnumDeclaration(_) => {}
+            Statement::TSTypeAliasDeclaration(_)
+            | Statement::TSInterfaceDeclaration(_)
+            | Statement::TSEnumDeclaration(_) => {}
             #[cfg(not(feature = "typescript"))]
             Statement::TSTypeAliasDeclaration(_)
             | Statement::TSInterfaceDeclaration(_)

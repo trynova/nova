@@ -2771,10 +2771,11 @@ impl CompileEvaluation for ast::Statement<'_> {
             Statement::ExportDefaultDeclaration(_) => todo!(),
             Statement::ExportNamedDeclaration(_) => todo!(),
             #[cfg(feature = "typescript")]
-            Statement::TSTypeAliasDeclaration(_)
-            | Statement::TSInterfaceDeclaration(_) => {}
+            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {}
             #[cfg(not(feature = "typescript"))]
-            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) | Statement::TSEnumDeclaration(_) => {
+            Statement::TSTypeAliasDeclaration(_)
+            | Statement::TSInterfaceDeclaration(_)
+            | Statement::TSEnumDeclaration(_) => {
                 unreachable!()
             }
             Statement::TSExportAssignment(_)
