@@ -10,16 +10,13 @@ use crate::{
             testing_and_comparison::require_object_coercible,
             type_conversion::{to_integer_or_infinity, to_number, to_string},
         },
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -239,6 +236,7 @@ impl Builtin for StringPrototypeValueOf {
 struct StringPrototypeIterator;
 impl Builtin for StringPrototypeIterator {
     const NAME: String = BUILTIN_STRING_MEMORY._Symbol_iterator_;
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Iterator.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::iterator);
 }
@@ -948,18 +946,7 @@ impl StringPrototype {
             .with_builtin_intrinsic_function_property::<StringPrototypeTrimEnd>()
             .with_builtin_intrinsic_function_property::<StringPrototypeTrimStart>()
             .with_builtin_function_property::<StringPrototypeValueOf>()
-            .with_property(|builder| {
-                builder
-                    .with_key(WellKnownSymbolIndexes::Iterator.into())
-                    .with_value_creator_readonly(|agent| {
-                        BuiltinFunctionBuilder::new::<StringPrototypeIterator>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .with_configurable(true)
-                    .build()
-            })
+            .with_builtin_function_property::<StringPrototypeIterator>()
             .build();
 
         let slot = agent

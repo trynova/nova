@@ -37,10 +37,9 @@ impl Builtin for RegExpGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpConstructor::get_species);
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
 }
-impl BuiltinGetter for RegExpGetSpecies {
-    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
-}
+impl BuiltinGetter for RegExpGetSpecies {}
 
 impl RegExpConstructor {
     fn behaviour(

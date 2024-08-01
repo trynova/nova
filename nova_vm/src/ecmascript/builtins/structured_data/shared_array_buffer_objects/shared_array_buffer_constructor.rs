@@ -28,13 +28,13 @@ struct SharedArrayBufferGetSpecies;
 impl Builtin for SharedArrayBufferGetSpecies {
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
+
     const LENGTH: u8 = 0;
 
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SharedArrayBufferConstructor::species);
 }
-impl BuiltinGetter for SharedArrayBufferGetSpecies {
-    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
-}
+impl BuiltinGetter for SharedArrayBufferGetSpecies {}
 
 impl SharedArrayBufferConstructor {
     fn behaviour(
