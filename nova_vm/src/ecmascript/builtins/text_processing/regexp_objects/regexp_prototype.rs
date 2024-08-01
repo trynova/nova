@@ -5,13 +5,10 @@
 use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_string},
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        types::{Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -30,105 +27,102 @@ impl BuiltinIntrinsic for RegExpPrototypeExec {
 struct RegExpPrototypeGetDotAll;
 impl Builtin for RegExpPrototypeGetDotAll {
     const NAME: String = BUILTIN_STRING_MEMORY.get_dotAll;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.dotAll.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_dot_all);
 }
-impl BuiltinGetter for RegExpPrototypeGetDotAll {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.dotAll.to_property_key();
-}
+impl BuiltinGetter for RegExpPrototypeGetDotAll {}
 struct RegExpPrototypeGetFlags;
 impl Builtin for RegExpPrototypeGetFlags {
     const NAME: String = BUILTIN_STRING_MEMORY.get_flags;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.flags.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_flags);
 }
-impl BuiltinGetter for RegExpPrototypeGetFlags {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.flags.to_property_key();
-}
+impl BuiltinGetter for RegExpPrototypeGetFlags {}
 struct RegExpPrototypeGetGlobal;
 impl Builtin for RegExpPrototypeGetGlobal {
     const NAME: String = BUILTIN_STRING_MEMORY.get_global;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.global.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_global);
 }
-impl BuiltinGetter for RegExpPrototypeGetGlobal {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.global.to_property_key();
-}
+impl BuiltinGetter for RegExpPrototypeGetGlobal {}
 struct RegExpPrototypeGetHasIndices;
 impl Builtin for RegExpPrototypeGetHasIndices {
     const NAME: String = BUILTIN_STRING_MEMORY.get_hasIndices;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.hasIndices.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_has_indices);
 }
-impl BuiltinGetter for RegExpPrototypeGetHasIndices {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.hasIndices.to_property_key();
-}
+impl BuiltinGetter for RegExpPrototypeGetHasIndices {}
 struct RegExpPrototypeGetIgnoreCase;
 impl Builtin for RegExpPrototypeGetIgnoreCase {
     const NAME: String = BUILTIN_STRING_MEMORY.get_ignoreCase;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.ignoreCase.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_ignore_case);
 }
-impl BuiltinGetter for RegExpPrototypeGetIgnoreCase {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.ignoreCase.to_property_key();
-}
+impl BuiltinGetter for RegExpPrototypeGetIgnoreCase {}
 struct RegExpPrototypeMatch;
 impl Builtin for RegExpPrototypeMatch {
     const NAME: String = BUILTIN_STRING_MEMORY._Symbol_match_;
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Match.to_property_key());
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::r#match);
 }
 struct RegExpPrototypeMatchAll;
 impl Builtin for RegExpPrototypeMatchAll {
     const NAME: String = BUILTIN_STRING_MEMORY._Symbol_matchAll_;
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::MatchAll.to_property_key());
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::match_all);
 }
 struct RegExpPrototypeGetMultiline;
 impl Builtin for RegExpPrototypeGetMultiline {
     const NAME: String = BUILTIN_STRING_MEMORY.get_multiline;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.multiline.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_multiline);
 }
-impl BuiltinGetter for RegExpPrototypeGetMultiline {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.multiline.to_property_key();
-}
+impl BuiltinGetter for RegExpPrototypeGetMultiline {}
 struct RegExpPrototypeReplace;
 impl Builtin for RegExpPrototypeReplace {
     const NAME: String = BUILTIN_STRING_MEMORY._Symbol_replace_;
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Replace.to_property_key());
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::replace);
 }
 struct RegExpPrototypeSearch;
 impl Builtin for RegExpPrototypeSearch {
     const NAME: String = BUILTIN_STRING_MEMORY._Symbol_search_;
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Search.to_property_key());
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::search);
 }
 struct RegExpPrototypeGetSource;
 impl Builtin for RegExpPrototypeGetSource {
     const NAME: String = BUILTIN_STRING_MEMORY.get_source;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.source.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_source);
 }
-impl BuiltinGetter for RegExpPrototypeGetSource {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.source.to_property_key();
-}
+impl BuiltinGetter for RegExpPrototypeGetSource {}
 struct RegExpPrototypeSplit;
 impl Builtin for RegExpPrototypeSplit {
     const NAME: String = BUILTIN_STRING_MEMORY._Symbol_split_;
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Split.to_property_key());
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::split);
 }
 struct RegExpPrototypeGetSticky;
 impl Builtin for RegExpPrototypeGetSticky {
     const NAME: String = BUILTIN_STRING_MEMORY.get_sticky;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.sticky.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_sticky);
 }
-impl BuiltinGetter for RegExpPrototypeGetSticky {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.sticky.to_property_key();
-}
+impl BuiltinGetter for RegExpPrototypeGetSticky {}
 struct RegExpPrototypeTest;
 impl Builtin for RegExpPrototypeTest {
     const NAME: String = BUILTIN_STRING_MEMORY.test;
@@ -144,21 +138,19 @@ impl Builtin for RegExpPrototypeToString {
 struct RegExpPrototypeGetUnicode;
 impl Builtin for RegExpPrototypeGetUnicode {
     const NAME: String = BUILTIN_STRING_MEMORY.get_unicode;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.unicode.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_unicode);
 }
-impl BuiltinGetter for RegExpPrototypeGetUnicode {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.unicode.to_property_key();
-}
+impl BuiltinGetter for RegExpPrototypeGetUnicode {}
 struct RegExpPrototypeGetUnicodeSets;
 impl Builtin for RegExpPrototypeGetUnicodeSets {
     const NAME: String = BUILTIN_STRING_MEMORY.get_unicodeSets;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.unicodeSets.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::get_unicode_sets);
 }
-impl BuiltinGetter for RegExpPrototypeGetUnicodeSets {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.unicodeSets.to_property_key();
-}
+impl BuiltinGetter for RegExpPrototypeGetUnicodeSets {}
 
 impl RegExpPrototype {
     fn exec(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
@@ -309,62 +301,12 @@ impl RegExpPrototype {
             .with_builtin_function_property::<RegExpPrototypeToString>()
             .with_builtin_function_getter_property::<RegExpPrototypeGetUnicode>()
             .with_builtin_function_getter_property::<RegExpPrototypeGetUnicodeSets>()
-            .with_property(|builder| {
-                builder
-                    .with_key(WellKnownSymbolIndexes::Match.into())
-                    .with_value_creator_readonly(|agent| {
-                        BuiltinFunctionBuilder::new::<RegExpPrototypeMatch>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key(WellKnownSymbolIndexes::MatchAll.into())
-                    .with_value_creator_readonly(|agent| {
-                        BuiltinFunctionBuilder::new::<RegExpPrototypeMatchAll>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .build()
-            })
+            .with_builtin_function_property::<RegExpPrototypeMatch>()
+            .with_builtin_function_property::<RegExpPrototypeMatchAll>()
             .with_builtin_function_getter_property::<RegExpPrototypeGetMultiline>()
-            .with_property(|builder| {
-                builder
-                    .with_key(WellKnownSymbolIndexes::Replace.into())
-                    .with_value_creator_readonly(|agent| {
-                        BuiltinFunctionBuilder::new::<RegExpPrototypeReplace>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key(WellKnownSymbolIndexes::Search.into())
-                    .with_value_creator_readonly(|agent| {
-                        BuiltinFunctionBuilder::new::<RegExpPrototypeSearch>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key(WellKnownSymbolIndexes::Split.into())
-                    .with_value_creator_readonly(|agent| {
-                        BuiltinFunctionBuilder::new::<RegExpPrototypeSplit>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .build()
-            })
+            .with_builtin_function_property::<RegExpPrototypeReplace>()
+            .with_builtin_function_property::<RegExpPrototypeSearch>()
+            .with_builtin_function_property::<RegExpPrototypeSplit>()
             .build();
     }
 }

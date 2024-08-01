@@ -176,7 +176,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
     pub fn with_builtin_function_property<T: Builtin>(mut self) -> Self {
         let (value, key) = {
             let mut builder = BuiltinFunctionBuilder::new::<T>(self.agent, self.realm);
-            let name = PropertyKey::from(builder.get_name());
+            let name = T::KEY.unwrap_or_else(|| PropertyKey::from(builder.get_name()));
             (builder.build().into_value(), name)
         };
         let builder = PropertyBuilder::new(self.agent)
@@ -204,7 +204,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
         let (value, key) = {
             let mut builder =
                 BuiltinFunctionBuilder::new_intrinsic_function::<T>(self.agent, self.realm);
-            let name = PropertyKey::from(builder.get_name());
+            let name = T::KEY.unwrap_or_else(|| PropertyKey::from(builder.get_name()));
             (builder.build().into_value(), name)
         };
         let builder = PropertyBuilder::new(self.agent)
@@ -233,7 +233,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
             .build()
             .into_function();
         let property = PropertyBuilder::new(self.agent)
-            .with_key(T::KEY)
+            .with_key(T::KEY.unwrap())
             .with_getter_function(getter_function)
             .with_configurable(T::CONFIGURABLE)
             .with_enumerable(T::ENUMERABLE)
