@@ -2639,6 +2639,12 @@ impl CompileEvaluation for ast::TryStatement<'_> {
     }
 }
 
+impl CompileEvaluation for ast::TSEnumDeclaration<'_> {
+    fn compile(&self, _ctx: &mut CompileContext) {
+        todo!();
+    }
+}
+
 impl CompileEvaluation for ast::WhileStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let previous_continue = ctx.current_continue.replace(vec![]);
@@ -2753,7 +2759,7 @@ impl CompileEvaluation for ast::Statement<'_> {
             ast::Statement::ThrowStatement(x) => x.compile(ctx),
             ast::Statement::TryStatement(x) => x.compile(ctx),
             #[cfg(feature = "typescript")]
-            Statement::TSEnumDeclaration(_statement) => todo!(),
+            Statement::TSEnumDeclaration(statement) => statement.compile(ctx),
             Statement::BreakStatement(statement) => statement.compile(ctx),
             Statement::ContinueStatement(statement) => statement.compile(ctx),
             Statement::DebuggerStatement(_) => todo!(),
