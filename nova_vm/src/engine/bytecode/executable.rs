@@ -438,7 +438,6 @@ fn is_reference(expression: &ast::Expression) -> bool {
         | ast::Expression::StaticMemberExpression(_)
         | ast::Expression::PrivateFieldExpression(_)
         | ast::Expression::Super(_) => true,
-        ast::Expression::ChainExpression(chain) => chain.expression.is_member_expression(),
         ast::Expression::ParenthesizedExpression(parenthesized) => {
             is_reference(&parenthesized.expression)
         }
@@ -1072,7 +1071,6 @@ impl CompileEvaluation for ast::ArrayExpression<'_> {
                 ast::ArrayExpressionElement::CallExpression(init) => init.compile(ctx),
                 ast::ArrayExpressionElement::ChainExpression(init) => {
                     init.compile(ctx);
-                    ctx.exe.add_instruction(Instruction::GetValue);
                 }
                 ast::ArrayExpressionElement::ClassExpression(init) => init.compile(ctx),
                 ast::ArrayExpressionElement::ComputedMemberExpression(init) => {
@@ -1163,7 +1161,6 @@ impl CompileEvaluation for ast::Argument<'_> {
                     ast::Argument::CallExpression(x) => x.compile(ctx),
                     ast::Argument::ChainExpression(x) => {
                         x.compile(ctx);
-                        ctx.exe.add_instruction(Instruction::GetValue);
                     }
                     ast::Argument::ClassExpression(x) => x.compile(ctx),
                     ast::Argument::ConditionalExpression(x) => x.compile(ctx),
@@ -1241,6 +1238,7 @@ impl CompileEvaluation for CallExpression<'_> {
         // 1. Let ref be ? Evaluation of CallExpression.
         self.callee.compile(ctx);
         // 2. Let func be ? GetValue(ref).
+        println!("{:#?}", self.callee);
         let need_pop_reference = if is_reference(&self.callee) {
             ctx.exe.add_instruction(Instruction::GetValueKeepReference);
             // Optimization: If we know arguments is empty, we don't need to
@@ -1297,7 +1295,6 @@ impl CompileEvaluation for CallExpression<'_> {
         if need_pop_reference {
             ctx.exe.add_instruction(Instruction::PopReference);
         }
-        ctx.exe.add_instruction(Instruction::Debug);
         ctx.exe
             .add_instruction_with_immediate(Instruction::EvaluateCall, self.arguments.len());
     }
@@ -1443,33 +1440,48 @@ impl CompileEvaluation for ast::ChainExpression<'_> {
         // previous chains. We prepare for at least two chains to exist. One
         // chain is often enough but two is a bit safer. Three is rare.
         let previous_chain = ctx.optional_chains.replace(Vec::with_capacity(2));
-        match self.expression {
-            ast::ChainElement::CallExpression(ref call) => call.compile(ctx),
+        let jump_over_return_undefined = match self.expression {
+            ast::ChainElement::CallExpression(ref call) => {
+                call.compile(ctx);
+                // If chain succeeded, we come here and should jump over the nullish
+                // case handling.
+                ctx.exe.add_instruction(Instruction::GetValueKeepReference);
+                ctx.exe.add_instruction_with_jump_slot(Instruction::Jump)
+            }
             ast::ChainElement::ComputedMemberExpression(ref call) => {
                 call.compile(ctx);
+                // If chain succeeded, we come here and GetValue before jumping
+                // over the nullish case handling.
+                ctx.exe.add_instruction(Instruction::GetValue);
+                ctx.exe.add_instruction_with_jump_slot(Instruction::Jump)
             }
             ast::ChainElement::StaticMemberExpression(ref call) => {
                 call.compile(ctx);
+                // If chain succeeded, we come here and GetValue before jumping
+                // over the nullish case handling.
+                ctx.exe.add_instruction(Instruction::GetValue);
+                ctx.exe.add_instruction_with_jump_slot(Instruction::Jump)
             }
             ast::ChainElement::PrivateFieldExpression(ref call) => {
                 call.compile(ctx);
+                // If chain succeeded, we come here and GetValue before jumping
+                // over the nullish case handling.
+                ctx.exe.add_instruction(Instruction::GetValue);
+                ctx.exe.add_instruction_with_jump_slot(Instruction::Jump)
             }
-        }
-        // If chain succeeded, we come here and should jump over the nullish
-        // case handling.
-        let jump_over_return_undefined = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+        };
         let own_chains = ctx.optional_chains.take().unwrap();
         // Return previous chains to their place.
         ctx.optional_chains = previous_chain;
         for jump_to_return_undefined in own_chains {
             ctx.exe.set_jump_target_here(jump_to_return_undefined);
-            // All optional chains come here with a copy of their null or
-            // undefined baseValue on the stack. Pop it off.
-            ctx.exe.add_instruction(Instruction::Store);
-            // Replace any possible null with undefined.
-            ctx.exe
-                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
+        // All optional chains come here with a copy of their null or
+        // undefined baseValue on the stack. Pop it off.
+        ctx.exe.add_instruction(Instruction::Store);
+        // Replace any possible null with undefined.
+        ctx.exe
+            .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         ctx.exe.set_jump_target_here(jump_over_return_undefined);
     }
 }
