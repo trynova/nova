@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
+        builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, RealmIdentifier},
         types::{PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
@@ -17,11 +17,9 @@ pub(crate) struct IteratorPrototype;
 struct IteratorPrototypeIterator;
 impl Builtin for IteratorPrototypeIterator {
     const NAME: String = BUILTIN_STRING_MEMORY._Symbol_iterator_;
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Iterator.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::iterator);
-}
-impl BuiltinGetter for IteratorPrototypeIterator {
-    const KEY: PropertyKey = WellKnownSymbolIndexes::Iterator.to_property_key();
 }
 
 impl IteratorPrototype {
@@ -37,7 +35,7 @@ impl IteratorPrototype {
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(1)
             .with_prototype(object_prototype)
-            .with_builtin_function_getter_property::<IteratorPrototypeIterator>()
+            .with_builtin_function_property::<IteratorPrototypeIterator>()
             .build();
     }
 }

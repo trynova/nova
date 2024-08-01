@@ -17,30 +17,27 @@ pub(crate) struct DataViewPrototype;
 struct DataViewPrototypeGetBuffer;
 impl Builtin for DataViewPrototypeGetBuffer {
     const NAME: String = BUILTIN_STRING_MEMORY.get_buffer;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.buffer.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DataViewPrototype::get_buffer);
 }
-impl BuiltinGetter for DataViewPrototypeGetBuffer {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.buffer.to_property_key();
-}
+impl BuiltinGetter for DataViewPrototypeGetBuffer {}
 struct DataViewPrototypeGetByteLength;
 impl Builtin for DataViewPrototypeGetByteLength {
     const NAME: String = BUILTIN_STRING_MEMORY.get_byteLength;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.byteLength.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DataViewPrototype::get_byte_length);
 }
-impl BuiltinGetter for DataViewPrototypeGetByteLength {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.byteLength.to_property_key();
-}
+impl BuiltinGetter for DataViewPrototypeGetByteLength {}
 struct DataViewPrototypeGetByteOffset;
 impl Builtin for DataViewPrototypeGetByteOffset {
     const NAME: String = BUILTIN_STRING_MEMORY.get_byteOffset;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.byteOffset.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DataViewPrototype::get_byte_offset);
 }
-impl BuiltinGetter for DataViewPrototypeGetByteOffset {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.byteOffset.to_property_key();
-}
+impl BuiltinGetter for DataViewPrototypeGetByteOffset {}
 struct DataViewPrototypeGetBigInt64;
 impl Builtin for DataViewPrototypeGetBigInt64 {
     const NAME: String = BUILTIN_STRING_MEMORY.getBigInt64;

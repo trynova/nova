@@ -17,12 +17,11 @@ pub(crate) struct SharedArrayBufferPrototype;
 struct SharedArrayBufferPrototypeGetByteLength;
 impl Builtin for SharedArrayBufferPrototypeGetByteLength {
     const NAME: String = BUILTIN_STRING_MEMORY.get_byteLength;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.byteLength.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SharedArrayBufferPrototype::get_byte_length);
 }
-impl BuiltinGetter for SharedArrayBufferPrototypeGetByteLength {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.byteLength.to_property_key();
-}
+impl BuiltinGetter for SharedArrayBufferPrototypeGetByteLength {}
 struct SharedArrayBufferPrototypeGrow;
 impl Builtin for SharedArrayBufferPrototypeGrow {
     const NAME: String = BUILTIN_STRING_MEMORY.grow;
@@ -32,22 +31,20 @@ impl Builtin for SharedArrayBufferPrototypeGrow {
 struct SharedArrayBufferPrototypeGetGrowable;
 impl Builtin for SharedArrayBufferPrototypeGetGrowable {
     const NAME: String = BUILTIN_STRING_MEMORY.get_growable;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.growable.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SharedArrayBufferPrototype::get_growable);
 }
-impl BuiltinGetter for SharedArrayBufferPrototypeGetGrowable {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.growable.to_property_key();
-}
+impl BuiltinGetter for SharedArrayBufferPrototypeGetGrowable {}
 struct SharedArrayBufferPrototypeGetMaxByteLength;
 impl Builtin for SharedArrayBufferPrototypeGetMaxByteLength {
     const NAME: String = BUILTIN_STRING_MEMORY.get_maxByteLength;
+    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.maxByteLength.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour =
         Behaviour::Regular(SharedArrayBufferPrototype::get_max_byte_length);
 }
-impl BuiltinGetter for SharedArrayBufferPrototypeGetMaxByteLength {
-    const KEY: PropertyKey = BUILTIN_STRING_MEMORY.maxByteLength.to_property_key();
-}
+impl BuiltinGetter for SharedArrayBufferPrototypeGetMaxByteLength {}
 struct SharedArrayBufferPrototypeSlice;
 impl Builtin for SharedArrayBufferPrototypeSlice {
     const NAME: String = BUILTIN_STRING_MEMORY.slice;
