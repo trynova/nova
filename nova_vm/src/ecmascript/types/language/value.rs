@@ -101,7 +101,12 @@ pub enum Value {
     // https://tc39.es/ecma262/#sec-well-known-intrinsic-objects
     // and 18 ECMAScript Standard Built-in Objects
     // https://tc39.es/ecma262/#sec-ecmascript-standard-built-in-objects
-    Arguments,
+    /// ### [10.4.4 Arguments Exotic Objects](https://tc39.es/ecma262/#sec-arguments-exotic-objects)
+    ///
+    /// An unmapped arguments object is an ordinary object with an additional
+    /// internal slot \[\[ParameterMap]] whose value is always **undefined**.
+    Arguments(OrdinaryObject),
+    // TODO: MappedArguments(MappedArgumentsObject),
     Array(Array),
     ArrayBuffer(ArrayBuffer),
     DataView(DataView),
@@ -205,7 +210,8 @@ pub(crate) const BUILTIN_PROXY_REVOKER_FUNCTION: u8 =
     value_discriminant(Value::BuiltinProxyRevokerFunction);
 pub(crate) const PRIMITIVE_OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::PrimitiveObject(PrimitiveObject::_def()));
-pub(crate) const ARGUMENTS_DISCRIMINANT: u8 = value_discriminant(Value::Arguments);
+pub(crate) const ARGUMENTS_DISCRIMINANT: u8 =
+    value_discriminant(Value::Arguments(OrdinaryObject::_def()));
 pub(crate) const DATA_VIEW_DISCRIMINANT: u8 = value_discriminant(Value::DataView(DataView::_def()));
 pub(crate) const FINALIZATION_REGISTRY_DISCRIMINANT: u8 =
     value_discriminant(Value::FinalizationRegistry(FinalizationRegistry::_def()));
@@ -539,7 +545,7 @@ impl HeapMarkAndSweep for Value {
             Value::ECMAScriptFunction(data) => data.mark_values(queues),
             Value::RegExp(data) => data.mark_values(queues),
             Value::PrimitiveObject(data) => data.mark_values(queues),
-            Value::Arguments => todo!(),
+            Value::Arguments(data) => data.mark_values(queues),
             Value::DataView(data) => data.mark_values(queues),
             Value::FinalizationRegistry(data) => data.mark_values(queues),
             Value::Map(data) => data.mark_values(queues),
@@ -599,7 +605,7 @@ impl HeapMarkAndSweep for Value {
             Value::ECMAScriptFunction(data) => data.sweep_values(compactions),
             Value::RegExp(data) => data.sweep_values(compactions),
             Value::PrimitiveObject(data) => data.sweep_values(compactions),
-            Value::Arguments => todo!(),
+            Value::Arguments(data) => data.sweep_values(compactions),
             Value::DataView(data) => data.sweep_values(compactions),
             Value::FinalizationRegistry(data) => data.sweep_values(compactions),
             Value::Map(data) => data.sweep_values(compactions),

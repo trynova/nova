@@ -152,7 +152,7 @@ impl ObjectPrototype {
             // 17. Return the string-concatenation of "[object ", tag, and "]".
             Value::Boolean(_) => Ok(BUILTIN_STRING_MEMORY._object_Boolean_.into_value()),
             // 6. Else if O has a [[ParameterMap]] internal slot, let builtinTag be "Arguments".
-            Value::Arguments => Ok(BUILTIN_STRING_MEMORY._object_Arguments_.into_value()),
+            Value::Arguments(_) => Ok(BUILTIN_STRING_MEMORY._object_Arguments_.into_value()),
             // 11. Else if O has a [[StringData]] internal slot, let builtinTag be "String".
             Value::String(_) | Value::SmallString(_) => {
                 Ok(BUILTIN_STRING_MEMORY._object_String_.into_value())
