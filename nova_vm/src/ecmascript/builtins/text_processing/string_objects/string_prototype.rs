@@ -11,13 +11,10 @@ use crate::{
         abstract_operations::{
             testing_and_comparison::require_object_coercible,
             type_conversion::{
-                is_trimmable_whitespace, to_integer_or_infinity, to_number, to_string,
+                is_trimmable_whitespace, to_integer_or_infinity, to_length, to_number, to_string,
             },
         },
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
