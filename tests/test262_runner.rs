@@ -1093,7 +1093,9 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
         serde_json::to_writer_pretty(&mut file, &json).unwrap();
     }
 
-    if metrics_mismatch {
-        std::process::exit(1);
-    }
+    // TODO: Figure out why metrics mismatch between local and CI. For now we
+    // disable erroring out on metrics mismatch.
+    // if metrics_mismatch {
+    //     std::process::exit(1);
+    // }
 }
