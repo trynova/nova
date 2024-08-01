@@ -575,3 +575,9 @@ impl HeapMarkAndSweep for Function {
         }
     }
 }
+
+impl Function {
+    pub fn call(self, agent: &mut Agent, this_argument: Value, args: &[Value]) -> JsResult<Value> {
+        self.internal_call(agent, this_argument, ArgumentsList(args))
+    }
+}
