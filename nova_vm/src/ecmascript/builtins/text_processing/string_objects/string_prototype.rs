@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::{collections::VecDeque, iter::repeat};
+
 use small_string::SmallString;
 
 use crate::{
@@ -9,7 +11,7 @@ use crate::{
         abstract_operations::{
             testing_and_comparison::require_object_coercible,
             type_conversion::{
-                is_trimmable_whitespace, to_integer_or_infinity, to_number, to_string,
+                is_trimmable_whitespace, to_integer_or_infinity, to_length, to_number, to_string,
             },
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -117,7 +119,7 @@ impl Builtin for StringPrototypePadEnd {
 }
 struct StringPrototypePadStart;
 impl Builtin for StringPrototypePadStart {
-    const NAME: String = BUILTIN_STRING_MEMORY.flatMap;
+    const NAME: String = BUILTIN_STRING_MEMORY.padStart;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::pad_start);
 }
@@ -553,12 +555,32 @@ impl StringPrototype {
         todo!()
     }
 
-    fn pad_end(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [22.1.3.16 String.prototype.padEnd ( maxLength \[ , fillString \] )](https://tc39.es/ecma262/#sec-string.prototype.padend)
+    fn pad_end(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let max_length = arguments.get(0);
+        let fill_string = arguments.get(1);
+
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value)?;
+
+        // 2. Return ? StringPaddingBuiltinsImpl(O, maxLength, fillString, end).
+        string_padding_builtins_impl(agent, o, max_length, fill_string, false)
     }
 
-    fn pad_start(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [22.1.3.17 String.prototype.padStart ( maxLength \[ , fillString \] )](https://tc39.es/ecma262/#sec-string.prototype.padstart)
+    fn pad_start(
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let max_length = arguments.get(0);
+        let fill_string = arguments.get(1);
+
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value)?;
+
+        // 2. Return ? StringPaddingBuiltinsImpl(O, maxLength, fillString, start).
+        string_padding_builtins_impl(agent, o, max_length, fill_string, true)
     }
 
     /// ### [22.1.3.18 String.prototype.repeat ( count )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.repeat)
@@ -1003,6 +1025,124 @@ impl StringPrototype {
             data: PrimitiveObjectData::SmallString(SmallString::EMPTY),
         });
     }
+}
+
+/// ### [22.1.3.17.1 StringPaddingBuiltinsImpl ( O, maxLength, fillString, placement )](https://tc39.es/ecma262/#sec-stringpaddingbuiltinsimpl)
+///
+/// The abstract operation StringPaddingBuiltinsImpl takes arguments O (an
+/// ECMAScript language value), maxLength (an ECMAScript language value),
+/// fillString (an ECMAScript language value), and placement (start or end)
+/// and returns either a normal completion containing a String or a throw
+/// completion.
+fn string_padding_builtins_impl(
+    agent: &mut Agent,
+    o: Value,
+    max_length: Value,
+    fill_string: Value,
+    placement_start: bool,
+) -> JsResult<Value> {
+    // 1. Let S be ? ToString(O).
+    let s = to_string(agent, o)?;
+
+    // 2. Let intMaxLength be ℝ(? ToLength(maxLength)).
+    let int_max_length = to_length(agent, max_length)?;
+
+    // 3. Let stringLength be the length of S.
+    let string_length = s.utf16_len(agent) as i64;
+
+    // 4. If intMaxLength ≤ stringLength, return S.
+    if int_max_length <= string_length {
+        return Ok(s.into());
+    }
+
+    // 5. If fillString is undefined, set fillString to the String value consisting solely of the code unit 0x0020 (SPACE).
+    let fill_string = if fill_string.is_undefined() {
+        BUILTIN_STRING_MEMORY.r#__
+    } else {
+        // 6. Else, set fillString to ? ToString(fillString).
+        to_string(agent, fill_string)?
+    };
+
+    // 7. Return StringPad(S, intMaxLength, fillString, placement).
+    string_pad(agent, s, int_max_length, fill_string, placement_start)
+}
+
+/// ### [22.1.3.17.2 StringPad ( S, maxLength, fillString, placement )](https://tc39.es/ecma262/#sec-stringpad)
+///
+/// The abstract operation StringPad takes arguments S (a String),
+/// maxLength (a non-negative integer), fillString (a String), and
+/// placement (start or end) and returns a String.
+fn string_pad(
+    agent: &mut Agent,
+    s: String,
+    max_len: i64,
+    fill_string: String,
+    placement_start: bool,
+) -> JsResult<Value> {
+    // 1. Let stringLength be the length of S.
+    let string_len = s.utf16_len(agent) as i64;
+
+    // 2. If maxLength ≤ stringLength, return S.
+    if max_len <= string_len {
+        return Ok(s.into());
+    }
+
+    // 3. If fillString is the empty String, return S.
+    if fill_string.is_empty_string() {
+        return Ok(s.into());
+    }
+
+    // 4. Let fillLen be maxLength - stringLength.
+    let fill_len = max_len - string_len;
+    let fill_string_len = fill_string.utf16_len(agent) as i64;
+
+    // 5. Let truncatedStringFiller be the String value consisting of repeated concatenations of fillString truncated to length fillLen.
+    let mut strings = if fill_len == fill_string_len {
+        let mut vec = VecDeque::with_capacity(2);
+        vec.push_back(fill_string);
+        vec
+    } else if fill_len % fill_string_len == 0 {
+        let fill_count = (fill_len / fill_string_len) as usize;
+        let mut vec = VecDeque::with_capacity(fill_count + 1);
+        vec.extend(repeat(fill_string).take(fill_count));
+        vec
+    } else if fill_len < fill_string_len {
+        let mut vec = VecDeque::with_capacity(2);
+        let mut sub_string = vec![0; fill_len as usize];
+        for i in 0..fill_len {
+            fill_string
+                .utf16_char(agent, i as usize)
+                .encode_utf8(&mut sub_string[fill_string.utf8_index(agent, i as usize).unwrap()..]);
+        }
+        let sub_string = std::str::from_utf8(&sub_string).unwrap();
+        // let sub_string = &fill_string.as_str(agent)[..fill_len as usize];
+        vec.push_back(String::from_string(agent, sub_string.to_owned()));
+        vec
+    } else {
+        let fill_count = (fill_len / fill_string_len) as usize;
+        let mut vec = VecDeque::with_capacity(fill_count + 2);
+        vec.extend(repeat(fill_string).take(fill_count));
+        let sub_string_len = (fill_len % fill_string_len) as usize;
+        let mut sub_string = vec![0; sub_string_len];
+        for i in 0..sub_string_len {
+            fill_string
+                .utf16_char(agent, i)
+                .encode_utf8(&mut sub_string[fill_string.utf8_index(agent, i).unwrap()..]);
+        }
+        let sub_string = std::str::from_utf8(&sub_string).unwrap();
+        vec.push_back(String::from_string(agent, sub_string.to_owned()));
+        vec
+    };
+
+    // 6. If placement is start, return the string-concatenation of truncatedStringFiller and S.
+    // 7. Else, return the string-concatenation of S and truncatedStringFiller.
+    if placement_start {
+        strings.push_back(s);
+    } else {
+        strings.push_front(s);
+    }
+
+    Ok(String::concat(agent, strings.into_iter().collect::<Vec<String>>()).into_value())
 }
 
 /// ### [22.1.3.35.1 ThisStringValue ( value )](https://tc39.es/ecma262/#sec-thisstringvalue)
