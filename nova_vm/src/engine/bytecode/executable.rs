@@ -55,6 +55,9 @@ pub(crate) struct CompileContext<'agent> {
     current_break: Option<Vec<JumpIndex>>,
     /// `?.` chain jumps that were present in a chain expression.
     optional_chains: Option<Vec<JumpIndex>>,
+    /// In a `(a?.b)?.()` chain the evaluation of `(a?.b)` must be considered a
+    /// reference.
+    is_call_optional_chain_this: bool,
 }
 
 impl CompileContext<'_> {
@@ -230,6 +233,7 @@ impl Executable {
             current_continue: None,
             current_break: None,
             optional_chains: None,
+            is_call_optional_chain_this: false,
         };
 
         let iter = body.iter();
@@ -440,6 +444,16 @@ fn is_reference(expression: &ast::Expression) -> bool {
         | ast::Expression::Super(_) => true,
         ast::Expression::ParenthesizedExpression(parenthesized) => {
             is_reference(&parenthesized.expression)
+        }
+        _ => false,
+    }
+}
+
+fn is_chain_expression(expression: &ast::Expression) -> bool {
+    match expression {
+        ast::Expression::ChainExpression(_) => true,
+        ast::Expression::ParenthesizedExpression(parenthesized) => {
+            is_chain_expression(&parenthesized.expression)
         }
         _ => false,
     }
@@ -1236,9 +1250,9 @@ impl CompileEvaluation for CallExpression<'_> {
         }
 
         // 1. Let ref be ? Evaluation of CallExpression.
+        ctx.is_call_optional_chain_this = is_chain_expression(&self.callee);
         self.callee.compile(ctx);
         // 2. Let func be ? GetValue(ref).
-        println!("{:#?}", self.callee);
         let need_pop_reference = if is_reference(&self.callee) {
             ctx.exe.add_instruction(Instruction::GetValueKeepReference);
             // Optimization: If we know arguments is empty, we don't need to
@@ -1440,36 +1454,40 @@ impl CompileEvaluation for ast::ChainExpression<'_> {
         // previous chains. We prepare for at least two chains to exist. One
         // chain is often enough but two is a bit safer. Three is rare.
         let previous_chain = ctx.optional_chains.replace(Vec::with_capacity(2));
-        let jump_over_return_undefined = match self.expression {
+        let need_get_value = match self.expression {
             ast::ChainElement::CallExpression(ref call) => {
                 call.compile(ctx);
-                // If chain succeeded, we come here and should jump over the nullish
-                // case handling.
-                ctx.exe.add_instruction(Instruction::GetValueKeepReference);
-                ctx.exe.add_instruction_with_jump_slot(Instruction::Jump)
+                false
             }
             ast::ChainElement::ComputedMemberExpression(ref call) => {
                 call.compile(ctx);
-                // If chain succeeded, we come here and GetValue before jumping
-                // over the nullish case handling.
-                ctx.exe.add_instruction(Instruction::GetValue);
-                ctx.exe.add_instruction_with_jump_slot(Instruction::Jump)
+                true
             }
             ast::ChainElement::StaticMemberExpression(ref call) => {
                 call.compile(ctx);
-                // If chain succeeded, we come here and GetValue before jumping
-                // over the nullish case handling.
-                ctx.exe.add_instruction(Instruction::GetValue);
-                ctx.exe.add_instruction_with_jump_slot(Instruction::Jump)
+                true
             }
             ast::ChainElement::PrivateFieldExpression(ref call) => {
                 call.compile(ctx);
-                // If chain succeeded, we come here and GetValue before jumping
-                // over the nullish case handling.
-                ctx.exe.add_instruction(Instruction::GetValue);
-                ctx.exe.add_instruction_with_jump_slot(Instruction::Jump)
+                true
             }
         };
+        // If chain succeeded, we come here and should jump over the nullish
+        // case handling.
+        if need_get_value {
+            // If we handled a member or field expression, we need to get its
+            // value. However, there's a chance that we cannot just throw away
+            // the reference. If the result of the chain expression is going to
+            // be used in a (potentially optional) call expression then we need
+            // both its value and its reference.
+            if ctx.is_call_optional_chain_this {
+                ctx.is_call_optional_chain_this = false;
+                ctx.exe.add_instruction(Instruction::GetValueKeepReference);
+            } else {
+                ctx.exe.add_instruction(Instruction::GetValue);
+            }
+        }
+        let jump_over_return_undefined = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
         let own_chains = ctx.optional_chains.take().unwrap();
         // Return previous chains to their place.
         ctx.optional_chains = previous_chain;
