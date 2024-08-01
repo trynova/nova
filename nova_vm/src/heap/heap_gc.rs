@@ -20,6 +20,7 @@ use crate::ecmascript::{
         bound_function::BoundFunction,
         control_abstraction_objects::{
             async_function_objects::await_reaction::AwaitReactionIdentifier,
+            generator_objects::Generator,
             promise_objects::promise_abstract_operations::{
                 promise_reaction_records::PromiseReaction,
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
@@ -111,6 +112,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             errors,
             source_codes,
             finalization_registrys,
+            generators,
             globals: _,
             maps,
             modules,
@@ -420,6 +422,19 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 }
                 *marked = true;
                 finalization_registrys.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut generator_marks: Box<[Generator]> = queues.generators.drain(..).collect();
+        generator_marks.sort();
+        generator_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.generators.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                generators.get(index).mark_values(&mut queues);
             }
         });
         let mut object_marks: Box<[OrdinaryObject]> = queues.objects.drain(..).collect();
@@ -846,6 +861,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         errors,
         source_codes,
         finalization_registrys,
+        generators,
         globals,
         maps,
         modules,
@@ -1076,6 +1092,11 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         if !function.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(function, &compactions, &bits.function_environments);
+            });
+        }
+        if !generators.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(generators, &compactions, &bits.generators);
             });
         }
         if !global.is_empty() {

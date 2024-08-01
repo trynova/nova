@@ -4,9 +4,11 @@
 
 use crate::{
     ecmascript::{
+        abstract_operations::operations_on_objects::define_property_or_throw,
         builtins::{
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReaction,
+                generator_objects::GeneratorState,
                 promise_objects::{
                     promise_abstract_operations::{
                         promise_capability_records::PromiseCapability,
@@ -15,15 +17,20 @@ use crate::{
                     promise_prototype::inner_promise_then,
                 },
             },
-            function_declaration_instantiation, make_constructor, ordinary_function_create,
+            function_declaration_instantiation, make_constructor,
+            ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
+            ordinary_function_create,
             promise::Promise,
             set_function_name, ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams,
         },
         execution::{
             Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult,
-            PrivateEnvironmentIndex,
+            PrivateEnvironmentIndex, ProtoIntrinsics,
         },
-        types::{PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        types::{
+            IntoFunction, IntoObject, IntoValue, Object, PropertyDescriptor, PropertyKey, String,
+            Value, BUILTIN_STRING_MEMORY,
+        },
     },
     engine::{Executable, ExecutionResult, FunctionExpression, Vm},
     heap::CreateHeapData,
@@ -42,64 +49,75 @@ pub(crate) fn instantiate_ordinary_function_object(
     private_env: Option<PrivateEnvironmentIndex>,
 ) -> ECMAScriptFunction {
     // FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
-    if let Some(id) = &function.id {
+    let pk_name = if let Some(id) = &function.id {
         // 1. Let name be StringValue of BindingIdentifier.
         let name = &id.name;
-        // 2. Let sourceText be the source text matched by FunctionDeclaration.
-        let source_text = function.span;
-        // 3. Let F be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
-        let params = OrdinaryFunctionCreateParams {
-            function_prototype: None,
-            source_text,
-            parameters_list: &function.params,
-            body: function.body.as_deref().unwrap(),
-            is_concise_arrow_function: false,
-            is_async: function.r#async,
-            is_generator: function.generator,
-            lexical_this: false,
-            env,
-            private_env,
-        };
-        let f = ordinary_function_create(agent, params);
-
         // 4. Perform SetFunctionName(F, name).
-        let pk_name = PropertyKey::from_str(agent, name);
-        set_function_name(agent, f, pk_name, None);
-        // 5. Perform MakeConstructor(F).
-        if !function.r#async && !function.generator {
-            make_constructor(agent, f, None, None);
-        }
-        // 6. Return F.
-        f
+        PropertyKey::from_str(agent, name)
     } else {
-        // FunctionDeclaration : function ( FormalParameters ) { FunctionBody }
-        // 1. Let sourceText be the source text matched by FunctionDeclaration.
-        let source_text = function.span;
-        // 2. Let F be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
-        let params = OrdinaryFunctionCreateParams {
-            function_prototype: None,
-            source_text,
-            parameters_list: &function.params,
-            body: function.body.as_ref().unwrap(),
-            is_concise_arrow_function: false,
-            is_async: function.r#async,
-            is_generator: function.generator,
-            lexical_this: false,
-            env,
-            private_env,
-        };
-        let f = ordinary_function_create(agent, params);
-
         // 3. Perform SetFunctionName(F, "default").
-        let pk_name = PropertyKey::from(BUILTIN_STRING_MEMORY.default);
-        set_function_name(agent, f, pk_name, None);
-        // 4. Perform MakeConstructor(F).
-        if !function.r#async && !function.generator {
-            make_constructor(agent, f, None, None);
-        }
-        // 5. Return F.
-        f
+        PropertyKey::from(BUILTIN_STRING_MEMORY.default)
+    };
+
+    // 2. Let sourceText be the source text matched by FunctionDeclaration.
+    let source_text = function.span;
+    // 3. Let F be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
+    let params = OrdinaryFunctionCreateParams {
+        function_prototype: None,
+        source_text,
+        parameters_list: &function.params,
+        body: function.body.as_deref().unwrap(),
+        is_concise_arrow_function: false,
+        is_async: function.r#async,
+        is_generator: function.generator,
+        lexical_this: false,
+        env,
+        private_env,
+    };
+    let f = ordinary_function_create(agent, params);
+
+    // 4. Perform SetFunctionName(F, name).
+    set_function_name(agent, f, pk_name, None);
+    // 5. Perform MakeConstructor(F).
+    if !function.r#async && !function.generator {
+        make_constructor(agent, f, None, None);
     }
+
+    if function.generator {
+        // InstantiateGeneratorFunctionObject
+        // 5. Let prototype be OrdinaryObjectCreate(%GeneratorFunction.prototype.prototype%).
+        // NOTE: Although `prototype` has the generator prototype, it doesn't have the generator
+        // internals slots, so it's created as an ordinary object.
+        let prototype = ordinary_object_create_with_intrinsics(
+            agent,
+            Some(ProtoIntrinsics::Object),
+            Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .generator_prototype()
+                    .into_object(),
+            ),
+        );
+        // 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
+        define_property_or_throw(
+            agent,
+            f,
+            BUILTIN_STRING_MEMORY.prototype.to_property_key(),
+            PropertyDescriptor {
+                value: Some(prototype.into_value()),
+                writable: Some(true),
+                get: None,
+                set: None,
+                enumerable: Some(false),
+                configurable: Some(false),
+            },
+        )
+        .unwrap();
+    }
+
+    // 6. Return F.
+    f
     // NOTE
     // An anonymous FunctionDeclaration can only occur as part of an export default declaration, and its function code is therefore always strict mode code.
 }
@@ -250,4 +268,51 @@ pub(crate) fn evaluate_async_function_body(
 
     // 5. Return Completion Record { [[Type]]: return, [[Value]]: promiseCapability.[[Promise]], [[Target]]: empty }.
     promise_capability.promise()
+}
+
+/// ### [15.5.2 Runtime Semantics: EvaluateGeneratorBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluategeneratorbody)
+/// The syntax-directed operation EvaluateGeneratorBody takes arguments
+/// functionObject (an ECMAScript function object) and argumentsList (a List of
+/// ECMAScript language values) and returns a throw completion or a return
+/// completion.
+pub(crate) fn evaluate_generator_body(
+    agent: &mut Agent,
+    function_object: ECMAScriptFunction,
+    arguments_list: ArgumentsList,
+) -> JsResult<Value> {
+    // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
+    function_declaration_instantiation(agent, function_object, arguments_list)?;
+
+    // 2. Let G be ? OrdinaryCreateFromConstructor(functionObject,
+    // "%GeneratorFunction.prototype.prototype%", « [[GeneratorState]],
+    // [[GeneratorContext]], [[GeneratorBrand]] »).
+    // 3. Set G.[[GeneratorBrand]] to empty.
+    let generator = ordinary_create_from_constructor(
+        agent,
+        function_object.into_function(),
+        ProtoIntrinsics::Generator,
+    )?;
+    let Object::Generator(generator) = generator else {
+        unreachable!()
+    };
+
+    // 4. Perform GeneratorStart(G, FunctionBody).
+    // SAFETY: We're alive so SourceCode must be too.
+    let body = unsafe {
+        agent[function_object]
+            .ecmascript_function
+            .ecmascript_code
+            .as_ref()
+    };
+    let is_concise_arrow_function = agent[function_object]
+        .ecmascript_function
+        .is_concise_arrow_function;
+    let executable = Executable::compile_function_body(agent, body, is_concise_arrow_function);
+    agent[generator].generator_state = Some(GeneratorState::SuspendedStart {
+        executable,
+        execution_context: agent.running_execution_context().clone(),
+    });
+
+    // 5. Return Completion Record { [[Type]]: return, [[Value]]: G, [[Target]]: empty }.
+    Ok(generator.into_value())
 }
