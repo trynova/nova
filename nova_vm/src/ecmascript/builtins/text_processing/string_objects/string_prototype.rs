@@ -8,7 +8,9 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             testing_and_comparison::require_object_coercible,
-            type_conversion::{to_integer_or_infinity, to_number, to_string},
+            type_conversion::{
+                is_trimmable_whitespace, to_integer_or_infinity, to_number, to_string,
+            },
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
@@ -875,16 +877,57 @@ impl StringPrototype {
         Ok(s.into_value())
     }
 
-    fn trim(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [22.1.3.32 String.prototype.trim ( )](https://tc39.es/ecma262/#sec-string.prototype.trim)
+    fn trim(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? TrimString(S, start+end).
+        Self::trim_string(agent, this_value, TrimWhere::StartAndEnd)
     }
 
-    fn trim_end(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// #### [22.1.3.32.1 String.prototype.trimString ( )](https://tc39.es/ecma262/#sec-trimstring)
+    fn trim_string(agent: &mut Agent, value: Value, trim_where: TrimWhere) -> JsResult<Value> {
+        // 1. Let str be ? RequireObjectCoercible(string).
+        let str = require_object_coercible(agent, value)?;
+
+        // 2. Let S be ? ToString(str)
+        let s = to_string(agent, str)?;
+
+        let s_str = s.as_str(agent);
+
+        let t = match trim_where {
+            // 3. If where is start, then
+            //   a. Let T be the String value that is a copy of S with leading white space removed.
+            TrimWhere::Start => s_str.trim_start_matches(is_trimmable_whitespace),
+            // 4. Else if where is end, then
+            //   a. Let T be the String value that is a copy of S with trailing white space removed.
+            TrimWhere::End => s_str.trim_end_matches(is_trimmable_whitespace),
+            // 5. Else,
+            //   a. Assert: where is start+end.
+            //   b. Let T be the String value that is a copy of S with both leading and trailing white space removed.
+            TrimWhere::StartAndEnd => s_str.trim_matches(is_trimmable_whitespace),
+        };
+
+        if t == s_str {
+            // No need to allocate a String if the string was not trimmed
+            Ok(s.into_value())
+        } else {
+            let t = String::from_string(agent, t.to_string());
+            Ok(t.into_value())
+        }
     }
 
-    fn trim_start(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [22.1.3.33 String.prototype.trimEnd ( )](https://tc39.es/ecma262/#sec-string.prototype.trimend)
+    fn trim_end(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? TrimString(S, end).
+        Self::trim_string(agent, this_value, TrimWhere::End)
+    }
+
+    /// ### [22.1.3.34 String.prototype.trimStart ( )](https://tc39.es/ecma262/#sec-string.prototype.trimstart)
+    fn trim_start(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? TrimString(S, start).
+        Self::trim_string(agent, this_value, TrimWhere::Start)
     }
 
     /// ### [22.1.3.29 String.prototype.toString ( )](https://tc39.es/ecma262/#sec-string.prototype.tostring)
@@ -991,4 +1034,10 @@ fn this_string_value(agent: &mut Agent, value: Value) -> JsResult<String> {
             ))
         }
     }
+}
+
+enum TrimWhere {
+    Start,
+    End,
+    StartAndEnd,
 }
