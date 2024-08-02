@@ -59,7 +59,7 @@ pub(crate) enum ExecutionResult {
     Return(Value),
     Throw(JsError),
     Await { vm: Vm, awaited_value: Value },
-    // Yield
+    Yield { vm: Vm, yielded_value: Value },
 }
 impl ExecutionResult {
     pub(crate) fn into_js_result(self) -> JsResult<Value> {
@@ -196,7 +196,13 @@ impl Vm {
                     let result = self.result.unwrap_or(Value::Undefined);
                     return ExecutionResult::Return(result);
                 }
-                Ok(ContinuationKind::Yield) => todo!(),
+                Ok(ContinuationKind::Yield) => {
+                    let yielded_value = self.result.take().unwrap();
+                    return ExecutionResult::Yield {
+                        vm: self,
+                        yielded_value,
+                    };
+                }
                 Ok(ContinuationKind::Await) => {
                     let awaited_value = self.result.take().unwrap();
                     return ExecutionResult::Await {
@@ -1268,6 +1274,7 @@ impl Vm {
                     )?;
                 }
             }
+            Instruction::Yield => return Ok(ContinuationKind::Yield),
             other => todo!("{other:?}"),
         }
 
