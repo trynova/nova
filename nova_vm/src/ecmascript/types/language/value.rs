@@ -10,11 +10,35 @@ use crate::{
             to_big_int, to_int32, to_number, to_numeric, to_string, to_uint32,
         },
         builtins::{
-            bound_function::BoundFunction, control_abstraction_objects::promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction, data_view::DataView, date::Date, embedder_object::EmbedderObject, error::Error, finalization_registry::FinalizationRegistry, map::Map, module::Module, primitive_objects::PrimitiveObject, promise::Promise, proxy::Proxy, regexp::RegExp, set::Set, shared_array_buffer::SharedArrayBuffer, weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction
+            bound_function::BoundFunction,
+            control_abstraction_objects::{
+                generator_objects::Generator,
+                promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
+            },
+            data_view::DataView,
+            date::Date,
+            embedder_object::EmbedderObject,
+            error::Error,
+            finalization_registry::FinalizationRegistry,
+            map::Map,
+            module::Module,
+            primitive_objects::PrimitiveObject,
+            promise::Promise,
+            proxy::Proxy,
+            regexp::RegExp,
+            set::Set,
+            shared_array_buffer::SharedArrayBuffer,
+            weak_map::WeakMap,
+            weak_ref::WeakRef,
+            weak_set::WeakSet,
+            Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
         types::BUILTIN_STRING_MEMORY,
-    }, engine::small_f64::SmallF64, heap::{indexes::TypedArrayIndex, CompactionLists, HeapMarkAndSweep, WorkQueues}, SmallInteger, SmallString
+    },
+    engine::small_f64::SmallF64,
+    heap::{indexes::TypedArrayIndex, CompactionLists, HeapMarkAndSweep, WorkQueues},
+    SmallInteger, SmallString,
 };
 
 use super::{
@@ -141,6 +165,7 @@ pub enum Value {
     AsyncFromSyncIterator,
     AsyncIterator,
     Iterator,
+    Generator(Generator),
 
     // ECMAScript Module
     Module(Module),
@@ -250,6 +275,8 @@ pub(crate) const ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::AsyncFromSyncIterator);
 pub(crate) const ASYNC_ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::AsyncIterator);
 pub(crate) const ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::Iterator);
+pub(crate) const GENERATOR_DISCRIMINANT: u8 =
+    value_discriminant(Value::Generator(Generator::_def()));
 pub(crate) const MODULE_DISCRIMINANT: u8 = value_discriminant(Value::Module(Module::_def()));
 pub(crate) const EMBEDDER_OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::EmbedderObject(EmbedderObject::_def()));
@@ -575,6 +602,7 @@ impl HeapMarkAndSweep for Value {
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
+            Value::Generator(data) => data.mark_values(queues),
             Value::Module(data) => data.mark_values(queues),
             Value::EmbedderObject(data) => data.mark_values(queues),
         }
@@ -635,6 +663,7 @@ impl HeapMarkAndSweep for Value {
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
+            Value::Generator(data) => data.sweep_values(compactions),
             Value::Module(data) => data.sweep_values(compactions),
             Value::EmbedderObject(data) => data.sweep_values(compactions),
         }

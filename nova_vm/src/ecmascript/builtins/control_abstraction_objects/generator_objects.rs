@@ -2,92 +2,186 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::ops::{Index, IndexMut};
+
 use crate::{
     ecmascript::{
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, ExecutionContext, ProtoIntrinsics},
+        types::{
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
+            OrdinaryObject, Value,
+        },
     },
-    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    engine::Executable,
+    heap::{
+        indexes::{BaseIndex, GeneratorIndex},
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+    },
 };
 
-pub(crate) struct GeneratorPrototype;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Generator(pub(crate) GeneratorIndex);
 
-pub(crate) struct GeneratorPrototypeNext;
-impl Builtin for GeneratorPrototypeNext {
-    const NAME: String = BUILTIN_STRING_MEMORY.next;
-
-    const LENGTH: u8 = 1;
-
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(GeneratorPrototype::next);
-}
-impl BuiltinIntrinsic for GeneratorPrototypeNext {
-    const INDEX: IntrinsicFunctionIndexes =
-        IntrinsicFunctionIndexes::GeneratorFunctionPrototypePrototypeNext;
-}
-pub(crate) struct GeneratorPrototypeReturn;
-impl Builtin for GeneratorPrototypeReturn {
-    const NAME: String = BUILTIN_STRING_MEMORY.r#return;
-
-    const LENGTH: u8 = 1;
-
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(GeneratorPrototype::r#return);
-}
-pub(crate) struct GeneratorPrototypeThrow;
-impl Builtin for GeneratorPrototypeThrow {
-    const NAME: String = BUILTIN_STRING_MEMORY.throw;
-
-    const LENGTH: u8 = 1;
-
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(GeneratorPrototype::throw);
-}
-
-impl GeneratorPrototype {
-    fn next(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
-        todo!()
+impl Generator {
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
     }
 
-    fn r#return(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
-        todo!()
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
+
+impl From<Generator> for GeneratorIndex {
+    fn from(val: Generator) -> Self {
+        val.0
+    }
+}
+
+impl From<GeneratorIndex> for Generator {
+    fn from(value: GeneratorIndex) -> Self {
+        Self(value)
+    }
+}
+
+impl IntoValue for Generator {
+    fn into_value(self) -> Value {
+        self.into()
+    }
+}
+
+impl IntoObject for Generator {
+    fn into_object(self) -> Object {
+        self.into()
+    }
+}
+
+impl From<Generator> for Value {
+    fn from(val: Generator) -> Self {
+        Value::Generator(val)
+    }
+}
+
+impl From<Generator> for Object {
+    fn from(value: Generator) -> Self {
+        Object::Generator(value)
+    }
+}
+
+impl InternalSlots for Generator {
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Generator;
+
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
+        agent[self].object_index
     }
 
-    fn throw(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
+        let prototype = agent
+            .current_realm()
+            .intrinsics()
+            .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
+        let backing_object = agent.heap.create(ObjectHeapData {
+            extensible: true,
+            prototype: Some(prototype),
+            keys: Default::default(),
+            values: Default::default(),
+        });
+        agent[self].object_index = Some(backing_object);
+        backing_object
+    }
+}
+
+impl InternalMethods for Generator {}
+
+impl CreateHeapData<GeneratorHeapData, Generator> for Heap {
+    fn create(&mut self, data: GeneratorHeapData) -> Generator {
+        self.generators.push(Some(data));
+        Generator(GeneratorIndex::last(&self.generators))
+    }
+}
+
+impl Index<Generator> for Agent {
+    type Output = GeneratorHeapData;
+
+    fn index(&self, index: Generator) -> &Self::Output {
+        &self.heap.generators[index]
+    }
+}
+
+impl IndexMut<Generator> for Agent {
+    fn index_mut(&mut self, index: Generator) -> &mut Self::Output {
+        &mut self.heap.generators[index]
+    }
+}
+
+impl Index<Generator> for Vec<Option<GeneratorHeapData>> {
+    type Output = GeneratorHeapData;
+
+    fn index(&self, index: Generator) -> &Self::Output {
+        self.get(index.get_index())
+            .expect("Generator out of bounds")
+            .as_ref()
+            .expect("Generator slot empty")
+    }
+}
+
+impl IndexMut<Generator> for Vec<Option<GeneratorHeapData>> {
+    fn index_mut(&mut self, index: Generator) -> &mut Self::Output {
+        self.get_mut(index.get_index())
+            .expect("Generator out of bounds")
+            .as_mut()
+            .expect("Generator slot empty")
+    }
+}
+
+impl HeapMarkAndSweep for Generator {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.generators.push(*self);
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
-        let iterator_prototype = intrinsics.iterator_prototype();
-        let generator_function_prototype = intrinsics.generator_function_prototype();
-        let this = intrinsics.generator_prototype();
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        compactions.generators.shift_index(&mut self.0)
+    }
+}
 
-        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(5)
-            .with_prototype(iterator_prototype)
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.constructor.into())
-                    .with_value_readonly(generator_function_prototype.into_value())
-                    .with_enumerable(false)
-                    .with_configurable(true)
-                    .build()
-            })
-            .with_builtin_intrinsic_function_property::<GeneratorPrototypeNext>()
-            .with_builtin_function_property::<GeneratorPrototypeReturn>()
-            .with_builtin_function_property::<GeneratorPrototypeThrow>()
-            .with_property(|builder| {
-                builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.Generator.into_value())
-                    .with_enumerable(false)
-                    .with_configurable(true)
-                    .build()
-            })
-            .build();
+#[derive(Debug, Default)]
+pub struct GeneratorHeapData {
+    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) generator_state: Option<GeneratorState>,
+}
+
+#[derive(Debug)]
+pub(crate) enum GeneratorState {
+    SuspendedStart {
+        executable: Executable,
+        execution_context: ExecutionContext,
+    },
+    Executing,
+    Completed,
+}
+
+impl HeapMarkAndSweep for GeneratorHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.object_index.mark_values(queues);
+        if let Some(GeneratorState::SuspendedStart {
+            executable,
+            execution_context,
+        }) = &self.generator_state
+        {
+            executable.mark_values(queues);
+            execution_context.mark_values(queues);
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.object_index.sweep_values(compactions);
+        if let Some(GeneratorState::SuspendedStart {
+            executable,
+            execution_context,
+        }) = &mut self.generator_state
+        {
+            executable.sweep_values(compactions);
+            execution_context.sweep_values(compactions);
+        }
     }
 }

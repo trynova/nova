@@ -29,7 +29,9 @@ use crate::{
         },
         scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
         syntax_directed_operations::{
-            function_definitions::{evaluate_async_function_body, evaluate_function_body},
+            function_definitions::{
+                evaluate_async_function_body, evaluate_function_body, evaluate_generator_body,
+            },
             miscellaneous::instantiate_function_object,
             scope_analysis::{
                 function_body_lexically_declared_names, function_body_lexically_scoped_decarations,
@@ -764,8 +766,11 @@ pub(crate) fn evaluate_body(
             // 1. Return ? EvaluateConciseBody of ConciseBody with arguments functionObject and argumentsList.
             evaluate_function_body(agent, function_object, arguments_list)
         }
-        // GeneratorBody : FunctionBody
-        // 1. Return ? EvaluateGeneratorBody of GeneratorBody with arguments functionObject and argumentsList.
+        (true, false) => {
+            // GeneratorBody : FunctionBody
+            // 1. Return ? EvaluateGeneratorBody of GeneratorBody with arguments functionObject and argumentsList.
+            evaluate_generator_body(agent, function_object, arguments_list)
+        }
         // AsyncGeneratorBody : FunctionBody
         // 1. Return ? EvaluateAsyncGeneratorBody of AsyncGeneratorBody with arguments functionObject and argumentsList.
         _ => todo!(),

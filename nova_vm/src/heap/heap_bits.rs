@@ -13,6 +13,7 @@ use crate::ecmascript::{
         bound_function::BoundFunction,
         control_abstraction_objects::{
             async_function_objects::await_reaction::AwaitReactionIdentifier,
+            generator_objects::Generator,
             promise_objects::promise_abstract_operations::{
                 promise_reaction_records::PromiseReaction,
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
@@ -72,6 +73,7 @@ pub struct HeapBits {
     pub source_codes: Box<[bool]>,
     pub finalization_registrys: Box<[bool]>,
     pub function_environments: Box<[bool]>,
+    pub generators: Box<[bool]>,
     pub global_environments: Box<[bool]>,
     pub maps: Box<[bool]>,
     pub modules: Box<[bool]>,
@@ -121,6 +123,7 @@ pub(crate) struct WorkQueues {
     pub errors: Vec<Error>,
     pub finalization_registrys: Vec<FinalizationRegistry>,
     pub function_environments: Vec<FunctionEnvironmentIndex>,
+    pub generators: Vec<Generator>,
     pub global_environments: Vec<GlobalEnvironmentIndex>,
     pub maps: Vec<Map>,
     pub modules: Vec<Module>,
@@ -170,6 +173,7 @@ impl HeapBits {
         let source_codes = vec![false; heap.source_codes.len()];
         let finalization_registrys = vec![false; heap.finalization_registrys.len()];
         let function_environments = vec![false; heap.environments.function.len()];
+        let generators = vec![false; heap.generators.len()];
         let global_environments = vec![false; heap.environments.global.len()];
         let maps = vec![false; heap.maps.len()];
         let modules = vec![false; heap.modules.len()];
@@ -216,6 +220,7 @@ impl HeapBits {
             source_codes: source_codes.into_boxed_slice(),
             finalization_registrys: finalization_registrys.into_boxed_slice(),
             function_environments: function_environments.into_boxed_slice(),
+            generators: generators.into_boxed_slice(),
             global_environments: global_environments.into_boxed_slice(),
             maps: maps.into_boxed_slice(),
             modules: modules.into_boxed_slice(),
@@ -268,6 +273,7 @@ impl WorkQueues {
             source_codes: Vec::with_capacity(heap.source_codes.len() / 4),
             finalization_registrys: Vec::with_capacity(heap.finalization_registrys.len() / 4),
             function_environments: Vec::with_capacity(heap.environments.function.len() / 4),
+            generators: Vec::with_capacity(heap.generators.len() / 4),
             global_environments: Vec::with_capacity(heap.environments.global.len() / 4),
             maps: Vec::with_capacity(heap.maps.len() / 4),
             modules: Vec::with_capacity(heap.modules.len() / 4),
@@ -343,6 +349,7 @@ impl WorkQueues {
             errors,
             finalization_registrys,
             function_environments,
+            generators,
             global_environments,
             maps,
             modules,
@@ -389,6 +396,7 @@ impl WorkQueues {
             && source_codes.is_empty()
             && finalization_registrys.is_empty()
             && function_environments.is_empty()
+            && generators.is_empty()
             && global_environments.is_empty()
             && maps.is_empty()
             && modules.is_empty()
@@ -576,6 +584,7 @@ pub(crate) struct CompactionLists {
     pub errors: CompactionList,
     pub finalization_registrys: CompactionList,
     pub function_environments: CompactionList,
+    pub generators: CompactionList,
     pub global_environments: CompactionList,
     pub maps: CompactionList,
     pub modules: CompactionList,
@@ -637,6 +646,7 @@ impl CompactionLists {
             builtin_functions: CompactionList::from_mark_bits(&bits.builtin_functions),
             ecmascript_functions: CompactionList::from_mark_bits(&bits.ecmascript_functions),
             embedder_objects: CompactionList::from_mark_bits(&bits.embedder_objects),
+            generators: CompactionList::from_mark_bits(&bits.generators),
             source_codes: CompactionList::from_mark_bits(&bits.source_codes),
             dates: CompactionList::from_mark_bits(&bits.dates),
             errors: CompactionList::from_mark_bits(&bits.errors),
