@@ -220,6 +220,7 @@ pub fn parse_script(
         host_defined,
         source_code,
     })
+    // }
 }
 
 /// ### [16.1.6 ScriptEvaluation ( scriptRecord )](https://tc39.es/ecma262/#sec-runtime-semantics-scriptevaluation)
