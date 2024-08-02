@@ -43,7 +43,6 @@ impl SourceCode {
         agent: &mut Agent,
         source: String,
         source_type: SourceType,
-        check_semantic: bool,
     ) -> Result<(Program<'static>, Self), Vec<OxcDiagnostic>> {
         // If the source code is not a heap string, pad it with whitespace and
         // allocate it on the heap. This makes it safe (for some definition of
@@ -98,21 +97,18 @@ impl SourceCode {
             return Err(errors);
         }
 
-        if check_semantic {
-            let SemanticBuilderReturn { errors, .. } =
-                SemanticBuilder::new(source_text, source_type)
-                    .with_check_syntax_error(true)
-                    .build(&program);
+        let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new(source_text, source_type)
+            .with_check_syntax_error(true)
+            .build(&program);
 
-            if !errors.is_empty() {
-                // Drop program before dropping allocator.
-                drop(program);
-                // SAFETY: No references to allocator exist anymore. It is safe to
-                // drop it.
-                drop(unsafe { Box::from_raw(allocator.as_mut()) });
-                // TODO: Include error messages in the exception.
-                return Err(errors);
-            }
+        if !errors.is_empty() {
+            // Drop program before dropping allocator.
+            drop(program);
+            // SAFETY: No references to allocator exist anymore. It is safe to
+            // drop it.
+            drop(unsafe { Box::from_raw(allocator.as_mut()) });
+            // TODO: Include error messages in the exception.
+            return Err(errors);
         }
 
         // SAFETY: Caller guarantees that they will drop the Program before

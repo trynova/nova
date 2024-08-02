@@ -198,7 +198,7 @@ pub fn parse_script(
 
     // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus
     // making the Program's references point to a live Allocator.
-    let parse_result = unsafe { SourceCode::parse_source(agent, source_text, source_type, true) };
+    let parse_result = unsafe { SourceCode::parse_source(agent, source_text, source_type) };
 
     let (program, source_code) = match parse_result {
         // 2. If script is a List of errors, return script.
