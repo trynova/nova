@@ -7,14 +7,11 @@ use std::fs::File;
 use std::io::{self, prelude::*, BufReader};
 
 fn replace_invalid_key_characters(string: &str) -> String {
-    match string {
-        " " => return "__".to_string(),
-        "(" => return "_left_parenthesis".to_string(),
-        ")" => return "_right_parenthesis".to_string(),
-        _ => {}
-    };
-
     let mut string = string.to_owned();
+
+    if string == " " {
+        return "__".to_string();
+    }
 
     // If the first character is a number or a hyphen, prefix the string with an underscore.
     if let Some(first_char) = string.chars().next() {
