@@ -110,7 +110,6 @@ impl SourceCode {
             // TODO: Include error messages in the exception.
             return Err(errors);
         }
-
         // SAFETY: Caller guarantees that they will drop the Program before
         // SourceCode can be garbage collected.
         let program = unsafe { std::mem::transmute::<Program<'_>, Program<'static>>(program) };
