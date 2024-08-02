@@ -1,5 +1,7 @@
  
 -0
+(
+)
 [object Arguments]
 [object Array]
 [object Boolean]
@@ -364,6 +366,7 @@ sticky
 store
 string
 String
+stringify
 String Iterator
 sub
 subarray

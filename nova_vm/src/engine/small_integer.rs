@@ -179,35 +179,35 @@ impl From<SmallInteger> for i64 {
 
 #[test]
 fn valid_small_integers() {
-    assert_eq!(0i64, SmallInteger::from(0).into());
-    assert_eq!(5i64, SmallInteger::from(5).into());
-    assert_eq!(23i64, SmallInteger::from(23).into());
+    assert_eq!(0i64, SmallInteger::from(0).into_i64());
+    assert_eq!(5i64, SmallInteger::from(5).into_i64());
+    assert_eq!(23i64, SmallInteger::from(23).into_i64());
     assert_eq!(
         SmallInteger::MAX_NUMBER + 1,
         SmallInteger::try_from(SmallInteger::MAX_NUMBER + 1)
             .unwrap()
-            .into()
+            .into_i64()
     );
     assert_eq!(
         SmallInteger::MAX_BIGINT,
         SmallInteger::try_from(SmallInteger::MAX_BIGINT)
             .unwrap()
-            .into()
+            .into_i64()
     );
 
-    assert_eq!(-5i64, SmallInteger::from(-5).into());
-    assert_eq!(-59i64, SmallInteger::from(-59).into());
+    assert_eq!(-5i64, SmallInteger::from(-5).into_i64());
+    assert_eq!(-59i64, SmallInteger::from(-59).into_i64());
     assert_eq!(
         SmallInteger::MIN_NUMBER - 1,
         SmallInteger::try_from(SmallInteger::MIN_NUMBER - 1)
             .unwrap()
-            .into()
+            .into_i64()
     );
     assert_eq!(
         SmallInteger::MIN_BIGINT,
         SmallInteger::try_from(SmallInteger::MIN_BIGINT)
             .unwrap()
-            .into()
+            .into_i64()
     );
 }
 

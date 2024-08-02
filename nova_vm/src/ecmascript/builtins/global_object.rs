@@ -211,7 +211,7 @@ pub fn perform_eval(
     // call happens.
     // The Program thus refers to a valid, live Allocator for the duration of
     // this call.
-    let parse_result = unsafe { SourceCode::parse_source(agent, x, source_type) };
+    let parse_result = unsafe { SourceCode::parse_source(agent, x, source_type, true) };
 
     // b. If script is a List of errors, throw a SyntaxError exception.
     let Ok((script, source_code)) = parse_result else {
