@@ -304,10 +304,13 @@ pub(crate) fn evaluate_generator_body(
             .ecmascript_code
             .as_ref()
     };
-    let is_concise_arrow_function = agent[function_object]
-        .ecmascript_function
-        .is_concise_arrow_function;
-    let executable = Executable::compile_function_body(agent, body, is_concise_arrow_function);
+    // Arrow functions cannot be generators.
+    assert!(
+        !agent[function_object]
+            .ecmascript_function
+            .is_concise_arrow_function
+    );
+    let executable = Executable::compile_function_body(agent, body, false);
     agent[generator].generator_state = Some(GeneratorState::SuspendedStart {
         executable,
         execution_context: agent.running_execution_context().clone(),
