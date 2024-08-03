@@ -188,8 +188,11 @@ impl NumberPrototype {
 
         // 5.
         let precision = p.into_i64(agent) as i32;
-        if precision < 1 || precision > 100 {
-            return Err(agent.throw_exception_with_static_message(ExceptionType::RangeError, ""));
+        if !(1..=100).contains(&precision) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Precision out of range",
+            ));
         }
 
         // 6.
@@ -273,7 +276,7 @@ impl NumberPrototype {
             s.push_str(&"0".repeat(-e_inc as usize));
         }
 
-        return Ok(String::from_string(agent, s + &m).into_value());
+        Ok(String::from_string(agent, s + &m).into_value())
     }
 
     /// round_to_precision - used in to_precision
