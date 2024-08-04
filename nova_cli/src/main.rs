@@ -37,6 +37,14 @@ enum Command {
     Parse {
         /// The path of the file to parse
         path: String,
+
+        /// Whether to parse as TypeScript
+        #[arg(long)]
+        typescript: bool,
+
+        /// Whether to pretty print the AST
+        #[arg(long)]
+        pretty: bool,
     },
 
     /// Evaluates a file
@@ -88,11 +96,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
 
     match args.command {
-        Command::Parse { path } => {
+        Command::Parse {
+            path,
+            typescript,
+            pretty,
+        } => {
             let file = std::fs::read_to_string(&path)?;
             let allocator = Default::default();
             let source_type: SourceType = Default::default();
-            let parser = Parser::new(&allocator, &file, source_type.with_typescript(false));
+            let parser = Parser::new(&allocator, &file, source_type.with_typescript(typescript));
             let result = parser.parse();
 
             if !result.errors.is_empty() {
@@ -107,7 +119,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 exit_with_parse_errors(result.errors, &path, &file);
             }
 
-            println!("{:?}", result.program);
+            if pretty {
+                println!("{:#?}", result.program);
+            } else {
+                println!("{:?}", result.program);
+            }
         }
         Command::Eval {
             verbose,
