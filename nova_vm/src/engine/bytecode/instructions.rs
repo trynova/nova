@@ -164,6 +164,9 @@ pub enum Instruction {
     Typeof,
     /// Performs steps 3 and 4 from the [UnaryExpression - Runtime Semantics](https://tc39.es/ecma262/#sec-unary-minus-operator-runtime-semantics-evaluation).
     UnaryMinus,
+    /// Performs Yield() on the result value, and after resuming, stores the
+    /// value passed to `next()` as the result value.
+    Yield,
     /// Perform CreateImmutableBinding in the running execution context's
     /// LexicalEnvironment with an identifier parameter and `true`
     CreateImmutableBinding,

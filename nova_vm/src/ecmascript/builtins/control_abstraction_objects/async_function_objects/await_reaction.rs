@@ -108,6 +108,7 @@ impl AwaitReactionIdentifier {
                 // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
                 inner_promise_then(agent, promise, handler, handler, None);
             }
+            ExecutionResult::Yield { .. } => unreachable!(),
         }
     }
 }
