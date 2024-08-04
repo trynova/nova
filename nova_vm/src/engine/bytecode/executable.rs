@@ -2640,8 +2640,17 @@ impl CompileEvaluation for ast::TryStatement<'_> {
 }
 #[cfg(feature = "typescript")]
 impl CompileEvaluation for ast::TSEnumDeclaration<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!();
+    fn compile(&self, ctx: &mut CompileContext) {
+        // TODO: implement enum declaration
+        // NOTE: remember not to forget to treat const enums differently
+
+        // content of the enum is not evaluated, it is just a declaration
+        ctx.exe.add_instruction(Instruction::ObjectCreate);
+        for _prop in self.members.iter() {
+            todo!("enum member");
+        }
+        // 3. Return enumObj.
+        ctx.exe.add_instruction(Instruction::Store);
     }
 }
 
