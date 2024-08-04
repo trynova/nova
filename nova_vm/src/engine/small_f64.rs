@@ -122,8 +122,8 @@ impl From<SmallF64> for f64 {
 
 #[test]
 fn valid_small_integers() {
-    assert_eq!(1.0 / 2.0, SmallF64::from(1.0 / 2.0).into());
-    assert_eq!(1.0 / 4.0, SmallF64::from(1.0 / 4.0).into());
+    assert_eq!(1.0 / 2.0, SmallF64::from(1.0 / 2.0).into_f64());
+    assert_eq!(1.0 / 4.0, SmallF64::from(1.0 / 4.0).into_f64());
     assert!(SmallF64::try_from(f64::NAN).unwrap().into_f64().is_nan());
     assert!(
         SmallF64::try_from(f64::INFINITY)
@@ -147,7 +147,7 @@ fn valid_small_integers() {
     );
     assert_eq!(
         f64::EPSILON,
-        SmallF64::try_from(f64::EPSILON).unwrap().into()
+        SmallF64::try_from(f64::EPSILON).unwrap().into_f64()
     );
 }
 

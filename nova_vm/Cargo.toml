@@ -19,6 +19,7 @@ ryu-js = { workspace = true }
 small_string = { path = "../small_string" }
 wtf8 = { workspace = true }
 ahash = { workspace = true }
+sonic-rs = { workspace = true }
 
 [features]
 typescript = []

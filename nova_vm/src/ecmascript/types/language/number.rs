@@ -252,7 +252,7 @@ impl Number {
     pub fn is_pos_zero(self, agent: &Agent) -> bool {
         match self {
             Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(agent[n]),
-            Number::Integer(n) => 0i64 == n.into(),
+            Number::Integer(n) => 0i64 == n.into_i64(),
             Number::SmallF64(n) => n.into_f64().to_bits() == 0.0f64.to_bits(),
         }
     }
@@ -292,7 +292,7 @@ impl Number {
     pub fn is_nonzero(self, agent: &Agent) -> bool {
         match self {
             Number::Number(n) => 0.0 != agent[n],
-            Number::Integer(n) => 0i64 != n.into(),
+            Number::Integer(n) => 0i64 != n.into_i64(),
             Number::SmallF64(n) => !n.into_f64().is_zero(),
         }
     }
@@ -302,7 +302,7 @@ impl Number {
         // variant returns true, that's a bug as it means that our variants are
         // no longer "sound".
         match self {
-            Number::Integer(n) => 1i64 == n.into(),
+            Number::Integer(n) => 1i64 == n.into_i64(),
             Number::Number(n) => {
                 debug_assert_ne!(agent[n], 1.0);
                 false
@@ -316,7 +316,7 @@ impl Number {
 
     pub fn is_neg_one(self, agent: &Agent) -> bool {
         match self {
-            Number::Integer(n) => -1i64 == n.into(),
+            Number::Integer(n) => -1i64 == n.into_i64(),
             Number::Number(n) => {
                 debug_assert_ne!(agent[n], -1.0);
                 false
