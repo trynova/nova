@@ -4,6 +4,7 @@
 
 use crate::ecmascript::{
     builtins::{
+        control_abstraction_objects::generator_objects::GeneratorHeapData,
         data_view::data::DataViewHeapData, date::data::DateHeapData,
         embedder_object::data::EmbedderObjectHeapData, error::ErrorHeapData,
         finalization_registry::data::FinalizationRegistryHeapData, map::data::MapHeapData,
@@ -154,6 +155,7 @@ pub type ElementIndex = BaseIndex<[Option<Value>]>;
 pub type EmbedderObjectIndex = BaseIndex<EmbedderObjectHeapData>;
 pub type ErrorIndex = BaseIndex<ErrorHeapData>;
 pub type FinalizationRegistryIndex = BaseIndex<FinalizationRegistryHeapData>;
+pub type GeneratorIndex = BaseIndex<GeneratorHeapData>;
 pub type MapIndex = BaseIndex<MapHeapData>;
 pub type NumberIndex = BaseIndex<NumberHeapData>;
 pub type ObjectIndex = BaseIndex<ObjectHeapData>;

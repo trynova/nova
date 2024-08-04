@@ -49,12 +49,11 @@ impl Builtin for MapGroupBy {
 struct MapGetSpecies;
 impl Builtin for MapGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapConstructor::get_species);
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 }
-impl BuiltinGetter for MapGetSpecies {
-    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
-}
+impl BuiltinGetter for MapGetSpecies {}
 
 impl MapConstructor {
     fn behaviour(

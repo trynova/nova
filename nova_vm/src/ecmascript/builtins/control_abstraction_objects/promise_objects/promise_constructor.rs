@@ -86,10 +86,9 @@ impl Builtin for PromiseGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromiseConstructor::get_species);
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
 }
-impl BuiltinGetter for PromiseGetSpecies {
-    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
-}
+impl BuiltinGetter for PromiseGetSpecies {}
 
 impl PromiseConstructor {
     fn behaviour(

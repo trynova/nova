@@ -36,7 +36,7 @@ pub(crate) fn instantiate_function_object(
     // function * ( FormalParameters ) { GeneratorBody }
     if !function.r#async && function.generator {
         // 1. Return InstantiateGeneratorFunctionObject of GeneratorDeclaration with arguments env and privateEnv.
-        todo!("InstantiateGeneratorFunctionObject")
+        return instantiate_ordinary_function_object(agent, function, env, private_env);
     }
     // AsyncGeneratorDeclaration :
     // async function * BindingIdentifier ( FormalParameters ) { AsyncGeneratorBody }

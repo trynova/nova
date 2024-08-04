@@ -31,6 +31,7 @@ use crate::ecmascript::{
     builtins::{
         control_abstraction_objects::{
             async_function_objects::await_reaction::AwaitReaction,
+            generator_objects::GeneratorHeapData,
             promise_objects::promise_abstract_operations::{
                 promise_reaction_records::PromiseReactionRecord,
                 promise_resolving_functions::PromiseResolvingFunctionHeapData,
@@ -90,6 +91,7 @@ pub struct Heap {
     pub environments: Environments,
     pub errors: Vec<Option<ErrorHeapData>>,
     pub finalization_registrys: Vec<Option<FinalizationRegistryHeapData>>,
+    pub generators: Vec<Option<GeneratorHeapData>>,
     pub globals: Vec<Option<Value>>,
     pub maps: Vec<Option<MapHeapData>>,
     pub numbers: Vec<Option<NumberHeapData>>,
@@ -173,6 +175,7 @@ impl Heap {
             errors: Vec::with_capacity(1024),
             source_codes: Vec::with_capacity(0),
             finalization_registrys: Vec::with_capacity(0),
+            generators: Vec::with_capacity(1024),
             globals: Vec::with_capacity(1024),
             maps: Vec::with_capacity(128),
             modules: Vec::with_capacity(0),

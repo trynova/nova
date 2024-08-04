@@ -25,6 +25,7 @@ use crate::{
 };
 
 use super::{
+    control_abstraction_objects::generator_objects::GeneratorHeapData,
     data_view::data::DataViewHeapData, date::data::DateHeapData, error::ErrorHeapData,
     finalization_registry::data::FinalizationRegistryHeapData, map::data::MapHeapData,
     primitive_objects::PrimitiveObjectHeapData, promise::data::PromiseHeapData,
@@ -890,6 +891,10 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .heap
             .create(TypedArrayHeapData::default())
             .into_object(),
+        ProtoIntrinsics::Generator => agent
+            .heap
+            .create(GeneratorHeapData::default())
+            .into_object(),
         ProtoIntrinsics::GeneratorFunction => todo!(),
         ProtoIntrinsics::Int16Array => agent
             .heap
@@ -998,53 +1003,58 @@ pub(crate) fn get_prototype_from_constructor(
     // ProtoIntrinsic.
     if let Ok(intrinsics) = function_realm.map(|realm| agent.get_realm(realm).intrinsics()) {
         let intrinsic_constructor = match intrinsic_default_proto {
-            ProtoIntrinsics::AggregateError => intrinsics.aggregate_error().into_function(),
-            ProtoIntrinsics::Array => intrinsics.array().into_function(),
-            ProtoIntrinsics::ArrayBuffer => intrinsics.array_buffer().into_function(),
-            ProtoIntrinsics::AsyncFunction => intrinsics.async_function().into_function(),
+            ProtoIntrinsics::AggregateError => Some(intrinsics.aggregate_error().into_function()),
+            ProtoIntrinsics::Array => Some(intrinsics.array().into_function()),
+            ProtoIntrinsics::ArrayBuffer => Some(intrinsics.array_buffer().into_function()),
+            ProtoIntrinsics::AsyncFunction => Some(intrinsics.async_function().into_function()),
             ProtoIntrinsics::AsyncGeneratorFunction => {
-                intrinsics.async_generator_function().into_function()
+                Some(intrinsics.async_generator_function().into_function())
             }
-            ProtoIntrinsics::BigInt => intrinsics.big_int().into_function(),
-            ProtoIntrinsics::BigInt64Array => intrinsics.big_int64_array().into_function(),
-            ProtoIntrinsics::BigUint64Array => intrinsics.big_uint64_array().into_function(),
-            ProtoIntrinsics::Boolean => intrinsics.boolean().into_function(),
-            ProtoIntrinsics::DataView => intrinsics.data_view().into_function(),
-            ProtoIntrinsics::Date => intrinsics.date().into_function(),
-            ProtoIntrinsics::Error => intrinsics.error().into_function(),
-            ProtoIntrinsics::EvalError => intrinsics.eval_error().into_function(),
+            ProtoIntrinsics::BigInt => Some(intrinsics.big_int().into_function()),
+            ProtoIntrinsics::BigInt64Array => Some(intrinsics.big_int64_array().into_function()),
+            ProtoIntrinsics::BigUint64Array => Some(intrinsics.big_uint64_array().into_function()),
+            ProtoIntrinsics::Boolean => Some(intrinsics.boolean().into_function()),
+            ProtoIntrinsics::DataView => Some(intrinsics.data_view().into_function()),
+            ProtoIntrinsics::Date => Some(intrinsics.date().into_function()),
+            ProtoIntrinsics::Error => Some(intrinsics.error().into_function()),
+            ProtoIntrinsics::EvalError => Some(intrinsics.eval_error().into_function()),
             ProtoIntrinsics::FinalizationRegistry => {
-                intrinsics.finalization_registry().into_function()
+                Some(intrinsics.finalization_registry().into_function())
             }
-            ProtoIntrinsics::Float32Array => intrinsics.float32_array().into_function(),
-            ProtoIntrinsics::Float64Array => intrinsics.float64_array().into_function(),
-            ProtoIntrinsics::Function => intrinsics.function().into_function(),
-            ProtoIntrinsics::GeneratorFunction => intrinsics.generator_function().into_function(),
-            ProtoIntrinsics::Int16Array => intrinsics.int16_array().into_function(),
-            ProtoIntrinsics::Int32Array => intrinsics.int32_array().into_function(),
-            ProtoIntrinsics::Int8Array => intrinsics.int8_array().into_function(),
-            ProtoIntrinsics::Map => intrinsics.map().into_function(),
-            ProtoIntrinsics::Number => intrinsics.number().into_function(),
-            ProtoIntrinsics::Object => intrinsics.object().into_function(),
-            ProtoIntrinsics::Promise => intrinsics.promise().into_function(),
-            ProtoIntrinsics::RangeError => intrinsics.range_error().into_function(),
-            ProtoIntrinsics::ReferenceError => intrinsics.reference_error().into_function(),
-            ProtoIntrinsics::RegExp => intrinsics.reg_exp().into_function(),
-            ProtoIntrinsics::Set => intrinsics.set().into_function(),
-            ProtoIntrinsics::SharedArrayBuffer => intrinsics.shared_array_buffer().into_function(),
-            ProtoIntrinsics::String => intrinsics.string().into_function(),
-            ProtoIntrinsics::Symbol => intrinsics.symbol().into_function(),
-            ProtoIntrinsics::SyntaxError => intrinsics.syntax_error().into_function(),
-            ProtoIntrinsics::TypeError => intrinsics.type_error().into_function(),
-            ProtoIntrinsics::Uint16Array => intrinsics.uint16_array().into_function(),
-            ProtoIntrinsics::Uint32Array => intrinsics.uint32_array().into_function(),
-            ProtoIntrinsics::Uint8Array => intrinsics.uint8_array().into_function(),
-            ProtoIntrinsics::UriError => intrinsics.uri_error().into_function(),
-            ProtoIntrinsics::WeakMap => intrinsics.weak_map().into_function(),
-            ProtoIntrinsics::WeakRef => intrinsics.weak_ref().into_function(),
-            ProtoIntrinsics::WeakSet => intrinsics.weak_set().into_function(),
+            ProtoIntrinsics::Float32Array => Some(intrinsics.float32_array().into_function()),
+            ProtoIntrinsics::Float64Array => Some(intrinsics.float64_array().into_function()),
+            ProtoIntrinsics::Function => Some(intrinsics.function().into_function()),
+            ProtoIntrinsics::Generator => None,
+            ProtoIntrinsics::GeneratorFunction => {
+                Some(intrinsics.generator_function().into_function())
+            }
+            ProtoIntrinsics::Int16Array => Some(intrinsics.int16_array().into_function()),
+            ProtoIntrinsics::Int32Array => Some(intrinsics.int32_array().into_function()),
+            ProtoIntrinsics::Int8Array => Some(intrinsics.int8_array().into_function()),
+            ProtoIntrinsics::Map => Some(intrinsics.map().into_function()),
+            ProtoIntrinsics::Number => Some(intrinsics.number().into_function()),
+            ProtoIntrinsics::Object => Some(intrinsics.object().into_function()),
+            ProtoIntrinsics::Promise => Some(intrinsics.promise().into_function()),
+            ProtoIntrinsics::RangeError => Some(intrinsics.range_error().into_function()),
+            ProtoIntrinsics::ReferenceError => Some(intrinsics.reference_error().into_function()),
+            ProtoIntrinsics::RegExp => Some(intrinsics.reg_exp().into_function()),
+            ProtoIntrinsics::Set => Some(intrinsics.set().into_function()),
+            ProtoIntrinsics::SharedArrayBuffer => {
+                Some(intrinsics.shared_array_buffer().into_function())
+            }
+            ProtoIntrinsics::String => Some(intrinsics.string().into_function()),
+            ProtoIntrinsics::Symbol => Some(intrinsics.symbol().into_function()),
+            ProtoIntrinsics::SyntaxError => Some(intrinsics.syntax_error().into_function()),
+            ProtoIntrinsics::TypeError => Some(intrinsics.type_error().into_function()),
+            ProtoIntrinsics::Uint16Array => Some(intrinsics.uint16_array().into_function()),
+            ProtoIntrinsics::Uint32Array => Some(intrinsics.uint32_array().into_function()),
+            ProtoIntrinsics::Uint8Array => Some(intrinsics.uint8_array().into_function()),
+            ProtoIntrinsics::UriError => Some(intrinsics.uri_error().into_function()),
+            ProtoIntrinsics::WeakMap => Some(intrinsics.weak_map().into_function()),
+            ProtoIntrinsics::WeakRef => Some(intrinsics.weak_ref().into_function()),
+            ProtoIntrinsics::WeakSet => Some(intrinsics.weak_set().into_function()),
         };
-        if constructor == intrinsic_constructor {
+        if Some(constructor) == intrinsic_constructor {
             // The ProtoIntrinsic's constructor matches the constructor we're
             // being called with, so the constructor's prototype matches the
             // ProtoIntrinsic.

@@ -20,6 +20,7 @@ use crate::ecmascript::{
         bound_function::BoundFunction,
         control_abstraction_objects::{
             async_function_objects::await_reaction::AwaitReactionIdentifier,
+            generator_objects::Generator,
             promise_objects::promise_abstract_operations::{
                 promise_reaction_records::PromiseReaction,
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
@@ -49,18 +50,9 @@ use crate::ecmascript::{
     },
     scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
     types::{
-        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
-        BUILTIN_STRINGS_LIST,
+        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, BUILTIN_STRINGS_LIST,
     },
 };
-
-fn collect_values(queues: &mut WorkQueues, values: &[Option<Value>]) {
-    values.iter().for_each(|maybe_value| {
-        if let Some(value) = maybe_value {
-            queues.push_value(*value);
-        }
-    });
-}
 
 pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
     let mut bits = HeapBits::new(heap);
@@ -75,7 +67,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
     let mut last_filled_global_value = None;
     heap.globals.iter().enumerate().for_each(|(i, &value)| {
         if let Some(value) = value {
-            queues.push_value(value);
+            value.mark_values(&mut queues);
             last_filled_global_value = Some(i);
         }
     });
@@ -120,6 +112,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             errors,
             source_codes,
             finalization_registrys,
+            generators,
             globals: _,
             maps,
             modules,
@@ -429,6 +422,19 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 }
                 *marked = true;
                 finalization_registrys.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut generator_marks: Box<[Generator]> = queues.generators.drain(..).collect();
+        generator_marks.sort();
+        generator_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.generators.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                generators.get(index).mark_values(&mut queues);
             }
         });
         let mut object_marks: Box<[OrdinaryObject]> = queues.objects.drain(..).collect();
@@ -855,6 +861,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         errors,
         source_codes,
         finalization_registrys,
+        generators,
         globals,
         maps,
         modules,
@@ -1087,6 +1094,11 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                 sweep_heap_vector_values(function, &compactions, &bits.function_environments);
             });
         }
+        if !generators.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(generators, &compactions, &bits.generators);
+            });
+        }
         if !global.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(global, &compactions, &bits.global_environments);
@@ -1219,6 +1231,8 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
 
 #[test]
 fn test_heap_gc() {
+    use crate::ecmascript::types::Value;
+
     let mut heap: Heap = Default::default();
     assert!(heap.objects.is_empty());
     let obj = Value::Object(heap.create_null_object(&[]));

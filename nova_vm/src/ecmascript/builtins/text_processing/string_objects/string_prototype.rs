@@ -2,24 +2,25 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::{collections::VecDeque, iter::repeat};
+
 use small_string::SmallString;
 
 use crate::{
     ecmascript::{
         abstract_operations::{
             testing_and_comparison::require_object_coercible,
-            type_conversion::{to_integer_or_infinity, to_number, to_string},
+            type_conversion::{
+                is_trimmable_whitespace, to_integer_or_infinity, to_length, to_number, to_string,
+            },
         },
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -118,7 +119,7 @@ impl Builtin for StringPrototypePadEnd {
 }
 struct StringPrototypePadStart;
 impl Builtin for StringPrototypePadStart {
-    const NAME: String = BUILTIN_STRING_MEMORY.flatMap;
+    const NAME: String = BUILTIN_STRING_MEMORY.padStart;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::pad_start);
 }
@@ -239,6 +240,7 @@ impl Builtin for StringPrototypeValueOf {
 struct StringPrototypeIterator;
 impl Builtin for StringPrototypeIterator {
     const NAME: String = BUILTIN_STRING_MEMORY._Symbol_iterator_;
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Iterator.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::iterator);
 }
@@ -553,12 +555,32 @@ impl StringPrototype {
         todo!()
     }
 
-    fn pad_end(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [22.1.3.16 String.prototype.padEnd ( maxLength \[ , fillString \] )](https://tc39.es/ecma262/#sec-string.prototype.padend)
+    fn pad_end(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let max_length = arguments.get(0);
+        let fill_string = arguments.get(1);
+
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value)?;
+
+        // 2. Return ? StringPaddingBuiltinsImpl(O, maxLength, fillString, end).
+        string_padding_builtins_impl(agent, o, max_length, fill_string, false)
     }
 
-    fn pad_start(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [22.1.3.17 String.prototype.padStart ( maxLength \[ , fillString \] )](https://tc39.es/ecma262/#sec-string.prototype.padstart)
+    fn pad_start(
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let max_length = arguments.get(0);
+        let fill_string = arguments.get(1);
+
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value)?;
+
+        // 2. Return ? StringPaddingBuiltinsImpl(O, maxLength, fillString, start).
+        string_padding_builtins_impl(agent, o, max_length, fill_string, true)
     }
 
     /// ### [22.1.3.18 String.prototype.repeat ( count )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.repeat)
@@ -877,16 +899,57 @@ impl StringPrototype {
         Ok(s.into_value())
     }
 
-    fn trim(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [22.1.3.32 String.prototype.trim ( )](https://tc39.es/ecma262/#sec-string.prototype.trim)
+    fn trim(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? TrimString(S, start+end).
+        Self::trim_string(agent, this_value, TrimWhere::StartAndEnd)
     }
 
-    fn trim_end(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// #### [22.1.3.32.1 String.prototype.trimString ( )](https://tc39.es/ecma262/#sec-trimstring)
+    fn trim_string(agent: &mut Agent, value: Value, trim_where: TrimWhere) -> JsResult<Value> {
+        // 1. Let str be ? RequireObjectCoercible(string).
+        let str = require_object_coercible(agent, value)?;
+
+        // 2. Let S be ? ToString(str)
+        let s = to_string(agent, str)?;
+
+        let s_str = s.as_str(agent);
+
+        let t = match trim_where {
+            // 3. If where is start, then
+            //   a. Let T be the String value that is a copy of S with leading white space removed.
+            TrimWhere::Start => s_str.trim_start_matches(is_trimmable_whitespace),
+            // 4. Else if where is end, then
+            //   a. Let T be the String value that is a copy of S with trailing white space removed.
+            TrimWhere::End => s_str.trim_end_matches(is_trimmable_whitespace),
+            // 5. Else,
+            //   a. Assert: where is start+end.
+            //   b. Let T be the String value that is a copy of S with both leading and trailing white space removed.
+            TrimWhere::StartAndEnd => s_str.trim_matches(is_trimmable_whitespace),
+        };
+
+        if t == s_str {
+            // No need to allocate a String if the string was not trimmed
+            Ok(s.into_value())
+        } else {
+            let t = String::from_string(agent, t.to_string());
+            Ok(t.into_value())
+        }
     }
 
-    fn trim_start(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [22.1.3.33 String.prototype.trimEnd ( )](https://tc39.es/ecma262/#sec-string.prototype.trimend)
+    fn trim_end(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? TrimString(S, end).
+        Self::trim_string(agent, this_value, TrimWhere::End)
+    }
+
+    /// ### [22.1.3.34 String.prototype.trimStart ( )](https://tc39.es/ecma262/#sec-string.prototype.trimstart)
+    fn trim_start(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? TrimString(S, start).
+        Self::trim_string(agent, this_value, TrimWhere::Start)
     }
 
     /// ### [22.1.3.29 String.prototype.toString ( )](https://tc39.es/ecma262/#sec-string.prototype.tostring)
@@ -948,18 +1011,7 @@ impl StringPrototype {
             .with_builtin_intrinsic_function_property::<StringPrototypeTrimEnd>()
             .with_builtin_intrinsic_function_property::<StringPrototypeTrimStart>()
             .with_builtin_function_property::<StringPrototypeValueOf>()
-            .with_property(|builder| {
-                builder
-                    .with_key(WellKnownSymbolIndexes::Iterator.into())
-                    .with_value_creator_readonly(|agent| {
-                        BuiltinFunctionBuilder::new::<StringPrototypeIterator>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .with_configurable(true)
-                    .build()
-            })
+            .with_builtin_function_property::<StringPrototypeIterator>()
             .build();
 
         let slot = agent
@@ -973,6 +1025,124 @@ impl StringPrototype {
             data: PrimitiveObjectData::SmallString(SmallString::EMPTY),
         });
     }
+}
+
+/// ### [22.1.3.17.1 StringPaddingBuiltinsImpl ( O, maxLength, fillString, placement )](https://tc39.es/ecma262/#sec-stringpaddingbuiltinsimpl)
+///
+/// The abstract operation StringPaddingBuiltinsImpl takes arguments O (an
+/// ECMAScript language value), maxLength (an ECMAScript language value),
+/// fillString (an ECMAScript language value), and placement (start or end)
+/// and returns either a normal completion containing a String or a throw
+/// completion.
+fn string_padding_builtins_impl(
+    agent: &mut Agent,
+    o: Value,
+    max_length: Value,
+    fill_string: Value,
+    placement_start: bool,
+) -> JsResult<Value> {
+    // 1. Let S be ? ToString(O).
+    let s = to_string(agent, o)?;
+
+    // 2. Let intMaxLength be ℝ(? ToLength(maxLength)).
+    let int_max_length = to_length(agent, max_length)?;
+
+    // 3. Let stringLength be the length of S.
+    let string_length = s.utf16_len(agent) as i64;
+
+    // 4. If intMaxLength ≤ stringLength, return S.
+    if int_max_length <= string_length {
+        return Ok(s.into());
+    }
+
+    // 5. If fillString is undefined, set fillString to the String value consisting solely of the code unit 0x0020 (SPACE).
+    let fill_string = if fill_string.is_undefined() {
+        BUILTIN_STRING_MEMORY.r#__
+    } else {
+        // 6. Else, set fillString to ? ToString(fillString).
+        to_string(agent, fill_string)?
+    };
+
+    // 7. Return StringPad(S, intMaxLength, fillString, placement).
+    string_pad(agent, s, int_max_length, fill_string, placement_start)
+}
+
+/// ### [22.1.3.17.2 StringPad ( S, maxLength, fillString, placement )](https://tc39.es/ecma262/#sec-stringpad)
+///
+/// The abstract operation StringPad takes arguments S (a String),
+/// maxLength (a non-negative integer), fillString (a String), and
+/// placement (start or end) and returns a String.
+fn string_pad(
+    agent: &mut Agent,
+    s: String,
+    max_len: i64,
+    fill_string: String,
+    placement_start: bool,
+) -> JsResult<Value> {
+    // 1. Let stringLength be the length of S.
+    let string_len = s.utf16_len(agent) as i64;
+
+    // 2. If maxLength ≤ stringLength, return S.
+    if max_len <= string_len {
+        return Ok(s.into());
+    }
+
+    // 3. If fillString is the empty String, return S.
+    if fill_string.is_empty_string() {
+        return Ok(s.into());
+    }
+
+    // 4. Let fillLen be maxLength - stringLength.
+    let fill_len = max_len - string_len;
+    let fill_string_len = fill_string.utf16_len(agent) as i64;
+
+    // 5. Let truncatedStringFiller be the String value consisting of repeated concatenations of fillString truncated to length fillLen.
+    let mut strings = if fill_len == fill_string_len {
+        let mut vec = VecDeque::with_capacity(2);
+        vec.push_back(fill_string);
+        vec
+    } else if fill_len % fill_string_len == 0 {
+        let fill_count = (fill_len / fill_string_len) as usize;
+        let mut vec = VecDeque::with_capacity(fill_count + 1);
+        vec.extend(repeat(fill_string).take(fill_count));
+        vec
+    } else if fill_len < fill_string_len {
+        let mut vec = VecDeque::with_capacity(2);
+        let mut sub_string = vec![0; fill_len as usize];
+        for i in 0..fill_len {
+            fill_string
+                .utf16_char(agent, i as usize)
+                .encode_utf8(&mut sub_string[fill_string.utf8_index(agent, i as usize).unwrap()..]);
+        }
+        let sub_string = std::str::from_utf8(&sub_string).unwrap();
+        // let sub_string = &fill_string.as_str(agent)[..fill_len as usize];
+        vec.push_back(String::from_string(agent, sub_string.to_owned()));
+        vec
+    } else {
+        let fill_count = (fill_len / fill_string_len) as usize;
+        let mut vec = VecDeque::with_capacity(fill_count + 2);
+        vec.extend(repeat(fill_string).take(fill_count));
+        let sub_string_len = (fill_len % fill_string_len) as usize;
+        let mut sub_string = vec![0; sub_string_len];
+        for i in 0..sub_string_len {
+            fill_string
+                .utf16_char(agent, i)
+                .encode_utf8(&mut sub_string[fill_string.utf8_index(agent, i).unwrap()..]);
+        }
+        let sub_string = std::str::from_utf8(&sub_string).unwrap();
+        vec.push_back(String::from_string(agent, sub_string.to_owned()));
+        vec
+    };
+
+    // 6. If placement is start, return the string-concatenation of truncatedStringFiller and S.
+    // 7. Else, return the string-concatenation of S and truncatedStringFiller.
+    if placement_start {
+        strings.push_back(s);
+    } else {
+        strings.push_front(s);
+    }
+
+    Ok(String::concat(agent, strings.into_iter().collect::<Vec<String>>()).into_value())
 }
 
 /// ### [22.1.3.35.1 ThisStringValue ( value )](https://tc39.es/ecma262/#sec-thisstringvalue)
@@ -1004,4 +1174,10 @@ fn this_string_value(agent: &mut Agent, value: Value) -> JsResult<String> {
             ))
         }
     }
+}
+
+enum TrimWhere {
+    Start,
+    End,
+    StartAndEnd,
 }

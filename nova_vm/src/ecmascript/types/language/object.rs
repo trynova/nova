@@ -16,24 +16,46 @@ use super::{
         BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
         BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT, BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
-        BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
-        BUILTIN_PROXY_REVOKER_FUNCTION,
-        DATA_VIEW_DISCRIMINANT, DATE_DISCRIMINANT, ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT,
-        ERROR_DISCRIMINANT, FINALIZATION_REGISTRY_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT,
-        FLOAT_64_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
-        INT_8_ARRAY_DISCRIMINANT, ITERATOR_DISCRIMINANT, MAP_DISCRIMINANT, MODULE_DISCRIMINANT,
-        OBJECT_DISCRIMINANT, PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT,
-        PROXY_DISCRIMINANT, REGEXP_DISCRIMINANT, SET_DISCRIMINANT,
-        SHARED_ARRAY_BUFFER_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT,
-        UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT, WEAK_MAP_DISCRIMINANT,
-        WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT,
+        BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
+        DATA_VIEW_DISCRIMINANT, DATE_DISCRIMINANT, ECMASCRIPT_FUNCTION_DISCRIMINANT,
+        EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT, FINALIZATION_REGISTRY_DISCRIMINANT,
+        FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, GENERATOR_DISCRIMINANT,
+        INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
+        ITERATOR_DISCRIMINANT, MAP_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
+        PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
+        REGEXP_DISCRIMINANT, SET_DISCRIMINANT, SHARED_ARRAY_BUFFER_DISCRIMINANT,
+        UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, UINT_8_ARRAY_DISCRIMINANT,
+        UINT_8_CLAMPED_ARRAY_DISCRIMINANT, WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT,
+        WEAK_SET_DISCRIMINANT,
     },
     Function, IntoValue, Value,
 };
 use crate::{
     ecmascript::{
         builtins::{
-            bound_function::BoundFunction, control_abstraction_objects::promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction, data_view::DataView, date::Date, embedder_object::EmbedderObject, error::Error, finalization_registry::FinalizationRegistry, map::Map, module::Module, primitive_objects::PrimitiveObject, promise::Promise, proxy::Proxy, regexp::RegExp, set::Set, shared_array_buffer::SharedArrayBuffer, typed_array::TypedArray, weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet, ArgumentsList, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction
+            bound_function::BoundFunction,
+            control_abstraction_objects::{
+                generator_objects::Generator,
+                promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
+            },
+            data_view::DataView,
+            date::Date,
+            embedder_object::EmbedderObject,
+            error::Error,
+            finalization_registry::FinalizationRegistry,
+            map::Map,
+            module::Module,
+            primitive_objects::PrimitiveObject,
+            promise::Promise,
+            proxy::Proxy,
+            regexp::RegExp,
+            set::Set,
+            shared_array_buffer::SharedArrayBuffer,
+            typed_array::TypedArray,
+            weak_map::WeakMap,
+            weak_ref::WeakRef,
+            weak_set::WeakSet,
+            ArgumentsList, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
         types::PropertyDescriptor,
@@ -68,7 +90,7 @@ pub enum Object {
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
     PrimitiveObject(PrimitiveObject) = PRIMITIVE_OBJECT_DISCRIMINANT,
-    Arguments = ARGUMENTS_DISCRIMINANT,
+    Arguments(OrdinaryObject) = ARGUMENTS_DISCRIMINANT,
     Array(Array) = ARRAY_DISCRIMINANT,
     ArrayBuffer(ArrayBuffer) = ARRAY_BUFFER_DISCRIMINANT,
     DataView(DataView) = DATA_VIEW_DISCRIMINANT,
@@ -98,6 +120,7 @@ pub enum Object {
     AsyncFromSyncIterator = ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
     AsyncIterator = ASYNC_ITERATOR_DISCRIMINANT,
     Iterator = ITERATOR_DISCRIMINANT,
+    Generator(Generator) = GENERATOR_DISCRIMINANT,
     Module(Module) = MODULE_DISCRIMINANT,
     EmbedderObject(EmbedderObject) = EMBEDDER_OBJECT_DISCRIMINANT,
 }
@@ -120,7 +143,7 @@ impl IntoValue for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => Value::PrimitiveObject(data),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => Value::Arguments(data),
             Object::Array(data) => Value::Array(data),
             Object::ArrayBuffer(data) => Value::ArrayBuffer(data),
             Object::DataView(data) => Value::DataView(data),
@@ -150,6 +173,7 @@ impl IntoValue for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => Value::Generator(data),
             Object::Module(data) => Value::Module(data),
             Object::EmbedderObject(data) => Value::EmbedderObject(data),
         }
@@ -288,7 +312,7 @@ impl From<Object> for Value {
             Object::BuiltinPromiseCollectorFunction => Value::BuiltinPromiseCollectorFunction,
             Object::BuiltinProxyRevokerFunction => Value::BuiltinProxyRevokerFunction,
             Object::PrimitiveObject(data) => Value::PrimitiveObject(data),
-            Object::Arguments => Value::Arguments,
+            Object::Arguments(data) => Value::Arguments(data),
             Object::Array(data) => Value::Array(data),
             Object::ArrayBuffer(data) => Value::ArrayBuffer(data),
             Object::DataView(data) => Value::DataView(data),
@@ -318,6 +342,7 @@ impl From<Object> for Value {
             Object::AsyncFromSyncIterator => Value::AsyncFromSyncIterator,
             Object::AsyncIterator => Value::AsyncIterator,
             Object::Iterator => Value::Iterator,
+            Object::Generator(data) => Value::Generator(data),
             Object::Module(data) => Value::Module(data),
             Object::EmbedderObject(data) => Value::EmbedderObject(data),
         }
@@ -354,7 +379,7 @@ impl TryFrom<Value> for Object {
             Value::BuiltinPromiseCollectorFunction => Ok(Object::BuiltinPromiseCollectorFunction),
             Value::BuiltinProxyRevokerFunction => Ok(Object::BuiltinProxyRevokerFunction),
             Value::PrimitiveObject(data) => Ok(Object::PrimitiveObject(data)),
-            Value::Arguments => Ok(Object::Arguments),
+            Value::Arguments(data) => Ok(Object::Arguments(data)),
             Value::ArrayBuffer(idx) => Ok(Object::ArrayBuffer(idx)),
             Value::DataView(data) => Ok(Object::DataView(data)),
             Value::FinalizationRegistry(data) => Ok(Object::FinalizationRegistry(data)),
@@ -381,6 +406,7 @@ impl TryFrom<Value> for Object {
             Value::AsyncFromSyncIterator => Ok(Object::AsyncFromSyncIterator),
             Value::AsyncIterator => Ok(Object::AsyncIterator),
             Value::Iterator => Ok(Object::Iterator),
+            Value::Generator(data) => Ok(Object::Generator(data)),
             Value::Module(data) => Ok(Object::Module(data)),
             Value::EmbedderObject(data) => Ok(Object::EmbedderObject(data)),
         }
@@ -422,7 +448,7 @@ impl InternalSlots for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_extensible(agent),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.internal_extensible(agent),
             Object::DataView(data) => data.internal_extensible(agent),
             Object::FinalizationRegistry(data) => data.internal_extensible(agent),
             Object::Map(data) => data.internal_extensible(agent),
@@ -454,6 +480,7 @@ impl InternalSlots for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.internal_extensible(agent),
             Object::Module(data) => data.internal_extensible(agent),
             Object::EmbedderObject(data) => data.internal_extensible(agent),
         }
@@ -477,7 +504,7 @@ impl InternalSlots for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_set_extensible(agent, value),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.internal_set_extensible(agent, value),
             Object::DataView(data) => data.internal_set_extensible(agent, value),
             Object::FinalizationRegistry(data) => data.internal_set_extensible(agent, value),
             Object::Map(data) => data.internal_set_extensible(agent, value),
@@ -525,6 +552,7 @@ impl InternalSlots for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.internal_set_extensible(agent, value),
             Object::Module(data) => data.internal_set_extensible(agent, value),
             Object::EmbedderObject(data) => data.internal_set_extensible(agent, value),
         }
@@ -546,7 +574,7 @@ impl InternalSlots for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_prototype(agent),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.internal_prototype(agent),
             Object::DataView(data) => data.internal_prototype(agent),
             Object::FinalizationRegistry(data) => data.internal_prototype(agent),
             Object::Map(data) => data.internal_prototype(agent),
@@ -578,6 +606,7 @@ impl InternalSlots for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.internal_prototype(agent),
             Object::Module(data) => data.internal_prototype(agent),
             Object::EmbedderObject(data) => data.internal_prototype(agent),
         }
@@ -601,7 +630,7 @@ impl InternalSlots for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_set_prototype(agent, prototype),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.internal_set_prototype(agent, prototype),
             Object::DataView(data) => data.internal_set_prototype(agent, prototype),
             Object::FinalizationRegistry(data) => data.internal_set_prototype(agent, prototype),
             Object::Map(data) => data.internal_set_prototype(agent, prototype),
@@ -649,6 +678,7 @@ impl InternalSlots for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.internal_set_prototype(agent, prototype),
             Object::Module(data) => data.internal_set_prototype(agent, prototype),
             Object::EmbedderObject(data) => data.internal_set_prototype(agent, prototype),
         }
@@ -672,7 +702,7 @@ impl InternalMethods for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_get_prototype_of(agent),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.internal_get_prototype_of(agent),
             Object::DataView(data) => data.internal_get_prototype_of(agent),
             Object::FinalizationRegistry(data) => data.internal_get_prototype_of(agent),
             Object::Map(data) => data.internal_get_prototype_of(agent),
@@ -718,6 +748,7 @@ impl InternalMethods for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.internal_get_prototype_of(agent),
             Object::Module(data) => data.internal_get_prototype_of(agent),
             Object::EmbedderObject(data) => data.internal_get_prototype_of(agent),
         }
@@ -745,7 +776,7 @@ impl InternalMethods for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_set_prototype_of(agent, prototype),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.internal_set_prototype_of(agent, prototype),
             Object::DataView(data) => data.internal_set_prototype_of(agent, prototype),
             Object::FinalizationRegistry(data) => data.internal_set_prototype_of(agent, prototype),
             Object::Map(data) => data.internal_set_prototype_of(agent, prototype),
@@ -793,6 +824,7 @@ impl InternalMethods for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.internal_set_prototype_of(agent, prototype),
             Object::Module(data) => data.internal_set_prototype_of(agent, prototype),
             Object::EmbedderObject(data) => data.internal_set_prototype_of(agent, prototype),
         }
@@ -814,7 +846,7 @@ impl InternalMethods for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_is_extensible(agent),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.internal_is_extensible(agent),
             Object::DataView(data) => data.internal_is_extensible(agent),
             Object::FinalizationRegistry(data) => data.internal_is_extensible(agent),
             Object::Map(data) => data.internal_is_extensible(agent),
@@ -854,6 +886,7 @@ impl InternalMethods for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.internal_is_extensible(agent),
             Object::Module(data) => data.internal_is_extensible(agent),
             Object::EmbedderObject(data) => data.internal_is_extensible(agent),
         }
@@ -877,7 +910,7 @@ impl InternalMethods for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_prevent_extensions(agent),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.internal_prevent_extensions(agent),
             Object::DataView(data) => data.internal_prevent_extensions(agent),
             Object::FinalizationRegistry(data) => data.internal_prevent_extensions(agent),
             Object::Map(data) => data.internal_prevent_extensions(agent),
@@ -925,6 +958,7 @@ impl InternalMethods for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.internal_prevent_extensions(agent),
             Object::Module(data) => data.internal_prevent_extensions(agent),
             Object::EmbedderObject(data) => data.internal_prevent_extensions(agent),
         }
@@ -952,7 +986,7 @@ impl InternalMethods for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_get_own_property(agent, property_key),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.internal_get_own_property(agent, property_key),
             Object::DataView(data) => data.internal_get_own_property(agent, property_key),
             Object::FinalizationRegistry(data) => {
                 data.internal_get_own_property(agent, property_key)
@@ -1002,6 +1036,7 @@ impl InternalMethods for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.internal_get_own_property(agent, property_key),
             Object::Module(data) => data.internal_get_own_property(agent, property_key),
             Object::EmbedderObject(data) => data.internal_get_own_property(agent, property_key),
         }
@@ -1048,7 +1083,9 @@ impl InternalMethods for Object {
             Object::PrimitiveObject(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor)
             }
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
             Object::DataView(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor)
             }
@@ -1119,6 +1156,9 @@ impl InternalMethods for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor)
+            }
             Object::Module(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor)
             }
@@ -1146,7 +1186,7 @@ impl InternalMethods for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_has_property(agent, property_key),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.internal_has_property(agent, property_key),
             Object::DataView(data) => data.internal_has_property(agent, property_key),
             Object::FinalizationRegistry(data) => data.internal_has_property(agent, property_key),
             Object::Map(data) => data.internal_has_property(agent, property_key),
@@ -1194,6 +1234,7 @@ impl InternalMethods for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.internal_has_property(agent, property_key),
             Object::Module(data) => data.internal_has_property(agent, property_key),
             Object::EmbedderObject(data) => data.internal_has_property(agent, property_key),
         }
@@ -1222,7 +1263,7 @@ impl InternalMethods for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_get(agent, property_key, receiver),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.internal_get(agent, property_key, receiver),
             Object::DataView(data) => data.internal_get(agent, property_key, receiver),
             Object::FinalizationRegistry(data) => data.internal_get(agent, property_key, receiver),
             Object::Map(data) => data.internal_get(agent, property_key, receiver),
@@ -1270,6 +1311,7 @@ impl InternalMethods for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.internal_get(agent, property_key, receiver),
             Object::Module(data) => data.internal_get(agent, property_key, receiver),
             Object::EmbedderObject(data) => data.internal_get(agent, property_key, receiver),
         }
@@ -1305,7 +1347,7 @@ impl InternalMethods for Object {
             Object::PrimitiveObject(data) => {
                 data.internal_set(agent, property_key, value, receiver)
             }
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.internal_set(agent, property_key, value, receiver),
             Object::DataView(data) => data.internal_set(agent, property_key, value, receiver),
             Object::FinalizationRegistry(data) => {
                 data.internal_set(agent, property_key, value, receiver)
@@ -1360,6 +1402,7 @@ impl InternalMethods for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.internal_set(agent, property_key, value, receiver),
             Object::Module(data) => data.internal_set(agent, property_key, value, receiver),
             Object::EmbedderObject(data) => data.internal_set(agent, property_key, value, receiver),
         }
@@ -1383,7 +1426,7 @@ impl InternalMethods for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_delete(agent, property_key),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.internal_delete(agent, property_key),
             Object::DataView(data) => data.internal_delete(agent, property_key),
             Object::FinalizationRegistry(data) => data.internal_delete(agent, property_key),
             Object::Map(data) => data.internal_delete(agent, property_key),
@@ -1431,6 +1474,7 @@ impl InternalMethods for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.internal_delete(agent, property_key),
             Object::Module(data) => data.internal_delete(agent, property_key),
             Object::EmbedderObject(data) => data.internal_delete(agent, property_key),
         }
@@ -1452,7 +1496,7 @@ impl InternalMethods for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_own_property_keys(agent),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.internal_own_property_keys(agent),
             Object::DataView(data) => data.internal_own_property_keys(agent),
             Object::FinalizationRegistry(data) => data.internal_own_property_keys(agent),
             Object::Map(data) => data.internal_own_property_keys(agent),
@@ -1500,6 +1544,7 @@ impl InternalMethods for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.internal_own_property_keys(agent),
             Object::Module(data) => data.internal_own_property_keys(agent),
             Object::EmbedderObject(data) => data.internal_own_property_keys(agent),
         }
@@ -1560,7 +1605,7 @@ impl HeapMarkAndSweep for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.mark_values(queues),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.mark_values(queues),
             Object::DataView(data) => data.mark_values(queues),
             Object::FinalizationRegistry(data) => data.mark_values(queues),
             Object::Map(data) => data.mark_values(queues),
@@ -1586,6 +1631,7 @@ impl HeapMarkAndSweep for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.mark_values(queues),
             Object::Module(data) => data.mark_values(queues),
             Object::EmbedderObject(data) => data.mark_values(queues),
         }
@@ -1603,7 +1649,7 @@ impl HeapMarkAndSweep for Object {
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.sweep_values(compactions),
-            Object::Arguments => todo!(),
+            Object::Arguments(data) => data.sweep_values(compactions),
             Object::Array(data) => data.sweep_values(compactions),
             Object::ArrayBuffer(data) => data.sweep_values(compactions),
             Object::DataView(data) => data.sweep_values(compactions),
@@ -1633,6 +1679,7 @@ impl HeapMarkAndSweep for Object {
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
+            Object::Generator(data) => data.sweep_values(compactions),
             Object::Module(data) => data.sweep_values(compactions),
             Object::EmbedderObject(data) => data.sweep_values(compactions),
         }

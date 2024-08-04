@@ -82,10 +82,9 @@ impl Builtin for ArrayGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::get_species);
     const LENGTH: u8 = 0;
     const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
 }
-impl BuiltinGetter for ArrayGetSpecies {
-    const KEY: PropertyKey = WellKnownSymbolIndexes::Species.to_property_key();
-}
+impl BuiltinGetter for ArrayGetSpecies {}
 
 /// ### [23.1.1 The Array Constructor](https://tc39.es/ecma262/#sec-array-constructor)
 impl ArrayConstructor {
@@ -126,7 +125,7 @@ impl ArrayConstructor {
                 // i. Perform ! CreateDataPropertyOrThrow(array, "0", len).
                 create_data_property_or_throw(
                     agent,
-                    array.into(),
+                    array,
                     PropertyKey::from(SmallInteger::zero()),
                     len,
                 )
@@ -178,7 +177,7 @@ impl ArrayConstructor {
             let item_k = arguments.get(k as usize);
 
             // iii. Perform ! CreateDataPropertyOrThrow(array, Pk, itemK).
-            create_data_property_or_throw(agent, array.into(), pk, item_k).unwrap();
+            create_data_property_or_throw(agent, array, pk, item_k).unwrap();
 
             // iv. Set k to k + 1.
             k += 1;

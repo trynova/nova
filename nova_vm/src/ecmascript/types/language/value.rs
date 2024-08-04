@@ -10,11 +10,35 @@ use crate::{
             to_big_int, to_int32, to_number, to_numeric, to_string, to_uint32,
         },
         builtins::{
-            bound_function::BoundFunction, control_abstraction_objects::promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction, data_view::DataView, date::Date, embedder_object::EmbedderObject, error::Error, finalization_registry::FinalizationRegistry, map::Map, module::Module, primitive_objects::PrimitiveObject, promise::Promise, proxy::Proxy, regexp::RegExp, set::Set, shared_array_buffer::SharedArrayBuffer, weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet, Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction
+            bound_function::BoundFunction,
+            control_abstraction_objects::{
+                generator_objects::Generator,
+                promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
+            },
+            data_view::DataView,
+            date::Date,
+            embedder_object::EmbedderObject,
+            error::Error,
+            finalization_registry::FinalizationRegistry,
+            map::Map,
+            module::Module,
+            primitive_objects::PrimitiveObject,
+            promise::Promise,
+            proxy::Proxy,
+            regexp::RegExp,
+            set::Set,
+            shared_array_buffer::SharedArrayBuffer,
+            weak_map::WeakMap,
+            weak_ref::WeakRef,
+            weak_set::WeakSet,
+            Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
         types::BUILTIN_STRING_MEMORY,
-    }, engine::small_f64::SmallF64, heap::{indexes::TypedArrayIndex, CompactionLists, HeapMarkAndSweep, WorkQueues}, SmallInteger, SmallString
+    },
+    engine::small_f64::SmallF64,
+    heap::{indexes::TypedArrayIndex, CompactionLists, HeapMarkAndSweep, WorkQueues},
+    SmallInteger, SmallString,
 };
 
 use super::{
@@ -101,7 +125,12 @@ pub enum Value {
     // https://tc39.es/ecma262/#sec-well-known-intrinsic-objects
     // and 18 ECMAScript Standard Built-in Objects
     // https://tc39.es/ecma262/#sec-ecmascript-standard-built-in-objects
-    Arguments,
+    /// ### [10.4.4 Arguments Exotic Objects](https://tc39.es/ecma262/#sec-arguments-exotic-objects)
+    ///
+    /// An unmapped arguments object is an ordinary object with an additional
+    /// internal slot \[\[ParameterMap]] whose value is always **undefined**.
+    Arguments(OrdinaryObject),
+    // TODO: MappedArguments(MappedArgumentsObject),
     Array(Array),
     ArrayBuffer(ArrayBuffer),
     DataView(DataView),
@@ -136,6 +165,7 @@ pub enum Value {
     AsyncFromSyncIterator,
     AsyncIterator,
     Iterator,
+    Generator(Generator),
 
     // ECMAScript Module
     Module(Module),
@@ -205,7 +235,8 @@ pub(crate) const BUILTIN_PROXY_REVOKER_FUNCTION: u8 =
     value_discriminant(Value::BuiltinProxyRevokerFunction);
 pub(crate) const PRIMITIVE_OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::PrimitiveObject(PrimitiveObject::_def()));
-pub(crate) const ARGUMENTS_DISCRIMINANT: u8 = value_discriminant(Value::Arguments);
+pub(crate) const ARGUMENTS_DISCRIMINANT: u8 =
+    value_discriminant(Value::Arguments(OrdinaryObject::_def()));
 pub(crate) const DATA_VIEW_DISCRIMINANT: u8 = value_discriminant(Value::DataView(DataView::_def()));
 pub(crate) const FINALIZATION_REGISTRY_DISCRIMINANT: u8 =
     value_discriminant(Value::FinalizationRegistry(FinalizationRegistry::_def()));
@@ -244,6 +275,8 @@ pub(crate) const ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::AsyncFromSyncIterator);
 pub(crate) const ASYNC_ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::AsyncIterator);
 pub(crate) const ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::Iterator);
+pub(crate) const GENERATOR_DISCRIMINANT: u8 =
+    value_discriminant(Value::Generator(Generator::_def()));
 pub(crate) const MODULE_DISCRIMINANT: u8 = value_discriminant(Value::Module(Module::_def()));
 pub(crate) const EMBEDDER_OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::EmbedderObject(EmbedderObject::_def()));
@@ -539,7 +572,7 @@ impl HeapMarkAndSweep for Value {
             Value::ECMAScriptFunction(data) => data.mark_values(queues),
             Value::RegExp(data) => data.mark_values(queues),
             Value::PrimitiveObject(data) => data.mark_values(queues),
-            Value::Arguments => todo!(),
+            Value::Arguments(data) => data.mark_values(queues),
             Value::DataView(data) => data.mark_values(queues),
             Value::FinalizationRegistry(data) => data.mark_values(queues),
             Value::Map(data) => data.mark_values(queues),
@@ -569,6 +602,7 @@ impl HeapMarkAndSweep for Value {
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
+            Value::Generator(data) => data.mark_values(queues),
             Value::Module(data) => data.mark_values(queues),
             Value::EmbedderObject(data) => data.mark_values(queues),
         }
@@ -599,7 +633,7 @@ impl HeapMarkAndSweep for Value {
             Value::ECMAScriptFunction(data) => data.sweep_values(compactions),
             Value::RegExp(data) => data.sweep_values(compactions),
             Value::PrimitiveObject(data) => data.sweep_values(compactions),
-            Value::Arguments => todo!(),
+            Value::Arguments(data) => data.sweep_values(compactions),
             Value::DataView(data) => data.sweep_values(compactions),
             Value::FinalizationRegistry(data) => data.sweep_values(compactions),
             Value::Map(data) => data.sweep_values(compactions),
@@ -629,6 +663,7 @@ impl HeapMarkAndSweep for Value {
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
+            Value::Generator(data) => data.sweep_values(compactions),
             Value::Module(data) => data.sweep_values(compactions),
             Value::EmbedderObject(data) => data.sweep_values(compactions),
         }

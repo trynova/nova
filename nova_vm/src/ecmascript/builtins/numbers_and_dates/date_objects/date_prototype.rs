@@ -7,13 +7,10 @@ use std::time::SystemTime;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{ordinary_to_primitive, PreferredType},
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{date::Date, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, Object, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, Number, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
     SmallInteger,
@@ -286,10 +283,14 @@ struct DatePrototypeToPrimitive;
 impl Builtin for DatePrototypeToPrimitive {
     const NAME: String = BUILTIN_STRING_MEMORY._Symbol_toPrimitive_;
 
+    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::ToPrimitive.to_property_key());
+
     const LENGTH: u8 = 1;
 
     const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
         crate::ecmascript::builtins::Behaviour::Regular(DatePrototype::to_primitive);
+
+    const WRITABLE: bool = false;
 }
 
 const MAX_SYSTEM_TIME_VALUE: u128 = SmallInteger::MAX_NUMBER as u128;
@@ -674,18 +675,7 @@ impl DatePrototype {
             .with_builtin_function_property::<DatePrototypeToTimeString>()
             .with_builtin_intrinsic_function_property::<DatePrototypeToUTCString>()
             .with_builtin_function_property::<DatePrototypeValueOf>()
-            .with_property(|builder| {
-                builder
-                    .with_key(WellKnownSymbolIndexes::ToPrimitive.into())
-                    .with_value_creator_readonly(|agent| {
-                        BuiltinFunctionBuilder::new::<DatePrototypeToPrimitive>(agent, realm)
-                            .build()
-                            .into_value()
-                    })
-                    .with_enumerable(false)
-                    .with_configurable(true)
-                    .build()
-            })
+            .with_builtin_function_property::<DatePrototypeToPrimitive>()
             .build();
     }
 }

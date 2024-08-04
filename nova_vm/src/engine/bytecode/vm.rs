@@ -255,7 +255,7 @@ impl Vm {
                 };
                 let len = array.len(agent);
                 let key = PropertyKey::Integer(len.into());
-                create_data_property_or_throw(agent, array.into(), key, value)?
+                create_data_property_or_throw(agent, array, key, value)?
             }
             Instruction::ArrayElision => {
                 let array = *vm.stack.last().unwrap();
@@ -674,6 +674,40 @@ impl Vm {
                 {
                     make_constructor(agent, function, None, None);
                 }
+
+                if function_expression.expression.get().generator {
+                    // InstantiateGeneratorFunctionExpression
+                    // 7. Let prototype be OrdinaryObjectCreate(%GeneratorFunction.prototype.prototype%).
+                    // NOTE: Although `prototype` has the generator prototype, it doesn't have the generator
+                    // internals slots, so it's created as an ordinary object.
+                    let prototype = ordinary_object_create_with_intrinsics(
+                        agent,
+                        Some(ProtoIntrinsics::Object),
+                        Some(
+                            agent
+                                .current_realm()
+                                .intrinsics()
+                                .generator_prototype()
+                                .into_object(),
+                        ),
+                    );
+                    // 8. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
+                    define_property_or_throw(
+                        agent,
+                        function,
+                        BUILTIN_STRING_MEMORY.prototype.to_property_key(),
+                        PropertyDescriptor {
+                            value: Some(prototype.into_value()),
+                            writable: Some(true),
+                            get: None,
+                            set: None,
+                            enumerable: Some(false),
+                            configurable: Some(false),
+                        },
+                    )
+                    .unwrap();
+                }
+
                 if init_binding {
                     let name = match name {
                         PropertyKey::SmallString(data) => data.into(),
@@ -1534,7 +1568,7 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         // 14. Return "object".
         Value::PrimitiveObject(_) |
         Value::RegExp(_) |
-        Value::Arguments |
+        Value::Arguments(_) |
         Value::DataView(_) |
         Value::FinalizationRegistry(_) |
         Value::Map(_) |
@@ -1558,6 +1592,7 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::AsyncFromSyncIterator |
         Value::AsyncIterator |
         Value::Iterator |
+        Value::Generator(_) |
         Value::Module(_) |
         Value::EmbedderObject(_) => BUILTIN_STRING_MEMORY.object,
         // 13. If val has a [[Call]] internal slot, return "function".

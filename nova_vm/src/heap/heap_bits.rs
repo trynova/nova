@@ -13,6 +13,7 @@ use crate::ecmascript::{
         bound_function::BoundFunction,
         control_abstraction_objects::{
             async_function_objects::await_reaction::AwaitReactionIdentifier,
+            generator_objects::Generator,
             promise_objects::promise_abstract_operations::{
                 promise_reaction_records::PromiseReaction,
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
@@ -72,6 +73,7 @@ pub struct HeapBits {
     pub source_codes: Box<[bool]>,
     pub finalization_registrys: Box<[bool]>,
     pub function_environments: Box<[bool]>,
+    pub generators: Box<[bool]>,
     pub global_environments: Box<[bool]>,
     pub maps: Box<[bool]>,
     pub modules: Box<[bool]>,
@@ -121,6 +123,7 @@ pub(crate) struct WorkQueues {
     pub errors: Vec<Error>,
     pub finalization_registrys: Vec<FinalizationRegistry>,
     pub function_environments: Vec<FunctionEnvironmentIndex>,
+    pub generators: Vec<Generator>,
     pub global_environments: Vec<GlobalEnvironmentIndex>,
     pub maps: Vec<Map>,
     pub modules: Vec<Module>,
@@ -170,6 +173,7 @@ impl HeapBits {
         let source_codes = vec![false; heap.source_codes.len()];
         let finalization_registrys = vec![false; heap.finalization_registrys.len()];
         let function_environments = vec![false; heap.environments.function.len()];
+        let generators = vec![false; heap.generators.len()];
         let global_environments = vec![false; heap.environments.global.len()];
         let maps = vec![false; heap.maps.len()];
         let modules = vec![false; heap.modules.len()];
@@ -216,6 +220,7 @@ impl HeapBits {
             source_codes: source_codes.into_boxed_slice(),
             finalization_registrys: finalization_registrys.into_boxed_slice(),
             function_environments: function_environments.into_boxed_slice(),
+            generators: generators.into_boxed_slice(),
             global_environments: global_environments.into_boxed_slice(),
             maps: maps.into_boxed_slice(),
             modules: modules.into_boxed_slice(),
@@ -268,6 +273,7 @@ impl WorkQueues {
             source_codes: Vec::with_capacity(heap.source_codes.len() / 4),
             finalization_registrys: Vec::with_capacity(heap.finalization_registrys.len() / 4),
             function_environments: Vec::with_capacity(heap.environments.function.len() / 4),
+            generators: Vec::with_capacity(heap.generators.len() / 4),
             global_environments: Vec::with_capacity(heap.environments.global.len() / 4),
             maps: Vec::with_capacity(heap.maps.len() / 4),
             modules: Vec::with_capacity(heap.modules.len() / 4),
@@ -295,66 +301,6 @@ impl WorkQueues {
         }
     }
 
-    pub fn push_value(&mut self, value: Value) {
-        match value {
-            Value::Array(idx) => self.arrays.push(idx),
-            Value::ArrayBuffer(idx) => self.array_buffers.push(idx),
-            Value::Boolean(_) => {}
-            Value::Date(idx) => self.dates.push(idx),
-            Value::Error(idx) => self.errors.push(idx),
-            Value::BoundFunction(idx) => self.bound_functions.push(idx),
-            Value::BuiltinFunction(idx) => self.builtin_functions.push(idx),
-            Value::ECMAScriptFunction(idx) => self.ecmascript_functions.push(idx),
-            Value::BigInt(idx) => self.bigints.push(idx),
-            Value::Number(idx) => self.numbers.push(idx),
-            Value::String(idx) => self.strings.push(idx),
-            Value::Null => {}
-            Value::Object(idx) => self.objects.push(idx),
-            Value::RegExp(idx) => self.regexps.push(idx),
-            Value::SmallString(_) => {}
-            Value::SmallBigInt(_) => {}
-            Value::Symbol(idx) => self.symbols.push(idx),
-            Value::Undefined => {}
-            Value::Integer(_) => {}
-            Value::SmallF64(_) => {}
-            Value::PrimitiveObject(idx) => self.primitive_objects.push(idx),
-            Value::Arguments => todo!(),
-            Value::DataView(idx) => self.data_views.push(idx),
-            Value::FinalizationRegistry(idx) => self.finalization_registrys.push(idx),
-            Value::Map(idx) => self.maps.push(idx),
-            Value::Proxy(idx) => self.proxys.push(idx),
-            Value::Promise(idx) => self.promises.push(idx),
-            Value::Set(idx) => self.sets.push(idx),
-            Value::SharedArrayBuffer(idx) => self.shared_array_buffers.push(idx),
-            Value::WeakMap(idx) => self.weak_maps.push(idx),
-            Value::WeakRef(idx) => self.weak_refs.push(idx),
-            Value::WeakSet(idx) => self.weak_sets.push(idx),
-            Value::Int8Array(idx) => self.typed_arrays.push(idx),
-            Value::Uint8Array(idx) => self.typed_arrays.push(idx),
-            Value::Uint8ClampedArray(idx) => self.typed_arrays.push(idx),
-            Value::Int16Array(idx) => self.typed_arrays.push(idx),
-            Value::Uint16Array(idx) => self.typed_arrays.push(idx),
-            Value::Int32Array(idx) => self.typed_arrays.push(idx),
-            Value::Uint32Array(idx) => self.typed_arrays.push(idx),
-            Value::BigInt64Array(idx) => self.typed_arrays.push(idx),
-            Value::BigUint64Array(idx) => self.typed_arrays.push(idx),
-            Value::Float32Array(idx) => self.typed_arrays.push(idx),
-            Value::Float64Array(idx) => self.typed_arrays.push(idx),
-            Value::BuiltinGeneratorFunction => todo!(),
-            Value::BuiltinConstructorFunction => todo!(),
-            Value::BuiltinPromiseResolvingFunction(data) => {
-                self.promise_resolving_functions.push(data)
-            }
-            Value::BuiltinPromiseCollectorFunction => todo!(),
-            Value::BuiltinProxyRevokerFunction => todo!(),
-            Value::AsyncFromSyncIterator => todo!(),
-            Value::AsyncIterator => todo!(),
-            Value::Iterator => todo!(),
-            Value::Module(idx) => self.modules.push(idx),
-            Value::EmbedderObject(_) => todo!(),
-        }
-    }
-
     pub fn push_elements_vector(&mut self, vec: &ElementsVector) {
         match vec.cap {
             ElementArrayKey::Empty => {}
@@ -379,33 +325,100 @@ impl WorkQueues {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.modules.is_empty()
-            && self.scripts.is_empty()
-            && self.realms.is_empty()
-            && self.declarative_environments.is_empty()
-            && self.function_environments.is_empty()
-            && self.object_environments.is_empty()
-            && self.e_2_4.is_empty()
-            && self.e_2_6.is_empty()
-            && self.e_2_8.is_empty()
-            && self.e_2_10.is_empty()
-            && self.e_2_12.is_empty()
-            && self.e_2_16.is_empty()
-            && self.e_2_24.is_empty()
-            && self.e_2_32.is_empty()
-            && self.arrays.is_empty()
-            && self.array_buffers.is_empty()
-            && self.bigints.is_empty()
-            && self.errors.is_empty()
-            && self.dates.is_empty()
-            && self.bound_functions.is_empty()
-            && self.builtin_functions.is_empty()
-            && self.ecmascript_functions.is_empty()
-            && self.numbers.is_empty()
-            && self.objects.is_empty()
-            && self.regexps.is_empty()
-            && self.strings.is_empty()
-            && self.symbols.is_empty()
+        let Self {
+            array_buffers,
+            arrays,
+            await_reactions,
+            bigints,
+            bound_functions,
+            builtin_functions,
+            data_views,
+            dates,
+            declarative_environments,
+            e_2_10,
+            e_2_12,
+            e_2_16,
+            e_2_24,
+            e_2_32,
+            e_2_4,
+            e_2_6,
+            e_2_8,
+            ecmascript_functions,
+            embedder_objects,
+            source_codes,
+            errors,
+            finalization_registrys,
+            function_environments,
+            generators,
+            global_environments,
+            maps,
+            modules,
+            numbers,
+            object_environments,
+            objects,
+            primitive_objects,
+            promises,
+            promise_reaction_records,
+            promise_resolving_functions,
+            proxys,
+            realms,
+            regexps,
+            scripts,
+            sets,
+            shared_array_buffers,
+            strings,
+            symbols,
+            typed_arrays,
+            weak_maps,
+            weak_refs,
+            weak_sets,
+        } = self;
+        array_buffers.is_empty()
+            && arrays.is_empty()
+            && await_reactions.is_empty()
+            && bigints.is_empty()
+            && bound_functions.is_empty()
+            && builtin_functions.is_empty()
+            && data_views.is_empty()
+            && dates.is_empty()
+            && declarative_environments.is_empty()
+            && e_2_10.is_empty()
+            && e_2_12.is_empty()
+            && e_2_16.is_empty()
+            && e_2_24.is_empty()
+            && e_2_32.is_empty()
+            && e_2_4.is_empty()
+            && e_2_6.is_empty()
+            && e_2_8.is_empty()
+            && ecmascript_functions.is_empty()
+            && embedder_objects.is_empty()
+            && errors.is_empty()
+            && source_codes.is_empty()
+            && finalization_registrys.is_empty()
+            && function_environments.is_empty()
+            && generators.is_empty()
+            && global_environments.is_empty()
+            && maps.is_empty()
+            && modules.is_empty()
+            && numbers.is_empty()
+            && object_environments.is_empty()
+            && objects.is_empty()
+            && primitive_objects.is_empty()
+            && promise_reaction_records.is_empty()
+            && promise_resolving_functions.is_empty()
+            && promises.is_empty()
+            && proxys.is_empty()
+            && realms.is_empty()
+            && regexps.is_empty()
+            && scripts.is_empty()
+            && sets.is_empty()
+            && shared_array_buffers.is_empty()
+            && strings.is_empty()
+            && symbols.is_empty()
+            && typed_arrays.is_empty()
+            && weak_maps.is_empty()
+            && weak_refs.is_empty()
+            && weak_sets.is_empty()
     }
 }
 
@@ -571,6 +584,7 @@ pub(crate) struct CompactionLists {
     pub errors: CompactionList,
     pub finalization_registrys: CompactionList,
     pub function_environments: CompactionList,
+    pub generators: CompactionList,
     pub global_environments: CompactionList,
     pub maps: CompactionList,
     pub modules: CompactionList,
@@ -632,6 +646,7 @@ impl CompactionLists {
             builtin_functions: CompactionList::from_mark_bits(&bits.builtin_functions),
             ecmascript_functions: CompactionList::from_mark_bits(&bits.ecmascript_functions),
             embedder_objects: CompactionList::from_mark_bits(&bits.embedder_objects),
+            generators: CompactionList::from_mark_bits(&bits.generators),
             source_codes: CompactionList::from_mark_bits(&bits.source_codes),
             dates: CompactionList::from_mark_bits(&bits.dates),
             errors: CompactionList::from_mark_bits(&bits.errors),
