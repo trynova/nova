@@ -263,6 +263,7 @@ pub(crate) fn evaluate_async_function_body(
                 // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
                 inner_promise_then(agent, promise, handler, handler, None);
             }
+            ExecutionResult::Yield { .. } => unreachable!(),
         }
     }
 
@@ -311,7 +312,8 @@ pub(crate) fn evaluate_generator_body(
             .is_concise_arrow_function
     );
     let executable = Executable::compile_function_body(agent, body, false);
-    agent[generator].generator_state = Some(GeneratorState::SuspendedStart {
+    agent[generator].generator_state = Some(GeneratorState::Suspended {
+        vm: None,
         executable,
         execution_context: agent.running_execution_context().clone(),
     });

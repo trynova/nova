@@ -364,6 +364,7 @@ sticky
 store
 string
 String
+stringify
 String Iterator
 sub
 subarray

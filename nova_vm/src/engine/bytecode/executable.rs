@@ -1496,8 +1496,26 @@ impl CompileEvaluation for ast::UsingDeclaration<'_> {
 }
 
 impl CompileEvaluation for ast::YieldExpression<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!()
+    fn compile(&self, ctx: &mut CompileContext) {
+        if self.delegate {
+            todo!("`yield*` is not yet supported");
+        }
+        if let Some(arg) = &self.argument {
+            // YieldExpression : yield AssignmentExpression
+            // 1. Let exprRef be ? Evaluation of AssignmentExpression.
+            arg.compile(ctx);
+            // 2. Let value be ? GetValue(exprRef).
+            if is_reference(arg) {
+                ctx.exe.add_instruction(Instruction::GetValue);
+            }
+        } else {
+            // YieldExpression : yield
+            // 1. Return ? Yield(undefined).
+            ctx.exe
+                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        }
+        // 3. Return ? Yield(value).
+        ctx.exe.add_instruction(Instruction::Yield);
     }
 }
 
