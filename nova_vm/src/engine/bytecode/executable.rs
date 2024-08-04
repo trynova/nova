@@ -2638,7 +2638,7 @@ impl CompileEvaluation for ast::TryStatement<'_> {
         ctx.exe.set_jump_target_here(jump_to_end);
     }
 }
-
+#[cfg(feature = "typescript")]
 impl CompileEvaluation for ast::TSEnumDeclaration<'_> {
     fn compile(&self, _ctx: &mut CompileContext) {
         todo!();
