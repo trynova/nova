@@ -44,6 +44,21 @@ impl Array {
         Self(ArrayIndex::from_u32_index(0))
     }
 
+    /// Creates a new array with the given elements that are converted to values.
+    pub fn from_slice(agent: &mut Agent, elements: &[impl IntoValue]) -> Self {
+        let array = agent.heap.create(ArrayHeapData::default());
+        for (index, value) in elements.iter().enumerate() {
+            array
+                .internal_define_own_property(
+                    agent,
+                    PropertyKey::from(index as u32),
+                    PropertyDescriptor::new_data_descriptor(value.into_value()),
+                )
+                .unwrap();
+        }
+        array
+    }
+
     pub(crate) fn get_index(self) -> usize {
         self.0.into_index()
     }
