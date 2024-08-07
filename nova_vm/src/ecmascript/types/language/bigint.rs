@@ -236,7 +236,7 @@ impl BigInt {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
                 let (x, y) = (x.into_i64() as i128, y.into_i64() as i128);
-                let result = x * y;
+                let result = x.checked_mul(y).unwrap();
 
                 if let Ok(result) = SmallInteger::try_from(result) {
                     Ok(BigInt::SmallBigInt(SmallBigInt(result)))
