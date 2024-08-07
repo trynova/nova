@@ -464,11 +464,11 @@ impl BigInt {
 
 // Note: SmallInteger can be a number or BigInt.
 // Hence there are no further impls here.
-// impl From<SmallInteger> for BigInt {
-//     fn from(value: SmallInteger) -> Self {
-//         BigInt::SmallBigInt(value)
-//     }
-// }
+impl From<SmallInteger> for BigInt {
+    fn from(value: SmallInteger) -> Self {
+        BigInt::SmallBigInt(value.into())
+    }
+}
 
 impl TryFrom<Value> for BigInt {
     type Error = ();
