@@ -1476,11 +1476,11 @@ fn apply_string_or_numeric_binary_operator(
             // b. If opText is /, return ? BigInt::divide(lnum, rnum).
             BinaryOperator::Division => {
                 BigInt::divide(agent, lnum, rnum).map(|bigint| bigint.into_value())?
-            },
+            }
             // c. If opText is %, return ? BigInt::remainder(lnum, rnum).
             BinaryOperator::Remainder => {
                 BigInt::remainder(agent, lnum, rnum).map(|bigint| bigint.into_value())?
-            },
+            }
             // d. If opText is >>>, return ? BigInt::unsignedRightShift(lnum, rnum).
             BinaryOperator::ShiftRightZeroFill => todo!(),
             // <<	BigInt	BigInt::leftShift
