@@ -232,35 +232,144 @@ impl BigInt {
     ///
     /// The abstract operation BigInt::multiply takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a BigInt.
-    pub(crate) fn multiply(agent: &mut Agent, x: BigInt, y: BigInt) -> BigInt {
+    pub(crate) fn multiply(agent: &mut Agent, x: BigInt, y: BigInt) -> JsResult<BigInt> {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
                 let (x, y) = (x.into_i64() as i128, y.into_i64() as i128);
-                let result = x * y;
+                let result = x.checked_mul(y).unwrap();
 
                 if let Ok(result) = SmallInteger::try_from(result) {
-                    BigInt::SmallBigInt(SmallBigInt(result))
+                    Ok(BigInt::SmallBigInt(SmallBigInt(result)))
                 } else {
-                    agent.heap.create(BigIntHeapData {
+                    Ok(agent.heap.create(BigIntHeapData {
                         data: result.into(),
-                    })
+                    }))
                 }
             }
             (BigInt::SmallBigInt(x), BigInt::BigInt(y))
             | (BigInt::BigInt(y), BigInt::SmallBigInt(x)) => {
                 let x = x.into_i64();
                 let y = &agent[y];
-                agent.heap.create(BigIntHeapData { data: x * &y.data })
+                Ok(agent.heap.create(BigIntHeapData { data: x * &y.data }))
             }
             (BigInt::BigInt(x), BigInt::BigInt(y)) => {
                 let (x, y) = (&agent[x], &agent[y]);
-                agent.heap.create(BigIntHeapData {
+                Ok(agent.heap.create(BigIntHeapData {
                     data: &x.data * &y.data,
-                })
+                }))
             }
         }
     }
 
+    /// ### [BigInt::add ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-add)
+    pub(crate) fn add(agent: &mut Agent, x: BigInt, y: BigInt) -> JsResult<BigInt> {
+        match (x, y) {
+            (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
+                let (x, y) = (x.into_i64(), y.into_i64());
+                let result = x.checked_add(y).unwrap();
+
+                if let Ok(result) = SmallInteger::try_from(result) {
+                    Ok(BigInt::SmallBigInt(SmallBigInt(result)))
+                } else {
+                    Ok(agent.heap.create(BigIntHeapData {
+                        data: result.into(),
+                    }))
+                }
+            }
+            (BigInt::SmallBigInt(x), BigInt::BigInt(y))
+            | (BigInt::BigInt(y), BigInt::SmallBigInt(x)) => {
+                let x = x.into_i64();
+                let y = &agent[y];
+                Ok(agent.heap.create(BigIntHeapData { data: x + &y.data }))
+            }
+            (BigInt::BigInt(x), BigInt::BigInt(y)) => {
+                let (x, y) = (&agent[x], &agent[y]);
+                Ok(agent.heap.create(BigIntHeapData {
+                    data: &x.data + &y.data,
+                }))
+            }
+        }
+    }
+
+    /// ### [6.1.6.2.8 BigInt::subtract ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-subtract)
+    pub(crate) fn subtract(agent: &mut Agent, x: BigInt, y: BigInt) -> JsResult<BigInt> {
+        match (x, y) {
+            (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
+                let (x, y) = (x.into_i64() as i128, y.into_i64() as i128);
+                let result = x - y;
+
+                if let Ok(result) = SmallInteger::try_from(result) {
+                    Ok(BigInt::SmallBigInt(SmallBigInt(result)))
+                } else {
+                    Ok(agent.heap.create(BigIntHeapData {
+                        data: result.into(),
+                    }))
+                }
+            }
+            (BigInt::SmallBigInt(x), BigInt::BigInt(y)) => {
+                let x = x.into_i64();
+                let y = &agent[y];
+                Ok(agent.heap.create(BigIntHeapData { data: x - &y.data }))
+            }
+            (BigInt::BigInt(x), BigInt::SmallBigInt(y)) => {
+                let x = &agent[x];
+                let y = y.into_i64();
+                Ok(agent.heap.create(BigIntHeapData { data: &x.data - y }))
+            }
+            (BigInt::BigInt(x), BigInt::BigInt(y)) => {
+                let (x, y) = (&agent[x], &agent[y]);
+                Ok(agent.heap.create(BigIntHeapData {
+                    data: &x.data - &y.data,
+                }))
+            }
+        }
+    }
+
+    /// ### [6.1.6.2.5 BigInt::divide ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-divide)
+    pub(crate) fn divide(agent: &mut Agent, x: BigInt, y: BigInt) -> JsResult<BigInt> {
+        match (x, y) {
+            (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
+                if y == SmallBigInt::zero() {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "Division by zero",
+                    ));
+                }
+                let (x, y) = (x.into_i64() as i128, y.into_i64() as i128);
+                let result = x / y;
+
+                if let Ok(result) = SmallInteger::try_from(result) {
+                    Ok(BigInt::SmallBigInt(SmallBigInt(result)))
+                } else {
+                    Ok(agent.heap.create(BigIntHeapData {
+                        data: result.into(),
+                    }))
+                }
+            }
+            (BigInt::SmallBigInt(x), BigInt::BigInt(y)) => {
+                let x = x.into_i64();
+                let y = &agent[y];
+                Ok(agent.heap.create(BigIntHeapData { data: x / &y.data }))
+            }
+            (BigInt::BigInt(x), BigInt::SmallBigInt(y)) => {
+                if y == SmallBigInt::zero() {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "Division by zero",
+                    ));
+                }
+                let x = &agent[x];
+                let y = y.into_i64();
+                Ok(agent.heap.create(BigIntHeapData { data: &x.data / y }))
+            }
+            (BigInt::BigInt(x), BigInt::BigInt(y)) => {
+                let (x, y) = (&agent[x], &agent[y]);
+                Ok(agent.heap.create(BigIntHeapData {
+                    data: &x.data / &y.data,
+                }))
+            }
+        }
+    }
     /// ### [6.1.6.2.12 BigInt::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-lessThan)
     ///
     /// The abstract operation BigInt::lessThan takes arguments x (a BigInt)
@@ -278,6 +387,53 @@ impl BigInt {
         }
     }
 
+    /// ### [6.1.6.2.6 BigInt::remainder ( n, d )](https://tc39.es/ecma262/#sec-numeric-types-bigint-remainder)
+    pub(crate) fn remainder(agent: &mut Agent, n: BigInt, d: BigInt) -> JsResult<BigInt> {
+        match (n, d) {
+            (BigInt::SmallBigInt(n), BigInt::SmallBigInt(d)) => {
+                if d == SmallBigInt::zero() {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "Division by zero",
+                    ));
+                }
+                let (n, d) = (n.into_i64() as i128, d.into_i64() as i128);
+                let result = n % d;
+
+                if let Ok(result) = SmallInteger::try_from(result) {
+                    Ok(BigInt::SmallBigInt(SmallBigInt(result)))
+                } else {
+                    Ok(agent.heap.create(BigIntHeapData {
+                        data: result.into(),
+                    }))
+                }
+            }
+            (BigInt::SmallBigInt(n), BigInt::BigInt(d)) => {
+                let n = n.into_i64();
+                let d = &agent[d];
+                Ok(agent.heap.create(BigIntHeapData { data: n % &d.data }))
+            }
+            (BigInt::BigInt(n), BigInt::SmallBigInt(d)) => {
+                if d == SmallBigInt::zero() {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "Division by zero",
+                    ));
+                }
+                let n = &agent[n];
+                let d = d.into_i64();
+                Ok(agent.heap.create(BigIntHeapData { data: &n.data % d }))
+            }
+            (BigInt::BigInt(n), BigInt::BigInt(d)) => {
+                let (n, d) = (&agent[n], &agent[d]);
+                Ok(agent.heap.create(BigIntHeapData {
+                    data: &n.data % &d.data,
+                }))
+            }
+        }
+    }
+
+    /// ### [
     /// ### [6.1.6.2.13 BigInt::equal ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-equal)
     ///
     /// The abstract operation BigInt::equal takes arguments x (a BigInt) and y
@@ -308,11 +464,11 @@ impl BigInt {
 
 // Note: SmallInteger can be a number or BigInt.
 // Hence there are no further impls here.
-// impl From<SmallInteger> for BigInt {
-//     fn from(value: SmallInteger) -> Self {
-//         BigInt::SmallBigInt(value)
-//     }
-// }
+impl From<SmallInteger> for BigInt {
+    fn from(value: SmallInteger) -> Self {
+        BigInt::SmallBigInt(value.into())
+    }
+}
 
 impl TryFrom<Value> for BigInt {
     type Error = ();
