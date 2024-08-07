@@ -46,7 +46,12 @@ impl Array {
 
     /// Creates a new array with the given elements that are converted to values.
     pub fn from_slice(agent: &mut Agent, elements: &[impl IntoValue]) -> Self {
-        let array = agent.heap.create(ArrayHeapData::default());
+        let mut heap_data = ArrayHeapData::default();
+        heap_data.elements.reserve(
+            &mut agent.heap.elements,
+            u32::try_from(elements.len()).unwrap(),
+        );
+        let array = agent.heap.create(heap_data);
         for (index, value) in elements.iter().enumerate() {
             array
                 .internal_define_own_property(
