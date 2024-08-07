@@ -1484,7 +1484,9 @@ fn apply_string_or_numeric_binary_operator(
             // >>	BigInt	BigInt::signedRightShift
             BinaryOperator::ShiftRight => todo!(),
             // +	BigInt	BigInt::add
-            BinaryOperator::Addition => todo!(),
+            BinaryOperator::Addition => {
+                BigInt::add(agent, lnum, rnum).map(|bigint| bigint.into_value())?
+            }
             // -	BigInt	BigInt::subtract
             BinaryOperator::Subtraction => todo!(),
             // *	BigInt	BigInt::multiply

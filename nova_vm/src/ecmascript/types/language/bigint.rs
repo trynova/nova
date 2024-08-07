@@ -261,6 +261,36 @@ impl BigInt {
         }
     }
 
+    /// ### [BigInt::add ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-add)
+    pub (crate) fn add(agent: &mut Agent, x: BigInt, y: BigInt) -> JsResult<BigInt> {
+        match (x, y) {
+            (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
+                let (x, y) = (x.into_i64() as i128, y.into_i64() as i128);
+                let result = x + y;
+
+                if let Ok(result) = SmallInteger::try_from(result) {
+                    Ok(BigInt::SmallBigInt(SmallBigInt(result)))
+                } else {
+                    Ok(agent.heap.create(BigIntHeapData {
+                        data: result.into(),
+                    }))
+                }
+            }
+            (BigInt::SmallBigInt(x), BigInt::BigInt(y))
+            | (BigInt::BigInt(y), BigInt::SmallBigInt(x)) => {
+                let x = x.into_i64();
+                let y = &agent[y];
+                Ok(agent.heap.create(BigIntHeapData { data: x + &y.data }))
+            }
+            (BigInt::BigInt(x), BigInt::BigInt(y)) => {
+                let (x, y) = (&agent[x], &agent[y]);
+                Ok(agent.heap.create(BigIntHeapData {
+                    data: &x.data + &y.data,
+                }))
+            }
+        }
+    }
+
     /// ### [6.1.6.2.12 BigInt::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-lessThan)
     ///
     /// The abstract operation BigInt::lessThan takes arguments x (a BigInt)
