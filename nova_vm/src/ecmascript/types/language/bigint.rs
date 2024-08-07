@@ -265,8 +265,8 @@ impl BigInt {
     pub(crate) fn add(agent: &mut Agent, x: BigInt, y: BigInt) -> JsResult<BigInt> {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
-                let (x, y) = (x.into_i64() as i128, y.into_i64() as i128);
-                let result = x + y;
+                let (x, y) = (x.into_i64(), y.into_i64());
+                let result = x.checked_add(y).unwrap();
 
                 if let Ok(result) = SmallInteger::try_from(result) {
                     Ok(BigInt::SmallBigInt(SmallBigInt(result)))
