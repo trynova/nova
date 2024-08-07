@@ -2074,7 +2074,7 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     // VariableDeclaration : BindingIdentifier
                     let Some(init) = &decl.init else {
                         // 1. Return EMPTY.
-                        return;
+                        continue;
                     };
                     // VariableDeclaration : BindingIdentifier Initializer
 
