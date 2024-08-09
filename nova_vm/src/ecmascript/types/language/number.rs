@@ -1202,25 +1202,19 @@ impl Number {
     }
 
     // ### [6.1.6.1.20 Number::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-number-tostring)
-    pub(crate) fn to_string_radix_10(agent: &mut Agent, x: Self) -> JsResult<String> {
+    pub(crate) fn to_string_radix_10(agent: &mut Agent, x: Self) -> String {
         match x {
             Number::Number(_) => {
                 let mut buffer = ryu_js::Buffer::new();
-                Ok(String::from_string(
-                    agent,
-                    buffer.format(x.into_f64(agent)).to_string(),
-                ))
+                String::from_string(agent, buffer.format(x.into_f64(agent)).to_string())
             }
             Number::Integer(x) => {
                 let x = x.into_i64();
-                Ok(String::from_string(agent, format!("{x}")))
+                String::from_string(agent, format!("{x}"))
             }
             Number::SmallF64(x) => {
                 let mut buffer = ryu_js::Buffer::new();
-                Ok(String::from_string(
-                    agent,
-                    buffer.format(x.into_f64()).to_string(),
-                ))
+                String::from_string(agent, buffer.format(x.into_f64()).to_string())
             }
         }
     }

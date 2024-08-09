@@ -93,7 +93,7 @@ impl NumberPrototype {
         debug_assert!(!fraction_digits.is_undefined() || f.is_pos_zero(agent));
         // 4. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite(agent) {
-            return Number::to_string_radix_10(agent, x).map(|result| result.into_value());
+            return Ok(Number::to_string_radix_10(agent, x).into_value());
         }
         let f = f.into_i64(agent);
         // 5. If f < 0 or f > 100, throw a RangeError exception.
@@ -143,7 +143,7 @@ impl NumberPrototype {
         }
         // 6. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite(agent) {
-            return Number::to_string_radix_10(agent, x).map(|result| result.into_value());
+            return Ok(Number::to_string_radix_10(agent, x).into_value());
         }
         // 7. Set x to ℝ(x).
         let x = x.into_f64(agent);
@@ -169,24 +169,28 @@ impl NumberPrototype {
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        // 1.
+        let precision = arguments.get(0);
+
+        // 1. Let x be ? ThisNumberValue(this value).
         let x = this_number_value(agent, this_value)?;
 
-        let precision = arguments.get(0);
+        // 2. If precision is undefined, return ! ToString(x).
         if precision.is_undefined() {
-            // 2.
-            return Self::to_string(agent, this_value, ArgumentsList(&[]));
+            // Skip: We know ToString calls Number::toString(argument, 10).
+            // Note: That is not `Number.prototype.toString`, but the abstract
+            // operation Number::toString.
+            return Ok(Number::to_string_radix_10(agent, x).into_value());
         }
 
-        // 3.
+        // 3. Let p be ? ToIntegerOrInfinity(precision).
         let p = to_integer_or_infinity(agent, precision)?;
 
+        // 4. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite(agent) {
-            // 4.
-            return Self::to_string(agent, this_value, ArgumentsList(&[]));
+            return Ok(Number::to_string_radix_10(agent, x).into_value());
         }
 
-        // 5.
+        // 5. If p < 1 or p > 100, throw a RangeError exception.
         let precision = p.into_i64(agent) as i32;
         if !(1..=100).contains(&precision) {
             return Err(agent.throw_exception_with_static_message(
@@ -195,26 +199,31 @@ impl NumberPrototype {
             ));
         }
 
-        // 6.
+        // 6. Set x to ℝ(x).
         let mut x_f64 = x.into_f64(agent);
 
-        // 7.
+        // 7. Let s be the empty String.
         let mut s = std::string::String::new();
         let mut m: std::string::String;
         let mut e: i32;
 
+        // 8. If x < 0, then
         if x_f64 < 0. {
-            // 8.
+            // a. Set s to the code unit 0x002D (HYPHEN-MINUS).
             s.push('-');
+            // b. Set x to -x.
             x_f64 = -x_f64;
         }
 
+        // 9. If x = 0, then
         if x_f64 == 0. {
-            // 9.
+            // a. Let m be the String value consisting of p occurrences of the
+            // code unit 0x0030 (DIGIT ZERO).
             m = "0".repeat(precision as usize);
+            // b. Let e be 0.
             e = 0;
         } else {
-            // 10.
+            // 10. Else,
 
             // Due to f64 limitations, this part differs a bit from the spec,
             // but has the same effect. It manipulates the string constructed
@@ -236,46 +245,67 @@ impl NumberPrototype {
                 e += 1;
             }
 
-            // c: switching to scientific notation
+            // c. If e < -6 or e ≥ p, then
+            // Note: This is switching to scientific notation.
             if e < -6 || e >= precision {
+                // i. Assert: e ≠ 0.
                 assert_ne!(e, 0);
 
-                // ii
+                // ii. If p ≠ 1, then
+                //     1. Let a be the first code unit of m.
+                //     2. Let b be the other p - 1 code units of m.
+                //     3. Set m to the string-concatenation of a, ".", and b.
                 if precision > 1 {
                     m.insert(1, '.');
                 }
 
-                // vi
+                // vi. Return the string-concatenation of s, m, the code unit
+                // 0x0065 (LATIN SMALL LETTER E), c, and d.
                 m.push('e');
 
-                // iii
+                // iii. If e > 0, then
                 if e >= precision {
+                    // 1. Let c be the code unit 0x002B (PLUS SIGN).
                     m.push('+');
                 }
 
-                // iv, v
+                // iv. Else,
+                //     1. Assert: e < 0.
+                //     2. Let c be the code unit 0x002D (HYPHEN-MINUS).
+                //     3. Set e to -e.
+                // v. Let d be the String value consisting of the digits of
+                // the decimal representation of e (in order, with no leading
+                // zeroes).
                 m.push_str(&e.to_string());
 
                 return Ok(Value::from_string(agent, s + &m));
             }
         }
 
-        // 11
+        // 11. If e = p - 1, return the string-concatenation of s and m.
         let e_inc = e + 1;
         if e_inc == precision as i32 {
             return Ok(String::from_string(agent, s + &m).into_value());
         }
 
-        // 12
+        // 12. If e ≥ 0, then
         if e >= 0 {
+            // a. Set m to the string-concatenation of the first e + 1 code
+            // units of m, the code unit 0x002E (FULL STOP), and the remaining
+            // p - (e + 1) code units of m.
             m.insert(e_inc as usize, '.');
-        // 13
         } else {
+            // 13. Else,
+            // a. Set m to the string-concatenation of the code unit 0x0030
+            // (DIGIT ZERO), the code unit 0x002E (FULL STOP), -(e + 1)
+            // occurrences of the code unit 0x0030 (DIGIT ZERO), and the String
+            // m.
             s.push('0');
             s.push('.');
             s.push_str(&"0".repeat(-e_inc as usize));
         }
 
+        // 14. Return the string-concatenation of s and m.
         Ok(String::from_string(agent, s + &m).into_value())
     }
 
@@ -377,7 +407,7 @@ impl NumberPrototype {
         let x = this_number_value(agent, this_value)?;
         let radix = arguments.get(0);
         if radix.is_undefined() || radix == Value::from(10u8) {
-            Number::to_string_radix_10(agent, x).map(|result| result.into_value())
+            Ok(Number::to_string_radix_10(agent, x).into_value())
         } else {
             todo!();
         }
