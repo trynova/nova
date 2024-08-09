@@ -36,7 +36,7 @@ pub struct NumberConstructor;
 impl Builtin for NumberConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.Number;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Number;
 }
 impl BuiltinIntrinsicConstructor for NumberConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Number;
@@ -46,34 +46,34 @@ struct NumberIsFinite;
 impl Builtin for NumberIsFinite {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_finite);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.isFinite;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isFinite;
 }
 struct NumberIsInteger;
 impl Builtin for NumberIsInteger {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_integer);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.isInteger;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isInteger;
 }
 struct NumberIsNaN;
 impl Builtin for NumberIsNaN {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_nan);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.isNaN;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isNaN;
 }
 struct NumberIsSafeInteger;
 impl Builtin for NumberIsSafeInteger {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_safe_integer);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.isSafeInteger;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isSafeInteger;
 }
 
 impl NumberConstructor {
-    fn behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let value = arguments.get(0);
 
         // 1. If value is present, then
@@ -122,11 +122,11 @@ impl NumberConstructor {
     }
 
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
-    fn is_finite(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn is_finite<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let maybe_number = arguments.get(0);
 
         // 1. If number is not a Number, return false.
@@ -140,11 +140,11 @@ impl NumberConstructor {
     }
 
     /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
-    fn is_integer(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn is_integer<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let maybe_number = arguments.get(0);
 
         // 1. Return IsIntegralNumber(number).
@@ -152,7 +152,7 @@ impl NumberConstructor {
     }
 
     /// ### [21.1.2.4 Number.isNaN ( number )](https://tc39.es/ecma262/#sec-number.isnan)
-    fn is_nan(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn is_nan<'gen>(agent: &mut Agent<'gen>, _this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let maybe_number = arguments.get(0);
 
         // 1. If number is not a Number, return false.
@@ -166,11 +166,11 @@ impl NumberConstructor {
     }
 
     /// ### [21.1.2.5 Number.isSafeInteger ( number )](https://tc39.es/ecma262/#sec-number.issafeinteger)
-    fn is_safe_integer(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn is_safe_integer<'gen>(
+        agent: &mut Agent<'gen>,
+        _: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let maybe_number = arguments.get(0);
 
         // 1. If IsIntegralNumber(number) is true, then
@@ -181,7 +181,7 @@ impl NumberConstructor {
         Ok((matches!(maybe_number, Value::Integer(_)) || maybe_number.is_neg_zero(agent)).into())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let number_prototype = intrinsics.number_prototype();
         let parse_float = intrinsics.parse_float().into_value();

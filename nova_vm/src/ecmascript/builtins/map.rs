@@ -24,9 +24,9 @@ use self::data::MapHeapData;
 pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Map(pub(crate) MapIndex);
+pub struct Map<'gen>(pub(crate) MapIndex<'gen>);
 
-impl Map {
+impl<'gen> Map<'gen> {
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -36,46 +36,46 @@ impl Map {
     }
 }
 
-impl From<Map> for MapIndex {
-    fn from(val: Map) -> Self {
+impl<'gen> From<Map<'gen>> for MapIndex<'gen> {
+    fn from(val: Map<'gen>) -> Self {
         val.0
     }
 }
 
-impl From<MapIndex> for Map {
-    fn from(value: MapIndex) -> Self {
+impl<'gen> From<MapIndex<'gen>> for Map<'gen> {
+    fn from(value: MapIndex<'gen>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for Map {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for Map<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for Map {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for Map<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<Map> for Value {
-    fn from(val: Map) -> Self {
+impl<'gen> From<Map<'gen>> for Value<'gen> {
+    fn from(val: Map<'gen>) -> Self {
         Value::Map(val)
     }
 }
 
-impl From<Map> for Object {
-    fn from(val: Map) -> Self {
+impl<'gen> From<Map<'gen>> for Object<'gen> {
+    fn from(val: Map<'gen>) -> Self {
         Object::Map(val)
     }
 }
 
-impl TryFrom<Object> for Map {
+impl<'gen> TryFrom<Object<'gen>> for Map<'gen> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'gen>) -> Result<Self, Self::Error> {
         match value {
             Object::Map(data) => Ok(data),
             _ => Err(()),
@@ -83,7 +83,7 @@ impl TryFrom<Object> for Map {
     }
 }
 
-fn create_map_base_object(agent: &mut Agent, map: Map, entries: &[ObjectEntry]) -> OrdinaryObject {
+fn create_map_base_object<'gen>(agent: &mut Agent<'gen>, map: Map<'gen>, entries: &[ObjectEntry<'gen>]) -> OrdinaryObject<'gen> {
     // TODO: An issue crops up if multiple realms are in play:
     // The prototype should not be dependent on the realm we're operating in
     // but should instead be bound to the realm the object was created in.
@@ -97,15 +97,15 @@ fn create_map_base_object(agent: &mut Agent, map: Map, entries: &[ObjectEntry]) 
     object_index
 }
 
-impl InternalSlots for Map {
+impl<'gen> InternalSlots<'gen> for Map<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Map;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         let prototype = agent
             .current_realm()
             .intrinsics()
@@ -121,10 +121,10 @@ impl InternalSlots for Map {
     }
 }
 
-impl InternalMethods for Map {}
+impl<'gen> InternalMethods<'gen> for Map<'gen> {}
 
-impl HeapMarkAndSweep for Map {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Map<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.maps.push(*self);
     }
 
@@ -133,24 +133,24 @@ impl HeapMarkAndSweep for Map {
     }
 }
 
-impl Index<Map> for Agent {
-    type Output = MapHeapData;
+impl<'gen> Index<Map<'gen>> for Agent<'gen> {
+    type Output = MapHeapData<'gen>;
 
-    fn index(&self, index: Map) -> &Self::Output {
+    fn index(&self, index: Map<'gen>) -> &Self::Output {
         &self.heap.maps[index]
     }
 }
 
-impl IndexMut<Map> for Agent {
-    fn index_mut(&mut self, index: Map) -> &mut Self::Output {
+impl<'gen> IndexMut<Map<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: Map<'gen>) -> &mut Self::Output {
         &mut self.heap.maps[index]
     }
 }
 
-impl Index<Map> for Vec<Option<MapHeapData>> {
-    type Output = MapHeapData;
+impl<'gen> Index<Map<'gen>> for Vec<Option<MapHeapData<'gen>>> {
+    type Output = MapHeapData<'gen>;
 
-    fn index(&self, index: Map) -> &Self::Output {
+    fn index(&self, index: Map<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("Map out of bounds")
             .as_ref()
@@ -158,8 +158,8 @@ impl Index<Map> for Vec<Option<MapHeapData>> {
     }
 }
 
-impl IndexMut<Map> for Vec<Option<MapHeapData>> {
-    fn index_mut(&mut self, index: Map) -> &mut Self::Output {
+impl<'gen> IndexMut<Map<'gen>> for Vec<Option<MapHeapData<'gen>>> {
+    fn index_mut(&mut self, index: Map<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Map out of bounds")
             .as_mut()
@@ -167,8 +167,8 @@ impl IndexMut<Map> for Vec<Option<MapHeapData>> {
     }
 }
 
-impl CreateHeapData<MapHeapData, Map> for Heap {
-    fn create(&mut self, data: MapHeapData) -> Map {
+impl<'gen> CreateHeapData<MapHeapData<'gen>, Map<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: MapHeapData<'gen>) -> Map<'gen> {
         self.maps.push(Some(data));
         Map(MapIndex::last(&self.maps))
     }

@@ -20,253 +20,253 @@ pub(crate) struct DatePrototype;
 
 struct DatePrototypeGetDate;
 impl Builtin for DatePrototypeGetDate {
-    const NAME: String = BUILTIN_STRING_MEMORY.getDate;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getDate;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_date);
 }
 struct DatePrototypeGetDay;
 impl Builtin for DatePrototypeGetDay {
-    const NAME: String = BUILTIN_STRING_MEMORY.getDay;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getDay;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_day);
 }
 struct DatePrototypeGetFullYear;
 impl Builtin for DatePrototypeGetFullYear {
-    const NAME: String = BUILTIN_STRING_MEMORY.getFullYear;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getFullYear;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_full_year);
 }
 struct DatePrototypeGetHours;
 impl Builtin for DatePrototypeGetHours {
-    const NAME: String = BUILTIN_STRING_MEMORY.getHours;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getHours;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_hours);
 }
 struct DatePrototypeGetMilliseconds;
 impl Builtin for DatePrototypeGetMilliseconds {
-    const NAME: String = BUILTIN_STRING_MEMORY.getMilliseconds;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getMilliseconds;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_milliseconds);
 }
 struct DatePrototypeGetMinutes;
 impl Builtin for DatePrototypeGetMinutes {
-    const NAME: String = BUILTIN_STRING_MEMORY.getMinutes;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getMinutes;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_minutes);
 }
 struct DatePrototypeGetMonth;
 impl Builtin for DatePrototypeGetMonth {
-    const NAME: String = BUILTIN_STRING_MEMORY.getMonth;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getMonth;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_month);
 }
 struct DatePrototypeGetSeconds;
 impl Builtin for DatePrototypeGetSeconds {
-    const NAME: String = BUILTIN_STRING_MEMORY.getSeconds;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getSeconds;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_seconds);
 }
 struct DatePrototypeGetTime;
 impl Builtin for DatePrototypeGetTime {
-    const NAME: String = BUILTIN_STRING_MEMORY.getTime;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getTime;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_time);
 }
 struct DatePrototypeGetTimezoneOffset;
 impl Builtin for DatePrototypeGetTimezoneOffset {
-    const NAME: String = BUILTIN_STRING_MEMORY.getTimezoneOffset;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getTimezoneOffset;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_timezone_offset);
 }
 struct DatePrototypeGetUTCDate;
 impl Builtin for DatePrototypeGetUTCDate {
-    const NAME: String = BUILTIN_STRING_MEMORY.getUTCDate;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCDate;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_date);
 }
 struct DatePrototypeGetUTCDay;
 impl Builtin for DatePrototypeGetUTCDay {
-    const NAME: String = BUILTIN_STRING_MEMORY.getUTCDay;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCDay;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_day);
 }
 struct DatePrototypeGetUTCFullYear;
 impl Builtin for DatePrototypeGetUTCFullYear {
-    const NAME: String = BUILTIN_STRING_MEMORY.getUTCFullYear;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCFullYear;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_full_year);
 }
 struct DatePrototypeGetUTCHours;
 impl Builtin for DatePrototypeGetUTCHours {
-    const NAME: String = BUILTIN_STRING_MEMORY.getUTCHours;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCHours;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_hours);
 }
 struct DatePrototypeGetUTCMilliseconds;
 impl Builtin for DatePrototypeGetUTCMilliseconds {
-    const NAME: String = BUILTIN_STRING_MEMORY.getUTCMilliseconds;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCMilliseconds;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_milliseconds);
 }
 struct DatePrototypeGetUTCMinutes;
 impl Builtin for DatePrototypeGetUTCMinutes {
-    const NAME: String = BUILTIN_STRING_MEMORY.getUTCMinutes;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCMinutes;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_minutes);
 }
 struct DatePrototypeGetUTCMonth;
 impl Builtin for DatePrototypeGetUTCMonth {
-    const NAME: String = BUILTIN_STRING_MEMORY.getUTCMonth;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCMonth;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_month);
 }
 struct DatePrototypeGetUTCSeconds;
 impl Builtin for DatePrototypeGetUTCSeconds {
-    const NAME: String = BUILTIN_STRING_MEMORY.getUTCSeconds;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCSeconds;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_seconds);
 }
 struct DatePrototypeSetDate;
 impl Builtin for DatePrototypeSetDate {
-    const NAME: String = BUILTIN_STRING_MEMORY.setDate;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setDate;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_date);
 }
 struct DatePrototypeSetFullYear;
 impl Builtin for DatePrototypeSetFullYear {
-    const NAME: String = BUILTIN_STRING_MEMORY.setFullYear;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setFullYear;
     const LENGTH: u8 = 3;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_full_year);
 }
 struct DatePrototypeSetHours;
 impl Builtin for DatePrototypeSetHours {
-    const NAME: String = BUILTIN_STRING_MEMORY.setHours;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setHours;
     const LENGTH: u8 = 4;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_hours);
 }
 struct DatePrototypeSetMilliseconds;
 impl Builtin for DatePrototypeSetMilliseconds {
-    const NAME: String = BUILTIN_STRING_MEMORY.setMilliseconds;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setMilliseconds;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_milliseconds);
 }
 struct DatePrototypeSetMinutes;
 impl Builtin for DatePrototypeSetMinutes {
-    const NAME: String = BUILTIN_STRING_MEMORY.setMinutes;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setMinutes;
     const LENGTH: u8 = 3;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_minutes);
 }
 struct DatePrototypeSetMonth;
 impl Builtin for DatePrototypeSetMonth {
-    const NAME: String = BUILTIN_STRING_MEMORY.setMonth;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setMonth;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_month);
 }
 struct DatePrototypeSetSeconds;
 impl Builtin for DatePrototypeSetSeconds {
-    const NAME: String = BUILTIN_STRING_MEMORY.setSeconds;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setSeconds;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_seconds);
 }
 struct DatePrototypeSetTime;
 impl Builtin for DatePrototypeSetTime {
-    const NAME: String = BUILTIN_STRING_MEMORY.setTime;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setTime;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_time);
 }
 struct DatePrototypeSetUTCDate;
 impl Builtin for DatePrototypeSetUTCDate {
-    const NAME: String = BUILTIN_STRING_MEMORY.setUTCDate;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setUTCDate;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_date);
 }
 struct DatePrototypeSetUTCFullYear;
 impl Builtin for DatePrototypeSetUTCFullYear {
-    const NAME: String = BUILTIN_STRING_MEMORY.setUTCFullYear;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setUTCFullYear;
     const LENGTH: u8 = 3;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_full_year);
 }
 struct DatePrototypeSetUTCHours;
 impl Builtin for DatePrototypeSetUTCHours {
-    const NAME: String = BUILTIN_STRING_MEMORY.setUTCHours;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setUTCHours;
     const LENGTH: u8 = 4;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_hours);
 }
 struct DatePrototypeSetUTCMilliseconds;
 impl Builtin for DatePrototypeSetUTCMilliseconds {
-    const NAME: String = BUILTIN_STRING_MEMORY.setUTCMilliseconds;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setUTCMilliseconds;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_milliseconds);
 }
 struct DatePrototypeSetUTCMinutes;
 impl Builtin for DatePrototypeSetUTCMinutes {
-    const NAME: String = BUILTIN_STRING_MEMORY.setUTCMinutes;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setUTCMinutes;
     const LENGTH: u8 = 3;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_minutes);
 }
 struct DatePrototypeSetUTCMonth;
 impl Builtin for DatePrototypeSetUTCMonth {
-    const NAME: String = BUILTIN_STRING_MEMORY.setUTCMonth;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setUTCMonth;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_month);
 }
 struct DatePrototypeSetUTCSeconds;
 impl Builtin for DatePrototypeSetUTCSeconds {
-    const NAME: String = BUILTIN_STRING_MEMORY.setUTCSeconds;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setUTCSeconds;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_seconds);
 }
 struct DatePrototypeToDateString;
 impl Builtin for DatePrototypeToDateString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toDateString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toDateString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::to_date_string);
 }
 struct DatePrototypeToISOString;
 impl Builtin for DatePrototypeToISOString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toISOString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toISOString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::to_iso_string);
 }
 struct DatePrototypeToJSON;
 impl Builtin for DatePrototypeToJSON {
-    const NAME: String = BUILTIN_STRING_MEMORY.toJSON;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toJSON;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::to_json);
 }
 struct DatePrototypeToLocaleDateString;
 impl Builtin for DatePrototypeToLocaleDateString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toLocaleDateString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleDateString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::to_locale_date_string);
 }
 struct DatePrototypeToLocaleString;
 impl Builtin for DatePrototypeToLocaleString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toLocaleString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::to_locale_string);
 }
 struct DatePrototypeToLocaleTimeString;
 impl Builtin for DatePrototypeToLocaleTimeString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toLocaleTimeString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleTimeString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::to_locale_time_string);
 }
 struct DatePrototypeToString;
 impl Builtin for DatePrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::to_string);
 }
 struct DatePrototypeToTimeString;
 impl Builtin for DatePrototypeToTimeString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toTimeString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toTimeString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::to_time_string);
 }
 struct DatePrototypeToUTCString;
 impl Builtin for DatePrototypeToUTCString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toUTCString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toUTCString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::to_utc_string);
 }
@@ -275,13 +275,13 @@ impl BuiltinIntrinsic for DatePrototypeToUTCString {
 }
 struct DatePrototypeValueOf;
 impl Builtin for DatePrototypeValueOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.valueOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.valueOf;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::value_of);
 }
 struct DatePrototypeToPrimitive;
 impl Builtin for DatePrototypeToPrimitive {
-    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_toPrimitive_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_toPrimitive_;
 
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::ToPrimitive.to_property_key());
 
@@ -296,245 +296,245 @@ impl Builtin for DatePrototypeToPrimitive {
 const MAX_SYSTEM_TIME_VALUE: u128 = SmallInteger::MAX_NUMBER as u128;
 
 impl DatePrototype {
-    fn get_date(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_date<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_day(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_day<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_full_year(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_full_year<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_hours(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_hours<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_milliseconds(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_milliseconds<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_minutes(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_minutes<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_month(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_month<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_seconds(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_seconds<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_time(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_time<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
     fn get_timezone_offset(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_utc_date(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_utc_date<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_utc_day(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_utc_day<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
     fn get_utc_full_year(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_utc_hours(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_utc_hours<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
     fn get_utc_milliseconds(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_utc_minutes(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_utc_minutes<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_utc_month(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_utc_month<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn get_utc_seconds(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_utc_seconds<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_date(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_date<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_full_year(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_full_year<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_hours(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_hours<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_milliseconds(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_milliseconds<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_minutes(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_minutes<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_month(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_month<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_seconds(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_seconds<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_time(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_time<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_utc_date(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_utc_date<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
     fn set_utc_full_year(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_utc_hours(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_utc_hours<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
     fn set_utc_milliseconds(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_utc_minutes(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_utc_minutes<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_utc_month(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_utc_month<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn set_utc_seconds(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_utc_seconds<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn to_date_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_date_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn to_iso_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_iso_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn to_json(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_json<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn to_locale_date_string(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn to_locale_date_string<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn to_locale_string(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn to_locale_string<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn to_locale_time_string(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn to_locale_time_string<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn to_time_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_time_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn to_utc_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_utc_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let _date_object = check_date_object(agent, this_value)?;
         todo!()
     }
 
-    fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn value_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let date_object = check_date_object(agent, this_value)?;
         let data = &agent[date_object].date;
         match data {
@@ -585,10 +585,10 @@ impl DatePrototype {
     /// All other built-in ECMAScript objects treat "default" as being
     /// equivalent to "number".
     fn to_primitive(
-        agent: &mut Agent,
-        this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let hint = arguments.get(0);
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
@@ -622,7 +622,7 @@ impl DatePrototype {
         ordinary_to_primitive(agent, o, try_first).map(|result| result.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.date_prototype();
@@ -681,7 +681,7 @@ impl DatePrototype {
 }
 
 #[inline(always)]
-fn check_date_object(agent: &mut Agent, this_value: Value) -> JsResult<Date> {
+fn check_date_object<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>) -> JsResult<'gen, Date> {
     match this_value {
         Value::Date(date) => Ok(date),
         _ => Err(agent.throw_exception_with_static_message(

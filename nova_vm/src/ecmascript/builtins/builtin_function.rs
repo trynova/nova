@@ -24,26 +24,26 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ArgumentsList<'a>(pub(crate) &'a [Value]);
+pub struct ArgumentsList<'a, 'gen>(pub(crate) &'a [Value<'gen>]);
 
-impl<'a> Deref for ArgumentsList<'a> {
-    type Target = &'a [Value];
+impl<'a, 'gen> Deref for ArgumentsList<'a, 'gen> {
+    type Target = &'a [Value<'gen>];
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl ArgumentsList<'_> {
+impl<'gen> ArgumentsList<'_, 'gen> {
     #[inline]
-    pub fn get(&self, index: usize) -> Value {
+    pub fn get(&self, index: usize) -> Value<'gen> {
         *self.0.get(index).unwrap_or(&Value::Undefined)
     }
 }
 
-pub type RegularFn = fn(&mut Agent, Value, ArgumentsList<'_>) -> JsResult<Value>;
+pub type RegularFn = for<'gen> fn(&mut Agent<'gen>, Value<'gen>, ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>>;
 pub type ConstructorFn =
-    fn(&mut Agent, Value, ArgumentsList<'_>, Option<Object>) -> JsResult<Value>;
+    for<'gen> fn(&mut Agent<'gen>, Value<'gen>, ArgumentsList<'_, 'gen>, Option<Object<'gen>>) -> JsResult<'gen, Value<'gen>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Behaviour {
@@ -58,12 +58,12 @@ impl Behaviour {
 }
 
 pub trait Builtin {
-    const NAME: String;
+    const NAME: String<'static>;
     const LENGTH: u8;
     const BEHAVIOUR: Behaviour;
 
     /// Set to Some if this builtin's property key is different from `NAME`.
-    const KEY: Option<PropertyKey> = None;
+    const KEY: Option<PropertyKey<'static>> = None;
 
     /// If the builtin function is created as a property then this controls the
     /// property's `[[Writable]]` value.
@@ -86,16 +86,16 @@ pub(crate) trait BuiltinIntrinsic: Builtin {
 pub trait BuiltinGetter: Builtin {}
 
 #[derive(Debug, Default)]
-pub struct BuiltinFunctionArgs {
+pub struct BuiltinFunctionArgs<'gen> {
     pub length: u32,
     pub name: &'static str,
-    pub realm: Option<RealmIdentifier>,
-    pub prototype: Option<Object>,
+    pub realm: Option<RealmIdentifier<'gen>>,
+    pub prototype: Option<Object<'gen>>,
     pub prefix: Option<&'static str>,
 }
 
-impl BuiltinFunctionArgs {
-    pub fn new(length: u32, name: &'static str, realm: RealmIdentifier) -> Self {
+impl<'gen> BuiltinFunctionArgs<'gen> {
+    pub fn new(length: u32, name: &'static str, realm: RealmIdentifier<'gen>) -> Self {
         Self {
             length,
             name,
@@ -106,9 +106,9 @@ impl BuiltinFunctionArgs {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BuiltinFunction(pub(crate) BuiltinFunctionIndex);
+pub struct BuiltinFunction<'gen>(pub(crate) BuiltinFunctionIndex<'gen>);
 
-impl BuiltinFunction {
+impl<'gen> BuiltinFunction<'gen> {
     pub(crate) const fn _def() -> Self {
         Self(BuiltinFunctionIndex::from_u32_index(0))
     }
@@ -117,73 +117,73 @@ impl BuiltinFunction {
         self.0.into_index()
     }
 
-    pub fn is_constructor(self, agent: &Agent) -> bool {
+    pub fn is_constructor(self, agent: &Agent<'gen>) -> bool {
         // A builtin function has the [[Construct]] method if its behaviour is
         // a constructor behaviour.
         agent[self].behaviour.is_constructor()
     }
 }
 
-impl From<BuiltinFunctionIndex> for BuiltinFunction {
-    fn from(value: BuiltinFunctionIndex) -> Self {
+impl<'gen> From<BuiltinFunctionIndex<'gen>> for BuiltinFunction<'gen> {
+    fn from(value: BuiltinFunctionIndex<'gen>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for BuiltinFunction {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for BuiltinFunction<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for BuiltinFunction {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for BuiltinFunction<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl IntoFunction for BuiltinFunction {
-    fn into_function(self) -> Function {
+impl<'gen> IntoFunction<'gen> for BuiltinFunction<'gen> {
+    fn into_function(self) -> Function<'gen> {
         self.into()
     }
 }
 
-impl From<BuiltinFunction> for Value {
-    fn from(value: BuiltinFunction) -> Self {
+impl<'gen> From<BuiltinFunction<'gen>> for Value<'gen> {
+    fn from(value: BuiltinFunction<'gen>) -> Self {
         Value::BuiltinFunction(value)
     }
 }
 
-impl From<BuiltinFunction> for Object {
-    fn from(value: BuiltinFunction) -> Self {
+impl<'gen> From<BuiltinFunction<'gen>> for Object<'gen> {
+    fn from(value: BuiltinFunction<'gen>) -> Self {
         Object::BuiltinFunction(value)
     }
 }
 
-impl From<BuiltinFunction> for Function {
-    fn from(value: BuiltinFunction) -> Self {
+impl<'gen> From<BuiltinFunction<'gen>> for Function<'gen> {
+    fn from(value: BuiltinFunction<'gen>) -> Self {
         Function::BuiltinFunction(value)
     }
 }
 
-impl Index<BuiltinFunction> for Agent {
-    type Output = BuiltinFunctionHeapData;
+impl<'gen> Index<BuiltinFunction<'gen>> for Agent<'gen> {
+    type Output = BuiltinFunctionHeapData<'gen>;
 
-    fn index(&self, index: BuiltinFunction) -> &Self::Output {
+    fn index(&self, index: BuiltinFunction<'gen>) -> &Self::Output {
         &self.heap.builtin_functions[index]
     }
 }
 
-impl IndexMut<BuiltinFunction> for Agent {
-    fn index_mut(&mut self, index: BuiltinFunction) -> &mut Self::Output {
+impl<'gen> IndexMut<BuiltinFunction<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: BuiltinFunction<'gen>) -> &mut Self::Output {
         &mut self.heap.builtin_functions[index]
     }
 }
 
-impl Index<BuiltinFunction> for Vec<Option<BuiltinFunctionHeapData>> {
-    type Output = BuiltinFunctionHeapData;
+impl<'gen> Index<BuiltinFunction<'gen>> for Vec<Option<BuiltinFunctionHeapData<'gen>>> {
+    type Output = BuiltinFunctionHeapData<'gen>;
 
-    fn index(&self, index: BuiltinFunction) -> &Self::Output {
+    fn index(&self, index: BuiltinFunction<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("BuiltinFunction out of bounds")
             .as_ref()
@@ -191,8 +191,8 @@ impl Index<BuiltinFunction> for Vec<Option<BuiltinFunctionHeapData>> {
     }
 }
 
-impl IndexMut<BuiltinFunction> for Vec<Option<BuiltinFunctionHeapData>> {
-    fn index_mut(&mut self, index: BuiltinFunction) -> &mut Self::Output {
+impl<'gen> IndexMut<BuiltinFunction<'gen>> for Vec<Option<BuiltinFunctionHeapData<'gen>>> {
+    fn index_mut(&mut self, index: BuiltinFunction<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BuiltinFunction out of bounds")
             .as_mut()
@@ -200,15 +200,15 @@ impl IndexMut<BuiltinFunction> for Vec<Option<BuiltinFunctionHeapData>> {
     }
 }
 
-impl InternalSlots for BuiltinFunction {
+impl<'gen> InternalSlots<'gen> for BuiltinFunction<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         let prototype = agent
             .current_realm()
             .intrinsics()
@@ -249,12 +249,12 @@ impl InternalSlots for BuiltinFunction {
     }
 }
 
-impl InternalMethods for BuiltinFunction {
+impl<'gen> InternalMethods<'gen> for BuiltinFunction<'gen> {
     fn internal_get_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+    ) -> JsResult<'gen, Option<PropertyDescriptor<'gen>>> {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_get_own_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -280,10 +280,10 @@ impl InternalMethods for BuiltinFunction {
 
     fn internal_define_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        property_descriptor: PropertyDescriptor<'gen>,
+    ) -> JsResult<'gen, bool> {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_define_own_property(agent, property_key, property_descriptor)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -367,7 +367,7 @@ impl InternalMethods for BuiltinFunction {
         }
     }
 
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_has_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
@@ -384,10 +384,10 @@ impl InternalMethods for BuiltinFunction {
 
     fn internal_get(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_get(agent, property_key, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -404,11 +404,11 @@ impl InternalMethods for BuiltinFunction {
 
     fn internal_set(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        value: Value<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, bool> {
         if let Some(backing_object) = self.get_backing_object(agent) {
             backing_object.internal_set(agent, property_key, value, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
@@ -422,7 +422,7 @@ impl InternalMethods for BuiltinFunction {
         }
     }
 
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_delete(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
@@ -436,7 +436,7 @@ impl InternalMethods for BuiltinFunction {
         }
     }
 
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Vec<PropertyKey<'gen>>> {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_own_property_keys(agent)
         } else {
@@ -456,10 +456,10 @@ impl InternalMethods for BuiltinFunction {
     /// completion.
     fn internal_call(
         self,
-        agent: &mut Agent,
-        this_argument: Value,
-        arguments_list: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_argument: Value<'gen>,
+        arguments_list: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None)
     }
@@ -472,10 +472,10 @@ impl InternalMethods for BuiltinFunction {
     /// either a normal completion containing an Object or a throw completion.
     fn internal_construct(
         self,
-        agent: &mut Agent,
-        arguments_list: ArgumentsList,
-        new_target: Function,
-    ) -> JsResult<Object> {
+        agent: &mut Agent<'gen>,
+        arguments_list: ArgumentsList<'_, 'gen>,
+        new_target: Function<'gen>,
+    ) -> JsResult<'gen, Object<'gen>> {
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
         builtin_call_or_construct(agent, self, None, arguments_list, Some(new_target))
             .map(|result| result.try_into().unwrap())
@@ -489,13 +489,13 @@ impl InternalMethods for BuiltinFunction {
 /// uninitialized), argumentsList (a List of ECMAScript language values), and
 /// newTarget (a constructor or undefined) and returns either a normal
 /// completion containing an ECMAScript language value or a throw completion.
-pub(crate) fn builtin_call_or_construct(
-    agent: &mut Agent,
+pub(crate) fn builtin_call_or_construct<'gen>(
+    agent: &mut Agent<'gen>,
     f: BuiltinFunction,
-    this_argument: Option<Value>,
-    arguments_list: ArgumentsList,
-    new_target: Option<Function>,
-) -> JsResult<Value> {
+    this_argument: Option<Value<'gen>>,
+    arguments_list: ArgumentsList<'_, 'gen>,
+    new_target: Option<Function<'gen>>,
+) -> JsResult<'gen, Value<'gen>> {
     // 1. Let callerContext be the running execution context.
     let caller_context = agent.running_execution_context();
     // 2. If callerContext is not already suspended, suspend callerContext.
@@ -573,11 +573,11 @@ pub(crate) fn builtin_call_or_construct(
 /// additionalInternalSlotsList contains the names of additional internal slots
 /// that must be defined as part of the object. This operation creates a
 /// built-in function object.
-pub fn create_builtin_function(
-    agent: &mut Agent,
+pub fn create_builtin_function<'gen>(
+    agent: &mut Agent<'gen>,
     behaviour: Behaviour,
-    args: BuiltinFunctionArgs,
-) -> BuiltinFunction {
+    args: BuiltinFunctionArgs<'gen>,
+) -> BuiltinFunction<'gen> {
     // 1. If realm is not present, set realm to the current Realm Record.
     let realm = args.realm.unwrap_or(agent.current_realm_id());
 
@@ -664,14 +664,14 @@ pub fn create_builtin_function(
     })
 }
 
-pub fn define_builtin_function(
-    agent: &mut Agent,
-    _object: Object,
+pub fn define_builtin_function<'gen>(
+    agent: &mut Agent<'gen>,
+    _object: Object<'gen>,
     name: &'static str,
     behaviour: RegularFn,
     length: u32,
-    realm: RealmIdentifier,
-) -> JsResult<()> {
+    realm: RealmIdentifier<'gen>,
+) -> JsResult<'gen, ()> {
     let _function = create_builtin_function(
         agent,
         Behaviour::Regular(behaviour),
@@ -681,23 +681,23 @@ pub fn define_builtin_function(
     Ok(())
 }
 
-pub fn define_builtin_property(
-    _object: Object,
+pub fn define_builtin_property<'gen>(
+    _object: Object<'gen>,
     _name: &'static str,
-    _descriptor: PropertyDescriptor,
-) -> JsResult<()> {
+    _descriptor: PropertyDescriptor<'gen>,
+) -> JsResult<'gen, ()> {
     Ok(())
 }
 
-impl CreateHeapData<BuiltinFunctionHeapData, BuiltinFunction> for Heap {
+impl<'gen> CreateHeapData<BuiltinFunctionHeapData<'gen>, BuiltinFunction<'gen>> for Heap<'gen> {
     fn create(&mut self, data: BuiltinFunctionHeapData) -> BuiltinFunction {
         self.builtin_functions.push(Some(data));
         BuiltinFunctionIndex::last(&self.builtin_functions).into()
     }
 }
 
-impl HeapMarkAndSweep for BuiltinFunction {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for BuiltinFunction<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.builtin_functions.push(*self);
     }
 
@@ -706,8 +706,8 @@ impl HeapMarkAndSweep for BuiltinFunction {
     }
 }
 
-impl HeapMarkAndSweep for BuiltinFunctionHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for BuiltinFunctionHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.realm.mark_values(queues);
         self.initial_name.mark_values(queues);
         self.object_index.mark_values(queues);

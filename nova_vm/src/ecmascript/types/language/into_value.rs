@@ -4,9 +4,9 @@
 
 use super::Value;
 
-pub trait IntoValue
+pub trait IntoValue<'gen>
 where
     Self: Sized + Copy,
 {
-    fn into_value(self) -> Value;
+    fn into_value(self) -> Value<'gen>;
 }

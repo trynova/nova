@@ -35,24 +35,24 @@ use super::{
     weak_set::data::WeakSetHeapData, ArrayBufferHeapData, ArrayHeapData,
 };
 
-impl Index<OrdinaryObject> for Agent {
+impl<'gen> Index<OrdinaryObject<'gen>> for Agent<'gen> {
     type Output = ObjectHeapData;
 
-    fn index(&self, index: OrdinaryObject) -> &Self::Output {
+    fn index(&self, index: OrdinaryObject<'gen>) -> &Self::Output {
         &self.heap.objects[index]
     }
 }
 
-impl IndexMut<OrdinaryObject> for Agent {
-    fn index_mut(&mut self, index: OrdinaryObject) -> &mut Self::Output {
+impl<'gen> IndexMut<OrdinaryObject<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: OrdinaryObject<'gen>) -> &mut Self::Output {
         &mut self.heap.objects[index]
     }
 }
 
-impl Index<OrdinaryObject> for Vec<Option<ObjectHeapData>> {
+impl<'gen> Index<OrdinaryObject<'gen>> for Vec<Option<ObjectHeapData>> {
     type Output = ObjectHeapData;
 
-    fn index(&self, index: OrdinaryObject) -> &Self::Output {
+    fn index(&self, index: OrdinaryObject<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("Object out of bounds")
             .as_ref()
@@ -60,8 +60,8 @@ impl Index<OrdinaryObject> for Vec<Option<ObjectHeapData>> {
     }
 }
 
-impl IndexMut<OrdinaryObject> for Vec<Option<ObjectHeapData>> {
-    fn index_mut(&mut self, index: OrdinaryObject) -> &mut Self::Output {
+impl<'gen> IndexMut<OrdinaryObject<'gen>> for Vec<Option<ObjectHeapData>> {
+    fn index_mut(&mut self, index: OrdinaryObject<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Object out of bounds")
             .as_mut()
@@ -70,10 +70,10 @@ impl IndexMut<OrdinaryObject> for Vec<Option<ObjectHeapData>> {
 }
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
-impl InternalMethods for OrdinaryObject {}
+impl<'gen> InternalMethods<'gen> for OrdinaryObject<'gen> {}
 
 /// ### [10.1.1.1 OrdinaryGetPrototypeOf ( O )](https://tc39.es/ecma262/#sec-ordinarygetprototypeof)
-pub(crate) fn ordinary_get_prototype_of(agent: &mut Agent, object: Object) -> Option<Object> {
+pub(crate) fn ordinary_get_prototype_of<'gen>(agent: &mut Agent<'gen>, object: Object<'gen>) -> Option<Object<'gen>> {
     // 1. Return O.[[Prototype]].
     object.internal_prototype(agent)
 }
@@ -82,10 +82,10 @@ pub(crate) fn ordinary_get_prototype_of(agent: &mut Agent, object: Object) -> Op
 ///
 /// Returns false if a loop is detected, corresponding to substep 7.b.i. of the
 /// abstract operation.
-pub(crate) fn ordinary_set_prototype_of_check_loop(
-    agent: &mut Agent,
-    o: Object,
-    v: Option<Object>,
+pub(crate) fn ordinary_set_prototype_of_check_loop<'gen>(
+    agent: &mut Agent<'gen>,
+    o: Object<'gen>,
+    v: Option<Object<'gen>>,
 ) -> bool {
     // 5. Let p be V.
     let mut p = v;
@@ -123,10 +123,10 @@ pub(crate) fn ordinary_set_prototype_of_check_loop(
 }
 
 /// ### [10.1.2.1 OrdinarySetPrototypeOf ( O, V )](https://tc39.es/ecma262/#sec-ordinarysetprototypeof)
-pub(crate) fn ordinary_set_prototype_of(
-    agent: &mut Agent,
-    object: Object,
-    prototype: Option<Object>,
+pub(crate) fn ordinary_set_prototype_of<'gen>(
+    agent: &mut Agent<'gen>,
+    object: Object<'gen>,
+    prototype: Option<Object<'gen>>,
 ) -> bool {
     // 1. Let current be O.[[Prototype]].
     let current = object.internal_prototype(agent);
@@ -159,13 +159,13 @@ pub(crate) fn ordinary_set_prototype_of(
 }
 
 /// ### [10.1.3.1 OrdinaryIsExtensible ( O )](https://tc39.es/ecma262/#sec-ordinaryisextensible)
-pub(crate) fn ordinary_is_extensible(agent: &mut Agent, object: Object) -> bool {
+pub(crate) fn ordinary_is_extensible<'gen>(agent: &mut Agent<'gen>, object: Object<'gen>) -> bool {
     // 1. Return O.[[Extensible]].
     object.internal_extensible(agent)
 }
 
 /// ### [10.1.4.1 OrdinaryPreventExtensions ( O )](https://tc39.es/ecma262/#sec-ordinarypreventextensions)
-pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: Object) -> bool {
+pub(crate) fn ordinary_prevent_extensions<'gen>(agent: &mut Agent<'gen>, object: Object<'gen>) -> bool {
     // 1. Set O.[[Extensible]] to false.
     object.internal_set_extensible(agent, false);
 
@@ -174,11 +174,11 @@ pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: Object) -> 
 }
 
 /// ### [10.1.5.1 OrdinaryGetOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinarygetownproperty)
-pub(crate) fn ordinary_get_own_property(
-    agent: &mut Agent,
-    object: Object,
-    property_key: PropertyKey,
-) -> Option<PropertyDescriptor> {
+pub(crate) fn ordinary_get_own_property<'gen>(
+    agent: &mut Agent<'gen>,
+    object: Object<'gen>,
+    property_key: PropertyKey<'gen>,
+) -> Option<PropertyDescriptor<'gen>> {
     // 1. If O does not have an own property with key P, return undefined.
     // 3. Let X be O's own property whose key is P.
     let x = object.property_storage().get(agent, property_key)?;
@@ -216,12 +216,12 @@ pub(crate) fn ordinary_get_own_property(
 }
 
 /// ### [10.1.6.1 OrdinaryDefineOwnProperty ( O, P, Desc )](https://tc39.es/ecma262/#sec-ordinarydefineownproperty)
-pub(crate) fn ordinary_define_own_property(
-    agent: &mut Agent,
-    object: Object,
-    property_key: PropertyKey,
-    descriptor: PropertyDescriptor,
-) -> JsResult<bool> {
+pub(crate) fn ordinary_define_own_property<'gen>(
+    agent: &mut Agent<'gen>,
+    object: Object<'gen>,
+    property_key: PropertyKey<'gen>,
+    descriptor: PropertyDescriptor<'gen>,
+) -> JsResult<'gen, bool> {
     // 1. Let current be ? O.[[GetOwnProperty]](P).
     let current = object.internal_get_own_property(agent, property_key)?;
 
@@ -240,12 +240,12 @@ pub(crate) fn ordinary_define_own_property(
 }
 
 /// ### [10.1.6.2 IsCompatiblePropertyDescriptor ( Extensible, Desc, Current )](https://tc39.es/ecma262/#sec-iscompatiblepropertydescriptor)
-pub(crate) fn is_compatible_property_descriptor(
-    agent: &mut Agent,
+pub(crate) fn is_compatible_property_descriptor<'gen>(
+    agent: &mut Agent<'gen>,
     extensible: bool,
-    descriptor: PropertyDescriptor,
-    current: Option<PropertyDescriptor>,
-) -> JsResult<bool> {
+    descriptor: PropertyDescriptor<'gen>,
+    current: Option<PropertyDescriptor<'gen>>,
+) -> JsResult<'gen, bool> {
     let property_key = PropertyKey::from_str(agent, "");
     validate_and_apply_property_descriptor(
         agent,
@@ -258,14 +258,14 @@ pub(crate) fn is_compatible_property_descriptor(
 }
 
 /// ### [10.1.6.3 ValidateAndApplyPropertyDescriptor ( O, P, extensible, Desc, current )](https://tc39.es/ecma262/#sec-validateandapplypropertydescriptor)
-fn validate_and_apply_property_descriptor(
-    agent: &mut Agent,
-    object: Option<Object>,
-    property_key: PropertyKey,
+fn validate_and_apply_property_descriptor<'gen>(
+    agent: &mut Agent<'gen>,
+    object: Option<Object<'gen>>,
+    property_key: PropertyKey<'gen>,
     extensible: bool,
-    descriptor: PropertyDescriptor,
-    current: Option<PropertyDescriptor>,
-) -> JsResult<bool> {
+    descriptor: PropertyDescriptor<'gen>,
+    current: Option<PropertyDescriptor<'gen>>,
+) -> JsResult<'gen, bool> {
     // 1. Assert: IsPropertyKey(P) is true.
 
     // 2. If current is undefined, then
@@ -491,11 +491,11 @@ fn validate_and_apply_property_descriptor(
 }
 
 /// ### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)
-pub(crate) fn ordinary_has_property(
-    agent: &mut Agent,
-    object: Object,
-    property_key: PropertyKey,
-) -> JsResult<bool> {
+pub(crate) fn ordinary_has_property<'gen>(
+    agent: &mut Agent<'gen>,
+    object: Object<'gen>,
+    property_key: PropertyKey<'gen>,
+) -> JsResult<'gen, bool> {
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
     let has_own = object.internal_get_own_property(agent, property_key)?;
 
@@ -518,12 +518,12 @@ pub(crate) fn ordinary_has_property(
 }
 
 /// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
-pub(crate) fn ordinary_get(
-    agent: &mut Agent,
-    object: Object,
-    property_key: PropertyKey,
-    receiver: Value,
-) -> JsResult<Value> {
+pub(crate) fn ordinary_get<'gen>(
+    agent: &mut Agent<'gen>,
+    object: Object<'gen>,
+    property_key: PropertyKey<'gen>,
+    receiver: Value<'gen>,
+) -> JsResult<'gen, Value<'gen>> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let Some(descriptor) = object.internal_get_own_property(agent, property_key)? else {
         // 2. If desc is undefined, then
@@ -557,13 +557,13 @@ pub(crate) fn ordinary_get(
 }
 
 /// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
-pub(crate) fn ordinary_set(
-    agent: &mut Agent,
-    object: Object,
-    property_key: PropertyKey,
-    value: Value,
-    receiver: Value,
-) -> JsResult<bool> {
+pub(crate) fn ordinary_set<'gen>(
+    agent: &mut Agent<'gen>,
+    object: Object<'gen>,
+    property_key: PropertyKey<'gen>,
+    value: Value<'gen>,
+    receiver: Value<'gen>,
+) -> JsResult<'gen, bool> {
     // 1. Let ownDesc be ? O.[[GetOwnProperty]](P).
     let own_descriptor = object.internal_get_own_property(agent, property_key)?;
 
@@ -572,14 +572,14 @@ pub(crate) fn ordinary_set(
 }
 
 /// ### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
-pub(crate) fn ordinary_set_with_own_descriptor(
-    agent: &mut Agent,
-    object: Object,
-    property_key: PropertyKey,
-    value: Value,
-    receiver: Value,
-    own_descriptor: Option<PropertyDescriptor>,
-) -> JsResult<bool> {
+pub(crate) fn ordinary_set_with_own_descriptor<'gen>(
+    agent: &mut Agent<'gen>,
+    object: Object<'gen>,
+    property_key: PropertyKey<'gen>,
+    value: Value<'gen>,
+    receiver: Value<'gen>,
+    own_descriptor: Option<PropertyDescriptor<'gen>>,
+) -> JsResult<'gen, bool> {
     let own_descriptor = if let Some(own_descriptor) = own_descriptor {
         own_descriptor
     } else {
@@ -673,11 +673,11 @@ pub(crate) fn ordinary_set_with_own_descriptor(
 }
 
 /// ### [10.1.10.1 OrdinaryDelete ( O, P )](https://tc39.es/ecma262/#sec-ordinarydelete)
-pub(crate) fn ordinary_delete(
-    agent: &mut Agent,
-    object: Object,
-    property_key: PropertyKey,
-) -> JsResult<bool> {
+pub(crate) fn ordinary_delete<'gen>(
+    agent: &mut Agent<'gen>,
+    object: Object<'gen>,
+    property_key: PropertyKey<'gen>,
+) -> JsResult<'gen, bool> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let descriptor = object.internal_get_own_property(agent, property_key)?;
 
@@ -700,10 +700,10 @@ pub(crate) fn ordinary_delete(
 }
 
 /// ### [10.1.11.1 OrdinaryOwnPropertyKeys ( O )](https://tc39.es/ecma262/#sec-ordinaryownpropertykeys)
-pub(crate) fn ordinary_own_property_keys(
-    agent: &Agent,
-    object: OrdinaryObject,
-) -> Vec<PropertyKey> {
+pub(crate) fn ordinary_own_property_keys<'gen>(
+    agent: &Agent<'gen>,
+    object: OrdinaryObject<'gen>,
+) -> Vec<PropertyKey<'gen>> {
     let object_keys = agent[object].keys;
     // 1. Let keys be a new empty List.
     let mut integer_keys = vec![];
@@ -775,11 +775,11 @@ pub(crate) fn ordinary_own_property_keys(
 /// default prototype from the intrinsics, otherwise with the given prototype.
 /// To create an object with null prototype, both `proto_intrinsics` and
 /// `prototype` must be None.
-pub(crate) fn ordinary_object_create_with_intrinsics(
-    agent: &mut Agent,
+pub(crate) fn ordinary_object_create_with_intrinsics<'gen>(
+    agent: &mut Agent<'gen>,
     proto_intrinsics: Option<ProtoIntrinsics>,
-    prototype: Option<Object>,
-) -> Object {
+    prototype: Option<Object<'gen>>,
+) -> Object<'gen> {
     let Some(proto_intrinsics) = proto_intrinsics else {
         assert!(prototype.is_none());
         return agent.heap.create_null_object(&[]).into();
@@ -956,11 +956,11 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
 /// NOTE: In this implementation, `intrinsic_default_proto` also defines which
 /// kind of heap data type the created object uses, and therefore which internal
 /// slots it has. Therefore the `internalSlotsList` property isn't present.
-pub(crate) fn ordinary_create_from_constructor(
-    agent: &mut Agent,
-    constructor: Function,
+pub(crate) fn ordinary_create_from_constructor<'gen>(
+    agent: &mut Agent<'gen>,
+    constructor: Function<'gen>,
     intrinsic_default_proto: ProtoIntrinsics,
-) -> JsResult<Object> {
+) -> JsResult<'gen, Object<'gen>> {
     // 1. Assert: intrinsicDefaultProto is this specification's name of an
     // intrinsic object. The corresponding object must be an intrinsic that is
     // intended to be used as the [[Prototype]] value of an object.
@@ -991,11 +991,11 @@ pub(crate) fn ordinary_create_from_constructor(
 /// NOTE: In this implementation, the function returns None if the prototype it
 /// would otherwise return is the prototype that corresponds to
 /// `intrinsic_default_proto`.
-pub(crate) fn get_prototype_from_constructor(
-    agent: &mut Agent,
-    constructor: Function,
+pub(crate) fn get_prototype_from_constructor<'gen>(
+    agent: &mut Agent<'gen>,
+    constructor: Function<'gen>,
     intrinsic_default_proto: ProtoIntrinsics,
-) -> JsResult<Option<Object>> {
+) -> JsResult<'gen, Option<Object<'gen>>> {
     let function_realm = get_function_realm(agent, constructor);
     // NOTE: %Constructor%.prototype is an immutable property; we can thus
     // check if we %Constructor% is the ProtoIntrinsic we expect and if it is,
@@ -1098,11 +1098,11 @@ pub(crate) fn get_prototype_from_constructor(
 /// and V (an Object or null) and returns either a normal completion containing
 /// a Boolean or a throw completion.
 #[inline]
-pub(crate) fn set_immutable_prototype(
-    agent: &mut Agent,
-    o: Object,
-    v: Option<Object>,
-) -> JsResult<bool> {
+pub(crate) fn set_immutable_prototype<'gen>(
+    agent: &mut Agent<'gen>,
+    o: Object<'gen>,
+    v: Option<Object<'gen>>,
+) -> JsResult<'gen, bool> {
     // 1. Let current be ? O.[[GetPrototypeOf]]().
     let current = o.internal_get_prototype_of(agent)?;
     // 2. If SameValue(V, current) is true, return true.
@@ -1110,8 +1110,8 @@ pub(crate) fn set_immutable_prototype(
     Ok(same_value(agent, v, current))
 }
 
-impl HeapMarkAndSweep for OrdinaryObject {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for OrdinaryObject<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.objects.push(*self);
     }
 

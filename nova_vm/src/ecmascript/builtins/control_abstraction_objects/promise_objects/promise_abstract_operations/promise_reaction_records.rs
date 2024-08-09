@@ -35,21 +35,21 @@ pub(crate) enum PromiseReactionType {
 /// \[\[Handler\]\] is empty, a function that depends on the value of
 /// \[\[Type\]\] will be used instead.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum PromiseReactionHandler {
-    JobCallback(Function),
-    Await(AwaitReactionIdentifier),
+pub(crate) enum PromiseReactionHandler<'gen> {
+    JobCallback(Function<'gen>),
+    Await(AwaitReactionIdentifier<'gen>),
     Empty,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PromiseReactionRecord {
+pub struct PromiseReactionRecord<'gen> {
     /// \[\[Capability\]\]
     ///
     /// a PromiseCapability Record or undefined
     ///
     /// The capabilities of the promise for which this record provides a
     /// reaction handler.
-    pub(crate) capability: Option<PromiseCapability>,
+    pub(crate) capability: Option<PromiseCapability<'gen>>,
     /// \[\[Type\]\]
     pub(crate) reaction_type: PromiseReactionType,
     /// \[\[Handler\]\]
@@ -60,35 +60,35 @@ pub struct PromiseReactionRecord {
     /// return value will govern what happens to the derived promise. If
     /// \[\[Handler\]\] is empty, a function that depends on the value of
     /// \[\[Type\]\] will be used instead.
-    pub(crate) handler: PromiseReactionHandler,
+    pub(crate) handler: PromiseReactionHandler<'gen>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct PromiseReaction(BaseIndex<PromiseReactionRecord>);
+pub struct PromiseReaction<'gen>(BaseIndex<'gen, PromiseReactionRecord<'gen>>);
 
-impl PromiseReaction {
+impl<'gen> PromiseReaction<'gen> {
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
 }
 
-impl Index<PromiseReaction> for Agent {
-    type Output = PromiseReactionRecord;
+impl<'gen> Index<PromiseReaction<'gen>> for Agent<'gen> {
+    type Output = PromiseReactionRecord<'gen>;
 
     fn index(&self, index: PromiseReaction) -> &Self::Output {
         &self.heap.promise_reaction_records[index]
     }
 }
 
-impl IndexMut<PromiseReaction> for Agent {
-    fn index_mut(&mut self, index: PromiseReaction) -> &mut Self::Output {
+impl<'gen> IndexMut<PromiseReaction<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: PromiseReaction<'gen>) -> &mut Self::Output {
         &mut self.heap.promise_reaction_records[index]
     }
 }
 
-impl Index<PromiseReaction> for Vec<Option<PromiseReactionRecord>> {
-    type Output = PromiseReactionRecord;
+impl<'gen> Index<PromiseReaction<'gen>> for Vec<Option<PromiseReactionRecord<'gen>>> {
+    type Output = PromiseReactionRecord<'gen>;
 
     fn index(&self, index: PromiseReaction) -> &Self::Output {
         self.get(index.get_index())
@@ -98,7 +98,7 @@ impl Index<PromiseReaction> for Vec<Option<PromiseReactionRecord>> {
     }
 }
 
-impl IndexMut<PromiseReaction> for Vec<Option<PromiseReactionRecord>> {
+impl<'gen> IndexMut<PromiseReaction<'gen>> for Vec<Option<PromiseReactionRecord<'gen>>> {
     fn index_mut(&mut self, index: PromiseReaction) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("PromiseReaction out of bounds")
@@ -107,8 +107,8 @@ impl IndexMut<PromiseReaction> for Vec<Option<PromiseReactionRecord>> {
     }
 }
 
-impl HeapMarkAndSweep for PromiseReaction {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for PromiseReaction<'gen> {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues<'gen>) {
         queues.promise_reaction_records.push(*self);
     }
 
@@ -119,8 +119,8 @@ impl HeapMarkAndSweep for PromiseReaction {
     }
 }
 
-impl HeapMarkAndSweep for PromiseReactionRecord {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for PromiseReactionRecord<'gen> {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues<'gen>) {
         self.capability.mark_values(queues);
         if let PromiseReactionHandler::JobCallback(_) = self.handler {
             todo!();
@@ -135,8 +135,8 @@ impl HeapMarkAndSweep for PromiseReactionRecord {
     }
 }
 
-impl CreateHeapData<PromiseReactionRecord, PromiseReaction> for Heap {
-    fn create(&mut self, data: PromiseReactionRecord) -> PromiseReaction {
+impl<'gen> CreateHeapData<PromiseReactionRecord<'gen>, PromiseReaction<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: PromiseReactionRecord<'gen>) -> PromiseReaction<'gen> {
         self.promise_reaction_records.push(Some(data));
         PromiseReaction(BaseIndex::last(&self.promise_reaction_records))
     }

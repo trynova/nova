@@ -34,25 +34,25 @@ pub(crate) struct PromisePrototype;
 
 struct PromisePrototypeCatch;
 impl Builtin for PromisePrototypeCatch {
-    const NAME: String = BUILTIN_STRING_MEMORY.catch;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.catch;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromisePrototype::catch);
 }
 struct PromisePrototypeFinally;
 impl Builtin for PromisePrototypeFinally {
-    const NAME: String = BUILTIN_STRING_MEMORY.finally;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.finally;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromisePrototype::finally);
 }
 struct PromisePrototypeThen;
 impl Builtin for PromisePrototypeThen {
-    const NAME: String = BUILTIN_STRING_MEMORY.then;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.then;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromisePrototype::then);
 }
 
 impl PromisePrototype {
-    fn catch(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn catch<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let promise be the this value.
         // 2. Return ? Invoke(promise, "then", « undefined, onRejected »).
         // TODO: Add a fast path that calls `perform_promise_then` if we know
@@ -66,11 +66,11 @@ impl PromisePrototype {
         )
     }
 
-    fn finally(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn finally<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn then(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn then<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let promise be the this value.
         // 2. If IsPromise(promise) is false, throw a TypeError exception.
         let Value::Promise(promise) = this_value else {
@@ -96,7 +96,7 @@ impl PromisePrototype {
         Ok(result_capability.promise().into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.promise_prototype();
@@ -123,10 +123,10 @@ impl PromisePrototype {
 
 /// [27.2.5.4.1 PerformPromiseThen ( promise, onFulfilled, onRejected \[ , resultCapability \] )](https://tc39.es/ecma262/#sec-performpromisethen)
 pub(crate) fn perform_promise_then(
-    agent: &mut Agent,
+    agent: &mut Agent<'gen>,
     promise: Promise,
-    on_fulfilled: Value,
-    on_rejected: Value,
+    on_fulfilled: Value<'gen>,
+    on_rejected: Value<'gen>,
     result_capability: Option<PromiseCapability>,
 ) {
     // 3. If IsCallable(onFulfilled) is false, then
@@ -160,7 +160,7 @@ pub(crate) fn perform_promise_then(
 /// Corresponds to PerformPromiseThen starting at step 7. Useful for Nova-internal promise reaction
 /// handlers, without a JS function.
 pub(crate) fn inner_promise_then(
-    agent: &mut Agent,
+    agent: &mut Agent<'gen>,
     promise: Promise,
     on_fulfilled: PromiseReactionHandler,
     on_rejected: PromiseReactionHandler,

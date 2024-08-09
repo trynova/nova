@@ -25,9 +25,9 @@ use std::ops::{Index, IndexMut};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct ArrayBuffer(ArrayBufferIndex);
+pub struct ArrayBuffer<'gen>(ArrayBufferIndex<'gen>);
 
-impl ArrayBuffer {
+impl<'gen> ArrayBuffer<'gen> {
     pub(crate) const fn _def() -> Self {
         Self(ArrayBufferIndex::from_u32_index(0))
     }
@@ -37,54 +37,54 @@ impl ArrayBuffer {
     }
 }
 
-impl IntoObject for ArrayBuffer {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for ArrayBuffer<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl IntoValue for ArrayBuffer {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for ArrayBuffer<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl From<ArrayBufferIndex> for ArrayBuffer {
-    fn from(value: ArrayBufferIndex) -> Self {
+impl<'gen> From<ArrayBufferIndex<'gen>> for ArrayBuffer<'gen> {
+    fn from(value: ArrayBufferIndex<'gen>) -> Self {
         ArrayBuffer(value)
     }
 }
 
-impl From<ArrayBuffer> for Object {
-    fn from(value: ArrayBuffer) -> Self {
+impl<'gen> From<ArrayBuffer<'gen>> for Object<'gen> {
+    fn from(value: ArrayBuffer<'gen>) -> Self {
         Self::ArrayBuffer(value)
     }
 }
 
-impl From<ArrayBuffer> for Value {
-    fn from(value: ArrayBuffer) -> Self {
+impl<'gen> From<ArrayBuffer<'gen>> for Value<'gen> {
+    fn from(value: ArrayBuffer<'gen>) -> Self {
         Self::ArrayBuffer(value)
     }
 }
 
-impl Index<ArrayBuffer> for Agent {
-    type Output = ArrayBufferHeapData;
+impl<'gen> Index<ArrayBuffer<'gen>> for Agent<'gen> {
+    type Output = ArrayBufferHeapData<'gen>;
 
-    fn index(&self, index: ArrayBuffer) -> &Self::Output {
+    fn index(&self, index: ArrayBuffer<'gen>) -> &Self::Output {
         &self.heap.array_buffers[index]
     }
 }
 
-impl IndexMut<ArrayBuffer> for Agent {
-    fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
+impl<'gen> IndexMut<ArrayBuffer<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: ArrayBuffer<'gen>) -> &mut Self::Output {
         &mut self.heap.array_buffers[index]
     }
 }
 
-impl Index<ArrayBuffer> for Vec<Option<ArrayBufferHeapData>> {
-    type Output = ArrayBufferHeapData;
+impl<'gen> Index<ArrayBuffer<'gen>> for Vec<Option<ArrayBufferHeapData<'gen>>> {
+    type Output = ArrayBufferHeapData<'gen>;
 
-    fn index(&self, index: ArrayBuffer) -> &Self::Output {
+    fn index(&self, index: ArrayBuffer<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("ArrayBuffer out of bounds")
             .as_ref()
@@ -92,8 +92,8 @@ impl Index<ArrayBuffer> for Vec<Option<ArrayBufferHeapData>> {
     }
 }
 
-impl IndexMut<ArrayBuffer> for Vec<Option<ArrayBufferHeapData>> {
-    fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
+impl<'gen> IndexMut<ArrayBuffer<'gen>> for Vec<Option<ArrayBufferHeapData<'gen>>> {
+    fn index_mut(&mut self, index: ArrayBuffer<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("ArrayBuffer out of bounds")
             .as_mut()
@@ -101,15 +101,15 @@ impl IndexMut<ArrayBuffer> for Vec<Option<ArrayBufferHeapData>> {
     }
 }
 
-impl InternalSlots for ArrayBuffer {
+impl<'gen> InternalSlots<'gen> for ArrayBuffer<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::ArrayBuffer;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> OrdinaryObject<'gen> {
         let prototype = agent
             .current_realm()
             .intrinsics()
@@ -125,10 +125,10 @@ impl InternalSlots for ArrayBuffer {
     }
 }
 
-impl InternalMethods for ArrayBuffer {}
+impl<'gen> InternalMethods<'gen> for ArrayBuffer<'gen> {}
 
-impl HeapMarkAndSweep for ArrayBuffer {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ArrayBuffer<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.array_buffers.push(*self);
     }
 
@@ -137,8 +137,8 @@ impl HeapMarkAndSweep for ArrayBuffer {
     }
 }
 
-impl CreateHeapData<ArrayBufferHeapData, ArrayBuffer> for Heap {
-    fn create(&mut self, data: ArrayBufferHeapData) -> ArrayBuffer {
+impl<'gen> CreateHeapData<ArrayBufferHeapData<'gen>, ArrayBuffer<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: ArrayBufferHeapData<'gen>) -> ArrayBuffer<'gen> {
         self.array_buffers.push(Some(data));
         ArrayBuffer::from(ArrayBufferIndex::last(&self.array_buffers))
     }

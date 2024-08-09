@@ -8,12 +8,12 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Default)]
-pub struct TypedArrayHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+pub struct TypedArrayHeapData<'gen> {
+    pub(crate) object_index: Option<OrdinaryObject<'gen>>,
 }
 
-impl HeapMarkAndSweep for TypedArrayHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for TypedArrayHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.object_index.mark_values(queues);
     }
 

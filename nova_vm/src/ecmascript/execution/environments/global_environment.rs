@@ -27,20 +27,20 @@ use super::{
 /// built-in globals (clause 19), properties of the global object, and for all
 /// top-level declarations (8.2.9, 8.2.11) that occur within a Script.
 #[derive(Debug, Clone)]
-pub struct GlobalEnvironment {
+pub struct GlobalEnvironment<'gen> {
     /// ### \[\[ObjectRecord\]\]
     ///
     /// Binding object is the global object. It contains global built-in
     /// bindings as well as FunctionDeclaration, GeneratorDeclaration,
     /// AsyncFunctionDeclaration, AsyncGeneratorDeclaration, and
     /// VariableDeclaration bindings in global code for the associated realm.
-    pub(crate) object_record: ObjectEnvironmentIndex,
+    pub(crate) object_record: ObjectEnvironmentIndex<'gen>,
 
     /// ### \[\[GlobalThisValue\]\]
     ///
     /// The value returned by this in global scope. Hosts may provide any
     /// ECMAScript Object value.
-    pub(crate) global_this_value: Object,
+    pub(crate) global_this_value: Object<'gen>,
 
     /// ### \[\[DeclarativeRecord\]\]
     ///
@@ -48,7 +48,7 @@ pub struct GlobalEnvironment {
     /// associated realm code except for FunctionDeclaration,
     /// GeneratorDeclaration, AsyncFunctionDeclaration,
     /// AsyncGeneratorDeclaration, and VariableDeclaration bindings.
-    pub(crate) declarative_record: DeclarativeEnvironmentIndex,
+    pub(crate) declarative_record: DeclarativeEnvironmentIndex<'gen>,
 
     /// ### \[\[VarNames\]\]
     ///
@@ -57,16 +57,16 @@ pub struct GlobalEnvironment {
     /// VariableDeclaration declarations in global code for the associated
     /// realm.
     // TODO: Use the Heap to set this.
-    var_names: AHashSet<String>,
+    var_names: AHashSet<String<'gen>>,
 }
 
-impl GlobalEnvironment {
+impl<'gen> GlobalEnvironment<'gen> {
     /// ### [9.1.2.5 NewGlobalEnvironment ( G, thisValue )](https://tc39.es/ecma262/#sec-newglobalenvironment)
     ///
     /// The abstract operation NewGlobalEnvironment takes arguments G (an
     /// Object) and thisValue (an Object) and returns a Global Environment
     /// Record.
-    pub(crate) fn new(agent: &mut Agent, global: Object, this_value: Object) -> GlobalEnvironment {
+    pub(crate) fn new<'gen>(agent: &mut Agent<'gen>, global: Object<'gen>, this_value: Object<'gen>) -> GlobalEnvironment<'gen> {
         // 1. Let objRec be NewObjectEnvironment(G, false, null).
         let obj_rec = ObjectEnvironment::new(global, false, None);
         agent.heap.environments.object.push(Some(obj_rec));
@@ -98,8 +98,8 @@ impl GlobalEnvironment {
     }
 }
 
-impl HeapMarkAndSweep for GlobalEnvironment {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for GlobalEnvironment<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.declarative_record.mark_values(queues);
         self.global_this_value.mark_values(queues);
         self.object_record.mark_values(queues);
@@ -123,14 +123,14 @@ impl HeapMarkAndSweep for GlobalEnvironment {
     }
 }
 
-impl GlobalEnvironmentIndex {
+impl<'gen> GlobalEnvironmentIndex<'gen> {
     /// ### [9.1.1.4.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-global-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of a Global Environment Record envRec
     /// takes argument N (a String) and returns either a normal completion
     /// containing a Boolean or a throw completion. It determines if the
     /// argument identifier is one of the identifiers bound by the record.
-    pub(crate) fn has_binding(self, agent: &mut Agent, name: String) -> JsResult<bool> {
+    pub(crate) fn has_binding(self, agent: &mut Agent<'gen>, name: String<'gen>) -> JsResult<'gen, bool> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         // 2. If ! DclRec.HasBinding(N) is true, return true.
@@ -155,10 +155,10 @@ impl GlobalEnvironmentIndex {
     /// binding is marked as being subject to deletion.
     pub(crate) fn create_mutable_binding(
         self,
-        agent: &mut Agent,
-        name: String,
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
         is_deletable: bool,
-    ) -> JsResult<()> {
+    ) -> JsResult<'gen, ()> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -185,10 +185,10 @@ impl GlobalEnvironmentIndex {
     /// binding.
     pub(crate) fn create_immutable_binding(
         self,
-        agent: &mut Agent,
-        name: String,
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
         is_strict: bool,
-    ) -> JsResult<()> {
+    ) -> JsResult<'gen, ()> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -214,10 +214,10 @@ impl GlobalEnvironmentIndex {
     /// uninitialized binding for N must already exist.
     pub(crate) fn initialize_binding(
         self,
-        agent: &mut Agent,
-        name: String,
-        value: Value,
-    ) -> JsResult<()> {
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
+        value: Value<'gen>,
+    ) -> JsResult<'gen, ()> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -247,11 +247,11 @@ impl GlobalEnvironmentIndex {
     /// or is not currently writable, error handling is determined by S.
     pub(crate) fn set_mutable_binding(
         self,
-        agent: &mut Agent,
-        name: String,
-        value: Value,
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
+        value: Value<'gen>,
         is_strict: bool,
-    ) -> JsResult<()> {
+    ) -> JsResult<'gen, ()> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -279,10 +279,10 @@ impl GlobalEnvironmentIndex {
     /// determined by S.
     pub(crate) fn get_binding_value(
         self,
-        agent: &mut Agent,
-        n: String,
+        agent: &mut Agent<'gen>,
+        n: String<'gen>,
         s: bool,
-    ) -> JsResult<Value> {
+    ) -> JsResult<'gen, Value<'gen>> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -304,7 +304,7 @@ impl GlobalEnvironmentIndex {
     /// takes argument N (a String) and returns either a normal completion
     /// containing a Boolean or a throw completion. It can only delete bindings
     /// that have been explicitly designated as being subject to deletion.
-    pub(crate) fn delete_binding(self, agent: &mut Agent, name: String) -> JsResult<bool> {
+    pub(crate) fn delete_binding(self, agent: &mut Agent<'gen>, name: String<'gen>) -> JsResult<'gen, bool> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -366,7 +366,7 @@ impl GlobalEnvironmentIndex {
     ///
     /// The WithBaseObject concrete method of a Global Environment Record
     /// envRec takes no arguments and returns undefined.
-    pub(crate) fn with_base_object(self) -> Option<Object> {
+    pub(crate) fn with_base_object(self) -> Option<Object<'gen>> {
         // 1. Return undefined.
         None
     }
@@ -376,7 +376,7 @@ impl GlobalEnvironmentIndex {
     /// The GetThisBinding concrete method of a Global Environment Record
     /// envRec takes no arguments and returns a normal completion containing an
     /// Object.
-    pub(crate) fn get_this_binding(self, agent: &Agent) -> Object {
+    pub(crate) fn get_this_binding(self, agent: &Agent<'gen>) -> Object<'gen> {
         let env_rec = &agent[self];
         // 1. Return envRec.[[GlobalThisValue]].
         env_rec.global_this_value
@@ -389,7 +389,7 @@ impl GlobalEnvironmentIndex {
     /// if the argument identifier has a binding in this record that was
     /// created
     /// using a VariableStatement or a FunctionDeclaration.
-    pub(crate) fn has_var_declaration(self, agent: &Agent, name: String) -> bool {
+    pub(crate) fn has_var_declaration(self, agent: &Agent<'gen>, name: String<'gen>) -> bool {
         let env_rec = &agent[self];
         // 1. Let varDeclaredNames be envRec.[[VarNames]].
         let var_declared_names = &env_rec.var_names;
@@ -405,7 +405,7 @@ impl GlobalEnvironmentIndex {
     /// determines if the argument identifier has a binding in this record that
     /// was created using a lexical declaration such as a LexicalDeclaration or
     /// a ClassDeclaration.
-    pub(crate) fn has_lexical_declaration(self, agent: &Agent, name: String) -> bool {
+    pub(crate) fn has_lexical_declaration(self, agent: &Agent<'gen>, name: String<'gen>) -> bool {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -422,9 +422,9 @@ impl GlobalEnvironmentIndex {
     /// that must not be shadowed by a global lexical binding.
     pub(crate) fn has_restricted_global_property(
         self,
-        agent: &mut Agent,
-        name: String,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
+    ) -> JsResult<'gen, bool> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
@@ -450,7 +450,7 @@ impl GlobalEnvironmentIndex {
     /// a corresponding CreateGlobalVarBinding call would succeed if called for
     /// the same argument N. Redundant var declarations and var declarations
     /// for pre-existing global object properties are allowed.
-    pub(crate) fn can_declare_global_var(self, agent: &mut Agent, name: String) -> JsResult<bool> {
+    pub(crate) fn can_declare_global_var(self, agent: &mut Agent<'gen>, name: String<'gen>) -> JsResult<'gen, bool> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
@@ -477,9 +477,9 @@ impl GlobalEnvironmentIndex {
     /// called for the same argument N.
     pub(crate) fn can_declare_global_function(
         self,
-        agent: &mut Agent,
-        name: String,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
+    ) -> JsResult<'gen, bool> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
@@ -517,10 +517,10 @@ impl GlobalEnvironmentIndex {
     /// reused and assumed to be initialized.
     pub(crate) fn create_global_var_binding(
         self,
-        agent: &mut Agent,
-        name: String,
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
         is_deletable: bool,
-    ) -> JsResult<()> {
+    ) -> JsResult<'gen, ()> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
@@ -559,11 +559,11 @@ impl GlobalEnvironmentIndex {
     /// already exists, it is replaced.
     pub(crate) fn create_global_function_binding(
         self,
-        agent: &mut Agent,
-        name: String,
-        value: Value,
+        agent: &mut Agent<'gen>,
+        name: String<'gen>,
+        value: Value<'gen>,
         d: bool,
-    ) -> JsResult<()> {
+    ) -> JsResult<'gen, ()> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
@@ -615,8 +615,8 @@ impl GlobalEnvironmentIndex {
     }
 }
 
-impl HeapMarkAndSweep for GlobalEnvironmentIndex {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for GlobalEnvironmentIndex<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.global_environments.push(*self);
     }
 

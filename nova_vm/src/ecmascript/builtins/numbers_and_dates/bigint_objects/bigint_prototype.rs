@@ -16,7 +16,7 @@ pub(crate) struct BigIntPrototype;
 
 struct BigIntPrototypeToLocaleString;
 impl Builtin for BigIntPrototypeToLocaleString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toLocaleString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleString;
 
     const LENGTH: u8 = 0;
 
@@ -26,7 +26,7 @@ impl Builtin for BigIntPrototypeToLocaleString {
 
 struct BigIntPrototypeToString;
 impl Builtin for BigIntPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -36,7 +36,7 @@ impl Builtin for BigIntPrototypeToString {
 
 struct BigIntPrototypeValueOf;
 impl Builtin for BigIntPrototypeValueOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.valueOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.valueOf;
 
     const LENGTH: u8 = 0;
 
@@ -45,19 +45,19 @@ impl Builtin for BigIntPrototypeValueOf {
 }
 
 impl BigIntPrototype {
-    fn to_locale_string(
-        agent: &mut Agent,
-        this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn to_locale_string<'gen>(
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         Self::to_string(agent, this_value, arguments)
     }
 
-    fn to_string(
-        agent: &mut Agent,
-        this_value: Value,
-        arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn to_string<'gen>(
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         let _x = this_big_int_value(agent, this_value)?;
         let radix = arguments.get(0);
         if radix.is_undefined() || radix == Value::from(10u8) {
@@ -68,11 +68,11 @@ impl BigIntPrototype {
         }
     }
 
-    fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn value_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         this_big_int_value(agent, this_value).map(|result| result.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.big_int_prototype();
@@ -97,7 +97,7 @@ impl BigIntPrototype {
     }
 }
 
-fn this_big_int_value(agent: &mut Agent, value: Value) -> JsResult<BigInt> {
+fn this_big_int_value<'gen>(agent: &mut Agent<'gen>, value: Value<'gen>) -> JsResult<'gen, BigInt<'gen>> {
     match value {
         Value::BigInt(idx) => Ok(idx.into()),
         Value::SmallBigInt(data) => Ok(data.into()),

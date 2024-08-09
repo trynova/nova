@@ -27,9 +27,9 @@ use num_traits::{PrimInt, Zero};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct HeapNumber(pub(crate) NumberIndex);
+pub struct HeapNumber<'gen>(pub(crate) NumberIndex<'gen>);
 
-impl HeapNumber {
+impl<'gen> HeapNumber<'gen> {
     pub(crate) const fn _def() -> Self {
         HeapNumber(NumberIndex::from_u32_index(0))
     }
@@ -42,9 +42,9 @@ impl HeapNumber {
 /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
 #[derive(Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum Number {
+pub enum Number<'gen> {
     /// f64 on the heap. Accessing the data must be done through the Agent.
-    Number(HeapNumber) = NUMBER_DISCRIMINANT,
+    Number(HeapNumber<'gen>) = NUMBER_DISCRIMINANT,
     /// 53-bit signed integer on the stack.
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     /// 56-bit f64 on the stack. The missing byte is a zero least significant
@@ -52,20 +52,20 @@ pub enum Number {
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
 }
 
-impl IntoValue for HeapNumber {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for HeapNumber<'gen> {
+    fn into_value(self) -> Value<'gen> {
         Value::Number(self)
     }
 }
 
-impl IntoPrimitive for HeapNumber {
-    fn into_primitive(self) -> Primitive {
+impl<'gen> IntoPrimitive<'gen> for HeapNumber<'gen> {
+    fn into_primitive(self) -> Primitive<'gen> {
         Primitive::Number(self)
     }
 }
 
-impl IntoValue for Number {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for Number<'gen> {
+    fn into_value(self) -> Value<'gen> {
         match self {
             Number::Number(idx) => Value::Number(idx),
             Number::Integer(data) => Value::Integer(data),
@@ -74,14 +74,14 @@ impl IntoValue for Number {
     }
 }
 
-impl IntoNumeric for HeapNumber {
-    fn into_numeric(self) -> Numeric {
+impl<'gen> IntoNumeric<'gen> for HeapNumber<'gen> {
+    fn into_numeric(self) -> Numeric<'gen> {
         Numeric::Number(self)
     }
 }
 
-impl IntoPrimitive for Number {
-    fn into_primitive(self) -> Primitive {
+impl<'gen> IntoPrimitive<'gen> for Number<'gen> {
+    fn into_primitive(self) -> Primitive<'gen> {
         match self {
             Number::Number(idx) => Primitive::Number(idx),
             Number::Integer(data) => Primitive::Integer(data),
@@ -90,8 +90,8 @@ impl IntoPrimitive for Number {
     }
 }
 
-impl IntoNumeric for Number {
-    fn into_numeric(self) -> Numeric {
+impl<'gen> IntoNumeric<'gen> for Number<'gen> {
+    fn into_numeric(self) -> Numeric<'gen> {
         match self {
             Number::Number(idx) => Numeric::Number(idx),
             Number::Integer(data) => Numeric::Integer(data),
@@ -100,7 +100,7 @@ impl IntoNumeric for Number {
     }
 }
 
-impl std::fmt::Debug for Number {
+impl<'gen> std::fmt::Debug for Number<'gen> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
             Number::Number(idx) => write!(f, "Number({:?})", idx),
@@ -110,25 +110,25 @@ impl std::fmt::Debug for Number {
     }
 }
 
-impl From<HeapNumber> for Number {
-    fn from(value: HeapNumber) -> Self {
+impl<'gen> From<HeapNumber<'gen>> for Number<'gen> {
+    fn from(value: HeapNumber<'gen>) -> Self {
         Number::Number(value)
     }
 }
 
-impl From<SmallInteger> for Number {
+impl<'gen> From<SmallInteger> for Number<'gen> {
     fn from(value: SmallInteger) -> Self {
         Number::Integer(value)
     }
 }
 
-impl From<SmallF64> for Number {
+impl<'gen> From<SmallF64> for Number<'gen> {
     fn from(value: SmallF64) -> Self {
         Number::SmallF64(value)
     }
 }
 
-impl From<f32> for Number {
+impl<'gen> From<f32> for Number<'gen> {
     fn from(value: f32) -> Self {
         Number::SmallF64(SmallF64::from(value))
     }
@@ -137,7 +137,7 @@ impl From<f32> for Number {
 const MAX_NUMBER: f64 = ((1u64 << 53) - 1) as f64;
 const MIN_NUMBER: f64 = -MAX_NUMBER;
 
-impl TryFrom<i64> for Number {
+impl<'gen> TryFrom<i64> for Number<'gen> {
     type Error = ();
 
     fn try_from(value: i64) -> Result<Self, ()> {
@@ -145,7 +145,7 @@ impl TryFrom<i64> for Number {
     }
 }
 
-impl TryFrom<usize> for Number {
+impl<'gen> TryFrom<usize> for Number<'gen> {
     type Error = ();
 
     fn try_from(value: usize) -> Result<Self, ()> {
@@ -157,7 +157,7 @@ impl TryFrom<usize> for Number {
     }
 }
 
-impl TryFrom<f64> for Number {
+impl<'gen> TryFrom<f64> for Number<'gen> {
     type Error = ();
 
     fn try_from(value: f64) -> Result<Self, ()> {
@@ -173,9 +173,9 @@ impl TryFrom<f64> for Number {
     }
 }
 
-impl TryFrom<Value> for Number {
+impl<'gen> TryFrom<Value<'gen>> for Number<'gen> {
     type Error = ();
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'gen>) -> Result<Self, Self::Error> {
         match value {
             Value::Number(data) => Ok(Number::Number(data)),
             Value::Integer(data) => Ok(Number::Integer(data)),
@@ -185,9 +185,9 @@ impl TryFrom<Value> for Number {
     }
 }
 
-impl TryFrom<Primitive> for Number {
+impl<'gen> TryFrom<Primitive<'gen>> for Number<'gen> {
     type Error = ();
-    fn try_from(value: Primitive) -> Result<Self, Self::Error> {
+    fn try_from(value: Primitive<'gen>) -> Result<Self, Self::Error> {
         match value {
             Primitive::Number(data) => Ok(Number::Number(data)),
             Primitive::Integer(data) => Ok(Number::Integer(data)),
@@ -197,9 +197,9 @@ impl TryFrom<Primitive> for Number {
     }
 }
 
-impl TryFrom<Numeric> for Number {
+impl<'gen> TryFrom<Numeric<'gen>> for Number<'gen> {
     type Error = ();
-    fn try_from(value: Numeric) -> Result<Self, Self::Error> {
+    fn try_from(value: Numeric<'gen>) -> Result<Self, Self::Error> {
         match value {
             Numeric::Number(data) => Ok(Number::Number(data)),
             Numeric::Integer(data) => Ok(Number::Integer(data)),
@@ -209,8 +209,8 @@ impl TryFrom<Numeric> for Number {
     }
 }
 
-impl Number {
-    pub fn from_f64(agent: &mut Agent, value: f64) -> Self {
+impl<'gen> Number<'gen> {
+    pub fn from_f64(agent: &mut Agent<'gen>, value: f64) -> Self {
         if let Ok(value) = Number::try_from(value) {
             value
         } else {
@@ -241,7 +241,7 @@ impl Number {
         Self::from(f32::NEG_INFINITY)
     }
 
-    pub fn is_nan(self, agent: &Agent) -> bool {
+    pub fn is_nan(self, agent: &Agent<'gen>) -> bool {
         match self {
             Number::Number(n) => agent[n].is_nan(),
             Number::Integer(_) => false,
@@ -249,7 +249,7 @@ impl Number {
         }
     }
 
-    pub fn is_pos_zero(self, agent: &Agent) -> bool {
+    pub fn is_pos_zero(self, agent: &Agent<'gen>) -> bool {
         match self {
             Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(agent[n]),
             Number::Integer(n) => 0i64 == n.into_i64(),
@@ -257,7 +257,7 @@ impl Number {
         }
     }
 
-    pub fn is_neg_zero(self, agent: &Agent) -> bool {
+    pub fn is_neg_zero(self, agent: &Agent<'gen>) -> bool {
         match self {
             Number::Number(n) => f64::to_bits(-0.0) == f64::to_bits(agent[n]),
             Number::Integer(_) => false,
@@ -265,7 +265,7 @@ impl Number {
         }
     }
 
-    pub fn is_pos_infinity(self, agent: &Agent) -> bool {
+    pub fn is_pos_infinity(self, agent: &Agent<'gen>) -> bool {
         match self {
             Number::Number(n) => agent[n] == f64::INFINITY,
             Number::Integer(_) => false,
@@ -273,7 +273,7 @@ impl Number {
         }
     }
 
-    pub fn is_neg_infinity(self, agent: &Agent) -> bool {
+    pub fn is_neg_infinity(self, agent: &Agent<'gen>) -> bool {
         match self {
             Number::Number(n) => agent[n] == f64::NEG_INFINITY,
             Number::Integer(_) => false,
@@ -281,7 +281,7 @@ impl Number {
         }
     }
 
-    pub fn is_finite(self, agent: &Agent) -> bool {
+    pub fn is_finite(self, agent: &Agent<'gen>) -> bool {
         match self {
             Number::Number(n) => agent[n].is_finite(),
             Number::Integer(_) => true,
@@ -289,7 +289,7 @@ impl Number {
         }
     }
 
-    pub fn is_nonzero(self, agent: &Agent) -> bool {
+    pub fn is_nonzero(self, agent: &Agent<'gen>) -> bool {
         match self {
             Number::Number(n) => 0.0 != agent[n],
             Number::Integer(n) => 0i64 != n.into_i64(),
@@ -297,7 +297,7 @@ impl Number {
         }
     }
 
-    pub fn is_pos_one(self, agent: &Agent) -> bool {
+    pub fn is_pos_one(self, agent: &Agent<'gen>) -> bool {
         // NOTE: Only the integer variant should ever return true, if any other
         // variant returns true, that's a bug as it means that our variants are
         // no longer "sound".
@@ -314,7 +314,7 @@ impl Number {
         }
     }
 
-    pub fn is_neg_one(self, agent: &Agent) -> bool {
+    pub fn is_neg_one(self, agent: &Agent<'gen>) -> bool {
         match self {
             Number::Integer(n) => -1i64 == n.into_i64(),
             Number::Number(n) => {
@@ -328,7 +328,7 @@ impl Number {
         }
     }
 
-    pub fn is_sign_positive(self, agent: &Agent) -> bool {
+    pub fn is_sign_positive(self, agent: &Agent<'gen>) -> bool {
         match self {
             Number::Number(n) => agent[n].is_sign_positive(),
             Number::Integer(n) => n.into_i64().is_positive(),
@@ -336,7 +336,7 @@ impl Number {
         }
     }
 
-    pub fn is_sign_negative(self, agent: &Agent) -> bool {
+    pub fn is_sign_negative(self, agent: &Agent<'gen>) -> bool {
         match self {
             Number::Number(n) => agent[n].is_sign_negative(),
             Number::Integer(n) => n.into_i64().is_negative(),
@@ -345,7 +345,7 @@ impl Number {
     }
 
     /// https://tc39.es/ecma262/#eqn-truncate
-    pub fn truncate(self, agent: &mut Agent) -> Number {
+    pub fn truncate(self, agent: &mut Agent<'gen>) -> Number<'gen> {
         match self {
             Number::Number(n) => {
                 let n = agent[n].trunc();
@@ -356,7 +356,7 @@ impl Number {
         }
     }
 
-    pub fn into_f64(self, agent: &Agent) -> f64 {
+    pub fn into_f64(self, agent: &Agent<'gen>) -> f64 {
         match self {
             Number::Number(n) => agent[n],
             Number::Integer(n) => Into::<i64>::into(n) as f64,
@@ -364,7 +364,7 @@ impl Number {
         }
     }
 
-    pub fn into_f32(self, agent: &Agent) -> f32 {
+    pub fn into_f32(self, agent: &Agent<'gen>) -> f32 {
         match self {
             Number::Number(n) => agent[n] as f32,
             Number::Integer(n) => Into::<i64>::into(n) as f32,
@@ -378,7 +378,7 @@ impl Number {
     /// - NaN becomes 0.
     /// - Numbers are clamped between [`i64::MIN`] and [`i64::MAX`].
     /// - All other numbers round towards zero.
-    pub fn into_i64(self, agent: &Agent) -> i64 {
+    pub fn into_i64(self, agent: &Agent<'gen>) -> i64 {
         match self {
             Number::Number(n) => agent[n] as i64,
             Number::Integer(n) => Into::<i64>::into(n),
@@ -392,7 +392,7 @@ impl Number {
     /// - NaN becomes 0.
     /// - Numbers are clamped between 0 and [`usize::MAX`].
     /// - All other numbers round towards zero.
-    pub fn into_usize(self, agent: &Agent) -> usize {
+    pub fn into_usize(self, agent: &Agent<'gen>) -> usize {
         match self {
             Number::Number(n) => agent[n] as usize,
             Number::Integer(n) => {
@@ -412,7 +412,7 @@ impl Number {
     /// NaN and non-zero checks, depending on which spec algorithm is being
     /// used.
     #[inline(always)]
-    fn is(agent: &Agent, x: Self, y: Self) -> bool {
+    fn is(agent: &Agent<'gen>, x: Self, y: Self) -> bool {
         match (x, y) {
             // Optimisation: First compare by-reference; only read from heap if needed.
             (Number::Number(x), Number::Number(y)) => x == y || agent[x] == agent[y],
@@ -455,7 +455,7 @@ impl Number {
         }
     }
 
-    pub fn is_odd_integer(self, agent: &mut Agent) -> bool {
+    pub fn is_odd_integer(self, agent: &mut Agent<'gen>) -> bool {
         match self {
             Number::Number(n) => agent[n] % 2.0 == 1.0,
             Number::Integer(n) => Into::<i64>::into(n) % 2 == 1,
@@ -463,7 +463,7 @@ impl Number {
         }
     }
 
-    pub fn abs(self, agent: &mut Agent) -> Self {
+    pub fn abs(self, agent: &mut Agent<'gen>) -> Self {
         match self {
             Number::Number(n) => {
                 let n = agent[n];
@@ -490,12 +490,12 @@ impl Number {
         }
     }
 
-    pub fn greater_than(agent: &mut Agent, x: Self, y: Self) -> Option<bool> {
+    pub fn greater_than(agent: &mut Agent<'gen>, x: Self, y: Self) -> Option<bool> {
         Number::less_than(agent, y, x).map(|x| !x)
     }
 
     /// ### [6.1.6.1.1 Number::unaryMinus ( x )](https://tc39.es/ecma262/#sec-numeric-types-number-unaryMinus)
-    pub fn unary_minus(agent: &mut Agent, x: Self) -> Self {
+    pub fn unary_minus(agent: &mut Agent<'gen>, x: Self) -> Self {
         // 1. If x is NaN, return NaN.
         // NOTE: Computers do this automatically.
 
@@ -526,7 +526,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.2 Number::bitwiseNOT ( x )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseNOT)
-    pub fn bitwise_not(agent: &mut Agent, x: Self) -> JsResult<Self> {
+    pub fn bitwise_not(agent: &mut Agent<'gen>, x: Self) -> JsResult<'gen, Self> {
         // 1. Let oldValue be ! ToInt32(x).
         let old_value = to_int32(agent, x.into_value())?;
 
@@ -535,7 +535,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.3 Number::exponentiate ( base, exponent )](https://tc39.es/ecma262/#sec-numeric-types-number-exponentiate)
-    pub fn exponentiate(agent: &mut Agent, base: Self, exponent: Self) -> Self {
+    pub fn exponentiate(agent: &mut Agent<'gen>, base: Self, exponent: Self) -> Self {
         // 1. If exponent is NaN, return NaN.
         if exponent.is_nan(agent) {
             return Number::nan();
@@ -679,7 +679,7 @@ impl Number {
     ///
     /// > NOTE: Finite-precision multiplication is commutative, but not always
     /// > associative.
-    pub fn multiply(agent: &mut Agent, x: Self, y: Self) -> Self {
+    pub fn multiply(agent: &mut Agent<'gen>, x: Self, y: Self) -> Self {
         // Nonstandard fast path: If both numbers are integers, use integer
         // multiplication and try to return a safe integer as integer.
         if let (Self::Integer(x), Self::Integer(y)) = (x, y) {
@@ -761,7 +761,7 @@ impl Number {
     /// the rules of IEEE 754-2019 binary double-precision arithmetic,
     /// producing the quotient of x and y where x is the dividend and y is the
     /// divisor.
-    pub fn divide(agent: &mut Agent, x: Self, y: Self) -> Self {
+    pub fn divide(agent: &mut Agent<'gen>, x: Self, y: Self) -> Self {
         // 1. If x is NaN or y is NaN, return NaN.
         if x.is_nan(agent) || y.is_nan(agent) {
             return Number::nan();
@@ -847,7 +847,7 @@ impl Number {
     /// and d (a Number) and returns a Number. It yields the remainder from an
     /// implied division of its operands where n is the dividend and d is the
     /// divisor.
-    pub fn remainder(agent: &mut Agent, n: Self, d: Self) -> Self {
+    pub fn remainder(agent: &mut Agent<'gen>, n: Self, d: Self) -> Self {
         // 1. If n is NaN or d is NaN, return NaN.
         if n.is_nan(agent) || d.is_nan(agent) {
             return Self::nan();
@@ -903,7 +903,7 @@ impl Number {
     /// (a Number) and returns a Number. It performs addition according to the
     /// rules of IEEE 754-2019 binary double-precision arithmetic, producing
     /// the sum of its arguments.
-    pub(crate) fn add(agent: &mut Agent, x: Number, y: Number) -> Number {
+    pub(crate) fn add(agent: &mut Agent<'gen>, x: Number<'gen>, y: Number<'gen>) -> Self {
         // 1. If x is NaN or y is NaN, return NaN.
         if x.is_nan(agent) || y.is_nan(agent) {
             return Number::nan();
@@ -947,7 +947,7 @@ impl Number {
     /// and y (a Number) and returns a Number. It performs subtraction,
     /// producing the difference of its operands; x is the minuend and y is the
     /// subtrahend.
-    pub(crate) fn subtract(agent: &mut Agent, x: Number, y: Number) -> Number {
+    pub(crate) fn subtract(agent: &mut Agent<'gen>, x: Number<'gen>, y: Number<'gen>) -> Self {
         // 1. Return Number::add(x, Number::unaryMinus(y)).
         let negated_y = Number::unary_minus(agent, y);
         Number::add(agent, x, negated_y)
@@ -957,7 +957,7 @@ impl Number {
     ///
     /// The abstract operation Number::signedRightShift takes arguments x
     /// (a Number) and y (a Number) and returns an integral Number.
-    pub fn left_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
+    pub fn left_shift(agent: &mut Agent<'gen>, x: Self, y: Self) -> Self {
         // 1. Let lnum be ! ToInt32(x).
         let lnum = to_int32(agent, x.into_value()).unwrap();
         // 2. Let rnum be ! ToUint32(y).
@@ -972,7 +972,7 @@ impl Number {
     ///
     /// The abstract operation Number::unsignedRightShift takes arguments x
     /// (a Number) and y (a Number) and returns an integral Number.
-    pub fn signed_right_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
+    pub fn signed_right_shift(agent: &mut Agent<'gen>, x: Self, y: Self) -> Self {
         // 1. Let lnum be ! ToInt32(x).
         let lnum = to_int32(agent, x.into_value()).unwrap();
         // 2. Let rnum be ! ToUint32(y).
@@ -987,7 +987,7 @@ impl Number {
     ///
     /// The abstract operation Number::lessThan takes arguments x (a Number)
     /// and y (a Number) and returns a Boolean or undefined.
-    pub fn unsigned_right_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
+    pub fn unsigned_right_shift(agent: &mut Agent<'gen>, x: Self, y: Self) -> Self {
         // 1. Let lnum be ! ToUint32(x).
         let lnum = to_uint32(agent, x.into_value()).unwrap();
         // 2. Let rnum be ! ToUint32(y).
@@ -999,7 +999,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.12 Number::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-lessThan)
-    pub fn less_than(agent: &mut Agent, x: Self, y: Self) -> Option<bool> {
+    pub fn less_than(agent: &mut Agent<'gen>, x: Self, y: Self) -> Option<bool> {
         // 1. If x is NaN, return undefined.
         if x.is_nan(agent) {
             return None;
@@ -1063,7 +1063,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.13 Number::equal ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-equal)
-    pub fn equal(agent: &Agent, x: Self, y: Self) -> bool {
+    pub fn equal(agent: &Agent<'gen>, x: Self, y: Self) -> bool {
         // 1. If x is NaN, return false.
         if x.is_nan(agent) {
             return false;
@@ -1094,7 +1094,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.14 Number::sameValue ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValue)
-    pub fn same_value(agent: &Agent, x: Self, y: Self) -> bool {
+    pub fn same_value(agent: &Agent<'gen>, x: Self, y: Self) -> bool {
         // 1. If x is NaN and y is NaN, return true.
         if x.is_nan(agent) && y.is_nan(agent) {
             return true;
@@ -1120,7 +1120,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.15 Number::sameValueZero ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValueZero)
-    pub fn same_value_zero(agent: &Agent, x: Self, y: Self) -> bool {
+    pub fn same_value_zero(agent: &Agent<'gen>, x: Self, y: Self) -> bool {
         // 1. If x is NaN and y is NaN, return true.
         if x.is_nan(agent) && y.is_nan(agent) {
             return true;
@@ -1147,7 +1147,7 @@ impl Number {
 
     /// ### [6.1.6.1.16 NumberBitwiseOp ( op, x, y )](https://tc39.es/ecma262/#sec-numberbitwiseop)
     #[inline(always)]
-    fn bitwise_op(agent: &mut Agent, op: BitwiseOp, x: Self, y: Self) -> JsResult<i32> {
+    fn bitwise_op(agent: &mut Agent<'gen>, op: BitwiseOp, x: Self, y: Self) -> JsResult<'gen, i32> {
         // 1. Let lnum be ! ToInt32(x).
         let lnum = x.into_value().to_int32(agent)?;
 
@@ -1184,25 +1184,25 @@ impl Number {
     }
 
     /// ### [6.1.6.1.17 Number::bitwiseAND ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseAND)
-    pub fn bitwise_and(agent: &mut Agent, x: Self, y: Self) -> JsResult<i32> {
+    pub fn bitwise_and(agent: &mut Agent<'gen>, x: Self, y: Self) -> JsResult<'gen, i32> {
         // 1. Return NumberBitwiseOp(&, x, y).
         Number::bitwise_op(agent, BitwiseOp::And, x, y)
     }
 
     /// ### [6.1.6.1.18 Number::bitwiseXOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseXOR)
-    pub fn bitwise_xor(agent: &mut Agent, x: Self, y: Self) -> JsResult<i32> {
+    pub fn bitwise_xor(agent: &mut Agent<'gen>, x: Self, y: Self) -> JsResult<'gen, i32> {
         // 1. Return NumberBitwiseOp(^, x, y).
         Number::bitwise_op(agent, BitwiseOp::Xor, x, y)
     }
 
     /// ### [6.1.6.1.19 Number::bitwiseOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseOR)
-    pub fn bitwise_or(agent: &mut Agent, x: Self, y: Self) -> JsResult<i32> {
+    pub fn bitwise_or(agent: &mut Agent<'gen>, x: Self, y: Self) -> JsResult<'gen, i32> {
         // 1. Return NumberBitwiseOp(|, x, y).
         Number::bitwise_op(agent, BitwiseOp::Or, x, y)
     }
 
     // ### [6.1.6.1.20 Number::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-number-tostring)
-    pub(crate) fn to_string_radix_10(agent: &mut Agent, x: Self) -> JsResult<String> {
+    pub(crate) fn to_string_radix_10(agent: &mut Agent<'gen>, x: Self) -> JsResult<'gen, String<'gen>> {
         match x {
             Number::Number(_) => {
                 let mut buffer = ryu_js::Buffer::new();
@@ -1226,7 +1226,7 @@ impl Number {
     }
 
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
-    pub(crate) fn to_real(self, agent: &Agent) -> f64 {
+    pub(crate) fn to_real(self, agent: &Agent<'gen>) -> f64 {
         match self {
             Self::Number(n) => agent[n],
             Self::Integer(i) => i.into_i64() as f64,
@@ -1244,7 +1244,7 @@ pub enum BitwiseOp {
 
 macro_rules! impl_value_from_n {
     ($size: ty) => {
-        impl From<$size> for Number {
+        impl<'gen> From<$size> for Number<'gen> {
             fn from(value: $size) -> Self {
                 Number::Integer(SmallInteger::from(value))
             }
@@ -1259,7 +1259,7 @@ impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
 
-impl Index<HeapNumber> for Agent {
+impl<'gen> Index<HeapNumber<'gen>> for Agent<'gen> {
     type Output = f64;
 
     fn index(&self, index: HeapNumber) -> &Self::Output {
@@ -1267,13 +1267,13 @@ impl Index<HeapNumber> for Agent {
     }
 }
 
-impl IndexMut<HeapNumber> for Agent {
+impl<'gen> IndexMut<HeapNumber<'gen>> for Agent<'gen> {
     fn index_mut(&mut self, index: HeapNumber) -> &mut Self::Output {
         &mut self.heap.numbers[index]
     }
 }
 
-impl Index<HeapNumber> for Vec<Option<NumberHeapData>> {
+impl<'gen> Index<HeapNumber<'gen>> for Vec<Option<NumberHeapData>> {
     type Output = f64;
 
     fn index(&self, index: HeapNumber) -> &Self::Output {
@@ -1286,7 +1286,7 @@ impl Index<HeapNumber> for Vec<Option<NumberHeapData>> {
     }
 }
 
-impl IndexMut<HeapNumber> for Vec<Option<NumberHeapData>> {
+impl<'gen> IndexMut<HeapNumber<'gen>> for Vec<Option<NumberHeapData>> {
     fn index_mut(&mut self, index: HeapNumber) -> &mut Self::Output {
         &mut self
             .get_mut(index.get_index())
@@ -1297,8 +1297,8 @@ impl IndexMut<HeapNumber> for Vec<Option<NumberHeapData>> {
     }
 }
 
-impl CreateHeapData<f64, Number> for Heap {
-    fn create(&mut self, data: f64) -> Number {
+impl<'gen> CreateHeapData<f64, Number<'gen>> for Heap<'gen> {
+    fn create<'a>(&'a mut self, data: f64) -> Number<'gen> {
         // NOTE: This function cannot currently be implemented
         // directly using `Number::from_f64` as it takes an Agent
         // parameter that we do not have access to here.
@@ -1313,8 +1313,8 @@ impl CreateHeapData<f64, Number> for Heap {
     }
 }
 
-impl HeapMarkAndSweep for Number {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Number<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         if let Self::Number(idx) = self {
             idx.mark_values(queues);
         }
@@ -1327,8 +1327,8 @@ impl HeapMarkAndSweep for Number {
     }
 }
 
-impl HeapMarkAndSweep for HeapNumber {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for HeapNumber<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.numbers.push(*self);
     }
 

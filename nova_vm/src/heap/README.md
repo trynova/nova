@@ -87,8 +87,8 @@ In a simple, object-oriented design an Object looks like follows:
 
 ```rs
 struct Object {
-   prototype: Option<Gc<Object>>,
-   properties: HashMap<Gc<String>, Gc<PropertyDescriptor>>,
+   prototype: Option<Gc<Object<'gen>>>,
+   properties: HashMap<Gc<String<'gen>>, Gc<PropertyDescriptor<'gen>>>,
 }
 ```
 
@@ -96,8 +96,8 @@ and an Array would be:
 
 ```rs
 struct Array {
-   base: Object,
-   elements: Vec<Option<PropertyDescriptor>>,
+   base: Object<'gen>,
+   elements: Vec<Option<PropertyDescriptor<'gen>>>,
 }
 ```
 
@@ -109,8 +109,8 @@ reduce memory usage by changing Array to:
 
 ```rs
 struct Array {
-   base: Option<Gc<Object>>,
-   elements: Vec<Option<PropertyDescriptor>>,
+   base: Option<Gc<Object<'gen>>>,
+   elements: Vec<Option<PropertyDescriptor<'gen>>>,
 }
 ```
 
@@ -127,8 +127,8 @@ objects that we want. For that, we need to split the Array into parts and put
 them into parallel vectors:
 
 ```rs
-struct BaseObject(Option<ObjectIndex>);
-struct Elements(Vec<Option<PropertyDescriptor>>);
+struct BaseObject(Option<ObjectIndex<'gen>>);
+struct Elements(Vec<Option<PropertyDescriptor<'gen>>>);
 
 let arrays: ParallelVec<(BaseObject, Elements)>;
 

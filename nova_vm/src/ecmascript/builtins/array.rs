@@ -33,11 +33,11 @@ use crate::{
 pub use data::{ArrayHeapData, SealableElementsVector};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Array(ArrayIndex);
+pub struct Array<'gen>(ArrayIndex<'gen>);
 
 static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
-impl Array {
+impl<'gen> Array<'gen> {
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {
@@ -48,35 +48,35 @@ impl Array {
         self.0.into_index()
     }
 
-    pub fn len(&self, agent: &Agent) -> u32 {
+    pub fn len(&self, agent: &Agent<'gen>) -> u32 {
         agent[*self].elements.len()
     }
 
-    pub fn is_empty(&self, agent: &Agent) -> bool {
+    pub fn is_empty(&self, agent: &Agent<'gen>) -> bool {
         agent[*self].elements.len() == 0
     }
 
-    pub fn is_dense(self, agent: &Agent) -> bool {
+    pub fn is_dense(self, agent: &Agent<'gen>) -> bool {
         agent[self].elements.is_dense(agent)
     }
 
     /// An array is simple if it contains no element accessor descriptors.
-    pub(crate) fn is_simple(self, agent: &Agent) -> bool {
+    pub(crate) fn is_simple(self, agent: &Agent<'gen>) -> bool {
         agent[self].elements.is_simple(agent)
     }
 
     /// An array is trivial if it contains no element descriptors.
-    pub(crate) fn is_trivial(self, agent: &Agent) -> bool {
+    pub(crate) fn is_trivial(self, agent: &Agent<'gen>) -> bool {
         agent[self].elements.is_trivial(agent)
     }
 
     #[inline]
     fn internal_get_backing(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         if let Some(object_index) = self.get_backing_object(agent) {
             // If backing object exists, then we might have properties there
             object_index.internal_get(agent, property_key, receiver)
@@ -90,52 +90,52 @@ impl Array {
     }
 
     #[inline]
-    pub(crate) fn as_slice(self, agent: &Agent) -> &[Option<Value>] {
+    pub(crate) fn as_slice<'a>(self, agent: &'a Agent<'gen>) -> &'a [Option<Value<'gen>>] {
         let elements = agent[self].elements;
         &agent[elements]
     }
 
     #[inline]
-    pub(crate) fn as_mut_slice(self, agent: &mut Agent) -> &mut [Option<Value>] {
+    pub(crate) fn as_mut_slice<'a>(self, agent: &'a mut Agent<'gen>) -> &'a mut [Option<Value<'gen>>] {
         let elements = agent[self].elements;
         &mut agent[elements]
     }
 }
 
-impl IntoValue for Array {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for Array<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for Array {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for Array<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<ArrayIndex> for Array {
-    fn from(value: ArrayIndex) -> Self {
+impl<'gen> From<ArrayIndex<'gen>> for Array<'gen> {
+    fn from(value: ArrayIndex<'gen>) -> Self {
         Array(value)
     }
 }
 
-impl From<Array> for Object {
-    fn from(value: Array) -> Self {
+impl<'gen> From<Array<'gen>> for Object<'gen> {
+    fn from(value: Array<'gen>) -> Self {
         Self::Array(value)
     }
 }
 
-impl From<Array> for Value {
-    fn from(value: Array) -> Self {
+impl<'gen> From<Array<'gen>> for Value<'gen> {
+    fn from(value: Array<'gen>) -> Self {
         Self::Array(value)
     }
 }
 
-impl TryFrom<Value> for Array {
+impl<'gen> TryFrom<Value<'gen>> for Array<'gen> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'gen>) -> Result<Self, Self::Error> {
         match value {
             Value::Array(data) => Ok(data),
             _ => Err(()),
@@ -143,10 +143,10 @@ impl TryFrom<Value> for Array {
     }
 }
 
-impl TryFrom<Object> for Array {
+impl<'gen> TryFrom<Object<'gen>> for Array<'gen> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'gen>) -> Result<Self, Self::Error> {
         match value {
             Object::Array(data) => Ok(data),
             _ => Err(()),
@@ -154,15 +154,15 @@ impl TryFrom<Object> for Array {
     }
 }
 
-impl InternalSlots for Array {
+impl<'gen> InternalSlots<'gen> for Array<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Array;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         let prototype = Some(
             agent
                 .current_realm()
@@ -180,7 +180,7 @@ impl InternalSlots for Array {
         backing_object
     }
 
-    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
+    fn internal_set_extensible(self, agent: &mut Agent<'gen>, value: bool) {
         agent[self].elements.len_writable = value;
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_set_extensible(agent, value)
@@ -190,7 +190,7 @@ impl InternalSlots for Array {
         }
     }
 
-    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+    fn internal_set_prototype(self, agent: &mut Agent<'gen>, prototype: Option<Object<'gen>>) {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_set_prototype(agent, prototype)
         } else {
@@ -206,12 +206,12 @@ impl InternalSlots for Array {
     }
 }
 
-impl InternalMethods for Array {
+impl<'gen> InternalMethods<'gen> for Array<'gen> {
     fn internal_get_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+    ) -> JsResult<'gen, Option<PropertyDescriptor<'gen>>> {
         if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
             if !ARRAY_INDEX_RANGE.contains(&index) {
@@ -261,10 +261,10 @@ impl InternalMethods for Array {
 
     fn internal_define_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        property_descriptor: PropertyDescriptor<'gen>,
+    ) -> JsResult<'gen, bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             array_set_length(agent, self, property_descriptor)
         } else if let PropertyKey::Integer(index) = property_key {
@@ -336,7 +336,7 @@ impl InternalMethods for Array {
         }
     }
 
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         let has_own = self.internal_get_own_property(agent, property_key)?;
         if has_own.is_some() {
             return Ok(true);
@@ -357,10 +357,10 @@ impl InternalMethods for Array {
 
     fn internal_get(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(self.len(agent).into())
         } else if let PropertyKey::Integer(index) = property_key {
@@ -409,7 +409,7 @@ impl InternalMethods for Array {
         }
     }
 
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(true)
         } else if let PropertyKey::Integer(index) = property_key {
@@ -450,7 +450,7 @@ impl InternalMethods for Array {
         }
     }
 
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Vec<PropertyKey<'gen>>> {
         let backing_keys = if let Some(backing_object) = self.get_backing_object(agent) {
             backing_object.internal_own_property_keys(agent)?
         } else {
@@ -473,24 +473,24 @@ impl InternalMethods for Array {
     }
 }
 
-impl Index<Array> for Agent {
-    type Output = ArrayHeapData;
+impl<'gen> Index<Array<'gen>> for Agent<'gen> {
+    type Output = ArrayHeapData<'gen>;
 
-    fn index(&self, index: Array) -> &Self::Output {
+    fn index(&self, index: Array<'gen>) -> &Self::Output {
         &self.heap.arrays[index]
     }
 }
 
-impl IndexMut<Array> for Agent {
-    fn index_mut(&mut self, index: Array) -> &mut Self::Output {
+impl<'gen> IndexMut<Array<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: Array<'gen>) -> &mut Self::Output {
         &mut self.heap.arrays[index]
     }
 }
 
-impl Index<Array> for Vec<Option<ArrayHeapData>> {
-    type Output = ArrayHeapData;
+impl<'gen> Index<Array<'gen>> for Vec<Option<ArrayHeapData<'gen>>> {
+    type Output = ArrayHeapData<'gen>;
 
-    fn index(&self, index: Array) -> &Self::Output {
+    fn index(&self, index: Array<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("Array out of bounds")
             .as_ref()
@@ -498,8 +498,8 @@ impl Index<Array> for Vec<Option<ArrayHeapData>> {
     }
 }
 
-impl IndexMut<Array> for Vec<Option<ArrayHeapData>> {
-    fn index_mut(&mut self, index: Array) -> &mut Self::Output {
+impl<'gen> IndexMut<Array<'gen>> for Vec<Option<ArrayHeapData<'gen>>> {
+    fn index_mut(&mut self, index: Array<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Array out of bounds")
             .as_mut()
@@ -507,15 +507,15 @@ impl IndexMut<Array> for Vec<Option<ArrayHeapData>> {
     }
 }
 
-impl CreateHeapData<ArrayHeapData, Array> for Heap {
-    fn create(&mut self, data: ArrayHeapData) -> Array {
+impl<'gen> CreateHeapData<ArrayHeapData<'gen>, Array<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: ArrayHeapData<'gen>) -> Array<'gen> {
         self.arrays.push(Some(data));
         Array::from(ArrayIndex::last(&self.arrays))
     }
 }
 
-impl HeapMarkAndSweep for Array {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Array<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.arrays.push(*self);
     }
 
@@ -524,11 +524,11 @@ impl HeapMarkAndSweep for Array {
     }
 }
 
-fn ordinary_define_own_property_for_array(
-    agent: &mut Agent,
-    elements: SealableElementsVector,
+fn ordinary_define_own_property_for_array<'gen>(
+    agent: &mut Agent<'gen>,
+    elements: SealableElementsVector<'gen>,
     index: u32,
-    descriptor: PropertyDescriptor,
+    descriptor: PropertyDescriptor<'gen>,
 ) -> bool {
     let (descriptors, slice) = agent
         .heap

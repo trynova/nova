@@ -18,7 +18,7 @@ pub(crate) struct SymbolPrototype;
 
 struct SymbolPrototypeGetDescription;
 impl Builtin for SymbolPrototypeGetDescription {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_description;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_description;
 
     const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.description.to_property_key());
 
@@ -31,7 +31,7 @@ impl BuiltinGetter for SymbolPrototypeGetDescription {}
 
 struct SymbolPrototypeToString;
 impl Builtin for SymbolPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -41,7 +41,7 @@ impl Builtin for SymbolPrototypeToString {
 
 struct SymbolPrototypeValueOf;
 impl Builtin for SymbolPrototypeValueOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.valueOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.valueOf;
 
     const LENGTH: u8 = 0;
 
@@ -51,7 +51,7 @@ impl Builtin for SymbolPrototypeValueOf {
 
 struct SymbolPrototypeToPrimitive;
 impl Builtin for SymbolPrototypeToPrimitive {
-    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_toPrimitive_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_toPrimitive_;
 
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::ToPrimitive.to_property_key());
 
@@ -68,7 +68,7 @@ impl SymbolPrototype {
     ///
     /// Symbol.prototype.description is an accessor property whose set accessor
     /// function is undefined.
-    fn get_description(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_description<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         // 1. Let s be the this value.
         // 2. Let sym be ? ThisSymbolValue(s).
         let sym = this_symbol_value(agent, this_value)?;
@@ -78,16 +78,16 @@ impl SymbolPrototype {
             .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into_value()))
     }
 
-    fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let symb = this_symbol_value(agent, this_value)?;
         Ok(symbol_descriptive_string(agent, symb).into_value())
     }
 
-    fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn value_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         this_symbol_value(agent, this_value).map(|res| res.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.symbol_prototype();
@@ -158,7 +158,7 @@ impl SymbolPrototype {
 }
 
 #[inline(always)]
-fn this_symbol_value(agent: &mut Agent, value: Value) -> JsResult<Symbol> {
+fn this_symbol_value<'gen>(agent: &mut Agent<'gen>, value: Value<'gen>) -> JsResult<'gen, Symbol> {
     match value {
         Value::Symbol(symbol) => Ok(symbol),
         Value::PrimitiveObject(object) if object.is_symbol_object(agent) => {
@@ -174,7 +174,7 @@ fn this_symbol_value(agent: &mut Agent, value: Value) -> JsResult<Symbol> {
 ///
 /// The abstract operation SymbolDescriptiveString takes argument sym (a Symbol)
 /// and returns a String.
-fn symbol_descriptive_string(agent: &mut Agent, sym: Symbol) -> String {
+fn symbol_descriptive_string<'gen>(agent: &mut Agent<'gen>, sym: Symbol) -> String {
     // 1. Let desc be sym's [[Description]] value.
     let desc = agent[sym].descriptor;
     // 2. If desc is undefined, set desc to the empty String.

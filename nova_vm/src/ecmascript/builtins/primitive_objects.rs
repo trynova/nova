@@ -34,42 +34,42 @@ use super::ordinary::ordinary_own_property_keys;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct PrimitiveObject(PrimitiveObjectIndex);
+pub struct PrimitiveObject<'gen>(PrimitiveObjectIndex<'gen>);
 
-impl From<PrimitiveObjectIndex> for PrimitiveObject {
-    fn from(value: PrimitiveObjectIndex) -> Self {
+impl<'gen> From<PrimitiveObjectIndex<'gen>> for PrimitiveObject<'gen> {
+    fn from(value: PrimitiveObjectIndex<'gen>) -> Self {
         Self(value)
     }
 }
 
-impl From<PrimitiveObject> for Object {
-    fn from(value: PrimitiveObject) -> Self {
+impl<'gen> From<PrimitiveObject<'gen>> for Object<'gen> {
+    fn from(value: PrimitiveObject<'gen>) -> Self {
         Self::PrimitiveObject(value)
     }
 }
 
-impl From<PrimitiveObject> for Value {
-    fn from(value: PrimitiveObject) -> Self {
+impl<'gen> From<PrimitiveObject<'gen>> for Value<'gen> {
+    fn from(value: PrimitiveObject<'gen>) -> Self {
         Self::PrimitiveObject(value)
     }
 }
 
-impl IntoObject for PrimitiveObject {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for PrimitiveObject<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl IntoValue for PrimitiveObject {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for PrimitiveObject<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl TryFrom<Object> for PrimitiveObject {
+impl<'gen> TryFrom<Object<'gen>> for PrimitiveObject<'gen> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'gen>) -> Result<Self, Self::Error> {
         match value {
             Object::PrimitiveObject(obj) => Ok(obj),
             _ => Err(()),
@@ -77,10 +77,10 @@ impl TryFrom<Object> for PrimitiveObject {
     }
 }
 
-impl TryFrom<Value> for PrimitiveObject {
+impl<'gen> TryFrom<Value<'gen>> for PrimitiveObject<'gen> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'gen>) -> Result<Self, Self::Error> {
         match value {
             Value::PrimitiveObject(obj) => Ok(obj),
             _ => Err(()),
@@ -88,24 +88,24 @@ impl TryFrom<Value> for PrimitiveObject {
     }
 }
 
-impl Index<PrimitiveObject> for Agent {
-    type Output = PrimitiveObjectHeapData;
+impl<'gen> Index<PrimitiveObject<'gen>> for Agent<'gen> {
+    type Output = PrimitiveObjectHeapData<'gen>;
 
-    fn index(&self, index: PrimitiveObject) -> &Self::Output {
+    fn index(&self, index: PrimitiveObject<'gen>) -> &Self::Output {
         &self.heap.primitive_objects[index]
     }
 }
 
-impl IndexMut<PrimitiveObject> for Agent {
-    fn index_mut(&mut self, index: PrimitiveObject) -> &mut Self::Output {
+impl<'gen> IndexMut<PrimitiveObject<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: PrimitiveObject<'gen>) -> &mut Self::Output {
         &mut self.heap.primitive_objects[index]
     }
 }
 
-impl Index<PrimitiveObject> for Vec<Option<PrimitiveObjectHeapData>> {
-    type Output = PrimitiveObjectHeapData;
+impl<'gen> Index<PrimitiveObject<'gen>> for Vec<Option<PrimitiveObjectHeapData<'gen>>> {
+    type Output = PrimitiveObjectHeapData<'gen>;
 
-    fn index(&self, index: PrimitiveObject) -> &Self::Output {
+    fn index(&self, index: PrimitiveObject<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("PrimitiveObject out of bounds")
             .as_ref()
@@ -113,8 +113,8 @@ impl Index<PrimitiveObject> for Vec<Option<PrimitiveObjectHeapData>> {
     }
 }
 
-impl IndexMut<PrimitiveObject> for Vec<Option<PrimitiveObjectHeapData>> {
-    fn index_mut(&mut self, index: PrimitiveObject) -> &mut Self::Output {
+impl<'gen> IndexMut<PrimitiveObject<'gen>> for Vec<Option<PrimitiveObjectHeapData<'gen>>> {
+    fn index_mut(&mut self, index: PrimitiveObject<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("PrimitiveObject out of bounds")
             .as_mut()
@@ -122,7 +122,7 @@ impl IndexMut<PrimitiveObject> for Vec<Option<PrimitiveObjectHeapData>> {
     }
 }
 
-impl PrimitiveObject {
+impl<'gen> PrimitiveObject<'gen> {
     pub(crate) const fn _def() -> Self {
         PrimitiveObject(PrimitiveObjectIndex::from_u32_index(0))
     }
@@ -131,14 +131,14 @@ impl PrimitiveObject {
         self.0.into_index()
     }
 
-    pub fn is_bigint_object(self, agent: &Agent) -> bool {
+    pub fn is_bigint_object(self, agent: &Agent<'gen>) -> bool {
         matches!(
             agent[self].data,
             PrimitiveObjectData::BigInt(_) | PrimitiveObjectData::SmallBigInt(_)
         )
     }
 
-    pub fn is_number_object(self, agent: &Agent) -> bool {
+    pub fn is_number_object(self, agent: &Agent<'gen>) -> bool {
         matches!(
             agent[self].data,
             PrimitiveObjectData::Float(_)
@@ -147,28 +147,28 @@ impl PrimitiveObject {
         )
     }
 
-    pub fn is_string_object(self, agent: &Agent) -> bool {
+    pub fn is_string_object(self, agent: &Agent<'gen>) -> bool {
         matches!(
             agent[self].data,
             PrimitiveObjectData::String(_) | PrimitiveObjectData::SmallString(_)
         )
     }
 
-    pub fn is_symbol_object(self, agent: &Agent) -> bool {
+    pub fn is_symbol_object(self, agent: &Agent<'gen>) -> bool {
         matches!(agent[self].data, PrimitiveObjectData::Symbol(_))
     }
 }
 
-impl InternalSlots for PrimitiveObject {
+impl<'gen> InternalSlots<'gen> for PrimitiveObject<'gen> {
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
     fn internal_prototype(
         self,
         agent: &crate::ecmascript::execution::Agent,
-    ) -> Option<crate::ecmascript::types::Object> {
+    ) -> Option<crate::ecmascript::types::Object<'gen>> {
         match self.get_backing_object(agent) {
             Some(obj) => obj.internal_prototype(agent),
             None => {
@@ -197,7 +197,7 @@ impl InternalSlots for PrimitiveObject {
         }
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> OrdinaryObject<'gen> {
         debug_assert!(self.get_backing_object(agent).is_none());
         let prototype = self.internal_prototype(agent).unwrap();
         let backing_object = agent.heap.create(ObjectHeapData {
@@ -211,12 +211,12 @@ impl InternalSlots for PrimitiveObject {
     }
 }
 
-impl InternalMethods for PrimitiveObject {
+impl<'gen> InternalMethods<'gen> for PrimitiveObject<'gen> {
     fn internal_get_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+    ) -> JsResult<'gen, Option<PropertyDescriptor<'gen>>> {
         // For non-string primitive objects:
         // 1. Return OrdinaryGetOwnProperty(O, P).
         // For string exotic objects:
@@ -240,10 +240,10 @@ impl InternalMethods for PrimitiveObject {
 
     fn internal_define_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        property_descriptor: PropertyDescriptor<'gen>,
+    ) -> JsResult<'gen, bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             // For string exotic objects:
             // 1. Let stringDesc be StringGetOwnProperty(S, P).
@@ -268,7 +268,7 @@ impl InternalMethods for PrimitiveObject {
         ordinary_define_own_property(agent, backing_object, property_key, property_descriptor)
     }
 
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if string
                 .get_property_descriptor(agent, property_key)
@@ -301,10 +301,10 @@ impl InternalMethods for PrimitiveObject {
 
     fn internal_get(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
                 return Ok(string_desc.value.unwrap());
@@ -331,11 +331,11 @@ impl InternalMethods for PrimitiveObject {
 
     fn internal_set(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        value: Value<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if string
                 .get_property_descriptor(agent, property_key)
@@ -353,7 +353,7 @@ impl InternalMethods for PrimitiveObject {
         ordinary_set(agent, backing_object, property_key, value, receiver)
     }
 
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if string
                 .get_property_descriptor(agent, property_key)
@@ -372,7 +372,7 @@ impl InternalMethods for PrimitiveObject {
         }
     }
 
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Vec<PropertyKey<'gen>>> {
         if let Ok(string) = String::try_from(agent[self].data) {
             let len = string.utf16_len(agent);
             let mut keys = Vec::with_capacity(len + 1);
@@ -420,22 +420,22 @@ impl InternalMethods for PrimitiveObject {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub(crate) enum PrimitiveObjectData {
+pub(crate) enum PrimitiveObjectData<'gen> {
     Boolean(bool) = BOOLEAN_DISCRIMINANT,
-    String(HeapString) = STRING_DISCRIMINANT,
+    String(HeapString<'gen>) = STRING_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
-    Symbol(Symbol) = SYMBOL_DISCRIMINANT,
-    Number(HeapNumber) = NUMBER_DISCRIMINANT,
+    Symbol(Symbol<'gen>) = SYMBOL_DISCRIMINANT,
+    Number(HeapNumber<'gen>) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     Float(SmallF64) = FLOAT_DISCRIMINANT,
-    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt<'gen>) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
-impl TryFrom<PrimitiveObjectData> for BigInt {
+impl<'gen> TryFrom<PrimitiveObjectData<'gen>> for BigInt<'gen> {
     type Error = ();
 
-    fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
+    fn try_from(value: PrimitiveObjectData<'gen>) -> Result<Self, Self::Error> {
         match value {
             PrimitiveObjectData::BigInt(data) => Ok(BigInt::BigInt(data)),
             PrimitiveObjectData::SmallBigInt(data) => Ok(BigInt::SmallBigInt(data)),
@@ -444,10 +444,10 @@ impl TryFrom<PrimitiveObjectData> for BigInt {
     }
 }
 
-impl TryFrom<PrimitiveObjectData> for Number {
+impl<'gen> TryFrom<PrimitiveObjectData<'gen>> for Number<'gen> {
     type Error = ();
 
-    fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
+    fn try_from(value: PrimitiveObjectData<'gen>) -> Result<Self, Self::Error> {
         match value {
             PrimitiveObjectData::Number(data) => Ok(Number::Number(data)),
             PrimitiveObjectData::Integer(data) => Ok(Number::Integer(data)),
@@ -457,10 +457,10 @@ impl TryFrom<PrimitiveObjectData> for Number {
     }
 }
 
-impl TryFrom<PrimitiveObjectData> for String {
+impl<'gen> TryFrom<PrimitiveObjectData<'gen>> for String<'gen> {
     type Error = ();
 
-    fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
+    fn try_from(value: PrimitiveObjectData<'gen>) -> Result<Self, Self::Error> {
         match value {
             PrimitiveObjectData::String(data) => Ok(String::String(data)),
             PrimitiveObjectData::SmallString(data) => Ok(String::SmallString(data)),
@@ -469,10 +469,10 @@ impl TryFrom<PrimitiveObjectData> for String {
     }
 }
 
-impl TryFrom<PrimitiveObjectData> for Symbol {
+impl<'gen> TryFrom<PrimitiveObjectData<'gen>> for Symbol<'gen> {
     type Error = ();
 
-    fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
+    fn try_from(value: PrimitiveObjectData<'gen>) -> Result<Self, Self::Error> {
         match value {
             PrimitiveObjectData::Symbol(data) => Ok(data),
             _ => Err(()),
@@ -481,13 +481,13 @@ impl TryFrom<PrimitiveObjectData> for Symbol {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PrimitiveObjectHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
-    pub(crate) data: PrimitiveObjectData,
+pub struct PrimitiveObjectHeapData<'gen> {
+    pub(crate) object_index: Option<OrdinaryObject<'gen>>,
+    pub(crate) data: PrimitiveObjectData<'gen>,
 }
 
-impl PrimitiveObjectHeapData {
-    pub(crate) fn new_big_int_object(big_int: BigInt) -> Self {
+impl<'gen> PrimitiveObjectHeapData<'gen> {
+    pub(crate) fn new_big_int_object(big_int: BigInt<'gen>) -> Self {
         let data = match big_int {
             BigInt::BigInt(data) => PrimitiveObjectData::BigInt(data),
             BigInt::SmallBigInt(data) => PrimitiveObjectData::SmallBigInt(data),
@@ -505,7 +505,7 @@ impl PrimitiveObjectHeapData {
         }
     }
 
-    pub(crate) fn new_number_object(number: Number) -> Self {
+    pub(crate) fn new_number_object(number: Number<'gen>) -> Self {
         let data = match number {
             Number::Number(data) => PrimitiveObjectData::Number(data),
             Number::Integer(data) => PrimitiveObjectData::Integer(data),
@@ -517,7 +517,7 @@ impl PrimitiveObjectHeapData {
         }
     }
 
-    pub(crate) fn new_string_object(string: String) -> Self {
+    pub(crate) fn new_string_object(string: String<'gen>) -> Self {
         let data = match string {
             String::String(data) => PrimitiveObjectData::String(data),
             String::SmallString(data) => PrimitiveObjectData::SmallString(data),
@@ -528,7 +528,7 @@ impl PrimitiveObjectHeapData {
         }
     }
 
-    pub(crate) fn new_symbol_object(symbol: Symbol) -> Self {
+    pub(crate) fn new_symbol_object(symbol: Symbol<'gen>) -> Self {
         Self {
             object_index: None,
             data: PrimitiveObjectData::Symbol(symbol),
@@ -536,8 +536,8 @@ impl PrimitiveObjectHeapData {
     }
 }
 
-impl HeapMarkAndSweep for PrimitiveObjectHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for PrimitiveObjectHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.object_index.mark_values(queues);
         match self.data {
             PrimitiveObjectData::String(data) => data.mark_values(queues),
@@ -560,8 +560,8 @@ impl HeapMarkAndSweep for PrimitiveObjectHeapData {
     }
 }
 
-impl HeapMarkAndSweep for PrimitiveObject {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for PrimitiveObject<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.primitive_objects.push(*self);
     }
 
@@ -570,8 +570,8 @@ impl HeapMarkAndSweep for PrimitiveObject {
     }
 }
 
-impl CreateHeapData<PrimitiveObjectHeapData, PrimitiveObject> for Heap {
-    fn create(&mut self, data: PrimitiveObjectHeapData) -> PrimitiveObject {
+impl<'gen> CreateHeapData<PrimitiveObjectHeapData<'gen>, PrimitiveObject<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: PrimitiveObjectHeapData<'gen>) -> PrimitiveObject<'gen> {
         self.primitive_objects.push(Some(data));
         PrimitiveObject(PrimitiveObjectIndex::last(&self.primitive_objects))
     }

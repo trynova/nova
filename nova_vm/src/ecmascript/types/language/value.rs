@@ -51,7 +51,7 @@ use super::{
 /// ### [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[repr(u8)]
-pub enum Value {
+pub enum Value<'gen> {
     /// ### [6.1.1 The Undefined Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-undefined-type)
     #[default]
     Undefined = 1,
@@ -67,7 +67,7 @@ pub enum Value {
     /// UTF-8 string on the heap. Accessing the data must be done through the
     /// Agent. ECMAScript specification compliant UTF-16 indexing is
     /// implemented through an index mapping.
-    String(HeapString),
+    String(HeapString<'gen>),
     /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
     ///
     /// 7-byte UTF-8 string on the stack. End of the string is determined by
@@ -76,12 +76,12 @@ pub enum Value {
     SmallString(SmallString),
 
     /// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
-    Symbol(Symbol),
+    Symbol(Symbol<'gen>),
 
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// f64 on the heap. Accessing the data must be done through the Agent.
-    Number(HeapNumber),
+    Number(HeapNumber<'gen>),
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// 53-bit signed integer on the stack.
@@ -96,29 +96,29 @@ pub enum Value {
     ///
     /// Unlimited size integer data on the heap. Accessing the data must be
     /// done through the Agent.
-    BigInt(HeapBigInt),
+    BigInt(HeapBigInt<'gen>),
     /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
     /// 56-bit signed integer on the stack.
     SmallBigInt(SmallBigInt),
 
     /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
-    Object(OrdinaryObject),
+    Object(OrdinaryObject<'gen>),
 
     // Functions
-    BoundFunction(BoundFunction),
-    BuiltinFunction(BuiltinFunction),
-    ECMAScriptFunction(ECMAScriptFunction),
+    BoundFunction(BoundFunction<'gen>),
+    BuiltinFunction(BuiltinFunction<'gen>),
+    ECMAScriptFunction(ECMAScriptFunction<'gen>),
     // TODO: Figure out if all the special function types are wanted or if we'd
     // prefer to just keep them as internal variants of the three above ones.
     BuiltinGeneratorFunction,
     BuiltinConstructorFunction,
-    BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction),
+    BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'gen>),
     BuiltinPromiseCollectorFunction,
     BuiltinProxyRevokerFunction,
 
     // Boolean, Number, String, Symbol, BigInt objects
-    PrimitiveObject(PrimitiveObject),
+    PrimitiveObject(PrimitiveObject<'gen>),
 
     // Well-known object types
     // Roughly corresponding to 6.1.7.4 Well-Known Intrinsic Objects
@@ -129,36 +129,36 @@ pub enum Value {
     ///
     /// An unmapped arguments object is an ordinary object with an additional
     /// internal slot \[\[ParameterMap]] whose value is always **undefined**.
-    Arguments(OrdinaryObject),
+    Arguments(OrdinaryObject<'gen>),
     // TODO: MappedArguments(MappedArgumentsObject),
-    Array(Array),
-    ArrayBuffer(ArrayBuffer),
-    DataView(DataView),
-    Date(Date),
-    Error(Error),
-    FinalizationRegistry(FinalizationRegistry),
-    Map(Map),
-    Promise(Promise),
-    Proxy(Proxy),
-    RegExp(RegExp),
-    Set(Set),
-    SharedArrayBuffer(SharedArrayBuffer),
-    WeakMap(WeakMap),
-    WeakRef(WeakRef),
-    WeakSet(WeakSet),
+    Array(Array<'gen>),
+    ArrayBuffer(ArrayBuffer<'gen>),
+    DataView(DataView<'gen>),
+    Date(Date<'gen>),
+    Error(Error<'gen>),
+    FinalizationRegistry(FinalizationRegistry<'gen>),
+    Map(Map<'gen>),
+    Promise(Promise<'gen>),
+    Proxy(Proxy<'gen>),
+    RegExp(RegExp<'gen>),
+    Set(Set<'gen>),
+    SharedArrayBuffer(SharedArrayBuffer<'gen>),
+    WeakMap(WeakMap<'gen>),
+    WeakRef(WeakRef<'gen>),
+    WeakSet(WeakSet<'gen>),
 
     // TypedArrays
-    Int8Array(TypedArrayIndex),
-    Uint8Array(TypedArrayIndex),
-    Uint8ClampedArray(TypedArrayIndex),
-    Int16Array(TypedArrayIndex),
-    Uint16Array(TypedArrayIndex),
-    Int32Array(TypedArrayIndex),
-    Uint32Array(TypedArrayIndex),
-    BigInt64Array(TypedArrayIndex),
-    BigUint64Array(TypedArrayIndex),
-    Float32Array(TypedArrayIndex),
-    Float64Array(TypedArrayIndex),
+    Int8Array(TypedArrayIndex<'gen>),
+    Uint8Array(TypedArrayIndex<'gen>),
+    Uint8ClampedArray(TypedArrayIndex<'gen>),
+    Int16Array(TypedArrayIndex<'gen>),
+    Uint16Array(TypedArrayIndex<'gen>),
+    Int32Array(TypedArrayIndex<'gen>),
+    Uint32Array(TypedArrayIndex<'gen>),
+    BigInt64Array(TypedArrayIndex<'gen>),
+    BigUint64Array(TypedArrayIndex<'gen>),
+    Float32Array(TypedArrayIndex<'gen>),
+    Float64Array(TypedArrayIndex<'gen>),
 
     // Iterator objects
     // TODO: Figure out if these are needed at all.
@@ -168,29 +168,29 @@ pub enum Value {
     Generator(Generator),
 
     // ECMAScript Module
-    Module(Module),
+    Module(Module<'gen>),
 
     // Embedder objects
-    EmbedderObject(EmbedderObject) = 0x7f,
+    EmbedderObject(EmbedderObject<'gen>) = 0x7f,
 }
 
 /// We want to guarantee that all handles to JS values are register sized. This
 /// assert must never be removed or broken.
-const _VALUE_SIZE_IS_WORD: () = assert!(size_of::<Value>() == size_of::<usize>());
-/// We may also want to keep Option<Value> register sized so that eg. holes in
+const _VALUE_SIZE_IS_WORD: () = assert!(size_of::<Value<'_>>() == size_of::<usize>());
+/// We may also want to keep Option<Value<'gen>> register sized so that eg. holes in
 /// arrays do not start requiring extra bookkeeping.
-const _OPTIONAL_VALUE_SIZE_IS_WORD: () = assert!(size_of::<Option<Value>>() == size_of::<usize>());
+const _OPTIONAL_VALUE_SIZE_IS_WORD: () = assert!(size_of::<Option<Value<'_>>>() == size_of::<usize>());
 
 #[derive(Debug, Clone, Copy)]
 pub enum PreferredType {
     String,
     Number,
 }
-const fn value_discriminant(value: Value) -> u8 {
+const fn value_discriminant(value: Value<'static>) -> u8 {
     // SAFETY: Because `Self` is marked `repr(u8)`, its layout is a `repr(C)` `union`
     // between `repr(C)` structs, each of which has the `u8` discriminant as its first
     // field, so we can read the discriminant without offsetting the pointer.
-    unsafe { *(&value as *const Value).cast::<u8>() }
+    unsafe { *std::mem::transmute::<&Value<'_>, *const Value<'_>>(&value).cast::<u8>() }
 }
 
 pub(crate) const UNDEFINED_DISCRIMINANT: u8 = value_discriminant(Value::Undefined);
@@ -281,20 +281,20 @@ pub(crate) const MODULE_DISCRIMINANT: u8 = value_discriminant(Value::Module(Modu
 pub(crate) const EMBEDDER_OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::EmbedderObject(EmbedderObject::_def()));
 
-impl Value {
-    pub fn from_str(agent: &mut Agent, str: &str) -> Value {
+impl<'gen> Value<'gen> {
+    pub fn from_str<'gen>(agent: &mut Agent<'gen>, str: &str) -> Self {
         String::from_str(agent, str).into_value()
     }
 
-    pub fn from_string(agent: &mut Agent, string: std::string::String) -> Value {
+    pub fn from_string<'gen>(agent: &mut Agent<'gen>, string: std::string::String) -> Self {
         String::from_string(agent, string).into_value()
     }
 
-    pub fn from_static_str(agent: &mut Agent, str: &'static str) -> Value {
+    pub fn from_static_str<'gen>(agent: &mut Agent<'gen>, str: &'static str) -> Self {
         String::from_static_str(agent, str).into_value()
     }
 
-    pub fn from_f64(agent: &mut Agent, value: f64) -> Value {
+    pub fn from_f64<'gen>(agent: &mut Agent<'gen>, value: f64) -> Self {
         Number::from_f64(agent, value).into_value()
     }
 
@@ -353,31 +353,31 @@ impl Value {
         matches!(self, Value::Undefined)
     }
 
-    pub fn is_pos_zero(self, agent: &Agent) -> bool {
+    pub fn is_pos_zero(self, agent: &Agent<'gen>) -> bool {
         Number::try_from(self)
             .map(|n| n.is_pos_zero(agent))
             .unwrap_or(false)
     }
 
-    pub fn is_neg_zero(self, agent: &Agent) -> bool {
+    pub fn is_neg_zero(self, agent: &Agent<'gen>) -> bool {
         Number::try_from(self)
             .map(|n| n.is_neg_zero(agent))
             .unwrap_or(false)
     }
 
-    pub fn is_pos_infinity(self, agent: &Agent) -> bool {
+    pub fn is_pos_infinity(self, agent: &Agent<'gen>) -> bool {
         Number::try_from(self)
             .map(|n| n.is_pos_infinity(agent))
             .unwrap_or(false)
     }
 
-    pub fn is_neg_infinity(self, agent: &Agent) -> bool {
+    pub fn is_neg_infinity(self, agent: &Agent<'gen>) -> bool {
         Number::try_from(self)
             .map(|n| n.is_neg_infinity(agent))
             .unwrap_or(false)
     }
 
-    pub fn is_nan(self, agent: &Agent) -> bool {
+    pub fn is_nan(self, agent: &Agent<'gen>) -> bool {
         Number::try_from(self)
             .map(|n| n.is_nan(agent))
             .unwrap_or(false)
@@ -406,33 +406,33 @@ impl Value {
         }
     }
 
-    pub fn to_number(self, agent: &mut Agent) -> JsResult<Number> {
+    pub fn to_number(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Number<'gen>> {
         to_number(agent, self)
     }
 
-    pub fn to_bigint(self, agent: &mut Agent) -> JsResult<BigInt> {
+    pub fn to_bigint(self, agent: &mut Agent<'gen>) -> JsResult<'gen, BigInt<'gen>> {
         to_big_int(agent, self)
     }
 
-    pub fn to_numeric(self, agent: &mut Agent) -> JsResult<Numeric> {
+    pub fn to_numeric(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Numeric<'gen>> {
         to_numeric(agent, self)
     }
 
-    pub fn to_int32(self, agent: &mut Agent) -> JsResult<i32> {
+    pub fn to_int32(self, agent: &mut Agent<'gen>) -> JsResult<'gen, i32> {
         to_int32(agent, self)
     }
 
-    pub fn to_uint32(self, agent: &mut Agent) -> JsResult<u32> {
+    pub fn to_uint32(self, agent: &mut Agent<'gen>) -> JsResult<'gen, u32> {
         to_uint32(agent, self)
     }
 
-    pub fn to_string(self, agent: &mut Agent) -> JsResult<String> {
+    pub fn to_string(self, agent: &mut Agent<'gen>) -> JsResult<'gen, String<'gen>> {
         to_string(agent, self)
     }
 
     /// A string conversion that will never throw, meant for things like
     /// displaying exceptions.
-    pub fn string_repr(self, agent: &mut Agent) -> String {
+    pub fn string_repr(self, agent: &mut Agent<'gen>) -> String<'gen> {
         if let Value::Symbol(symbol_idx) = self {
             // ToString of a symbol always throws. We use the descriptive
             // string instead (the result of `String(symbol)`).
@@ -448,7 +448,7 @@ impl Value {
     }
 
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
-    pub fn to_real(self, agent: &mut Agent) -> JsResult<f64> {
+    pub fn to_real(self, agent: &mut Agent<'gen>) -> JsResult<'gen, f64> {
         Ok(match self {
             Value::Number(n) => agent[n],
             Value::Integer(i) => i.into_i64() as f64,
@@ -459,22 +459,22 @@ impl Value {
     }
 }
 
-impl From<bool> for Value {
+impl From<bool> for Value<'static> {
     fn from(value: bool) -> Self {
         Value::Boolean(value)
     }
 }
 
-impl<T> From<Option<T>> for Value
+impl<T> From<Option<T>> for Value<'static>
 where
-    T: Into<Value>,
+    T: Into<Value<'static>>,
 {
     fn from(value: Option<T>) -> Self {
         value.map_or(Value::Undefined, |v| v.into())
     }
 }
 
-impl TryFrom<&str> for Value {
+impl TryFrom<&str> for Value<'static> {
     type Error = ();
     fn try_from(value: &str) -> Result<Self, ()> {
         if let Ok(data) = value.try_into() {
@@ -485,36 +485,36 @@ impl TryFrom<&str> for Value {
     }
 }
 
-impl TryFrom<f64> for Value {
+impl TryFrom<f64> for Value<'static> {
     type Error = ();
     fn try_from(value: f64) -> Result<Self, ()> {
         Number::try_from(value).map(|v| v.into())
     }
 }
 
-impl From<Number> for Value {
-    fn from(value: Number) -> Self {
+impl<'gen> From<Number<'gen>> for Value<'gen> {
+    fn from(value: Number<'gen>) -> Self {
         value.into_value()
     }
 }
 
-impl From<f32> for Value {
+impl From<f32> for Value<'static> {
     fn from(value: f32) -> Self {
         Value::SmallF64(SmallF64::from(value))
     }
 }
 
-impl TryFrom<i64> for Value {
+impl TryFrom<i64> for Value<'static> {
     type Error = ();
     fn try_from(value: i64) -> Result<Self, ()> {
         Ok(Value::Integer(SmallInteger::try_from(value)?))
     }
 }
 
-impl TryFrom<Value> for bool {
+impl<'gen> TryFrom<Value<'gen>> for bool {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'gen>) -> Result<Self, Self::Error> {
         match value {
             Value::Boolean(bool) => Ok(bool),
             _ => Err(()),
@@ -524,7 +524,7 @@ impl TryFrom<Value> for bool {
 
 macro_rules! impl_value_from_n {
     ($size: ty) => {
-        impl From<$size> for Value {
+        impl From<$size> for Value<'static> {
             fn from(value: $size) -> Self {
                 Value::Integer(SmallInteger::from(value))
             }
@@ -539,15 +539,15 @@ impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
 
-impl IntoValue for Value {
+impl<'gen> IntoValue<'gen> for Value<'gen> {
     #[inline(always)]
-    fn into_value(self) -> Value {
+    fn into_value(self) -> Value<'gen> {
         self
     }
 }
 
-impl HeapMarkAndSweep for Value {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Value<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         match self {
             Value::Undefined
             | Value::Null

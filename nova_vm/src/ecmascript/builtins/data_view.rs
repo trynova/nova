@@ -20,9 +20,9 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct DataView(pub(crate) DataViewIndex);
+pub struct DataView<'gen>(pub(crate) DataViewIndex<'gen>);
 
-impl DataView {
+impl<'gen> DataView<'gen> {
     pub(crate) const fn _def() -> Self {
         Self(DataViewIndex::from_u32_index(0))
     }
@@ -32,54 +32,54 @@ impl DataView {
     }
 }
 
-impl From<DataViewIndex> for DataView {
-    fn from(value: DataViewIndex) -> Self {
+impl<'gen> From<DataViewIndex<'gen>> for DataView<'gen> {
+    fn from(value: DataViewIndex<'gen>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for DataView {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for DataView<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for DataView {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for DataView<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<DataView> for Value {
-    fn from(val: DataView) -> Self {
+impl<'gen> From<DataView<'gen>> for Value<'gen> {
+    fn from(val: DataView<'gen>) -> Self {
         Value::DataView(val)
     }
 }
 
-impl From<DataView> for Object {
-    fn from(val: DataView) -> Self {
+impl<'gen> From<DataView<'gen>> for Object<'gen> {
+    fn from(val: DataView<'gen>) -> Self {
         Object::DataView(val)
     }
 }
 
-impl Index<DataView> for Agent {
-    type Output = DataViewHeapData;
+impl<'gen> Index<DataView<'gen>> for Agent<'gen> {
+    type Output = DataViewHeapData<'gen>;
 
-    fn index(&self, index: DataView) -> &Self::Output {
+    fn index(&self, index: DataView<'gen>) -> &Self::Output {
         &self.heap.data_views[index]
     }
 }
 
-impl IndexMut<DataView> for Agent {
-    fn index_mut(&mut self, index: DataView) -> &mut Self::Output {
+impl<'gen> IndexMut<DataView<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: DataView<'gen>) -> &mut Self::Output {
         &mut self.heap.data_views[index]
     }
 }
 
-impl Index<DataView> for Vec<Option<DataViewHeapData>> {
-    type Output = DataViewHeapData;
+impl<'gen> Index<DataView<'gen>> for Vec<Option<DataViewHeapData<'gen>>> {
+    type Output = DataViewHeapData<'gen>;
 
-    fn index(&self, index: DataView) -> &Self::Output {
+    fn index(&self, index: DataView<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("DataView out of bounds")
             .as_ref()
@@ -87,8 +87,8 @@ impl Index<DataView> for Vec<Option<DataViewHeapData>> {
     }
 }
 
-impl IndexMut<DataView> for Vec<Option<DataViewHeapData>> {
-    fn index_mut(&mut self, index: DataView) -> &mut Self::Output {
+impl<'gen> IndexMut<DataView<'gen>> for Vec<Option<DataViewHeapData<'gen>>> {
+    fn index_mut(&mut self, index: DataView<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("DataView out of bounds")
             .as_mut()
@@ -96,15 +96,15 @@ impl IndexMut<DataView> for Vec<Option<DataViewHeapData>> {
     }
 }
 
-impl InternalSlots for DataView {
+impl<'gen> InternalSlots<'gen> for DataView<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::DataView;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         let prototype = agent
             .current_realm()
             .intrinsics()
@@ -120,17 +120,17 @@ impl InternalSlots for DataView {
     }
 }
 
-impl InternalMethods for DataView {}
+impl<'gen> InternalMethods<'gen> for DataView<'gen> {}
 
-impl CreateHeapData<DataViewHeapData, DataView> for Heap {
+impl<'gen> CreateHeapData<DataViewHeapData<'gen>, DataView<'gen>> for Heap<'gen> {
     fn create(&mut self, data: DataViewHeapData) -> DataView {
         self.data_views.push(Some(data));
         DataView::from(DataViewIndex::last(&self.data_views))
     }
 }
 
-impl HeapMarkAndSweep for DataView {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for DataView<'gen> {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues<'gen>) {
         queues.data_views.push(*self);
     }
 

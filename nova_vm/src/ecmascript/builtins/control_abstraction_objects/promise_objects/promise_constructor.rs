@@ -30,7 +30,7 @@ use super::promise_abstract_operations::{
 
 pub(crate) struct PromiseConstructor;
 impl Builtin for PromiseConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Promise;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Promise;
 
     const LENGTH: u8 = 1;
 
@@ -43,60 +43,60 @@ struct PromiseAll;
 impl Builtin for PromiseAll {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromiseConstructor::all);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.all;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.all;
 }
 struct PromiseAllSettled;
 impl Builtin for PromiseAllSettled {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromiseConstructor::all_settled);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.allSettled;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.allSettled;
 }
 struct PromiseAny;
 impl Builtin for PromiseAny {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromiseConstructor::any);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.any;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.any;
 }
 struct PromiseRace;
 impl Builtin for PromiseRace {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromiseConstructor::race);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.race;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.race;
 }
 struct PromiseReject;
 impl Builtin for PromiseReject {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromiseConstructor::reject);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.reject;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.reject;
 }
 struct PromiseResolve;
 impl Builtin for PromiseResolve {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromiseConstructor::resolve);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.resolve;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.resolve;
 }
 struct PromiseWithResolvers;
 impl Builtin for PromiseWithResolvers {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromiseConstructor::with_resolvers);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.withResolvers;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.withResolvers;
 }
 struct PromiseGetSpecies;
 impl Builtin for PromiseGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromiseConstructor::get_species);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
-    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbolIndexes::Species.to_property_key());
 }
 impl BuiltinGetter for PromiseGetSpecies {}
 
 impl PromiseConstructor {
-    fn behaviour(
-        agent: &mut Agent,
-        _this_value: Value,
-        args: ArgumentsList,
-        new_target: Option<Object>,
-    ) -> JsResult<Value> {
+    fn behaviour<'gen>(
+        agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        args: ArgumentsList<'_, 'gen>,
+        new_target: Option<Object<'gen>>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -169,25 +169,25 @@ impl PromiseConstructor {
         Ok(promise.into_value())
     }
 
-    fn all(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn all<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn all_settled(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn all_settled<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
-    fn any(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn any<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
-    fn race(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn race<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn reject(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn reject<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
@@ -210,7 +210,7 @@ impl PromiseConstructor {
         Ok(promise.into_value())
     }
 
-    fn resolve(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn resolve<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
@@ -221,19 +221,19 @@ impl PromiseConstructor {
         Ok(Promise::resolve(agent, arguments.get(0)).into_value())
     }
 
-    fn with_resolvers(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn with_resolvers<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_species(_: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_species(_: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         Ok(this_value)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let promise_prototype = intrinsics.promise_prototype();
 

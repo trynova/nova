@@ -13,37 +13,37 @@ pub(crate) struct AsyncFromSyncIteratorPrototype;
 
 struct AsyncFromSyncIteratorPrototypeNext;
 impl Builtin for AsyncFromSyncIteratorPrototypeNext {
-    const NAME: String = BUILTIN_STRING_MEMORY.next;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.next;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(AsyncFromSyncIteratorPrototype::next);
 }
 struct AsyncFromSyncIteratorPrototypeReturn;
 impl Builtin for AsyncFromSyncIteratorPrototypeReturn {
-    const NAME: String = BUILTIN_STRING_MEMORY.r#return;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.r#return;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(AsyncFromSyncIteratorPrototype::r#return);
 }
 struct AsyncFromSyncIteratorPrototypeThrow;
 impl Builtin for AsyncFromSyncIteratorPrototypeThrow {
-    const NAME: String = BUILTIN_STRING_MEMORY.throw;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.throw;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(AsyncFromSyncIteratorPrototype::throw);
 }
 
 impl AsyncFromSyncIteratorPrototype {
-    fn next(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn next<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn r#return(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn r#return(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn throw(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn throw<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let async_iterator_prototype = intrinsics.async_iterator_prototype();
         let this = intrinsics.async_from_sync_iterator_prototype();

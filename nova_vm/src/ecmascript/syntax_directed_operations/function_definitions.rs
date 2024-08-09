@@ -42,12 +42,12 @@ use oxc_ast::ast::{self};
 /// The syntax-directed operation InstantiateOrdinaryFunctionObject takes
 /// arguments env (an Environment Record) and privateEnv (a PrivateEnvironment
 /// Record or null) and returns an ECMAScript function object.
-pub(crate) fn instantiate_ordinary_function_object(
-    agent: &mut Agent,
+pub(crate) fn instantiate_ordinary_function_object<'gen>(
+    agent: &mut Agent<'gen>,
     function: &ast::Function<'_>,
-    env: EnvironmentIndex,
-    private_env: Option<PrivateEnvironmentIndex>,
-) -> ECMAScriptFunction {
+    env: EnvironmentIndex<'gen>,
+    private_env: Option<PrivateEnvironmentIndex<'gen>>,
+) -> ECMAScriptFunction<'gen> {
     // FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
     let pk_name = if let Some(id) = &function.id {
         // 1. Let name be StringValue of BindingIdentifier.
@@ -125,11 +125,11 @@ pub(crate) fn instantiate_ordinary_function_object(
 // 15.2.5 Runtime Semantics: InstantiateOrdinaryFunctionExpression
 // The syntax-directed operation InstantiateOrdinaryFunctionExpression takes optional argument name (a property key or a Private Name) and returns an ECMAScript function object. It is defined piecewise over the following productions:
 
-pub(crate) fn instantiate_ordinary_function_expression(
-    agent: &mut Agent,
+pub(crate) fn instantiate_ordinary_function_expression<'gen>(
+    agent: &mut Agent<'gen>,
     function: &FunctionExpression,
-    name: Option<String>,
-) -> ECMAScriptFunction {
+    name: Option<String<'gen>>,
+) -> ECMAScriptFunction<'gen> {
     if let Some(_identifier) = function.identifier {
         todo!();
     } else {
@@ -179,11 +179,11 @@ pub(crate) fn instantiate_ordinary_function_expression(
 /// functionObject (an ECMAScript function object) and argumentsList (a List of
 /// ECMAScript language values) and returns either a normal completion
 /// containing an ECMAScript language value or an abrupt completion.
-pub(crate) fn evaluate_function_body(
-    agent: &mut Agent,
-    function_object: ECMAScriptFunction,
-    arguments_list: ArgumentsList,
-) -> JsResult<Value> {
+pub(crate) fn evaluate_function_body<'gen>(
+    agent: &mut Agent<'gen>,
+    function_object: ECMAScriptFunction<'gen>,
+    arguments_list: ArgumentsList<'_, 'gen>,
+) -> JsResult<'gen, Value<'gen>> {
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     function_declaration_instantiation(agent, function_object, arguments_list)?;
     // 2. Return ? Evaluation of FunctionStatementList.

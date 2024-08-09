@@ -24,9 +24,9 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Generator(pub(crate) GeneratorIndex);
+pub struct Generator<'gen>(pub(crate) GeneratorIndex<'gen>);
 
-impl Generator {
+impl<'gen> Generator<'gen> {
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -36,7 +36,7 @@ impl Generator {
     }
 
     /// [27.5.3.3 GeneratorResume ( generator, value, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresume)
-    pub(crate) fn resume(self, agent: &mut Agent, value: Value) -> JsResult<Object> {
+    pub(crate) fn resume(self, agent: &mut Agent<'gen>, value: Value<'gen>) -> JsResult<'gen, Object<'gen>> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
             GeneratorState::Suspended { .. } => {
@@ -339,18 +339,18 @@ impl HeapMarkAndSweep for Generator {
 }
 
 #[derive(Debug, Default)]
-pub struct GeneratorHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
-    pub(crate) generator_state: Option<GeneratorState>,
+pub struct GeneratorHeapData<'gen> {
+    pub(crate) object_index: Option<OrdinaryObject<'gen>>,
+    pub(crate) generator_state: Option<GeneratorState<'gen>>,
 }
 
 #[derive(Debug)]
-pub(crate) enum GeneratorState {
+pub(crate) enum GeneratorState<'gen> {
     // SUSPENDED-START has `vm` set to None, SUSPENDED-YIELD has it set to Some.
     Suspended {
-        vm: Option<Vm>,
-        executable: Executable,
-        execution_context: ExecutionContext,
+        vm: Option<Vm<'gen>>,
+        executable: Executable<'gen>,
+        execution_context: ExecutionContext<'gen>,
     },
     Executing,
     Completed,

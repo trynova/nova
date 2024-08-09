@@ -4,9 +4,9 @@
 
 use super::Primitive;
 
-pub trait IntoPrimitive
+pub trait IntoPrimitive<'gen>
 where
     Self: Sized + Copy,
 {
-    fn into_primitive(self) -> Primitive;
+    fn into_primitive(self) -> Primitive<'gen>;
 }

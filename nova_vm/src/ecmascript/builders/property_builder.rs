@@ -33,8 +33,8 @@ pub struct CreatorSetAccess(Function);
 
 #[derive(Clone, Copy)]
 pub struct CreatorGetSetAccessor {
-    get: Function,
-    set: Function,
+    get: Function<'gen>,
+    set: Function<'gen>,
 }
 
 #[derive(Clone, Copy)]
@@ -64,7 +64,7 @@ impl<'agent> PropertyBuilder<'agent, NoKey, NoDefinition> {
 }
 
 impl<'agent, D> PropertyBuilder<'agent, NoKey, D> {
-    pub fn with_key(self, key: PropertyKey) -> PropertyBuilder<'agent, CreatorKey, D> {
+    pub fn with_key(self, key: PropertyKey<'gen>) -> PropertyBuilder<'agent, CreatorKey, D> {
         PropertyBuilder {
             agent: self.agent,
             key: CreatorKey(key),
@@ -76,7 +76,7 @@ impl<'agent, D> PropertyBuilder<'agent, NoKey, D> {
 }
 
 impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
-    pub fn with_value(self, value: Value) -> PropertyBuilder<'agent, K, CreatorValue> {
+    pub fn with_value(self, value: Value<'gen>) -> PropertyBuilder<'agent, K, CreatorValue> {
         PropertyBuilder {
             agent: self.agent,
             key: self.key,
@@ -88,7 +88,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_value_readonly(
         self,
-        value: Value,
+        value: Value<'gen>,
     ) -> PropertyBuilder<'agent, K, CreatorReadOnlyValue> {
         PropertyBuilder {
             agent: self.agent,
@@ -101,7 +101,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_value_creator(
         self,
-        creator: impl FnOnce(&mut Agent) -> Value,
+        creator: impl FnOnce(&mut Agent<'gen>) -> Value<'gen>,
     ) -> PropertyBuilder<'agent, K, CreatorValue> {
         let value = creator(self.agent);
         PropertyBuilder {
@@ -115,7 +115,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_value_creator_readonly(
         self,
-        creator: impl FnOnce(&mut Agent) -> Value,
+        creator: impl FnOnce(&mut Agent<'gen>) -> Value<'gen>,
     ) -> PropertyBuilder<'agent, K, CreatorReadOnlyValue> {
         let value = creator(self.agent);
         PropertyBuilder {
@@ -131,7 +131,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
     pub fn with_getter_function(
         self,
-        getter: Function,
+        getter: Function<'gen>,
     ) -> PropertyBuilder<'agent, K, CreatorGetAccessor> {
         PropertyBuilder {
             agent: self.agent,
@@ -144,7 +144,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_getter(
         self,
-        creator: impl FnOnce(&mut Agent) -> Function,
+        creator: impl FnOnce(&mut Agent<'gen>) -> Function,
     ) -> PropertyBuilder<'agent, K, CreatorGetAccessor> {
         let getter = creator(self.agent);
         PropertyBuilder {
@@ -158,7 +158,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_setter_function(
         self,
-        setter: Function,
+        setter: Function<'gen>,
     ) -> PropertyBuilder<'agent, K, CreatorSetAccess> {
         PropertyBuilder {
             agent: self.agent,
@@ -171,7 +171,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_setter(
         self,
-        creator: impl FnOnce(&mut Agent) -> Function,
+        creator: impl FnOnce(&mut Agent<'gen>) -> Function,
     ) -> PropertyBuilder<'agent, K, CreatorSetAccess> {
         let setter = creator(self.agent);
         PropertyBuilder {
@@ -185,8 +185,8 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_getter_and_setter_functions(
         self,
-        getter: Function,
-        setter: Function,
+        getter: Function<'gen>,
+        setter: Function<'gen>,
     ) -> PropertyBuilder<'agent, K, CreatorGetSetAccessor> {
         PropertyBuilder {
             agent: self.agent,
@@ -202,7 +202,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_getter_and_setter(
         self,
-        creator: impl FnOnce(&mut Agent) -> (Function, Function),
+        creator: impl FnOnce(&mut Agent<'gen>) -> (Function, Function),
     ) -> PropertyBuilder<'agent, K, CreatorGetSetAccessor> {
         let (getter, setter) = creator(self.agent);
         PropertyBuilder {
@@ -243,7 +243,7 @@ impl<'agent, K, D> PropertyBuilder<'agent, K, D> {
 }
 
 impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorValue> {
-    pub fn build(self) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>) {
+    pub fn build(self) -> (PropertyKey, Option<ElementDescriptor<'gen>>, Option<Value<'gen>>) {
         (
             self.key.0,
             ElementDescriptor::new_with_wec(true, self.enumerable, self.configurable),
@@ -253,7 +253,7 @@ impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorValue> {
 }
 
 impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorReadOnlyValue> {
-    pub fn build(self) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>) {
+    pub fn build(self) -> (PropertyKey, Option<ElementDescriptor<'gen>>, Option<Value<'gen>>) {
         (
             self.key.0,
             ElementDescriptor::new_with_wec(false, self.enumerable, self.configurable),
@@ -263,7 +263,7 @@ impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorReadOnlyValue> {
 }
 
 impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorGetAccessor> {
-    pub fn build(self) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>) {
+    pub fn build(self) -> (PropertyKey, Option<ElementDescriptor<'gen>>, Option<Value<'gen>>) {
         (
             self.key.0,
             Some(ElementDescriptor::new_with_get_ec(
@@ -277,7 +277,7 @@ impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorGetAccessor> {
 }
 
 impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorSetAccess> {
-    pub fn build(self) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>) {
+    pub fn build(self) -> (PropertyKey, Option<ElementDescriptor<'gen>>, Option<Value<'gen>>) {
         (
             self.key.0,
             Some(ElementDescriptor::new_with_set_ec(
@@ -291,7 +291,7 @@ impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorSetAccess> {
 }
 
 impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorGetSetAccessor> {
-    pub fn build(self) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>) {
+    pub fn build(self) -> (PropertyKey, Option<ElementDescriptor<'gen>>, Option<Value<'gen>>) {
         (
             self.key.0,
             Some(ElementDescriptor::new_with_get_set_ec(

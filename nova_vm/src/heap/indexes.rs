@@ -32,56 +32,63 @@ use std::{marker::PhantomData, mem::size_of, num::NonZeroU32};
 /// vector of `T`s. Due to the non-zero value, the offset
 /// in the vector is offset by one.
 ///
-/// This index implies a tracing reference count from this
-/// struct to T at the given index.
-pub struct BaseIndex<T: ?Sized>(NonZeroU32, PhantomData<T>);
+/// This index implies a tracing garbage collection from this
+/// struct to a T at the given index.
+/// 
+/// ### Lifetime
+/// 
+/// The index contains a `'gen` lifetime. This is the "generation" of a
+/// JavaScript value. An old generation's index may no longer point to the same
+/// value after garbage collection.
+#[repr(transparent)]
+pub struct BaseIndex<'gen, T: ?Sized>(NonZeroU32, PhantomData<&'gen T>);
 
 const _INDEX_SIZE_IS_U32: () = assert!(size_of::<BaseIndex<()>>() == size_of::<u32>());
 const _OPTION_INDEX_SIZE_IS_U32: () =
     assert!(size_of::<Option<BaseIndex<()>>>() == size_of::<u32>());
 
-impl<T: ?Sized> Debug for BaseIndex<T> {
+impl<'gen, T: ?Sized> Debug for BaseIndex<'gen, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         assert!(self.0.get() != 0);
         (&self.0.get() - 1).fmt(f)
     }
 }
 
-impl<T: ?Sized> Clone for BaseIndex<T> {
+impl<'gen, T: ?Sized> Clone for BaseIndex<'gen, T> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<T: ?Sized> Copy for BaseIndex<T> {}
+impl<'gen, T: ?Sized> Copy for BaseIndex<'gen, T> {}
 
-impl<T: ?Sized> PartialEq for BaseIndex<T> {
+impl<'gen, T: ?Sized> PartialEq for BaseIndex<'gen, T> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl<T: ?Sized> Eq for BaseIndex<T> {}
+impl<'gen, T: ?Sized> Eq for BaseIndex<'gen, T> {}
 
-impl<T: ?Sized> PartialOrd for BaseIndex<T> {
+impl<'gen, T: ?Sized> PartialOrd for BaseIndex<'gen, T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T: ?Sized> Ord for BaseIndex<T> {
+impl<'gen, T: ?Sized> Ord for BaseIndex<'gen, T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0.cmp(&other.0)
     }
 }
 
-impl<T: ?Sized> Hash for BaseIndex<T> {
+impl<'gen, T: ?Sized> Hash for BaseIndex<'gen, T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }
 }
 
-impl<T: ?Sized> BaseIndex<T> {
+impl<T: ?Sized> BaseIndex<'_, T> {
     pub const fn into_index(self) -> usize {
         self.0.get() as usize - 1
     }
@@ -97,7 +104,9 @@ impl<T: ?Sized> BaseIndex<T> {
     pub const fn into_u32(self) -> u32 {
         self.0.get()
     }
+}
 
+impl<'gen, T: ?Sized> BaseIndex<'gen, T> {
     pub const fn from_index(value: usize) -> Self {
         let value = value as u32;
         assert!(value != u32::MAX);
@@ -137,60 +146,60 @@ impl<T: ?Sized> BaseIndex<T> {
     }
 }
 
-impl<T> Default for BaseIndex<T> {
+impl<'gen, T> Default for BaseIndex<'gen, T> {
     fn default() -> Self {
         Self::from_u32_index(0)
     }
 }
 
-pub type ArrayBufferIndex = BaseIndex<ArrayBufferHeapData>;
-pub type ArrayIndex = BaseIndex<ArrayHeapData>;
-pub type BigIntIndex = BaseIndex<BigIntHeapData>;
-pub type BoundFunctionIndex = BaseIndex<BoundFunctionHeapData>;
-pub type BuiltinFunctionIndex = BaseIndex<BuiltinFunctionHeapData>;
-pub type DataViewIndex = BaseIndex<DataViewHeapData>;
-pub type DateIndex = BaseIndex<DateHeapData>;
-pub type ECMAScriptFunctionIndex = BaseIndex<ECMAScriptFunctionHeapData>;
-pub type ElementIndex = BaseIndex<[Option<Value>]>;
-pub type EmbedderObjectIndex = BaseIndex<EmbedderObjectHeapData>;
-pub type ErrorIndex = BaseIndex<ErrorHeapData>;
-pub type FinalizationRegistryIndex = BaseIndex<FinalizationRegistryHeapData>;
-pub type GeneratorIndex = BaseIndex<GeneratorHeapData>;
-pub type MapIndex = BaseIndex<MapHeapData>;
-pub type NumberIndex = BaseIndex<NumberHeapData>;
-pub type ObjectIndex = BaseIndex<ObjectHeapData>;
-pub type PrimitiveObjectIndex = BaseIndex<PrimitiveObjectHeapData>;
-pub type PromiseIndex = BaseIndex<PromiseHeapData>;
-pub type ProxyIndex = BaseIndex<ProxyHeapData>;
-pub type RegExpIndex = BaseIndex<RegExpHeapData>;
-pub type SetIndex = BaseIndex<SetHeapData>;
-pub type SharedArrayBufferIndex = BaseIndex<SharedArrayBufferHeapData>;
-pub type StringIndex = BaseIndex<StringHeapData>;
-pub type SymbolIndex = BaseIndex<SymbolHeapData>;
-pub type TypedArrayIndex = BaseIndex<TypedArrayHeapData>;
-pub type WeakMapIndex = BaseIndex<WeakMapHeapData>;
-pub type WeakRefIndex = BaseIndex<WeakRefHeapData>;
-pub type WeakSetIndex = BaseIndex<WeakSetHeapData>;
+pub type ArrayBufferIndex<'gen> = BaseIndex<'gen, ArrayBufferHeapData<'gen>>;
+pub type ArrayIndex<'gen> = BaseIndex<'gen, ArrayHeapData<'gen>>;
+pub type BigIntIndex<'gen> = BaseIndex<'gen, BigIntHeapData>;
+pub type BoundFunctionIndex<'gen> = BaseIndex<'gen, BoundFunctionHeapData<'gen>>;
+pub type BuiltinFunctionIndex<'gen> = BaseIndex<'gen, BuiltinFunctionHeapData<'gen>>;
+pub type DataViewIndex<'gen> = BaseIndex<'gen, DataViewHeapData<'gen>>;
+pub type DateIndex<'gen> = BaseIndex<'gen, DateHeapData<'gen>>;
+pub type ECMAScriptFunctionIndex<'gen> = BaseIndex<'gen, ECMAScriptFunctionHeapData<'gen>>;
+pub type ElementIndex<'gen> = BaseIndex<'gen, [Option<Value<'gen>>]>;
+pub type EmbedderObjectIndex<'gen> = BaseIndex<'gen, EmbedderObjectHeapData>;
+pub type ErrorIndex<'gen> = BaseIndex<'gen, ErrorHeapData<'gen>>;
+pub type FinalizationRegistryIndex<'gen> = BaseIndex<'gen, FinalizationRegistryHeapData<'gen>>;
+pub type GeneratorIndex<'gen> = BaseIndex<'gen, GeneratorHeapData<'gen>>;
+pub type MapIndex<'gen> = BaseIndex<'gen, MapHeapData<'gen>>;
+pub type NumberIndex<'gen> = BaseIndex<'gen, NumberHeapData<'gen>>;
+pub type ObjectIndex<'gen> = BaseIndex<'gen, ObjectHeapData<'gen>>;
+pub type PrimitiveObjectIndex<'gen> = BaseIndex<'gen, PrimitiveObjectHeapData<'gen>>;
+pub type PromiseIndex<'gen> = BaseIndex<'gen, PromiseHeapData<'gen>>;
+pub type ProxyIndex<'gen> = BaseIndex<'gen, ProxyHeapData<'gen>>;
+pub type RegExpIndex<'gen> = BaseIndex<'gen, RegExpHeapData<'gen>>;
+pub type SetIndex<'gen> = BaseIndex<'gen, SetHeapData<'gen>>;
+pub type SharedArrayBufferIndex<'gen> = BaseIndex<'gen, SharedArrayBufferHeapData<'gen>>;
+pub type StringIndex<'gen> = BaseIndex<'gen, StringHeapData<'gen>>;
+pub type SymbolIndex<'gen> = BaseIndex<'gen, SymbolHeapData<'gen>>;
+pub type TypedArrayIndex<'gen> = BaseIndex<'gen, TypedArrayHeapData<'gen>>;
+pub type WeakMapIndex<'gen> = BaseIndex<'gen, WeakMapHeapData<'gen>>;
+pub type WeakRefIndex<'gen> = BaseIndex<'gen, WeakRefHeapData<'gen>>;
+pub type WeakSetIndex<'gen> = BaseIndex<'gen, WeakSetHeapData<'gen>>;
 
 // Implement Default for ElementIndex: This is done to support Default
 // constructor of ElementsVector.
-impl Default for ElementIndex {
+impl Default for ElementIndex<'_> {
     fn default() -> Self {
         Self(unsafe { NonZeroU32::new_unchecked(1) }, Default::default())
     }
 }
 
-impl ElementIndex {
-    pub fn last_element_index<const N: usize>(vec: &[Option<[Option<Value>; N]>]) -> Self {
+impl<'gen> ElementIndex<'gen> {
+    pub fn last_element_index<const N: usize>(vec: &[Option<[Option<Value<'gen>>; N]>]) -> Self {
         assert!(!vec.is_empty());
         Self::from_usize(vec.len())
     }
 }
 
-impl<const N: usize> Index<ElementIndex> for Vec<Option<[Option<Value>; N]>> {
-    type Output = [Option<Value>; N];
+impl<'gen, const N: usize> Index<ElementIndex<'gen>> for Vec<Option<[Option<Value<'gen>>; N]>> {
+    type Output = [Option<Value<'gen>>; N];
 
-    fn index(&self, index: ElementIndex) -> &Self::Output {
+    fn index(&self, index: ElementIndex<'gen>) -> &Self::Output {
         self.get(index.into_index())
             .expect("Invalid ElementsVector: No item at index")
             .as_ref()
@@ -198,8 +207,8 @@ impl<const N: usize> Index<ElementIndex> for Vec<Option<[Option<Value>; N]>> {
     }
 }
 
-impl<const N: usize> IndexMut<ElementIndex> for Vec<Option<[Option<Value>; N]>> {
-    fn index_mut(&mut self, index: ElementIndex) -> &mut Self::Output {
+impl<'gen, const N: usize> IndexMut<ElementIndex<'gen>> for Vec<Option<[Option<Value<'gen>>; N]>> {
+    fn index_mut(&mut self, index: ElementIndex<'gen>) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("Invalid ElementsVector: No item at index")
             .as_mut()

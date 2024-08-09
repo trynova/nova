@@ -58,42 +58,42 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ECMAScriptFunction(ECMAScriptFunctionIndex);
+pub struct ECMAScriptFunction<'gen>(ECMAScriptFunctionIndex<'gen>);
 
-impl From<ECMAScriptFunction> for ECMAScriptFunctionIndex {
-    fn from(val: ECMAScriptFunction) -> Self {
+impl<'gen> From<ECMAScriptFunction<'gen>> for ECMAScriptFunctionIndex<'gen> {
+    fn from(val: ECMAScriptFunction<'gen>) -> Self {
         val.0
     }
 }
 
-impl From<ECMAScriptFunctionIndex> for ECMAScriptFunction {
-    fn from(value: ECMAScriptFunctionIndex) -> Self {
+impl<'gen> From<ECMAScriptFunctionIndex<'gen>> for ECMAScriptFunction<'gen> {
+    fn from(value: ECMAScriptFunctionIndex<'gen>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for ECMAScriptFunction {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for ECMAScriptFunction<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for ECMAScriptFunction {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for ECMAScriptFunction<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl IntoFunction for ECMAScriptFunction {
-    fn into_function(self) -> Function {
+impl<'gen> IntoFunction<'gen> for ECMAScriptFunction<'gen> {
+    fn into_function(self) -> Function<'gen> {
         self.into()
     }
 }
 
-impl TryFrom<Value> for ECMAScriptFunction {
+impl<'gen> TryFrom<Value<'gen>> for ECMAScriptFunction<'gen> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'gen>) -> Result<Self, Self::Error> {
         if let Value::ECMAScriptFunction(function) = value {
             Ok(function)
         } else {
@@ -102,10 +102,10 @@ impl TryFrom<Value> for ECMAScriptFunction {
     }
 }
 
-impl TryFrom<Object> for ECMAScriptFunction {
+impl<'gen> TryFrom<Object<'gen>> for ECMAScriptFunction<'gen> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'gen>) -> Result<Self, Self::Error> {
         if let Object::ECMAScriptFunction(function) = value {
             Ok(function)
         } else {
@@ -114,10 +114,10 @@ impl TryFrom<Object> for ECMAScriptFunction {
     }
 }
 
-impl TryFrom<Function> for ECMAScriptFunction {
+impl<'gen> TryFrom<Function<'gen>> for ECMAScriptFunction<'gen> {
     type Error = ();
 
-    fn try_from(value: Function) -> Result<Self, Self::Error> {
+    fn try_from(value: Function<'gen>) -> Result<Self, Self::Error> {
         if let Function::ECMAScriptFunction(function) = value {
             Ok(function)
         } else {
@@ -126,20 +126,20 @@ impl TryFrom<Function> for ECMAScriptFunction {
     }
 }
 
-impl From<ECMAScriptFunction> for Value {
-    fn from(val: ECMAScriptFunction) -> Self {
+impl<'gen> From<ECMAScriptFunction<'gen>> for Value<'gen> {
+    fn from(val: ECMAScriptFunction<'gen>) -> Self {
         Value::ECMAScriptFunction(val)
     }
 }
 
-impl From<ECMAScriptFunction> for Object {
-    fn from(val: ECMAScriptFunction) -> Self {
+impl<'gen> From<ECMAScriptFunction<'gen>> for Object<'gen> {
+    fn from(val: ECMAScriptFunction<'gen>) -> Self {
         Object::ECMAScriptFunction(val)
     }
 }
 
-impl From<ECMAScriptFunction> for Function {
-    fn from(val: ECMAScriptFunction) -> Self {
+impl<'gen> From<ECMAScriptFunction<'gen>> for Function<'gen> {
+    fn from(val: ECMAScriptFunction<'gen>) -> Self {
         Function::ECMAScriptFunction(val)
     }
 }
@@ -176,12 +176,12 @@ pub enum ThisMode {
 
 /// ### [10.2 ECMAScript Function Objects](https://tc39.es/ecma262/#sec-ecmascript-function-objects)
 #[derive(Debug)]
-pub(crate) struct ECMAScriptFunctionObjectHeapData {
+pub(crate) struct ECMAScriptFunctionObjectHeapData<'gen> {
     /// \[\[Environment]]
-    pub environment: EnvironmentIndex,
+    pub environment: EnvironmentIndex<'gen>,
 
     /// \[\[PrivateEnvironment]]
-    pub private_environment: Option<PrivateEnvironmentIndex>,
+    pub private_environment: Option<PrivateEnvironmentIndex<'gen>>,
 
     /// \[\[FormalParameters]]
     ///
@@ -211,10 +211,10 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     pub constructor_status: ConstructorStatus,
 
     /// \[\[Realm]]
-    pub realm: RealmIdentifier,
+    pub realm: RealmIdentifier<'gen>,
 
     /// \[\[ScriptOrModule]]
-    pub script_or_module: ScriptOrModule,
+    pub script_or_module: ScriptOrModule<'gen>,
 
     /// \[\[ThisMode]]
     pub this_mode: ThisMode,
@@ -223,7 +223,7 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     pub strict: bool,
 
     /// \[\[HomeObject]]
-    pub home_object: Option<Object>,
+    pub home_object: Option<Object<'gen>>,
 
     ///  \[\[SourceText]]
     pub source_text: Span,
@@ -232,12 +232,12 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     ///
     /// Nova specific addition: This SourceCode is where \[\[SourceText]]
     /// refers to.
-    pub source_code: SourceCode,
+    pub source_code: SourceCode<'gen>,
     // TODO: [[Fields]],  [[PrivateMethods]], [[ClassFieldInitializerName]]
 }
 
-pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
-    pub function_prototype: Option<Object>,
+pub(crate) struct OrdinaryFunctionCreateParams<'gen, 'agent, 'program> {
+    pub function_prototype: Option<Object<'gen>>,
     pub source_text: Span,
     pub parameters_list: &'agent FormalParameters<'program>,
     pub body: &'agent FunctionBody<'program>,
@@ -245,28 +245,28 @@ pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
     pub is_async: bool,
     pub is_generator: bool,
     pub lexical_this: bool,
-    pub env: EnvironmentIndex,
-    pub private_env: Option<PrivateEnvironmentIndex>,
+    pub env: EnvironmentIndex<'gen>,
+    pub private_env: Option<PrivateEnvironmentIndex<'gen>>,
 }
 
-impl Index<ECMAScriptFunction> for Agent {
-    type Output = ECMAScriptFunctionHeapData;
+impl<'gen> Index<ECMAScriptFunction<'gen>> for Agent<'gen> {
+    type Output = ECMAScriptFunctionHeapData<'gen>;
 
-    fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
+    fn index(&self, index: ECMAScriptFunction<'gen>) -> &Self::Output {
         &self.heap.ecmascript_functions[index]
     }
 }
 
-impl IndexMut<ECMAScriptFunction> for Agent {
-    fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
+impl<'gen> IndexMut<ECMAScriptFunction<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: ECMAScriptFunction<'gen>) -> &mut Self::Output {
         &mut self.heap.ecmascript_functions[index]
     }
 }
 
-impl Index<ECMAScriptFunction> for Vec<Option<ECMAScriptFunctionHeapData>> {
-    type Output = ECMAScriptFunctionHeapData;
+impl<'gen> Index<ECMAScriptFunction<'gen>> for Vec<Option<ECMAScriptFunctionHeapData<'gen>>> {
+    type Output = ECMAScriptFunctionHeapData<'gen>;
 
-    fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
+    fn index(&self, index: ECMAScriptFunction<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("ECMAScriptFunction out of bounds")
             .as_ref()
@@ -274,8 +274,8 @@ impl Index<ECMAScriptFunction> for Vec<Option<ECMAScriptFunctionHeapData>> {
     }
 }
 
-impl IndexMut<ECMAScriptFunction> for Vec<Option<ECMAScriptFunctionHeapData>> {
-    fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
+impl<'gen> IndexMut<ECMAScriptFunction<'gen>> for Vec<Option<ECMAScriptFunctionHeapData<'gen>>> {
+    fn index_mut(&mut self, index: ECMAScriptFunction<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("ECMAScriptFunction out of bounds")
             .as_mut()
@@ -283,7 +283,7 @@ impl IndexMut<ECMAScriptFunction> for Vec<Option<ECMAScriptFunctionHeapData>> {
     }
 }
 
-impl ECMAScriptFunction {
+impl ECMAScriptFunction<'_> {
     pub(crate) const fn _def() -> Self {
         ECMAScriptFunction(ECMAScriptFunctionIndex::from_u32_index(0))
     }
@@ -292,22 +292,22 @@ impl ECMAScriptFunction {
         self.0.into_index()
     }
 
-    pub fn is_constructor(self, agent: &Agent) -> bool {
+    pub fn is_constructor(self, agent: &Agent<'_>) -> bool {
         // An ECMAScript function has the [[Construct]] slot if its constructor
         // status is something other than non-constructor.
         agent[self].ecmascript_function.constructor_status != ConstructorStatus::NonConstructor
     }
 }
 
-impl InternalSlots for ECMAScriptFunction {
+impl<'gen> InternalSlots<'gen> for ECMAScriptFunction<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         debug_assert!(self.get_backing_object(agent).is_none());
         let prototype = self.internal_prototype(agent);
         let length_entry = ObjectEntry {
@@ -345,7 +345,7 @@ impl InternalSlots for ECMAScriptFunction {
         backing_object
     }
 
-    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, agent: &Agent<'gen>) -> Option<Object<'gen>> {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_prototype(agent)
         } else {
@@ -367,12 +367,12 @@ impl InternalSlots for ECMAScriptFunction {
     }
 }
 
-impl InternalMethods for ECMAScriptFunction {
+impl<'gen> InternalMethods<'gen> for ECMAScriptFunction<'gen> {
     fn internal_get_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+    ) -> JsResult<'gen, Option<PropertyDescriptor<'gen>>> {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_get_own_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -398,17 +398,17 @@ impl InternalMethods for ECMAScriptFunction {
 
     fn internal_define_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        property_descriptor: PropertyDescriptor<'gen>,
+    ) -> JsResult<'gen, bool> {
         let object_index = agent[self]
             .object_index
             .unwrap_or_else(|| self.create_backing_object(agent));
         object_index.internal_define_own_property(agent, property_key, property_descriptor)
     }
 
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_has_property(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
@@ -425,10 +425,10 @@ impl InternalMethods for ECMAScriptFunction {
 
     fn internal_get(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_get(agent, property_key, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -445,11 +445,11 @@ impl InternalMethods for ECMAScriptFunction {
 
     fn internal_set(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        value: Value<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, bool> {
         if let Some(backing_object) = self.get_backing_object(agent) {
             backing_object.internal_set(agent, property_key, value, receiver)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
@@ -463,7 +463,7 @@ impl InternalMethods for ECMAScriptFunction {
         }
     }
 
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_delete(agent, property_key)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
@@ -477,7 +477,7 @@ impl InternalMethods for ECMAScriptFunction {
         }
     }
 
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Vec<PropertyKey<'gen>>> {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_own_property_keys(agent)
         } else {
@@ -497,10 +497,10 @@ impl InternalMethods for ECMAScriptFunction {
     /// throw completion.
     fn internal_call(
         self,
-        agent: &mut Agent,
-        this_argument: Value,
-        arguments_list: ArgumentsList<'_>,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_argument: Value<'gen>,
+        arguments_list: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         // 1. Let callerContext be the running execution context.
         let _ = agent.running_execution_context();
         // 2. Let calleeContext be PrepareForOrdinaryCall(F, undefined).
@@ -547,10 +547,10 @@ impl InternalMethods for ECMAScriptFunction {
 
     fn internal_construct(
         self,
-        agent: &mut Agent,
-        arguments_list: ArgumentsList,
-        new_target: Function,
-    ) -> JsResult<Object> {
+        agent: &mut Agent<'gen>,
+        arguments_list: ArgumentsList<'_, 'gen>,
+        new_target: Function<'gen>,
+    ) -> JsResult<'gen, Object<'gen>> {
         // 2. Let kind be F.[[ConstructorKind]].
         let is_base = !agent[self]
             .ecmascript_function
@@ -625,11 +625,11 @@ impl InternalMethods for ECMAScriptFunction {
 /// The abstract operation PrepareForOrdinaryCall takes arguments `F` (an
 /// ECMAScript function object) and newTarget (an Object or undefined) and
 /// returns an execution context.
-pub(crate) fn prepare_for_ordinary_call(
-    agent: &mut Agent,
-    f: ECMAScriptFunction,
-    new_target: Option<Object>,
-) -> &ExecutionContext {
+pub(crate) fn prepare_for_ordinary_call<'a, 'gen>(
+    agent: &'a mut Agent<'gen>,
+    f: ECMAScriptFunction<'gen>,
+    new_target: Option<Object<'gen>>,
+) -> &'a ExecutionContext<'gen> {
     let ecmascript_function_object = &agent[f].ecmascript_function;
     let private_environment = ecmascript_function_object.private_environment;
     let is_strict_mode = ecmascript_function_object.strict;
@@ -676,11 +676,11 @@ pub(crate) fn prepare_for_ordinary_call(
 ///
 /// Note: calleeContext is replaced by localEnv which is the only thing it is
 /// truly used for.
-pub(crate) fn ordinary_call_bind_this(
-    agent: &mut Agent,
-    f: ECMAScriptFunction,
-    local_env: EnvironmentIndex,
-    this_argument: Value,
+pub(crate) fn ordinary_call_bind_this<'gen>(
+    agent: &mut Agent<'gen>,
+    f: ECMAScriptFunction<'gen>,
+    local_env: EnvironmentIndex<'gen>,
+    this_argument: Value<'gen>,
 ) {
     let function_heap_data = &agent[f].ecmascript_function;
     // 1. Let thisMode be F.[[ThisMode]].
@@ -733,11 +733,11 @@ pub(crate) fn ordinary_call_bind_this(
 /// (an ECMAScript function object) and `argumentsList` (a List of ECMAScript
 /// language values) and returns either a normal completion containing an
 /// ECMAScript language value or an abrupt completion.
-pub(crate) fn evaluate_body(
-    agent: &mut Agent,
-    function_object: ECMAScriptFunction,
-    arguments_list: ArgumentsList,
-) -> JsResult<Value> {
+pub(crate) fn evaluate_body<'gen>(
+    agent: &mut Agent<'gen>,
+    function_object: ECMAScriptFunction<'gen>,
+    arguments_list: ArgumentsList<'_, 'gen>,
+) -> JsResult<'gen, Value<'gen>> {
     let function_heap_data = &agent[function_object].ecmascript_function;
     let heap_data = function_heap_data;
     match (heap_data.is_generator, heap_data.is_async) {
@@ -799,11 +799,11 @@ pub(crate) fn evaluate_body(
 /// ECMAScript function object) and `argumentsList` (a List of ECMAScript
 /// language values) and returns either a normal completion containing an
 /// ECMAScript language value or an abrupt completion.
-pub(crate) fn ordinary_call_evaluate_body(
-    agent: &mut Agent,
-    f: ECMAScriptFunction,
-    arguments_list: ArgumentsList,
-) -> JsResult<Value> {
+pub(crate) fn ordinary_call_evaluate_body<'gen>(
+    agent: &mut Agent<'gen>,
+    f: ECMAScriptFunction<'gen>,
+    arguments_list: ArgumentsList<'_, 'gen>,
+) -> JsResult<'gen, Value<'gen>> {
     // 1. Return ? EvaluateBody of F.[[ECMAScriptCode]] with arguments F and argumentsList.
     evaluate_body(agent, f, arguments_list)
 }
@@ -820,10 +820,10 @@ pub(crate) fn ordinary_call_evaluate_body(
 /// \[\[Construct\]\] internal method (although one may be subsequently added
 /// by an operation such as MakeConstructor). sourceText is the source text of
 /// the syntactic definition of the function to be created.
-pub(crate) fn ordinary_function_create<'agent, 'program>(
+pub(crate) fn ordinary_function_create<'gen, 'agent, 'program>(
     agent: &'agent mut Agent,
-    params: OrdinaryFunctionCreateParams<'agent, 'program>,
-) -> ECMAScriptFunction {
+    params: OrdinaryFunctionCreateParams<'gen, 'agent, 'program>,
+) -> ECMAScriptFunction<'gen> {
     let running_ecmascript_code = &agent.running_execution_context().ecmascript_code.unwrap();
     let source_code = running_ecmascript_code.source_code;
     // 7. If the source text matched by Body is strict mode code, let Strict be true; else let Strict be false.
@@ -923,11 +923,11 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
 /// function object or a built-in function object) and optional arguments
 /// writablePrototype (a Boolean) and prototype (an Object) and returns
 /// UNUSED. It converts F into a constructor.
-pub(crate) fn make_constructor(
-    agent: &mut Agent,
-    function: impl IntoFunction,
+pub(crate) fn make_constructor<'gen>(
+    agent: &mut Agent<'gen>,
+    function: impl IntoFunction<'gen>,
     writable_prototype: Option<bool>,
-    prototype: Option<Object>,
+    prototype: Option<Object<'gen>>,
 ) {
     // 4. If writablePrototype is not present, set writablePrototype to true.
     let writable_prototype = writable_prototype.unwrap_or(true);
@@ -1001,7 +1001,7 @@ pub(crate) fn make_constructor(
 /// object) and homeObject (an Object) and returns unused. It configures F as a
 /// method.
 #[inline]
-pub(crate) fn make_method(agent: &mut Agent, f: ECMAScriptFunction, home_object: Object) {
+pub(crate) fn make_method<'gen>(agent: &mut Agent<'gen>, f: ECMAScriptFunction<'gen>, home_object: Object<'gen>) {
     // 1. Set F.[[HomeObject]] to homeObject.
     agent[f].ecmascript_function.home_object = Some(home_object);
     // 2. Return unused.
@@ -1011,11 +1011,11 @@ pub(crate) fn make_method(agent: &mut Agent, f: ECMAScriptFunction, home_object:
 /// The abstract operation SetFunctionName takes arguments F (a function
 /// object) and name (a property key or Private Name) and optional argument
 /// prefix (a String) and returns UNUSED. It adds a "name" property to F.
-pub(crate) fn set_function_name(
-    agent: &mut Agent,
-    function: impl IntoFunction,
-    name: PropertyKey,
-    _prefix: Option<String>,
+pub(crate) fn set_function_name<'gen>(
+    agent: &mut Agent<'gen>,
+    function: impl IntoFunction<'gen>,
+    name: PropertyKey<'gen>,
+    _prefix: Option<String<'gen>>,
 ) {
     // 2. If name is a Symbol, then
     let name: String = match name {
@@ -1065,11 +1065,11 @@ pub(crate) fn set_function_name(
 }
 
 /// ### [10.2.10 SetFunctionLength ( F, length )](https://tc39.es/ecma262/#sec-setfunctionlength)
-fn set_ecmascript_function_length(
-    agent: &mut Agent,
-    function: &mut ECMAScriptFunctionHeapData,
+fn set_ecmascript_function_length<'gen>(
+    agent: &mut Agent<'gen>,
+    function: &mut ECMAScriptFunctionHeapData<'gen>,
     length: usize,
-) -> JsResult<()> {
+) -> JsResult<'gen, ()> {
     // TODO: 1. Assert: F is an extensible object that does not have a "length" own property.
 
     // 2. Perform ! DefinePropertyOrThrow(F, "length", PropertyDescriptor { [[Value]]: 𝔽(length), [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
@@ -1104,11 +1104,11 @@ fn set_ecmascript_function_length(
 /// Environment Record is created for the body declarations. Formal parameters
 /// and functions are initialized as part of FunctionDeclarationInstantiation.
 /// All other bindings are initialized during evaluation of the function body.
-pub(crate) fn function_declaration_instantiation(
-    agent: &mut Agent,
-    function_object: ECMAScriptFunction,
-    arguments_list: ArgumentsList,
-) -> JsResult<()> {
+pub(crate) fn function_declaration_instantiation<'gen>(
+    agent: &mut Agent<'gen>,
+    function_object: ECMAScriptFunction<'gen>,
+    arguments_list: ArgumentsList<'_, 'gen>,
+) -> JsResult<'gen, ()> {
     // 1. Let calleeContext be the running execution context.
     let callee_context = agent.running_execution_context();
     // 35. Let privateEnv be the PrivateEnvironment of calleeContext.
@@ -1497,8 +1497,8 @@ pub(crate) fn function_declaration_instantiation(
     // compatibility with web browser implementations of ECMAScript that predate ECMAScript 2015.
 }
 
-impl HeapMarkAndSweep for ECMAScriptFunction {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ECMAScriptFunction<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.ecmascript_functions.push(*self);
     }
 
@@ -1507,15 +1507,15 @@ impl HeapMarkAndSweep for ECMAScriptFunction {
     }
 }
 
-impl CreateHeapData<ECMAScriptFunctionHeapData, ECMAScriptFunction> for Heap {
-    fn create(&mut self, data: ECMAScriptFunctionHeapData) -> ECMAScriptFunction {
+impl<'gen> CreateHeapData<ECMAScriptFunctionHeapData<'gen>, ECMAScriptFunction<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: ECMAScriptFunctionHeapData<'gen>) -> ECMAScriptFunction<'gen> {
         self.ecmascript_functions.push(Some(data));
         ECMAScriptFunction(ECMAScriptFunctionIndex::last(&self.ecmascript_functions))
     }
 }
 
-impl HeapMarkAndSweep for ECMAScriptFunctionHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ECMAScriptFunctionHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.name.mark_values(queues);
         self.object_index.mark_values(queues);
 

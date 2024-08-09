@@ -13,13 +13,13 @@ pub mod script;
 pub mod source_code;
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ScriptOrModule {
-    Script(ScriptIdentifier),
-    Module(Module),
+pub(crate) enum ScriptOrModule<'gen> {
+    Script(ScriptIdentifier<'gen>),
+    Module(Module<'gen>),
 }
 
-impl HeapMarkAndSweep for ScriptOrModule {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for ScriptOrModule<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         match self {
             ScriptOrModule::Script(idx) => idx.mark_values(queues),
             ScriptOrModule::Module(idx) => idx.mark_values(queues),

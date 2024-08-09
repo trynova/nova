@@ -16,27 +16,27 @@ pub(crate) struct FinalizationRegistryPrototype;
 
 struct FinalizationRegistryPrototypeRegister;
 impl Builtin for FinalizationRegistryPrototypeRegister {
-    const NAME: String = BUILTIN_STRING_MEMORY.register;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.register;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(FinalizationRegistryPrototype::register);
 }
 struct FinalizationRegistryPrototypeUnregister;
 impl Builtin for FinalizationRegistryPrototypeUnregister {
-    const NAME: String = BUILTIN_STRING_MEMORY.unregister;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.unregister;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(FinalizationRegistryPrototype::unregister);
 }
 
 impl FinalizationRegistryPrototype {
-    fn register(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn register<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn unregister(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn unregister<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.finalization_registry_prototype();

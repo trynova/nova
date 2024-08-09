@@ -78,58 +78,58 @@ pub use property_storage::PropertyStorage;
 /// In Nova
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum Object {
-    Object(OrdinaryObject) = OBJECT_DISCRIMINANT,
-    BoundFunction(BoundFunction) = BOUND_FUNCTION_DISCRIMINANT,
-    BuiltinFunction(BuiltinFunction) = BUILTIN_FUNCTION_DISCRIMINANT,
-    ECMAScriptFunction(ECMAScriptFunction) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
+pub enum Object<'gen> {
+    Object(OrdinaryObject<'gen>) = OBJECT_DISCRIMINANT,
+    BoundFunction(BoundFunction<'gen>) = BOUND_FUNCTION_DISCRIMINANT,
+    BuiltinFunction(BuiltinFunction<'gen>) = BUILTIN_FUNCTION_DISCRIMINANT,
+    ECMAScriptFunction(ECMAScriptFunction<'gen>) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction = BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
-    BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction) =
+    BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'gen>) =
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
-    PrimitiveObject(PrimitiveObject) = PRIMITIVE_OBJECT_DISCRIMINANT,
-    Arguments(OrdinaryObject) = ARGUMENTS_DISCRIMINANT,
-    Array(Array) = ARRAY_DISCRIMINANT,
-    ArrayBuffer(ArrayBuffer) = ARRAY_BUFFER_DISCRIMINANT,
-    DataView(DataView) = DATA_VIEW_DISCRIMINANT,
-    Date(Date) = DATE_DISCRIMINANT,
-    Error(Error) = ERROR_DISCRIMINANT,
-    FinalizationRegistry(FinalizationRegistry) = FINALIZATION_REGISTRY_DISCRIMINANT,
-    Map(Map) = MAP_DISCRIMINANT,
-    Promise(Promise) = PROMISE_DISCRIMINANT,
-    Proxy(Proxy) = PROXY_DISCRIMINANT,
-    RegExp(RegExp) = REGEXP_DISCRIMINANT,
-    Set(Set) = SET_DISCRIMINANT,
-    SharedArrayBuffer(SharedArrayBuffer) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
-    WeakMap(WeakMap) = WEAK_MAP_DISCRIMINANT,
-    WeakRef(WeakRef) = WEAK_REF_DISCRIMINANT,
-    WeakSet(WeakSet) = WEAK_SET_DISCRIMINANT,
-    Int8Array(TypedArrayIndex) = INT_8_ARRAY_DISCRIMINANT,
-    Uint8Array(TypedArrayIndex) = UINT_8_ARRAY_DISCRIMINANT,
-    Uint8ClampedArray(TypedArrayIndex) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
-    Int16Array(TypedArrayIndex) = INT_16_ARRAY_DISCRIMINANT,
-    Uint16Array(TypedArrayIndex) = UINT_16_ARRAY_DISCRIMINANT,
-    Int32Array(TypedArrayIndex) = INT_32_ARRAY_DISCRIMINANT,
-    Uint32Array(TypedArrayIndex) = UINT_32_ARRAY_DISCRIMINANT,
-    BigInt64Array(TypedArrayIndex) = BIGINT_64_ARRAY_DISCRIMINANT,
-    BigUint64Array(TypedArrayIndex) = BIGUINT_64_ARRAY_DISCRIMINANT,
-    Float32Array(TypedArrayIndex) = FLOAT_32_ARRAY_DISCRIMINANT,
-    Float64Array(TypedArrayIndex) = FLOAT_64_ARRAY_DISCRIMINANT,
+    PrimitiveObject(PrimitiveObject<'gen>) = PRIMITIVE_OBJECT_DISCRIMINANT,
+    Arguments(OrdinaryObject<'gen>) = ARGUMENTS_DISCRIMINANT,
+    Array(Array<'gen>) = ARRAY_DISCRIMINANT,
+    ArrayBuffer(ArrayBuffer<'gen>) = ARRAY_BUFFER_DISCRIMINANT,
+    DataView(DataView<'gen>) = DATA_VIEW_DISCRIMINANT,
+    Date(Date<'gen>) = DATE_DISCRIMINANT,
+    Error(Error<'gen>) = ERROR_DISCRIMINANT,
+    FinalizationRegistry(FinalizationRegistry<'gen>) = FINALIZATION_REGISTRY_DISCRIMINANT,
+    Map(Map<'gen>) = MAP_DISCRIMINANT,
+    Promise(Promise<'gen>) = PROMISE_DISCRIMINANT,
+    Proxy(Proxy<'gen>) = PROXY_DISCRIMINANT,
+    RegExp(RegExp<'gen>) = REGEXP_DISCRIMINANT,
+    Set(Set<'gen>) = SET_DISCRIMINANT,
+    SharedArrayBuffer(SharedArrayBuffer<'gen>) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
+    WeakMap(WeakMap<'gen>) = WEAK_MAP_DISCRIMINANT,
+    WeakRef(WeakRef<'gen>) = WEAK_REF_DISCRIMINANT,
+    WeakSet(WeakSet<'gen>) = WEAK_SET_DISCRIMINANT,
+    Int8Array(TypedArrayIndex<'gen>) = INT_8_ARRAY_DISCRIMINANT,
+    Uint8Array(TypedArrayIndex<'gen>) = UINT_8_ARRAY_DISCRIMINANT,
+    Uint8ClampedArray(TypedArrayIndex<'gen>) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    Int16Array(TypedArrayIndex<'gen>) = INT_16_ARRAY_DISCRIMINANT,
+    Uint16Array(TypedArrayIndex<'gen>) = UINT_16_ARRAY_DISCRIMINANT,
+    Int32Array(TypedArrayIndex<'gen>) = INT_32_ARRAY_DISCRIMINANT,
+    Uint32Array(TypedArrayIndex<'gen>) = UINT_32_ARRAY_DISCRIMINANT,
+    BigInt64Array(TypedArrayIndex<'gen>) = BIGINT_64_ARRAY_DISCRIMINANT,
+    BigUint64Array(TypedArrayIndex<'gen>) = BIGUINT_64_ARRAY_DISCRIMINANT,
+    Float32Array(TypedArrayIndex<'gen>) = FLOAT_32_ARRAY_DISCRIMINANT,
+    Float64Array(TypedArrayIndex<'gen>) = FLOAT_64_ARRAY_DISCRIMINANT,
     AsyncFromSyncIterator = ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
     AsyncIterator = ASYNC_ITERATOR_DISCRIMINANT,
     Iterator = ITERATOR_DISCRIMINANT,
-    Generator(Generator) = GENERATOR_DISCRIMINANT,
-    Module(Module) = MODULE_DISCRIMINANT,
+    Generator(Generator<'gen>) = GENERATOR_DISCRIMINANT,
+    Module(Module<'gen>) = MODULE_DISCRIMINANT,
     EmbedderObject(EmbedderObject) = EMBEDDER_OBJECT_DISCRIMINANT,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct OrdinaryObject(pub(crate) ObjectIndex);
+pub struct OrdinaryObject<'gen>(pub(crate) ObjectIndex<'gen>);
 
-impl IntoValue for Object {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for Object<'gen> {
+    fn into_value(self) -> Value<'gen> {
         match self {
             Object::Object(data) => Value::Object(data),
             Object::BoundFunction(data) => Value::BoundFunction(data),
@@ -180,47 +180,47 @@ impl IntoValue for Object {
     }
 }
 
-impl IntoObject for Object {
+impl<'gen> IntoObject<'gen> for Object<'gen> {
     #[inline(always)]
-    fn into_object(self) -> Object {
+    fn into_object(self) -> Object<'gen> {
         self
     }
 }
 
-impl IntoObject for OrdinaryObject {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for OrdinaryObject<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl IntoValue for OrdinaryObject {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for OrdinaryObject<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl From<OrdinaryObject> for Object {
-    fn from(value: OrdinaryObject) -> Self {
+impl<'gen> From<OrdinaryObject<'gen>> for Object<'gen> {
+    fn from(value: OrdinaryObject<'gen>) -> Self {
         Self::Object(value)
     }
 }
 
-impl From<ObjectIndex> for OrdinaryObject {
-    fn from(value: ObjectIndex) -> Self {
+impl<'gen> From<ObjectIndex<'gen>> for OrdinaryObject<'gen> {
+    fn from(value: ObjectIndex<'gen>) -> Self {
         OrdinaryObject(value)
     }
 }
 
-impl From<OrdinaryObject> for Value {
-    fn from(value: OrdinaryObject) -> Self {
+impl<'gen> From<OrdinaryObject<'gen>> for Value<'gen> {
+    fn from(value: OrdinaryObject<'gen>) -> Self {
         Self::Object(value)
     }
 }
 
-impl TryFrom<Value> for OrdinaryObject {
+impl<'gen> TryFrom<Value<'gen>> for OrdinaryObject<'gen> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'gen>) -> Result<Self, Self::Error> {
         match value {
             Value::Object(data) => Ok(data),
             _ => Err(()),
@@ -228,10 +228,10 @@ impl TryFrom<Value> for OrdinaryObject {
     }
 }
 
-impl TryFrom<Object> for OrdinaryObject {
+impl<'gen> TryFrom<Object<'gen>> for OrdinaryObject<'gen> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'gen>) -> Result<Self, Self::Error> {
         match value {
             Object::Object(data) => Ok(data),
             _ => Err(()),
@@ -239,38 +239,38 @@ impl TryFrom<Object> for OrdinaryObject {
     }
 }
 
-impl InternalSlots for OrdinaryObject {
+impl<'gen> InternalSlots<'gen> for OrdinaryObject<'gen> {
     #[inline(always)]
-    fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject> {
+    fn get_backing_object(self, _: &Agent<'gen>) -> Option<OrdinaryObject<'gen>> {
         Some(self)
     }
 
-    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {
+    fn create_backing_object(self, _: &mut Agent<'gen>) -> OrdinaryObject<'gen> {
         unreachable!();
     }
 
-    fn internal_extensible(self, agent: &Agent) -> bool {
+    fn internal_extensible(self, agent: &Agent<'gen>) -> bool {
         agent[self].extensible
     }
 
-    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
+    fn internal_set_extensible(self, agent: &mut Agent<'gen>, value: bool) {
         agent[self].extensible = value;
     }
 
-    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, agent: &Agent<'gen>) -> Option<Object<'gen>> {
         agent[self].prototype
     }
 
-    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+    fn internal_set_prototype(self, agent: &mut Agent<'gen>, prototype: Option<Object<'gen>>) {
         agent[self].prototype = prototype;
     }
 }
 
-impl OrdinaryObject {
+impl<'gen> OrdinaryObject<'gen> {
     pub(crate) const fn _def() -> Self {
         Self(ObjectIndex::from_u32_index(0))
     }
-    pub(crate) const fn new(value: ObjectIndex) -> Self {
+    pub(crate) const fn new(value: ObjectIndex<'gen>) -> Self {
         Self(value)
     }
 
@@ -279,26 +279,26 @@ impl OrdinaryObject {
     }
 }
 
-impl From<ObjectIndex> for Object {
-    fn from(value: ObjectIndex) -> Self {
+impl<'gen> From<ObjectIndex<'gen>> for Object<'gen> {
+    fn from(value: ObjectIndex<'gen>) -> Self {
         Object::Object(value.into())
     }
 }
 
-impl From<ArrayIndex> for Object {
-    fn from(value: ArrayIndex) -> Self {
+impl<'gen> From<ArrayIndex<'gen>> for Object<'gen> {
+    fn from(value: ArrayIndex<'gen>) -> Self {
         Object::Array(value.into())
     }
 }
 
-impl From<BoundFunction> for Object {
-    fn from(value: BoundFunction) -> Self {
+impl<'gen> From<BoundFunction<'gen>> for Object<'gen> {
+    fn from(value: BoundFunction<'gen>) -> Self {
         Object::BoundFunction(value)
     }
 }
 
-impl From<Object> for Value {
-    fn from(value: Object) -> Self {
+impl<'gen> From<Object<'gen>> for Value<'gen> {
+    fn from(value: Object<'gen>) -> Self {
         match value {
             Object::Object(data) => Value::Object(data),
             Object::BoundFunction(data) => Value::BoundFunction(data),
@@ -349,9 +349,9 @@ impl From<Object> for Value {
     }
 }
 
-impl TryFrom<Value> for Object {
+impl<'gen> TryFrom<Value<'gen>> for Object<'gen> {
     type Error = ();
-    fn try_from(value: Value) -> Result<Self, ()> {
+    fn try_from(value: Value<'gen>) -> Result<Self, ()> {
         match value {
             Value::Undefined
             | Value::Null
@@ -413,26 +413,22 @@ impl TryFrom<Value> for Object {
     }
 }
 
-impl Object {
-    pub fn into_value(self) -> Value {
-        self.into()
-    }
-
-    pub fn property_storage(self) -> PropertyStorage {
+impl<'gen> Object<'gen> {
+    pub fn property_storage(self) -> PropertyStorage<'gen> {
         PropertyStorage::new(self)
     }
 }
 
-impl InternalSlots for Object {
-    fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject> {
+impl<'gen> InternalSlots<'gen> for Object<'gen> {
+    fn get_backing_object(self, _: &Agent<'gen>) -> Option<OrdinaryObject<'gen>> {
         unreachable!("Object should not try to access its backing object");
     }
 
-    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {
+    fn create_backing_object(self, _: &mut Agent<'gen>) -> OrdinaryObject<'gen> {
         unreachable!("Object should not try to create its backing object");
     }
 
-    fn internal_extensible(self, agent: &Agent) -> bool {
+    fn internal_extensible(self, agent: &Agent<'gen>) -> bool {
         match self {
             Object::Object(data) => data.internal_extensible(agent),
             Object::Array(data) => data.internal_extensible(agent),
@@ -486,7 +482,7 @@ impl InternalSlots for Object {
         }
     }
 
-    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
+    fn internal_set_extensible(self, agent: &mut Agent<'gen>, value: bool) {
         match self {
             Object::Object(data) => data.internal_set_extensible(agent, value),
             Object::Array(data) => data.internal_set_extensible(agent, value),
@@ -558,7 +554,7 @@ impl InternalSlots for Object {
         }
     }
 
-    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, agent: &Agent<'gen>) -> Option<Object<'gen>> {
         match self {
             Object::Object(data) => data.internal_prototype(agent),
             Object::Array(data) => data.internal_prototype(agent),
@@ -612,7 +608,7 @@ impl InternalSlots for Object {
         }
     }
 
-    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+    fn internal_set_prototype(self, agent: &mut Agent<'gen>, prototype: Option<Object<'gen>>) {
         match self {
             Object::Object(data) => data.internal_set_prototype(agent, prototype),
             Object::Array(data) => data.internal_set_prototype(agent, prototype),
@@ -685,8 +681,8 @@ impl InternalSlots for Object {
     }
 }
 
-impl InternalMethods for Object {
-    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
+impl<'gen> InternalMethods<'gen> for Object<'gen> {
+    fn internal_get_prototype_of(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Option<Object<'gen>>> {
         match self {
             Object::Object(data) => data.internal_get_prototype_of(agent),
             Object::Array(data) => data.internal_get_prototype_of(agent),
@@ -756,9 +752,9 @@ impl InternalMethods for Object {
 
     fn internal_set_prototype_of(
         self,
-        agent: &mut Agent,
-        prototype: Option<Object>,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        prototype: Option<Object<'gen>>,
+    ) -> JsResult<'gen, bool> {
         match self {
             Object::Object(data) => data.internal_set_prototype_of(agent, prototype),
             Object::Array(data) => data.internal_set_prototype_of(agent, prototype),
@@ -830,7 +826,7 @@ impl InternalMethods for Object {
         }
     }
 
-    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_is_extensible(self, agent: &mut Agent<'gen>) -> JsResult<'gen, bool> {
         match self {
             Object::Object(data) => data.internal_is_extensible(agent),
             Object::Array(data) => data.internal_is_extensible(agent),
@@ -892,7 +888,7 @@ impl InternalMethods for Object {
         }
     }
 
-    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_prevent_extensions(self, agent: &mut Agent<'gen>) -> JsResult<'gen, bool> {
         match self {
             Object::Object(data) => data.internal_prevent_extensions(agent),
             Object::Array(data) => data.internal_prevent_extensions(agent),
@@ -966,9 +962,9 @@ impl InternalMethods for Object {
 
     fn internal_get_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+    ) -> JsResult<'gen, Option<PropertyDescriptor<'gen>>> {
         match self {
             Object::Object(data) => data.internal_get_own_property(agent, property_key),
             Object::Array(data) => data.internal_get_own_property(agent, property_key),
@@ -1044,10 +1040,10 @@ impl InternalMethods for Object {
 
     fn internal_define_own_property(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        property_descriptor: PropertyDescriptor<'gen>,
+    ) -> JsResult<'gen, bool> {
         match self {
             Object::Object(idx) => {
                 idx.internal_define_own_property(agent, property_key, property_descriptor)
@@ -1168,7 +1164,7 @@ impl InternalMethods for Object {
         }
     }
 
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         match self {
             Object::Object(data) => data.internal_has_property(agent, property_key),
             Object::Array(data) => data.internal_has_property(agent, property_key),
@@ -1242,10 +1238,10 @@ impl InternalMethods for Object {
 
     fn internal_get(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         match self {
             Object::Object(data) => data.internal_get(agent, property_key, receiver),
             Object::Array(data) => data.internal_get(agent, property_key, receiver),
@@ -1319,11 +1315,11 @@ impl InternalMethods for Object {
 
     fn internal_set(
         self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-    ) -> JsResult<bool> {
+        agent: &mut Agent<'gen>,
+        property_key: PropertyKey<'gen>,
+        value: Value<'gen>,
+        receiver: Value<'gen>,
+    ) -> JsResult<'gen, bool> {
         match self {
             Object::Object(data) => data.internal_set(agent, property_key, value, receiver),
             Object::Array(data) => data.internal_set(agent, property_key, value, receiver),
@@ -1408,7 +1404,7 @@ impl InternalMethods for Object {
         }
     }
 
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(self, agent: &mut Agent<'gen>, property_key: PropertyKey<'gen>) -> JsResult<'gen, bool> {
         match self {
             Object::Object(data) => data.internal_delete(agent, property_key),
             Object::Array(data) => data.internal_delete(agent, property_key),
@@ -1480,7 +1476,7 @@ impl InternalMethods for Object {
         }
     }
 
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(self, agent: &mut Agent<'gen>) -> JsResult<'gen, Vec<PropertyKey<'gen>>> {
         match self {
             Object::Object(data) => data.internal_own_property_keys(agent),
             Object::Array(data) => data.internal_own_property_keys(agent),
@@ -1552,10 +1548,10 @@ impl InternalMethods for Object {
 
     fn internal_call(
         self,
-        agent: &mut Agent,
-        this_value: Value,
-        arguments_list: ArgumentsList,
-    ) -> JsResult<Value> {
+        agent: &mut Agent<'gen>,
+        this_value: Value<'gen>,
+        arguments_list: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         match self {
             Object::BoundFunction(data) => data.internal_call(agent, this_value, arguments_list),
             Object::BuiltinFunction(data) => data.internal_call(agent, this_value, arguments_list),
@@ -1569,10 +1565,10 @@ impl InternalMethods for Object {
 
     fn internal_construct(
         self,
-        agent: &mut Agent,
-        arguments_list: ArgumentsList,
-        new_target: Function,
-    ) -> JsResult<Object> {
+        agent: &mut Agent<'gen>,
+        arguments_list: ArgumentsList<'_, 'gen>,
+        new_target: Function<'gen>,
+    ) -> JsResult<'gen, Object<'gen>> {
         match self {
             Object::BoundFunction(data) => {
                 data.internal_construct(agent, arguments_list, new_target)
@@ -1588,8 +1584,8 @@ impl InternalMethods for Object {
     }
 }
 
-impl HeapMarkAndSweep for Object {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Object<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         match self {
             Object::Object(data) => data.mark_values(queues),
             Object::Array(data) => data.mark_values(queues),
@@ -1686,8 +1682,8 @@ impl HeapMarkAndSweep for Object {
     }
 }
 
-impl CreateHeapData<ObjectHeapData, OrdinaryObject> for Heap {
-    fn create(&mut self, data: ObjectHeapData) -> OrdinaryObject {
+impl<'gen> CreateHeapData<ObjectHeapData, OrdinaryObject<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: ObjectHeapData) -> OrdinaryObject<'gen> {
         self.objects.push(Some(data));
         OrdinaryObject(ObjectIndex::last(&self.objects))
     }

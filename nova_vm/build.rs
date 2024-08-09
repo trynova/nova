@@ -62,7 +62,7 @@ fn gen_builtin_strings() -> io::Result<Vec<u8>> {
         output.push_str("    /// ```\n");
         output.push_str("    pub r#");
         output.push_str(&replace_invalid_key_characters(string));
-        output.push_str(": String,\n");
+        output.push_str(": String<'gen>,\n");
     }
     output.push_str("}\n\npub const BUILTIN_STRING_MEMORY: BuiltinStrings = BuiltinStrings {\n");
     let mut i: u32 = 0;

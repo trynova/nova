@@ -34,14 +34,14 @@ pub(crate) enum Ordering {
 /// argument *maxByteLength* (a non-negative integer or EMPTY) and returns
 /// either a normal completion containing an ArrayBuffer or a throw
 /// completion. It is used to create an ArrayBuffer.
-pub(crate) fn allocate_array_buffer(
-    agent: &mut Agent,
+pub(crate) fn allocate_array_buffer<'gen>(
+    agent: &mut Agent<'gen>,
     // TODO: Verify that constructor is %ArrayBuffer% and if not,
     // create the `ObjectHeapData` for obj.
-    _constructor: Function,
+    _constructor: Function<'gen>,
     byte_length: u64,
     max_byte_length: Option<u64>,
-) -> JsResult<ArrayBuffer> {
+) -> JsResult<'gen, ArrayBuffer<'gen>> {
     // 1. Let slots be « [[ArrayBufferData]], [[ArrayBufferByteLength]], [[ArrayBufferDetachKey]] ».
     // 2. If maxByteLength is present and maxByteLength is not EMPTY, let allocatingResizableBuffer be true; otherwise let allocatingResizableBuffer be false.
     let allocating_resizable_buffer = max_byte_length.is_some();
@@ -86,9 +86,9 @@ pub(crate) fn allocate_array_buffer(
 /// The abstract operation ArrayBufferByteLength takes arguments arrayBuffer
 /// (an ArrayBuffer or SharedArrayBuffer) and order (SEQ-CST or UNORDERED)
 /// and returns a non-negative integer.
-pub(crate) fn array_buffer_byte_length(
-    agent: &Agent,
-    array_buffer: ArrayBuffer,
+pub(crate) fn array_buffer_byte_length<'gen>(
+    agent: &Agent<'gen>,
+    array_buffer: ArrayBuffer<'gen>,
     _order: Ordering,
 ) -> i64 {
     let array_buffer = &agent[array_buffer];
@@ -115,7 +115,7 @@ pub(crate) fn array_buffer_byte_length(
 ///
 /// The abstract operation IsDetachedBuffer takes argument *arrayBuffer* (an
 /// ArrayBuffer or a SharedArrayBuffer) and returns a Boolean.
-pub(crate) fn is_detached_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bool {
+pub(crate) fn is_detached_buffer<'gen>(agent: &Agent<'gen>, array_buffer: ArrayBuffer<'gen>) -> bool {
     // 1. If arrayBuffer.[[ArrayBufferData]] is null, return true.
     // 2. Return false.
     agent[array_buffer].is_detached_buffer()
@@ -126,9 +126,9 @@ pub(crate) fn is_detached_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bo
 /// The abstract operation DetachArrayBuffer takes argument *arrayBuffer* (an
 /// ArrayBuffer) and optional argument *key* (anything) and returns either a
 /// normal completion containing UNUSED or a throw completion.
-pub(crate) fn detach_array_buffer(
-    array_buffer: ArrayBuffer,
-    agent: &mut Agent,
+pub(crate) fn detach_array_buffer<'gen>(
+    array_buffer: ArrayBuffer<'gen>,
+    agent: &mut Agent<'gen>,
     _key: Option<DetachKey>,
 ) {
     let array_buffer = &mut agent[array_buffer];
@@ -156,12 +156,12 @@ pub(crate) fn detach_array_buffer(
 /// normal completion containing an ArrayBuffer or a throw completion. It
 /// creates a new ArrayBuffer whose data is a copy of srcBuffer's data over the
 /// range starting at srcByteOffset and continuing for srcLength bytes.
-pub(crate) fn clone_array_buffer(
-    agent: &mut Agent,
-    src_buffer: ArrayBuffer,
+pub(crate) fn clone_array_buffer<'gen>(
+    agent: &mut Agent<'gen>,
+    src_buffer: ArrayBuffer<'gen>,
     src_byte_offset: usize,
     src_length: usize,
-) -> JsResult<ArrayBuffer> {
+) -> JsResult<'gen, ArrayBuffer<'gen>> {
     {
         // 1. Assert: IsDetachedBuffer(srcBuffer) is false.
         let src_buffer = &agent[src_buffer];
@@ -211,10 +211,10 @@ pub(crate) fn clone_array_buffer(
 /// options (an ECMAScript language value) and returns either a normal
 /// completion containing either a non-negative integer or EMPTY, or a throw
 /// completion.
-pub(crate) fn get_array_buffer_max_byte_length_option(
-    agent: &mut Agent,
-    options: Value,
-) -> JsResult<Option<i64>> {
+pub(crate) fn get_array_buffer_max_byte_length_option<'gen>(
+    agent: &mut Agent<'gen>,
+    options: Value<'gen>,
+) -> JsResult<'gen, Option<i64>> {
     // 1. If options is not an Object, return EMPTY.
     let options = if let Ok(options) = Object::try_from(options) {
         options
@@ -267,9 +267,9 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
 ///
 /// The default implementation of HostResizeArrayBuffer is to return
 /// NormalCompletion(UNHANDLED).
-pub(crate) fn host_resize_array_buffer(
-    buffer: ArrayBuffer,
-    agent: &mut Agent,
+pub(crate) fn host_resize_array_buffer<'gen>(
+    buffer: ArrayBuffer<'gen>,
+    agent: &mut Agent<'gen>,
     new_byte_length: u64,
 ) -> bool {
     let buffer = &mut agent[buffer];
@@ -290,7 +290,7 @@ pub(crate) fn host_resize_array_buffer(
 /// The abstract operation IsFixedLengthArrayBuffer takes argument
 /// arrayBuffer (an ArrayBuffer or a SharedArrayBuffer) and returns a
 /// Boolean.
-pub(crate) fn is_fixed_length_array_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bool {
+pub(crate) fn is_fixed_length_array_buffer<'gen>(agent: &Agent<'gen>, array_buffer: ArrayBuffer<'gen>) -> bool {
     let array_buffer = &agent[array_buffer];
     // 1. If arrayBuffer has an [[ArrayBufferMaxByteLength]] internal slot, return false.
     // 2. Return true.
@@ -382,8 +382,8 @@ pub(crate) const fn raw_bytes_to_numeric(_type: (), _raw_bytes: &[u8], _is_littl
 /// (a Shared Data Block), byteIndex (a non-negative integer), type (a
 /// TypedArray element type), isTypedArray (a Boolean), and order (SEQ-CST
 /// or UNORDERED) and returns a List of byte values.
-pub(crate) fn get_raw_bytes_from_shared_block(
-    _array_buffer: ArrayBuffer,
+pub(crate) fn get_raw_bytes_from_shared_block<'gen>(
+    _array_buffer: ArrayBuffer<'gen>,
     _block: &DataBlock,
     _byte_index: u32,
     _type: (),
@@ -409,8 +409,8 @@ pub(crate) fn get_raw_bytes_from_shared_block(
 /// integer), type (a TypedArray element type), isTypedArray (a Boolean),
 /// and order (SEQ-CST or UNORDERED) and optional argument isLittleEndian
 /// (a Boolean) and returns a Number or a BigInt.
-pub(crate) fn get_value_from_buffer(
-    _array_buffer: ArrayBuffer,
+pub(crate) fn get_value_from_buffer<'gen>(
+    _array_buffer: ArrayBuffer<'gen>,
     _byte_index: u32,
     _type: (),
     _is_typed_array: bool,
@@ -428,7 +428,7 @@ pub(crate) fn get_value_from_buffer(
     // a. Let rawValue be a List whose elements are bytes from block at indices in the interval from byteIndex (inclusive) to byteIndex + elementSize (exclusive).
     // 7. Assert: The number of elements in rawValue is elementSize.
     // 8. If isLittleEndian is not present, set isLittleEndian to the value of the [[LittleEndian]] field of the surrounding agent's Agent Record.
-    // 9. Return RawBytesToNumeric(type, rawValue, isLittleEndian).
+    // 9. Return RawBytesToNumeric(type, rawValue<'gen>, isLittleEndian).
 }
 
 /// ### [25.1.3.16 NumericToRawBytes ( type, value, isLittleEndian )](https://tc39.es/ecma262/#sec-numerictorawbytes)
@@ -436,10 +436,10 @@ pub(crate) fn get_value_from_buffer(
 /// The abstract operation NumericToRawBytes takes arguments type (a
 /// TypedArray element type), value (a Number or a BigInt), and
 /// isLittleEndian (a Boolean) and returns a List of byte values.
-pub(crate) fn numeric_to_raw_bytes(
-    _array_buffer: ArrayBuffer,
+pub(crate) fn numeric_to_raw_bytes<'gen>(
+    _array_buffer: ArrayBuffer<'gen>,
     _type: (),
-    _value: Number,
+    _value: Number<'gen>,
     _is_little_endian: bool,
 ) {
     // 1. If type is FLOAT32, then
@@ -465,11 +465,11 @@ pub(crate) fn numeric_to_raw_bytes(
 /// type (a TypedArray element type), value (a Number or a BigInt),
 /// isTypedArray (a Boolean), and order (SEQ-CST, UNORDERED, or INIT) and
 /// optional argument isLittleEndian (a Boolean) and returns UNUSED.
-pub(crate) fn set_value_in_buffer(
-    _array_buffer: ArrayBuffer,
+pub(crate) fn set_value_in_buffer<'gen>(
+    _array_buffer: ArrayBuffer<'gen>,
     _byte_index: u32,
     _type: (),
-    _value: Value,
+    _value: Value<'gen>,
     _is_typed_array: bool,
     _order: Ordering,
     _is_little_endian: Option<bool>,
@@ -498,11 +498,11 @@ pub(crate) fn set_value_in_buffer(
 /// non-negative integer), type (a TypedArray element type), value (a Number or
 /// a BigInt), and op (a read-modify-write modification function) and returns a
 /// Number or a BigInt.
-pub(crate) fn get_modify_set_value_in_buffer(
-    _array_buffer: ArrayBuffer,
+pub(crate) fn get_modify_set_value_in_buffer<'gen>(
+    _array_buffer: ArrayBuffer<'gen>,
     _byte_index: u32,
     _type: (),
-    _value: Number,
+    _value: Number<'gen>,
     _op: (),
 ) {
     // 1. Assert: IsDetachedBuffer(arrayBuffer) is false.

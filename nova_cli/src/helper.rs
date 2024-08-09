@@ -6,9 +6,9 @@ use nova_vm::ecmascript::{
 use oxc_diagnostics::OxcDiagnostic;
 
 /// Initialize the global object with the built-in functions.
-pub fn initialize_global_object(agent: &mut Agent, global: Object) {
+pub fn initialize_global_object<'gen>(agent: &mut Agent<'gen>, global: Object<'gen>) {
     // `print` function
-    fn print(agent: &mut Agent, _this: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn print<'gen>(agent: &mut Agent<'gen>, _this: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         if args.len() == 0 {
             println!();
         } else {

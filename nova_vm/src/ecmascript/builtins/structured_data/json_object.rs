@@ -32,7 +32,7 @@ pub(crate) struct JSONObject;
 
 struct JSONObjectParse;
 impl Builtin for JSONObjectParse {
-    const NAME: String = BUILTIN_STRING_MEMORY.parse;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.parse;
 
     const LENGTH: u8 = 2;
 
@@ -42,7 +42,7 @@ impl Builtin for JSONObjectParse {
 
 struct JSONObjectStringify;
 impl Builtin for JSONObjectStringify {
-    const NAME: String = BUILTIN_STRING_MEMORY.stringify;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.stringify;
 
     const LENGTH: u8 = 3;
 
@@ -82,7 +82,7 @@ impl JSONObject {
     /// > likewise does not apply during JSON.parse, means that not all texts
     /// > accepted by JSON.parse are valid as a PrimaryExpression, despite
     /// > matching the grammar.
-    fn parse(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn parse<'gen>(agent: &mut Agent<'gen>, _this_value: Value<'gen>, arguments: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
         let text = arguments.get(0);
         let reviver = arguments.get(1);
 
@@ -138,15 +138,15 @@ impl JSONObject {
         Ok(unfiltered)
     }
 
-    fn stringify(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn stringify<'gen>(
+        _agent: &mut Agent<'gen>,
+        _this_value: Value<'gen>,
+        _arguments: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic<'gen>(agent: &mut Agent<'gen>, realm: RealmIdentifier<'gen>) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.json();
@@ -182,12 +182,12 @@ impl JSONObject {
 /// > Note 2
 /// > In the case where there are duplicate name Strings within an object,
 /// > lexically preceding values for the same key shall be overwritten.
-pub(crate) fn internalize_json_property(
-    agent: &mut Agent,
-    holder: Object,
-    name: PropertyKey,
-    reviver: Function,
-) -> JsResult<Value> {
+pub(crate) fn internalize_json_property<'gen>(
+    agent: &mut Agent<'gen>,
+    holder: Object<'gen>,
+    name: PropertyKey<'gen>,
+    reviver: Function<'gen>,
+) -> JsResult<'gen, Value<'gen>> {
     // 1. Let val be ? Get(holder, name).
     let val = get(agent, holder, name)?;
     // 2. If val is an Object, then
@@ -253,7 +253,7 @@ pub(crate) fn internalize_json_property(
     )
 }
 
-pub(crate) fn value_from_json(agent: &mut Agent, json: &sonic_rs::Value) -> JsResult<Value> {
+pub(crate) fn value_from_json<'gen>(agent: &mut Agent<'gen>, json: &sonic_rs::Value) -> JsResult<'gen, Value<'gen>> {
     match json.get_type() {
         sonic_rs::JsonType::Null => Ok(Value::Null),
         sonic_rs::JsonType::Boolean => Ok(Value::Boolean(json.is_true())),
