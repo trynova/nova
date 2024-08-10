@@ -33,7 +33,7 @@ use crate::{
         },
         execution::{agent::Agent, ProtoIntrinsics},
         types::{
-            IntoFunction, IntoValue, Number, Object, PropertyDescriptor, PropertyKey, Value,
+            IntoFunction, IntoValue, Number, Object, PropertyDescriptor, PropertyKey,
             BUILTIN_STRING_MEMORY,
         },
     },
@@ -173,7 +173,13 @@ pub(crate) fn create_unmapped_arguments_object(
         key,
         PropertyDescriptor {
             // [[Value]]: %Array.prototype.values%,
-            value: Some(Value::Null),
+            value: Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .array_prototype_values()
+                    .into_value(),
+            ),
             // [[Writable]]: true,
             writable: Some(true),
             // [[Enumerable]]: false,
