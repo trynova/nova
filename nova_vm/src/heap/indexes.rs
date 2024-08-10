@@ -7,10 +7,11 @@ use crate::ecmascript::{
         control_abstraction_objects::generator_objects::GeneratorHeapData,
         data_view::data::DataViewHeapData, date::data::DateHeapData,
         embedder_object::data::EmbedderObjectHeapData, error::ErrorHeapData,
-        finalization_registry::data::FinalizationRegistryHeapData, map::data::MapHeapData,
-        primitive_objects::PrimitiveObjectHeapData, promise::data::PromiseHeapData,
-        proxy::data::ProxyHeapData, regexp::RegExpHeapData, set::data::SetHeapData,
-        shared_array_buffer::data::SharedArrayBufferHeapData,
+        finalization_registry::data::FinalizationRegistryHeapData,
+        indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
+        map::data::MapHeapData, primitive_objects::PrimitiveObjectHeapData,
+        promise::data::PromiseHeapData, proxy::data::ProxyHeapData, regexp::RegExpHeapData,
+        set::data::SetHeapData, shared_array_buffer::data::SharedArrayBufferHeapData,
         typed_array::data::TypedArrayHeapData, weak_map::data::WeakMapHeapData,
         weak_ref::data::WeakRefHeapData, weak_set::data::WeakSetHeapData, ArrayBufferHeapData,
         ArrayHeapData,
@@ -145,6 +146,7 @@ impl<T> Default for BaseIndex<T> {
 
 pub type ArrayBufferIndex = BaseIndex<ArrayBufferHeapData>;
 pub type ArrayIndex = BaseIndex<ArrayHeapData>;
+pub type ArrayIteratorIndex = BaseIndex<ArrayIteratorHeapData>;
 pub type BigIntIndex = BaseIndex<BigIntHeapData>;
 pub type BoundFunctionIndex = BaseIndex<BoundFunctionHeapData>;
 pub type BuiltinFunctionIndex = BaseIndex<BuiltinFunctionHeapData>;

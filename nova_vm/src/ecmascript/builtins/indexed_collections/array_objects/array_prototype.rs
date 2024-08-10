@@ -29,6 +29,8 @@ use crate::{
     SmallInteger,
 };
 
+use super::array_iterator_objects::array_iterator::{ArrayIterator, ArrayIteratorKind};
+
 pub(crate) struct ArrayPrototype;
 
 struct ArrayPrototypeAt;
@@ -573,8 +575,18 @@ impl ArrayPrototype {
         Ok(o.into_value())
     }
 
-    fn entries(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    fn entries(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be ? ToObject(this value).
+        let Value::Array(o) = this_value else {
+            return Err(
+                agent.throw_exception_with_static_message(ExceptionType::TypeError, "blargh")
+            );
+        };
+        // 2. Return CreateArrayIterator(O, key+value).
+        Ok(
+            ArrayIterator::from_array(agent, o.into_object(), ArrayIteratorKind::KeyAndValue)
+                .into_value(),
+        )
     }
 
     /// ### [23.1.3.6 Array.prototype.every ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.every)
@@ -1420,8 +1432,15 @@ impl ArrayPrototype {
         Ok(Value::from_string(agent, r).into_value())
     }
 
-    fn keys(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    fn keys(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be ? ToObject(this value).
+        let Value::Array(o) = this_value else {
+            return Err(
+                agent.throw_exception_with_static_message(ExceptionType::TypeError, "blargh")
+            );
+        };
+        // 2. Return CreateArrayIterator(O, key).
+        Ok(ArrayIterator::from_array(agent, o.into_object(), ArrayIteratorKind::Key).into_value())
     }
 
     /// ### [23.1.3.20 Array.prototype.lastIndexOf ( searchElement \[ , fromIndex \] )](https://tc39.es/ecma262/#sec-array.prototype.lastindexof)
@@ -2494,8 +2513,18 @@ impl ArrayPrototype {
         todo!();
     }
 
-    fn values(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!();
+    fn values(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be ? ToObject(this value).
+        let Value::Array(o) = this_value else {
+            return Err(
+                agent.throw_exception_with_static_message(ExceptionType::TypeError, "blargh")
+            );
+        };
+        // 2. Return CreateArrayIterator(O, value).
+        Ok(
+            ArrayIterator::from_array(agent, o.into_object(), ArrayIteratorKind::Value)
+                .into_value(),
+        )
     }
 
     fn with(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
