@@ -155,7 +155,7 @@ impl Heap {
         let mut heap = Heap {
             array_buffers: Vec::with_capacity(1024),
             arrays: Vec::with_capacity(1024),
-            array_iterators: Vec::with_capacity(1024),
+            array_iterators: Vec::with_capacity(256),
             await_reactions: Vec::with_capacity(1024),
             bigints: Vec::with_capacity(1024),
             bound_functions: Vec::with_capacity(256),

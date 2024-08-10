@@ -32,7 +32,7 @@ impl ArrayIterator {
         self.0.into_index()
     }
 
-    pub(crate) fn from_array(agent: &mut Agent, array: Object, kind: ArrayIteratorKind) -> Self {
+    pub(crate) fn from_object(agent: &mut Agent, array: Object, kind: ArrayIteratorKind) -> Self {
         agent.heap.create(ArrayIteratorHeapData {
             object_index: None,
             array: Some(array),

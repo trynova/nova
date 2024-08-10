@@ -10,6 +10,7 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
+            array::ARRAY_INDEX_RANGE,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorKind,
             ArgumentsList, Builtin,
         },
@@ -65,7 +66,7 @@ impl ArrayIteratorPrototype {
             | Object::Float64Array(_) => todo!(),
             // ii. Else,
             //     1. Let len be ? LengthOfArrayLike(array).
-            Object::Array(array) if agent[array].object_index.is_none() => array.len(agent).into(),
+            Object::Array(array) => array.len(agent).into(),
             _ => length_of_array_like(agent, array)?,
         };
 
@@ -91,24 +92,34 @@ impl ArrayIteratorPrototype {
                 // 1. Let elementKey be ! ToString(indexNumber).
                 // 2. Let elementValue be ? Get(array, elementKey).
                 // a. Let result be elementValue.
-                match array {
-                    Object::Array(array) if agent[array].object_index.is_none() => {
+                let fast_path_result = match array {
+                    Object::Array(array) => {
+                        assert!(ARRAY_INDEX_RANGE.contains(&index.into_i64()));
                         let idx = usize::try_from(index.into_i64()).unwrap();
-                        array.as_slice(agent)[idx].unwrap_or(Value::Undefined)
+                        array.as_slice(agent)[idx]
                     }
-                    _ => get(agent, array, PropertyKey::from(index))?,
+                    _ => None,
+                };
+                match fast_path_result {
+                    Some(result) => result,
+                    None => get(agent, array, PropertyKey::from(index))?,
                 }
             }
             // 4. Else,
             ArrayIteratorKind::KeyAndValue => {
                 // 1. Let elementKey be ! ToString(indexNumber).
                 // 2. Let elementValue be ? Get(array, elementKey).
-                let value = match array {
+                let fast_path_result = match array {
                     Object::Array(array) if agent[array].object_index.is_none() => {
+                        assert!(ARRAY_INDEX_RANGE.contains(&index.into_i64()));
                         let idx = usize::try_from(index.into_i64()).unwrap();
-                        array.as_slice(agent)[idx].unwrap_or(Value::Undefined)
+                        array.as_slice(agent)[idx]
                     }
-                    _ => get(agent, array, PropertyKey::from(index))?,
+                    _ => None,
+                };
+                let value = match fast_path_result {
+                    Some(result) => result,
+                    None => get(agent, array, PropertyKey::from(index))?,
                 };
                 // a. Assert: kind is key+value.
                 // b. Let result be CreateArrayFromList(« indexNumber, elementValue »).

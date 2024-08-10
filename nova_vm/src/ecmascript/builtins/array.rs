@@ -35,7 +35,7 @@ pub use data::{ArrayHeapData, SealableElementsVector};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Array(ArrayIndex);
 
-static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
+pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
 impl Array {
     /// # Do not use this
