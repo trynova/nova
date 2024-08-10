@@ -1599,6 +1599,7 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::AsyncFromSyncIterator |
         Value::AsyncIterator |
         Value::Iterator |
+        Value::ArrayIterator(_) |
         Value::Generator(_) |
         Value::Module(_) |
         Value::EmbedderObject(_) => BUILTIN_STRING_MEMORY.object,

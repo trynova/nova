@@ -20,6 +20,7 @@ use crate::{
             embedder_object::EmbedderObject,
             error::Error,
             finalization_registry::FinalizationRegistry,
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
             map::Map,
             module::Module,
             primitive_objects::PrimitiveObject,
@@ -165,6 +166,7 @@ pub enum Value {
     AsyncFromSyncIterator,
     AsyncIterator,
     Iterator,
+    ArrayIterator(ArrayIterator),
     Generator(Generator),
 
     // ECMAScript Module
@@ -275,6 +277,8 @@ pub(crate) const ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::AsyncFromSyncIterator);
 pub(crate) const ASYNC_ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::AsyncIterator);
 pub(crate) const ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::Iterator);
+pub(crate) const ARRAY_ITERATOR_DISCRIMINANT: u8 =
+    value_discriminant(Value::ArrayIterator(ArrayIterator::_def()));
 pub(crate) const GENERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::Generator(Generator::_def()));
 pub(crate) const MODULE_DISCRIMINANT: u8 = value_discriminant(Value::Module(Module::_def()));
@@ -602,6 +606,7 @@ impl HeapMarkAndSweep for Value {
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
+            Value::ArrayIterator(data) => data.mark_values(queues),
             Value::Generator(data) => data.mark_values(queues),
             Value::Module(data) => data.mark_values(queues),
             Value::EmbedderObject(data) => data.mark_values(queues),
@@ -663,6 +668,7 @@ impl HeapMarkAndSweep for Value {
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
+            Value::ArrayIterator(data) => data.sweep_values(compactions),
             Value::Generator(data) => data.sweep_values(compactions),
             Value::Module(data) => data.sweep_values(compactions),
             Value::EmbedderObject(data) => data.sweep_values(compactions),

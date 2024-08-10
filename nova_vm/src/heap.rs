@@ -42,6 +42,7 @@ use crate::ecmascript::{
         embedder_object::data::EmbedderObjectHeapData,
         error::ErrorHeapData,
         finalization_registry::data::FinalizationRegistryHeapData,
+        indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
         map::data::MapHeapData,
         module::data::ModuleHeapData,
         primitive_objects::PrimitiveObjectHeapData,
@@ -76,6 +77,7 @@ pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 pub struct Heap {
     pub array_buffers: Vec<Option<ArrayBufferHeapData>>,
     pub arrays: Vec<Option<ArrayHeapData>>,
+    pub array_iterators: Vec<Option<ArrayIteratorHeapData>>,
     pub(crate) await_reactions: Vec<Option<AwaitReaction>>,
     pub bigints: Vec<Option<BigIntHeapData>>,
     pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
@@ -153,6 +155,7 @@ impl Heap {
         let mut heap = Heap {
             array_buffers: Vec::with_capacity(1024),
             arrays: Vec::with_capacity(1024),
+            array_iterators: Vec::with_capacity(256),
             await_reactions: Vec::with_capacity(1024),
             bigints: Vec::with_capacity(1024),
             bound_functions: Vec::with_capacity(256),
