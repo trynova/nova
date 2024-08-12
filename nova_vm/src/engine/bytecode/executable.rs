@@ -1302,8 +1302,15 @@ impl CompileEvaluation for CallExpression<'_> {
         } else {
             ctx.exe.add_instruction(Instruction::Load);
         }
+        // If we're in an optional chain, we need to pluck it out while we're
+        // compiling the parameters: They do not join our chain.
+        let optional_chain = ctx.optional_chains.take();
         for ele in &self.arguments {
             ele.compile(ctx);
+        }
+        // After we're done with compiling parameters we go back into the chain.
+        if let Some(optional_chain) = optional_chain {
+            ctx.optional_chains.replace(optional_chain);
         }
 
         if need_pop_reference {
@@ -1374,10 +1381,18 @@ impl CompileEvaluation for ast::ComputedMemberExpression<'_> {
             ctx.exe.add_instruction(Instruction::Load);
         }
 
+        // If we're in an optional chain, we need to pluck it out while we're
+        // compiling the member expression: They do not join our chain.
+        let optional_chain = ctx.optional_chains.take();
         // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
         self.expression.compile(ctx);
         if is_reference(&self.expression) {
             ctx.exe.add_instruction(Instruction::GetValue);
+        }
+        // After we're done with compiling the member expression we go back
+        // into the chain.
+        if let Some(optional_chain) = optional_chain {
+            ctx.optional_chains.replace(optional_chain);
         }
 
         ctx.exe
@@ -1450,10 +1465,16 @@ impl CompileEvaluation for ast::AwaitExpression<'_> {
 impl CompileEvaluation for ast::ChainExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         // It's possible that we're compiling a ChainExpression inside a call
-        // that is itself in a ChainExpression. Thus we need to remember
-        // previous chains. We prepare for at least two chains to exist. One
-        // chain is often enough but two is a bit safer. Three is rare.
-        let previous_chain = ctx.optional_chains.replace(Vec::with_capacity(2));
+        // that is itself in a ChainExpression. We will drop into the previous
+        // chain in this case.
+        let installed_own_chains = if ctx.optional_chains.is_none() {
+            // We prepare for at least two chains to exist. One chain is often
+            // enough but two is a bit safer. Three is rare.
+            ctx.optional_chains.replace(Vec::with_capacity(2));
+            true
+        } else {
+            false
+        };
         let need_get_value = match self.expression {
             ast::ChainElement::CallExpression(ref call) => {
                 call.compile(ctx);
@@ -1487,20 +1508,21 @@ impl CompileEvaluation for ast::ChainExpression<'_> {
                 ctx.exe.add_instruction(Instruction::GetValue);
             }
         }
-        let jump_over_return_undefined = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
-        let own_chains = ctx.optional_chains.take().unwrap();
-        // Return previous chains to their place.
-        ctx.optional_chains = previous_chain;
-        for jump_to_return_undefined in own_chains {
-            ctx.exe.set_jump_target_here(jump_to_return_undefined);
+        if installed_own_chains {
+            let jump_over_return_undefined =
+                ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+            let own_chains = ctx.optional_chains.take().unwrap();
+            for jump_to_return_undefined in own_chains {
+                ctx.exe.set_jump_target_here(jump_to_return_undefined);
+            }
+            // All optional chains come here with a copy of their null or
+            // undefined baseValue on the stack. Pop it off.
+            ctx.exe.add_instruction(Instruction::Store);
+            // Replace any possible null with undefined.
+            ctx.exe
+                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            ctx.exe.set_jump_target_here(jump_over_return_undefined);
         }
-        // All optional chains come here with a copy of their null or
-        // undefined baseValue on the stack. Pop it off.
-        ctx.exe.add_instruction(Instruction::Store);
-        // Replace any possible null with undefined.
-        ctx.exe
-            .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-        ctx.exe.set_jump_target_here(jump_over_return_undefined);
     }
 }
 
