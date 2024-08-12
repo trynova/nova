@@ -13,7 +13,7 @@ use crate::{
         syntax_directed_operations::scope_analysis::{
             LexicallyScopedDeclaration, LexicallyScopedDeclarations,
         },
-        types::{BigIntHeapData, PropertyKey, Reference, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BigIntHeapData, IntoValue, PropertyKey, Reference, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
 };
@@ -180,7 +180,7 @@ impl<'gen> Executable<'gen> {
         Self::_compile_statements(agent, body, true)
     }
 
-    pub(crate) fn compile_function_body<'gen>(
+    pub(crate) fn compile_function_body(
         agent: &mut Agent<'gen>,
         body: &FunctionBody<'_>,
         is_concise_body: bool,
@@ -208,7 +208,7 @@ impl<'gen> Executable<'gen> {
         Self::_compile_statements(agent, body, true)
     }
 
-    fn _compile_statements<'gen>(
+    fn _compile_statements(
         agent: &mut Agent<'gen>,
         body: &[Statement],
         implicit_return: bool,
@@ -2809,7 +2809,7 @@ fn is_anonymous_function_definition(expression: &ast::Expression) -> bool {
     }
 }
 
-impl<'gen> HeapMarkAndSweep<'gen> for Executable {
+impl<'gen> HeapMarkAndSweep<'gen> for Executable<'gen> {
     fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.constants.as_slice().mark_values(queues);
         self.identifiers.as_slice().mark_values(queues);

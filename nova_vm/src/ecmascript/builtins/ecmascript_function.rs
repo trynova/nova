@@ -303,11 +303,11 @@ impl<'gen> InternalSlots<'gen> for ECMAScriptFunction<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
+    fn get_backing_object<'b>(self, agent: &'b Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> where 'gen: 'b {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
+    fn create_backing_object<'b>(self, agent: &'b mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> where 'gen: 'b {
         debug_assert!(self.get_backing_object(agent).is_none());
         let prototype = self.internal_prototype(agent);
         let length_entry = ObjectEntry {

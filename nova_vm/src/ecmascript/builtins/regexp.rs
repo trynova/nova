@@ -86,11 +86,11 @@ impl<'gen> IntoObject<'gen> for RegExp<'gen> {
 impl<'gen> InternalSlots<'gen> for RegExp<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::RegExp;
 
-    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<OrdinaryObject<'gen>> {
+    fn get_backing_object<'b>(self, agent: &'b Agent<'gen>) -> Option<OrdinaryObject<'gen>> where 'gen: 'b {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent<'gen>) -> OrdinaryObject<'gen> {
+    fn create_backing_object<'b>(self, agent: &'b mut Agent<'gen>) -> OrdinaryObject<'gen> where 'gen: 'b {
         let prototype = agent
             .current_realm()
             .intrinsics()

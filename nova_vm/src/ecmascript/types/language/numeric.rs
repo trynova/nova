@@ -31,7 +31,7 @@ pub enum Numeric<'gen> {
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
-impl Numeric<'_> {
+impl<'gen> Numeric<'gen> {
     pub fn is_bigint(self) -> bool {
         matches!(self, Self::BigInt(_) | Self::SmallBigInt(_))
     }

@@ -11,12 +11,12 @@ use super::{IntoValue, Value};
 /// unique pointer to a heap allocation in system programming languages. As
 /// long as the pointer lives, the memory on the heap will not be released.
 #[derive(Debug, PartialEq)]
-pub struct Global<T: IntoValue + TryFrom<Value<'gen>>>(u32, PhantomData<T>);
+pub struct Global<'gen, T>(u32, PhantomData<T>) where T: IntoValue<'gen> + TryFrom<Value<'gen>>;
 
-impl<T: IntoValue + TryFrom<Value<'gen>>> Global<T> {
+impl<'gen, T: IntoValue<'gen> + TryFrom<Value<'gen>>> Global<'gen, T> {
     /// Register a value as global.
     #[must_use]
-    pub fn new<'gen>(agent: &mut Agent<'gen>, value: T) -> Self {
+    pub fn new(agent: &mut Agent<'gen>, value: T) -> Self {
         let reused_index = agent
             .heap
             .globals

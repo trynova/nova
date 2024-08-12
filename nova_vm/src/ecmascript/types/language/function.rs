@@ -174,12 +174,12 @@ impl<'gen> Function<'gen> {
 impl<'gen> InternalSlots<'gen> for Function<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
-    fn create_backing_object(self, _: &mut Agent<'gen>) -> OrdinaryObject<'gen> {
+    fn create_backing_object<'b>(self, _: &'b mut Agent<'gen>) -> OrdinaryObject<'gen> where 'gen: 'b {
         unreachable!("Function should not try to create backing object");
     }
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<OrdinaryObject<'gen>> {
+    fn get_backing_object<'b>(self, agent: &'b Agent<'gen>) -> Option<OrdinaryObject<'gen>> where 'gen: 'b {
         match self {
             Function::BoundFunction(d) => agent[d].object_index,
             Function::BuiltinFunction(d) => agent[d].object_index,
@@ -192,7 +192,7 @@ impl<'gen> InternalSlots<'gen> for Function<'gen> {
         }
     }
 
-    fn internal_set_extensible(self, agent: &mut Agent<'gen>, value: bool) {
+    fn internal_set_extensible<'b>(self, agent: &'b mut Agent<'gen>, value: bool) where 'gen: 'b {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_set_extensible(agent, value)
         } else if !value {
@@ -201,7 +201,7 @@ impl<'gen> InternalSlots<'gen> for Function<'gen> {
         }
     }
 
-    fn internal_set_prototype(self, agent: &mut Agent<'gen>, prototype: Option<Object<'gen>>) {
+    fn internal_set_prototype<'b>(self, agent: &'b mut Agent<'gen>, prototype: Option<Object<'gen>>) where 'gen: 'b {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_set_prototype(agent, prototype)
         } else if prototype
@@ -478,8 +478,8 @@ impl<'gen> HeapMarkAndSweep<'gen> for Function<'gen> {
     }
 }
 
-impl Function {
-    pub fn call(self, agent: &mut Agent, this_argument: Value, args: &[Value]) -> JsResult<Value> {
+impl<'gen> Function<'gen> {
+    pub fn call(self, agent: &mut Agent<'gen>, this_argument: Value<'gen>, args: &[Value<'gen>]) -> JsResult<'gen, Value<'gen>> {
         self.internal_call(agent, this_argument, ArgumentsList(args))
     }
 }

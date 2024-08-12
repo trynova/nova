@@ -262,14 +262,14 @@ impl<'gen> From<Generator<'gen>> for Object<'gen> {
     }
 }
 
-impl<'gen> InternalSlots<'gen> for Generator<'gen> {
+impl<'a> InternalSlots<'a> for Generator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Generator;
 
-    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<OrdinaryObject<'gen>> {
+    fn get_backing_object<'b>(self, agent: &'b Agent<'a>) -> Option<OrdinaryObject<'a>> where 'a: 'b {
         agent[self].object_index
     }
 
-    fn create_backing_object<'agent: 'gen>(self, agent: &'agent mut Agent<'gen>) -> OrdinaryObject<'gen> {
+    fn create_backing_object<'b>(self, agent: &'b mut Agent<'a>) -> OrdinaryObject<'a> where 'a: 'b {
         let prototype = agent
             .current_realm()
             .intrinsics()

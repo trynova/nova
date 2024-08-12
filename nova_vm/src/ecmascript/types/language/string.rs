@@ -35,7 +35,7 @@ impl<'gen> HeapString<'gen> {
         self.0.into_index()
     }
 
-    pub fn as_str(self, agent: &Agent<'gen>) -> &str {
+    pub fn as_str<'a>(self, agent: &'a Agent<'gen>) -> &'a str {
         agent[self].as_str()
     }
 }
@@ -202,7 +202,7 @@ impl<'gen> String<'gen> {
         }
     }
 
-    pub fn from_static_str<'gen>(agent: &mut Agent<'gen>, str: &'static str) -> Self {
+    pub fn from_static_str(agent: &mut Agent<'gen>, str: &'static str) -> Self {
         if let Ok(value) = String::try_from(str) {
             value
         } else {
@@ -333,15 +333,15 @@ impl<'gen> String<'gen> {
 }
 
 impl<'gen> String<'gen> {
-        pub fn from_str<'gen>(agent: &mut Agent<'gen>, str: &str) -> String<'gen> {
+        pub fn from_str(agent: &mut Agent<'gen>, str: &str) -> String<'gen> {
         agent.heap.create(str)
     }
 
-    pub fn from_string<'gen>(agent: &mut Agent<'gen>, string: std::string::String) -> String<'gen> {
+    pub fn from_string(agent: &mut Agent<'gen>, string: std::string::String) -> String<'gen> {
         agent.heap.create(string)
     }
 
-    pub fn concat<'gen>(agent: &mut Agent<'gen>, strings: impl AsRef<[String<'gen>]>) -> String<'gen> {
+    pub fn concat(agent: &mut Agent<'gen>, strings: impl AsRef<[String<'gen>]>) -> String<'gen> {
         // TODO: This function will need heavy changes once we support creating
         // WTF-8 strings, since WTF-8 concatenation isn't byte concatenation.
 
@@ -415,13 +415,13 @@ impl<'gen> String<'gen> {
 }
 
 impl<'gen> CreateHeapData<StringHeapData, String<'gen>> for Heap<'gen> {
-    fn create(&mut self, data: StringHeapData) -> String {
+    fn create(&mut self, data: StringHeapData) -> String<'gen> {
         self.strings.push(Some(data));
         String::String(HeapString(StringIndex::last(&self.strings)))
     }
 }
 
-impl<'gen> HeapMarkAndSweep<'gen> for String<'_> {
+impl<'gen> HeapMarkAndSweep<'gen> for String<'gen> {
     #[inline(always)]
     fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         if let Self::String(idx) = self {
@@ -437,7 +437,7 @@ impl<'gen> HeapMarkAndSweep<'gen> for String<'_> {
     }
 }
 
-impl<'gen> HeapMarkAndSweep<'gen> for HeapString<'_> {
+impl<'gen> HeapMarkAndSweep<'gen> for HeapString<'gen> {
     fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.strings.push(*self);
     }

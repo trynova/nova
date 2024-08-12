@@ -114,7 +114,7 @@ impl Primitive<'_> {
 }
 
 impl<'gen> From<Primitive<'gen>> for Value<'gen> {
-    fn from(value: Primitive) -> Self {
+    fn from(value: Primitive<'gen>) -> Self {
         value.into_value()
     }
 }

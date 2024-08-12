@@ -158,11 +158,11 @@ impl<'gen> InternalSlots<'gen> for Array<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Array;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
+    fn get_backing_object<'b>(self, agent: &'b Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> where 'gen: 'b {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
+    fn create_backing_object<'b>(self, agent: &'b mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> where 'gen: 'b {
         let prototype = Some(
             agent
                 .current_realm()
@@ -180,7 +180,7 @@ impl<'gen> InternalSlots<'gen> for Array<'gen> {
         backing_object
     }
 
-    fn internal_set_extensible(self, agent: &mut Agent<'gen>, value: bool) {
+    fn internal_set_extensible<'b>(self, agent: &'b mut Agent<'gen>, value: bool) {
         agent[self].elements.len_writable = value;
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_set_extensible(agent, value)
@@ -190,7 +190,7 @@ impl<'gen> InternalSlots<'gen> for Array<'gen> {
         }
     }
 
-    fn internal_set_prototype(self, agent: &mut Agent<'gen>, prototype: Option<Object<'gen>>) {
+    fn internal_set_prototype<'b>(self, agent: &'b mut Agent<'gen>, prototype: Option<Object<'gen>>) {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_set_prototype(agent, prototype)
         } else {

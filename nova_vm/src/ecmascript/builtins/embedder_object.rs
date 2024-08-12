@@ -81,7 +81,7 @@ impl<'gen> InternalSlots<'gen> for EmbedderObject<'gen> {
         todo!();
     }
 
-    fn create_backing_object(self, _agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
+    fn create_backing_object<'b>(self, _agent: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         todo!();
     }
     fn internal_extensible(self, _agent: &Agent<'gen>) -> bool {

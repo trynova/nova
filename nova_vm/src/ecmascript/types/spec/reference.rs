@@ -9,7 +9,7 @@ use crate::{
             agent::{self, ExceptionType},
             get_global_object, EnvironmentIndex,
         },
-        types::{InternalMethods, Object, PropertyKey, String, Value},
+        types::{InternalMethods, IntoValue, Object, PropertyKey, String, Value},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -98,7 +98,7 @@ pub(crate) fn is_private_reference(_: &Reference<'_>) -> bool {
 /// The abstract operation GetValue takes argument V (a Reference Record or an
 /// ECMAScript language value) and returns either a normal completion
 /// containing an ECMAScript language value or an abrupt completion.
-pub(crate) fn get_value<'gen>(agent: &mut Agent<'gen>, reference: &Reference) -> JsResult<'gen, Value<'gen>> {
+pub(crate) fn get_value<'agent, 'gen: 'agent>(agent: &'agent mut Agent<'gen>, reference: &Reference<'gen>) -> JsResult<'gen, Value<'gen>> {
     let referenced_name = reference.referenced_name;
     match reference.base {
         Base::Value(value) => {
@@ -269,9 +269,9 @@ pub(crate) fn put_value<'gen>(agent: &mut Agent<'gen>, v: &Reference, w: Value<'
 /// The abstract operation InitializeReferencedBinding takes arguments V (a Reference Record) and W
 /// (an ECMAScript language value) and returns either a normal completion containing unused or an
 /// abrupt completion.
-pub(crate) fn initialize_referenced_binding<'gen>(
-    agent: &mut Agent<'gen>,
-    v: Reference,
+pub(crate) fn initialize_referenced_binding<'agent, 'gen: 'agent>(
+    agent: &'agent mut Agent<'gen>,
+    v: Reference<'gen>,
     w: Value<'gen>,
 ) -> JsResult<'gen, ()> {
     // 1. Assert: IsUnresolvableReference(V) is false.

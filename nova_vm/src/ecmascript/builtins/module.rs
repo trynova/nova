@@ -112,11 +112,11 @@ impl Module<'_> {
 
 impl<'gen> InternalSlots<'gen> for Module<'_> {
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> {
+    fn get_backing_object<'b>(self, agent: &'b Agent<'gen>) -> Option<crate::ecmascript::types::OrdinaryObject<'gen>> where 'gen: 'b {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, _: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
+    fn create_backing_object<'b>(self, _: &mut Agent<'gen>) -> crate::ecmascript::types::OrdinaryObject<'gen> {
         unreachable!();
     }
 

@@ -161,7 +161,7 @@ impl<'gen> PrimitiveObject<'gen> {
 
 impl<'gen> InternalSlots<'gen> for PrimitiveObject<'gen> {
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<OrdinaryObject<'gen>> {
+    fn get_backing_object<'b>(self, agent: &'b Agent<'gen>) -> Option<OrdinaryObject<'gen>> where 'gen: 'b {
         agent[self].object_index
     }
 
@@ -197,7 +197,7 @@ impl<'gen> InternalSlots<'gen> for PrimitiveObject<'gen> {
         }
     }
 
-    fn create_backing_object(self, agent: &mut Agent<'gen>) -> OrdinaryObject<'gen> {
+    fn create_backing_object<'b>(self, agent: &'b mut Agent<'gen>) -> OrdinaryObject<'gen> where 'gen: 'b {
         debug_assert!(self.get_backing_object(agent).is_none());
         let prototype = self.internal_prototype(agent).unwrap();
         let backing_object = agent.heap.create(ObjectHeapData {

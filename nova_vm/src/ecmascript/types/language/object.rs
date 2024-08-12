@@ -241,27 +241,27 @@ impl<'gen> TryFrom<Object<'gen>> for OrdinaryObject<'gen> {
 
 impl<'gen> InternalSlots<'gen> for OrdinaryObject<'gen> {
     #[inline(always)]
-    fn get_backing_object(self, _: &Agent<'gen>) -> Option<OrdinaryObject<'gen>> {
+    fn get_backing_object<'b>(self, _: &Agent<'gen>) -> Option<OrdinaryObject<'gen>> where 'gen: 'b {
         Some(self)
     }
 
-    fn create_backing_object(self, _: &mut Agent<'gen>) -> OrdinaryObject<'gen> {
+    fn create_backing_object<'b>(self, _: &mut Agent<'gen>) -> OrdinaryObject<'gen> where 'gen: 'b {
         unreachable!();
     }
 
-    fn internal_extensible(self, agent: &Agent<'gen>) -> bool {
+    fn internal_extensible<'b>(self, agent: &Agent<'gen>) -> bool where 'gen: 'b {
         agent[self].extensible
     }
 
-    fn internal_set_extensible(self, agent: &mut Agent<'gen>, value: bool) {
+    fn internal_set_extensible<'b>(self, agent: &'b mut Agent<'gen>, value: bool) where 'gen: 'b {
         agent[self].extensible = value;
     }
 
-    fn internal_prototype(self, agent: &Agent<'gen>) -> Option<Object<'gen>> {
+    fn internal_prototype<'b>(self, agent: &Agent<'gen>) -> Option<Object<'gen>> where 'gen: 'b {
         agent[self].prototype
     }
 
-    fn internal_set_prototype(self, agent: &mut Agent<'gen>, prototype: Option<Object<'gen>>) {
+    fn internal_set_prototype<'b>(self, agent: &'b mut Agent<'gen>, prototype: Option<Object<'gen>>) where 'gen: 'b {
         agent[self].prototype = prototype;
     }
 }
@@ -420,15 +420,15 @@ impl<'gen> Object<'gen> {
 }
 
 impl<'gen> InternalSlots<'gen> for Object<'gen> {
-    fn get_backing_object(self, _: &Agent<'gen>) -> Option<OrdinaryObject<'gen>> {
+    fn get_backing_object<'b>(self, _: &Agent<'gen>) -> Option<OrdinaryObject<'gen>> where 'gen: 'b {
         unreachable!("Object should not try to access its backing object");
     }
 
-    fn create_backing_object(self, _: &mut Agent<'gen>) -> OrdinaryObject<'gen> {
+    fn create_backing_object<'b>(self, _: &mut Agent<'gen>) -> OrdinaryObject<'gen> where 'gen: 'b {
         unreachable!("Object should not try to create its backing object");
     }
 
-    fn internal_extensible(self, agent: &Agent<'gen>) -> bool {
+    fn internal_extensible<'b>(self, agent: &Agent<'gen>) -> bool where 'gen: 'b {
         match self {
             Object::Object(data) => data.internal_extensible(agent),
             Object::Array(data) => data.internal_extensible(agent),
@@ -482,7 +482,7 @@ impl<'gen> InternalSlots<'gen> for Object<'gen> {
         }
     }
 
-    fn internal_set_extensible(self, agent: &mut Agent<'gen>, value: bool) {
+    fn internal_set_extensible<'b>(self, agent: &'b mut Agent<'gen>, value: bool) where 'gen: 'b {
         match self {
             Object::Object(data) => data.internal_set_extensible(agent, value),
             Object::Array(data) => data.internal_set_extensible(agent, value),
@@ -554,7 +554,7 @@ impl<'gen> InternalSlots<'gen> for Object<'gen> {
         }
     }
 
-    fn internal_prototype(self, agent: &Agent<'gen>) -> Option<Object<'gen>> {
+    fn internal_prototype<'b>(self, agent: &Agent<'gen>) -> Option<Object<'gen>> where 'gen: 'b {
         match self {
             Object::Object(data) => data.internal_prototype(agent),
             Object::Array(data) => data.internal_prototype(agent),
@@ -608,7 +608,7 @@ impl<'gen> InternalSlots<'gen> for Object<'gen> {
         }
     }
 
-    fn internal_set_prototype(self, agent: &mut Agent<'gen>, prototype: Option<Object<'gen>>) {
+    fn internal_set_prototype<'b>(self, agent: &'b mut Agent<'gen>, prototype: Option<Object<'gen>>) where 'gen: 'b {
         match self {
             Object::Object(data) => data.internal_set_prototype(agent, prototype),
             Object::Array(data) => data.internal_set_prototype(agent, prototype),

@@ -164,11 +164,11 @@ pub struct Realm<'gen> {
 unsafe impl Send for Realm<'_> {}
 
 impl<'gen> Realm<'gen> {
-    pub(crate) fn intrinsics(&self) -> &Intrinsics {
+    pub(crate) fn intrinsics(&self) -> &Intrinsics<'gen> {
         &self.intrinsics
     }
 
-    pub(crate) fn intrinsics_mut(&mut self) -> &mut Intrinsics {
+    pub(crate) fn intrinsics_mut(&mut self) -> &mut Intrinsics<'gen> {
         &mut self.intrinsics
     }
 }

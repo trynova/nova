@@ -200,7 +200,7 @@ impl<'gen> BigInt<'gen> {
     /// The abstract operation BigInt::exponentiate takes arguments base (a
     /// BigInt) and exponent (a BigInt) and returns either a normal completion
     /// containing a BigInt or a throw completion.
-    pub(crate) fn exponentiate<'gen>(
+    pub(crate) fn exponentiate(
         agent: &mut Agent<'gen>,
         _base: Self,
         exponent: Self,

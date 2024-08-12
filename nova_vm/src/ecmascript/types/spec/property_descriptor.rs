@@ -175,7 +175,7 @@ impl<'gen> PropertyDescriptor<'gen> {
     /// The abstract operation ToPropertyDescriptor takes argument Obj (an
     /// ECMAScript language value) and returns either a normal completion
     /// containing a Property Descriptor or a throw completion.
-    pub fn to_property_descriptor<'gen>(agent: &mut Agent<'gen>, obj: Value<'gen>) -> JsResult<'gen, Self> {
+    pub fn to_property_descriptor(agent: &mut Agent<'gen>, obj: Value<'gen>) -> JsResult<'gen, Self> {
         // 1. If Obj is not an Object, throw a TypeError exception.
         let Ok(obj) = Object::try_from(obj) else {
             let obj_repr = obj.string_repr(agent);
