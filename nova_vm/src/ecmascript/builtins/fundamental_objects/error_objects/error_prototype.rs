@@ -25,7 +25,7 @@ impl Builtin for ErrorPrototypeToString {
 
 impl ErrorPrototype {
     /// ### [20.5.3.4 Error.prototype.toString ( )](https://tc39.es/ecma262/#sec-error.prototype.tostring)
-    fn to_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn to_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {

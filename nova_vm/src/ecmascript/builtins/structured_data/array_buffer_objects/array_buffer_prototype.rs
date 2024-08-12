@@ -80,7 +80,7 @@ impl ArrayBufferPrototype {
         todo!()
     }
 
-    fn get_detached<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_detached<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -92,19 +92,19 @@ impl ArrayBufferPrototype {
         todo!()
     }
 
-    fn get_resizable<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_resizable<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn resize<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn resize<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn slice<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn slice<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn transfer<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn transfer<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 

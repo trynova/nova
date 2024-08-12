@@ -79,7 +79,7 @@ impl Builtin for NumberPrototypeValueOf {
 }
 
 impl NumberPrototype {
-    fn to_exponential(
+    fn to_exponential<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
         arguments: ArgumentsList<'_, 'gen>,
@@ -152,7 +152,7 @@ impl NumberPrototype {
         Ok(Value::from_str(agent, string))
     }
 
-    fn to_locale_string(
+    fn to_locale_string<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
         arguments: ArgumentsList<'_, 'gen>,
@@ -160,11 +160,11 @@ impl NumberPrototype {
         Self::to_string(agent, this_value, arguments)
     }
 
-    fn to_precision<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn to_precision<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn to_string(
+    fn to_string<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
         arguments: ArgumentsList<'_, 'gen>,
@@ -178,7 +178,7 @@ impl NumberPrototype {
         }
     }
 
-    fn value_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn value_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         this_number_value(agent, this_value).map(|result| result.into_value())
     }
 
@@ -234,7 +234,7 @@ fn f64_to_exponential_with_precision<'gen>(agent: &mut Agent<'gen>, x: f64, f: u
 ///
 /// The abstract operation ThisNumberValue takes argument value (an ECMAScript language value) and returns either a normal completion containing a Number or a throw completion. It performs the following steps when called:
 #[inline(always)]
-fn this_number_value<'gen>(agent: &mut Agent<'gen>, value: Value<'gen>) -> JsResult<'gen, Number> {
+fn this_number_value<'gen>(agent: &mut Agent<'gen>, value: Value<'gen>) -> JsResult<'gen, Number<'gen>> {
     // 1. If value is a Number, return value.
     if let Ok(value) = Number::try_from(value) {
         return Ok(value);

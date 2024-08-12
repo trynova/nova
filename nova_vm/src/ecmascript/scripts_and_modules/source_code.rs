@@ -39,7 +39,7 @@ impl<'gen> SourceCode<'gen> {
     ///
     /// The caller must keep the SourceCode from being garbage collected until
     /// they drop the parsed code.
-    pub(crate) unsafe fn parse_source(
+    pub(crate) unsafe fn parse_source<'gen>(
         agent: &mut Agent<'gen>,
         source: String<'gen>,
         source_type: SourceType,

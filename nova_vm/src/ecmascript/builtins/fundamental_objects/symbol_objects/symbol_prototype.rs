@@ -68,7 +68,7 @@ impl SymbolPrototype {
     ///
     /// Symbol.prototype.description is an accessor property whose set accessor
     /// function is undefined.
-    fn get_description<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_description<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let s be the this value.
         // 2. Let sym be ? ThisSymbolValue(s).
         let sym = this_symbol_value(agent, this_value)?;
@@ -78,12 +78,12 @@ impl SymbolPrototype {
             .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into_value()))
     }
 
-    fn to_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn to_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let symb = this_symbol_value(agent, this_value)?;
         Ok(symbol_descriptive_string(agent, symb).into_value())
     }
 
-    fn value_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn value_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         this_symbol_value(agent, this_value).map(|res| res.into_value())
     }
 

@@ -160,7 +160,7 @@ impl Builtin for DataViewPrototypeSetUint32 {
 }
 
 impl DataViewPrototype {
-    fn get_buffer<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_buffer<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -180,83 +180,83 @@ impl DataViewPrototype {
         todo!()
     }
 
-    fn get_big_int64<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_big_int64<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_big_uint64<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_big_uint64<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_float32<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_float32<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_float64<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_float64<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_int8<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_int8<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_int16<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_int16<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_int32<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_int32<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_uint8<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_uint8<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_uint16<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_uint16<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn get_uint32<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_uint32<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn set_big_int64<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn set_big_int64<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn set_big_uint64<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn set_big_uint64<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn set_float32<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn set_float32<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn set_float64<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn set_float64<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn set_int8<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn set_int8<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn set_int16<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn set_int16<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn set_int32<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn set_int32<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn set_uint8<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn set_uint8<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn set_uint16<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn set_uint16<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn set_uint32<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn set_uint32<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 

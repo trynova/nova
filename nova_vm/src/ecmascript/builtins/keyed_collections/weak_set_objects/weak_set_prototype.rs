@@ -34,15 +34,15 @@ impl Builtin for WeakSetPrototypeHas {
 }
 
 impl WeakSetPrototype {
-    fn add<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn add<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn delete<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn delete<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn has<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn has<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 

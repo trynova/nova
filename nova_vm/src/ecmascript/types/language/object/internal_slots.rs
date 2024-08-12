@@ -58,7 +58,7 @@ where
     /// All ordinary objects have an internal slot called \[\[Prototype\]\].
     /// The value of this internal slot is either null or an object and is used
     /// for implementing inheritance.
-    fn internal_prototype(self, agent: &Agent<'gen>) -> Option<Object<'gen>> {
+    fn internal_prototype(self, agent: &'_ Agent<'gen>) -> Option<Object<'gen>> {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_prototype(agent)
         } else {

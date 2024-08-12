@@ -52,7 +52,7 @@ impl Builtin for PromisePrototypeThen {
 }
 
 impl PromisePrototype {
-    fn catch<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn catch<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let promise be the this value.
         // 2. Return ? Invoke(promise, "then", « undefined, onRejected »).
         // TODO: Add a fast path that calls `perform_promise_then` if we know
@@ -66,11 +66,11 @@ impl PromisePrototype {
         )
     }
 
-    fn finally<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn finally<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn then<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn then<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let promise be the this value.
         // 2. If IsPromise(promise) is false, throw a TypeError exception.
         let Value::Promise(promise) = this_value else {

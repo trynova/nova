@@ -23,7 +23,7 @@ impl Builtin for AsyncIteratorPrototypeIterator {
 }
 
 impl AsyncIteratorPrototype {
-    fn iterator<'gen>(_agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn iterator<'gen>(_agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         Ok(this_value)
     }
 

@@ -68,7 +68,7 @@ impl BigIntPrototype {
         }
     }
 
-    fn value_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn value_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         this_big_int_value(agent, this_value).map(|result| result.into_value())
     }
 

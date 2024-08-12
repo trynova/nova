@@ -122,7 +122,7 @@ pub enum Object<'gen> {
     Iterator = ITERATOR_DISCRIMINANT,
     Generator(Generator<'gen>) = GENERATOR_DISCRIMINANT,
     Module(Module<'gen>) = MODULE_DISCRIMINANT,
-    EmbedderObject(EmbedderObject) = EMBEDDER_OBJECT_DISCRIMINANT,
+    EmbedderObject(EmbedderObject<'gen>) = EMBEDDER_OBJECT_DISCRIMINANT,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -1682,8 +1682,8 @@ impl<'gen> HeapMarkAndSweep<'gen> for Object<'gen> {
     }
 }
 
-impl<'gen> CreateHeapData<ObjectHeapData, OrdinaryObject<'gen>> for Heap<'gen> {
-    fn create(&mut self, data: ObjectHeapData) -> OrdinaryObject<'gen> {
+impl<'gen> CreateHeapData<ObjectHeapData<'gen>, OrdinaryObject<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: ObjectHeapData<'gen>) -> OrdinaryObject<'gen> {
         self.objects.push(Some(data));
         OrdinaryObject(ObjectIndex::last(&self.objects))
     }

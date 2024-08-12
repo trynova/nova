@@ -246,7 +246,7 @@ impl Builtin for StringPrototypeIterator {
 }
 
 impl StringPrototype {
-    fn at<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn at<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -274,7 +274,7 @@ impl StringPrototype {
         }
     }
 
-    fn char_at<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn char_at<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -293,7 +293,7 @@ impl StringPrototype {
         }
     }
 
-    fn char_code_at<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn char_code_at<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -313,7 +313,7 @@ impl StringPrototype {
         }
     }
 
-    fn code_point_at<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn code_point_at<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -337,7 +337,7 @@ impl StringPrototype {
         }
     }
 
-    fn concat<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn concat<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -355,7 +355,7 @@ impl StringPrototype {
         Ok(String::concat(agent, &strings).into_value())
     }
 
-    fn ends_with<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn ends_with<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -398,7 +398,7 @@ impl StringPrototype {
         ))
     }
 
-    fn includes<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn includes<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -432,7 +432,7 @@ impl StringPrototype {
         Ok(Value::from(haystack_str.contains(search_str.as_str(agent))))
     }
 
-    fn index_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn index_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -468,7 +468,7 @@ impl StringPrototype {
         }
     }
 
-    fn is_well_formed<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn is_well_formed<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -481,7 +481,7 @@ impl StringPrototype {
         Ok(Value::Boolean(true))
     }
 
-    fn last_index_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn last_index_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -539,24 +539,24 @@ impl StringPrototype {
         }
     }
 
-    fn locale_compare<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn locale_compare<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn r#match(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn r#match<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn match_all<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn match_all<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn normalize<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn normalize<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
     /// ### [22.1.3.16 String.prototype.padEnd ( maxLength \[ , fillString \] )](https://tc39.es/ecma262/#sec-string.prototype.padend)
-    fn pad_end<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn pad_end<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let max_length = arguments.get(0);
         let fill_string = arguments.get(1);
 
@@ -571,7 +571,7 @@ impl StringPrototype {
     fn pad_start<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'gen>,
     ) -> JsResult<'gen, Value<'gen>> {
         let max_length = arguments.get(0);
         let fill_string = arguments.get(1);
@@ -629,19 +629,19 @@ impl StringPrototype {
         ))
     }
 
-    fn replace<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn replace<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn replace_all<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn replace_all<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn search<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn search<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn slice<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn slice<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -718,11 +718,11 @@ impl StringPrototype {
         Ok(String::from_str(agent, substring).into_value())
     }
 
-    fn split<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn split<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn starts_with<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn starts_with<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -769,7 +769,7 @@ impl StringPrototype {
         ))
     }
 
-    fn substring<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn substring<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -846,7 +846,7 @@ impl StringPrototype {
     }
 
     /// > NOTE: The implementation might not reflect the spec.
-    fn to_lower_case<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn to_lower_case<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -861,7 +861,7 @@ impl StringPrototype {
     }
 
     /// > NOTE: The implementation might not reflect the spec.
-    fn to_upper_case<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn to_upper_case<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -875,7 +875,7 @@ impl StringPrototype {
         Ok(String::from_string(agent, upper_case_string).into_value())
     }
 
-    fn to_well_formed<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn to_well_formed<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
@@ -900,14 +900,14 @@ impl StringPrototype {
     }
 
     /// ### [22.1.3.32 String.prototype.trim ( )](https://tc39.es/ecma262/#sec-string.prototype.trim)
-    fn trim<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn trim<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let S be the this value.
         // 2. Return ? TrimString(S, start+end).
         Self::trim_string(agent, this_value, TrimWhere::StartAndEnd)
     }
 
     /// #### [22.1.3.32.1 String.prototype.trimString ( )](https://tc39.es/ecma262/#sec-trimstring)
-    fn trim_string(agent: &mut Agent<'gen>, value: Value<'gen>, trim_where: TrimWhere) -> JsResult<'gen, Value<'gen>> {
+    fn trim_string<'gen>(agent: &mut Agent<'gen>, value: Value<'gen>, trim_where: TrimWhere) -> JsResult<'gen, Value<'gen>> {
         // 1. Let str be ? RequireObjectCoercible(string).
         let str = require_object_coercible(agent, value)?;
 
@@ -939,14 +939,14 @@ impl StringPrototype {
     }
 
     /// ### [22.1.3.33 String.prototype.trimEnd ( )](https://tc39.es/ecma262/#sec-string.prototype.trimend)
-    fn trim_end<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn trim_end<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let S be the this value.
         // 2. Return ? TrimString(S, end).
         Self::trim_string(agent, this_value, TrimWhere::End)
     }
 
     /// ### [22.1.3.34 String.prototype.trimStart ( )](https://tc39.es/ecma262/#sec-string.prototype.trimstart)
-    fn trim_start<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn trim_start<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let S be the this value.
         // 2. Return ? TrimString(S, start).
         Self::trim_string(agent, this_value, TrimWhere::Start)
@@ -957,12 +957,12 @@ impl StringPrototype {
     ///
     /// > NOTE: `String.prototype.toString` and `String.prototype.valueOf` are
     /// > different functions but have the exact same steps.
-    fn value_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn value_of<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Return ? ThisStringValue(this value).
         this_string_value(agent, this_value).map(|string| string.into_value())
     }
 
-    fn iterator<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn iterator<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -1034,13 +1034,13 @@ impl StringPrototype {
 /// fillString (an ECMAScript language value), and placement (start or end)
 /// and returns either a normal completion containing a String or a throw
 /// completion.
-fn string_padding_builtins_impl(
-    agent: &mut Agent,
-    o: Value,
-    max_length: Value,
-    fill_string: Value,
+fn string_padding_builtins_impl<'gen>(
+    agent: &mut Agent<'gen>,
+    o: Value<'gen>,
+    max_length: Value<'gen>,
+    fill_string: Value<'gen>,
     placement_start: bool,
-) -> JsResult<'gen, Value> {
+) -> JsResult<'gen, Value<'gen>> {
     // 1. Let S be ? ToString(O).
     let s = to_string(agent, o)?;
 
@@ -1072,13 +1072,13 @@ fn string_padding_builtins_impl(
 /// The abstract operation StringPad takes arguments S (a String),
 /// maxLength (a non-negative integer), fillString (a String), and
 /// placement (start or end) and returns a String.
-fn string_pad(
-    agent: &mut Agent,
-    s: String,
+fn string_pad<'gen>(
+    agent: &mut Agent<'gen>,
+    s: String<'gen>,
     max_len: i64,
-    fill_string: String,
+    fill_string: String<'gen>,
     placement_start: bool,
-) -> JsResult<'gen, Value> {
+) -> JsResult<'gen, Value<'gen>> {
     // 1. Let stringLength be the length of S.
     let string_len = s.utf16_len(agent) as i64;
 

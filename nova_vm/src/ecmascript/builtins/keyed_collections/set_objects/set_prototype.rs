@@ -111,7 +111,7 @@ impl SetPrototype {
     /// > The existing \[\[SetData]] List is preserved because there may be
     /// > existing Set Iterator objects that are suspended midway through
     /// > iterating over that List.
-    fn clear<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn clear<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value)?;
@@ -152,7 +152,7 @@ impl SetPrototype {
         Ok(false.into())
     }
 
-    fn entries<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn entries<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -248,7 +248,7 @@ impl SetPrototype {
         Ok(result.into())
     }
 
-    fn keys<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn keys<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -256,7 +256,7 @@ impl SetPrototype {
     ///
     /// Set.prototype.size is an accessor property whose set accessor function
     /// is undefined.
-    fn get_size<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_size<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value)?;
@@ -266,7 +266,7 @@ impl SetPrototype {
         Ok(Number::try_from(size).unwrap().into_value())
     }
 
-    fn values<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn values<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 

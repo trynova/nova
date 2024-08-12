@@ -229,7 +229,7 @@ impl PromiseConstructor {
         todo!()
     }
 
-    fn get_species(_: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_species(_: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         Ok(this_value)
     }
 

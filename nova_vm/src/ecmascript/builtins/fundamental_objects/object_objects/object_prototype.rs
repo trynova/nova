@@ -80,7 +80,7 @@ impl Builtin for ObjectPrototypeValueOf {
 }
 
 impl ObjectPrototype {
-    fn has_own_property(
+    fn has_own_property<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
         arguments: ArgumentsList<'_, 'gen>,
@@ -90,7 +90,7 @@ impl ObjectPrototype {
         has_own_property(agent, o, p).map(|result| result.into())
     }
 
-    fn is_prototype_of(
+    fn is_prototype_of<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
         arguments: ArgumentsList<'_, 'gen>,
@@ -113,7 +113,7 @@ impl ObjectPrototype {
         }
     }
 
-    fn property_is_enumerable(
+    fn property_is_enumerable<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
         arguments: ArgumentsList<'_, 'gen>,
@@ -128,7 +128,7 @@ impl ObjectPrototype {
         }
     }
 
-    fn to_locale_string(
+    fn to_locale_string<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
         _arguments: ArgumentsList<'_, 'gen>,
@@ -138,7 +138,7 @@ impl ObjectPrototype {
         invoke(agent, o, p, None)
     }
 
-    fn to_string(
+    fn to_string<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
         _arguments: ArgumentsList<'_, 'gen>,
@@ -226,7 +226,7 @@ impl ObjectPrototype {
         }
     }
 
-    fn value_of(
+    fn value_of<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
         _arguments: ArgumentsList<'_, 'gen>,

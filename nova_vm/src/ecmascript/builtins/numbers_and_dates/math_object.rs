@@ -1109,7 +1109,7 @@ impl MathObject {
         Ok(Number::exponentiate(agent, base, exponent).into_value())
     }
 
-    fn random<'gen>(agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn random<'gen>(agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         Ok(Value::from_f64(agent, rand::random::<f64>()))
     }
 

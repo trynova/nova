@@ -94,7 +94,7 @@ impl MapPrototype {
     /// > The existing \[\[MapData]] List is preserved because there may be
     /// > existing Map Iterator objects that are suspended midway through
     /// > iterating over that List.
-    fn clear<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn clear<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value)?;
@@ -145,7 +145,7 @@ impl MapPrototype {
         }
     }
 
-    fn entries<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn entries<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -262,7 +262,7 @@ impl MapPrototype {
         Ok(found.into())
     }
 
-    fn keys<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn keys<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -299,13 +299,13 @@ impl MapPrototype {
         Ok(m.into_value())
     }
 
-    fn get_size<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn get_size<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let m = require_map_data_internal_slot(agent, this_value)?;
         let count = agent[m].keys.iter().filter(|key| key.is_some()).count() as u32;
         Ok(count.into())
     }
 
-    fn values<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn values<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 

@@ -138,7 +138,7 @@ impl<'gen> Generator<'gen> {
 
     /// [27.5.3.4 GeneratorResumeAbrupt ( generator, abruptCompletion, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresumeabrupt)
     /// NOTE: This method only accepts throw completions.
-    pub(crate) fn resume_throw(self, agent: &mut Agent, value: Value) -> JsResult<Object> {
+    pub(crate) fn resume_throw(self, agent: &mut Agent<'gen>, value: Value<'gen>) -> JsResult<'gen, Object<'gen>> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
             GeneratorState::Suspended { vm: None, .. } => {
@@ -226,50 +226,50 @@ impl<'gen> Generator<'gen> {
     }
 }
 
-impl From<Generator> for GeneratorIndex {
-    fn from(val: Generator) -> Self {
+impl<'gen> From<Generator<'gen>> for GeneratorIndex<'gen> {
+    fn from(val: Generator<'gen>) -> Self {
         val.0
     }
 }
 
-impl From<GeneratorIndex> for Generator {
-    fn from(value: GeneratorIndex) -> Self {
+impl<'gen> From<GeneratorIndex<'gen>> for Generator<'gen> {
+    fn from(value: GeneratorIndex<'gen>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for Generator {
-    fn into_value(self) -> Value {
+impl<'gen> IntoValue<'gen> for Generator<'gen> {
+    fn into_value(self) -> Value<'gen> {
         self.into()
     }
 }
 
-impl IntoObject for Generator {
-    fn into_object(self) -> Object {
+impl<'gen> IntoObject<'gen> for Generator<'gen> {
+    fn into_object(self) -> Object<'gen> {
         self.into()
     }
 }
 
-impl From<Generator> for Value {
-    fn from(val: Generator) -> Self {
+impl<'gen> From<Generator<'gen>> for Value<'gen> {
+    fn from(val: Generator<'gen>) -> Self {
         Value::Generator(val)
     }
 }
 
-impl From<Generator> for Object {
-    fn from(value: Generator) -> Self {
+impl<'gen> From<Generator<'gen>> for Object<'gen> {
+    fn from(value: Generator<'gen>) -> Self {
         Object::Generator(value)
     }
 }
 
-impl InternalSlots for Generator {
+impl<'gen> InternalSlots<'gen> for Generator<'gen> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Generator;
 
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent<'gen>) -> Option<OrdinaryObject<'gen>> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
+    fn create_backing_object<'agent: 'gen>(self, agent: &'agent mut Agent<'gen>) -> OrdinaryObject<'gen> {
         let prototype = agent
             .current_realm()
             .intrinsics()
@@ -285,33 +285,33 @@ impl InternalSlots for Generator {
     }
 }
 
-impl InternalMethods for Generator {}
+impl<'gen> InternalMethods<'gen> for Generator<'gen> {}
 
-impl CreateHeapData<GeneratorHeapData, Generator> for Heap {
-    fn create(&mut self, data: GeneratorHeapData) -> Generator {
+impl<'gen> CreateHeapData<GeneratorHeapData<'gen>, Generator<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: GeneratorHeapData<'gen>) -> Generator<'gen> {
         self.generators.push(Some(data));
         Generator(GeneratorIndex::last(&self.generators))
     }
 }
 
-impl Index<Generator> for Agent {
-    type Output = GeneratorHeapData;
+impl<'gen> Index<Generator<'gen>> for Agent<'gen> {
+    type Output = GeneratorHeapData<'gen>;
 
-    fn index(&self, index: Generator) -> &Self::Output {
+    fn index(&self, index: Generator<'gen>) -> &Self::Output {
         &self.heap.generators[index]
     }
 }
 
-impl IndexMut<Generator> for Agent {
-    fn index_mut(&mut self, index: Generator) -> &mut Self::Output {
+impl<'gen> IndexMut<Generator<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: Generator<'gen>) -> &mut Self::Output {
         &mut self.heap.generators[index]
     }
 }
 
-impl Index<Generator> for Vec<Option<GeneratorHeapData>> {
-    type Output = GeneratorHeapData;
+impl<'gen> Index<Generator<'gen>> for Vec<Option<GeneratorHeapData<'gen>>> {
+    type Output = GeneratorHeapData<'gen>;
 
-    fn index(&self, index: Generator) -> &Self::Output {
+    fn index(&self, index: Generator<'gen>) -> &Self::Output {
         self.get(index.get_index())
             .expect("Generator out of bounds")
             .as_ref()
@@ -319,8 +319,8 @@ impl Index<Generator> for Vec<Option<GeneratorHeapData>> {
     }
 }
 
-impl IndexMut<Generator> for Vec<Option<GeneratorHeapData>> {
-    fn index_mut(&mut self, index: Generator) -> &mut Self::Output {
+impl<'gen> IndexMut<Generator<'gen>> for Vec<Option<GeneratorHeapData<'gen>>> {
+    fn index_mut(&mut self, index: Generator<'gen>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Generator out of bounds")
             .as_mut()
@@ -328,8 +328,8 @@ impl IndexMut<Generator> for Vec<Option<GeneratorHeapData>> {
     }
 }
 
-impl HeapMarkAndSweep for Generator {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for Generator<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.generators.push(*self);
     }
 
@@ -356,8 +356,8 @@ pub(crate) enum GeneratorState<'gen> {
     Completed,
 }
 
-impl HeapMarkAndSweep for GeneratorHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for GeneratorHeapData<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.object_index.mark_values(queues);
         if let Some(GeneratorState::Suspended {
             vm,

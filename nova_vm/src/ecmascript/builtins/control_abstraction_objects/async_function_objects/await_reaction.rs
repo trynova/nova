@@ -27,9 +27,9 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct AwaitReactionIdentifier(u32, PhantomData<AwaitReaction>);
+pub(crate) struct AwaitReactionIdentifier<'gen>(u32, PhantomData<AwaitReaction<'gen>>);
 
-impl AwaitReactionIdentifier {
+impl<'gen> AwaitReactionIdentifier<'gen> {
     pub(crate) const fn from_index(value: usize) -> Self {
         assert!(value <= u32::MAX as usize);
         Self(value as u32, PhantomData)
@@ -113,24 +113,24 @@ impl AwaitReactionIdentifier {
     }
 }
 
-impl Index<AwaitReactionIdentifier> for Agent {
-    type Output = AwaitReaction;
+impl<'gen> Index<AwaitReactionIdentifier<'gen>> for Agent<'gen> {
+    type Output = AwaitReaction<'gen>;
 
-    fn index(&self, index: AwaitReactionIdentifier) -> &Self::Output {
+    fn index(&self, index: AwaitReactionIdentifier<'gen>) -> &Self::Output {
         &self.heap.await_reactions[index]
     }
 }
 
-impl IndexMut<AwaitReactionIdentifier> for Agent {
-    fn index_mut(&mut self, index: AwaitReactionIdentifier) -> &mut Self::Output {
+impl<'gen> IndexMut<AwaitReactionIdentifier<'gen>> for Agent<'gen> {
+    fn index_mut(&mut self, index: AwaitReactionIdentifier<'gen>) -> &mut Self::Output {
         &mut self.heap.await_reactions[index]
     }
 }
 
-impl Index<AwaitReactionIdentifier> for Vec<Option<AwaitReaction>> {
-    type Output = AwaitReaction;
+impl<'gen> Index<AwaitReactionIdentifier<'gen>> for Vec<Option<AwaitReaction<'gen>>> {
+    type Output = AwaitReaction<'gen>;
 
-    fn index(&self, index: AwaitReactionIdentifier) -> &Self::Output {
+    fn index(&self, index: AwaitReactionIdentifier<'gen>) -> &Self::Output {
         self.get(index.into_index())
             .expect("AwaitReactionIdentifier out of bounds")
             .as_ref()
@@ -138,8 +138,8 @@ impl Index<AwaitReactionIdentifier> for Vec<Option<AwaitReaction>> {
     }
 }
 
-impl IndexMut<AwaitReactionIdentifier> for Vec<Option<AwaitReaction>> {
-    fn index_mut(&mut self, index: AwaitReactionIdentifier) -> &mut Self::Output {
+impl<'gen> IndexMut<AwaitReactionIdentifier<'gen>> for Vec<Option<AwaitReaction<'gen>>> {
+    fn index_mut(&mut self, index: AwaitReactionIdentifier<'gen>) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("AwaitReactionIdentifier out of bounds")
             .as_mut()
@@ -147,8 +147,8 @@ impl IndexMut<AwaitReactionIdentifier> for Vec<Option<AwaitReaction>> {
     }
 }
 
-impl HeapMarkAndSweep for AwaitReactionIdentifier {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for AwaitReactionIdentifier<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         queues.await_reactions.push(*self);
     }
 
@@ -168,15 +168,15 @@ pub(crate) struct AwaitReaction<'gen> {
     pub(crate) return_promise_capability: PromiseCapability<'gen>,
 }
 
-impl CreateHeapData<AwaitReaction, AwaitReactionIdentifier> for Heap {
-    fn create(&mut self, data: AwaitReaction) -> AwaitReactionIdentifier {
+impl<'gen> CreateHeapData<AwaitReaction<'gen>, AwaitReactionIdentifier<'gen>> for Heap<'gen> {
+    fn create(&mut self, data: AwaitReaction<'gen>) -> AwaitReactionIdentifier<'gen> {
         self.await_reactions.push(Some(data));
         AwaitReactionIdentifier::last(&self.await_reactions)
     }
 }
 
-impl HeapMarkAndSweep for AwaitReaction {
-    fn mark_values(&self, queues: &mut WorkQueues) {
+impl<'gen> HeapMarkAndSweep<'gen> for AwaitReaction<'gen> {
+    fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.vm.mark_values(queues);
         self.executable.mark_values(queues);
         self.return_promise_capability.mark_values(queues);

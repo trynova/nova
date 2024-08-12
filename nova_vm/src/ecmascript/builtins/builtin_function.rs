@@ -491,7 +491,7 @@ impl<'gen> InternalMethods<'gen> for BuiltinFunction<'gen> {
 /// completion containing an ECMAScript language value or a throw completion.
 pub(crate) fn builtin_call_or_construct<'gen>(
     agent: &mut Agent<'gen>,
-    f: BuiltinFunction,
+    f: BuiltinFunction<'gen>,
     this_argument: Option<Value<'gen>>,
     arguments_list: ArgumentsList<'_, 'gen>,
     new_target: Option<Function<'gen>>,
@@ -690,7 +690,7 @@ pub fn define_builtin_property<'gen>(
 }
 
 impl<'gen> CreateHeapData<BuiltinFunctionHeapData<'gen>, BuiltinFunction<'gen>> for Heap<'gen> {
-    fn create(&mut self, data: BuiltinFunctionHeapData) -> BuiltinFunction {
+    fn create(&mut self, data: BuiltinFunctionHeapData<'gen>) -> BuiltinFunction<'gen> {
         self.builtin_functions.push(Some(data));
         BuiltinFunctionIndex::last(&self.builtin_functions).into()
     }

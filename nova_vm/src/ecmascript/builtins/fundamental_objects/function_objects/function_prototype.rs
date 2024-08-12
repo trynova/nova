@@ -96,12 +96,12 @@ impl Builtin for FunctionPrototypeHasInstance {
 }
 
 impl FunctionPrototype {
-    fn behaviour<'gen>(_: &mut Agent<'gen>, _: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn behaviour<'gen>(_: &mut Agent<'gen>, _: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         Ok(Value::Undefined)
     }
 
     /// ### [20.2.3.1 Function.prototype.apply ( thisArg, argArray )](https://tc39.es/ecma262/#sec-function.prototype.apply)
-    fn apply<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn apply<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let func be the this value.
         let Some(func) = is_callable(this_value) else {
             // 2. If IsCallable(func) is false, throw a TypeError exception.
@@ -126,11 +126,11 @@ impl FunctionPrototype {
         call_function(agent, func, this_arg, Some(args_list))
     }
 
-    fn bind<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn bind<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
-    fn call<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn call<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let Some(func) = is_callable(this_value) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -143,7 +143,7 @@ impl FunctionPrototype {
         call_function(agent, func, this_arg, Some(args))
     }
 
-    fn to_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn to_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // Let func be the this value.
         let Ok(func) = Function::try_from(this_value) else {
             // 5. Throw a TypeError exception.
@@ -216,7 +216,7 @@ impl FunctionPrototype {
         // <?:...> is an optional template part.
     }
 
-    fn has_instance<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn has_instance<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, args: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let v = args.get(0);
         let f = this_value;
         ordinary_has_instance(agent, f, v).map(|result| result.into())
@@ -279,7 +279,7 @@ impl BuiltinIntrinsic for ThrowTypeError {
 }
 
 impl ThrowTypeError {
-    fn behaviour<'gen>(agent: &mut Agent<'gen>, _: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn behaviour<'gen>(agent: &mut Agent<'gen>, _: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"))
     }
 

@@ -9,19 +9,19 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct ObjectHeapData {
+pub struct ObjectHeapData<'gen> {
     pub extensible: bool,
     pub prototype: Option<Object<'gen>>,
-    pub keys: ElementsVector,
-    pub values: ElementsVector,
+    pub keys: ElementsVector<'gen>,
+    pub values: ElementsVector<'gen>,
 }
 
-impl ObjectHeapData {
+impl<'gen> ObjectHeapData<'gen> {
     pub fn new(
         extensible: bool,
         prototype: Value<'gen>,
-        keys: ElementsVector,
-        values: ElementsVector,
+        keys: ElementsVector<'gen>,
+        values: ElementsVector<'gen>,
     ) -> Self {
         let prototype = if prototype.is_null() {
             None
@@ -49,7 +49,7 @@ impl ObjectHeapData {
     }
 }
 
-impl<'gen> HeapMarkAndSweep<'gen> for ObjectHeapData {
+impl<'gen> HeapMarkAndSweep<'gen> for ObjectHeapData<'gen> {
     fn mark_values(&self, queues: &mut WorkQueues<'gen>) {
         self.keys.mark_values(queues);
         self.values.mark_values(queues);

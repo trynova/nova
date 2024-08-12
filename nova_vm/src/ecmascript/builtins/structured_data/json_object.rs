@@ -82,7 +82,7 @@ impl JSONObject {
     /// > likewise does not apply during JSON.parse, means that not all texts
     /// > accepted by JSON.parse are valid as a PrimaryExpression, despite
     /// > matching the grammar.
-    fn parse<'gen>(agent: &mut Agent<'gen>, _this_value: Value<'gen>, arguments: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn parse<'gen>(agent: &mut Agent<'gen>, _this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let text = arguments.get(0);
         let reviver = arguments.get(1);
 

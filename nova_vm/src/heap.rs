@@ -73,7 +73,7 @@ use crate::ecmascript::{
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 #[derive(Debug)]
-pub struct Heap {
+pub struct Heap<'gen> {
     pub array_buffers: Vec<Option<ArrayBufferHeapData<'gen>>>,
     pub arrays: Vec<Option<ArrayHeapData<'gen>>>,
     pub(crate) await_reactions: Vec<Option<AwaitReaction<'gen>>>,
@@ -95,7 +95,7 @@ pub struct Heap {
     pub globals: Vec<Option<Value<'gen>>>,
     pub maps: Vec<Option<MapHeapData<'gen>>>,
     pub numbers: Vec<Option<NumberHeapData>>,
-    pub objects: Vec<Option<ObjectHeapData>>,
+    pub objects: Vec<Option<ObjectHeapData<'gen>>>,
     pub primitive_objects: Vec<Option<PrimitiveObjectHeapData<'gen>>>,
     pub promise_reaction_records: Vec<Option<PromiseReactionRecord<'gen>>>,
     pub promise_resolving_functions: Vec<Option<PromiseResolvingFunctionHeapData<'gen>>>,
@@ -321,7 +321,7 @@ impl<'gen> Heap<'gen> {
     pub(crate) fn create_object_with_prototype(
         &mut self,
         prototype: Object<'gen>,
-        entries: &[ObjectEntry],
+        entries: &'_ [ObjectEntry<'gen>],
     ) -> OrdinaryObject<'gen> {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {

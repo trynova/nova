@@ -180,7 +180,7 @@ impl<'gen> Executable<'gen> {
         Self::_compile_statements(agent, body, true)
     }
 
-    pub(crate) fn compile_function_body(
+    pub(crate) fn compile_function_body<'gen>(
         agent: &mut Agent<'gen>,
         body: &FunctionBody<'_>,
         is_concise_body: bool,
@@ -208,7 +208,7 @@ impl<'gen> Executable<'gen> {
         Self::_compile_statements(agent, body, true)
     }
 
-    fn _compile_statements(
+    fn _compile_statements<'gen>(
         agent: &mut Agent<'gen>,
         body: &[Statement],
         implicit_return: bool,

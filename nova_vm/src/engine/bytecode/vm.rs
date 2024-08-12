@@ -238,7 +238,7 @@ impl Vm {
         }
     }
 
-    fn execute_instruction(
+    fn execute_instruction<'gen>(
         agent: &mut Agent<'gen>,
         vm: &mut Vm,
         executable: &Executable,
@@ -1281,7 +1281,7 @@ impl Vm {
         Ok(ContinuationKind::Normal)
     }
 
-    fn execute_simple_array_binding(
+    fn execute_simple_array_binding<'gen>(
         agent: &mut Agent<'gen>,
         vm: &mut Vm,
         executable: &Executable,
@@ -1358,7 +1358,7 @@ impl Vm {
         todo!();
     }
 
-    fn execute_object_binding(
+    fn execute_object_binding<'gen>(
         agent: &mut Agent<'gen>,
         vm: &mut Vm,
         executable: &Executable,

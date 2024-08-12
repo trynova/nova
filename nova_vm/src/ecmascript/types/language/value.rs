@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::mem::size_of;
+use std::mem::{size_of, MaybeUninit};
 
 use crate::{
     ecmascript::{
@@ -165,7 +165,7 @@ pub enum Value<'gen> {
     AsyncFromSyncIterator,
     AsyncIterator,
     Iterator,
-    Generator(Generator),
+    Generator(Generator<'gen>),
 
     // ECMAScript Module
     Module(Module<'gen>),
@@ -190,7 +190,7 @@ const fn value_discriminant(value: Value<'static>) -> u8 {
     // SAFETY: Because `Self` is marked `repr(u8)`, its layout is a `repr(C)` `union`
     // between `repr(C)` structs, each of which has the `u8` discriminant as its first
     // field, so we can read the discriminant without offsetting the pointer.
-    unsafe { *std::mem::transmute::<&Value<'_>, *const Value<'_>>(&value).cast::<u8>() }
+    unsafe { std::mem::transmute::<Value<'_>, (u8, [MaybeUninit<u8>; 7])>(value).0 }
 }
 
 pub(crate) const UNDEFINED_DISCRIMINANT: u8 = value_discriminant(Value::Undefined);
@@ -282,19 +282,19 @@ pub(crate) const EMBEDDER_OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::EmbedderObject(EmbedderObject::_def()));
 
 impl<'gen> Value<'gen> {
-    pub fn from_str<'gen>(agent: &mut Agent<'gen>, str: &str) -> Self {
+    pub fn from_str(agent: &mut Agent<'gen>, str: &str) -> Self {
         String::from_str(agent, str).into_value()
     }
 
-    pub fn from_string<'gen>(agent: &mut Agent<'gen>, string: std::string::String) -> Self {
+    pub fn from_string(agent: &mut Agent<'gen>, string: std::string::String) -> Self {
         String::from_string(agent, string).into_value()
     }
 
-    pub fn from_static_str<'gen>(agent: &mut Agent<'gen>, str: &'static str) -> Self {
+    pub fn from_static_str(agent: &mut Agent<'gen>, str: &'static str) -> Self {
         String::from_static_str(agent, str).into_value()
     }
 
-    pub fn from_f64<'gen>(agent: &mut Agent<'gen>, value: f64) -> Self {
+    pub fn from_f64(agent: &mut Agent<'gen>, value: f64) -> Self {
         Number::from_f64(agent, value).into_value()
     }
 

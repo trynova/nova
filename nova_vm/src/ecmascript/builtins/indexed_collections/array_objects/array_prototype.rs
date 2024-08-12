@@ -318,7 +318,7 @@ impl ArrayPrototype {
     /// > Note 2: This method is intentionally generic; it does not require
     /// > that its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn concat<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, items: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn concat<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, items: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let A be ? ArraySpeciesCreate(O, 0).
@@ -419,7 +419,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn copy_within(
+    fn copy_within<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
         arguments: ArgumentsList<'_, 'gen>,
@@ -573,7 +573,7 @@ impl ArrayPrototype {
         Ok(o.into_value())
     }
 
-    fn entries<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn entries<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -911,7 +911,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn find_index(
+    fn find_index<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
         arguments: ArgumentsList<'_, 'gen>,
@@ -929,7 +929,7 @@ impl ArrayPrototype {
     }
 
     /// ### [23.1.3.11 Array.prototype.findLast ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findlast)
-    fn find_last(
+    fn find_last<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
         arguments: ArgumentsList<'_, 'gen>,
@@ -947,7 +947,7 @@ impl ArrayPrototype {
     }
 
     /// ### [23.1.3.12 Array.prototype.findLastIndex ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findlastindex)
-    fn find_last_index(
+    fn find_last_index<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
         arguments: ArgumentsList<'_, 'gen>,
@@ -1420,7 +1420,7 @@ impl ArrayPrototype {
         Ok(Value::from_string(agent, r).into_value())
     }
 
-    fn keys<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn keys<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -1445,7 +1445,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn last_index_of(
+    fn last_index_of<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
         arguments: ArgumentsList<'_, 'gen>,
@@ -1644,7 +1644,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn pop<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn pop<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         if let Value::Array(array) = this_value {
             // Fast path: Trivial (no descriptors) array means mutating
             // elements is direct.
@@ -1733,7 +1733,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn push<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, items: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn push<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, items: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
@@ -1813,7 +1813,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn reduce<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn reduce<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, arguments: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         let callback_fn = arguments.get(0);
         let initial_value = if arguments.len() >= 2 {
             Some(arguments.get(1))
@@ -1956,7 +1956,7 @@ impl ArrayPrototype {
     fn reduce_right<'gen>(
         agent: &mut Agent<'gen>,
         this_value: Value<'gen>,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'gen>,
     ) -> JsResult<'gen, Value<'gen>> {
         let callback_fn = arguments.get(0);
         let initial_value = if arguments.len() >= 2 {
@@ -2061,7 +2061,7 @@ impl ArrayPrototype {
         Ok(accumulator)
     }
 
-    fn reverse<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn reverse<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!()
     }
 
@@ -2074,7 +2074,7 @@ impl ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn shift<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn shift<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         if let Value::Array(array) = this_value {
             if array.is_empty(agent) {
                 if agent[array].elements.len_writable {
@@ -2444,11 +2444,11 @@ impl ArrayPrototype {
         Ok(false.into())
     }
 
-    fn sort<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn sort<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn splice<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn splice<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
@@ -2460,20 +2460,20 @@ impl ArrayPrototype {
         todo!();
     }
 
-    fn to_reversed<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn to_reversed<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn to_sorted<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn to_sorted<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn to_spliced<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn to_spliced<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
     /// ### [23.1.3.36 Array.prototype.toString ( )](https://tc39.es/ecma262/#sec-array.prototype.tostring)
-    fn to_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn to_string<'gen>(agent: &mut Agent<'gen>, this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         // 1. Let array be ? ToObject(this value).
         let array = to_object(agent, this_value)?;
         // 2. Let func be ? Get(array, "join").
@@ -2490,15 +2490,15 @@ impl ArrayPrototype {
         call_function(agent, func, array.into_value(), None)
     }
 
-    fn unshift<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn unshift<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn values<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn values<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 
-    fn with<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn with<'gen>(_agent: &mut Agent<'gen>, _this_value: Value<'gen>, _: ArgumentsList<'_, 'gen>) -> JsResult<'gen, Value<'gen>> {
         todo!();
     }
 

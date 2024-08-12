@@ -118,7 +118,7 @@ pub(crate) struct WorkQueues<'gen> {
     pub e_2_6: Vec<(ElementIndex<'gen>, u32)>,
     pub e_2_8: Vec<(ElementIndex<'gen>, u32)>,
     pub ecmascript_functions: Vec<ECMAScriptFunction<'gen>>,
-    pub embedder_objects: Vec<EmbedderObject>,
+    pub embedder_objects: Vec<EmbedderObject<'gen>>,
     pub source_codes: Vec<SourceCode<'gen>>,
     pub errors: Vec<Error<'gen>>,
     pub finalization_registrys: Vec<FinalizationRegistry<'gen>>,
@@ -301,7 +301,7 @@ impl<'gen> WorkQueues<'gen> {
         }
     }
 
-    pub fn push_elements_vector(&mut self, vec: &ElementsVector) {
+    pub fn push_elements_vector(&mut self, vec: &ElementsVector<'gen>) {
         match vec.cap {
             ElementArrayKey::Empty => {}
             ElementArrayKey::E4 => self.e_2_4.push((vec.elements_index, vec.len)),
@@ -315,7 +315,7 @@ impl<'gen> WorkQueues<'gen> {
         }
     }
 
-    pub fn push_environment_index(&mut self, value: EnvironmentIndex) {
+    pub fn push_environment_index(&mut self, value: EnvironmentIndex<'gen>) {
         match value {
             EnvironmentIndex::Declarative(idx) => self.declarative_environments.push(idx),
             EnvironmentIndex::Function(idx) => self.function_environments.push(idx),

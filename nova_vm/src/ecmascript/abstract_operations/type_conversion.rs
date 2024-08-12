@@ -61,7 +61,7 @@ pub(crate) fn to_primitive<'gen>(
     agent: &mut Agent<'gen>,
     input: impl Into<Value<'gen>> + Copy,
     preferred_type: Option<PreferredType>,
-) -> JsResult<'gen, Primitive> {
+) -> JsResult<'gen, Primitive<'gen>> {
     let input: Value = input.into();
     // 1. If input is an Object, then
     if let Ok(input) = Object::try_from(input) {
@@ -124,7 +124,7 @@ pub(crate) fn ordinary_to_primitive<'gen>(
     agent: &mut Agent<'gen>,
     o: Object<'gen>,
     hint: PreferredType,
-) -> JsResult<'gen, Primitive> {
+) -> JsResult<'gen, Primitive<'gen>> {
     let to_string_key = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
     let value_of_key = PropertyKey::from(BUILTIN_STRING_MEMORY.valueOf);
     let method_names = match hint {
@@ -186,7 +186,7 @@ pub(crate) fn to_boolean<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -
 }
 
 /// ### [7.1.3 ToNumeric ( value )](https://tc39.es/ecma262/#sec-tonumeric)
-pub(crate) fn to_numeric<'gen>(agent: &mut Agent<'gen>, value: impl Into<Value<'gen>> + Copy) -> JsResult<'gen, Numeric> {
+pub(crate) fn to_numeric<'gen>(agent: &mut Agent<'gen>, value: impl Into<Value<'gen>> + Copy) -> JsResult<'gen, Numeric<'gen>> {
     // 1. Let primValue be ? ToPrimitive(value, number).
     let prim_value = to_primitive(agent, value, Some(PreferredType::Number))?;
 
@@ -312,7 +312,7 @@ fn string_to_number<'gen>(agent: &mut Agent<'gen>, str: String<'gen>) -> Number<
 
 /// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
 // TODO: Should we add another [`Value`] newtype for IntegerOrInfinity?
-pub(crate) fn to_integer_or_infinity<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, Number> {
+pub(crate) fn to_integer_or_infinity<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) -> JsResult<'gen, Number<'gen>> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(int) = argument {
         return Ok(int.into());
@@ -925,10 +925,10 @@ pub(crate) fn to_length<'gen>(agent: &mut Agent<'gen>, argument: Value<'gen>) ->
 }
 
 /// ### [7.1.21 CanonicalNumericIndexString ( argument )](https://tc39.es/ecma262/#sec-canonicalnumericindexstring)
-pub(crate) fn canonical_numeric_index_string(
+pub(crate) fn canonical_numeric_index_string<'gen>(
     agent: &mut Agent<'gen>,
     argument: String<'gen>,
-) -> Option<Number> {
+) -> Option<Number<'gen>> {
     // 1. If argument is "-0", return -0𝔽.
     if argument == BUILTIN_STRING_MEMORY.__0 {
         return Some((-0.0).into());

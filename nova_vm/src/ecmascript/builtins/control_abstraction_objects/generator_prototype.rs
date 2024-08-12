@@ -47,7 +47,7 @@ impl Builtin for GeneratorPrototypeThrow {
 }
 
 impl GeneratorPrototype {
-    fn next(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn next(agent: &mut Agent, this_value: Value, arguments: ArgumentsList<'_, 'gen>) -> JsResult<Value> {
         // GeneratorResume: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
@@ -60,7 +60,7 @@ impl GeneratorPrototype {
         Ok(generator.resume(agent, arguments.get(0))?.into_value())
     }
 
-    fn r#return(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn r#return(agent: &mut Agent, this_value: Value, arguments: ArgumentsList<'_, 'gen>) -> JsResult<Value> {
         // 1. Let g be the this value.
         // 2. Let C be Completion Record { [[Type]]: return, [[Value]]: value, [[Target]]: empty }.
         // 3. Return ? GeneratorResumeAbrupt(g, C, empty).
@@ -108,7 +108,7 @@ impl GeneratorPrototype {
         Ok(create_iter_result_object(agent, arguments.get(0), true).into_value())
     }
 
-    fn throw(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn throw(agent: &mut Agent, this_value: Value, arguments: ArgumentsList<'_, 'gen>) -> JsResult<Value> {
         // GeneratorResumeAbrupt: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(

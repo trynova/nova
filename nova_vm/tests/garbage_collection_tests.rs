@@ -17,7 +17,11 @@ fn initialize_global_object<'gen>(agent: &mut Agent<'gen>, global: Object<'gen>)
     };
 
     // `print` function
-    fn print<'gen>(agent: &mut Agent<'gen>, _this: Value<'gen>, args: ArgumentsList) -> JsResult<'gen, Value<'gen>> {
+    fn print<'gen>(
+        agent: &mut Agent<'gen>,
+        _this: Value<'gen>,
+        args: ArgumentsList<'_, 'gen>,
+    ) -> JsResult<'gen, Value<'gen>> {
         if args.len() == 0 {
             println!();
         } else {

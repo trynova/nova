@@ -205,7 +205,7 @@ pub(crate) fn evaluate_function_body<'gen>(
 pub(crate) fn evaluate_async_function_body(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
-    arguments_list: ArgumentsList,
+    arguments_list: ArgumentsList<'_, 'gen>,
 ) -> Promise {
     // 1. Let promiseCapability be ! NewPromiseCapability(%Promise%).
     let promise_capability = PromiseCapability::new(agent);
@@ -279,7 +279,7 @@ pub(crate) fn evaluate_async_function_body(
 pub(crate) fn evaluate_generator_body(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
-    arguments_list: ArgumentsList,
+    arguments_list: ArgumentsList<'_, 'gen>,
 ) -> JsResult<Value> {
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     function_declaration_instantiation(agent, function_object, arguments_list)?;
