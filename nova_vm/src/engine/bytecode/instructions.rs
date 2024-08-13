@@ -277,6 +277,7 @@ impl Instruction {
             | Self::BeginObjectBindingPattern
             | Self::BindingPatternBind
             | Self::BindingPatternBindWithInitializer
+            | Self::BindingPatternBindRest
             | Self::CreateCatchBinding
             | Self::CreateImmutableBinding
             | Self::CreateMutableBinding
@@ -315,6 +316,7 @@ impl Instruction {
                 | Self::CreateMutableBinding
                 | Self::BindingPatternBind
                 | Self::BindingPatternBindWithInitializer
+                | Self::BindingPatternBindRest
         )
     }
 

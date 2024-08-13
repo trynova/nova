@@ -1296,12 +1296,42 @@ impl Vm {
                 break;
             }
 
+            if instr.kind == Instruction::BindingPatternBindRest
+                || instr.kind == Instruction::BindingPatternGetRestValue
+            {
+                let capacity = iterator.remaining_length_estimate(agent).unwrap_or(0);
+                let rest = array_create(agent, 0, capacity, None).unwrap();
+                let mut idx = 0u32;
+                while let Some(result) = iterator.step_value(agent)? {
+                    create_data_property_or_throw(agent, rest, PropertyKey::from(idx), result)
+                        .unwrap();
+                    idx += 1;
+                }
+
+                if instr.kind == Instruction::BindingPatternBindRest {
+                    let binding_id =
+                        vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                    let lhs = resolve_binding(agent, binding_id, environment)?;
+                    if environment.is_none() {
+                        put_value(agent, &lhs, rest.into_value())?;
+                    } else {
+                        initialize_referenced_binding(agent, lhs, rest.into_value())?;
+                    }
+                } else {
+                    vm.result = Some(rest.into_value());
+                }
+
+                iterator_is_done = true;
+                break;
+            }
+
             let result = iterator.step_value(agent)?;
             iterator_is_done = result.is_none();
 
             if instr.kind == Instruction::BindingPatternSkip {
                 continue;
             }
+
             assert_eq!(instr.kind, Instruction::BindingPatternBind);
 
             let binding_id = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);

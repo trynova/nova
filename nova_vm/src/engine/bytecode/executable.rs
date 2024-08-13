@@ -1850,26 +1850,22 @@ impl CompileEvaluation for ast::IfStatement<'_> {
 
 impl CompileEvaluation for ast::ArrayPattern<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        if self.elements.is_empty() {
+        if self.elements.is_empty() && self.rest.is_none() {
             return;
         }
 
         ctx.exe.add_instruction(Instruction::Store);
         ctx.exe.add_instruction(Instruction::GetIteratorSync);
 
-        // TODO: Lift rest parameter restriction; it's eminently possible to
-        // handle those as well.
-        if self.rest.is_none()
-            && !self.elements.iter().any(|ele| {
-                // An array destructuring formed of only skipped values
-                !ele.is_none()
+        if !self.elements.iter().any(|ele| {
+            // An array destructuring formed of only skipped values
+            !ele.is_none()
                     // and binding identifier
                         && !matches!(
                             ele.as_ref().unwrap().kind,
                             ast::BindingPatternKind::BindingIdentifier(_)
                         )
-            })
-        {
+        }) {
             // can be
             ctx.exe.add_instruction_with_immediate_and_immediate(
                 Instruction::BeginSimpleArrayBindingPattern,
