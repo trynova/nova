@@ -1854,9 +1854,12 @@ impl CompileEvaluation for ast::ArrayPattern<'_> {
             return;
         }
 
+        ctx.exe.add_instruction(Instruction::Store);
+        ctx.exe.add_instruction(Instruction::GetIteratorSync);
+
         // TODO: Lift rest parameter restriction; it's eminently possible to
         // handle those as well.
-        let simple = if self.rest.is_none()
+        if self.rest.is_none()
             && !self.elements.iter().any(|ele| {
                 // An array destructuring formed of only skipped values
                 !ele.is_none()
@@ -1865,20 +1868,19 @@ impl CompileEvaluation for ast::ArrayPattern<'_> {
                             ele.as_ref().unwrap().kind,
                             ast::BindingPatternKind::BindingIdentifier(_)
                         )
-            }) {
+            })
+        {
             // can be
             ctx.exe.add_instruction_with_immediate_and_immediate(
                 Instruction::BeginSimpleArrayBindingPattern,
                 self.elements.len(),
                 ctx.lexical_binding_state.into(),
             );
-            true
         } else {
             ctx.exe.add_instruction_with_immediate(
                 Instruction::BeginArrayBindingPattern,
                 ctx.lexical_binding_state.into(),
             );
-            false
         };
         for ele in &self.elements {
             let Some(ele) = ele else {
@@ -1927,8 +1929,7 @@ impl CompileEvaluation for ast::ArrayPattern<'_> {
                 }
                 ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
             }
-        }
-        if !simple {
+        } else {
             ctx.exe.add_instruction(Instruction::FinishBindingPattern);
         }
     }

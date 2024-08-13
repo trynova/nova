@@ -1061,7 +1061,7 @@ impl Vm {
                     // Var binding, var [] = a;
                     None
                 };
-                Self::execute_simple_array_binding(agent, vm, executable, instr, env)?
+                Self::execute_simple_array_binding(agent, vm, executable, env)?
             }
             Instruction::BeginArrayBindingPattern => {
                 let lexical = instr.args[0].unwrap() == 1;
@@ -1285,67 +1285,45 @@ impl Vm {
         agent: &mut Agent,
         vm: &mut Vm,
         executable: &Executable,
-        instr: &Instr,
         environment: Option<EnvironmentIndex>,
     ) -> JsResult<()> {
-        let obj = vm.stack.pop().unwrap();
-        // 1. Let iteratorRecord be ? GetIterator(value, sync).
-        // From GetIterator:
-        // Let method be ? GetMethod(obj, @@iterator).
-        let method = get_method(agent, obj, WellKnownSymbolIndexes::Iterator.into())?;
-        let Some(method) = method else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Value is not iterable",
-            ));
-        };
-        if Array::try_from(obj).is_ok()
-            && method
-                == agent
-                    .current_realm()
-                    .intrinsics()
-                    .array_prototype_values()
-                    .into_function()
-        {
-            // Fast path: We're iterating an array with the normal array iterator method
-            let array = Array::try_from(obj).unwrap();
-            let binding_count = instr.args[0].unwrap() as u32;
-            let elements = agent[array].elements;
-            let elements_count = elements.len();
-            // The iterator iterates for as long as there are items in the
-            // array. Once the end of the array is found, no more elements are
-            // accessed. Hence, if the array is dense and contains no getters
-            // we can be sure that the iterator stops precisely when either the
-            // bindings or the elements run out, and no JavaScript code can run
-            // while the iterator is running.
-            let iterator_length = binding_count.min(elements_count);
-            let is_dense_array_slice = !agent[elements][0..iterator_length as usize]
-                .iter()
-                .any(|el| el.is_none());
-            if !is_dense_array_slice {
-                // If the array is not dense, then we might trigger JavaScript
-                // through getters in either the array or its prototype.
-                // We need to deoptimize this.
-                return Self::execute_complex_array_binding(agent, vm, executable, environment);
+        let mut iterator = vm.iterator_stack.pop().unwrap();
+        let mut iterator_is_done = false;
+
+        loop {
+            let instr = executable.get_instruction(&mut vm.ip).unwrap();
+            if instr.kind == Instruction::FinishBindingPattern {
+                break;
             }
-            for index in 0..binding_count {
-                let instr = executable.get_instruction(&mut vm.ip).unwrap();
-                if instr.kind == Instruction::BindingPatternSkip || index >= elements_count {
-                    continue;
-                }
-                assert_eq!(instr.kind, Instruction::BindingPatternBind);
-                let binding_id = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                let lhs = resolve_binding(agent, binding_id, environment)?;
-                let v = agent[elements][index as usize].unwrap();
-                if environment.is_none() {
-                    put_value(agent, &lhs, v)?;
-                } else {
-                    initialize_referenced_binding(agent, lhs, v)?;
-                }
+
+            let result = iterator.step_value(agent)?;
+            iterator_is_done = result.is_none();
+
+            if instr.kind == Instruction::BindingPatternSkip {
+                continue;
             }
-        } else {
-            todo!();
+            assert_eq!(instr.kind, Instruction::BindingPatternBind);
+
+            let binding_id = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+            let lhs = resolve_binding(agent, binding_id, environment)?;
+            let v = result.unwrap_or(Value::Undefined);
+            if environment.is_none() {
+                put_value(agent, &lhs, v)?;
+            } else {
+                initialize_referenced_binding(agent, lhs, v)?;
+            }
         }
+
+        // 8.6.2 Runtime Semantics: BindingInitialization
+        // BindingPattern : ArrayBindingPattern
+        // 3. If iteratorRecord.[[Done]] is false, return ? IteratorClose(iteratorRecord, result).
+        // NOTE: `result` here seems to be UNUSED, which isn't a Value. This seems to be a spec bug.
+        if !iterator_is_done {
+            if let VmIterator::GenericIterator(iterator_record) = iterator {
+                iterator_close(agent, &iterator_record, Ok(Value::Undefined))?;
+            }
+        }
+
         Ok(())
     }
 
