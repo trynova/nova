@@ -71,6 +71,16 @@ impl VmIterator {
             }
         }
     }
+
+    pub(super) fn remaining_length_estimate(&self, agent: &mut Agent) -> Option<usize> {
+        match self {
+            VmIterator::ObjectProperties(iter) => Some(iter.remaining_keys.len()),
+            VmIterator::ArrayValues(iter) => {
+                Some(iter.array.len(agent).saturating_sub(iter.index) as usize)
+            }
+            VmIterator::GenericIterator(_) => None,
+        }
+    }
 }
 
 #[derive(Debug)]
