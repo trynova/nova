@@ -651,9 +651,7 @@ impl ObjectConstructor {
             let elements = create_array_from_list(agent, &g.elements).into_value();
 
             // b. Perform ! CreateDataPropertyOrThrow(obj, g.[[Key]], elements).
-            let pk = PropertyKey::try_from(g.key).unwrap();
-
-            create_data_property_or_throw(agent, object, pk, elements)?;
+            create_data_property_or_throw(agent, object, g.key, elements)?;
         }
 
         // 4. Return obj.

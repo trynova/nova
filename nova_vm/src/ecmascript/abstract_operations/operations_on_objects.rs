@@ -6,23 +6,19 @@
 
 use super::{
     operations_on_iterator_objects::{
-        get_iterator, if_abrupt_close_iterator, iterator_close, iterator_step,
+        get_iterator, if_abrupt_close_iterator, iterator_close,
     },
     testing_and_comparison::{is_callable, require_object_coercible, same_value},
     type_conversion::{to_length, to_object, to_property_key},
 };
 use crate::{
     ecmascript::{
-        builtins::{
-            array_create,
-            keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
-            ArgumentsList, Array,
-        },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{
+        abstract_operations::operations_on_iterator_objects::iterator_step_value, builtins::{
+            array_create, keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key, ArgumentsList, Array
+        }, execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier}, types::{
             Function, InternalMethods, IntoObject, IntoValue, Number, Object, PropertyDescriptor,
             PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
-        },
+        }
     },
     engine::instanceof_operator,
     SmallInteger,
@@ -764,10 +760,10 @@ pub(crate) fn get_function_realm(
     }
 }
 
-// ### [7.3.34 AddValueToKeyedGroup ( groups, key, value )](https://tc39.es/ecma262/#sec-add-value-to-keyed-group)
-// The abstract operation AddValueToKeyedGroup takes arguments groups (a List of Records with fields
-// [[Key]] (an ECMAScript language value) and [[Elements]] (a List of ECMAScript language values)),
-// key (an ECMAScript language value), and value (an ECMAScript language value) and returns UNUSED.
+/// ### [7.3.34 AddValueToKeyedGroup ( groups, key, value )](https://tc39.es/ecma262/#sec-add-value-to-keyed-group)
+/// The abstract operation AddValueToKeyedGroup takes arguments groups (a List of Records with fields
+/// [[Key]] (an ECMAScript language value) and [[Elements]] (a List of ECMAScript language values)),
+/// key (an ECMAScript language value), and value (an ECMAScript language value) and returns UNUSED.
 pub(crate) fn add_value_to_keyed_group(
     agent: &mut Agent,
     groups: &mut Vec<GroupByRecord>,
@@ -781,12 +777,15 @@ pub(crate) fn add_value_to_keyed_group(
             // i. Assert: Exactly one element of groups meets this criterion.
             // ii. Append value to g.[[Elements]].
             g.elements.push(value);
+
+            // iii. Return UNUSED.
+            return Ok(());
         }
     }
 
     // 2. Let group be the Record { [[Key]]: key, [[Elements]]: « value » }.
     let group = GroupByRecord {
-        key,
+        key: PropertyKey::try_from(key).unwrap(),
         elements: vec![value],
     };
 
@@ -797,21 +796,23 @@ pub(crate) fn add_value_to_keyed_group(
     Ok(())
 }
 
+#[derive(Debug)]
 pub(crate) struct GroupByRecord {
-    pub(crate) key: Value,
+    pub(crate) key: PropertyKey,
     pub(crate) elements: Vec<Value>,
 }
 
+#[derive(Debug)]
 pub(crate) enum KeyCoercion {
     Property,
     Collection,
 }
 
-// ###[7.3.35 GroupBy ( items, callback, keyCoercion )](https://tc39.es/ecma262/#sec-groupby)
-// The abstract operation GroupBy takes arguments items (an ECMAScript language value), callback
-// (an ECMAScript language value), and keyCoercion (property or collection) and returns either a
-// normal completion containing a List of Records with fields [[Key]] (an ECMAScript language
-// value) and [[Elements]] (a List of ECMAScript language values), or a throw completion.
+/// ###[7.3.35 GroupBy ( items, callback, keyCoercion )](https://tc39.es/ecma262/#sec-groupby)
+/// The abstract operation GroupBy takes arguments items (an ECMAScript language value), callback
+/// (an ECMAScript language value), and keyCoercion (property or collection) and returns either a
+/// normal completion containing a List of Records with fields [[Key]] (an ECMAScript language
+/// value) and [[Elements]] (a List of ECMAScript language values), or a throw completion.
 pub(crate) fn group_by(
     agent: &mut Agent,
     items: Value,
@@ -833,15 +834,16 @@ pub(crate) fn group_by(
     let mut groups: Vec<GroupByRecord> = vec![];
 
     // 4. Let iteratorRecord be ? GetIterator(iterable).
-    let iterator_record = get_iterator(agent, items, false)?;
+    let mut iterator_record = get_iterator(agent, items, false)?;
 
     // 5. Let k be 0.
     let mut k = 0;
 
     // 6. Repeat,
     loop {
+        // NOTE: The actual max size of an array is u32::MAX
         // a. If k ≥ 2**53 - 1, then
-        if k >= SmallInteger::MAX_NUMBER {
+        if k >= u32::MAX as usize {
             // i. Let error be ThrowCompletion(a newly created TypeError object).
             let error = agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -852,8 +854,8 @@ pub(crate) fn group_by(
             return iterator_close(agent, &iterator_record, Err(error));
         }
 
-        // b. Let next be ? IteratorStep(iteratorRecord).
-        let next = iterator_step(agent, &iterator_record)?;
+        // b. Let next be ? IteratorStepValue(iteratorRecord).
+        let next = iterator_step_value(agent, &mut iterator_record)?;
 
         // c. If next is DONE, then
         //   i. Return groups.
@@ -864,7 +866,7 @@ pub(crate) fn group_by(
         // d. Let value be next.
         let value = next;
 
-        let sk = SmallInteger::from(k as u32);
+        let sk = SmallInteger::try_from(k as u64).unwrap();
         // 𝔽(k)
         let fk = Number::from(sk).into_value();
 
@@ -873,17 +875,17 @@ pub(crate) fn group_by(
             agent,
             callback_fn,
             Value::Undefined,
-            Some(ArgumentsList(&[value.into_value(), fk])),
+            Some(ArgumentsList(&[value, fk])),
         );
 
         // f. IfAbruptCloseIterator(key, iteratorRecord).
-        let _ = if_abrupt_close_iterator(agent, key, &iterator_record)?;
+        let key = if_abrupt_close_iterator(agent, key, &iterator_record)?;
 
         let key = match key_coercion {
             // g. If keyCoercion is property, then
             KeyCoercion::Property => {
                 // i. Set key to Completion(ToPropertyKey(key)).
-                let property_key = to_property_key(agent, key?);
+                let property_key = to_property_key(agent, key);
 
                 // ii. IfAbruptCloseIterator(key, iteratorRecord).
                 if_abrupt_close_iterator(agent, property_key, &iterator_record)?.into_value()
@@ -892,12 +894,12 @@ pub(crate) fn group_by(
             KeyCoercion::Collection => {
                 // i. Assert: keyCoercion is collection.
                 // ii. Set key to CanonicalizeKeyedCollectionKey(key).
-                canonicalize_keyed_collection_key(agent, key?)
+                canonicalize_keyed_collection_key(agent, key)
             }
         };
 
         // i. Perform AddValueToKeyedGroup(groups, key, value).
-        add_value_to_keyed_group(agent, &mut groups, key, value.into())?;
+        add_value_to_keyed_group(agent, &mut groups, key, value)?;
 
         // j. Set k to k + 1.
         k += 1;
