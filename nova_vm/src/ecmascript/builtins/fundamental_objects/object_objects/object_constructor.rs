@@ -10,10 +10,10 @@ use crate::{
             },
             operations_on_objects::{
                 create_array_from_list, create_data_property_or_throw, define_property_or_throw,
-                enumerable_own_properties, enumerable_properties_kind, get, get_method, group_by,
-                has_own_property,
+                enumerable_own_properties, enumerable_properties_kind, get, get_method,
+                group_by_property, has_own_property,
                 integrity::{Frozen, Sealed},
-                set, set_integrity_level, test_integrity_level, KeyCoercion,
+                set, set_integrity_level, test_integrity_level,
             },
             testing_and_comparison::{require_object_coercible, same_value},
             type_conversion::{to_object, to_property_key, to_property_key_simple},
@@ -639,7 +639,7 @@ impl ObjectConstructor {
         let callback_fn = arguments.get(1);
 
         // 1. Let groups be ? GroupBy(items, callback, property).
-        let groups = group_by(agent, items, callback_fn, KeyCoercion::Property)?;
+        let groups = group_by_property(agent, items, callback_fn)?;
 
         // 2. Let obj be OrdinaryObjectCreate(null).
         let object =
