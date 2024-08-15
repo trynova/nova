@@ -9,8 +9,9 @@ use crate::{
                 get_iterator, if_abrupt_close_iterator, iterator_close, iterator_step_value,
             },
             operations_on_objects::{
-                create_array_from_list, define_property_or_throw, enumerable_own_properties,
-                enumerable_properties_kind, get, get_method, has_own_property,
+                create_array_from_list, create_data_property_or_throw, define_property_or_throw,
+                enumerable_own_properties, enumerable_properties_kind, get, get_method,
+                group_by_property, has_own_property,
                 integrity::{Frozen, Sealed},
                 set, set_integrity_level, test_integrity_level,
             },
@@ -617,6 +618,7 @@ impl ObjectConstructor {
         Ok(create_array_from_list(agent, &keys).into_value())
     }
 
+    /// ### [20.1.2.12 Object.getPrototypeOf ( O )](https://tc39.es/ecma262/#sec-object.getprototypeof)
     fn get_prototype_of(
         agent: &mut Agent,
         _this_value: Value,
@@ -627,12 +629,33 @@ impl ObjectConstructor {
             .map(|proto| proto.map_or(Value::Null, |proto| proto.into_value()))
     }
 
+    // ### [20.1.2.13 Object.groupBy ( items, callback )](https://tc39.es/ecma262/#sec-object.groupby)
     fn group_by(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
+        arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        let items = arguments.get(0);
+        let callback_fn = arguments.get(1);
+
+        // 1. Let groups be ? GroupBy(items, callback, property).
+        let groups = group_by_property(agent, items, callback_fn)?;
+
+        // 2. Let obj be OrdinaryObjectCreate(null).
+        let object =
+            ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
+
+        // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
+        for g in groups {
+            // a. Let elements be CreateArrayFromList(g.[[Elements]]).
+            let elements = create_array_from_list(agent, &g.elements).into_value();
+
+            // b. Perform ! CreateDataPropertyOrThrow(obj, g.[[Key]], elements).
+            create_data_property_or_throw(agent, object, g.key, elements)?;
+        }
+
+        // 4. Return obj.
+        Ok(object.into_value())
     }
 
     fn has_own(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
