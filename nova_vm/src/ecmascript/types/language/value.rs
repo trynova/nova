@@ -2,7 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::mem::size_of;
+use std::{
+    hash::{DefaultHasher, Hash, Hasher},
+    mem::size_of,
+};
 
 use crate::{
     ecmascript::{
@@ -460,6 +463,202 @@ impl Value {
             // NOTE: Converting to a number should give us a nice error message.
             _ => to_number(agent, self)?.into_f64(agent),
         })
+    }
+
+    pub(crate) fn hash(self, agent: &Agent) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        match self {
+            Value::Undefined => UNDEFINED_DISCRIMINANT.hash(&mut hasher),
+            Value::Null => NULL_DISCRIMINANT.hash(&mut hasher),
+            Value::Boolean(data) => {
+                BOOLEAN_DISCRIMINANT.hash(&mut hasher);
+                data.hash(&mut hasher);
+            }
+            Value::String(data) => {
+                // Skip discriminant hashing in strings
+                agent[data].as_str().hash(&mut hasher);
+            }
+            Value::SmallString(data) => {
+                data.as_str().hash(&mut hasher);
+            }
+            Value::Symbol(data) => {
+                SYMBOL_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::Number(data) => {
+                // Skip discriminant hashing in numbers
+                agent[data].to_bits().hash(&mut hasher);
+            }
+            Value::Integer(data) => {
+                data.into_i64().hash(&mut hasher);
+            }
+            Value::SmallF64(data) => {
+                data.into_f64().to_bits().hash(&mut hasher);
+            }
+            Value::BigInt(data) => {
+                // Skip dsciriminant hashing in bigint numbers
+                agent[data].data.hash(&mut hasher);
+            }
+            Value::SmallBigInt(data) => {
+                data.into_i64().hash(&mut hasher);
+            }
+            Value::Object(data) => {
+                OBJECT_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::BoundFunction(data) => {
+                BOUND_FUNCTION_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::BuiltinFunction(data) => {
+                BUILTIN_FUNCTION_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::ECMAScriptFunction(data) => {
+                ECMASCRIPT_FUNCTION_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::BuiltinGeneratorFunction => todo!(),
+            Value::BuiltinConstructorFunction => todo!(),
+            Value::BuiltinPromiseResolvingFunction(data) => {
+                BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::BuiltinPromiseCollectorFunction => todo!(),
+            Value::BuiltinProxyRevokerFunction => todo!(),
+            Value::PrimitiveObject(data) => {
+                PRIMITIVE_OBJECT_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::Arguments(data) => {
+                ARGUMENTS_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::Array(data) => {
+                ARRAY_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::ArrayBuffer(data) => {
+                ARRAY_BUFFER_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::DataView(data) => {
+                DATA_VIEW_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::Date(data) => {
+                DATE_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::Error(data) => {
+                ERROR_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::FinalizationRegistry(data) => {
+                FINALIZATION_REGISTRY_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::Map(data) => {
+                MAP_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::Promise(data) => {
+                PROMISE_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::Proxy(data) => {
+                PROXY_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::RegExp(data) => {
+                REGEXP_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::Set(data) => {
+                SET_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::SharedArrayBuffer(data) => {
+                SHARED_ARRAY_BUFFER_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::WeakMap(data) => {
+                WEAK_MAP_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::WeakRef(data) => {
+                WEAK_REF_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::WeakSet(data) => {
+                WEAK_SET_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::Int8Array(data) => {
+                INT_8_ARRAY_DISCRIMINANT.hash(&mut hasher);
+                data.into_index().hash(&mut hasher);
+            }
+            Value::Uint8Array(data) => {
+                UINT_8_ARRAY_DISCRIMINANT.hash(&mut hasher);
+                data.into_index().hash(&mut hasher);
+            }
+            Value::Uint8ClampedArray(data) => {
+                UINT_8_CLAMPED_ARRAY_DISCRIMINANT.hash(&mut hasher);
+                data.into_index().hash(&mut hasher);
+            }
+            Value::Int16Array(data) => {
+                INT_16_ARRAY_DISCRIMINANT.hash(&mut hasher);
+                data.into_index().hash(&mut hasher);
+            }
+            Value::Uint16Array(data) => {
+                UINT_16_ARRAY_DISCRIMINANT.hash(&mut hasher);
+                data.into_index().hash(&mut hasher);
+            }
+            Value::Int32Array(data) => {
+                INT_32_ARRAY_DISCRIMINANT.hash(&mut hasher);
+                data.into_index().hash(&mut hasher);
+            }
+            Value::Uint32Array(data) => {
+                UINT_32_ARRAY_DISCRIMINANT.hash(&mut hasher);
+                data.into_index().hash(&mut hasher);
+            }
+            Value::BigInt64Array(data) => {
+                BIGINT_64_ARRAY_DISCRIMINANT.hash(&mut hasher);
+                data.into_index().hash(&mut hasher);
+            }
+            Value::BigUint64Array(data) => {
+                BIGUINT_64_ARRAY_DISCRIMINANT.hash(&mut hasher);
+                data.into_index().hash(&mut hasher);
+            }
+            Value::Float32Array(data) => {
+                FLOAT_32_ARRAY_DISCRIMINANT.hash(&mut hasher);
+                data.into_index().hash(&mut hasher);
+            }
+            Value::Float64Array(data) => {
+                FLOAT_64_ARRAY_DISCRIMINANT.hash(&mut hasher);
+                data.into_index().hash(&mut hasher);
+            }
+            Value::AsyncFromSyncIterator => todo!(),
+            Value::AsyncIterator => todo!(),
+            Value::Iterator => todo!(),
+            Value::ArrayIterator(data) => {
+                ARRAY_ITERATOR_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::Generator(data) => {
+                GENERATOR_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::Module(data) => {
+                MODULE_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+            Value::EmbedderObject(data) => {
+                EMBEDDER_OBJECT_DISCRIMINANT.hash(&mut hasher);
+                data.get_index().hash(&mut hasher);
+            }
+        };
+        hasher.finish()
     }
 }
 

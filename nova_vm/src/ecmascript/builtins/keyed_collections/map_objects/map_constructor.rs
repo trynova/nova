@@ -186,23 +186,49 @@ pub fn add_entries_from_iterable_map_constructor(
                         // invalidate the MapHeapData borrow here.
                         // It's thus safe to keep this borrow alive
                         // while we iterate the entries.
-                        let data = unsafe {
+                        let MapHeapData {
+                            keys,
+                            values,
+                            map_data,
+                            ..
+                        } = unsafe {
                             std::mem::transmute::<&mut MapHeapData, &'static mut MapHeapData>(
                                 &mut agent[target],
                             )
                         };
-                        data.keys.reserve(length as usize);
-                        data.values.reserve(length as usize);
+                        let length = length as usize;
+                        keys.reserve(length);
+                        values.reserve(length);
+                        // Note: The Map is empty at this point, we don't need the hasher function.
+                        assert!(map_data.is_empty());
+                        map_data.reserve(length, |_| 0);
                         for entry in iterable.as_slice(agent).iter() {
                             let Some(Value::Array(entry)) = *entry else {
                                 unreachable!()
                             };
                             let slice = entry.as_slice(agent);
-                            let key = slice[0].unwrap();
+                            let key = canonicalize_keyed_collection_key(agent, slice[0].unwrap());
+                            let key_hash = key.hash(agent);
                             let value = slice[1].unwrap();
-                            data.keys
-                                .push(Some(canonicalize_keyed_collection_key(agent, key)));
-                            data.values.push(Some(value));
+                            let next_index = keys.len() as u32;
+                            let entry = map_data.entry(
+                                key_hash,
+                                |hash_equal_key| keys[*hash_equal_key as usize].unwrap() == key,
+                                |key_to_hash| keys[*key_to_hash as usize].unwrap().hash(agent),
+                            );
+                            match entry {
+                                hashbrown::hash_table::Entry::Occupied(occupied) => {
+                                    // We have duplicates in the array. Latter
+                                    // ones overwrite earlier ones.
+                                    let index = *occupied.get();
+                                    values[index as usize] = Some(value);
+                                }
+                                hashbrown::hash_table::Entry::Vacant(vacant) => {
+                                    vacant.insert(next_index);
+                                    keys.push(Some(key));
+                                    values.push(Some(value));
+                                }
+                            }
                         }
                         return Ok(target);
                     }
