@@ -230,6 +230,7 @@ impl PromiseConstructor {
         Ok(Promise::resolve(agent, arguments.get(0)).into_value())
     }
 
+    /// Defined in the [`Promise.try` proposal](https://tc39.es/proposal-promise-try)
     fn r#try(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
         // 1. Let C be the this value.
         // 2. If C is not an Object, throw a TypeError exception.
