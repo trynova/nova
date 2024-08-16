@@ -4,7 +4,10 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::call_function,
+        abstract_operations::{
+            operations_on_objects::{call, call_function},
+            testing_and_comparison::is_constructor,
+        },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ordinary::ordinary_create_from_constructor,
@@ -20,7 +23,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{CreateHeapData, IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+    heap::{CreateHeapData, IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
 };
 
 use super::promise_abstract_operations::{
@@ -74,6 +77,12 @@ impl Builtin for PromiseResolve {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromiseConstructor::resolve);
     const LENGTH: u8 = 1;
     const NAME: String = BUILTIN_STRING_MEMORY.resolve;
+}
+struct PromiseTry;
+impl Builtin for PromiseTry {
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(PromiseConstructor::r#try);
+    const LENGTH: u8 = 1;
+    const NAME: String = BUILTIN_STRING_MEMORY.r#try;
 }
 struct PromiseWithResolvers;
 impl Builtin for PromiseWithResolvers {
@@ -221,12 +230,119 @@ impl PromiseConstructor {
         Ok(Promise::resolve(agent, arguments.get(0)).into_value())
     }
 
+    /// Defined in the [`Promise.try` proposal](https://tc39.es/proposal-promise-try)
+    fn r#try(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        // 1. Let C be the this value.
+        // 2. If C is not an Object, throw a TypeError exception.
+        if is_constructor(agent, this_value).is_none() {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Expected the this value to be a constructor.",
+            ));
+        }
+        // We currently don't support Promise subclassing.
+        assert_eq!(
+            this_value,
+            agent.current_realm().intrinsics().promise().into_value()
+        );
+
+        // 3. Let promiseCapability be ? NewPromiseCapability(C).
+        // 4. Let status be Completion(Call(callbackfn, undefined, args)).
+        let status = call(
+            agent,
+            arguments.get(0),
+            Value::Undefined,
+            Some(ArgumentsList(&arguments.0[1..])),
+        );
+        let promise = match status {
+            // 5. If status is an abrupt completion, then
+            Err(err) => {
+                // a. Perform ? Call(promiseCapability.[[Reject]], undefined, « status.[[Value]] »).
+                // 7. Return promiseCapability.[[Promise]].
+                agent.heap.create(PromiseHeapData {
+                    object_index: None,
+                    promise_state: PromiseState::Rejected {
+                        promise_result: err.value(),
+                        is_handled: false,
+                    },
+                })
+            }
+            // 6. Else,
+            Ok(result) => {
+                // a. Perform ? Call(promiseCapability.[[Resolve]], undefined, « status.[[Value]] »).
+                Promise::resolve(agent, result)
+            }
+        };
+        // 7. Return promiseCapability.[[Promise]].
+        Ok(promise.into_value())
+    }
+
     fn with_resolvers(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        // Step 2 will throw if `this_value` is not a constructor.
+        if is_constructor(agent, this_value).is_none() {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Expected the this value to be a constructor.",
+            ));
+        }
+        // We currently don't support Promise subclassing.
+        assert_eq!(
+            this_value,
+            agent.current_realm().intrinsics().promise().into_value()
+        );
+
+        // 1. Let C be the this value.
+        // 2. Let promiseCapability be ? NewPromiseCapability(C).
+        let promise_capability = PromiseCapability::new(agent);
+        let resolve_function = agent
+            .heap
+            .create(PromiseResolvingFunctionHeapData {
+                object_index: None,
+                promise_capability,
+                resolve_type: PromiseResolvingFunctionType::Resolve,
+            })
+            .into_value();
+        let reject_function = agent
+            .heap
+            .create(PromiseResolvingFunctionHeapData {
+                object_index: None,
+                promise_capability,
+                resolve_type: PromiseResolvingFunctionType::Reject,
+            })
+            .into_value();
+
+        // 3. Let obj be OrdinaryObjectCreate(%Object.prototype%).
+        // 4. Perform ! CreateDataPropertyOrThrow(obj, "promise", promiseCapability.[[Promise]]).
+        // 5. Perform ! CreateDataPropertyOrThrow(obj, "resolve", promiseCapability.[[Resolve]]).
+        // 6. Perform ! CreateDataPropertyOrThrow(obj, "reject", promiseCapability.[[Reject]]).
+        let obj = agent.heap.create_object_with_prototype(
+            agent
+                .current_realm()
+                .intrinsics()
+                .object_prototype()
+                .into_object(),
+            &[
+                ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.promise.into(),
+                    promise_capability.promise().into_value(),
+                ),
+                ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.resolve.into(),
+                    resolve_function.into_value(),
+                ),
+                ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.reject.into(),
+                    reject_function.into_value(),
+                ),
+            ],
+        );
+
+        // 7. Return obj.
+        Ok(obj.into_value())
     }
 
     fn get_species(_: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
@@ -238,7 +354,7 @@ impl PromiseConstructor {
         let promise_prototype = intrinsics.promise_prototype();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<PromiseConstructor>(agent, realm)
-            .with_property_capacity(9)
+            .with_property_capacity(10)
             .with_builtin_function_property::<PromiseAll>()
             .with_builtin_function_property::<PromiseAllSettled>()
             .with_builtin_function_property::<PromiseAny>()
@@ -246,6 +362,7 @@ impl PromiseConstructor {
             .with_builtin_function_property::<PromiseRace>()
             .with_builtin_function_property::<PromiseReject>()
             .with_builtin_function_property::<PromiseResolve>()
+            .with_builtin_function_property::<PromiseTry>()
             .with_builtin_function_property::<PromiseWithResolvers>()
             .with_builtin_function_getter_property::<PromiseGetSpecies>()
             .build();
