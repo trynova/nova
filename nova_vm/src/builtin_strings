@@ -285,6 +285,7 @@ pop
 POSITIVE_INFINITY
 pow
 preventExtensions
+promise
 Promise
 propertyIsEnumerable
 prototype
@@ -420,6 +421,7 @@ trimEnd
 trimStart
 true
 trunc
+try
 TypedArray
 TypeError
 Uint16Array
