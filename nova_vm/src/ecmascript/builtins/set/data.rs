@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use hashbrown::HashTable;
+
 use crate::{
     ecmascript::types::{OrdinaryObject, Value},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -10,15 +12,9 @@ use crate::{
 #[derive(Debug, Clone, Default)]
 pub struct SetHeapData {
     pub(crate) object_index: Option<OrdinaryObject>,
-    // TODO: This isn't even close to a hashmap; HashSet won't allow inserting
-    // Value as key; f32 isn't hashable. And our f64s are found on the Heap and
-    // require fetching; What we actually should do is more like:
-    // pub(crate) map: HashSet<ValueHash, u32>
-    // pub(crate) values: Vec<Option<Value>>
-    // ValueHash is created using a Value.hash(agent) function and connects to
-    // an index; the index points to a value in Vec.
-    // Note that empty slots are deleted values in the Vec.
-    pub(crate) set: Vec<Option<Value>>,
+    pub(crate) values: Vec<Option<Value>>,
+    /// Low-level hash table pointing to value indexes.
+    pub(crate) set_data: HashTable<u32>,
     // TODO: When an non-terminal (start or end) iterator exists for the Set,
     // the items in the map cannot be compacted.
     // pub(crate) observed: bool;
@@ -27,12 +23,14 @@ pub struct SetHeapData {
 impl HeapMarkAndSweep for SetHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.object_index.mark_values(queues);
-        self.set.iter().for_each(|value| value.mark_values(queues));
+        self.values
+            .iter()
+            .for_each(|value| value.mark_values(queues));
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.object_index.sweep_values(compactions);
-        self.set
+        self.values
             .iter_mut()
             .for_each(|value| value.sweep_values(compactions));
     }
