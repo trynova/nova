@@ -9,6 +9,8 @@ mod into_object;
 mod property_key;
 mod property_storage;
 
+use std::hash::Hash;
+
 use super::{
     value::{
         ARGUMENTS_DISCRIMINANT, ARRAY_BUFFER_DISCRIMINANT, ARRAY_DISCRIMINANT,
@@ -426,6 +428,58 @@ impl Object {
 
     pub fn property_storage(self) -> PropertyStorage {
         PropertyStorage::new(self)
+    }
+}
+
+impl Hash for Object {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Object::Object(data) => data.get_index().hash(state),
+            Object::BoundFunction(data) => data.get_index().hash(state),
+            Object::BuiltinFunction(data) => data.get_index().hash(state),
+            Object::ECMAScriptFunction(data) => data.get_index().hash(state),
+            Object::BuiltinGeneratorFunction => {}
+            Object::BuiltinConstructorFunction => {}
+            Object::BuiltinPromiseResolvingFunction(data) => data.get_index().hash(state),
+            Object::BuiltinPromiseCollectorFunction => {}
+            Object::BuiltinProxyRevokerFunction => {}
+            Object::PrimitiveObject(data) => data.get_index().hash(state),
+            Object::Arguments(data) => data.get_index().hash(state),
+            Object::Array(data) => data.get_index().hash(state),
+            Object::ArrayBuffer(data) => data.get_index().hash(state),
+            Object::DataView(data) => data.get_index().hash(state),
+            Object::Date(data) => data.get_index().hash(state),
+            Object::Error(data) => data.get_index().hash(state),
+            Object::FinalizationRegistry(data) => data.get_index().hash(state),
+            Object::Map(data) => data.get_index().hash(state),
+            Object::Promise(data) => data.get_index().hash(state),
+            Object::Proxy(data) => data.get_index().hash(state),
+            Object::RegExp(data) => data.get_index().hash(state),
+            Object::Set(data) => data.get_index().hash(state),
+            Object::SharedArrayBuffer(data) => data.get_index().hash(state),
+            Object::WeakMap(data) => data.get_index().hash(state),
+            Object::WeakRef(data) => data.get_index().hash(state),
+            Object::WeakSet(data) => data.get_index().hash(state),
+            Object::Int8Array(data) => data.into_index().hash(state),
+            Object::Uint8Array(data) => data.into_index().hash(state),
+            Object::Uint8ClampedArray(data) => data.into_index().hash(state),
+            Object::Int16Array(data) => data.into_index().hash(state),
+            Object::Uint16Array(data) => data.into_index().hash(state),
+            Object::Int32Array(data) => data.into_index().hash(state),
+            Object::Uint32Array(data) => data.into_index().hash(state),
+            Object::BigInt64Array(data) => data.into_index().hash(state),
+            Object::BigUint64Array(data) => data.into_index().hash(state),
+            Object::Float32Array(data) => data.into_index().hash(state),
+            Object::Float64Array(data) => data.into_index().hash(state),
+            Object::AsyncFromSyncIterator => {}
+            Object::AsyncIterator => {}
+            Object::Iterator => {}
+            Object::ArrayIterator(data) => data.get_index().hash(state),
+            Object::Generator(data) => data.get_index().hash(state),
+            Object::Module(data) => data.get_index().hash(state),
+            Object::EmbedderObject(data) => data.get_index().hash(state),
+        }
     }
 }
 

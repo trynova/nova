@@ -2,6 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::hash::Hasher;
+
+use ahash::AHasher;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -12,7 +16,10 @@ use crate::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        builtins::{map::Map, ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic},
+        builtins::{
+            map::{data::MapHeapData, Map},
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
+        },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{IntoValue, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
@@ -104,6 +111,7 @@ impl MapPrototype {
         // b. Set p.[[Value]] to EMPTY.
         data.keys.fill(None);
         data.values.fill(None);
+        data.map_data.clear();
         // 4. Return undefined.
         Ok(Value::Undefined)
     }
@@ -120,23 +128,35 @@ impl MapPrototype {
         let m = require_map_data_internal_slot(agent, this_value)?;
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(agent, arguments.get(0));
+        let key_hash = {
+            let mut hasher = AHasher::default();
+            key.hash(agent, &mut hasher);
+            hasher.finish()
+        };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        let data = &agent[m];
+        // SAFETY: Borrow for same_value checking of a Value only requires
+        // access to string, number, and bigint data. It will never access Map
+        // data.
+        let MapHeapData {
+            keys,
+            values,
+            map_data,
+            ..
+        } = unsafe {
+            std::mem::transmute::<&mut MapHeapData, &'static mut MapHeapData>(&mut agent[m])
+        };
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
-        let found = data
-            .keys
-            .iter()
-            .enumerate()
-            .find(|&(_, p_key)| {
-                p_key.map_or(false, |p_key| p_key == key || same_value(agent, p_key, key))
-            })
-            .map(|(index, _)| index);
-        if let Some(index) = found {
-            let data = &mut agent[m];
+        if let Ok(entry) = map_data.find_entry(key_hash, |hash_equal_index| {
+            let found_key = keys[*hash_equal_index as usize].unwrap();
+            // Quick check: Equal keys have the same value.
+            found_key == key || same_value(agent, found_key, key)
+        }) {
+            let index = *entry.get() as usize;
+            let _ = entry.remove();
             // i. Set p.[[Key]] to EMPTY.
-            data.keys[index] = None;
+            keys[index] = None;
             // ii. Set p.[[Value]] to EMPTY.
-            data.values[index] = None;
+            values[index] = None;
             // iii. Return true.
             Ok(true.into())
         } else {
@@ -226,19 +246,21 @@ impl MapPrototype {
         let m = require_map_data_internal_slot(agent, this_value)?;
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(agent, arguments.get(0));
+        let key_hash = {
+            let mut hasher = AHasher::default();
+            key.hash(agent, &mut hasher);
+            hasher.finish()
+        };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         let data = &agent[m];
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, return p.[[Value]].
-        let found = data
-            .keys
-            .iter()
-            .enumerate()
-            .find(|&(_, p_key)| {
-                p_key.map_or(false, |p_key| p_key == key || same_value(agent, p_key, key))
-            })
-            .map(|(index, _)| index);
+        let found = data.map_data.find(key_hash, |hash_equal_index| {
+            let found_key = data.keys[*hash_equal_index as usize].unwrap();
+            // Quick check: Equal keys have the same value.
+            found_key == key || same_value(agent, found_key, key)
+        });
         if let Some(index) = found {
-            Ok(data.values[index].unwrap())
+            Ok(data.values[*index as usize].unwrap())
         } else {
             // 5. Return undefined.
             Ok(Value::Undefined)
@@ -252,13 +274,24 @@ impl MapPrototype {
         let m = require_map_data_internal_slot(agent, this_value)?;
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(agent, arguments.get(0));
+        let key_hash = {
+            let mut hasher = AHasher::default();
+            key.hash(agent, &mut hasher);
+            hasher.finish()
+        };
+        println!("Has | Key {:?}, Hash {}", key, key_hash);
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         let data = &agent[m];
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, return true.
         // 5. Return false.
-        let found = data.keys.iter().any(|&p_key| {
-            p_key.map_or(false, |p_key| p_key == key || same_value(agent, p_key, key))
-        });
+        let found = data
+            .map_data
+            .find(key_hash, |hash_equal_index| {
+                let found_key = data.keys[*hash_equal_index as usize].unwrap();
+                // Quick check: Equal keys have the same value.
+                found_key == key || same_value(agent, found_key, key)
+            })
+            .is_some();
         Ok(found.into())
     }
 
@@ -272,28 +305,52 @@ impl MapPrototype {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value)?;
+
+        // SAFETY: Borrow for hashing a Value only requires access to string,
+        // number, and bigint data. It will never access Map data.
+        let MapHeapData {
+            keys,
+            values,
+            map_data,
+            ..
+        } = unsafe {
+            std::mem::transmute::<&mut MapHeapData, &'static mut MapHeapData>(&mut agent[m])
+        };
+        let hasher = |value: Value| {
+            let mut hasher = AHasher::default();
+            value.hash(agent, &mut hasher);
+            hasher.finish()
+        };
+
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(agent, arguments.get(0));
+        let key_hash = hasher(key);
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        let data = &agent[m];
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
-        let found = data
-            .keys
-            .iter()
-            .enumerate()
-            .find(|&(_, p_key)| {
-                p_key.map_or(false, |p_key| p_key == key || same_value(agent, p_key, key))
-            })
-            .map(|(index, _)| index);
-        let data = &mut agent[m];
-        if let Some(index) = found {
-            // i. Set p.[[Value]] to value.
-            data.values[index] = Some(value);
-        } else {
-            // 5. Let p be the Record { [[Key]]: key, [[Value]]: value }.
-            // 6. Append p to M.[[MapData]].
-            data.keys.push(Some(key));
-            data.values.push(Some(value));
+        let entry = map_data.entry(
+            key_hash,
+            |hash_equal_index| {
+                let found_key = keys[*hash_equal_index as usize].unwrap();
+                // Quick check: Equal keys have the same value.
+                found_key == key || same_value(agent, found_key, key)
+            },
+            |index_to_hash| hasher(keys[*index_to_hash as usize].unwrap()),
+        );
+        match entry {
+            hashbrown::hash_table::Entry::Occupied(occupied) => {
+                let index = *occupied.get();
+                // i. Set p.[[Value]] to value.
+                values[index as usize] = Some(value);
+                // ii. Return M.
+            }
+            hashbrown::hash_table::Entry::Vacant(vacant) => {
+                // 5. Let p be the Record { [[Key]]: key, [[Value]]: value }.
+                // 6. Append p to M.[[MapData]].
+                let index = u32::try_from(values.len()).unwrap();
+                vacant.insert(index);
+                keys.push(Some(key));
+                values.push(Some(value));
+            }
         }
         // 7. Return M.
         Ok(m.into_value())
@@ -301,7 +358,7 @@ impl MapPrototype {
 
     fn get_size(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         let m = require_map_data_internal_slot(agent, this_value)?;
-        let count = agent[m].keys.iter().filter(|key| key.is_some()).count() as u32;
+        let count = agent[m].map_data.len() as u32;
         Ok(count.into())
     }
 

@@ -2,6 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::hash::Hasher;
+
+use ahash::AHasher;
+use hashbrown::HashTable;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -103,9 +108,23 @@ impl SetConstructor {
 
                 // SAFETY: The array slice borrow cannot be invalidated by our
                 // incoming mutation of the Set data.
-                let mut set_data = iterable.as_slice(agent).to_vec();
-                set_data.dedup_by(|a, b| same_value(agent, *a, *b));
-                agent[set].set = set_data;
+                let mut set_vector = iterable.as_slice(agent).to_vec();
+                set_vector.dedup_by(|a, b| same_value(agent, *a, *b));
+                let mut set_hash_table = HashTable::with_capacity(set_vector.len());
+                let hasher = |value: Value| {
+                    let mut hasher = AHasher::default();
+                    value.hash(agent, &mut hasher);
+                    hasher.finish()
+                };
+                set_vector.iter().enumerate().for_each(|(index, value)| {
+                    let value = value.unwrap();
+                    let value_hash = hasher(value);
+                    set_hash_table.insert_unique(value_hash, index as u32, |index_to_hash| {
+                        hasher(set_vector[*index_to_hash as usize].unwrap())
+                    });
+                });
+                agent[set].values = set_vector;
+                agent[set].set_data = set_hash_table;
                 return Ok(set.into_value());
             }
         }

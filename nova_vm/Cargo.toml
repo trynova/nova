@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ahash = { workspace = true }
 fast-float = { workspace = true }
+hashbrown = { workspace = true }
 num-bigint = { workspace = true }
 num-traits = { workspace = true }
 oxc_allocator = { workspace = true }
@@ -17,9 +19,8 @@ oxc_syntax = { workspace = true }
 rand = { workspace = true }
 ryu-js = { workspace = true }
 small_string = { path = "../small_string" }
-wtf8 = { workspace = true }
-ahash = { workspace = true }
 sonic-rs = { workspace = true }
+wtf8 = { workspace = true }
 
 [features]
 typescript = []
