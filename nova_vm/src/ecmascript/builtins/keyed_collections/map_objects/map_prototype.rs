@@ -2,6 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::hash::Hasher;
+
+use ahash::AHasher;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -124,7 +128,11 @@ impl MapPrototype {
         let m = require_map_data_internal_slot(agent, this_value)?;
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(agent, arguments.get(0));
-        let key_hash = key.hash(agent);
+        let key_hash = {
+            let mut hasher = AHasher::default();
+            key.hash(agent, &mut hasher);
+            hasher.finish()
+        };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         // SAFETY: Borrow for same_value checking of a Value only requires
         // access to string, number, and bigint data. It will never access Map
@@ -238,7 +246,11 @@ impl MapPrototype {
         let m = require_map_data_internal_slot(agent, this_value)?;
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(agent, arguments.get(0));
-        let key_hash = key.hash(agent);
+        let key_hash = {
+            let mut hasher = AHasher::default();
+            key.hash(agent, &mut hasher);
+            hasher.finish()
+        };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         let data = &agent[m];
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, return p.[[Value]].
@@ -262,7 +274,12 @@ impl MapPrototype {
         let m = require_map_data_internal_slot(agent, this_value)?;
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(agent, arguments.get(0));
-        let key_hash = key.hash(agent);
+        let key_hash = {
+            let mut hasher = AHasher::default();
+            key.hash(agent, &mut hasher);
+            hasher.finish()
+        };
+        println!("Has | Key {:?}, Hash {}", key, key_hash);
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         let data = &agent[m];
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, return true.
@@ -288,10 +305,7 @@ impl MapPrototype {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value)?;
-        // 3. Set key to CanonicalizeKeyedCollectionKey(key).
-        let key = canonicalize_keyed_collection_key(agent, arguments.get(0));
-        let key_hash = key.hash(agent);
-        // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
+
         // SAFETY: Borrow for hashing a Value only requires access to string,
         // number, and bigint data. It will never access Map data.
         let MapHeapData {
@@ -302,6 +316,16 @@ impl MapPrototype {
         } = unsafe {
             std::mem::transmute::<&mut MapHeapData, &'static mut MapHeapData>(&mut agent[m])
         };
+        let hasher = |value: Value| {
+            let mut hasher = AHasher::default();
+            value.hash(agent, &mut hasher);
+            hasher.finish()
+        };
+
+        // 3. Set key to CanonicalizeKeyedCollectionKey(key).
+        let key = canonicalize_keyed_collection_key(agent, arguments.get(0));
+        let key_hash = hasher(key);
+        // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
         let entry = map_data.entry(
             key_hash,
@@ -310,7 +334,7 @@ impl MapPrototype {
                 // Quick check: Equal keys have the same value.
                 found_key == key || same_value(agent, found_key, key)
             },
-            |key_to_hash| keys[*key_to_hash as usize].unwrap().hash(agent),
+            |index_to_hash| hasher(keys[*index_to_hash as usize].unwrap()),
         );
         match entry {
             hashbrown::hash_table::Entry::Occupied(occupied) => {

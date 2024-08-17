@@ -2,6 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::hash::Hasher;
+
+use ahash::AHasher;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -202,19 +206,25 @@ pub fn add_entries_from_iterable_map_constructor(
                         // Note: The Map is empty at this point, we don't need the hasher function.
                         assert!(map_data.is_empty());
                         map_data.reserve(length, |_| 0);
+                        let hasher = |value: Value| {
+                            let mut hasher = AHasher::default();
+                            value.hash(agent, &mut hasher);
+                            hasher.finish()
+                        };
                         for entry in iterable.as_slice(agent).iter() {
                             let Some(Value::Array(entry)) = *entry else {
                                 unreachable!()
                             };
                             let slice = entry.as_slice(agent);
                             let key = canonicalize_keyed_collection_key(agent, slice[0].unwrap());
-                            let key_hash = key.hash(agent);
+                            let key_hash = hasher(key);
+                            println!("Constructor | Key {:?}, Hash {}", key, key_hash);
                             let value = slice[1].unwrap();
                             let next_index = keys.len() as u32;
                             let entry = map_data.entry(
                                 key_hash,
-                                |hash_equal_key| keys[*hash_equal_key as usize].unwrap() == key,
-                                |key_to_hash| keys[*key_to_hash as usize].unwrap().hash(agent),
+                                |hash_equal_index| keys[*hash_equal_index as usize].unwrap() == key,
+                                |index_to_hash| hasher(keys[*index_to_hash as usize].unwrap()),
                             );
                             match entry {
                                 hashbrown::hash_table::Entry::Occupied(occupied) => {

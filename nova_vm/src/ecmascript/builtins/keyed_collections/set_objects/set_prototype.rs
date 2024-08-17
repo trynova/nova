@@ -2,6 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::hash::Hasher;
+
+use ahash::AHasher;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -90,7 +94,7 @@ impl SetPrototype {
         let s = require_set_data_internal_slot(agent, this_value)?;
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
         let value = canonicalize_keyed_collection_key(agent, arguments.get(0));
-        let value_hash = value.hash(agent);
+
         // SAFETY: Borrow for hashing a Value and comparing values only
         // requires access to string, number, and bigint data. It will never
         // access Map data.
@@ -99,6 +103,14 @@ impl SetPrototype {
         } = unsafe {
             std::mem::transmute::<&mut SetHeapData, &'static mut SetHeapData>(&mut agent[s])
         };
+        let hasher = |value: Value| {
+            let mut hasher = AHasher::default();
+            value.hash(agent, &mut hasher);
+            hasher.finish()
+        };
+
+        let value_hash = hasher(value);
+
         // 4. For each element e of S.[[SetData]], do
         // a. If e is not empty and SameValue(e, value) is true, then
         if let hashbrown::hash_table::Entry::Vacant(entry) = set_data.entry(
@@ -108,7 +120,7 @@ impl SetPrototype {
                 // Quick check: Equal values have the same value.
                 found_value == value || same_value(agent, found_value, value)
             },
-            |key_to_hash| values[*key_to_hash as usize].unwrap().hash(agent),
+            |index_to_hash| hasher(values[*index_to_hash as usize].unwrap()),
         ) {
             // 5. Append value to S.[[SetData]].
             let index = u32::try_from(values.len()).unwrap();
@@ -155,7 +167,11 @@ impl SetPrototype {
         let s = require_set_data_internal_slot(agent, this_value)?;
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
         let value = canonicalize_keyed_collection_key(agent, arguments.get(0));
-        let value_hash = value.hash(agent);
+        let mut hasher = AHasher::default();
+        let value_hash = {
+            value.hash(agent, &mut hasher);
+            hasher.finish()
+        };
         // SAFETY: Borrow for hashing a Value and comparing values only
         // requires access to string, number, and bigint data. It will never
         // access Map data.
@@ -270,7 +286,11 @@ impl SetPrototype {
         let s = require_set_data_internal_slot(agent, this_value)?;
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
         let value = canonicalize_keyed_collection_key(agent, arguments.get(0));
-        let value_hash = value.hash(agent);
+        let mut hasher = AHasher::default();
+        let value_hash = {
+            value.hash(agent, &mut hasher);
+            hasher.finish()
+        };
         let data = &agent[s];
         // 4. For each element e of S.[[SetData]], do
         // a. If e is not EMPTY and SameValue(e, value) is true, return true.

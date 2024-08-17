@@ -2,6 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::hash::Hasher;
+
+use ahash::AHasher;
 use hashbrown::HashTable;
 
 use crate::{
@@ -108,10 +111,16 @@ impl SetConstructor {
                 let mut set_vector = iterable.as_slice(agent).to_vec();
                 set_vector.dedup_by(|a, b| same_value(agent, *a, *b));
                 let mut set_hash_table = HashTable::with_capacity(set_vector.len());
+                let hasher = |value: Value| {
+                    let mut hasher = AHasher::default();
+                    value.hash(agent, &mut hasher);
+                    hasher.finish()
+                };
                 set_vector.iter().enumerate().for_each(|(index, value)| {
                     let value = value.unwrap();
-                    set_hash_table.insert_unique(value.hash(agent), index as u32, |key_to_hash| {
-                        set_vector[*key_to_hash as usize].unwrap().hash(agent)
+                    let value_hash = hasher(value);
+                    set_hash_table.insert_unique(value_hash, index as u32, |index_to_hash| {
+                        hasher(set_vector[*index_to_hash as usize].unwrap())
                     });
                 });
                 agent[set].values = set_vector;
