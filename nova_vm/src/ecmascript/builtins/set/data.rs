@@ -89,6 +89,8 @@ impl SetData {
         let mut set_data = set_data.borrow_mut();
 
         rehash_set_data(values, &mut set_data, arena);
+        self.needs_primitive_rehashing
+            .store(false, Ordering::Relaxed);
     }
 
     fn rehash_if_needed_mut(&mut self, arena: &impl PrimitiveHeapIndexable) {
@@ -100,6 +102,8 @@ impl SetData {
         } = self;
 
         rehash_set_data(values, set_data.get_mut(), arena);
+        self.needs_primitive_rehashing
+            .store(false, Ordering::Relaxed);
     }
 }
 

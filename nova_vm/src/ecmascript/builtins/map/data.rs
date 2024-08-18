@@ -93,6 +93,8 @@ impl MapData {
         }
 
         rehash_map_data(&self.keys, self.map_data.get_mut(), arena);
+        self.needs_primitive_rehashing
+            .store(false, Ordering::Relaxed);
     }
 
     fn rehash_if_needed(&self, arena: &impl PrimitiveHeapIndexable) {
@@ -101,6 +103,8 @@ impl MapData {
         }
 
         rehash_map_data(&self.keys, &mut self.map_data.borrow_mut(), arena);
+        self.needs_primitive_rehashing
+            .store(false, Ordering::Relaxed);
     }
 }
 
