@@ -775,6 +775,7 @@ fn ordinary_define_own_property_for_array(
     true
 }
 
+/// A partial view to the Agent's Heap that allows accessing array heap data.
 pub(crate) struct ArrayHeap<'a> {
     elements: &'a ElementArrays,
     arrays: &'a Vec<Option<ArrayHeapData>>,
@@ -803,6 +804,7 @@ impl AsRef<ElementArrays> for ArrayHeap<'_> {
     }
 }
 
+/// Helper trait for array indexing.
 pub(crate) trait ArrayHeapIndexable:
     Index<Array, Output = ArrayHeapData> + AsRef<ElementArrays>
 {

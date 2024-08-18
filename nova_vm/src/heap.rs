@@ -346,7 +346,8 @@ impl Default for Heap {
     }
 }
 
-/// A reference to the primitive value heap data.
+/// A partial view to the Agent's heap that allows accessing primitive value
+/// heap data.
 pub(crate) struct PrimitiveHeap<'a> {
     pub(crate) bigints: &'a Vec<Option<BigIntHeapData>>,
     pub(crate) numbers: &'a Vec<Option<NumberHeapData>>,
@@ -367,6 +368,7 @@ impl PrimitiveHeap<'_> {
     }
 }
 
+/// Helper trait for primitive heap data indexing.
 pub(crate) trait PrimitiveHeapIndexable:
     Index<HeapNumber, Output = f64>
     + Index<HeapString, Output = StringHeapData>
