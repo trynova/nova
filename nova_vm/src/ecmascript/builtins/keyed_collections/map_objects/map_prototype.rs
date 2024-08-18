@@ -131,13 +131,13 @@ impl MapPrototype {
             maps,
             ..
         } = &mut agent.heap;
-        let primtive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(numbers, arguments.get(0));
         let key_hash = {
             let mut hasher = AHasher::default();
-            key.hash(&primtive_heap, &mut hasher);
+            key.hash(&primitive_heap, &mut hasher);
             hasher.finish()
         };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
@@ -146,14 +146,14 @@ impl MapPrototype {
             values,
             map_data,
             ..
-        } = maps[m].borrow_mut(&primtive_heap);
+        } = maps[m].borrow_mut(&primitive_heap);
         let map_data = map_data.get_mut();
 
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
         if let Ok(entry) = map_data.find_entry(key_hash, |hash_equal_index| {
             let found_key = keys[*hash_equal_index as usize].unwrap();
             // Quick check: Equal keys have the same value.
-            found_key == key || same_value(&primtive_heap, found_key, key)
+            found_key == key || same_value(&primitive_heap, found_key, key)
         }) {
             let index = *entry.get() as usize;
             let _ = entry.remove();
@@ -256,7 +256,7 @@ impl MapPrototype {
             maps,
             ..
         } = &agent.heap;
-        let primtive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(agent, arguments.get(0));
@@ -271,7 +271,7 @@ impl MapPrototype {
             values,
             map_data,
             ..
-        } = &maps[m].borrow(&primtive_heap);
+        } = &maps[m].borrow(&primitive_heap);
         let map_data = map_data.borrow();
 
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, return p.[[Value]].
@@ -301,17 +301,17 @@ impl MapPrototype {
             maps,
             ..
         } = &mut agent.heap;
-        let primtive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(numbers, arguments.get(0));
         let key_hash = {
             let mut hasher = AHasher::default();
-            key.hash(&primtive_heap, &mut hasher);
+            key.hash(&primitive_heap, &mut hasher);
             hasher.finish()
         };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        let MapData { keys, map_data, .. } = &mut maps[m].borrow_mut(&primtive_heap);
+        let MapData { keys, map_data, .. } = &mut maps[m].borrow_mut(&primitive_heap);
         let map_data = map_data.get_mut();
 
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, return true.
@@ -320,7 +320,7 @@ impl MapPrototype {
             .find(key_hash, |hash_equal_index| {
                 let found_key = keys[*hash_equal_index as usize].unwrap();
                 // Quick check: Equal keys have the same value.
-                found_key == key || same_value(&primtive_heap, found_key, key)
+                found_key == key || same_value(&primitive_heap, found_key, key)
             })
             .is_some();
         Ok(found.into())
@@ -344,19 +344,19 @@ impl MapPrototype {
             maps,
             ..
         } = &mut agent.heap;
-        let primtive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         let MapData {
             keys,
             values,
             map_data,
             ..
-        } = &mut maps[m].borrow_mut(&primtive_heap);
+        } = &mut maps[m].borrow_mut(&primitive_heap);
         let map_data = map_data.get_mut();
 
         let hasher = |value: Value| {
             let mut hasher = AHasher::default();
-            value.hash(&primtive_heap, &mut hasher);
+            value.hash(&primitive_heap, &mut hasher);
             hasher.finish()
         };
 
@@ -370,7 +370,7 @@ impl MapPrototype {
             |hash_equal_index| {
                 let found_key = keys[*hash_equal_index as usize].unwrap();
                 // Quick check: Equal keys have the same value.
-                found_key == key || same_value(&primtive_heap, found_key, key)
+                found_key == key || same_value(&primitive_heap, found_key, key)
             },
             |index_to_hash| hasher(keys[*index_to_hash as usize].unwrap()),
         );

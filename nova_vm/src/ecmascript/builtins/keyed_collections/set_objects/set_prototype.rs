@@ -103,18 +103,18 @@ impl SetPrototype {
             sets,
             ..
         } = &mut agent.heap;
-        let primtive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
         let value = canonicalize_keyed_collection_key(numbers, arguments.get(0));
 
         let SetData {
             values, set_data, ..
-        } = &mut sets[s].borrow_mut(&primtive_heap);
+        } = &mut sets[s].borrow_mut(&primitive_heap);
         let set_data = set_data.get_mut();
         let hasher = |value: Value| {
             let mut hasher = AHasher::default();
-            value.hash(&primtive_heap, &mut hasher);
+            value.hash(&primitive_heap, &mut hasher);
             hasher.finish()
         };
 
@@ -127,7 +127,7 @@ impl SetPrototype {
             |hash_equal_index| {
                 let found_value = values[*hash_equal_index as usize].unwrap();
                 // Quick check: Equal values have the same value.
-                found_value == value || same_value(&primtive_heap, found_value, value)
+                found_value == value || same_value(&primitive_heap, found_value, value)
             },
             |index_to_hash| hasher(values[*index_to_hash as usize].unwrap()),
         ) {
@@ -178,24 +178,24 @@ impl SetPrototype {
             sets,
             ..
         } = &mut agent.heap;
-        let primtive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
         let value = canonicalize_keyed_collection_key(numbers, arguments.get(0));
         let mut hasher = AHasher::default();
         let value_hash = {
-            value.hash(&primtive_heap, &mut hasher);
+            value.hash(&primitive_heap, &mut hasher);
             hasher.finish()
         };
         let SetData {
             values, set_data, ..
-        } = &mut sets[s].borrow_mut(&primtive_heap);
+        } = &mut sets[s].borrow_mut(&primitive_heap);
         let set_data = set_data.get_mut();
         // 4. For each element e of S.[[SetData]], do
         if let Ok(entry) = set_data.find_entry(value_hash, |hash_equal_index| {
             let found_value = values[*hash_equal_index as usize].unwrap();
             // Quick check: Equal keys have the same value.
-            found_value == value || same_value(&primtive_heap, found_value, value)
+            found_value == value || same_value(&primitive_heap, found_value, value)
         }) {
             // a. If e is not EMPTY and SameValue(e, value) is true, then
             let index = *entry.get() as usize;
@@ -305,17 +305,17 @@ impl SetPrototype {
             sets,
             ..
         } = &agent.heap;
-        let primtive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
         let SetData {
             values, set_data, ..
-        } = &sets[s].borrow(&primtive_heap);
+        } = &sets[s].borrow(&primitive_heap);
         let set_data = set_data.borrow();
 
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
-        let value = canonicalize_keyed_collection_key(&primtive_heap, arguments.get(0));
+        let value = canonicalize_keyed_collection_key(&primitive_heap, arguments.get(0));
         let mut hasher = AHasher::default();
         let value_hash = {
-            value.hash(&primtive_heap, &mut hasher);
+            value.hash(&primitive_heap, &mut hasher);
             hasher.finish()
         };
         // 4. For each element e of S.[[SetData]], do
@@ -324,7 +324,7 @@ impl SetPrototype {
             .find(value_hash, |hash_equal_index| {
                 let found_value = values[*hash_equal_index as usize].unwrap();
                 // Quick check: Equal values have the same value.
-                found_value == value || same_value(&primtive_heap, found_value, value)
+                found_value == value || same_value(&primitive_heap, found_value, value)
             })
             .is_some();
         // 5. Return false.

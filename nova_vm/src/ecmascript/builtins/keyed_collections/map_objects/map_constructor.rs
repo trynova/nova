@@ -179,7 +179,7 @@ pub fn add_entries_from_iterable_map_constructor(
                         ..
                     } = &mut agent.heap;
                     let array_heap = ArrayHeap::new(elements, arrays);
-                    let primtive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+                    let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
                     // Iterable uses the normal Array iterator of this realm.
                     if iterable.len(&array_heap) == 0 {
@@ -204,7 +204,7 @@ pub fn add_entries_from_iterable_map_constructor(
                             values,
                             map_data,
                             ..
-                        } = maps[target].borrow_mut(&primtive_heap);
+                        } = maps[target].borrow_mut(&primitive_heap);
                         let map_data = map_data.get_mut();
 
                         let length = length as usize;
@@ -215,7 +215,7 @@ pub fn add_entries_from_iterable_map_constructor(
                         map_data.reserve(length, |_| 0);
                         let hasher = |value: Value| {
                             let mut hasher = AHasher::default();
-                            value.hash(&primtive_heap, &mut hasher);
+                            value.hash(&primitive_heap, &mut hasher);
                             hasher.finish()
                         };
                         for entry in iterable.as_slice(&array_heap).iter() {

@@ -117,16 +117,16 @@ impl SetConstructor {
                     ..
                 } = &mut agent.heap;
                 let array_heap = ArrayHeap::new(elements, arrays);
-                let primtive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+                let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
                 let SetData {
                     values, set_data, ..
-                } = &mut sets[set].borrow_mut(&primtive_heap);
+                } = &mut sets[set].borrow_mut(&primitive_heap);
                 let set_data = set_data.get_mut();
 
                 let hasher = |value: Value| {
                     let mut hasher = AHasher::default();
-                    value.hash(&primtive_heap, &mut hasher);
+                    value.hash(&primitive_heap, &mut hasher);
                     hasher.finish()
                 };
 
