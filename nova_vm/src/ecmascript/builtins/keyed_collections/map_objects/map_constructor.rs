@@ -17,10 +17,11 @@ use crate::{
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
+            array::ArrayHeap,
             keyed_collections::map_objects::map_prototype::{
                 canonicalize_keyed_collection_key, MapPrototypeSet,
             },
-            map::{data::MapHeapData, Map},
+            map::{data::MapData, Map},
             ordinary::ordinary_create_from_constructor,
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
         },
@@ -30,7 +31,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+    heap::{Heap, IntrinsicConstructorIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct MapConstructor;
@@ -168,38 +169,44 @@ pub fn add_entries_from_iterable_map_constructor(
                             .into_function(),
                     )
                 {
+                    let Heap {
+                        elements,
+                        arrays,
+                        bigints,
+                        numbers,
+                        strings,
+                        maps,
+                        ..
+                    } = &mut agent.heap;
+                    let array_heap = ArrayHeap::new(elements, arrays);
+                    let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+
                     // Iterable uses the normal Array iterator of this realm.
-                    if iterable.len(agent) == 0 {
+                    if iterable.len(&array_heap) == 0 {
                         // Array iterator does not iterate empty arrays.
                         return Ok(target);
                     }
-                    if iterable.is_trivial(agent)
-                        && iterable.as_slice(agent).iter().all(|entry| {
+                    if iterable.is_trivial(&array_heap)
+                        && iterable.as_slice(&array_heap).iter().all(|entry| {
                             if let Some(Value::Array(entry)) = *entry {
-                                entry.len(agent) == 2
-                                    && entry.is_trivial(agent)
-                                    && entry.is_dense(agent)
+                                entry.len(&array_heap) == 2
+                                    && entry.is_trivial(&array_heap)
+                                    && entry.is_dense(&array_heap)
                             } else {
                                 false
                             }
                         })
                     {
                         // Trivial, dense array of trivial, dense arrays of two elements.
-                        let length = iterable.len(agent);
-                        // SAFETY: None of the other Agent borrows can
-                        // invalidate the MapHeapData borrow here.
-                        // It's thus safe to keep this borrow alive
-                        // while we iterate the entries.
-                        let MapHeapData {
+                        let length = iterable.len(&array_heap);
+                        let MapData {
                             keys,
                             values,
                             map_data,
                             ..
-                        } = unsafe {
-                            std::mem::transmute::<&mut MapHeapData, &'static mut MapHeapData>(
-                                &mut agent[target],
-                            )
-                        };
+                        } = maps[target].borrow_mut(&primitive_heap);
+                        let map_data = map_data.get_mut();
+
                         let length = length as usize;
                         keys.reserve(length);
                         values.reserve(length);
@@ -208,17 +215,16 @@ pub fn add_entries_from_iterable_map_constructor(
                         map_data.reserve(length, |_| 0);
                         let hasher = |value: Value| {
                             let mut hasher = AHasher::default();
-                            value.hash(agent, &mut hasher);
+                            value.hash(&primitive_heap, &mut hasher);
                             hasher.finish()
                         };
-                        for entry in iterable.as_slice(agent).iter() {
+                        for entry in iterable.as_slice(&array_heap).iter() {
                             let Some(Value::Array(entry)) = *entry else {
                                 unreachable!()
                             };
-                            let slice = entry.as_slice(agent);
-                            let key = canonicalize_keyed_collection_key(agent, slice[0].unwrap());
+                            let slice = entry.as_slice(&array_heap);
+                            let key = canonicalize_keyed_collection_key(numbers, slice[0].unwrap());
                             let key_hash = hasher(key);
-                            println!("Constructor | Key {:?}, Hash {}", key, key_hash);
                             let value = slice[1].unwrap();
                             let next_index = keys.len() as u32;
                             let entry = map_data.entry(

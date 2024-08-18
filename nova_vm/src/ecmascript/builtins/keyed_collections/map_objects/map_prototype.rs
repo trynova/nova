@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::hash::Hasher;
+use std::{hash::Hasher, ops::Index};
 
 use ahash::AHasher;
 
@@ -17,13 +17,13 @@ use crate::{
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
         builtins::{
-            map::{data::MapHeapData, Map},
+            map::{data::MapData, Map},
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        types::{HeapNumber, IntoValue, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{Heap, IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct MapPrototype;
@@ -106,12 +106,9 @@ impl MapPrototype {
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value)?;
         // 3. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        let data = &mut agent[m];
         // a. Set p.[[Key]] to EMPTY.
         // b. Set p.[[Value]] to EMPTY.
-        data.keys.fill(None);
-        data.values.fill(None);
-        data.map_data.clear();
+        agent[m].clear();
         // 4. Return undefined.
         Ok(Value::Undefined)
     }
@@ -126,30 +123,37 @@ impl MapPrototype {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value)?;
+
+        let Heap {
+            bigints,
+            numbers,
+            strings,
+            maps,
+            ..
+        } = &mut agent.heap;
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
-        let key = canonicalize_keyed_collection_key(agent, arguments.get(0));
+        let key = canonicalize_keyed_collection_key(numbers, arguments.get(0));
         let key_hash = {
             let mut hasher = AHasher::default();
-            key.hash(agent, &mut hasher);
+            key.hash(&primitive_heap, &mut hasher);
             hasher.finish()
         };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        // SAFETY: Borrow for same_value checking of a Value only requires
-        // access to string, number, and bigint data. It will never access Map
-        // data.
-        let MapHeapData {
+        let MapData {
             keys,
             values,
             map_data,
             ..
-        } = unsafe {
-            std::mem::transmute::<&mut MapHeapData, &'static mut MapHeapData>(&mut agent[m])
-        };
+        } = maps[m].borrow_mut(&primitive_heap);
+        let map_data = map_data.get_mut();
+
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
         if let Ok(entry) = map_data.find_entry(key_hash, |hash_equal_index| {
             let found_key = keys[*hash_equal_index as usize].unwrap();
             // Quick check: Equal keys have the same value.
-            found_key == key || same_value(agent, found_key, key)
+            found_key == key || same_value(&primitive_heap, found_key, key)
         }) {
             let index = *entry.get() as usize;
             let _ = entry.remove();
@@ -209,7 +213,7 @@ impl MapPrototype {
         };
         // 4. Let entries be M.[[MapData]].
         // 5. Let numEntries be the number of elements in entries.
-        let mut num_entries = agent[m].keys.len();
+        let mut num_entries = agent[m].values().len();
         // 6. Let index be 0.
         let mut index = 0;
         // 7. Repeat, while index < numEntries,
@@ -219,10 +223,10 @@ impl MapPrototype {
             let entry_index = index;
             // b. Set index to index + 1.
             index += 1;
-            let k = data.keys[entry_index];
+            let k = data.keys()[entry_index];
             // c. If e.[[Key]] is not EMPTY, then
             if let Some(k) = k {
-                let v = data.values[entry_index].unwrap();
+                let v = data.values()[entry_index].unwrap();
                 // i. Perform ? Call(callbackfn, thisArg, « e.[[Value]], e.[[Key]], M »).
                 call_function(
                     agent,
@@ -232,7 +236,7 @@ impl MapPrototype {
                 )?;
                 // ii. NOTE: The number of elements in entries may have increased during execution of callbackfn.
                 // iii. Set numEntries to the number of elements in entries.
-                num_entries = agent[m].keys.len();
+                num_entries = agent[m].values().len();
             }
         }
         // 8. Return undefined.
@@ -244,6 +248,16 @@ impl MapPrototype {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value)?;
+
+        let Heap {
+            bigints,
+            numbers,
+            strings,
+            maps,
+            ..
+        } = &agent.heap;
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(agent, arguments.get(0));
         let key_hash = {
@@ -252,15 +266,22 @@ impl MapPrototype {
             hasher.finish()
         };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        let data = &agent[m];
+        let MapData {
+            keys,
+            values,
+            map_data,
+            ..
+        } = &maps[m].borrow(&primitive_heap);
+        let map_data = map_data.borrow();
+
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, return p.[[Value]].
-        let found = data.map_data.find(key_hash, |hash_equal_index| {
-            let found_key = data.keys[*hash_equal_index as usize].unwrap();
+        let found = map_data.find(key_hash, |hash_equal_index| {
+            let found_key = keys[*hash_equal_index as usize].unwrap();
             // Quick check: Equal keys have the same value.
             found_key == key || same_value(agent, found_key, key)
         });
         if let Some(index) = found {
-            Ok(data.values[*index as usize].unwrap())
+            Ok(values[*index as usize].unwrap())
         } else {
             // 5. Return undefined.
             Ok(Value::Undefined)
@@ -272,24 +293,34 @@ impl MapPrototype {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value)?;
+
+        let Heap {
+            bigints,
+            numbers,
+            strings,
+            maps,
+            ..
+        } = &mut agent.heap;
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
-        let key = canonicalize_keyed_collection_key(agent, arguments.get(0));
+        let key = canonicalize_keyed_collection_key(numbers, arguments.get(0));
         let key_hash = {
             let mut hasher = AHasher::default();
-            key.hash(agent, &mut hasher);
+            key.hash(&primitive_heap, &mut hasher);
             hasher.finish()
         };
-        println!("Has | Key {:?}, Hash {}", key, key_hash);
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        let data = &agent[m];
+        let MapData { keys, map_data, .. } = &mut maps[m].borrow_mut(&primitive_heap);
+        let map_data = map_data.get_mut();
+
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, return true.
         // 5. Return false.
-        let found = data
-            .map_data
+        let found = map_data
             .find(key_hash, |hash_equal_index| {
-                let found_key = data.keys[*hash_equal_index as usize].unwrap();
+                let found_key = keys[*hash_equal_index as usize].unwrap();
                 // Quick check: Equal keys have the same value.
-                found_key == key || same_value(agent, found_key, key)
+                found_key == key || same_value(&primitive_heap, found_key, key)
             })
             .is_some();
         Ok(found.into())
@@ -306,24 +337,31 @@ impl MapPrototype {
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value)?;
 
-        // SAFETY: Borrow for hashing a Value only requires access to string,
-        // number, and bigint data. It will never access Map data.
-        let MapHeapData {
+        let Heap {
+            bigints,
+            numbers,
+            strings,
+            maps,
+            ..
+        } = &mut agent.heap;
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+
+        let MapData {
             keys,
             values,
             map_data,
             ..
-        } = unsafe {
-            std::mem::transmute::<&mut MapHeapData, &'static mut MapHeapData>(&mut agent[m])
-        };
+        } = &mut maps[m].borrow_mut(&primitive_heap);
+        let map_data = map_data.get_mut();
+
         let hasher = |value: Value| {
             let mut hasher = AHasher::default();
-            value.hash(agent, &mut hasher);
+            value.hash(&primitive_heap, &mut hasher);
             hasher.finish()
         };
 
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
-        let key = canonicalize_keyed_collection_key(agent, arguments.get(0));
+        let key = canonicalize_keyed_collection_key(numbers, arguments.get(0));
         let key_hash = hasher(key);
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
@@ -332,7 +370,7 @@ impl MapPrototype {
             |hash_equal_index| {
                 let found_key = keys[*hash_equal_index as usize].unwrap();
                 // Quick check: Equal keys have the same value.
-                found_key == key || same_value(agent, found_key, key)
+                found_key == key || same_value(&primitive_heap, found_key, key)
             },
             |index_to_hash| hasher(keys[*index_to_hash as usize].unwrap()),
         );
@@ -358,7 +396,7 @@ impl MapPrototype {
 
     fn get_size(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         let m = require_map_data_internal_slot(agent, this_value)?;
-        let count = agent[m].map_data.len() as u32;
+        let count = agent[m].size();
         Ok(count.into())
     }
 
@@ -434,7 +472,10 @@ fn require_map_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<M
 /// ### [24.5.1 CanonicalizeKeyedCollectionKey ( key )](https://tc39.es/ecma262/#sec-canonicalizekeyedcollectionkey)
 /// The abstract operation CanonicalizeKeyedCollectionKey takes argument key
 /// (an ECMAScript language value) and returns an ECMAScript language value.
-pub(crate) fn canonicalize_keyed_collection_key(agent: &Agent, key: Value) -> Value {
+pub(crate) fn canonicalize_keyed_collection_key(
+    agent: &impl Index<HeapNumber, Output = f64>,
+    key: Value,
+) -> Value {
     // 1. If key is -0𝔽, return +0𝔽.
     if let Value::SmallF64(key) = key {
         // Note: Only f32 should hold -0.

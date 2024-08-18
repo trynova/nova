@@ -24,7 +24,7 @@ use crate::{
         },
     },
     heap::{
-        element_array::{ElementDescriptor, ElementsVector},
+        element_array::{ElementArrays, ElementDescriptor, ElementsVector},
         indexes::ArrayIndex,
         CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
@@ -48,25 +48,25 @@ impl Array {
         self.0.into_index()
     }
 
-    pub fn len(&self, agent: &Agent) -> u32 {
+    pub fn len(&self, agent: &impl Index<Array, Output = ArrayHeapData>) -> u32 {
         agent[*self].elements.len()
     }
 
-    pub fn is_empty(&self, agent: &Agent) -> bool {
+    pub fn is_empty(&self, agent: &impl Index<Array, Output = ArrayHeapData>) -> bool {
         agent[*self].elements.len() == 0
     }
 
-    pub fn is_dense(self, agent: &Agent) -> bool {
+    pub(crate) fn is_dense(self, agent: &impl ArrayHeapIndexable) -> bool {
         agent[self].elements.is_dense(agent)
     }
 
     /// An array is simple if it contains no element accessor descriptors.
-    pub(crate) fn is_simple(self, agent: &Agent) -> bool {
+    pub(crate) fn is_simple(self, agent: &impl ArrayHeapIndexable) -> bool {
         agent[self].elements.is_simple(agent)
     }
 
     /// An array is trivial if it contains no element descriptors.
-    pub(crate) fn is_trivial(self, agent: &Agent) -> bool {
+    pub(crate) fn is_trivial(self, agent: &impl ArrayHeapIndexable) -> bool {
         agent[self].elements.is_trivial(agent)
     }
 
@@ -90,9 +90,9 @@ impl Array {
     }
 
     #[inline]
-    pub(crate) fn as_slice(self, agent: &Agent) -> &[Option<Value>] {
-        let elements = agent[self].elements;
-        &agent[elements]
+    pub(crate) fn as_slice(self, arena: &impl ArrayHeapIndexable) -> &[Option<Value>] {
+        let elements = arena[self].elements;
+        &arena.as_ref()[elements]
     }
 
     #[inline]
@@ -774,3 +774,40 @@ fn ordinary_define_own_property_for_array(
 
     true
 }
+
+/// A partial view to the Agent's Heap that allows accessing array heap data.
+pub(crate) struct ArrayHeap<'a> {
+    elements: &'a ElementArrays,
+    arrays: &'a Vec<Option<ArrayHeapData>>,
+}
+
+impl ArrayHeap<'_> {
+    pub(crate) fn new<'a>(
+        elements: &'a ElementArrays,
+        arrays: &'a Vec<Option<ArrayHeapData>>,
+    ) -> ArrayHeap<'a> {
+        ArrayHeap { elements, arrays }
+    }
+}
+
+impl Index<Array> for ArrayHeap<'_> {
+    type Output = ArrayHeapData;
+
+    fn index(&self, index: Array) -> &ArrayHeapData {
+        self.arrays.index(index)
+    }
+}
+
+impl AsRef<ElementArrays> for ArrayHeap<'_> {
+    fn as_ref(&self) -> &ElementArrays {
+        self.elements
+    }
+}
+
+/// Helper trait for array indexing.
+pub(crate) trait ArrayHeapIndexable:
+    Index<Array, Output = ArrayHeapData> + AsRef<ElementArrays>
+{
+}
+impl ArrayHeapIndexable for ArrayHeap<'_> {}
+impl ArrayHeapIndexable for Agent {}

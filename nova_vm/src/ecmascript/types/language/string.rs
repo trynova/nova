@@ -11,7 +11,8 @@ use super::{IntoPrimitive, IntoValue, Primitive, PropertyKey, Value};
 use crate::{
     ecmascript::{execution::Agent, types::PropertyDescriptor},
     heap::{
-        indexes::StringIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::StringIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        PrimitiveHeap, WorkQueues,
     },
     SmallInteger, SmallString,
 };
@@ -37,6 +38,14 @@ impl HeapString {
 
     pub fn as_str(self, agent: &Agent) -> &str {
         agent[self].as_str()
+    }
+}
+
+impl Index<HeapString> for PrimitiveHeap<'_> {
+    type Output = StringHeapData;
+
+    fn index(&self, index: HeapString) -> &Self::Output {
+        &self.strings[index]
     }
 }
 
@@ -85,6 +94,18 @@ pub enum String {
 impl IntoValue for HeapString {
     fn into_value(self) -> Value {
         Value::String(self)
+    }
+}
+
+impl TryFrom<Value> for HeapString {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::String(x) = value {
+            Ok(x)
+        } else {
+            Err(())
+        }
     }
 }
 
@@ -302,7 +323,7 @@ impl String {
     }
 
     /// Byte length of the string.
-    pub fn len(self, agent: &Agent) -> usize {
+    pub fn len(self, agent: &impl Index<HeapString, Output = StringHeapData>) -> usize {
         match self {
             String::String(s) => agent[s].len(),
             String::SmallString(s) => s.len(),
@@ -310,7 +331,7 @@ impl String {
     }
 
     /// UTF-16 length of the string.
-    pub fn utf16_len(self, agent: &Agent) -> usize {
+    pub fn utf16_len(self, agent: &impl Index<HeapString, Output = StringHeapData>) -> usize {
         match self {
             String::String(s) => agent[s].utf16_len(),
             String::SmallString(s) => s.utf16_len(),
@@ -318,7 +339,11 @@ impl String {
     }
 
     // TODO: This should return a wtf8::CodePoint.
-    pub fn utf16_char(self, agent: &Agent, idx: usize) -> char {
+    pub fn utf16_char(
+        self,
+        agent: &impl Index<HeapString, Output = StringHeapData>,
+        idx: usize,
+    ) -> char {
         match self {
             String::String(s) => agent[s].utf16_char(idx),
             String::SmallString(s) => s.utf16_char(idx),
@@ -333,7 +358,11 @@ impl String {
     ///
     /// This function panics if `utf16_idx` is greater (but not equal) than the
     /// UTF-16 string length.
-    pub fn utf8_index(self, agent: &Agent, utf16_idx: usize) -> Option<usize> {
+    pub fn utf8_index(
+        self,
+        agent: &impl Index<HeapString, Output = StringHeapData>,
+        utf16_idx: usize,
+    ) -> Option<usize> {
         match self {
             String::String(s) => agent[s].utf8_index(utf16_idx),
             String::SmallString(s) => s.utf8_index(utf16_idx),
@@ -347,14 +376,21 @@ impl String {
     ///
     /// This function panics if `utf8_idx` isn't at a UTF-8 code point boundary,
     /// or if it is past the end (but not *at* the end) of the UTF-8 string.
-    pub fn utf16_index(self, agent: &Agent, utf8_idx: usize) -> usize {
+    pub fn utf16_index(
+        self,
+        agent: &impl Index<HeapString, Output = StringHeapData>,
+        utf8_idx: usize,
+    ) -> usize {
         match self {
             String::String(s) => agent[s].utf16_index(utf8_idx),
             String::SmallString(s) => s.utf16_index(utf8_idx),
         }
     }
 
-    pub fn as_str<'string, 'agent: 'string>(&'string self, agent: &'agent Agent) -> &'string str {
+    pub fn as_str<'string, 'agent: 'string>(
+        &'string self,
+        agent: &'agent impl Index<HeapString, Output = StringHeapData>,
+    ) -> &'string str {
         match self {
             String::String(s) => agent[*s].as_str(),
             String::SmallString(s) => s.as_str(),
@@ -363,7 +399,11 @@ impl String {
 
     /// If x and y have the same length and the same code units in the same
     /// positions, return true; otherwise, return false.
-    pub fn eq(agent: &Agent, x: String, y: String) -> bool {
+    pub fn eq(
+        agent: &impl Index<HeapString, Output = StringHeapData>,
+        x: String,
+        y: String,
+    ) -> bool {
         match (x, y) {
             (String::String(x), String::String(y)) => {
                 let x = &agent[x];

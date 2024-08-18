@@ -5,7 +5,6 @@
 use std::hash::Hasher;
 
 use ahash::AHasher;
-use hashbrown::HashTable;
 
 use crate::{
     ecmascript::{
@@ -14,12 +13,14 @@ use crate::{
                 get_iterator, if_abrupt_close_iterator, iterator_step_value,
             },
             operations_on_objects::{call_function, get, get_method},
-            testing_and_comparison::{is_callable, same_value},
+            testing_and_comparison::is_callable,
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            ordinary::ordinary_create_from_constructor, set::Set, ArgumentsList, Behaviour,
-            Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+            array::ArrayHeap,
+            ordinary::ordinary_create_from_constructor,
+            set::{data::SetData, Set},
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
         },
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
         types::{
@@ -27,7 +28,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+    heap::{Heap, IntrinsicConstructorIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct SetConstructor;
@@ -106,25 +107,57 @@ impl SetConstructor {
                 // Accessorless, holeless array with standard Array values
                 // iterator. We can fast-path this.
 
-                // SAFETY: The array slice borrow cannot be invalidated by our
-                // incoming mutation of the Set data.
-                let mut set_vector = iterable.as_slice(agent).to_vec();
-                set_vector.dedup_by(|a, b| same_value(agent, *a, *b));
-                let mut set_hash_table = HashTable::with_capacity(set_vector.len());
+                let Heap {
+                    elements,
+                    arrays,
+                    bigints,
+                    numbers,
+                    strings,
+                    sets,
+                    ..
+                } = &mut agent.heap;
+                let array_heap = ArrayHeap::new(elements, arrays);
+                let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+
+                let SetData {
+                    values, set_data, ..
+                } = &mut sets[set].borrow_mut(&primitive_heap);
+                let set_data = set_data.get_mut();
+
                 let hasher = |value: Value| {
                     let mut hasher = AHasher::default();
-                    value.hash(agent, &mut hasher);
+                    value.hash(&primitive_heap, &mut hasher);
                     hasher.finish()
                 };
-                set_vector.iter().enumerate().for_each(|(index, value)| {
+
+                let iterable_length = iterable.len(&array_heap) as usize;
+                values.reserve(iterable_length);
+                // Note: There should be no items in the set data. Hence the
+                // hasher function should never be called.
+                assert!(set_data.is_empty());
+                set_data.reserve(iterable_length, |_| unreachable!());
+                iterable.as_slice(&array_heap).iter().for_each(|value| {
                     let value = value.unwrap();
                     let value_hash = hasher(value);
-                    set_hash_table.insert_unique(value_hash, index as u32, |index_to_hash| {
-                        hasher(set_vector[*index_to_hash as usize].unwrap())
-                    });
+                    let next_index = values.len() as u32;
+                    let entry = set_data.entry(
+                        value_hash,
+                        |hash_equal_index| values[*hash_equal_index as usize].unwrap() == value,
+                        |index_to_hash| hasher(values[*index_to_hash as usize].unwrap()),
+                    );
+                    match entry {
+                        hashbrown::hash_table::Entry::Occupied(occupied) => {
+                            // We have duplicates in the array. Latter
+                            // ones overwrite earlier ones.
+                            let index = *occupied.get();
+                            values[index as usize] = Some(value);
+                        }
+                        hashbrown::hash_table::Entry::Vacant(vacant) => {
+                            vacant.insert(next_index);
+                            values.push(Some(value));
+                        }
+                    }
                 });
-                agent[set].values = set_vector;
-                agent[set].set_data = set_hash_table;
                 return Ok(set.into_value());
             }
         }

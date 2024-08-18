@@ -2,11 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
-    hash::{Hash, Hasher},
-    mem::size_of,
+use super::{
+    bigint::{HeapBigInt, SmallBigInt},
+    number::HeapNumber,
+    string::HeapString,
+    BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, String, StringHeapData,
+    Symbol,
 };
-
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{
@@ -44,12 +46,10 @@ use crate::{
     heap::{indexes::TypedArrayIndex, CompactionLists, HeapMarkAndSweep, WorkQueues},
     SmallInteger, SmallString,
 };
-
-use super::{
-    bigint::{HeapBigInt, SmallBigInt},
-    number::HeapNumber,
-    string::HeapString,
-    BigInt, IntoValue, Number, Numeric, OrdinaryObject, String, Symbol,
+use std::{
+    hash::{Hash, Hasher},
+    mem::size_of,
+    ops::Index,
 };
 
 /// ### [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
@@ -465,31 +465,35 @@ impl Value {
         })
     }
 
-    pub(crate) fn hash<H>(self, agent: &Agent, hasher: &mut H)
+    pub(crate) fn hash<H, A>(self, arena: &A, hasher: &mut H)
     where
         H: Hasher,
+        A: Index<HeapString, Output = StringHeapData>
+            + Index<HeapNumber, Output = f64>
+            + Index<HeapBigInt, Output = BigIntHeapData>,
     {
+        let discriminant = core::mem::discriminant(&self);
         match self {
-            Value::Undefined => UNDEFINED_DISCRIMINANT.hash(hasher),
-            Value::Null => NULL_DISCRIMINANT.hash(hasher),
+            Value::Undefined => discriminant.hash(hasher),
+            Value::Null => discriminant.hash(hasher),
             Value::Boolean(data) => {
-                BOOLEAN_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.hash(hasher);
             }
             Value::String(data) => {
                 // Skip discriminant hashing in strings
-                agent[data].as_str().hash(hasher);
+                arena[data].as_str().hash(hasher);
             }
             Value::SmallString(data) => {
                 data.as_str().hash(hasher);
             }
             Value::Symbol(data) => {
-                SYMBOL_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Number(data) => {
                 // Skip discriminant hashing in numbers
-                agent[data].to_bits().hash(hasher);
+                arena[data].to_bits().hash(hasher);
             }
             Value::Integer(data) => {
                 data.into_i64().hash(hasher);
@@ -499,164 +503,164 @@ impl Value {
             }
             Value::BigInt(data) => {
                 // Skip dsciriminant hashing in bigint numbers
-                agent[data].data.hash(hasher);
+                arena[data].data.hash(hasher);
             }
             Value::SmallBigInt(data) => {
                 data.into_i64().hash(hasher);
             }
             Value::Object(data) => {
-                OBJECT_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::BoundFunction(data) => {
-                BOUND_FUNCTION_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::BuiltinFunction(data) => {
-                BUILTIN_FUNCTION_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::ECMAScriptFunction(data) => {
-                ECMASCRIPT_FUNCTION_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction => todo!(),
             Value::BuiltinPromiseResolvingFunction(data) => {
-                BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
             Value::PrimitiveObject(data) => {
-                PRIMITIVE_OBJECT_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Arguments(data) => {
-                ARGUMENTS_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Array(data) => {
-                ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::ArrayBuffer(data) => {
-                ARRAY_BUFFER_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::DataView(data) => {
-                DATA_VIEW_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Date(data) => {
-                DATE_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Error(data) => {
-                ERROR_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::FinalizationRegistry(data) => {
-                FINALIZATION_REGISTRY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Map(data) => {
-                MAP_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Promise(data) => {
-                PROMISE_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Proxy(data) => {
-                PROXY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::RegExp(data) => {
-                REGEXP_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Set(data) => {
-                SET_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::SharedArrayBuffer(data) => {
-                SHARED_ARRAY_BUFFER_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::WeakMap(data) => {
-                WEAK_MAP_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::WeakRef(data) => {
-                WEAK_REF_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::WeakSet(data) => {
-                WEAK_SET_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Int8Array(data) => {
-                INT_8_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Uint8Array(data) => {
-                UINT_8_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Uint8ClampedArray(data) => {
-                UINT_8_CLAMPED_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Int16Array(data) => {
-                INT_16_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Uint16Array(data) => {
-                UINT_16_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Int32Array(data) => {
-                INT_32_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Uint32Array(data) => {
-                UINT_32_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::BigInt64Array(data) => {
-                BIGINT_64_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::BigUint64Array(data) => {
-                BIGUINT_64_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Float32Array(data) => {
-                FLOAT_32_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Float64Array(data) => {
-                FLOAT_64_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
             Value::ArrayIterator(data) => {
-                ARRAY_ITERATOR_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Generator(data) => {
-                GENERATOR_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Module(data) => {
-                MODULE_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::EmbedderObject(data) => {
-                EMBEDDER_OBJECT_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
         };
@@ -666,23 +670,24 @@ impl Value {
     where
         H: Hasher,
     {
+        let discriminant = core::mem::discriminant(&self);
         match self {
             Value::String(_) | Value::Number(_) | Value::BigInt(_) => {
                 // These values need Agent access to hash.
                 return Err(());
             }
             // All other types can be hashed on the stack.
-            Value::Undefined => UNDEFINED_DISCRIMINANT.hash(hasher),
-            Value::Null => NULL_DISCRIMINANT.hash(hasher),
+            Value::Undefined => discriminant.hash(hasher),
+            Value::Null => discriminant.hash(hasher),
             Value::Boolean(data) => {
-                BOOLEAN_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.hash(hasher);
             }
             Value::SmallString(data) => {
                 data.as_str().hash(hasher);
             }
             Value::Symbol(data) => {
-                SYMBOL_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Integer(data) => {
@@ -695,158 +700,158 @@ impl Value {
                 data.into_i64().hash(hasher);
             }
             Value::Object(data) => {
-                OBJECT_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::BoundFunction(data) => {
-                BOUND_FUNCTION_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::BuiltinFunction(data) => {
-                BUILTIN_FUNCTION_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::ECMAScriptFunction(data) => {
-                ECMASCRIPT_FUNCTION_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction => todo!(),
             Value::BuiltinPromiseResolvingFunction(data) => {
-                BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
             Value::PrimitiveObject(data) => {
-                PRIMITIVE_OBJECT_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Arguments(data) => {
-                ARGUMENTS_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Array(data) => {
-                ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::ArrayBuffer(data) => {
-                ARRAY_BUFFER_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::DataView(data) => {
-                DATA_VIEW_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Date(data) => {
-                DATE_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Error(data) => {
-                ERROR_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::FinalizationRegistry(data) => {
-                FINALIZATION_REGISTRY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Map(data) => {
-                MAP_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Promise(data) => {
-                PROMISE_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Proxy(data) => {
-                PROXY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::RegExp(data) => {
-                REGEXP_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Set(data) => {
-                SET_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::SharedArrayBuffer(data) => {
-                SHARED_ARRAY_BUFFER_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::WeakMap(data) => {
-                WEAK_MAP_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::WeakRef(data) => {
-                WEAK_REF_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::WeakSet(data) => {
-                WEAK_SET_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Int8Array(data) => {
-                INT_8_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Uint8Array(data) => {
-                UINT_8_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Uint8ClampedArray(data) => {
-                UINT_8_CLAMPED_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Int16Array(data) => {
-                INT_16_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Uint16Array(data) => {
-                UINT_16_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Int32Array(data) => {
-                INT_32_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Uint32Array(data) => {
-                UINT_32_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::BigInt64Array(data) => {
-                BIGINT_64_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::BigUint64Array(data) => {
-                BIGUINT_64_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Float32Array(data) => {
-                FLOAT_32_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::Float64Array(data) => {
-                FLOAT_64_ARRAY_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
             Value::ArrayIterator(data) => {
-                ARRAY_ITERATOR_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Generator(data) => {
-                GENERATOR_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::Module(data) => {
-                MODULE_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
             Value::EmbedderObject(data) => {
-                EMBEDDER_OBJECT_DISCRIMINANT.hash(hasher);
+                discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
         }
