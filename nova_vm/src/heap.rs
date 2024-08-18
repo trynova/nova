@@ -9,6 +9,8 @@ pub(crate) mod heap_gc;
 pub mod indexes;
 mod object_entry;
 
+use std::ops::Index;
+
 pub(crate) use self::heap_constants::{
     intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
     IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
@@ -57,7 +59,7 @@ use crate::ecmascript::{
         weak_set::data::WeakSetHeapData,
     },
     scripts_and_modules::source_code::SourceCodeHeapData,
-    types::{HeapNumber, HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
+    types::{bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
 };
 use crate::ecmascript::{
     builtins::{ArrayBufferHeapData, ArrayHeapData},
@@ -343,6 +345,36 @@ impl Default for Heap {
         Self::new()
     }
 }
+
+/// A reference to the primitive value heap data.
+pub(crate) struct PrimitiveHeap<'a> {
+    pub(crate) bigints: &'a Vec<Option<BigIntHeapData>>,
+    pub(crate) numbers: &'a Vec<Option<NumberHeapData>>,
+    pub(crate) strings: &'a Vec<Option<StringHeapData>>,
+}
+
+impl PrimitiveHeap<'_> {
+    pub(crate) fn new<'a>(
+        bigints: &'a Vec<Option<BigIntHeapData>>,
+        numbers: &'a Vec<Option<NumberHeapData>>,
+        strings: &'a Vec<Option<StringHeapData>>,
+    ) -> PrimitiveHeap<'a> {
+        PrimitiveHeap {
+            bigints,
+            numbers,
+            strings,
+        }
+    }
+}
+
+pub(crate) trait PrimitiveHeapIndexable:
+    Index<HeapNumber, Output = f64>
+    + Index<HeapString, Output = StringHeapData>
+    + Index<HeapBigInt, Output = BigIntHeapData>
+{
+}
+
+impl PrimitiveHeapIndexable for PrimitiveHeap<'_> {}
 
 #[test]
 fn init_heap() {

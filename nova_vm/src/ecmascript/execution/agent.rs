@@ -19,7 +19,7 @@ use crate::{
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
     },
-    heap::{heap_gc::heap_gc, CreateHeapData},
+    heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable},
     Heap,
 };
 use std::any::Any;
@@ -462,3 +462,5 @@ pub enum ExceptionType {
     TypeError,
     UriError,
 }
+
+impl PrimitiveHeapIndexable for Agent {}

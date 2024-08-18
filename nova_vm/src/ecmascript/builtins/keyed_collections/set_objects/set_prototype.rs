@@ -15,13 +15,16 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
-            set::{data::SetHeapData, Set},
+            set::{
+                data::{SetData, SetHeapData},
+                Set,
+            },
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{Heap, IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct SetPrototype;
@@ -92,20 +95,26 @@ impl SetPrototype {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value)?;
-        // 3. Set value to CanonicalizeKeyedCollectionKey(value).
-        let value = canonicalize_keyed_collection_key(agent, arguments.get(0));
 
-        // SAFETY: Borrow for hashing a Value and comparing values only
-        // requires access to string, number, and bigint data. It will never
-        // access Map data.
-        let SetHeapData {
+        let Heap {
+            bigints,
+            numbers,
+            strings,
+            sets,
+            ..
+        } = &mut agent.heap;
+        let primtive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+
+        // 3. Set value to CanonicalizeKeyedCollectionKey(value).
+        let value = canonicalize_keyed_collection_key(numbers, arguments.get(0));
+
+        let SetData {
             values, set_data, ..
-        } = unsafe {
-            std::mem::transmute::<&mut SetHeapData, &'static mut SetHeapData>(&mut agent[s])
-        };
+        } = &mut sets[s].borrow_mut(&primtive_heap);
+        let set_data = set_data.get_mut();
         let hasher = |value: Value| {
             let mut hasher = AHasher::default();
-            value.hash(agent, &mut hasher);
+            value.hash(&primtive_heap, &mut hasher);
             hasher.finish()
         };
 
@@ -118,7 +127,7 @@ impl SetPrototype {
             |hash_equal_index| {
                 let found_value = values[*hash_equal_index as usize].unwrap();
                 // Quick check: Equal values have the same value.
-                found_value == value || same_value(agent, found_value, value)
+                found_value == value || same_value(&primtive_heap, found_value, value)
             },
             |index_to_hash| hasher(values[*index_to_hash as usize].unwrap()),
         ) {
@@ -142,14 +151,10 @@ impl SetPrototype {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value)?;
-        let SetHeapData {
-            values, set_data, ..
-        } = &mut agent[s];
         // 3. For each element e of S.[[SetData]], do
         // a. Replace the element of S.[[SetData]] whose value is e with an
         // element whose value is EMPTY.
-        values.fill(None);
-        set_data.clear();
+        agent[s].clear();
         // 4. Return undefined.
         Ok(Value::Undefined)
     }
@@ -165,26 +170,32 @@ impl SetPrototype {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value)?;
+
+        let Heap {
+            bigints,
+            numbers,
+            strings,
+            sets,
+            ..
+        } = &mut agent.heap;
+        let primtive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
-        let value = canonicalize_keyed_collection_key(agent, arguments.get(0));
+        let value = canonicalize_keyed_collection_key(numbers, arguments.get(0));
         let mut hasher = AHasher::default();
         let value_hash = {
-            value.hash(agent, &mut hasher);
+            value.hash(&primtive_heap, &mut hasher);
             hasher.finish()
         };
-        // SAFETY: Borrow for hashing a Value and comparing values only
-        // requires access to string, number, and bigint data. It will never
-        // access Map data.
-        let SetHeapData {
+        let SetData {
             values, set_data, ..
-        } = unsafe {
-            std::mem::transmute::<&mut SetHeapData, &'static mut SetHeapData>(&mut agent[s])
-        };
+        } = &mut sets[s].borrow_mut(&primtive_heap);
+        let set_data = set_data.get_mut();
         // 4. For each element e of S.[[SetData]], do
         if let Ok(entry) = set_data.find_entry(value_hash, |hash_equal_index| {
             let found_value = values[*hash_equal_index as usize].unwrap();
             // Quick check: Equal keys have the same value.
-            found_value == value || same_value(agent, found_value, value)
+            found_value == value || same_value(&primtive_heap, found_value, value)
         }) {
             // a. If e is not EMPTY and SameValue(e, value) is true, then
             let index = *entry.get() as usize;
@@ -252,13 +263,15 @@ impl SetPrototype {
         };
         // 4. Let entries be S.[[SetData]].
         // 5. Let numEntries be the number of elements in entries.
-        let mut num_entries = agent[s].values.len();
+        // Note: We must use the values vector length, not the size. The size
+        // does not contain empty slots.
+        let mut num_entries = agent[s].values().len() as u32;
         // 6. Let index be 0.
         let mut index = 0;
         // 7. Repeat, while index < numEntries,
         while index < num_entries {
             // a. Let e be entries[index].
-            let e = agent[s].values[index];
+            let e = agent[s].values()[index as usize];
             // b. Set index to index + 1.
             index += 1;
             // c. If e is not EMPTY, then
@@ -272,7 +285,7 @@ impl SetPrototype {
                 )?;
                 // ii. NOTE: The number of elements in entries may have increased during execution of callbackfn.
                 // iii. Set numEntries to the number of elements in entries.
-                num_entries = agent[s].values.len();
+                num_entries = agent[s].values().len() as u32;
             }
         }
         // 8. Return undefined.
@@ -284,22 +297,34 @@ impl SetPrototype {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value)?;
+
+        let Heap {
+            bigints,
+            numbers,
+            strings,
+            sets,
+            ..
+        } = &agent.heap;
+        let primtive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+        let SetData {
+            values, set_data, ..
+        } = &sets[s].borrow(&primtive_heap);
+        let set_data = set_data.borrow();
+
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
-        let value = canonicalize_keyed_collection_key(agent, arguments.get(0));
+        let value = canonicalize_keyed_collection_key(&primtive_heap, arguments.get(0));
         let mut hasher = AHasher::default();
         let value_hash = {
-            value.hash(agent, &mut hasher);
+            value.hash(&primtive_heap, &mut hasher);
             hasher.finish()
         };
-        let data = &agent[s];
         // 4. For each element e of S.[[SetData]], do
         // a. If e is not EMPTY and SameValue(e, value) is true, return true.
-        let found = data
-            .set_data
+        let found = set_data
             .find(value_hash, |hash_equal_index| {
-                let found_value = data.values[*hash_equal_index as usize].unwrap();
+                let found_value = values[*hash_equal_index as usize].unwrap();
                 // Quick check: Equal values have the same value.
-                found_value == value || same_value(agent, found_value, value)
+                found_value == value || same_value(&primtive_heap, found_value, value)
             })
             .is_some();
         // 5. Return false.
@@ -319,7 +344,7 @@ impl SetPrototype {
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value)?;
         // 3. Let size be SetDataSize(S.[[SetData]]).
-        let size = set_data_size(&agent[s]);
+        let size = agent[s].size();
         // 4. Return 𝔽(size).
         Ok(Number::from(size).into_value())
     }
@@ -387,5 +412,5 @@ fn set_data_size(set_data: &SetHeapData) -> u32 {
     // 2. For each element e of setData, do
     // a. If e is not EMPTY, set count to count + 1.
     // 3. Return count.
-    set_data.set_data.len() as u32
+    set_data.size()
 }
