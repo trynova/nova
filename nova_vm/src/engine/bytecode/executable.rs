@@ -942,6 +942,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
         for property in self.properties.iter() {
             match property {
                 ast::ObjectPropertyKind::ObjectProperty(prop) => {
+                    let mut is_proto_setter = false;
                     match &prop.key {
                         ast::PropertyKey::ArrayExpression(init) => init.compile(ctx),
                         ast::PropertyKey::ArrowFunctionExpression(init) => init.compile(ctx),
@@ -972,9 +973,16 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         ast::PropertyKey::SequenceExpression(init) => init.compile(ctx),
                         ast::PropertyKey::StaticIdentifier(id) => {
                             if id.name == "__proto__" {
-                                // TODO: If property key is "__proto__" then we
-                                // should dispatch a SetPrototype instruction.
-                                todo!();
+                                if prop.kind == ast::PropertyKind::Init && !prop.shorthand {
+                                    // If property key is "__proto__" then we
+                                    // should dispatch a SetPrototype instruction.
+                                    is_proto_setter = true;
+                                } else {
+                                    ctx.exe.add_instruction_with_constant(
+                                        Instruction::StoreConstant,
+                                        BUILTIN_STRING_MEMORY.__proto__,
+                                    );
+                                }
                             } else {
                                 let identifier = PropertyKey::from_str(ctx.agent, &id.name);
                                 ctx.exe.add_instruction_with_constant(
@@ -985,17 +993,11 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         }
                         ast::PropertyKey::StaticMemberExpression(init) => init.compile(ctx),
                         ast::PropertyKey::StringLiteral(init) => {
-                            if !prop.computed && init.value == "__proto__" {
-                                // TODO: If property key is "__proto__" then we
-                                // should dispatch a SetPrototype instruction.
-                                todo!();
-                            } else {
-                                let identifier = PropertyKey::from_str(ctx.agent, &init.value);
-                                ctx.exe.add_instruction_with_constant(
-                                    Instruction::StoreConstant,
-                                    identifier,
-                                );
-                            }
+                            let identifier = PropertyKey::from_str(ctx.agent, &init.value);
+                            ctx.exe.add_instruction_with_constant(
+                                Instruction::StoreConstant,
+                                identifier,
+                            );
                         }
                         ast::PropertyKey::Super(_) => unreachable!(),
                         ast::PropertyKey::TaggedTemplateExpression(init) => init.compile(ctx),
@@ -1014,20 +1016,32 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                     }
                     if let Some(prop_key_expression) = prop.key.as_expression() {
                         if is_reference(prop_key_expression) {
+                            assert!(!is_proto_setter);
                             ctx.exe.add_instruction(Instruction::GetValue);
                         }
                     }
-                    ctx.exe.add_instruction(Instruction::Load);
+                    if !is_proto_setter {
+                        // Prototype setter doesn't need the key.
+                        ctx.exe.add_instruction(Instruction::Load);
+                    }
                     match prop.kind {
                         ast::PropertyKind::Init => {
-                            if is_anonymous_function_definition(&prop.value) {
+                            if !is_proto_setter && is_anonymous_function_definition(&prop.value) {
                                 ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
                             }
                             prop.value.compile(ctx);
                             if is_reference(&prop.value) {
                                 ctx.exe.add_instruction(Instruction::GetValue);
                             }
-                            ctx.exe.add_instruction(Instruction::ObjectSetProperty);
+                            // 7. If isProtoSetter is true, then
+                            if is_proto_setter {
+                                // a. If propValue is an Object or propValue is null, then
+                                //     i. Perform ! object.[[SetPrototypeOf]](propValue).
+                                // b. Return unused.
+                                ctx.exe.add_instruction(Instruction::ObjectSetPrototype);
+                            } else {
+                                ctx.exe.add_instruction(Instruction::ObjectSetProperty);
+                            }
                         }
                         ast::PropertyKind::Get | ast::PropertyKind::Set => {
                             let is_get = prop.kind == ast::PropertyKind::Get;

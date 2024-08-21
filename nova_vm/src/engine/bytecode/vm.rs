@@ -517,6 +517,23 @@ impl Vm {
                 define_property_or_throw(agent, object, prop_key, desc)?;
                 // c. Return unused.
             }
+            Instruction::ObjectSetPrototype => {
+                let prop_value = vm.result.take().unwrap();
+
+                // a. If propValue is an Object or propValue is null, then
+                let prop_value = if prop_value.is_null() {
+                    None
+                } else if let Ok(prop_value) = Object::try_from(prop_value) {
+                    Some(prop_value)
+                } else {
+                    // b. Return unused.
+                    return Ok(ContinuationKind::Normal);
+                };
+                // i. Perform ! object.[[SetPrototypeOf]](propValue).
+                let object = Object::try_from(*vm.stack.last().unwrap()).unwrap();
+                object.internal_set_prototype_of(agent, prop_value)?;
+                // b. Return unused.
+            }
             Instruction::PushReference => {
                 vm.reference_stack.push(vm.reference.take().unwrap());
             }
