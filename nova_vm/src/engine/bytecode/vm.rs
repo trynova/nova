@@ -12,9 +12,9 @@ use crate::{
         abstract_operations::{
             operations_on_iterator_objects::{get_iterator_from_method, iterator_close},
             operations_on_objects::{
-                call, call_function, construct, create_data_property_or_throw,
-                define_property_or_throw, get_method, get_v, has_property, ordinary_has_instance,
-                set,
+                call, call_function, construct, create_data_property,
+                create_data_property_or_throw, define_property_or_throw, get_method, get_v,
+                has_property, ordinary_has_instance, set,
             },
             testing_and_comparison::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
@@ -1274,7 +1274,7 @@ impl Vm {
                 let mut idx: u32 = 0;
                 while let Some(value) = iterator.step_value(agent)? {
                     let key = PropertyKey::Integer(idx.into());
-                    create_data_property_or_throw(agent, array, key, value)?;
+                    create_data_property(agent, array, key, value).unwrap();
                     idx += 1;
                 }
                 vm.result = Some(array.into_value());

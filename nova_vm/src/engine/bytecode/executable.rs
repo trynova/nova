@@ -1923,14 +1923,12 @@ fn complex_array_pattern(
     has_environment: bool,
 ) {
     for ele in &array_pattern.elements {
-        let Some(ele) = ele else {
-            ctx.exe
-                .add_instruction(Instruction::IteratorStepValueOrUndefined);
-            continue;
-        };
-
         ctx.exe
             .add_instruction(Instruction::IteratorStepValueOrUndefined);
+
+        let Some(ele) = ele else {
+            continue;
+        };
 
         let binding_pattern = match &ele.kind {
             ast::BindingPatternKind::AssignmentPattern(pattern) => {
