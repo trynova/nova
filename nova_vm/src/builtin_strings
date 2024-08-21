@@ -22,6 +22,7 @@
 [Symbol.toPrimitive]
 *default*
 0
+__proto__
 abs
 acos
 acosh

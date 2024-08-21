@@ -130,6 +130,9 @@ pub enum Instruction {
     ObjectSetProperty,
     ObjectSetGetter,
     ObjectSetSetter,
+    /// Call `object[[SetPrototypeOf]](value)` on the object on the stack using
+    /// the current result value as the parameter.
+    ObjectSetPrototype,
     /// Pop a jump target for uncaught exceptions
     PopExceptionJumpTarget,
     /// Pop the last stored reference.
