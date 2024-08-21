@@ -1857,77 +1857,168 @@ impl CompileEvaluation for ast::ArrayPattern<'_> {
         ctx.exe.add_instruction(Instruction::Store);
         ctx.exe.add_instruction(Instruction::GetIteratorSync);
 
-        if !self.elements.iter().any(|ele| {
-            // An array destructuring formed of only skipped values
-            !ele.is_none()
-                    // and binding identifier
-                        && !matches!(
-                            ele.as_ref().unwrap().kind,
-                            ast::BindingPatternKind::BindingIdentifier(_)
-                        )
-        }) {
-            // can be
-            ctx.exe.add_instruction_with_immediate_and_immediate(
-                Instruction::BeginSimpleArrayBindingPattern,
-                self.elements.len(),
-                ctx.lexical_binding_state.into(),
-            );
+        let is_simple = !self.elements.iter().any(|el| {
+            el.as_ref()
+                .is_some_and(|pattern| !pattern.kind.is_binding_identifier())
+        }) && !self
+            .rest
+            .as_ref()
+            .is_some_and(|rest| !rest.argument.kind.is_binding_identifier());
+
+        if is_simple {
+            simple_array_pattern(self, ctx, ctx.lexical_binding_state);
         } else {
-            ctx.exe.add_instruction_with_immediate(
-                Instruction::BeginArrayBindingPattern,
-                ctx.lexical_binding_state.into(),
-            );
+            complex_array_pattern(self, ctx, ctx.lexical_binding_state);
+        }
+    }
+}
+
+fn simple_array_pattern(
+    array_pattern: &ast::ArrayPattern<'_>,
+    ctx: &mut CompileContext,
+    has_environment: bool,
+) {
+    ctx.exe.add_instruction_with_immediate_and_immediate(
+        Instruction::BeginSimpleArrayBindingPattern,
+        array_pattern.elements.len(),
+        has_environment.into(),
+    );
+
+    for ele in &array_pattern.elements {
+        let Some(ele) = ele else {
+            ctx.exe.add_instruction(Instruction::BindingPatternSkip);
+            continue;
         };
-        for ele in &self.elements {
-            let Some(ele) = ele else {
-                ctx.exe.add_instruction(Instruction::BindingPatternSkip);
-                continue;
-            };
-            match &ele.kind {
-                ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                    let identifier_string = ctx.create_identifier(&identifier.name);
-                    ctx.exe.add_instruction_with_identifier(
-                        Instruction::BindingPatternBind,
-                        identifier_string,
-                    )
+        match &ele.kind {
+            ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                let identifier_string = ctx.create_identifier(&identifier.name);
+                ctx.exe.add_instruction_with_identifier(
+                    Instruction::BindingPatternBind,
+                    identifier_string,
+                )
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    if let Some(rest) = &array_pattern.rest {
+        match &rest.argument.kind {
+            ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                let identifier_string = ctx.create_identifier(&identifier.name);
+                ctx.exe.add_instruction_with_identifier(
+                    Instruction::BindingPatternBindRest,
+                    identifier_string,
+                );
+            }
+            _ => unreachable!(),
+        }
+    } else {
+        ctx.exe.add_instruction(Instruction::FinishBindingPattern);
+    }
+}
+
+fn complex_array_pattern(
+    array_pattern: &ast::ArrayPattern<'_>,
+    ctx: &mut CompileContext,
+    has_environment: bool,
+) {
+    for ele in &array_pattern.elements {
+        ctx.exe
+            .add_instruction(Instruction::IteratorStepValueOrUndefined);
+
+        let Some(ele) = ele else {
+            continue;
+        };
+
+        let binding_pattern = match &ele.kind {
+            ast::BindingPatternKind::AssignmentPattern(pattern) => {
+                // Run the initializer if the result value is undefined.
+                ctx.exe.add_instruction(Instruction::LoadCopy);
+                ctx.exe.add_instruction(Instruction::IsUndefined);
+                let jump_slot = ctx
+                    .exe
+                    .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+                ctx.exe.add_instruction(Instruction::Store);
+                if is_anonymous_function_definition(&pattern.right) {
+                    if let ast::BindingPatternKind::BindingIdentifier(identifier) =
+                        &pattern.left.kind
+                    {
+                        let identifier_string = ctx.create_identifier(&identifier.name);
+                        ctx.exe.add_instruction_with_constant(
+                            Instruction::StoreConstant,
+                            identifier_string,
+                        );
+                        ctx.name_identifier = Some(NamedEvaluationParameter::Result);
+                    }
                 }
-                ast::BindingPatternKind::ObjectPattern(pattern) => {
-                    ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
-                    pattern.compile(ctx);
+                pattern.right.compile(ctx);
+                ctx.name_identifier = None;
+                if is_reference(&pattern.right) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
                 }
-                ast::BindingPatternKind::ArrayPattern(pattern) => {
-                    ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
-                    pattern.compile(ctx);
-                }
-                ast::BindingPatternKind::AssignmentPattern(pattern) => {
-                    pattern.compile(ctx);
+                ctx.exe.add_instruction(Instruction::Load);
+                ctx.exe.set_jump_target_here(jump_slot);
+                ctx.exe.add_instruction(Instruction::Store);
+
+                &pattern.left.kind
+            }
+            _ => &ele.kind,
+        };
+
+        match binding_pattern {
+            ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                let identifier_string = ctx.create_identifier(&identifier.name);
+                ctx.exe.add_instruction_with_identifier(
+                    Instruction::ResolveBinding,
+                    identifier_string,
+                );
+                if !has_environment {
+                    ctx.exe.add_instruction(Instruction::PutValue);
+                } else {
+                    ctx.exe
+                        .add_instruction(Instruction::InitializeReferencedBinding);
                 }
             }
-        }
-        if let Some(rest) = &self.rest {
-            match &rest.argument.kind {
-                ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                    let identifier_string = ctx.create_identifier(&identifier.name);
-                    ctx.exe.add_instruction_with_identifier(
-                        Instruction::BindingPatternBindRest,
-                        identifier_string,
-                    );
-                }
-                ast::BindingPatternKind::ObjectPattern(pattern) => {
-                    ctx.exe
-                        .add_instruction(Instruction::BindingPatternGetRestValue);
-                    pattern.compile(ctx);
-                }
-                ast::BindingPatternKind::ArrayPattern(pattern) => {
-                    ctx.exe
-                        .add_instruction(Instruction::BindingPatternGetRestValue);
-                    pattern.compile(ctx);
-                }
-                ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
+            ast::BindingPatternKind::ObjectPattern(pattern) => {
+                ctx.exe.add_instruction(Instruction::Load);
+                pattern.compile(ctx);
             }
-        } else {
-            ctx.exe.add_instruction(Instruction::FinishBindingPattern);
+            ast::BindingPatternKind::ArrayPattern(pattern) => {
+                ctx.exe.add_instruction(Instruction::Load);
+                pattern.compile(ctx);
+            }
+            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
         }
+    }
+
+    if let Some(rest) = &array_pattern.rest {
+        ctx.exe.add_instruction(Instruction::IteratorRestIntoArray);
+        match &rest.argument.kind {
+            ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                let identifier_string = ctx.create_identifier(&identifier.name);
+                ctx.exe.add_instruction_with_identifier(
+                    Instruction::ResolveBinding,
+                    identifier_string,
+                );
+                if !has_environment {
+                    ctx.exe.add_instruction(Instruction::PutValue);
+                } else {
+                    ctx.exe
+                        .add_instruction(Instruction::InitializeReferencedBinding);
+                }
+            }
+            ast::BindingPatternKind::ObjectPattern(pattern) => {
+                ctx.exe.add_instruction(Instruction::Load);
+                pattern.compile(ctx);
+            }
+            ast::BindingPatternKind::ArrayPattern(pattern) => {
+                ctx.exe.add_instruction(Instruction::Load);
+                pattern.compile(ctx);
+            }
+            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
+        }
+    } else {
+        ctx.exe.add_instruction(Instruction::IteratorClose);
     }
 }
 

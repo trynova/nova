@@ -96,6 +96,9 @@ pub enum Instruction {
     /// Store true as the result value if the current result value is null or
     /// undefined, false otherwise.
     IsNullOrUndefined,
+    /// Store true as the result value if the current result value is undefined,
+    /// false otherwise.
+    IsUndefined,
     /// Jump to another instruction by setting the instruction pointer.
     Jump,
     /// Jump to another instruction by setting the instruction pointer
@@ -194,8 +197,6 @@ pub enum Instruction {
     BeginObjectBindingPattern,
     /// Begin binding values using a sync iterator for known repetitions
     BeginSimpleArrayBindingPattern,
-    /// Begin binding values using a sync iterator
-    BeginArrayBindingPattern,
     /// Bind current result to given identifier
     ///
     /// ```js
@@ -260,6 +261,16 @@ pub enum Instruction {
     /// Perform IteratorStepValue on the current iterator and jump to
     /// index if iterator completed.
     IteratorStepValue,
+    /// Perform IteratorStepValue on the current iterator, putting the resulting
+    /// value on the result value, or undefined if the iterator has completed.
+    ///
+    /// When the iterator has completed, rather than popping it off the stack,
+    /// it sets it to `VmIterator::EmptyIterator` so further reads and closes
+    /// aren't observable.
+    IteratorStepValueOrUndefined,
+    /// Consume the remainder of the iterator, and produce a new array with
+    /// those elements. This pops the iterator off the iterator stack.
+    IteratorRestIntoArray,
     /// Perform CloseIterator on the current iterator
     IteratorClose,
     /// Perform AsyncCloseIterator on the current iterator
@@ -273,7 +284,6 @@ impl Instruction {
             Self::BeginSimpleArrayBindingPattern => 2,
             Self::ArrayCreate
             | Self::ArraySetValue
-            | Self::BeginArrayBindingPattern
             | Self::BeginObjectBindingPattern
             | Self::BindingPatternBind
             | Self::BindingPatternBindWithInitializer

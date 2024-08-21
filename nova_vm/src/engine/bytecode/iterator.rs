@@ -23,6 +23,7 @@ pub(super) enum VmIterator {
     ObjectProperties(ObjectPropertiesIterator),
     ArrayValues(ArrayValuesIterator),
     GenericIterator(IteratorRecord),
+    EmptyIterator,
 }
 
 impl VmIterator {
@@ -69,6 +70,7 @@ impl VmIterator {
                     Ok(Some(value))
                 }
             }
+            VmIterator::EmptyIterator => Ok(None),
         }
     }
 
@@ -79,6 +81,7 @@ impl VmIterator {
                 Some(iter.array.len(agent).saturating_sub(iter.index) as usize)
             }
             VmIterator::GenericIterator(_) => None,
+            VmIterator::EmptyIterator => Some(0),
         }
     }
 }
@@ -214,6 +217,7 @@ impl HeapMarkAndSweep for VmIterator {
             VmIterator::ObjectProperties(iter) => iter.mark_values(queues),
             VmIterator::ArrayValues(iter) => iter.mark_values(queues),
             VmIterator::GenericIterator(iter) => iter.mark_values(queues),
+            VmIterator::EmptyIterator => {}
         }
     }
 
@@ -222,6 +226,7 @@ impl HeapMarkAndSweep for VmIterator {
             VmIterator::ObjectProperties(iter) => iter.sweep_values(compactions),
             VmIterator::ArrayValues(iter) => iter.sweep_values(compactions),
             VmIterator::GenericIterator(iter) => iter.sweep_values(compactions),
+            VmIterator::EmptyIterator => {}
         }
     }
 }

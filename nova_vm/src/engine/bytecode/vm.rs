@@ -12,9 +12,9 @@ use crate::{
         abstract_operations::{
             operations_on_iterator_objects::{get_iterator_from_method, iterator_close},
             operations_on_objects::{
-                call, call_function, construct, create_data_property_or_throw,
-                define_property_or_throw, get_method, get_v, has_property, ordinary_has_instance,
-                set,
+                call, call_function, construct, create_data_property,
+                create_data_property_or_throw, define_property_or_throw, get_method, get_v,
+                has_property, ordinary_has_instance, set,
             },
             testing_and_comparison::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
@@ -944,6 +944,11 @@ impl Vm {
                 let result = val.is_null() || val.is_undefined();
                 vm.result = Some(result.into());
             }
+            Instruction::IsUndefined => {
+                let val = vm.result.take().unwrap();
+                let result = val.is_undefined();
+                vm.result = Some(result.into());
+            }
             Instruction::LogicalNot => {
                 // 2. Let oldValue be ToBoolean(? GetValue(expr)).
                 let old_value = to_boolean(agent, vm.result.take().unwrap());
@@ -1062,24 +1067,6 @@ impl Vm {
                     None
                 };
                 Self::execute_simple_array_binding(agent, vm, executable, env)?
-            }
-            Instruction::BeginArrayBindingPattern => {
-                let lexical = instr.args[0].unwrap() == 1;
-                let env = if lexical {
-                    // Lexical binding, const [] = a; or let [] = a;
-                    Some(
-                        agent
-                            .running_execution_context()
-                            .ecmascript_code
-                            .as_ref()
-                            .unwrap()
-                            .lexical_environment,
-                    )
-                } else {
-                    // Var binding, var [] = a;
-                    None
-                };
-                Self::execute_complex_array_binding(agent, vm, executable, env)?
             }
             Instruction::BeginObjectBindingPattern => {
                 let lexical = instr.args[0].unwrap() == 1;
@@ -1264,6 +1251,34 @@ impl Vm {
                     result?;
                 }
             }
+            Instruction::IteratorStepValueOrUndefined => {
+                let iterator = vm.iterator_stack.last_mut().unwrap();
+                let result = iterator.step_value(agent);
+                if let Ok(result) = result {
+                    vm.result = Some(result.unwrap_or(Value::Undefined));
+                    if result.is_none() {
+                        // We have exhausted the iterator; replace it with the empty VmIterator so
+                        // further instructions aren't observable.
+                        *iterator = VmIterator::EmptyIterator;
+                    }
+                } else {
+                    vm.iterator_stack.pop();
+                    result?;
+                }
+            }
+            Instruction::IteratorRestIntoArray => {
+                let mut iterator = vm.iterator_stack.pop().unwrap();
+                let capacity = iterator.remaining_length_estimate(agent).unwrap_or(0);
+                let array = array_create(agent, 0, capacity, None)?;
+
+                let mut idx: u32 = 0;
+                while let Some(value) = iterator.step_value(agent)? {
+                    let key = PropertyKey::Integer(idx.into());
+                    create_data_property(agent, array, key, value).unwrap();
+                    idx += 1;
+                }
+                vm.result = Some(array.into_value());
+            }
             Instruction::IteratorClose => {
                 let iterator = vm.iterator_stack.pop().unwrap();
                 if let VmIterator::GenericIterator(iterator_record) = iterator {
@@ -1296,9 +1311,7 @@ impl Vm {
                 break;
             }
 
-            if instr.kind == Instruction::BindingPatternBindRest
-                || instr.kind == Instruction::BindingPatternGetRestValue
-            {
+            if instr.kind == Instruction::BindingPatternBindRest {
                 let capacity = iterator.remaining_length_estimate(agent).unwrap_or(0);
                 let rest = array_create(agent, 0, capacity, None).unwrap();
                 let mut idx = 0u32;
@@ -1308,17 +1321,12 @@ impl Vm {
                     idx += 1;
                 }
 
-                if instr.kind == Instruction::BindingPatternBindRest {
-                    let binding_id =
-                        vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                    let lhs = resolve_binding(agent, binding_id, environment)?;
-                    if environment.is_none() {
-                        put_value(agent, &lhs, rest.into_value())?;
-                    } else {
-                        initialize_referenced_binding(agent, lhs, rest.into_value())?;
-                    }
+                let binding_id = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                let lhs = resolve_binding(agent, binding_id, environment)?;
+                if environment.is_none() {
+                    put_value(agent, &lhs, rest.into_value())?;
                 } else {
-                    vm.result = Some(rest.into_value());
+                    initialize_referenced_binding(agent, lhs, rest.into_value())?;
                 }
 
                 iterator_is_done = true;
@@ -1355,15 +1363,6 @@ impl Vm {
         }
 
         Ok(())
-    }
-
-    fn execute_complex_array_binding(
-        _agent: &mut Agent,
-        _vm: &mut Vm,
-        _executable: &Executable,
-        _environment: Option<EnvironmentIndex>,
-    ) -> JsResult<()> {
-        todo!();
     }
 
     fn execute_object_binding(
