@@ -27,15 +27,19 @@ use crate::{
             },
         },
         builtins::{
-            array_create, create_unmapped_arguments_object, global_object::perform_eval,
-            make_constructor, make_method, ordinary::ordinary_object_create_with_intrinsics,
-            ordinary_function_create, set_function_name, ArgumentsList, Array,
-            OrdinaryFunctionCreateParams,
+            array_create, create_builtin_function, create_unmapped_arguments_object,
+            global_object::perform_eval, make_constructor, make_method,
+            ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
+            set_function_name, ArgumentsList, Array, Behaviour, BuiltinFunctionArgs,
+            ConstructorStatus, OrdinaryFunctionCreateParams,
         },
         execution::{
             agent::{resolve_binding, ExceptionType, JsError},
             get_this_environment, new_declarative_environment, Agent,
             ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult, ProtoIntrinsics,
+        },
+        syntax_directed_operations::class_definitions::{
+            base_class_default_constructor, derived_class_default_constructor,
         },
         types::{
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
@@ -350,6 +354,9 @@ impl Vm {
             Instruction::Store => {
                 vm.result = Some(vm.stack.pop().expect("Trying to pop from empty stack"));
             }
+            Instruction::StoreCopy => {
+                vm.result = Some(*vm.stack.last().expect("Trying to get from empty stack"));
+            }
             Instruction::StoreConstant => {
                 let constant = vm.fetch_constant(executable, instr.args[0].unwrap() as usize);
                 vm.result = Some(constant);
@@ -389,18 +396,105 @@ impl Vm {
                     agent, lval, op_text, rval,
                 )?);
             }
-            Instruction::ObjectSetProperty => {
+            Instruction::ObjectDefineProperty => {
                 let value = vm.result.take().unwrap();
                 let key = to_property_key(agent, vm.stack.pop().unwrap())?;
                 let object = *vm.stack.last().unwrap();
                 let object = Object::try_from(object).unwrap();
                 create_data_property_or_throw(agent, object, key, value).unwrap()
             }
-            Instruction::ObjectSetGetter => {
+            Instruction::ObjectDefineMethod => {
                 let function_expression = executable
                     .function_expressions
                     .get(instr.args[0].unwrap() as usize)
                     .unwrap();
+                let enumerable = instr.args[1].unwrap() != 0;
+                // 1. Let propKey be ? Evaluation of ClassElementName.
+                let prop_key = to_property_key(agent, vm.stack.pop().unwrap())?;
+                let object = Object::try_from(*vm.stack.last().unwrap()).unwrap();
+
+                // 2. Let env be the running execution context's LexicalEnvironment.
+                // 3. Let privateEnv be the running execution context's PrivateEnvironment.
+                let ECMAScriptCodeEvaluationState {
+                    lexical_environment: env,
+                    private_environment: private_env,
+                    ..
+                } = *agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap();
+                // Note: Non-constructor methods never have a function
+                // prototype.
+                // 4. If functionPrototype is present, then
+                //     a. Let prototype be functionPrototype.
+                // 5. Else,
+                //     a. Let prototype be %Function.prototype%.
+                let params = OrdinaryFunctionCreateParams {
+                    function_prototype: None,
+                    // 4. Let sourceText be the source text matched by MethodDefinition.
+                    source_text: function_expression.expression.get().span,
+                    parameters_list: &function_expression.expression.get().params,
+                    body: function_expression.expression.get().body.as_ref().unwrap(),
+                    is_concise_arrow_function: false,
+                    is_async: function_expression.expression.get().r#async,
+                    is_generator: function_expression.expression.get().generator,
+                    lexical_this: false,
+                    env,
+                    private_env,
+                };
+                // 7. Let closure be OrdinaryFunctionCreate(
+                //      prototype,
+                //      sourceText,
+                //      UniqueFormalParameters,
+                //      FunctionBody,
+                //      non-lexical-this,
+                //      env,
+                //      privateEnv
+                //  ).
+                let closure = ordinary_function_create(agent, params);
+                // 8. Perform MakeMethod(closure, object).
+                make_method(agent, closure, object);
+                // 2. Perform SetFunctionName(closure, propKey).
+                set_function_name(agent, closure, prop_key, None);
+                // 3. Return ? DefineMethodProperty(
+                //      object,
+                //      methodDef.[[Key]],
+                //      methodDef.[[Closure]],
+                //      enumerable
+                // ).
+                // 2. If key is a Private Name, then
+                // a. Return PrivateElement {
+                //      [[Key]]: key,
+                //      [[Kind]]: method,
+                //      [[Value]]: closure
+                // }.
+                // 3. Else,
+                // a. Let desc be the PropertyDescriptor {
+                //      [[Value]]: closure,
+                //      [[Writable]]: true,
+                //      [[Enumerable]]: enumerable,
+                //      [[Configurable]]: true
+                // }.
+                let desc = PropertyDescriptor {
+                    value: Some(closure.into_value()),
+                    writable: Some(true),
+                    enumerable: Some(enumerable),
+                    configurable: Some(true),
+                    ..Default::default()
+                };
+                // b. Perform ? DefinePropertyOrThrow(homeObject, key, desc).
+                // c. NOTE: DefinePropertyOrThrow only returns an abrupt
+                // completion when attempting to define a class static method whose key is "prototype".
+                define_property_or_throw(agent, object, prop_key, desc)?;
+                // c. Return unused.
+            }
+            Instruction::ObjectDefineGetter => {
+                let function_expression = executable
+                    .function_expressions
+                    .get(instr.args[0].unwrap() as usize)
+                    .unwrap();
+                let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
                 let prop_key = to_property_key(agent, vm.stack.pop().unwrap())?;
                 // 2. Let env be the running execution context's LexicalEnvironment.
@@ -466,18 +560,19 @@ impl Vm {
                     writable: None,
                     get: Some(closure.into_function()),
                     set: None,
-                    enumerable: Some(true),
+                    enumerable: Some(enumerable),
                     configurable: Some(true),
                 };
                 // b. Perform ? DefinePropertyOrThrow(object, propKey, desc).
                 define_property_or_throw(agent, object, prop_key, desc)?;
                 // c. Return unused.
             }
-            Instruction::ObjectSetSetter => {
+            Instruction::ObjectDefineSetter => {
                 let function_expression = executable
                     .function_expressions
                     .get(instr.args[0].unwrap() as usize)
                     .unwrap();
+                let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
                 let prop_key = to_property_key(agent, vm.stack.pop().unwrap())?;
                 // 2. Let env be the running execution context's LexicalEnvironment.
@@ -528,7 +623,7 @@ impl Vm {
                     writable: None,
                     get: None,
                     set: Some(closure.into_function()),
-                    enumerable: Some(true),
+                    enumerable: Some(enumerable),
                     configurable: Some(true),
                 };
                 // b. Perform ? DefinePropertyOrThrow(object, propKey, desc).
@@ -783,6 +878,138 @@ impl Vm {
                         .unwrap();
                 }
                 vm.result = Some(function.into_value());
+            }
+            Instruction::ClassDefineConstructor => {
+                let function_expression = executable
+                    .function_expressions
+                    .get(instr.args[0].unwrap() as usize)
+                    .unwrap();
+                let has_constructor_parent = instr.args[1].unwrap();
+                assert!(has_constructor_parent <= 1);
+                let has_constructor_parent = has_constructor_parent == 1;
+
+                let class_name = String::try_from(vm.stack.pop().unwrap()).unwrap();
+                let function_prototype = if has_constructor_parent {
+                    Some(Object::try_from(vm.stack.pop().unwrap()).unwrap())
+                } else {
+                    None
+                };
+                let proto = Object::try_from(*vm.stack.last().unwrap()).unwrap();
+
+                let ECMAScriptCodeEvaluationState {
+                    lexical_environment,
+                    private_environment,
+                    ..
+                } = *agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap();
+
+                let params = OrdinaryFunctionCreateParams {
+                    function_prototype,
+                    source_text: function_expression.expression.get().span,
+                    parameters_list: &function_expression.expression.get().params,
+                    body: function_expression.expression.get().body.as_ref().unwrap(),
+                    is_concise_arrow_function: false,
+                    is_async: function_expression.expression.get().r#async,
+                    is_generator: function_expression.expression.get().generator,
+                    lexical_this: false,
+                    env: lexical_environment,
+                    private_env: private_environment,
+                };
+                let function = ordinary_function_create(agent, params);
+                set_function_name(agent, function, class_name.into(), None);
+                make_constructor(agent, function, Some(false), Some(proto));
+                agent[function].ecmascript_function.home_object = Some(proto);
+                agent[function].ecmascript_function.constructor_status = if has_constructor_parent {
+                    ConstructorStatus::DerivedClass
+                } else {
+                    ConstructorStatus::BaseClass
+                };
+
+                proto
+                    .internal_define_own_property(
+                        agent,
+                        BUILTIN_STRING_MEMORY.constructor.into(),
+                        PropertyDescriptor {
+                            value: Some(function.into_value()),
+                            writable: Some(true),
+                            enumerable: Some(false),
+                            configurable: Some(true),
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+
+                vm.result = Some(function.into_value());
+            }
+            Instruction::ClassDefineDefaultConstructor => {
+                let has_constructor_parent = instr.args[0].unwrap();
+                assert!(has_constructor_parent <= 1);
+                let has_constructor_parent = has_constructor_parent == 1;
+
+                let class_name = String::try_from(vm.stack.pop().unwrap()).unwrap();
+                let function_prototype = if has_constructor_parent {
+                    Some(Object::try_from(vm.stack.pop().unwrap()).unwrap())
+                } else {
+                    None
+                };
+                let proto = Object::try_from(*vm.stack.last().unwrap()).unwrap();
+
+                let behaviour = if has_constructor_parent {
+                    Behaviour::Constructor(derived_class_default_constructor)
+                } else {
+                    Behaviour::Constructor(base_class_default_constructor)
+                };
+                let function = create_builtin_function(
+                    agent,
+                    behaviour,
+                    BuiltinFunctionArgs {
+                        length: 0,
+                        name: "",
+                        realm: None,
+                        prototype: function_prototype,
+                        prefix: None,
+                    },
+                );
+                agent[function].initial_name = Some(class_name);
+
+                proto
+                    .internal_define_own_property(
+                        agent,
+                        BUILTIN_STRING_MEMORY.constructor.into(),
+                        PropertyDescriptor {
+                            value: Some(function.into_value()),
+                            writable: Some(true),
+                            enumerable: Some(false),
+                            configurable: Some(true),
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+
+                function
+                    .internal_define_own_property(
+                        agent,
+                        BUILTIN_STRING_MEMORY.prototype.into(),
+                        PropertyDescriptor {
+                            value: Some(proto.into_value()),
+                            writable: Some(false),
+                            enumerable: Some(false),
+                            configurable: Some(false),
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+
+                vm.result = Some(function.into_value());
+            }
+            Instruction::Swap => {
+                let a = vm.stack.pop().unwrap();
+                let b = vm.stack.pop().unwrap();
+                vm.stack.push(a);
+                vm.stack.push(b);
             }
             Instruction::DirectEvalCall => {
                 let arg_count = instr.args[0].unwrap() as usize;

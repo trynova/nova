@@ -102,16 +102,35 @@ pub enum Instruction {
     InstantiateArrowFunctionExpression,
     /// Store InstantiateOrdinaryFunctionExpression() as the result value.
     InstantiateOrdinaryFunctionExpression,
+    /// Create a class constructor and store it as the result value.
+    ///
+    /// The class name should be found at the top of the stack.
+    /// If the class is a derived class, then the parent constructor should
+    /// also be on the stack after the class name.
+    ClassDefineConstructor,
+    /// Store CreateBuiltinFunction(defaultConstructor, 0, className) as the
+    /// result value.
+    ClassDefineDefaultConstructor,
     /// Store IsLooselyEqual() as the result value.
     IsLooselyEqual,
-    /// Store IsStrictlyEqual() as the result value.
+    /// Take the result value and the top stack value, compare them using
+    /// IsStrictlyEqual() and store the result as the result value.
     IsStrictlyEqual,
     /// Store true as the result value if the current result value is null or
     /// undefined, false otherwise.
     IsNullOrUndefined,
+    /// Store true as the result value if the current result value is null,
+    /// false otherwise.
+    IsNull,
     /// Store true as the result value if the current result value is undefined,
     /// false otherwise.
     IsUndefined,
+    /// Store true as the result value if the current result value is an
+    /// object.
+    IsObject,
+    /// Call IsConstructor() on the current result value and store the result
+    /// as the result value.
+    IsConstructor,
     /// Jump to another instruction by setting the instruction pointer.
     Jump,
     /// Jump to another instruction by setting the instruction pointer
@@ -134,15 +153,22 @@ pub enum Instruction {
     /// Determine the this value for an upcoming evaluate_call instruction and
     /// add it to the stack.
     LoadThisValue,
+    /// Swap the last two values on the stack.
+    Swap,
     /// Performs steps 2-4 from the [UnaryExpression ! Runtime Semantics](https://tc39.es/ecma262/#sec-logical-not-operator-runtime-semantics-evaluation).
     LogicalNot,
     /// Store OrdinaryObjectCreate(%Object.prototype%) on the stack.
     ObjectCreate,
-    /// Set an object's property to the key/value pair from the last two values
-    /// on the stack.
-    ObjectSetProperty,
-    ObjectSetGetter,
-    ObjectSetSetter,
+    /// Call CreateDataPropertyOrThrow(object, key, value) with value being the
+    /// result value, key being the top stack value and object being the second
+    /// stack value. The object is not popped from the stack.
+    ObjectDefineProperty,
+    /// Create and define a method on an object.
+    ///
+    /// The key is at the top stack value, the object is second on the stack.
+    ObjectDefineMethod,
+    ObjectDefineGetter,
+    ObjectDefineSetter,
     /// Call `object[[SetPrototypeOf]](value)` on the object on the stack using
     /// the current result value as the parameter.
     ObjectSetPrototype,
@@ -167,6 +193,8 @@ pub enum Instruction {
     Return,
     /// Store the last value from the stack as the result value.
     Store,
+    /// Store a copy of the last value from the stack as the result value.
+    StoreCopy,
     /// Store a constant as the result value.
     StoreConstant,
     /// Take N items from the stack and string-concatenate them together.
@@ -322,13 +350,18 @@ impl Instruction {
             // Number of repetitions and lexical status
             Self::BeginSimpleArrayBindingPattern
             | Self::BindingPatternBindNamed
-            | Self::InitializeVariableEnvironment => 2,
+            | Self::ClassDefineConstructor
+            | Self::InitializeVariableEnvironment
+            | Self::ObjectDefineGetter
+            | Self::ObjectDefineMethod
+            | Self::ObjectDefineSetter => 2,
             Self::ArrayCreate
             | Self::ArraySetValue
             | Self::BeginSimpleObjectBindingPattern
             | Self::BindingPatternBind
-            | Self::BindingPatternGetValueNamed
             | Self::BindingPatternBindRest
+            | Self::BindingPatternGetValueNamed
+            | Self::ClassDefineDefaultConstructor
             | Self::CopyDataPropertiesIntoObject
             | Self::CreateCatchBinding
             | Self::CreateImmutableBinding
@@ -344,8 +377,6 @@ impl Instruction {
             | Self::JumpIfNot
             | Self::JumpIfTrue
             | Self::LoadConstant
-            | Self::ObjectSetGetter
-            | Self::ObjectSetSetter
             | Self::PushExceptionJumpTarget
             | Self::ResolveBinding
             | Self::StoreConstant
@@ -381,10 +412,12 @@ impl Instruction {
     pub fn has_function_expression_index(self) -> bool {
         matches!(
             self,
-            Self::ObjectSetGetter
-                | Self::ObjectSetSetter
+            |Self::ClassDefineConstructor| Self::ClassDefineDefaultConstructor
                 | Self::InstantiateArrowFunctionExpression
                 | Self::InstantiateOrdinaryFunctionExpression
+                | Self::ObjectDefineGetter
+                | Self::ObjectDefineMethod
+                | Self::ObjectDefineSetter
         )
     }
 
