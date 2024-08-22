@@ -4,15 +4,15 @@ members = ["nova_cli", "nova_vm", "common", "small_string", "tests"]
 
 [workspace.dependencies]
 ahash = "0.8.11"
-clap = { version = "4.5.9", features = ["derive"] }
-cliclack = "0.3.2"
+clap = { version = "4.5.16", features = ["derive"] }
+cliclack = "0.3.3"
 console = "0.15.8"
-ctrlc = "3.4.4"
+ctrlc = "3.4.5"
 fast-float = "0.2.0"
 hashbrown = "0.14.5"
 miette = { version = "7.2.0", features = ["fancy"] }
-num-bigint = "0.4.4"
-num-traits = "0.2.18"
+num-bigint = "0.4.6"
+num-traits = "0.2.19"
 oxc_allocator = "0.24.3"
 oxc_ast = "0.24.3"
 oxc_diagnostics = "0.24.3"
@@ -22,5 +22,5 @@ oxc_span = "0.24.3"
 oxc_syntax = "0.24.3"
 rand = "0.8.5"
 ryu-js = "1.0.1"
-sonic-rs = "0.3.9"
+sonic-rs = "0.3.11"
 wtf8 = "0.1"
