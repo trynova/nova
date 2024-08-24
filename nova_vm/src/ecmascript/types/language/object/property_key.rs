@@ -21,7 +21,7 @@ use crate::{
     SmallInteger, SmallString,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum PropertyKey {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
@@ -166,13 +166,8 @@ impl From<SmallInteger> for PropertyKey {
 
 impl From<SmallString> for PropertyKey {
     fn from(value: SmallString) -> Self {
-        PropertyKey::SmallString(value)
-    }
-}
-
-impl From<HeapString> for PropertyKey {
-    fn from(value: HeapString) -> Self {
-        PropertyKey::String(value)
+        parse_string_to_integer_property_key(value.as_str())
+            .unwrap_or(PropertyKey::SmallString(value))
     }
 }
 

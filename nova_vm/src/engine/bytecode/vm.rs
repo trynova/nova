@@ -4,6 +4,7 @@
 
 use std::sync::OnceLock;
 
+use ahash::AHashSet;
 use oxc_ast::ast;
 use oxc_syntax::operator::BinaryOperator;
 
@@ -12,7 +13,7 @@ use crate::{
         abstract_operations::{
             operations_on_iterator_objects::{get_iterator_from_method, iterator_close},
             operations_on_objects::{
-                call, call_function, construct, create_data_property,
+                call, call_function, construct, copy_data_properties, create_data_property,
                 create_data_property_or_throw, define_property_or_throw, get, get_method,
                 has_property, ordinary_has_instance, set,
             },
@@ -1397,6 +1398,8 @@ impl Vm {
         // later on (such as GetV) also perform ToObject, so we convert to an object early.
         let value = to_object(agent, value)?;
 
+        let mut excluded_names = AHashSet::new();
+
         loop {
             let instr = executable.get_instruction(&mut vm.ip).unwrap();
             match instr.kind {
@@ -1410,6 +1413,7 @@ impl Vm {
                             vm.fetch_constant(executable, instr.args[1].unwrap() as usize);
                         PropertyKey::try_from(key_value).unwrap()
                     };
+                    excluded_names.insert(property_key);
 
                     let lhs = resolve_binding(agent, binding_id, environment)?;
                     let v = get(agent, value, property_key)?;
@@ -1419,7 +1423,24 @@ impl Vm {
                         initialize_referenced_binding(agent, lhs, v)?;
                     }
                 }
-                Instruction::BindingPatternBindRest => todo!(),
+                Instruction::BindingPatternBindRest => {
+                    // 1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
+                    let binding_id =
+                        vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                    let lhs = resolve_binding(agent, binding_id, environment)?;
+                    // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
+                    // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
+                    let rest_obj =
+                        copy_data_properties(agent, value, &excluded_names)?.into_value();
+                    // 4. If environment is undefined, return ? PutValue(lhs, restObj).
+                    // 5. Return ? InitializeReferencedBinding(lhs, restObj).
+                    if environment.is_none() {
+                        put_value(agent, &lhs, rest_obj)?;
+                    } else {
+                        initialize_referenced_binding(agent, lhs, rest_obj)?;
+                    }
+                    break;
+                }
                 Instruction::FinishBindingPattern => break,
                 _ => unreachable!(),
             }

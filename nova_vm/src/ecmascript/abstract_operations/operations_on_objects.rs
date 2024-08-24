@@ -4,6 +4,8 @@
 
 //! ## [7.3 Operations on Objects](https://tc39.es/ecma262/#sec-operations-on-objects)
 
+use ahash::AHashSet;
+
 use super::{
     operations_on_iterator_objects::{get_iterator, if_abrupt_close_iterator, iterator_close},
     testing_and_comparison::{is_callable, require_object_coercible, same_value},
@@ -19,11 +21,12 @@ use crate::{
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
-            Function, InternalMethods, IntoObject, IntoValue, Number, Object, PropertyDescriptor,
-            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            Function, InternalMethods, IntoObject, IntoValue, Number, Object, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     engine::instanceof_operator,
+    heap::ObjectEntry,
     SmallInteger,
 };
 
@@ -761,6 +764,55 @@ pub(crate) fn get_function_realm(
         // exotic object that does not have a [[Realm]] internal slot.
         _ => Ok(agent.current_realm_id()),
     }
+}
+
+/// ### [7.3.25 CopyDataProperties ( target, source, excludedItems )](https://tc39.es/ecma262/#sec-copydataproperties)
+/// The abstract operation CopyDataProperties takes arguments target (an Object), source (an
+/// ECMAScript language value), and excludedItems (a List of property keys) and returns either a
+/// normal completion containing unused or a throw completion.
+///
+/// NOTE: All callers of this algorithm in the spec call it with target being a just-created
+/// `OrdinaryObjectCreate(%Object.prototype%)`. This implementation constructs the object instead.
+pub(crate) fn copy_data_properties(
+    agent: &mut Agent,
+    source: impl IntoObject,
+    excluded_items: &AHashSet<PropertyKey>,
+) -> JsResult<OrdinaryObject> {
+    let from = source.into_object();
+    let mut entries = Vec::new();
+
+    // 3. Let keys be ? from.[[OwnPropertyKeys]]().
+    // 4. For each element nextKey of keys, do
+    for next_key in from.internal_own_property_keys(agent)? {
+        // a. Let excluded be false.
+        // b. For each element e of excludedItems, do
+        //   i. If SameValue(e, nextKey) is true, then
+        //     1. Set excluded to true.
+        if excluded_items.contains(&next_key) {
+            continue;
+        }
+
+        // c. If excluded is false, then
+        //   i. Let desc be ? from.[[GetOwnProperty]](nextKey).
+        //   ii. If desc is not undefined and desc.[[Enumerable]] is true, then
+        if let Some(dest) = from.internal_get_own_property(agent, next_key)? {
+            if dest.enumerable.unwrap() {
+                // 1. Let propValue be ? Get(from, nextKey).
+                let prop_value = get(agent, from, next_key)?;
+                // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
+                entries.push(ObjectEntry::new_data_entry(next_key, prop_value));
+            }
+        }
+    }
+
+    Ok(agent.heap.create_object_with_prototype(
+        agent
+            .current_realm()
+            .intrinsics()
+            .object_prototype()
+            .into_object(),
+        &entries,
+    ))
 }
 
 /// ### [7.3.34 AddValueToKeyedGroup ( groups, key, value )](https://tc39.es/ecma262/#sec-add-value-to-keyed-group)
