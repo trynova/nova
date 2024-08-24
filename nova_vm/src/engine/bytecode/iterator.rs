@@ -7,15 +7,15 @@ use std::collections::VecDeque;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_iterator_objects::IteratorRecord,
-            operations_on_objects::{call, get},
+            operations_on_iterator_objects::{get_iterator_from_method, IteratorRecord},
+            operations_on_objects::{call, get, get_method},
             type_conversion::to_boolean,
         },
         builtins::Array,
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{InternalMethods, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
 #[derive(Debug)]
@@ -82,6 +82,45 @@ impl VmIterator {
             }
             VmIterator::GenericIterator(_) => None,
             VmIterator::EmptyIterator => Some(0),
+        }
+    }
+
+    pub(super) fn from_value(agent: &mut Agent, value: Value) -> JsResult<Self> {
+        // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
+        let method = get_method(
+            agent,
+            value,
+            PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+        )?;
+        let Some(method) = method else {
+            // 3. If method is undefined, throw a TypeError exception.
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Iterator method cannot be undefined",
+            ));
+        };
+
+        // 4. Return ? GetIteratorFromMethod(obj, method).
+        match value {
+            Value::Array(array)
+                if get_method(
+                    agent,
+                    value,
+                    PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+                )? == Some(
+                    agent
+                        .current_realm()
+                        .intrinsics()
+                        .array_prototype_values()
+                        .into(),
+                ) =>
+            {
+                Ok(VmIterator::ArrayValues(ArrayValuesIterator::new(array)))
+            }
+            _ => {
+                let js_iterator = get_iterator_from_method(agent, value, method)?;
+                Ok(VmIterator::GenericIterator(js_iterator))
+            }
         }
     }
 }
