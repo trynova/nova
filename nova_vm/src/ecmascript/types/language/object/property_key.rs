@@ -52,6 +52,15 @@ impl PropertyKey {
         self.into()
     }
 
+    pub fn from_value(agent: &Agent, value: Value) -> Option<Self> {
+        if let Ok(string) = String::try_from(value) {
+            if let Some(pk) = parse_string_to_integer_property_key(string.as_str(agent)) {
+                return Some(pk);
+            }
+        }
+        Self::try_from(value).ok()
+    }
+
     pub fn is_array_index(self) -> bool {
         // TODO: string check
         matches!(self.into_value(), Value::Integer(_))
