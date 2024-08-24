@@ -365,6 +365,9 @@ impl Vm {
                 vm.result =
                     Some(to_numeric(agent, vm.result.unwrap()).map(|result| result.into_value())?);
             }
+            Instruction::ToObject => {
+                vm.result = Some(to_object(agent, vm.result.unwrap())?.into_value());
+            }
             Instruction::ApplyStringOrNumericBinaryOperator(op_text) => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
@@ -580,6 +583,26 @@ impl Vm {
                     None,
                 );
                 vm.stack.push(object.into())
+            }
+            Instruction::CopyDataPropertiesIntoObject => {
+                // 7.3.25 CopyDataProperties ( target, source, excludedItems )
+                // 1. If source is either undefined or null, return unused.
+                // 2. Let from be ! ToObject(source).
+                let Ok(from) = Object::try_from(vm.result.unwrap()) else {
+                    return Ok(ContinuationKind::Normal);
+                };
+
+                let num_excluded_items = usize::from(instr.args[0].unwrap());
+                let mut excluded_items = AHashSet::with_capacity(num_excluded_items);
+                assert!(vm.reference.is_none());
+                for _ in 0..num_excluded_items {
+                    let reference = vm.reference_stack.pop().unwrap();
+                    assert_eq!(reference.base, Base::Value(from.into_value()));
+                    assert!(reference.this_value.is_none());
+                    excluded_items.insert(reference.referenced_name);
+                }
+
+                vm.result = Some(copy_data_properties(agent, from, &excluded_items)?.into_value());
             }
             Instruction::InstantiateArrowFunctionExpression => {
                 // ArrowFunction : ArrowParameters => ConciseBody
@@ -1086,7 +1109,7 @@ impl Vm {
                 };
                 Self::execute_simple_array_binding(agent, vm, executable, env)?
             }
-            Instruction::BeginObjectBindingPattern => {
+            Instruction::BeginSimpleObjectBindingPattern => {
                 let lexical = instr.args[0].unwrap() == 1;
                 let env = if lexical {
                     // Lexical binding, const {} = a; or let {} = a;
@@ -1102,7 +1125,7 @@ impl Vm {
                     // Var binding, var {} = a;
                     None
                 };
-                Self::execute_object_binding(agent, vm, executable, env)?
+                Self::execute_simple_object_binding(agent, vm, executable, env)?
             }
             Instruction::BindingPatternBind
             | Instruction::BindingPatternBindRest
@@ -1383,7 +1406,7 @@ impl Vm {
         Ok(())
     }
 
-    fn execute_object_binding(
+    fn execute_simple_object_binding(
         agent: &mut Agent,
         vm: &mut Vm,
         executable: &Executable,
