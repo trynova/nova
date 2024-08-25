@@ -1144,8 +1144,12 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         }
                     }
                 }
-                ast::ObjectPropertyKind::SpreadProperty(_) => {
-                    todo!("...spread not yet implemented")
+                ast::ObjectPropertyKind::SpreadProperty(spread) => {
+                    spread.argument.compile(ctx);
+                    if is_reference(&spread.argument) {
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    ctx.exe.add_instruction(Instruction::CopyDataProperties);
                 }
             }
         }
@@ -1161,77 +1165,34 @@ impl CompileEvaluation for ast::ArrayExpression<'_> {
             .add_instruction_with_immediate(Instruction::ArrayCreate, elements_min_count);
         for ele in &self.elements {
             match ele {
-                ast::ArrayExpressionElement::ArrayExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::ArrowFunctionExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::AssignmentExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::AwaitExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::BigIntLiteral(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::BinaryExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::BooleanLiteral(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::CallExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::ChainExpression(init) => {
-                    init.compile(ctx);
-                }
-                ast::ArrayExpressionElement::ClassExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::ComputedMemberExpression(init) => {
-                    init.compile(ctx);
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                }
-                ast::ArrayExpressionElement::ConditionalExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::Elision(_) => {
-                    ctx.exe.add_instruction(Instruction::ArrayElision);
-                    continue;
-                }
-                ast::ArrayExpressionElement::FunctionExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::Identifier(init) => {
-                    init.compile(ctx);
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                }
-                ast::ArrayExpressionElement::ImportExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::LogicalExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::MetaProperty(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::NewExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::NullLiteral(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::NumericLiteral(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::ObjectExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::ParenthesizedExpression(init) => {
-                    init.compile(ctx);
-                    if is_reference(&init.expression) {
+                ast::ArrayExpressionElement::SpreadElement(spread) => {
+                    spread.argument.compile(ctx);
+                    if is_reference(&spread.argument) {
                         ctx.exe.add_instruction(Instruction::GetValue);
                     }
+                    ctx.exe.add_instruction(Instruction::GetIteratorSync);
+
+                    let iteration_start = ctx.exe.get_jump_index_to_here();
+                    let iteration_end = ctx
+                        .exe
+                        .add_instruction_with_jump_slot(Instruction::IteratorStepValue);
+                    ctx.exe.add_instruction(Instruction::ArrayPush);
+                    ctx.exe
+                        .add_jump_instruction_to_index(Instruction::Jump, iteration_start);
+                    ctx.exe.set_jump_target_here(iteration_end);
                 }
-                ast::ArrayExpressionElement::PrivateFieldExpression(init) => {
-                    init.compile(ctx);
-                    ctx.exe.add_instruction(Instruction::GetValue);
+                ast::ArrayExpressionElement::Elision(_) => {
+                    ctx.exe.add_instruction(Instruction::ArrayElision);
                 }
-                ast::ArrayExpressionElement::PrivateInExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::RegExpLiteral(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::SequenceExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::SpreadElement(_) => todo!(),
-                ast::ArrayExpressionElement::StaticMemberExpression(init) => {
-                    init.compile(ctx);
-                    ctx.exe.add_instruction(Instruction::GetValue);
+                _ => {
+                    let expression = ele.to_expression();
+                    expression.compile(ctx);
+                    if is_reference(&expression) {
+                        ctx.exe.add_instruction(Instruction::GetValue);
+                    }
+                    ctx.exe.add_instruction(Instruction::ArrayPush);
                 }
-                ast::ArrayExpressionElement::StringLiteral(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::Super(init) => {
-                    init.compile(ctx);
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                }
-                ast::ArrayExpressionElement::TaggedTemplateExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::TemplateLiteral(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::ThisExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::UnaryExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::UpdateExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::YieldExpression(init) => init.compile(ctx),
-                ast::ArrayExpressionElement::JSXElement(_)
-                | ast::ArrayExpressionElement::JSXFragment(_)
-                | ast::ArrayExpressionElement::TSAsExpression(_)
-                | ast::ArrayExpressionElement::TSSatisfiesExpression(_)
-                | ast::ArrayExpressionElement::TSTypeAssertion(_)
-                | ast::ArrayExpressionElement::TSNonNullExpression(_)
-                | ast::ArrayExpressionElement::TSInstantiationExpression(_) => unreachable!(),
             }
-            ctx.exe.add_instruction(Instruction::ArrayPush);
         }
         ctx.exe.add_instruction(Instruction::Store);
     }
