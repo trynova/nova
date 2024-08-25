@@ -1406,11 +1406,9 @@ impl Vm {
                     let property_key = if instr.kind == Instruction::BindingPatternBind {
                         binding_id.into()
                     } else {
-                        PropertyKey::from_value(
-                            agent,
-                            vm.fetch_constant(executable, instr.args[1].unwrap() as usize),
-                        )
-                        .unwrap()
+                        let key_value =
+                            vm.fetch_constant(executable, instr.args[1].unwrap() as usize);
+                        PropertyKey::try_from(key_value).unwrap()
                     };
 
                     let lhs = resolve_binding(agent, binding_id, environment)?;

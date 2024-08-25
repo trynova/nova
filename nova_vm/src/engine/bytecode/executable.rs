@@ -14,7 +14,8 @@ use crate::{
             LexicallyScopedDeclaration, LexicallyScopedDeclarations,
         },
         types::{
-            BigIntHeapData, Number, PropertyKey, Reference, String, Value, BUILTIN_STRING_MEMORY,
+            BigIntHeapData, IntoValue, Number, PropertyKey, Reference, String, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
@@ -2064,18 +2065,18 @@ impl CompileEvaluation for ast::ObjectPattern<'_> {
             } else {
                 let key_string = match &ele.key {
                     ast::PropertyKey::StaticIdentifier(identifier) => {
-                        String::from_str(ctx.agent, &identifier.name).into_value()
+                        PropertyKey::from_str(ctx.agent, &identifier.name).into_value()
                     }
                     ast::PropertyKey::NumericLiteral(literal) => {
                         let numeric_value = Number::from_f64(ctx.agent, literal.value);
                         if let Number::Integer(_) = numeric_value {
-                            numeric_value.into()
+                            numeric_value.into_value()
                         } else {
                             Number::to_string_radix_10(ctx.agent, numeric_value).into_value()
                         }
                     }
                     ast::PropertyKey::StringLiteral(literal) => {
-                        String::from_str(ctx.agent, &literal.value).into_value()
+                        PropertyKey::from_str(ctx.agent, &literal.value).into_value()
                     }
                     _ => todo!("Complex object patterns"),
                 };
