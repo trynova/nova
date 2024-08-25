@@ -230,21 +230,13 @@ pub enum Instruction {
     /// const [a, ...b] = x;
     /// ```
     BindingPatternBindRest,
-    /// Bind current result to given identifier, falling back to an initializer
-    /// if the current result is undefined.
-    ///
-    /// ```js
-    /// const { a = 3 } = x;
-    /// const [a = 3] = x;
-    /// ```
-    BindingPatternBindWithInitializer,
-    /// Skip the next value
+    /// Skip the next value in an array binding pattern.
     ///
     /// ```js
     /// const [a,,b] = x;
     /// ```
     BindingPatternSkip,
-    /// Load the next value onto the stack
+    /// Load the next value in an array binding pattern onto the stack.
     ///
     /// This is used to implement nested binding patterns. The current binding
     /// pattern needs to take the "next step", but instead of binding to an
@@ -253,9 +245,20 @@ pub enum Instruction {
     ///
     /// ```js
     /// const [{ a }] = x;
-    /// const { a: [b] } = x;
     /// ```
     BindingPatternGetValue,
+    /// Load the value of the property with the given name in an object binding
+    /// pattern onto the stack. The name is passed as a constant argument.
+    ///
+    /// This is used to implement nested binding patterns. The current binding
+    /// pattern needs to take the "next step", but instead of binding to an
+    /// identifier it is instead saved on the stack and the nested binding
+    /// pattern starts its work.
+    ///
+    /// ```js
+    /// const { a: [b] } = x;
+    /// ```
+    BindingPatternGetValueNamed,
     /// Load all remaining values onto the stack
     ///
     /// This is used to implement nested binding patterns in rest elements.
@@ -303,7 +306,7 @@ impl Instruction {
             | Self::ArraySetValue
             | Self::BeginSimpleObjectBindingPattern
             | Self::BindingPatternBind
-            | Self::BindingPatternBindWithInitializer
+            | Self::BindingPatternGetValueNamed
             | Self::BindingPatternBindRest
             | Self::CopyDataPropertiesIntoObject
             | Self::CreateCatchBinding
@@ -333,7 +336,10 @@ impl Instruction {
     pub fn has_constant_index(self) -> bool {
         matches!(
             self,
-            Self::LoadConstant | Self::StoreConstant | Self::BindingPatternBindNamed
+            Self::LoadConstant
+                | Self::StoreConstant
+                | Self::BindingPatternBindNamed
+                | Self::BindingPatternGetValueNamed
         )
     }
 
@@ -347,7 +353,6 @@ impl Instruction {
                 | Self::CreateMutableBinding
                 | Self::BindingPatternBind
                 | Self::BindingPatternBindNamed
-                | Self::BindingPatternBindWithInitializer
                 | Self::BindingPatternBindRest
         )
     }

@@ -11,7 +11,7 @@ use oxc_syntax::operator::BinaryOperator;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_iterator_objects::{get_iterator_from_method, iterator_close},
+            operations_on_iterator_objects::iterator_close,
             operations_on_objects::{
                 call, call_function, construct, copy_data_properties_into_object,
                 create_data_property, create_data_property_or_throw, define_property_or_throw, get,
@@ -48,7 +48,7 @@ use crate::{
 use super::{
     executable::NamedEvaluationParameter,
     instructions::Instr,
-    iterator::{ArrayValuesIterator, ObjectPropertiesIterator, VmIterator},
+    iterator::{ObjectPropertiesIterator, VmIterator},
     Executable, Instruction, InstructionIter,
 };
 
@@ -1104,7 +1104,8 @@ impl Vm {
                     // Var binding, var [] = a;
                     None
                 };
-                Self::execute_simple_array_binding(agent, vm, executable, env)?
+                let iterator = vm.iterator_stack.pop().unwrap();
+                Self::execute_simple_array_binding(agent, vm, executable, iterator, env)?
             }
             Instruction::BeginSimpleObjectBindingPattern => {
                 let lexical = instr.args[0].unwrap() == 1;
@@ -1122,13 +1123,15 @@ impl Vm {
                     // Var binding, var {} = a;
                     None
                 };
-                Self::execute_simple_object_binding(agent, vm, executable, env)?
+                let object = to_object(agent, vm.stack.pop().unwrap())?;
+                Self::execute_simple_object_binding(agent, vm, executable, object, env)?
             }
             Instruction::BindingPatternBind
+            | Instruction::BindingPatternBindNamed
             | Instruction::BindingPatternBindRest
-            | Instruction::BindingPatternBindWithInitializer
             | Instruction::BindingPatternSkip
             | Instruction::BindingPatternGetValue
+            | Instruction::BindingPatternGetValueNamed
             | Instruction::BindingPatternGetRestValue
             | Instruction::FinishBindingPattern => {
                 unreachable!("BeginArrayBindingPattern should take care of stepping over these");
@@ -1231,46 +1234,8 @@ impl Vm {
             }
             Instruction::GetIteratorSync => {
                 let expr_value = vm.result.take().unwrap();
-                // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
-                let method = get_method(
-                    agent,
-                    expr_value,
-                    PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
-                )?;
-                let Some(method) = method else {
-                    // 3. If method is undefined, throw a TypeError exception.
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "Iterator method cannot be undefined",
-                    ));
-                };
-
-                // 4. Return ? GetIteratorFromMethod(obj, method).
-                match expr_value {
-                    Value::Array(array)
-                        if get_method(
-                            agent,
-                            expr_value,
-                            PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
-                        )? == Some(
-                            agent
-                                .current_realm()
-                                .intrinsics()
-                                .array_prototype_values()
-                                .into_function(),
-                        ) =>
-                    {
-                        // Fast path: We know what Array.prototype.values
-                        // iterates over on Arrays.
-                        vm.iterator_stack
-                            .push(VmIterator::ArrayValues(ArrayValuesIterator::new(array)));
-                    }
-                    _ => {
-                        vm.iterator_stack.push(VmIterator::GenericIterator(
-                            get_iterator_from_method(agent, expr_value, method)?,
-                        ));
-                    }
-                }
+                vm.iterator_stack
+                    .push(VmIterator::from_value(agent, expr_value)?);
             }
             Instruction::GetIteratorAsync => {
                 todo!();
@@ -1338,55 +1303,73 @@ impl Vm {
         agent: &mut Agent,
         vm: &mut Vm,
         executable: &Executable,
+        mut iterator: VmIterator,
         environment: Option<EnvironmentIndex>,
     ) -> JsResult<()> {
-        let mut iterator = vm.iterator_stack.pop().unwrap();
         let mut iterator_is_done = false;
 
         loop {
             let instr = executable.get_instruction(&mut vm.ip).unwrap();
-            if instr.kind == Instruction::FinishBindingPattern {
-                break;
-            }
+            let mut break_after_bind = false;
 
-            if instr.kind == Instruction::BindingPatternBindRest {
-                let capacity = iterator.remaining_length_estimate(agent).unwrap_or(0);
-                let rest = array_create(agent, 0, capacity, None).unwrap();
-                let mut idx = 0u32;
-                while let Some(result) = iterator.step_value(agent)? {
-                    create_data_property_or_throw(agent, rest, PropertyKey::from(idx), result)
-                        .unwrap();
-                    idx += 1;
+            let value = match instr.kind {
+                Instruction::BindingPatternBind
+                | Instruction::BindingPatternGetValue
+                | Instruction::BindingPatternSkip => {
+                    let result = iterator.step_value(agent)?;
+                    iterator_is_done = result.is_none();
+
+                    if instr.kind == Instruction::BindingPatternSkip {
+                        continue;
+                    }
+                    result.unwrap_or(Value::Undefined)
                 }
+                Instruction::BindingPatternBindRest | Instruction::BindingPatternGetRestValue => {
+                    break_after_bind = true;
+                    if iterator_is_done {
+                        array_create(agent, 0, 0, None).unwrap().into_value()
+                    } else {
+                        let capacity = iterator.remaining_length_estimate(agent).unwrap_or(0);
+                        let rest = array_create(agent, 0, capacity, None).unwrap();
+                        let mut idx = 0u32;
+                        while let Some(result) = iterator.step_value(agent)? {
+                            create_data_property_or_throw(
+                                agent,
+                                rest,
+                                PropertyKey::from(idx),
+                                result,
+                            )
+                            .unwrap();
+                            idx += 1;
+                        }
 
-                let binding_id = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                let lhs = resolve_binding(agent, binding_id, environment)?;
-                if environment.is_none() {
-                    put_value(agent, &lhs, rest.into_value())?;
-                } else {
-                    initialize_referenced_binding(agent, lhs, rest.into_value())?;
+                        iterator_is_done = true;
+                        rest.into_value()
+                    }
                 }
+                Instruction::FinishBindingPattern => break,
+                _ => unreachable!(),
+            };
 
-                iterator_is_done = true;
+            match instr.kind {
+                Instruction::BindingPatternBind | Instruction::BindingPatternBindRest => {
+                    let binding_id =
+                        vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                    let lhs = resolve_binding(agent, binding_id, environment)?;
+                    if environment.is_none() {
+                        put_value(agent, &lhs, value)?;
+                    } else {
+                        initialize_referenced_binding(agent, lhs, value)?;
+                    }
+                }
+                Instruction::BindingPatternGetValue | Instruction::BindingPatternGetRestValue => {
+                    Self::execute_nested_simple_binding(agent, vm, executable, value, environment)?;
+                }
+                _ => unreachable!(),
+            }
+
+            if break_after_bind {
                 break;
-            }
-
-            let result = iterator.step_value(agent)?;
-            iterator_is_done = result.is_none();
-
-            if instr.kind == Instruction::BindingPatternSkip {
-                continue;
-            }
-
-            assert_eq!(instr.kind, Instruction::BindingPatternBind);
-
-            let binding_id = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-            let lhs = resolve_binding(agent, binding_id, environment)?;
-            let v = result.unwrap_or(Value::Undefined);
-            if environment.is_none() {
-                put_value(agent, &lhs, v)?;
-            } else {
-                initialize_referenced_binding(agent, lhs, v)?;
             }
         }
 
@@ -1407,17 +1390,9 @@ impl Vm {
         agent: &mut Agent,
         vm: &mut Vm,
         executable: &Executable,
+        object: Object,
         environment: Option<EnvironmentIndex>,
     ) -> JsResult<()> {
-        let value = vm.stack.pop().unwrap();
-
-        // 8.6.2 Runtime Semantics: BindingInitialization
-        // BindingPattern : ObjectBindingPattern
-        // 1. Perform ? RequireObjectCoercible(value).
-        // NOTE: RequireObjectCoercible throws in the same cases as ToObject, and other operations
-        // later on (such as GetV) also perform ToObject, so we convert to an object early.
-        let value = to_object(agent, value)?;
-
         let mut excluded_names = AHashSet::new();
 
         loop {
@@ -1436,12 +1411,22 @@ impl Vm {
                     excluded_names.insert(property_key);
 
                     let lhs = resolve_binding(agent, binding_id, environment)?;
-                    let v = get(agent, value, property_key)?;
+                    let v = get(agent, object, property_key)?;
                     if environment.is_none() {
                         put_value(agent, &lhs, v)?;
                     } else {
                         initialize_referenced_binding(agent, lhs, v)?;
                     }
+                }
+                Instruction::BindingPatternGetValueNamed => {
+                    let property_key = PropertyKey::from_value(
+                        agent,
+                        vm.fetch_constant(executable, instr.args[0].unwrap() as usize),
+                    )
+                    .unwrap();
+                    excluded_names.insert(property_key);
+                    let v = get(agent, object, property_key)?;
+                    Self::execute_nested_simple_binding(agent, vm, executable, v, environment)?;
                 }
                 Instruction::BindingPatternBindRest => {
                     // 1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
@@ -1450,8 +1435,9 @@ impl Vm {
                     let lhs = resolve_binding(agent, binding_id, environment)?;
                     // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
                     // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
-                    let rest_obj = copy_data_properties_into_object(agent, value, &excluded_names)?
-                        .into_value();
+                    let rest_obj =
+                        copy_data_properties_into_object(agent, object, &excluded_names)?
+                            .into_value();
                     // 4. If environment is undefined, return ? PutValue(lhs, restObj).
                     // 5. Return ? InitializeReferencedBinding(lhs, restObj).
                     if environment.is_none() {
@@ -1466,6 +1452,27 @@ impl Vm {
             }
         }
         Ok(())
+    }
+
+    fn execute_nested_simple_binding(
+        agent: &mut Agent,
+        vm: &mut Vm,
+        executable: &Executable,
+        value: Value,
+        environment: Option<EnvironmentIndex>,
+    ) -> JsResult<()> {
+        let instr = executable.get_instruction(&mut vm.ip).unwrap();
+        match instr.kind {
+            Instruction::BeginSimpleArrayBindingPattern => {
+                let new_iterator = VmIterator::from_value(agent, value)?;
+                Vm::execute_simple_array_binding(agent, vm, executable, new_iterator, environment)
+            }
+            Instruction::BeginSimpleObjectBindingPattern => {
+                let object = to_object(agent, value)?;
+                Vm::execute_simple_object_binding(agent, vm, executable, object, environment)
+            }
+            _ => unreachable!(),
+        }
     }
 }
 

@@ -462,6 +462,49 @@ fn is_chain_expression(expression: &ast::Expression) -> bool {
     }
 }
 
+trait ContainsExpression {
+    fn contains_expression(&self) -> bool;
+}
+impl ContainsExpression for ast::BindingPattern<'_> {
+    fn contains_expression(&self) -> bool {
+        match &self.kind {
+            ast::BindingPatternKind::BindingIdentifier(_) => false,
+            ast::BindingPatternKind::ObjectPattern(pattern) => pattern.contains_expression(),
+            ast::BindingPatternKind::ArrayPattern(pattern) => pattern.contains_expression(),
+            ast::BindingPatternKind::AssignmentPattern(_) => true,
+        }
+    }
+}
+impl ContainsExpression for ast::ObjectPattern<'_> {
+    fn contains_expression(&self) -> bool {
+        for property in &self.properties {
+            if property.computed || property.value.contains_expression() {
+                return true;
+            }
+        }
+
+        if let Some(rest) = &self.rest {
+            debug_assert!(!rest.argument.contains_expression());
+        }
+
+        false
+    }
+}
+impl ContainsExpression for ast::ArrayPattern<'_> {
+    fn contains_expression(&self) -> bool {
+        for pattern in self.elements.iter().flatten() {
+            if pattern.contains_expression() {
+                return true;
+            }
+        }
+        if let Some(rest) = &self.rest {
+            rest.argument.contains_expression()
+        } else {
+            false
+        }
+    }
+}
+
 impl CompileEvaluation for ast::NumericLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let constant = ctx.agent.heap.create(self.value);
@@ -1874,15 +1917,7 @@ impl CompileEvaluation for ast::ArrayPattern<'_> {
         ctx.exe.add_instruction(Instruction::Store);
         ctx.exe.add_instruction(Instruction::GetIteratorSync);
 
-        let is_simple = !self.elements.iter().any(|el| {
-            el.as_ref()
-                .is_some_and(|pattern| !pattern.kind.is_binding_identifier())
-        }) && !self
-            .rest
-            .as_ref()
-            .is_some_and(|rest| !rest.argument.kind.is_binding_identifier());
-
-        if is_simple {
+        if !self.contains_expression() {
             simple_array_pattern(self, ctx, ctx.lexical_binding_state);
         } else {
             complex_array_pattern(self, ctx, ctx.lexical_binding_state);
@@ -1914,7 +1949,15 @@ fn simple_array_pattern(
                     identifier_string,
                 )
             }
-            _ => unreachable!(),
+            ast::BindingPatternKind::ObjectPattern(pattern) => {
+                ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
+                simple_object_pattern(pattern, ctx, has_environment);
+            }
+            ast::BindingPatternKind::ArrayPattern(pattern) => {
+                ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
+                simple_array_pattern(pattern, ctx, has_environment);
+            }
+            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
         }
     }
 
@@ -1927,7 +1970,17 @@ fn simple_array_pattern(
                     identifier_string,
                 );
             }
-            _ => unreachable!(),
+            ast::BindingPatternKind::ObjectPattern(pattern) => {
+                ctx.exe
+                    .add_instruction(Instruction::BindingPatternGetRestValue);
+                simple_object_pattern(pattern, ctx, has_environment);
+            }
+            ast::BindingPatternKind::ArrayPattern(pattern) => {
+                ctx.exe
+                    .add_instruction(Instruction::BindingPatternGetRestValue);
+                simple_array_pattern(pattern, ctx, has_environment);
+            }
+            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
         }
     } else {
         ctx.exe.add_instruction(Instruction::FinishBindingPattern);
@@ -2041,20 +2094,7 @@ fn complex_array_pattern(
 
 impl CompileEvaluation for ast::ObjectPattern<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        let is_simple = self
-            .properties
-            .iter()
-            .all(|prop| !prop.computed && prop.value.kind.is_binding_identifier())
-            && (self.rest.is_none()
-                || self
-                    .rest
-                    .as_ref()
-                    .unwrap()
-                    .argument
-                    .kind
-                    .is_binding_identifier());
-
-        if is_simple {
+        if !self.contains_expression() {
             simple_object_pattern(self, ctx, ctx.lexical_binding_state);
         } else {
             complex_object_pattern(self, ctx, ctx.lexical_binding_state);
@@ -2114,7 +2154,21 @@ fn simple_object_pattern(
                         key_string,
                     )
                 }
-                _ => unreachable!(),
+                ast::BindingPatternKind::ObjectPattern(pattern) => {
+                    ctx.exe.add_instruction_with_constant(
+                        Instruction::BindingPatternGetValueNamed,
+                        key_string,
+                    );
+                    simple_object_pattern(pattern, ctx, has_environment);
+                }
+                ast::BindingPatternKind::ArrayPattern(pattern) => {
+                    ctx.exe.add_instruction_with_constant(
+                        Instruction::BindingPatternGetValueNamed,
+                        key_string,
+                    );
+                    simple_array_pattern(pattern, ctx, has_environment);
+                }
+                ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
             }
         }
     }
@@ -2262,33 +2316,6 @@ fn complex_object_pattern(
     }
 }
 
-impl CompileEvaluation for ast::AssignmentPattern<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
-        match &self.left.kind {
-            // const { a = 3 } = value;
-            // const [a = 3] = value;
-            ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_identifier(&identifier.name);
-                ctx.exe.add_instruction_with_identifier(
-                    Instruction::BindingPatternBindWithInitializer,
-                    identifier_string,
-                );
-            }
-            // const {{ a } = right} = value;
-            ast::BindingPatternKind::ObjectPattern(_) => {
-                todo!();
-            }
-            // const [[ a ] = right] = value;
-            ast::BindingPatternKind::ArrayPattern(_) => {
-                todo!();
-            }
-            // Probably unreachable? Assignment into an assignment?
-            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
-        }
-        self.right.compile(ctx);
-    }
-}
-
 impl CompileEvaluation for ast::VariableDeclaration<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self.kind {
@@ -2318,9 +2345,7 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                             ast::BindingPatternKind::BindingIdentifier(_) => unreachable!(),
                             ast::BindingPatternKind::ObjectPattern(pattern) => pattern.compile(ctx),
                             ast::BindingPatternKind::ArrayPattern(pattern) => pattern.compile(ctx),
-                            ast::BindingPatternKind::AssignmentPattern(pattern) => {
-                                pattern.compile(ctx)
-                            }
+                            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
                         }
                         return;
                     };
@@ -2381,9 +2406,7 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                             ast::BindingPatternKind::BindingIdentifier(_) => unreachable!(),
                             ast::BindingPatternKind::ObjectPattern(pattern) => pattern.compile(ctx),
                             ast::BindingPatternKind::ArrayPattern(pattern) => pattern.compile(ctx),
-                            ast::BindingPatternKind::AssignmentPattern(pattern) => {
-                                pattern.compile(ctx)
-                            }
+                            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
                         }
                         return;
                     };
