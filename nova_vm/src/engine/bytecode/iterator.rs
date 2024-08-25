@@ -18,12 +18,14 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
+use super::executable::SendableRef;
+
 #[derive(Debug)]
 pub(super) enum VmIterator {
     ObjectProperties(ObjectPropertiesIterator),
     ArrayValues(ArrayValuesIterator),
     GenericIterator(IteratorRecord),
-    EmptyIterator,
+    SliceIterator(SendableRef<[Value]>),
 }
 
 impl VmIterator {
@@ -70,7 +72,16 @@ impl VmIterator {
                     Ok(Some(value))
                 }
             }
-            VmIterator::EmptyIterator => Ok(None),
+            VmIterator::SliceIterator(slice_ref) => {
+                let slice = slice_ref.get();
+                if slice.is_empty() {
+                    Ok(None)
+                } else {
+                    let ret = slice[0];
+                    *slice_ref = SendableRef::new(&slice[1..]);
+                    Ok(Some(ret))
+                }
+            }
         }
     }
 
@@ -81,7 +92,7 @@ impl VmIterator {
                 Some(iter.array.len(agent).saturating_sub(iter.index) as usize)
             }
             VmIterator::GenericIterator(_) => None,
-            VmIterator::EmptyIterator => Some(0),
+            VmIterator::SliceIterator(slice) => Some(slice.get().len()),
         }
     }
 
@@ -256,7 +267,7 @@ impl HeapMarkAndSweep for VmIterator {
             VmIterator::ObjectProperties(iter) => iter.mark_values(queues),
             VmIterator::ArrayValues(iter) => iter.mark_values(queues),
             VmIterator::GenericIterator(iter) => iter.mark_values(queues),
-            VmIterator::EmptyIterator => {}
+            VmIterator::SliceIterator(slice) => slice.get().mark_values(queues),
         }
     }
 
@@ -265,7 +276,7 @@ impl HeapMarkAndSweep for VmIterator {
             VmIterator::ObjectProperties(iter) => iter.sweep_values(compactions),
             VmIterator::ArrayValues(iter) => iter.sweep_values(compactions),
             VmIterator::GenericIterator(iter) => iter.sweep_values(compactions),
-            VmIterator::EmptyIterator => {}
+            VmIterator::SliceIterator(slice) => slice.get().sweep_values(compactions),
         }
     }
 }

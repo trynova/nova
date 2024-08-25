@@ -33,14 +33,14 @@ use crate::{
         },
         execution::{agent::Agent, ProtoIntrinsics},
         types::{
-            IntoFunction, IntoValue, Number, Object, PropertyDescriptor, PropertyKey,
+            IntoFunction, IntoValue, Number, Object, PropertyDescriptor, PropertyKey, Value,
             BUILTIN_STRING_MEMORY,
         },
     },
     heap::WellKnownSymbolIndexes,
 };
 
-use super::{ordinary::ordinary_object_create_with_intrinsics, ArgumentsList};
+use super::ordinary::ordinary_object_create_with_intrinsics;
 
 // 10.4.4.1 [[GetOwnProperty]] ( P )
 
@@ -122,7 +122,7 @@ use super::{ordinary::ordinary_object_create_with_intrinsics, ArgumentsList};
 /// ordinary object.
 pub(crate) fn create_unmapped_arguments_object(
     agent: &mut Agent,
-    arguments_list: ArgumentsList,
+    arguments_list: &[Value],
 ) -> Object {
     // 1. Let len be the number of elements in argumentsList.
     let len = arguments_list.len();
@@ -154,7 +154,7 @@ pub(crate) fn create_unmapped_arguments_object(
     .unwrap();
     // 5. Let index be 0.
     // 6. Repeat, while index < len,
-    for (index, val) in arguments_list.0.iter().enumerate() {
+    for (index, val) in arguments_list.iter().enumerate() {
         // a. Let val be argumentsList[index].
         // b. Perform ! CreateDataPropertyOrThrow(obj, ! ToString(𝔽(index)), val).
         debug_assert!(index < u32::MAX as usize);

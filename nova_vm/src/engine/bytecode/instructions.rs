@@ -34,6 +34,10 @@ pub enum Instruction {
     /// Create a catch binding for the given name and populate it with the
     /// stored exception.
     CreateCatchBinding,
+    /// Performs CreateUnmappedArgumentsObject() on the arguments list present
+    /// in the iterator stack, and stores the created arguments object as the
+    /// result value.
+    CreateUnmappedArgumentsObject,
     /// Performs CopyDataProperties() into a newly created object and returns it.
     /// The source object will be on the result value, and the excluded names
     /// will be read from the reference stack, with the number of names passed
@@ -181,6 +185,10 @@ pub enum Instruction {
     /// Performs Yield() on the result value, and after resuming, stores the
     /// value passed to `next()` as the result value.
     Yield,
+    /// Performs env.CreateMutableBinding(n, false) followed by
+    /// env.InitializeBinding(n, value), where env is the VariableEnvironment,
+    /// n is the identifier, and value is the result value.
+    CreateAndInitializeVariableBinding,
     /// Perform CreateImmutableBinding in the running execution context's
     /// LexicalEnvironment with an identifier parameter and `true`
     CreateImmutableBinding,
@@ -190,6 +198,13 @@ pub enum Instruction {
     /// Perform InitializeReferencedBinding with parameters reference (V) and
     /// result (W).
     InitializeReferencedBinding,
+    /// Create a new VariableEnvironment and initialize it with variable names
+    /// and values from the stack, where each name comes before the value.
+    /// The first immediate argument is the number of variables to initialize.
+    /// The second immediate is a boolean which is true if LexicalEnvironment
+    /// should also be set to this new environment (true in strict mode), or
+    /// false if it should be set to a new descendant declarative environment.
+    InitializeVariableEnvironment,
     /// Perform NewDeclarativeEnvironment with the running execution context's
     /// LexicalEnvironment as the only parameter and set it as the running
     /// execution context's LexicalEnvironment.
@@ -200,6 +215,10 @@ pub enum Instruction {
     /// spec requires that creation of bindings in the environment is done
     /// first. This is immaterial because creating the bindings cannot fail.
     EnterDeclarativeEnvironment,
+    /// Perform NewDeclarativeEnvironment with the running execution context's
+    /// LexicalEnvironment as the only parameter, and set it as the running
+    /// execution context's VariableEnvironment.
+    EnterDeclarativeVariableEnvironment,
     /// Reset the running execution context's LexicalEnvironment to its current
     /// value's \[\[OuterEnv]].
     ExitDeclarativeEnvironment,
@@ -301,7 +320,9 @@ impl Instruction {
     pub fn argument_count(self) -> u8 {
         match self {
             // Number of repetitions and lexical status
-            Self::BeginSimpleArrayBindingPattern | Self::BindingPatternBindNamed => 2,
+            Self::BeginSimpleArrayBindingPattern
+            | Self::BindingPatternBindNamed
+            | Self::InitializeVariableEnvironment => 2,
             Self::ArrayCreate
             | Self::ArraySetValue
             | Self::BeginSimpleObjectBindingPattern
@@ -310,6 +331,7 @@ impl Instruction {
             | Self::BindingPatternBindRest
             | Self::CopyDataPropertiesIntoObject
             | Self::CreateCatchBinding
+            | Self::CreateAndInitializeVariableBinding
             | Self::CreateImmutableBinding
             | Self::CreateMutableBinding
             | Self::DirectEvalCall
@@ -349,6 +371,7 @@ impl Instruction {
             Self::CreateCatchBinding
                 | Self::EvaluatePropertyAccessWithIdentifierKey
                 | Self::ResolveBinding
+                | Self::CreateAndInitializeVariableBinding
                 | Self::CreateImmutableBinding
                 | Self::CreateMutableBinding
                 | Self::BindingPatternBind

@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 mod for_in_of_statement;
+mod function_declaration_instantiation;
 
 use super::{instructions::Instr, Instruction};
 use crate::{
@@ -10,8 +11,9 @@ use crate::{
         builtins::regexp::reg_exp_create,
         execution::Agent,
         scripts_and_modules::script::ScriptIdentifier,
-        syntax_directed_operations::scope_analysis::{
-            LexicallyScopedDeclaration, LexicallyScopedDeclarations,
+        syntax_directed_operations::{
+            function_definitions::CompileFunctionBodyData,
+            scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
         },
         types::{
             BigIntHeapData, IntoValue, Number, PropertyKey, Reference, String, Value,
@@ -23,7 +25,7 @@ use crate::{
 use num_bigint::BigInt;
 use num_traits::Num;
 use oxc_ast::{
-    ast::{self, CallExpression, FunctionBody, NewExpression, Statement},
+    ast::{self, BindingPattern, BindingRestElement, CallExpression, NewExpression, Statement},
     syntax_directed_operations::BoundNames,
 };
 use oxc_span::Atom;
@@ -64,6 +66,26 @@ pub(crate) struct CompileContext<'agent> {
 }
 
 impl CompileContext<'_> {
+    fn new(agent: &'_ mut Agent) -> CompileContext<'_> {
+        CompileContext {
+            agent,
+            exe: Executable {
+                instructions: Vec::new(),
+                constants: Vec::new(),
+                identifiers: Vec::new(),
+                references: Vec::new(),
+                function_expressions: Vec::new(),
+                arrow_function_expressions: Vec::new(),
+            },
+            name_identifier: None,
+            lexical_binding_state: false,
+            current_continue: None,
+            current_break: None,
+            optional_chains: None,
+            is_call_optional_chain_this: false,
+        }
+    }
+
     pub(crate) fn create_identifier(&mut self, atom: &Atom<'_>) -> String {
         let existing =
             self.exe.identifiers.iter().find(|existing_identifier| {
@@ -81,19 +103,22 @@ impl CompileContext<'_> {
 /// A `Send` and `Sync` wrapper over a `&'static T` where `T` might not itself
 /// be `Sync`. This is safe because the reference can only be obtained from the
 /// same thread in which the `SendableRef` was created.
-pub(crate) struct SendableRef<T: 'static> {
+pub(crate) struct SendableRef<T: ?Sized + 'static> {
     reference: &'static T,
     thread_id: std::thread::ThreadId,
 }
 
-impl<T> SendableRef<T> {
+impl<T: ?Sized> SendableRef<T> {
     pub(crate) fn new(reference: &'static T) -> Self {
         Self {
             reference,
             thread_id: std::thread::current().id(),
         }
     }
-    pub(crate) fn get(&self) -> &T {
+    pub(crate) unsafe fn new_as_static(reference: &T) -> Self {
+        Self::new(unsafe { std::mem::transmute(reference) })
+    }
+    pub(crate) fn get(&self) -> &'static T {
         assert_eq!(std::thread::current().id(), self.thread_id);
         self.reference
     }
@@ -101,8 +126,8 @@ impl<T> SendableRef<T> {
 
 // SAFETY: The reference will only be dereferenced in a thread in which the
 // reference is valid, so it's fine to send or use this type from other threads.
-unsafe impl<T> Send for SendableRef<T> {}
-unsafe impl<T> Sync for SendableRef<T> {}
+unsafe impl<T: ?Sized> Send for SendableRef<T> {}
+unsafe impl<T: ?Sized> Sync for SendableRef<T> {}
 
 #[derive(Debug)]
 pub(crate) struct FunctionExpression {
@@ -185,25 +210,35 @@ impl Executable {
         let body: &[Statement] =
             unsafe { std::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
 
-        Self::_compile_statements(agent, body, true)
+        Self::_compile_statements(CompileContext::new(agent), body, true)
     }
 
     pub(crate) fn compile_function_body(
         agent: &mut Agent,
-        body: &FunctionBody<'_>,
-        is_concise_body: bool,
+        data: CompileFunctionBodyData<'_>,
     ) -> Executable {
         if agent.options.print_internals {
             eprintln!();
             eprintln!("=== Compiling Function ===");
             eprintln!();
         }
+
+        let mut ctx = CompileContext::new(agent);
+
+        function_declaration_instantiation::instantiation(
+            &mut ctx,
+            data.params,
+            data.body,
+            data.is_strict,
+            data.is_lexical,
+        );
+
         // SAFETY: Script referred by the Function uniquely owns the Program
         // and the body buffer does not move under any circumstances during
         // heap operations.
-        let body: &[Statement] = unsafe { std::mem::transmute(body.statements.as_slice()) };
+        let body: &[Statement] = unsafe { std::mem::transmute(data.body.statements.as_slice()) };
 
-        Self::_compile_statements(agent, body, is_concise_body)
+        Self::_compile_statements(ctx, body, data.is_concise_body)
     }
 
     pub(crate) fn compile_eval_body(agent: &mut Agent, body: &[Statement]) -> Executable {
@@ -213,32 +248,14 @@ impl Executable {
             eprintln!();
         }
 
-        Self::_compile_statements(agent, body, true)
+        Self::_compile_statements(CompileContext::new(agent), body, true)
     }
 
     fn _compile_statements(
-        agent: &mut Agent,
+        mut ctx: CompileContext,
         body: &[Statement],
         implicit_return: bool,
     ) -> Executable {
-        let mut ctx = CompileContext {
-            agent,
-            exe: Executable {
-                instructions: Vec::new(),
-                constants: Vec::new(),
-                identifiers: Vec::new(),
-                references: Vec::new(),
-                function_expressions: Vec::new(),
-                arrow_function_expressions: Vec::new(),
-            },
-            name_identifier: None,
-            lexical_binding_state: false,
-            current_continue: None,
-            current_break: None,
-            optional_chains: None,
-            is_call_optional_chain_this: false,
-        };
-
         let iter = body.iter();
 
         for stmt in iter {
@@ -1918,25 +1935,41 @@ impl CompileEvaluation for ast::ArrayPattern<'_> {
         ctx.exe.add_instruction(Instruction::GetIteratorSync);
 
         if !self.contains_expression() {
-            simple_array_pattern(self, ctx, ctx.lexical_binding_state);
+            simple_array_pattern(
+                ctx,
+                self.elements.iter().map(Option::as_ref),
+                self.rest.as_deref(),
+                self.elements.len(),
+                ctx.lexical_binding_state,
+            );
         } else {
-            complex_array_pattern(self, ctx, ctx.lexical_binding_state);
+            complex_array_pattern(
+                ctx,
+                self.elements.iter().map(Option::as_ref),
+                self.rest.as_deref(),
+                ctx.lexical_binding_state,
+            );
         }
     }
 }
 
-fn simple_array_pattern(
-    array_pattern: &ast::ArrayPattern<'_>,
+pub(self) fn simple_array_pattern<'a, 'b, I>(
     ctx: &mut CompileContext,
+    elements: I,
+    rest: Option<&BindingRestElement>,
+    num_elements: usize,
     has_environment: bool,
-) {
+) where
+    'b: 'a,
+    I: Iterator<Item = Option<&'a BindingPattern<'b>>>,
+{
     ctx.exe.add_instruction_with_immediate_and_immediate(
         Instruction::BeginSimpleArrayBindingPattern,
-        array_pattern.elements.len(),
+        num_elements,
         has_environment.into(),
     );
 
-    for ele in &array_pattern.elements {
+    for ele in elements {
         let Some(ele) = ele else {
             ctx.exe.add_instruction(Instruction::BindingPatternSkip);
             continue;
@@ -1955,13 +1988,19 @@ fn simple_array_pattern(
             }
             ast::BindingPatternKind::ArrayPattern(pattern) => {
                 ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
-                simple_array_pattern(pattern, ctx, has_environment);
+                simple_array_pattern(
+                    ctx,
+                    pattern.elements.iter().map(Option::as_ref),
+                    pattern.rest.as_deref(),
+                    pattern.elements.len(),
+                    has_environment,
+                );
             }
             ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
         }
     }
 
-    if let Some(rest) = &array_pattern.rest {
+    if let Some(rest) = rest {
         match &rest.argument.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
                 let identifier_string = ctx.create_identifier(&identifier.name);
@@ -1978,7 +2017,13 @@ fn simple_array_pattern(
             ast::BindingPatternKind::ArrayPattern(pattern) => {
                 ctx.exe
                     .add_instruction(Instruction::BindingPatternGetRestValue);
-                simple_array_pattern(pattern, ctx, has_environment);
+                simple_array_pattern(
+                    ctx,
+                    pattern.elements.iter().map(Option::as_ref),
+                    pattern.rest.as_deref(),
+                    pattern.elements.len(),
+                    has_environment,
+                );
             }
             ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
         }
@@ -1987,12 +2032,16 @@ fn simple_array_pattern(
     }
 }
 
-fn complex_array_pattern(
-    array_pattern: &ast::ArrayPattern<'_>,
+pub(self) fn complex_array_pattern<'a, 'b, I>(
     ctx: &mut CompileContext,
+    elements: I,
+    rest: Option<&BindingRestElement>,
     has_environment: bool,
-) {
-    for ele in &array_pattern.elements {
+) where
+    'b: 'a,
+    I: Iterator<Item = Option<&'a BindingPattern<'b>>>,
+{
+    for ele in elements {
         ctx.exe
             .add_instruction(Instruction::IteratorStepValueOrUndefined);
 
@@ -2061,7 +2110,7 @@ fn complex_array_pattern(
         }
     }
 
-    if let Some(rest) = &array_pattern.rest {
+    if let Some(rest) = rest {
         ctx.exe.add_instruction(Instruction::IteratorRestIntoArray);
         match &rest.argument.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
@@ -2166,7 +2215,13 @@ fn simple_object_pattern(
                         Instruction::BindingPatternGetValueNamed,
                         key_string,
                     );
-                    simple_array_pattern(pattern, ctx, has_environment);
+                    simple_array_pattern(
+                        ctx,
+                        pattern.elements.iter().map(Option::as_ref),
+                        pattern.rest.as_deref(),
+                        pattern.elements.len(),
+                        has_environment,
+                    );
                 }
                 ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
             }
