@@ -2041,74 +2041,224 @@ fn complex_array_pattern(
 
 impl CompileEvaluation for ast::ObjectPattern<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        ctx.exe.add_instruction_with_immediate(
-            Instruction::BeginObjectBindingPattern,
-            ctx.lexical_binding_state.into(),
-        );
+        let is_simple = self
+            .properties
+            .iter()
+            .all(|prop| !prop.computed && prop.value.kind.is_binding_identifier())
+            && (self.rest.is_none()
+                || self
+                    .rest
+                    .as_ref()
+                    .unwrap()
+                    .argument
+                    .kind
+                    .is_binding_identifier());
 
-        for ele in &self.properties {
-            assert!(!ele.computed, "TODO: Complex object patterns");
+        if is_simple {
+            simple_object_pattern(self, ctx, ctx.lexical_binding_state);
+        } else {
+            complex_object_pattern(self, ctx, ctx.lexical_binding_state);
+        }
+    }
+}
 
-            if ele.shorthand {
-                let ast::PropertyKey::StaticIdentifier(identifier) = &ele.key else {
-                    unreachable!()
-                };
-                assert!(matches!(
-                    &ele.value.kind,
-                    ast::BindingPatternKind::BindingIdentifier(_)
-                ));
+fn simple_object_pattern(
+    pattern: &ast::ObjectPattern<'_>,
+    ctx: &mut CompileContext,
+    has_environment: bool,
+) {
+    ctx.exe.add_instruction_with_immediate(
+        Instruction::BeginSimpleObjectBindingPattern,
+        has_environment.into(),
+    );
+
+    for ele in &pattern.properties {
+        if ele.shorthand {
+            let ast::PropertyKey::StaticIdentifier(identifier) = &ele.key else {
+                unreachable!()
+            };
+            assert!(matches!(
+                &ele.value.kind,
+                ast::BindingPatternKind::BindingIdentifier(_)
+            ));
+            let identifier_string = ctx.create_identifier(&identifier.name);
+            ctx.exe.add_instruction_with_identifier(
+                Instruction::BindingPatternBind,
+                identifier_string,
+            );
+        } else {
+            let key_string = match &ele.key {
+                ast::PropertyKey::StaticIdentifier(identifier) => {
+                    PropertyKey::from_str(ctx.agent, &identifier.name).into_value()
+                }
+                ast::PropertyKey::NumericLiteral(literal) => {
+                    let numeric_value = Number::from_f64(ctx.agent, literal.value);
+                    if let Number::Integer(_) = numeric_value {
+                        numeric_value.into_value()
+                    } else {
+                        Number::to_string_radix_10(ctx.agent, numeric_value).into_value()
+                    }
+                }
+                ast::PropertyKey::StringLiteral(literal) => {
+                    PropertyKey::from_str(ctx.agent, &literal.value).into_value()
+                }
+                _ => unreachable!(),
+            };
+
+            match &ele.value.kind {
+                ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                    let value_identifier_string = ctx.create_identifier(&identifier.name);
+                    ctx.exe.add_instruction_with_identifier_and_constant(
+                        Instruction::BindingPatternBindNamed,
+                        value_identifier_string,
+                        key_string,
+                    )
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    if let Some(rest) = &pattern.rest {
+        match &rest.argument.kind {
+            ast::BindingPatternKind::BindingIdentifier(identifier) => {
                 let identifier_string = ctx.create_identifier(&identifier.name);
                 ctx.exe.add_instruction_with_identifier(
-                    Instruction::BindingPatternBind,
+                    Instruction::BindingPatternBindRest,
                     identifier_string,
                 );
-            } else {
-                let key_string = match &ele.key {
-                    ast::PropertyKey::StaticIdentifier(identifier) => {
-                        PropertyKey::from_str(ctx.agent, &identifier.name).into_value()
-                    }
-                    ast::PropertyKey::NumericLiteral(literal) => {
-                        let numeric_value = Number::from_f64(ctx.agent, literal.value);
-                        if let Number::Integer(_) = numeric_value {
-                            numeric_value.into_value()
-                        } else {
-                            Number::to_string_radix_10(ctx.agent, numeric_value).into_value()
-                        }
-                    }
-                    ast::PropertyKey::StringLiteral(literal) => {
-                        PropertyKey::from_str(ctx.agent, &literal.value).into_value()
-                    }
-                    _ => todo!("Complex object patterns"),
-                };
+            }
+            _ => unreachable!(),
+        }
+    } else {
+        ctx.exe.add_instruction(Instruction::FinishBindingPattern);
+    }
+}
 
-                match &ele.value.kind {
-                    ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                        let value_identifier_string = ctx.create_identifier(&identifier.name);
-                        ctx.exe.add_instruction_with_identifier_and_constant(
-                            Instruction::BindingPatternBindNamed,
-                            value_identifier_string,
-                            key_string,
-                        )
-                    }
-                    _ => todo!("Complex object patterns"),
-                }
+fn complex_object_pattern(
+    object_pattern: &ast::ObjectPattern<'_>,
+    ctx: &mut CompileContext,
+    has_environment: bool,
+) {
+    // 8.6.2 Runtime Semantics: BindingInitialization
+    // BindingPattern : ObjectBindingPattern
+    // 1. Perform ? RequireObjectCoercible(value).
+    // NOTE: RequireObjectCoercible throws in the same cases as ToObject, and other operations
+    // later on (such as GetV) also perform ToObject, so we convert to an object early.
+    ctx.exe.add_instruction(Instruction::Store);
+    ctx.exe.add_instruction(Instruction::ToObject);
+    ctx.exe.add_instruction(Instruction::Load);
+
+    for property in &object_pattern.properties {
+        match &property.key {
+            ast::PropertyKey::StaticIdentifier(identifier) => {
+                ctx.exe.add_instruction(Instruction::Store);
+                ctx.exe.add_instruction(Instruction::LoadCopy);
+                let identifier_string = ctx.create_identifier(&identifier.name);
+                ctx.exe.add_instruction_with_identifier(
+                    Instruction::EvaluatePropertyAccessWithIdentifierKey,
+                    identifier_string,
+                );
+            }
+            ast::PropertyKey::PrivateIdentifier(_) => todo!(),
+            _ => {
+                property.key.to_expression().compile(ctx);
+                ctx.exe
+                    .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
             }
         }
-
-        if let Some(rest) = &self.rest {
-            match &rest.argument.kind {
-                ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                    let identifier_string = ctx.create_identifier(&identifier.name);
-                    ctx.exe.add_instruction_with_identifier(
-                        Instruction::BindingPatternBindRest,
-                        identifier_string,
-                    );
-                }
-                _ => todo!("Complex object patterns"),
-            }
+        if object_pattern.rest.is_some() {
+            ctx.exe.add_instruction(Instruction::GetValueKeepReference);
+            ctx.exe.add_instruction(Instruction::PushReference);
         } else {
-            ctx.exe.add_instruction(Instruction::FinishBindingPattern);
+            ctx.exe.add_instruction(Instruction::GetValue);
         }
+
+        let binding_pattern = match &property.value.kind {
+            ast::BindingPatternKind::AssignmentPattern(pattern) => {
+                // Run the initializer if the result value is undefined.
+                ctx.exe.add_instruction(Instruction::LoadCopy);
+                ctx.exe.add_instruction(Instruction::IsUndefined);
+                let jump_slot = ctx
+                    .exe
+                    .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+                ctx.exe.add_instruction(Instruction::Store);
+                if is_anonymous_function_definition(&pattern.right) {
+                    if let ast::BindingPatternKind::BindingIdentifier(identifier) =
+                        &pattern.left.kind
+                    {
+                        let identifier_string = ctx.create_identifier(&identifier.name);
+                        ctx.exe.add_instruction_with_constant(
+                            Instruction::StoreConstant,
+                            identifier_string,
+                        );
+                        ctx.name_identifier = Some(NamedEvaluationParameter::Result);
+                    }
+                }
+                pattern.right.compile(ctx);
+                ctx.name_identifier = None;
+                if is_reference(&pattern.right) {
+                    ctx.exe.add_instruction(Instruction::GetValue);
+                }
+                ctx.exe.add_instruction(Instruction::Load);
+                ctx.exe.set_jump_target_here(jump_slot);
+                ctx.exe.add_instruction(Instruction::Store);
+
+                &pattern.left.kind
+            }
+            _ => &property.value.kind,
+        };
+
+        match binding_pattern {
+            ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                let identifier_string = ctx.create_identifier(&identifier.name);
+                ctx.exe.add_instruction_with_identifier(
+                    Instruction::ResolveBinding,
+                    identifier_string,
+                );
+                if !has_environment {
+                    ctx.exe.add_instruction(Instruction::PutValue);
+                } else {
+                    ctx.exe
+                        .add_instruction(Instruction::InitializeReferencedBinding);
+                }
+            }
+            ast::BindingPatternKind::ObjectPattern(pattern) => {
+                ctx.exe.add_instruction(Instruction::Load);
+                pattern.compile(ctx);
+            }
+            ast::BindingPatternKind::ArrayPattern(pattern) => {
+                ctx.exe.add_instruction(Instruction::Load);
+                pattern.compile(ctx);
+            }
+            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
+        }
+    }
+
+    if let Some(rest) = &object_pattern.rest {
+        let ast::BindingPatternKind::BindingIdentifier(identifier) = &rest.argument.kind else {
+            unreachable!()
+        };
+
+        // We have kept the references for all of the properties read in the reference stack, so we
+        // can now use them to exclude those properties from the rest object.
+        ctx.exe.add_instruction_with_immediate(
+            Instruction::CopyDataPropertiesIntoObject,
+            object_pattern.properties.len(),
+        );
+
+        let identifier_string = ctx.create_identifier(&identifier.name);
+        ctx.exe
+            .add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
+        if !has_environment {
+            ctx.exe.add_instruction(Instruction::PutValue);
+        } else {
+            ctx.exe
+                .add_instruction(Instruction::InitializeReferencedBinding);
+        }
+    } else {
+        // Don't keep the object on the stack.
+        ctx.exe.add_instruction(Instruction::Store);
     }
 }
 

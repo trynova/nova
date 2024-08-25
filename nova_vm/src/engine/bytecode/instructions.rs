@@ -34,6 +34,11 @@ pub enum Instruction {
     /// Create a catch binding for the given name and populate it with the
     /// stored exception.
     CreateCatchBinding,
+    /// Performs CopyDataProperties() into a newly created object and returns it.
+    /// The source object will be on the result value, and the excluded names
+    /// will be read from the reference stack, with the number of names passed
+    /// in an immediate.
+    CopyDataPropertiesIntoObject,
     /// Apply the delete operation to the evaluated expression and set it as
     /// the result value.
     Delete,
@@ -164,6 +169,8 @@ pub enum Instruction {
     ToNumber,
     /// Store ToNumeric() as the result value.
     ToNumeric,
+    /// Store ToObject() as the result value.
+    ToObject,
     /// Store ToString() as the result value.
     ToString,
     /// Apply the typeof operation to the evaluated expression and set it as
@@ -197,7 +204,7 @@ pub enum Instruction {
     /// value's \[\[OuterEnv]].
     ExitDeclarativeEnvironment,
     /// Begin binding values using destructuring
-    BeginObjectBindingPattern,
+    BeginSimpleObjectBindingPattern,
     /// Begin binding values using a sync iterator for known repetitions
     BeginSimpleArrayBindingPattern,
     /// In array binding patterns, bind the current result to the given
@@ -294,10 +301,11 @@ impl Instruction {
             Self::BeginSimpleArrayBindingPattern | Self::BindingPatternBindNamed => 2,
             Self::ArrayCreate
             | Self::ArraySetValue
-            | Self::BeginObjectBindingPattern
+            | Self::BeginSimpleObjectBindingPattern
             | Self::BindingPatternBind
             | Self::BindingPatternBindWithInitializer
             | Self::BindingPatternBindRest
+            | Self::CopyDataPropertiesIntoObject
             | Self::CreateCatchBinding
             | Self::CreateImmutableBinding
             | Self::CreateMutableBinding

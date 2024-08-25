@@ -771,9 +771,10 @@ pub(crate) fn get_function_realm(
 /// ECMAScript language value), and excludedItems (a List of property keys) and returns either a
 /// normal completion containing unused or a throw completion.
 ///
-/// NOTE: All callers of this algorithm in the spec call it with target being a just-created
-/// `OrdinaryObjectCreate(%Object.prototype%)`. This implementation constructs the object instead.
-pub(crate) fn copy_data_properties(
+/// NOTE: This implementation of CopyDataProperties also creates the target object with
+/// `OrdinaryObjectCreate(%Object.prototype%)`. This can be used to implement the rest operator in
+/// object destructuring, but not the spread operator in object literals.
+pub(crate) fn copy_data_properties_into_object(
     agent: &mut Agent,
     source: impl IntoObject,
     excluded_items: &AHashSet<PropertyKey>,

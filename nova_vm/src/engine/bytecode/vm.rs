@@ -13,9 +13,9 @@ use crate::{
         abstract_operations::{
             operations_on_iterator_objects::{get_iterator_from_method, iterator_close},
             operations_on_objects::{
-                call, call_function, construct, copy_data_properties, create_data_property,
-                create_data_property_or_throw, define_property_or_throw, get, get_method,
-                has_property, ordinary_has_instance, set,
+                call, call_function, construct, copy_data_properties_into_object,
+                create_data_property, create_data_property_or_throw, define_property_or_throw, get,
+                get_method, has_property, ordinary_has_instance, set,
             },
             testing_and_comparison::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
@@ -365,6 +365,9 @@ impl Vm {
                 vm.result =
                     Some(to_numeric(agent, vm.result.unwrap()).map(|result| result.into_value())?);
             }
+            Instruction::ToObject => {
+                vm.result = Some(to_object(agent, vm.result.unwrap())?.into_value());
+            }
             Instruction::ApplyStringOrNumericBinaryOperator(op_text) => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
@@ -580,6 +583,23 @@ impl Vm {
                     None,
                 );
                 vm.stack.push(object.into())
+            }
+            Instruction::CopyDataPropertiesIntoObject => {
+                let from = Object::try_from(vm.result.unwrap()).unwrap();
+
+                let num_excluded_items = usize::from(instr.args[0].unwrap());
+                let mut excluded_items = AHashSet::with_capacity(num_excluded_items);
+                assert!(vm.reference.is_none());
+                for _ in 0..num_excluded_items {
+                    let reference = vm.reference_stack.pop().unwrap();
+                    assert_eq!(reference.base, Base::Value(from.into_value()));
+                    assert!(reference.this_value.is_none());
+                    excluded_items.insert(reference.referenced_name);
+                }
+
+                vm.result = Some(
+                    copy_data_properties_into_object(agent, from, &excluded_items)?.into_value(),
+                );
             }
             Instruction::InstantiateArrowFunctionExpression => {
                 // ArrowFunction : ArrowParameters => ConciseBody
@@ -1086,7 +1106,7 @@ impl Vm {
                 };
                 Self::execute_simple_array_binding(agent, vm, executable, env)?
             }
-            Instruction::BeginObjectBindingPattern => {
+            Instruction::BeginSimpleObjectBindingPattern => {
                 let lexical = instr.args[0].unwrap() == 1;
                 let env = if lexical {
                     // Lexical binding, const {} = a; or let {} = a;
@@ -1102,7 +1122,7 @@ impl Vm {
                     // Var binding, var {} = a;
                     None
                 };
-                Self::execute_object_binding(agent, vm, executable, env)?
+                Self::execute_simple_object_binding(agent, vm, executable, env)?
             }
             Instruction::BindingPatternBind
             | Instruction::BindingPatternBindRest
@@ -1383,7 +1403,7 @@ impl Vm {
         Ok(())
     }
 
-    fn execute_object_binding(
+    fn execute_simple_object_binding(
         agent: &mut Agent,
         vm: &mut Vm,
         executable: &Executable,
@@ -1430,8 +1450,8 @@ impl Vm {
                     let lhs = resolve_binding(agent, binding_id, environment)?;
                     // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
                     // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
-                    let rest_obj =
-                        copy_data_properties(agent, value, &excluded_names)?.into_value();
+                    let rest_obj = copy_data_properties_into_object(agent, value, &excluded_names)?
+                        .into_value();
                     // 4. If environment is undefined, return ? PutValue(lhs, restObj).
                     // 5. Return ? InitializeReferencedBinding(lhs, restObj).
                     if environment.is_none() {
