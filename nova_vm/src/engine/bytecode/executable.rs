@@ -109,15 +109,24 @@ pub(crate) struct SendableRef<T: ?Sized + 'static> {
 }
 
 impl<T: ?Sized> SendableRef<T> {
+    /// Creates a new [`SendableRef`] from a reference with a static lifetime.
     pub(crate) fn new(reference: &'static T) -> Self {
         Self {
             reference,
             thread_id: std::thread::current().id(),
         }
     }
+
+    /// Unsafely creates a new [`SendableRef`] from a non-static reference.
+    ///
+    /// # Safety
+    ///
+    /// The safety conditions for this constructor are the same as for
+    /// transmuting `reference` into a static lifetime.
     pub(crate) unsafe fn new_as_static(reference: &T) -> Self {
         Self::new(unsafe { std::mem::transmute(reference) })
     }
+
     pub(crate) fn get(&self) -> &'static T {
         assert_eq!(std::thread::current().id(), self.thread_id);
         self.reference

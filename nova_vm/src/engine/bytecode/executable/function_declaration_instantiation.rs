@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 use ahash::{AHashMap, AHashSet};
 use oxc_ast::{
     ast::{FormalParameters, FunctionBody},
@@ -165,6 +169,7 @@ pub(crate) fn instantiation(
     // 26. Else,
     //   a. Perform ? IteratorBindingInitialization of formals with arguments iteratorRecord and env.
     if !formals.has_parameter() {
+        // Remove the arguments iterator from the iterator stack.
         ctx.exe.add_instruction(Instruction::IteratorClose)
     } else if has_parameter_expressions {
         complex_array_pattern(

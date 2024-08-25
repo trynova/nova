@@ -1109,18 +1109,6 @@ impl Vm {
                     .unwrap()
                     .lexical_environment = old_env;
             }
-            Instruction::CreateAndInitializeVariableBinding => {
-                let var_env = agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap()
-                    .variable_environment;
-                let name = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                let value = vm.result.take().unwrap();
-                var_env.create_mutable_binding(agent, name, false).unwrap();
-                var_env.initialize_binding(agent, name, value).unwrap();
-            }
             Instruction::CreateMutableBinding => {
                 let lex_env = agent
                     .running_execution_context()

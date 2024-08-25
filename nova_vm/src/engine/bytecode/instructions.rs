@@ -185,10 +185,6 @@ pub enum Instruction {
     /// Performs Yield() on the result value, and after resuming, stores the
     /// value passed to `next()` as the result value.
     Yield,
-    /// Performs env.CreateMutableBinding(n, false) followed by
-    /// env.InitializeBinding(n, value), where env is the VariableEnvironment,
-    /// n is the identifier, and value is the result value.
-    CreateAndInitializeVariableBinding,
     /// Perform CreateImmutableBinding in the running execution context's
     /// LexicalEnvironment with an identifier parameter and `true`
     CreateImmutableBinding,
@@ -331,7 +327,6 @@ impl Instruction {
             | Self::BindingPatternBindRest
             | Self::CopyDataPropertiesIntoObject
             | Self::CreateCatchBinding
-            | Self::CreateAndInitializeVariableBinding
             | Self::CreateImmutableBinding
             | Self::CreateMutableBinding
             | Self::DirectEvalCall
@@ -371,7 +366,6 @@ impl Instruction {
             Self::CreateCatchBinding
                 | Self::EvaluatePropertyAccessWithIdentifierKey
                 | Self::ResolveBinding
-                | Self::CreateAndInitializeVariableBinding
                 | Self::CreateImmutableBinding
                 | Self::CreateMutableBinding
                 | Self::BindingPatternBind
