@@ -13,7 +13,10 @@ use crate::{
         syntax_directed_operations::scope_analysis::{
             LexicallyScopedDeclaration, LexicallyScopedDeclarations,
         },
-        types::{BigIntHeapData, PropertyKey, Reference, String, Value, BUILTIN_STRING_MEMORY},
+        types::{
+            BigIntHeapData, IntoValue, Number, PropertyKey, Reference, String, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
 };
@@ -2044,278 +2047,68 @@ impl CompileEvaluation for ast::ObjectPattern<'_> {
         );
 
         for ele in &self.properties {
-            match &ele.key {
-                ast::PropertyKey::StaticIdentifier(identifier) => {
-                    let identifier_string = ctx.create_identifier(&identifier.name);
-                    if ele.shorthand {
-                        if let ast::BindingPatternKind::AssignmentPattern(_) = &ele.value.kind {
-                            todo!();
+            assert!(!ele.computed, "TODO: Complex object patterns");
+
+            if ele.shorthand {
+                let ast::PropertyKey::StaticIdentifier(identifier) = &ele.key else {
+                    unreachable!()
+                };
+                assert!(matches!(
+                    &ele.value.kind,
+                    ast::BindingPatternKind::BindingIdentifier(_)
+                ));
+                let identifier_string = ctx.create_identifier(&identifier.name);
+                ctx.exe.add_instruction_with_identifier(
+                    Instruction::BindingPatternBind,
+                    identifier_string,
+                );
+            } else {
+                let key_string = match &ele.key {
+                    ast::PropertyKey::StaticIdentifier(identifier) => {
+                        PropertyKey::from_str(ctx.agent, &identifier.name).into_value()
+                    }
+                    ast::PropertyKey::NumericLiteral(literal) => {
+                        let numeric_value = Number::from_f64(ctx.agent, literal.value);
+                        if let Number::Integer(_) = numeric_value {
+                            numeric_value.into_value()
                         } else {
-                            ctx.exe.add_instruction_with_identifier(
-                                Instruction::BindingPatternBind,
-                                identifier_string,
-                            );
-                        }
-                        // Skip the rest of the hard work.
-                        continue;
-                    }
-                    ctx.exe.add_instruction_with_identifier(
-                        Instruction::EvaluatePropertyAccessWithIdentifierKey,
-                        identifier_string,
-                    );
-                }
-                ast::PropertyKey::PrivateIdentifier(_) => todo!(),
-                ast::PropertyKey::BooleanLiteral(boolean) => {
-                    // SAFETY: Keys use ToString, which special cases booleans.
-                    let identifier_string = if boolean.value {
-                        BUILTIN_STRING_MEMORY.r#true
-                    } else {
-                        BUILTIN_STRING_MEMORY.r#false
-                    };
-                    ctx.exe.add_instruction_with_identifier(
-                        Instruction::EvaluatePropertyAccessWithIdentifierKey,
-                        identifier_string,
-                    );
-                }
-                ast::PropertyKey::NullLiteral(_) => {
-                    // SAFETY: Keys use ToString, which special cases null.
-                    let identifier_string = BUILTIN_STRING_MEMORY.null;
-                    ctx.exe.add_instruction_with_identifier(
-                        Instruction::BindingPatternBind,
-                        identifier_string,
-                    );
-                    ctx.exe.add_instruction_with_identifier(
-                        Instruction::EvaluatePropertyAccessWithIdentifierKey,
-                        identifier_string,
-                    );
-                }
-                ast::PropertyKey::NumericLiteral(numeric) => {
-                    // SAFETY: Keys use ToString, which special cases numbers
-                    // by calling Number::toString(argument, 10). The work is
-                    // inlined here.
-                    let mut buffer = ryu_js::Buffer::new();
-                    let identifier_string =
-                        String::from_string(ctx.agent, buffer.format(numeric.value).to_string());
-                    ctx.exe.add_instruction_with_identifier(
-                        Instruction::EvaluatePropertyAccessWithIdentifierKey,
-                        identifier_string,
-                    );
-                }
-                ast::PropertyKey::StringLiteral(literal) => {
-                    let identifier_string = ctx.create_identifier(&literal.value);
-                    if let ast::BindingPatternKind::BindingIdentifier(binding) = &ele.value.kind {
-                        if binding.name == literal.value {
-                            // const { "asd": asd } = source;
-                            ctx.exe.add_instruction_with_identifier(
-                                Instruction::BindingPatternBind,
-                                identifier_string,
-                            );
-                            // Skip the rest of the hard stuff
-                            continue;
+                            Number::to_string_radix_10(ctx.agent, numeric_value).into_value()
                         }
                     }
-                    ctx.exe.add_instruction_with_identifier(
-                        Instruction::EvaluatePropertyAccessWithIdentifierKey,
-                        identifier_string,
-                    );
-                }
-                ast::PropertyKey::ArrayExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::ArrowFunctionExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::AssignmentExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::AwaitExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::BigIntLiteral(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::BinaryExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::CallExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::ChainExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::ClassExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::ConditionalExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::FunctionExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::ImportExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::LogicalExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::MetaProperty(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::NewExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::ObjectExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::PrivateInExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::RegExpLiteral(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::SequenceExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::TaggedTemplateExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::TemplateLiteral(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::ThisExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::UnaryExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::UpdateExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::YieldExpression(expr) => {
-                    expr.compile(ctx);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::Identifier(x) => {
-                    x.compile(ctx);
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::Super(x) => {
-                    x.compile(ctx);
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::ParenthesizedExpression(x) => {
-                    x.compile(ctx);
-                    if is_reference(&x.expression) {
-                        ctx.exe.add_instruction(Instruction::GetValue);
-                        ctx.exe
-                            .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                    ast::PropertyKey::StringLiteral(literal) => {
+                        PropertyKey::from_str(ctx.agent, &literal.value).into_value()
                     }
+                    _ => todo!("Complex object patterns"),
+                };
+
+                match &ele.value.kind {
+                    ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                        let value_identifier_string = ctx.create_identifier(&identifier.name);
+                        ctx.exe.add_instruction_with_identifier_and_constant(
+                            Instruction::BindingPatternBindNamed,
+                            value_identifier_string,
+                            key_string,
+                        )
+                    }
+                    _ => todo!("Complex object patterns"),
                 }
-                ast::PropertyKey::ComputedMemberExpression(x) => {
-                    x.compile(ctx);
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::StaticMemberExpression(x) => {
-                    x.compile(ctx);
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::PrivateFieldExpression(x) => {
-                    x.compile(ctx);
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                    ctx.exe
-                        .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                }
-                ast::PropertyKey::JSXElement(_)
-                | ast::PropertyKey::JSXFragment(_)
-                | ast::PropertyKey::TSAsExpression(_)
-                | ast::PropertyKey::TSSatisfiesExpression(_)
-                | ast::PropertyKey::TSTypeAssertion(_)
-                | ast::PropertyKey::TSNonNullExpression(_)
-                | ast::PropertyKey::TSInstantiationExpression(_) => unreachable!(),
             }
-            // We have either evaluated the property access by identifier
-            // expression key. Now we need to assign resolve the access and
-            // bind the a value.
-            match &ele.value.kind {
+        }
+
+        if let Some(rest) = &self.rest {
+            match &rest.argument.kind {
                 ast::BindingPatternKind::BindingIdentifier(identifier) => {
                     let identifier_string = ctx.create_identifier(&identifier.name);
                     ctx.exe.add_instruction_with_identifier(
-                        Instruction::BindingPatternBind,
+                        Instruction::BindingPatternBindRest,
                         identifier_string,
                     );
                 }
-                // const { key: { a }} = value;
-                ast::BindingPatternKind::ObjectPattern(pattern) => {
-                    ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
-                    pattern.compile(ctx);
-                }
-                // const { key: [a] } = value;
-                ast::BindingPatternKind::ArrayPattern(pattern) => {
-                    ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
-                    pattern.compile(ctx);
-                }
-                // const { a = 3 } = value;
-                ast::BindingPatternKind::AssignmentPattern(_) => todo!(),
+                _ => todo!("Complex object patterns"),
             }
+        } else {
+            ctx.exe.add_instruction(Instruction::FinishBindingPattern);
         }
-        ctx.exe.add_instruction(Instruction::FinishBindingPattern);
     }
 }
 

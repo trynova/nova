@@ -200,14 +200,21 @@ pub enum Instruction {
     BeginObjectBindingPattern,
     /// Begin binding values using a sync iterator for known repetitions
     BeginSimpleArrayBindingPattern,
-    /// Bind current result to given identifier
+    /// In array binding patterns, bind the current result to the given
+    /// identifier. In object binding patterns, bind the object's property with
+    /// the identifier's name.
     ///
     /// ```js
     /// const { a } = x;
     /// const [a] = x;
     /// ```
     BindingPatternBind,
-    /// Bind current result to
+    /// Bind an object property to an identifier with a different name. The
+    /// constant given as the second argument is the property key.
+    ///
+    /// ```js
+    /// const { a: b } = x;
+    /// ```
     BindingPatternBindNamed,
     /// Bind all remaining values to given identifier
     ///
@@ -284,7 +291,7 @@ impl Instruction {
     pub fn argument_count(self) -> u8 {
         match self {
             // Number of repetitions and lexical status
-            Self::BeginSimpleArrayBindingPattern => 2,
+            Self::BeginSimpleArrayBindingPattern | Self::BindingPatternBindNamed => 2,
             Self::ArrayCreate
             | Self::ArraySetValue
             | Self::BeginObjectBindingPattern
@@ -316,7 +323,10 @@ impl Instruction {
     }
 
     pub fn has_constant_index(self) -> bool {
-        matches!(self, Self::LoadConstant | Self::StoreConstant)
+        matches!(
+            self,
+            Self::LoadConstant | Self::StoreConstant | Self::BindingPatternBindNamed
+        )
     }
 
     pub fn has_identifier_index(self) -> bool {
@@ -328,6 +338,7 @@ impl Instruction {
                 | Self::CreateImmutableBinding
                 | Self::CreateMutableBinding
                 | Self::BindingPatternBind
+                | Self::BindingPatternBindNamed
                 | Self::BindingPatternBindWithInitializer
                 | Self::BindingPatternBindRest
         )

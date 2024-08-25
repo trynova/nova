@@ -13,7 +13,7 @@ use crate::{
             operations_on_iterator_objects::{get_iterator_from_method, iterator_close},
             operations_on_objects::{
                 call, call_function, construct, create_data_property,
-                create_data_property_or_throw, define_property_or_throw, get_method, get_v,
+                create_data_property_or_throw, define_property_or_throw, get, get_method,
                 has_property, ordinary_has_instance, set,
             },
             testing_and_comparison::{
@@ -1390,50 +1390,38 @@ impl Vm {
     ) -> JsResult<()> {
         let value = vm.stack.pop().unwrap();
 
+        // 8.6.2 Runtime Semantics: BindingInitialization
+        // BindingPattern : ObjectBindingPattern
+        // 1. Perform ? RequireObjectCoercible(value).
+        // NOTE: RequireObjectCoercible throws in the same cases as ToObject, and other operations
+        // later on (such as GetV) also perform ToObject, so we convert to an object early.
+        let value = to_object(agent, value)?;
+
         loop {
             let instr = executable.get_instruction(&mut vm.ip).unwrap();
-            if instr.kind == Instruction::BindingPatternBind {
-                // Shorthand pattern, ie. SingleNameBinding: const { b } = a;
-                let binding_id = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                let lhs = resolve_binding(agent, binding_id, environment)?;
-                let v = get_v(agent, value, binding_id.into())?;
-                if environment.is_none() {
-                    put_value(agent, &lhs, v)?;
-                } else {
-                    initialize_referenced_binding(agent, lhs, v)?;
-                }
-                continue;
-            } else if instr.kind == Instruction::EvaluatePropertyAccessWithIdentifierKey {
-                let property_name_string =
-                    vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                let strict = agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .unwrap()
-                    .is_strict_mode;
+            match instr.kind {
+                Instruction::BindingPatternBind | Instruction::BindingPatternBindNamed => {
+                    let binding_id =
+                        vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                    let property_key = if instr.kind == Instruction::BindingPatternBind {
+                        binding_id.into()
+                    } else {
+                        let key_value =
+                            vm.fetch_constant(executable, instr.args[1].unwrap() as usize);
+                        PropertyKey::try_from(key_value).unwrap()
+                    };
 
-                let reference = Reference {
-                    base: Base::Value(value),
-                    referenced_name: property_name_string.into(),
-                    strict,
-                    this_value: None,
-                };
-
-                let v = get_value(agent, &reference)?;
-                let bind_instruction = executable.get_instruction(&mut vm.ip).unwrap();
-                let binding_id =
-                    vm.fetch_identifier(executable, bind_instruction.args[0].unwrap() as usize);
-                assert_eq!(bind_instruction.kind, Instruction::BindingPatternBind);
-                if let Some(environment) = environment {
-                    environment
-                        .initialize_binding(agent, binding_id, value)
-                        .unwrap();
-                } else {
-                    let lhs = resolve_binding(agent, binding_id, None)?;
-                    put_value(agent, &lhs, v)?;
+                    let lhs = resolve_binding(agent, binding_id, environment)?;
+                    let v = get(agent, value, property_key)?;
+                    if environment.is_none() {
+                        put_value(agent, &lhs, v)?;
+                    } else {
+                        initialize_referenced_binding(agent, lhs, v)?;
+                    }
                 }
-            } else if instr.kind == Instruction::FinishBindingPattern {
-                break;
+                Instruction::BindingPatternBindRest => todo!(),
+                Instruction::FinishBindingPattern => break,
+                _ => unreachable!(),
             }
         }
         Ok(())
