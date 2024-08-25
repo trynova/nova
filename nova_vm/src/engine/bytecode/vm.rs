@@ -1435,8 +1435,9 @@ impl Vm {
                     let lhs = resolve_binding(agent, binding_id, environment)?;
                     // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
                     // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
-                    let rest_obj = copy_data_properties_into_object(agent, value, &excluded_names)?
-                        .into_value();
+                    let rest_obj =
+                        copy_data_properties_into_object(agent, object, &excluded_names)?
+                            .into_value();
                     // 4. If environment is undefined, return ? PutValue(lhs, restObj).
                     // 5. Return ? InitializeReferencedBinding(lhs, restObj).
                     if environment.is_none() {
