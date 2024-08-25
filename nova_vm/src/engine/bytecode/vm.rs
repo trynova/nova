@@ -13,9 +13,9 @@ use crate::{
         abstract_operations::{
             operations_on_iterator_objects::{get_iterator_from_method, iterator_close},
             operations_on_objects::{
-                call, call_function, construct, copy_data_properties, create_data_property,
-                create_data_property_or_throw, define_property_or_throw, get, get_method,
-                has_property, ordinary_has_instance, set,
+                call, call_function, construct, copy_data_properties_into_object,
+                create_data_property, create_data_property_or_throw, define_property_or_throw, get,
+                get_method, has_property, ordinary_has_instance, set,
             },
             testing_and_comparison::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
@@ -585,12 +585,7 @@ impl Vm {
                 vm.stack.push(object.into())
             }
             Instruction::CopyDataPropertiesIntoObject => {
-                // 7.3.25 CopyDataProperties ( target, source, excludedItems )
-                // 1. If source is either undefined or null, return unused.
-                // 2. Let from be ! ToObject(source).
-                let Ok(from) = Object::try_from(vm.result.unwrap()) else {
-                    return Ok(ContinuationKind::Normal);
-                };
+                let from = Object::try_from(vm.result.unwrap()).unwrap();
 
                 let num_excluded_items = usize::from(instr.args[0].unwrap());
                 let mut excluded_items = AHashSet::with_capacity(num_excluded_items);
@@ -602,7 +597,9 @@ impl Vm {
                     excluded_items.insert(reference.referenced_name);
                 }
 
-                vm.result = Some(copy_data_properties(agent, from, &excluded_items)?.into_value());
+                vm.result = Some(
+                    copy_data_properties_into_object(agent, from, &excluded_items)?.into_value(),
+                );
             }
             Instruction::InstantiateArrowFunctionExpression => {
                 // ArrowFunction : ArrowParameters => ConciseBody
@@ -1453,8 +1450,8 @@ impl Vm {
                     let lhs = resolve_binding(agent, binding_id, environment)?;
                     // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
                     // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
-                    let rest_obj =
-                        copy_data_properties(agent, value, &excluded_names)?.into_value();
+                    let rest_obj = copy_data_properties_into_object(agent, value, &excluded_names)?
+                        .into_value();
                     // 4. If environment is undefined, return ? PutValue(lhs, restObj).
                     // 5. Return ? InitializeReferencedBinding(lhs, restObj).
                     if environment.is_none() {

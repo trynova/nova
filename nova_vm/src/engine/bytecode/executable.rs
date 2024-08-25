@@ -2128,7 +2128,7 @@ fn simple_object_pattern(
                     identifier_string,
                 );
             }
-            _ => todo!("Complex object patterns"),
+            _ => unreachable!(),
         }
     } else {
         ctx.exe.add_instruction(Instruction::FinishBindingPattern);
