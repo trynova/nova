@@ -26,7 +26,7 @@ use crate::{
         },
     },
     engine::instanceof_operator,
-    heap::ObjectEntry,
+    heap::{Heap, ObjectEntry},
     SmallInteger,
 };
 
@@ -776,7 +776,7 @@ pub(crate) fn get_function_realm(
 /// object literals, but not the rest operator in object destructuring.
 pub(crate) fn copy_data_properties(
     agent: &mut Agent,
-    target: Object,
+    target: OrdinaryObject,
     source: Value,
 ) -> JsResult<()> {
     // 1. If source is either undefined or null, return unused.
@@ -787,8 +787,23 @@ pub(crate) fn copy_data_properties(
     let from = to_object(agent, source).unwrap();
 
     // 3. Let keys be ? from.[[OwnPropertyKeys]]().
+    let keys = from.internal_own_property_keys(agent)?;
+    // Reserve space in the target's vectors.
+    {
+        let new_size = agent[target]
+            .keys
+            .len()
+            .checked_add(u32::try_from(keys.len()).unwrap())
+            .unwrap();
+        let Heap {
+            elements, objects, ..
+        } = &mut agent.heap;
+        objects[target].keys.reserve(elements, new_size);
+        objects[target].values.reserve(elements, new_size);
+    }
+
     // 4. For each element nextKey of keys, do
-    for next_key in from.internal_own_property_keys(agent)? {
+    for next_key in keys {
         // i. Let desc be ? from.[[GetOwnProperty]](nextKey).
         // ii. If desc is not undefined and desc.[[Enumerable]] is true, then
         if let Some(dest) = from.internal_get_own_property(agent, next_key)? {

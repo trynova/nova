@@ -600,7 +600,9 @@ impl Vm {
             }
             Instruction::CopyDataProperties => {
                 let source = vm.result.take().unwrap();
-                let target = Object::try_from(*vm.stack.last().unwrap()).unwrap();
+                let Value::Object(target) = *vm.stack.last().unwrap() else {
+                    unreachable!()
+                };
                 copy_data_properties(agent, target, source)?;
             }
             Instruction::CopyDataPropertiesIntoObject => {
