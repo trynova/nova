@@ -106,7 +106,7 @@ pub(crate) fn instantiation(
         // NOTE: Since `parameter_names` is a set, `alreadyDeclared` here should always be false.
 
         // i. Perform ! env.CreateMutableBinding(paramName, false).
-        let param_name = String::from_str(&mut ctx.agent, &param_name);
+        let param_name = String::from_str(ctx.agent, param_name);
         ctx.exe
             .add_instruction_with_identifier(Instruction::CreateMutableBinding, param_name);
         // ii. If hasDuplicates is true, then
@@ -200,7 +200,7 @@ pub(crate) fn instantiation(
                 continue;
             }
             // 1. Append n to instantiatedVarNames.
-            let n_string = String::from_str(&mut ctx.agent, &n);
+            let n_string = String::from_str(ctx.agent, &n);
             instantiated_var_names.insert(n);
             // 2. Perform ! env.CreateMutableBinding(n, false).
             ctx.exe
@@ -246,7 +246,7 @@ pub(crate) fn instantiation(
             // 1. Append n to instantiatedVarNames.
             instantiated_var_names.insert(n.clone());
             // 3. If parameterBindings does not contain n, or if functionNames contains n, then
-            let n_string = String::from_str(&mut ctx.agent, &n);
+            let n_string = String::from_str(ctx.agent, &n);
             if !parameter_names.contains(&n) || functions.contains_key(&n) {
                 // a. Let initialValue be undefined.
                 ctx.exe
@@ -293,7 +293,7 @@ pub(crate) fn instantiation(
             // i. If IsConstantDeclaration of d is true, then
             LexicallyScopedDeclaration::Variable(decl) if decl.kind.is_const() => {
                 decl.id.bound_names(&mut |identifier| {
-                    let dn = String::from_str(&mut ctx.agent, &identifier.name);
+                    let dn = String::from_str(ctx.agent, &identifier.name);
                     // 1. Perform ! lexEnv.CreateImmutableBinding(dn, true).
                     ctx.exe
                         .add_instruction_with_identifier(Instruction::CreateImmutableBinding, dn);
@@ -302,17 +302,17 @@ pub(crate) fn instantiation(
             // ii. Else,
             //   1. Perform ! lexEnv.CreateMutableBinding(dn, false).
             LexicallyScopedDeclaration::Variable(decl) => decl.id.bound_names(&mut |identifier| {
-                let dn = String::from_str(&mut ctx.agent, &identifier.name);
+                let dn = String::from_str(ctx.agent, &identifier.name);
                 ctx.exe
                     .add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
             }),
             LexicallyScopedDeclaration::Function(decl) => {
-                let dn = String::from_str(&mut ctx.agent, &decl.id.as_ref().unwrap().name);
+                let dn = String::from_str(ctx.agent, &decl.id.as_ref().unwrap().name);
                 ctx.exe
                     .add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
             }
             LexicallyScopedDeclaration::Class(decl) => {
-                let dn = String::from_str(&mut ctx.agent, &decl.id.as_ref().unwrap().name);
+                let dn = String::from_str(ctx.agent, &decl.id.as_ref().unwrap().name);
                 ctx.exe
                     .add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
             }
@@ -329,7 +329,7 @@ pub(crate) fn instantiation(
         // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
         f.compile(ctx);
         // a. Let fn be the sole element of the BoundNames of f.
-        let f_name = String::from_str(&mut ctx.agent, &f.id.as_ref().unwrap().name);
+        let f_name = String::from_str(ctx.agent, &f.id.as_ref().unwrap().name);
         // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
         // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
         ctx.exe

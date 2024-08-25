@@ -124,7 +124,7 @@ impl<T: ?Sized> SendableRef<T> {
     /// The safety conditions for this constructor are the same as for
     /// transmuting `reference` into a static lifetime.
     pub(crate) unsafe fn new_as_static(reference: &T) -> Self {
-        Self::new(unsafe { std::mem::transmute(reference) })
+        Self::new(unsafe { std::mem::transmute::<&T, &'static T>(reference) })
     }
 
     pub(crate) fn get(&self) -> &'static T {
@@ -1962,7 +1962,7 @@ impl CompileEvaluation for ast::ArrayPattern<'_> {
     }
 }
 
-pub(self) fn simple_array_pattern<'a, 'b, I>(
+fn simple_array_pattern<'a, 'b, I>(
     ctx: &mut CompileContext,
     elements: I,
     rest: Option<&BindingRestElement>,
@@ -2041,7 +2041,7 @@ pub(self) fn simple_array_pattern<'a, 'b, I>(
     }
 }
 
-pub(self) fn complex_array_pattern<'a, 'b, I>(
+fn complex_array_pattern<'a, 'b, I>(
     ctx: &mut CompileContext,
     elements: I,
     rest: Option<&BindingRestElement>,
