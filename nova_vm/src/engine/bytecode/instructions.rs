@@ -38,6 +38,10 @@ pub enum Instruction {
     /// in the iterator stack, and stores the created arguments object as the
     /// result value.
     CreateUnmappedArgumentsObject,
+    /// Performs CopyDataProperties() with the source being the result value and
+    /// the target object being at the top of the stack. The excluded names list
+    /// will be empty.
+    CopyDataProperties,
     /// Performs CopyDataProperties() into a newly created object and returns it.
     /// The source object will be on the result value, and the excluded names
     /// will be read from the reference stack, with the number of names passed

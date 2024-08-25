@@ -771,6 +771,45 @@ pub(crate) fn get_function_realm(
 /// ECMAScript language value), and excludedItems (a List of property keys) and returns either a
 /// normal completion containing unused or a throw completion.
 ///
+/// NOTE: This implementation of CopyDataProperties takes an existing target object and populates
+/// it, but it does not support excluded items. It can be used to implement the spread operator in
+/// object literals, but not the rest operator in object destructuring.
+pub(crate) fn copy_data_properties(
+    agent: &mut Agent,
+    target: Object,
+    source: Value,
+) -> JsResult<()> {
+    // 1. If source is either undefined or null, return unused.
+    if source.is_undefined() || source.is_null() {
+        return Ok(());
+    }
+    // 2. Let from be ! ToObject(source).
+    let from = to_object(agent, source).unwrap();
+
+    // 3. Let keys be ? from.[[OwnPropertyKeys]]().
+    // 4. For each element nextKey of keys, do
+    for next_key in from.internal_own_property_keys(agent)? {
+        // i. Let desc be ? from.[[GetOwnProperty]](nextKey).
+        // ii. If desc is not undefined and desc.[[Enumerable]] is true, then
+        if let Some(dest) = from.internal_get_own_property(agent, next_key)? {
+            if dest.enumerable.unwrap() {
+                // 1. Let propValue be ? Get(from, nextKey).
+                let prop_value = get(agent, from, next_key)?;
+                // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
+                create_data_property(agent, target, next_key, prop_value).unwrap();
+            }
+        }
+    }
+
+    // 5. Return UNUSED.
+    Ok(())
+}
+
+/// ### [7.3.25 CopyDataProperties ( target, source, excludedItems )](https://tc39.es/ecma262/#sec-copydataproperties)
+/// The abstract operation CopyDataProperties takes arguments target (an Object), source (an
+/// ECMAScript language value), and excludedItems (a List of property keys) and returns either a
+/// normal completion containing unused or a throw completion.
+///
 /// NOTE: This implementation of CopyDataProperties also creates the target object with
 /// `OrdinaryObjectCreate(%Object.prototype%)`. This can be used to implement the rest operator in
 /// object destructuring, but not the spread operator in object literals.

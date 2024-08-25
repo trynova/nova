@@ -13,9 +13,10 @@ use crate::{
         abstract_operations::{
             operations_on_iterator_objects::iterator_close,
             operations_on_objects::{
-                call, call_function, construct, copy_data_properties_into_object,
-                create_data_property, create_data_property_or_throw, define_property_or_throw, get,
-                get_method, has_property, ordinary_has_instance, set,
+                call, call_function, construct, copy_data_properties,
+                copy_data_properties_into_object, create_data_property,
+                create_data_property_or_throw, define_property_or_throw, get, get_method,
+                has_property, ordinary_has_instance, set,
             },
             testing_and_comparison::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
@@ -596,6 +597,11 @@ impl Vm {
                     None,
                 );
                 vm.stack.push(object.into())
+            }
+            Instruction::CopyDataProperties => {
+                let source = vm.result.take().unwrap();
+                let target = Object::try_from(*vm.stack.last().unwrap()).unwrap();
+                copy_data_properties(agent, target, source)?;
             }
             Instruction::CopyDataPropertiesIntoObject => {
                 let from = Object::try_from(vm.result.unwrap()).unwrap();
