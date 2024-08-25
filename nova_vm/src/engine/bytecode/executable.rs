@@ -1187,7 +1187,7 @@ impl CompileEvaluation for ast::ArrayExpression<'_> {
                 _ => {
                     let expression = ele.to_expression();
                     expression.compile(ctx);
-                    if is_reference(&expression) {
+                    if is_reference(expression) {
                         ctx.exe.add_instruction(Instruction::GetValue);
                     }
                     ctx.exe.add_instruction(Instruction::ArrayPush);
