@@ -26,9 +26,10 @@ use crate::{
             },
         },
         builtins::{
-            array_create, global_object::perform_eval, make_constructor, make_method,
-            ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
-            set_function_name, ArgumentsList, Array, OrdinaryFunctionCreateParams,
+            array_create, create_unmapped_arguments_object, global_object::perform_eval,
+            make_constructor, make_method, ordinary::ordinary_object_create_with_intrinsics,
+            ordinary_function_create, set_function_name, ArgumentsList, Array,
+            OrdinaryFunctionCreateParams,
         },
         execution::{
             agent::{resolve_binding, ExceptionType, JsError},
@@ -46,7 +47,7 @@ use crate::{
 };
 
 use super::{
-    executable::NamedEvaluationParameter,
+    executable::{NamedEvaluationParameter, SendableRef},
     instructions::Instr,
     iterator::{ObjectPropertiesIterator, VmIterator},
     Executable, Instruction, InstructionIter,
@@ -131,8 +132,20 @@ impl Vm {
     }
 
     /// Executes an executable using the virtual machine.
-    pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> ExecutionResult {
-        let vm = Vm::new();
+    pub(crate) fn execute(
+        agent: &mut Agent,
+        executable: &Executable,
+        arguments: Option<&[Value]>,
+    ) -> ExecutionResult {
+        let mut vm = Vm::new();
+
+        if let Some(arguments) = arguments {
+            // SAFETY: awaits and yields are invalid syntax inside an arguments
+            // list, so this reference shouldn't remain alive after this
+            // function returns.
+            let arguments = unsafe { SendableRef::new_as_static(arguments) };
+            vm.iterator_stack.push(VmIterator::SliceIterator(arguments));
+        }
 
         if agent.options.print_internals {
             eprintln!();
@@ -1000,6 +1013,56 @@ impl Vm {
                 let w = vm.result.take().unwrap();
                 initialize_referenced_binding(agent, v, w)?;
             }
+            Instruction::InitializeVariableEnvironment => {
+                let num_variables = instr.args[0].unwrap();
+                assert!(instr.args[1].unwrap() <= 1);
+                let strict = instr.args[1].unwrap() == 1;
+
+                // 10.2.11 FunctionDeclarationInstantiation
+                // 28.b. Let varEnv be NewDeclarativeEnvironment(env).
+                let env = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap()
+                    .lexical_environment;
+                let var_env = new_declarative_environment(agent, Some(env));
+                // c. Set the VariableEnvironment of calleeContext to varEnv.
+                agent
+                    .running_execution_context_mut()
+                    .ecmascript_code
+                    .as_mut()
+                    .unwrap()
+                    .variable_environment = EnvironmentIndex::Declarative(var_env);
+
+                // e. For each element n of varNames, do
+                for _ in 0..num_variables {
+                    let n = String::try_from(vm.stack.pop().unwrap()).unwrap();
+                    let initial_value = vm.stack.pop().unwrap();
+                    // 2. Perform ! varEnv.CreateMutableBinding(n, false).
+                    var_env.create_mutable_binding(agent, n, false);
+                    // 5. Perform ! varEnv.InitializeBinding(n, initialValue).
+                    var_env.initialize_binding(agent, n, initial_value);
+                }
+
+                // 30. If strict is false, then
+                let lex_env = if !strict {
+                    // a. Let lexEnv be NewDeclarativeEnvironment(varEnv).
+                    new_declarative_environment(agent, Some(EnvironmentIndex::Declarative(var_env)))
+                } else {
+                    // 31. Else,
+                    // a. Let lexEnv be varEnv.
+                    var_env
+                };
+
+                // 32. Set the LexicalEnvironment of calleeContext to lexEnv.
+                agent
+                    .running_execution_context_mut()
+                    .ecmascript_code
+                    .as_mut()
+                    .unwrap()
+                    .lexical_environment = EnvironmentIndex::Declarative(lex_env);
+            }
             Instruction::EnterDeclarativeEnvironment => {
                 let outer_env = agent
                     .running_execution_context()
@@ -1014,6 +1077,21 @@ impl Vm {
                     .as_mut()
                     .unwrap()
                     .lexical_environment = EnvironmentIndex::Declarative(new_env);
+            }
+            Instruction::EnterDeclarativeVariableEnvironment => {
+                let outer_env = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap()
+                    .lexical_environment;
+                let new_env = new_declarative_environment(agent, Some(outer_env));
+                agent
+                    .running_execution_context_mut()
+                    .ecmascript_code
+                    .as_mut()
+                    .unwrap()
+                    .variable_environment = EnvironmentIndex::Declarative(new_env);
             }
             Instruction::ExitDeclarativeEnvironment => {
                 let old_env = agent
@@ -1260,9 +1338,9 @@ impl Vm {
                 if let Ok(result) = result {
                     vm.result = Some(result.unwrap_or(Value::Undefined));
                     if result.is_none() {
-                        // We have exhausted the iterator; replace it with the empty VmIterator so
+                        // We have exhausted the iterator; replace it with an empty VmIterator so
                         // further instructions aren't observable.
-                        *iterator = VmIterator::EmptyIterator;
+                        *iterator = VmIterator::SliceIterator(SendableRef::new(&[]));
                     }
                 } else {
                     vm.iterator_stack.pop();
@@ -1293,6 +1371,12 @@ impl Vm {
                 }
             }
             Instruction::Yield => return Ok(ContinuationKind::Yield),
+            Instruction::CreateUnmappedArgumentsObject => {
+                let Some(VmIterator::SliceIterator(slice)) = vm.iterator_stack.last() else {
+                    unreachable!()
+                };
+                vm.result = Some(create_unmapped_arguments_object(agent, slice.get()).into_value());
+            }
             other => todo!("{other:?}"),
         }
 
