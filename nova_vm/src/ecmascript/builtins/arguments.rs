@@ -40,7 +40,7 @@ use crate::{
     heap::WellKnownSymbolIndexes,
 };
 
-use super::{ordinary::ordinary_object_create_with_intrinsics, ArgumentsList};
+use super::ordinary::ordinary_object_create_with_intrinsics;
 
 // 10.4.4.1 [[GetOwnProperty]] ( P )
 
@@ -122,7 +122,7 @@ use super::{ordinary::ordinary_object_create_with_intrinsics, ArgumentsList};
 /// ordinary object.
 pub(crate) fn create_unmapped_arguments_object(
     agent: &mut Agent,
-    arguments_list: ArgumentsList,
+    arguments_list: &[Value],
 ) -> Object {
     // 1. Let len be the number of elements in argumentsList.
     let len = arguments_list.len();
@@ -154,7 +154,7 @@ pub(crate) fn create_unmapped_arguments_object(
     .unwrap();
     // 5. Let index be 0.
     // 6. Repeat, while index < len,
-    for (index, val) in arguments_list.0.iter().enumerate() {
+    for (index, val) in arguments_list.iter().enumerate() {
         // a. Let val be argumentsList[index].
         // b. Perform ! CreateDataPropertyOrThrow(obj, ! ToString(𝔽(index)), val).
         debug_assert!(index < u32::MAX as usize);
@@ -173,7 +173,13 @@ pub(crate) fn create_unmapped_arguments_object(
         key,
         PropertyDescriptor {
             // [[Value]]: %Array.prototype.values%,
-            value: Some(Value::Null),
+            value: Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .array_prototype_values()
+                    .into_value(),
+            ),
             // [[Writable]]: true,
             writable: Some(true),
             // [[Enumerable]]: false,

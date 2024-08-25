@@ -66,6 +66,54 @@ pub enum Primitive {
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
+/// A primitive value that is stored on the heap.
+///
+/// Note: Symbol is not considered a primitive in this sense, as while its data
+/// is stored on the heap, the Symbol's value is the Symbol itself and it is
+/// stored on the stack.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(u8)]
+pub(crate) enum HeapPrimitive {
+    /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
+    ///
+    /// UTF-8 string on the heap. Accessing the data must be done through the
+    /// Agent. ECMAScript specification compliant UTF-16 indexing is
+    /// implemented through an index mapping.
+    String(HeapString) = STRING_DISCRIMINANT,
+    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    ///
+    /// f64 on the heap. Accessing the data must be done through the Agent.
+    Number(HeapNumber) = NUMBER_DISCRIMINANT,
+    /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+    ///
+    /// Unlimited size integer data on the heap. Accessing the data must be
+    /// done through the Agent.
+    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+}
+
+impl IntoValue for HeapPrimitive {
+    fn into_value(self) -> Value {
+        match self {
+            HeapPrimitive::String(data) => Value::String(data),
+            HeapPrimitive::Number(data) => Value::Number(data),
+            HeapPrimitive::BigInt(data) => Value::BigInt(data),
+        }
+    }
+}
+
+impl TryFrom<Value> for HeapPrimitive {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::String(data) => Ok(Self::String(data)),
+            Value::Number(data) => Ok(Self::Number(data)),
+            Value::BigInt(data) => Ok(Self::BigInt(data)),
+            _ => Err(()),
+        }
+    }
+}
+
 impl IntoValue for Primitive {
     fn into_value(self) -> super::Value {
         match self {

@@ -30,6 +30,7 @@ pub use numeric::Numeric;
 pub use object::{
     InternalMethods, InternalSlots, IntoObject, Object, ObjectHeapData, OrdinaryObject, PropertyKey,
 };
+pub(crate) use primitive::HeapPrimitive;
 pub use primitive::Primitive;
 pub use string::{HeapString, String, StringHeapData, BUILTIN_STRINGS_LIST, BUILTIN_STRING_MEMORY};
 pub use symbol::{Symbol, SymbolHeapData};

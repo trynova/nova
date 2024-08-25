@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 /// 56-bit signed integer.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SmallInteger {
     data: [u8; 7],
 }
@@ -11,6 +11,12 @@ pub struct SmallInteger {
 impl std::fmt::Debug for SmallInteger {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", Into::<i64>::into(*self))
+    }
+}
+
+impl std::hash::Hash for SmallInteger {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.into_i64().hash(state);
     }
 }
 

@@ -34,6 +34,19 @@ pub enum Instruction {
     /// Create a catch binding for the given name and populate it with the
     /// stored exception.
     CreateCatchBinding,
+    /// Performs CreateUnmappedArgumentsObject() on the arguments list present
+    /// in the iterator stack, and stores the created arguments object as the
+    /// result value.
+    CreateUnmappedArgumentsObject,
+    /// Performs CopyDataProperties() with the source being the result value and
+    /// the target object being at the top of the stack. The excluded names list
+    /// will be empty.
+    CopyDataProperties,
+    /// Performs CopyDataProperties() into a newly created object and returns it.
+    /// The source object will be on the result value, and the excluded names
+    /// will be read from the reference stack, with the number of names passed
+    /// in an immediate.
+    CopyDataPropertiesIntoObject,
     /// Apply the delete operation to the evaluated expression and set it as
     /// the result value.
     Delete,
@@ -72,7 +85,8 @@ pub enum Instruction {
     /// value so a `GetValue` call would be a no-op.
     GetValue,
     /// Same as GetValue without taking the reference slot. Used for reference
-    /// property updates.
+    /// property updates and function calls (where `this` comes from the
+    /// reference).
     GetValueKeepReference,
     /// Compare the last two values on the stack using the '>' operator rules.
     GreaterThan,
@@ -95,6 +109,9 @@ pub enum Instruction {
     /// Store true as the result value if the current result value is null or
     /// undefined, false otherwise.
     IsNullOrUndefined,
+    /// Store true as the result value if the current result value is undefined,
+    /// false otherwise.
+    IsUndefined,
     /// Jump to another instruction by setting the instruction pointer.
     Jump,
     /// Jump to another instruction by setting the instruction pointer
@@ -126,6 +143,9 @@ pub enum Instruction {
     ObjectSetProperty,
     ObjectSetGetter,
     ObjectSetSetter,
+    /// Call `object[[SetPrototypeOf]](value)` on the object on the stack using
+    /// the current result value as the parameter.
+    ObjectSetPrototype,
     /// Pop a jump target for uncaught exceptions
     PopExceptionJumpTarget,
     /// Pop the last stored reference.
@@ -157,6 +177,8 @@ pub enum Instruction {
     ToNumber,
     /// Store ToNumeric() as the result value.
     ToNumeric,
+    /// Store ToObject() as the result value.
+    ToObject,
     /// Store ToString() as the result value.
     ToString,
     /// Apply the typeof operation to the evaluated expression and set it as
@@ -176,6 +198,13 @@ pub enum Instruction {
     /// Perform InitializeReferencedBinding with parameters reference (V) and
     /// result (W).
     InitializeReferencedBinding,
+    /// Create a new VariableEnvironment and initialize it with variable names
+    /// and values from the stack, where each name comes before the value.
+    /// The first immediate argument is the number of variables to initialize.
+    /// The second immediate is a boolean which is true if LexicalEnvironment
+    /// should also be set to this new environment (true in strict mode), or
+    /// false if it should be set to a new descendant declarative environment.
+    InitializeVariableEnvironment,
     /// Perform NewDeclarativeEnvironment with the running execution context's
     /// LexicalEnvironment as the only parameter and set it as the running
     /// execution context's LexicalEnvironment.
@@ -186,23 +215,32 @@ pub enum Instruction {
     /// spec requires that creation of bindings in the environment is done
     /// first. This is immaterial because creating the bindings cannot fail.
     EnterDeclarativeEnvironment,
+    /// Perform NewDeclarativeEnvironment with the running execution context's
+    /// LexicalEnvironment as the only parameter, and set it as the running
+    /// execution context's VariableEnvironment.
+    EnterDeclarativeVariableEnvironment,
     /// Reset the running execution context's LexicalEnvironment to its current
     /// value's \[\[OuterEnv]].
     ExitDeclarativeEnvironment,
     /// Begin binding values using destructuring
-    BeginObjectBindingPattern,
+    BeginSimpleObjectBindingPattern,
     /// Begin binding values using a sync iterator for known repetitions
     BeginSimpleArrayBindingPattern,
-    /// Begin binding values using a sync iterator
-    BeginArrayBindingPattern,
-    /// Bind current result to given identifier
+    /// In array binding patterns, bind the current result to the given
+    /// identifier. In object binding patterns, bind the object's property with
+    /// the identifier's name.
     ///
     /// ```js
     /// const { a } = x;
     /// const [a] = x;
     /// ```
     BindingPatternBind,
-    /// Bind current result to
+    /// Bind an object property to an identifier with a different name. The
+    /// constant given as the second argument is the property key.
+    ///
+    /// ```js
+    /// const { a: b } = x;
+    /// ```
     BindingPatternBindNamed,
     /// Bind all remaining values to given identifier
     ///
@@ -211,21 +249,13 @@ pub enum Instruction {
     /// const [a, ...b] = x;
     /// ```
     BindingPatternBindRest,
-    /// Bind current result to given identifier, falling back to an initializer
-    /// if the current result is undefined.
-    ///
-    /// ```js
-    /// const { a = 3 } = x;
-    /// const [a = 3] = x;
-    /// ```
-    BindingPatternBindWithInitializer,
-    /// Skip the next value
+    /// Skip the next value in an array binding pattern.
     ///
     /// ```js
     /// const [a,,b] = x;
     /// ```
     BindingPatternSkip,
-    /// Load the next value onto the stack
+    /// Load the next value in an array binding pattern onto the stack.
     ///
     /// This is used to implement nested binding patterns. The current binding
     /// pattern needs to take the "next step", but instead of binding to an
@@ -234,9 +264,20 @@ pub enum Instruction {
     ///
     /// ```js
     /// const [{ a }] = x;
-    /// const { a: [b] } = x;
     /// ```
     BindingPatternGetValue,
+    /// Load the value of the property with the given name in an object binding
+    /// pattern onto the stack. The name is passed as a constant argument.
+    ///
+    /// This is used to implement nested binding patterns. The current binding
+    /// pattern needs to take the "next step", but instead of binding to an
+    /// identifier it is instead saved on the stack and the nested binding
+    /// pattern starts its work.
+    ///
+    /// ```js
+    /// const { a: [b] } = x;
+    /// ```
+    BindingPatternGetValueNamed,
     /// Load all remaining values onto the stack
     ///
     /// This is used to implement nested binding patterns in rest elements.
@@ -259,6 +300,16 @@ pub enum Instruction {
     /// Perform IteratorStepValue on the current iterator and jump to
     /// index if iterator completed.
     IteratorStepValue,
+    /// Perform IteratorStepValue on the current iterator, putting the resulting
+    /// value on the result value, or undefined if the iterator has completed.
+    ///
+    /// When the iterator has completed, rather than popping it off the stack,
+    /// it sets it to `VmIterator::EmptyIterator` so further reads and closes
+    /// aren't observable.
+    IteratorStepValueOrUndefined,
+    /// Consume the remainder of the iterator, and produce a new array with
+    /// those elements. This pops the iterator off the iterator stack.
+    IteratorRestIntoArray,
     /// Perform CloseIterator on the current iterator
     IteratorClose,
     /// Perform AsyncCloseIterator on the current iterator
@@ -269,13 +320,16 @@ impl Instruction {
     pub fn argument_count(self) -> u8 {
         match self {
             // Number of repetitions and lexical status
-            Self::BeginSimpleArrayBindingPattern => 2,
+            Self::BeginSimpleArrayBindingPattern
+            | Self::BindingPatternBindNamed
+            | Self::InitializeVariableEnvironment => 2,
             Self::ArrayCreate
             | Self::ArraySetValue
-            | Self::BeginArrayBindingPattern
-            | Self::BeginObjectBindingPattern
+            | Self::BeginSimpleObjectBindingPattern
             | Self::BindingPatternBind
-            | Self::BindingPatternBindWithInitializer
+            | Self::BindingPatternGetValueNamed
+            | Self::BindingPatternBindRest
+            | Self::CopyDataPropertiesIntoObject
             | Self::CreateCatchBinding
             | Self::CreateImmutableBinding
             | Self::CreateMutableBinding
@@ -301,7 +355,13 @@ impl Instruction {
     }
 
     pub fn has_constant_index(self) -> bool {
-        matches!(self, Self::LoadConstant | Self::StoreConstant)
+        matches!(
+            self,
+            Self::LoadConstant
+                | Self::StoreConstant
+                | Self::BindingPatternBindNamed
+                | Self::BindingPatternGetValueNamed
+        )
     }
 
     pub fn has_identifier_index(self) -> bool {
@@ -313,7 +373,8 @@ impl Instruction {
                 | Self::CreateImmutableBinding
                 | Self::CreateMutableBinding
                 | Self::BindingPatternBind
-                | Self::BindingPatternBindWithInitializer
+                | Self::BindingPatternBindNamed
+                | Self::BindingPatternBindRest
         )
     }
 

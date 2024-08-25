@@ -22,6 +22,7 @@
 [Symbol.toPrimitive]
 *default*
 0
+__proto__
 abs
 acos
 acosh
@@ -285,6 +286,7 @@ pop
 POSITIVE_INFINITY
 pow
 preventExtensions
+promise
 Promise
 propertyIsEnumerable
 prototype
@@ -420,6 +422,7 @@ trimEnd
 trimStart
 true
 trunc
+try
 TypedArray
 TypeError
 Uint16Array

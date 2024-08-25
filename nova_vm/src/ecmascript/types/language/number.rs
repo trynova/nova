@@ -17,7 +17,8 @@ use crate::{
     },
     engine::small_f64::SmallF64,
     heap::{
-        indexes::NumberIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::NumberIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        PrimitiveHeap, WorkQueues,
     },
     SmallInteger,
 };
@@ -77,6 +78,18 @@ impl IntoValue for Number {
 impl IntoNumeric for HeapNumber {
     fn into_numeric(self) -> Numeric {
         Numeric::Number(self)
+    }
+}
+
+impl TryFrom<Value> for HeapNumber {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Number(x) = value {
+            Ok(x)
+        } else {
+            Err(())
+        }
     }
 }
 
@@ -241,7 +254,7 @@ impl Number {
         Self::from(f32::NEG_INFINITY)
     }
 
-    pub fn is_nan(self, agent: &Agent) -> bool {
+    pub fn is_nan(self, agent: &impl Index<HeapNumber, Output = f64>) -> bool {
         match self {
             Number::Number(n) => agent[n].is_nan(),
             Number::Integer(_) => false,
@@ -249,7 +262,7 @@ impl Number {
         }
     }
 
-    pub fn is_pos_zero(self, agent: &Agent) -> bool {
+    pub fn is_pos_zero(self, agent: &impl Index<HeapNumber, Output = f64>) -> bool {
         match self {
             Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(agent[n]),
             Number::Integer(n) => 0i64 == n.into_i64(),
@@ -257,7 +270,7 @@ impl Number {
         }
     }
 
-    pub fn is_neg_zero(self, agent: &Agent) -> bool {
+    pub fn is_neg_zero(self, agent: &impl Index<HeapNumber, Output = f64>) -> bool {
         match self {
             Number::Number(n) => f64::to_bits(-0.0) == f64::to_bits(agent[n]),
             Number::Integer(_) => false,
@@ -265,7 +278,7 @@ impl Number {
         }
     }
 
-    pub fn is_pos_infinity(self, agent: &Agent) -> bool {
+    pub fn is_pos_infinity(self, agent: &impl Index<HeapNumber, Output = f64>) -> bool {
         match self {
             Number::Number(n) => agent[n] == f64::INFINITY,
             Number::Integer(_) => false,
@@ -273,7 +286,7 @@ impl Number {
         }
     }
 
-    pub fn is_neg_infinity(self, agent: &Agent) -> bool {
+    pub fn is_neg_infinity(self, agent: &impl Index<HeapNumber, Output = f64>) -> bool {
         match self {
             Number::Number(n) => agent[n] == f64::NEG_INFINITY,
             Number::Integer(_) => false,
@@ -281,7 +294,7 @@ impl Number {
         }
     }
 
-    pub fn is_finite(self, agent: &Agent) -> bool {
+    pub fn is_finite(self, agent: &impl Index<HeapNumber, Output = f64>) -> bool {
         match self {
             Number::Number(n) => agent[n].is_finite(),
             Number::Integer(_) => true,
@@ -289,7 +302,7 @@ impl Number {
         }
     }
 
-    pub fn is_nonzero(self, agent: &Agent) -> bool {
+    pub fn is_nonzero(self, agent: &impl Index<HeapNumber, Output = f64>) -> bool {
         match self {
             Number::Number(n) => 0.0 != agent[n],
             Number::Integer(n) => 0i64 != n.into_i64(),
@@ -297,7 +310,7 @@ impl Number {
         }
     }
 
-    pub fn is_pos_one(self, agent: &Agent) -> bool {
+    pub fn is_pos_one(self, agent: &impl Index<HeapNumber, Output = f64>) -> bool {
         // NOTE: Only the integer variant should ever return true, if any other
         // variant returns true, that's a bug as it means that our variants are
         // no longer "sound".
@@ -314,7 +327,7 @@ impl Number {
         }
     }
 
-    pub fn is_neg_one(self, agent: &Agent) -> bool {
+    pub fn is_neg_one(self, agent: &impl Index<HeapNumber, Output = f64>) -> bool {
         match self {
             Number::Integer(n) => -1i64 == n.into_i64(),
             Number::Number(n) => {
@@ -328,7 +341,7 @@ impl Number {
         }
     }
 
-    pub fn is_sign_positive(self, agent: &Agent) -> bool {
+    pub fn is_sign_positive(self, agent: &impl Index<HeapNumber, Output = f64>) -> bool {
         match self {
             Number::Number(n) => agent[n].is_sign_positive(),
             Number::Integer(n) => n.into_i64().is_positive(),
@@ -336,7 +349,7 @@ impl Number {
         }
     }
 
-    pub fn is_sign_negative(self, agent: &Agent) -> bool {
+    pub fn is_sign_negative(self, agent: &impl Index<HeapNumber, Output = f64>) -> bool {
         match self {
             Number::Number(n) => agent[n].is_sign_negative(),
             Number::Integer(n) => n.into_i64().is_negative(),
@@ -356,7 +369,7 @@ impl Number {
         }
     }
 
-    pub fn into_f64(self, agent: &Agent) -> f64 {
+    pub fn into_f64(self, agent: &impl Index<HeapNumber, Output = f64>) -> f64 {
         match self {
             Number::Number(n) => agent[n],
             Number::Integer(n) => Into::<i64>::into(n) as f64,
@@ -364,7 +377,7 @@ impl Number {
         }
     }
 
-    pub fn into_f32(self, agent: &Agent) -> f32 {
+    pub fn into_f32(self, agent: &impl Index<HeapNumber, Output = f64>) -> f32 {
         match self {
             Number::Number(n) => agent[n] as f32,
             Number::Integer(n) => Into::<i64>::into(n) as f32,
@@ -378,7 +391,7 @@ impl Number {
     /// - NaN becomes 0.
     /// - Numbers are clamped between [`i64::MIN`] and [`i64::MAX`].
     /// - All other numbers round towards zero.
-    pub fn into_i64(self, agent: &Agent) -> i64 {
+    pub fn into_i64(self, agent: &impl Index<HeapNumber, Output = f64>) -> i64 {
         match self {
             Number::Number(n) => agent[n] as i64,
             Number::Integer(n) => Into::<i64>::into(n),
@@ -392,7 +405,7 @@ impl Number {
     /// - NaN becomes 0.
     /// - Numbers are clamped between 0 and [`usize::MAX`].
     /// - All other numbers round towards zero.
-    pub fn into_usize(self, agent: &Agent) -> usize {
+    pub fn into_usize(self, agent: &impl Index<HeapNumber, Output = f64>) -> usize {
         match self {
             Number::Number(n) => agent[n] as usize,
             Number::Integer(n) => {
@@ -412,7 +425,7 @@ impl Number {
     /// NaN and non-zero checks, depending on which spec algorithm is being
     /// used.
     #[inline(always)]
-    fn is(agent: &Agent, x: Self, y: Self) -> bool {
+    fn is(agent: &impl Index<HeapNumber, Output = f64>, x: Self, y: Self) -> bool {
         match (x, y) {
             // Optimisation: First compare by-reference; only read from heap if needed.
             (Number::Number(x), Number::Number(y)) => x == y || agent[x] == agent[y],
@@ -1063,7 +1076,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.13 Number::equal ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-equal)
-    pub fn equal(agent: &Agent, x: Self, y: Self) -> bool {
+    pub fn equal(agent: &impl Index<HeapNumber, Output = f64>, x: Self, y: Self) -> bool {
         // 1. If x is NaN, return false.
         if x.is_nan(agent) {
             return false;
@@ -1094,7 +1107,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.14 Number::sameValue ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValue)
-    pub fn same_value(agent: &Agent, x: Self, y: Self) -> bool {
+    pub fn same_value(agent: &impl Index<HeapNumber, Output = f64>, x: Self, y: Self) -> bool {
         // 1. If x is NaN and y is NaN, return true.
         if x.is_nan(agent) && y.is_nan(agent) {
             return true;
@@ -1120,7 +1133,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.15 Number::sameValueZero ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValueZero)
-    pub fn same_value_zero(agent: &Agent, x: Self, y: Self) -> bool {
+    pub fn same_value_zero(agent: &impl Index<HeapNumber, Output = f64>, x: Self, y: Self) -> bool {
         // 1. If x is NaN and y is NaN, return true.
         if x.is_nan(agent) && y.is_nan(agent) {
             return true;
@@ -1202,31 +1215,25 @@ impl Number {
     }
 
     // ### [6.1.6.1.20 Number::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-number-tostring)
-    pub(crate) fn to_string_radix_10(agent: &mut Agent, x: Self) -> JsResult<String> {
+    pub(crate) fn to_string_radix_10(agent: &mut Agent, x: Self) -> String {
         match x {
             Number::Number(_) => {
                 let mut buffer = ryu_js::Buffer::new();
-                Ok(String::from_string(
-                    agent,
-                    buffer.format(x.into_f64(agent)).to_string(),
-                ))
+                String::from_string(agent, buffer.format(x.into_f64(agent)).to_string())
             }
             Number::Integer(x) => {
                 let x = x.into_i64();
-                Ok(String::from_string(agent, format!("{x}")))
+                String::from_string(agent, format!("{x}"))
             }
             Number::SmallF64(x) => {
                 let mut buffer = ryu_js::Buffer::new();
-                Ok(String::from_string(
-                    agent,
-                    buffer.format(x.into_f64()).to_string(),
-                ))
+                String::from_string(agent, buffer.format(x.into_f64()).to_string())
             }
         }
     }
 
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
-    pub(crate) fn to_real(self, agent: &Agent) -> f64 {
+    pub(crate) fn to_real(self, agent: &impl Index<HeapNumber, Output = f64>) -> f64 {
         match self {
             Self::Number(n) => agent[n],
             Self::Integer(i) => i.into_i64() as f64,
@@ -1258,6 +1265,14 @@ impl_value_from_n!(u16);
 impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
+
+impl Index<HeapNumber> for PrimitiveHeap<'_> {
+    type Output = f64;
+
+    fn index(&self, index: HeapNumber) -> &Self::Output {
+        &self.numbers[index]
+    }
+}
 
 impl Index<HeapNumber> for Agent {
     type Output = f64;

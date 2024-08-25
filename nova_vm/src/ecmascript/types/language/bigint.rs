@@ -3,9 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 mod data;
-
-use std::ops::{Index, IndexMut};
-
 use super::{
     into_numeric::IntoNumeric,
     numeric::Numeric,
@@ -15,12 +12,13 @@ use super::{
 use crate::{
     ecmascript::execution::{agent::ExceptionType, Agent, JsResult},
     heap::{
-        indexes::BigIntIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::BigIntIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        PrimitiveHeap, WorkQueues,
     },
     SmallInteger,
 };
-
 pub use data::BigIntHeapData;
+use std::ops::{Index, IndexMut};
 
 impl IntoValue for BigInt {
     fn into_value(self) -> Value {
@@ -54,6 +52,42 @@ impl HeapBigInt {
 
     pub(crate) fn get_index(self) -> usize {
         self.0.into_index()
+    }
+}
+
+impl IntoValue for HeapBigInt {
+    fn into_value(self) -> Value {
+        Value::BigInt(self)
+    }
+}
+
+impl IntoPrimitive for HeapBigInt {
+    fn into_primitive(self) -> Primitive {
+        Primitive::BigInt(self)
+    }
+}
+
+impl TryFrom<Value> for HeapBigInt {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::BigInt(x) = value {
+            Ok(x)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Primitive> for HeapBigInt {
+    type Error = ();
+
+    fn try_from(value: Primitive) -> Result<Self, Self::Error> {
+        if let Primitive::BigInt(x) = value {
+            Ok(x)
+        } else {
+            Err(())
+        }
     }
 }
 
@@ -374,7 +408,11 @@ impl BigInt {
     ///
     /// The abstract operation BigInt::lessThan takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a Boolean.
-    pub(crate) fn less_than(agent: &mut Agent, x: BigInt, y: BigInt) -> bool {
+    pub(crate) fn less_than(
+        agent: &impl Index<HeapBigInt, Output = BigIntHeapData>,
+        x: BigInt,
+        y: BigInt,
+    ) -> bool {
         // 1. If ℝ(x) < ℝ(y), return true; otherwise return false.
         match (x, y) {
             (BigInt::BigInt(_), BigInt::SmallBigInt(_)) => false,
@@ -438,7 +476,11 @@ impl BigInt {
     ///
     /// The abstract operation BigInt::equal takes arguments x (a BigInt) and y
     /// (a BigInt) and returns a Boolean.
-    pub(crate) fn equal(agent: &Agent, x: BigInt, y: BigInt) -> bool {
+    pub(crate) fn equal(
+        agent: &impl Index<HeapBigInt, Output = BigIntHeapData>,
+        x: BigInt,
+        y: BigInt,
+    ) -> bool {
         // 1. If ℝ(x) = ℝ(y), return true; otherwise return false.
         match (x, y) {
             (BigInt::BigInt(x), BigInt::BigInt(y)) => {
@@ -546,6 +588,14 @@ impl_value_from_n!(u16);
 impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
+
+impl Index<HeapBigInt> for PrimitiveHeap<'_> {
+    type Output = BigIntHeapData;
+
+    fn index(&self, index: HeapBigInt) -> &Self::Output {
+        &self.bigints[index]
+    }
+}
 
 impl Index<HeapBigInt> for Agent {
     type Output = BigIntHeapData;
