@@ -12,7 +12,7 @@ use crate::{
         execution::Agent,
         scripts_and_modules::script::ScriptIdentifier,
         syntax_directed_operations::{
-            function_definitions::CompileFunctionBodyData,
+            function_definitions::{CompileFunctionBodyData, ContainsExpression},
             scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
         },
         types::{
@@ -485,49 +485,6 @@ fn is_chain_expression(expression: &ast::Expression) -> bool {
             is_chain_expression(&parenthesized.expression)
         }
         _ => false,
-    }
-}
-
-trait ContainsExpression {
-    fn contains_expression(&self) -> bool;
-}
-impl ContainsExpression for ast::BindingPattern<'_> {
-    fn contains_expression(&self) -> bool {
-        match &self.kind {
-            ast::BindingPatternKind::BindingIdentifier(_) => false,
-            ast::BindingPatternKind::ObjectPattern(pattern) => pattern.contains_expression(),
-            ast::BindingPatternKind::ArrayPattern(pattern) => pattern.contains_expression(),
-            ast::BindingPatternKind::AssignmentPattern(_) => true,
-        }
-    }
-}
-impl ContainsExpression for ast::ObjectPattern<'_> {
-    fn contains_expression(&self) -> bool {
-        for property in &self.properties {
-            if property.computed || property.value.contains_expression() {
-                return true;
-            }
-        }
-
-        if let Some(rest) = &self.rest {
-            debug_assert!(!rest.argument.contains_expression());
-        }
-
-        false
-    }
-}
-impl ContainsExpression for ast::ArrayPattern<'_> {
-    fn contains_expression(&self) -> bool {
-        for pattern in self.elements.iter().flatten() {
-            if pattern.contains_expression() {
-                return true;
-            }
-        }
-        if let Some(rest) = &self.rest {
-            rest.argument.contains_expression()
-        } else {
-            false
-        }
     }
 }
 
