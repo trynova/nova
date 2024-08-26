@@ -297,6 +297,8 @@ impl CompileEvaluation for ast::Class<'_> {
         ctx.exe.add_instruction(Instruction::Load);
         // stack: [constructor, proto]
 
+        // Note: These steps have been performed by ClassDefineConstructor or
+        // ClassDefineDefaultConstructor.
         // 16. Perform MakeConstructor(F, false, proto).
         // 17. If ClassHeritage is present, set F.[[ConstructorKind]] to derived.
         // 18. Perform ! ObjectDefineMethod(proto, "constructor", F, false).
