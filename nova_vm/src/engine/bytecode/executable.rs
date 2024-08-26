@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod class_definition_evaluation;
 mod for_in_of_statement;
 mod function_declaration_instantiation;
 
@@ -49,7 +50,7 @@ pub(crate) struct CompileContext<'agent> {
     pub(crate) agent: &'agent mut Agent,
     pub(crate) exe: Executable,
     /// NamedEvaluation name parameter
-    pub(crate) name_identifier: Option<NamedEvaluationParameter>,
+    pub(super) name_identifier: Option<NamedEvaluationParameter>,
     /// If true, indicates that all bindings being created are lexical.
     ///
     /// Otherwise, all bindings being created are variable scoped.
@@ -283,7 +284,7 @@ impl Executable {
             .push(unsafe { std::mem::transmute::<Instruction, u8>(instruction) });
     }
 
-    pub(crate) fn add_instruction(&mut self, instruction: Instruction) {
+    pub(super) fn add_instruction(&mut self, instruction: Instruction) {
         debug_assert_eq!(instruction.argument_count(), 0);
         debug_assert!(
             !instruction.has_constant_index()
@@ -293,7 +294,7 @@ impl Executable {
         self._push_instruction(instruction);
     }
 
-    pub(crate) fn add_instruction_with_jump_slot(&mut self, instruction: Instruction) -> JumpIndex {
+    pub(super) fn add_instruction_with_jump_slot(&mut self, instruction: Instruction) -> JumpIndex {
         debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_jump_slot());
         self._push_instruction(instruction);
@@ -343,7 +344,7 @@ impl Executable {
         })
     }
 
-    pub(crate) fn add_instruction_with_immediate(
+    pub(super) fn add_instruction_with_immediate(
         &mut self,
         instruction: Instruction,
         immediate: usize,
@@ -353,7 +354,7 @@ impl Executable {
         self.add_index(immediate);
     }
 
-    pub(crate) fn add_instruction_with_constant(
+    pub(super) fn add_instruction_with_constant(
         &mut self,
         instruction: Instruction,
         constant: impl Into<Value>,
@@ -365,7 +366,7 @@ impl Executable {
         self.add_index(constant);
     }
 
-    pub(crate) fn add_instruction_with_identifier(
+    pub(super) fn add_instruction_with_identifier(
         &mut self,
         instruction: Instruction,
         identifier: String,
@@ -410,7 +411,7 @@ impl Executable {
         self.instructions.extend_from_slice(&bytes);
     }
 
-    pub(crate) fn add_instruction_with_function_expression(
+    pub(super) fn add_instruction_with_function_expression(
         &mut self,
         instruction: Instruction,
         function_expression: FunctionExpression,
@@ -423,7 +424,7 @@ impl Executable {
         self.add_index(index);
     }
 
-    pub(crate) fn add_instruction_with_function_expression_and_immediate(
+    pub(super) fn add_instruction_with_function_expression_and_immediate(
         &mut self,
         instruction: Instruction,
         function_expression: FunctionExpression,
@@ -459,14 +460,14 @@ impl Executable {
         }
     }
 
-    pub(crate) fn set_jump_target(&mut self, source: JumpIndex, target: JumpIndex) {
+    pub(super) fn set_jump_target(&mut self, source: JumpIndex, target: JumpIndex) {
         assert!(target.index < IndexType::MAX as usize);
         let bytes: [u8; 2] = (target.index as IndexType).to_ne_bytes();
         self.instructions[source.index] = bytes[0];
         self.instructions[source.index + 1] = bytes[1];
     }
 
-    pub(crate) fn set_jump_target_here(&mut self, jump: JumpIndex) {
+    pub(super) fn set_jump_target_here(&mut self, jump: JumpIndex) {
         self.set_jump_target(
             jump,
             JumpIndex {
