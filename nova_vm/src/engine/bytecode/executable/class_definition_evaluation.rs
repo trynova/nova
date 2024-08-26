@@ -236,21 +236,21 @@ impl CompileEvaluation for ast::Class<'_> {
         // The current stack is either:
         // - [proto, class_name]
         // - [proto]
-        // - [superclass, proto, class_name]
-        // - [superclass, proto]
+        // - [constructor_parent, proto, class_name]
+        // - [constructor_parent, proto]
         if has_class_name_on_stack {
             if has_constructor_parent {
-                // stack: [superclass, proto, class_name]
+                // stack: [constructor_parent, proto, class_name]
                 ctx.exe.add_instruction(Instruction::Swap);
-                // stack: [proto, superclass, class_name]
+                // stack: [proto, constructor_parent, class_name]
                 ctx.exe.add_instruction(Instruction::Store);
-                // stack: [superclass, class_name]
+                // stack: [constructor_parent, class_name]
                 ctx.exe.add_instruction(Instruction::Swap);
-                // stack: [class_name, superclass]
+                // stack: [class_name, constructor_parent]
                 ctx.exe.add_instruction(Instruction::Load);
-                // stack: [proto, class_name, superclass]
+                // stack: [proto, class_name, constructor_parent]
                 ctx.exe.add_instruction(Instruction::Swap);
-                // stack: [class_name, proto, superclass]
+                // stack: [class_name, proto, constructor_parent]
             } else {
                 // stack: [proto, class_name]
                 ctx.exe.add_instruction(Instruction::Swap);
