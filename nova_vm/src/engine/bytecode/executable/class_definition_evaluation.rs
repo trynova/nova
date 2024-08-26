@@ -143,7 +143,10 @@ impl CompileEvaluation for ast::Class<'_> {
                 // Pop the superclass from the stack.
                 ctx.exe.add_instruction(Instruction::Store);
                 // i. Throw a TypeError exception.
-                // TODO: Create a new TypeError.
+                ctx.exe.add_instruction_with_constant(
+                    Instruction::StoreConstant,
+                    String::from_static_str(ctx.agent, "class heritage is not a constructor"),
+                );
                 ctx.exe.add_instruction(Instruction::Throw);
 
                 // h. Else,
@@ -173,7 +176,10 @@ impl CompileEvaluation for ast::Class<'_> {
                     .add_instruction_with_jump_slot(Instruction::JumpIfTrue);
 
                 // ... throw a TypeError exception.
-                // TODO: Create a new TypeError.
+                ctx.exe.add_instruction_with_constant(
+                    Instruction::StoreConstant,
+                    String::from_static_str(ctx.agent, "class heritage is not an object or null"),
+                );
                 ctx.exe.add_instruction(Instruction::Throw);
                 ctx.exe.set_jump_target_here(jump_over_throw);
                 ctx.exe.set_jump_target_here(jump_over_null_check_and_throw);

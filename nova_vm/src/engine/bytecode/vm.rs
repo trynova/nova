@@ -43,9 +43,9 @@ use crate::{
         },
         types::{
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
-            is_super_reference, put_value, Base, BigInt, InternalMethods, IntoFunction, IntoObject,
-            IntoValue, Number, Numeric, Object, PropertyDescriptor, PropertyKey, Reference, String,
-            Value, BUILTIN_STRING_MEMORY,
+            is_super_reference, put_value, Base, BigInt, Function, InternalMethods, IntoFunction,
+            IntoObject, IntoValue, Number, Numeric, Object, PropertyDescriptor, PropertyKey,
+            Reference, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
@@ -1235,6 +1235,25 @@ impl Vm {
                 let result = val.is_undefined();
                 vm.result = Some(result.into());
             }
+            Instruction::IsNull => {
+                let val = vm.result.take().unwrap();
+                let result = val.is_null();
+                vm.result = Some(result.into());
+            }
+            Instruction::IsObject => {
+                let val = vm.result.take().unwrap();
+                let result = val.is_object();
+                vm.result = Some(result.into());
+            }
+            Instruction::IsConstructor => {
+                let val = vm.result.take().unwrap();
+                let result = if let Ok(val) = Function::try_from(val) {
+                    val.is_constructor(agent)
+                } else {
+                    false
+                };
+                vm.result = Some(result.into());
+            }
             Instruction::LogicalNot => {
                 // 2. Let oldValue be ToBoolean(? GetValue(expr)).
                 let old_value = to_boolean(agent, vm.result.take().unwrap());
@@ -1381,6 +1400,14 @@ impl Vm {
             Instruction::Throw => {
                 let result = vm.result.take().unwrap();
                 return Err(JsError::new(result));
+            }
+            Instruction::ThrowError => {
+                let exception_type_immediate = instr.args[0].unwrap();
+                let message = String::try_from(vm.result.take().unwrap()).unwrap();
+
+                let exception_type = ExceptionType::try_from(exception_type_immediate).unwrap();
+
+                return Err(agent.throw_exception_with_message(exception_type, message));
             }
             Instruction::PushExceptionJumpTarget => {
                 vm.exception_jump_target_stack.push(ExceptionJumpTarget {

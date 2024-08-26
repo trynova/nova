@@ -201,6 +201,11 @@ pub enum Instruction {
     StringConcat,
     /// Throw the result value as an exception.
     Throw,
+    /// Throw a new Error object as an exception with the result value as the
+    /// message.
+    ///
+    /// The error subtype is determined by an immediate value.
+    ThrowError,
     /// Store ToNumber() as the result value.
     ToNumber,
     /// Store ToNumeric() as the result value.
