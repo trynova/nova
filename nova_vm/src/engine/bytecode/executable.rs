@@ -1171,83 +1171,75 @@ impl CompileEvaluation for ast::ArrayExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::Argument<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
-        match self {
-            ast::Argument::SpreadElement(_) => {
-                panic!("Cannot support SpreadElements currently")
+fn compile_arguments(arguments: &[ast::Argument], ctx: &mut CompileContext) -> usize {
+    // If the arguments don't contain the spread operator, then we can know the
+    // number of arguments at compile-time and we can pass it as an argument to
+    // the call instruction.
+    // Otherwise, the first time we find a spread operator, we need to start
+    // tracking the number of arguments in the compiled bytecode. We store this
+    // number in the result value, and we pass u16::MAX to the call instruction.
+    let mut known_num_arguments = Some(0 as IndexType);
+
+    for argument in arguments {
+        // If known_num_arguments is Some, the stack contains the number of
+        // arguments, followed by the arguments.
+        if let ast::Argument::SpreadElement(spread) = argument {
+            if let Some(num_arguments) = known_num_arguments.take() {
+                ctx.exe
+                    .add_instruction_with_constant(Instruction::LoadConstant, num_arguments);
             }
-            _ => {
-                match self {
-                    ast::Argument::BooleanLiteral(x) => x.compile(ctx),
-                    ast::Argument::NullLiteral(x) => x.compile(ctx),
-                    ast::Argument::NumericLiteral(x) => x.compile(ctx),
-                    ast::Argument::BigIntLiteral(x) => x.compile(ctx),
-                    ast::Argument::RegExpLiteral(x) => x.compile(ctx),
-                    ast::Argument::StringLiteral(x) => x.compile(ctx),
-                    ast::Argument::TemplateLiteral(x) => x.compile(ctx),
-                    ast::Argument::MetaProperty(x) => x.compile(ctx),
-                    ast::Argument::ArrayExpression(x) => x.compile(ctx),
-                    ast::Argument::ArrowFunctionExpression(x) => x.compile(ctx),
-                    ast::Argument::AssignmentExpression(x) => x.compile(ctx),
-                    ast::Argument::AwaitExpression(x) => x.compile(ctx),
-                    ast::Argument::BinaryExpression(x) => x.compile(ctx),
-                    ast::Argument::CallExpression(x) => x.compile(ctx),
-                    ast::Argument::ChainExpression(x) => {
-                        x.compile(ctx);
-                    }
-                    ast::Argument::ClassExpression(x) => x.compile(ctx),
-                    ast::Argument::ConditionalExpression(x) => x.compile(ctx),
-                    ast::Argument::FunctionExpression(x) => x.compile(ctx),
-                    ast::Argument::ImportExpression(x) => x.compile(ctx),
-                    ast::Argument::LogicalExpression(x) => x.compile(ctx),
-                    ast::Argument::NewExpression(x) => x.compile(ctx),
-                    ast::Argument::ObjectExpression(x) => x.compile(ctx),
-                    ast::Argument::SequenceExpression(x) => x.compile(ctx),
-                    ast::Argument::TaggedTemplateExpression(x) => x.compile(ctx),
-                    ast::Argument::ThisExpression(x) => x.compile(ctx),
-                    ast::Argument::UnaryExpression(x) => x.compile(ctx),
-                    ast::Argument::UpdateExpression(x) => x.compile(ctx),
-                    ast::Argument::YieldExpression(x) => x.compile(ctx),
-                    ast::Argument::PrivateInExpression(x) => x.compile(ctx),
-                    ast::Argument::Identifier(x) => {
-                        x.compile(ctx);
-                        ctx.exe.add_instruction(Instruction::GetValue);
-                    }
-                    ast::Argument::Super(x) => {
-                        x.compile(ctx);
-                        ctx.exe.add_instruction(Instruction::GetValue);
-                    }
-                    ast::Argument::ParenthesizedExpression(x) => {
-                        x.compile(ctx);
-                        if is_reference(&x.expression) {
-                            ctx.exe.add_instruction(Instruction::GetValue);
-                        }
-                    }
-                    ast::Argument::ComputedMemberExpression(x) => {
-                        x.compile(ctx);
-                        ctx.exe.add_instruction(Instruction::GetValue);
-                    }
-                    ast::Argument::StaticMemberExpression(x) => {
-                        x.compile(ctx);
-                        ctx.exe.add_instruction(Instruction::GetValue);
-                    }
-                    ast::Argument::PrivateFieldExpression(x) => {
-                        x.compile(ctx);
-                        ctx.exe.add_instruction(Instruction::GetValue);
-                    }
-                    ast::Argument::SpreadElement(_)
-                    | ast::Argument::JSXElement(_)
-                    | ast::Argument::JSXFragment(_)
-                    | ast::Argument::TSAsExpression(_)
-                    | ast::Argument::TSSatisfiesExpression(_)
-                    | ast::Argument::TSTypeAssertion(_)
-                    | ast::Argument::TSNonNullExpression(_)
-                    | ast::Argument::TSInstantiationExpression(_) => unreachable!(),
-                }
+
+            spread.argument.compile(ctx);
+            if is_reference(&spread.argument) {
+                ctx.exe.add_instruction(Instruction::GetValue);
+            }
+            ctx.exe.add_instruction(Instruction::GetIteratorSync);
+
+            let iteration_start = ctx.exe.get_jump_index_to_here();
+            let iteration_end = ctx
+                .exe
+                .add_instruction_with_jump_slot(Instruction::IteratorStepValue);
+            // result: value; stack: [num, ...args]
+            ctx.exe.add_instruction(Instruction::LoadStoreSwap);
+            // result: num; stack: [value, ...args]
+            ctx.exe.add_instruction(Instruction::Increment);
+            // result: num + 1; stack: [value, ...args]
+            ctx.exe.add_instruction(Instruction::Load);
+            // stack: [num + 1, value, ...args]
+            ctx.exe
+                .add_jump_instruction_to_index(Instruction::Jump, iteration_start);
+            ctx.exe.set_jump_target_here(iteration_end);
+        } else {
+            let expression = argument.to_expression();
+            expression.compile(ctx);
+            if is_reference(expression) {
+                ctx.exe.add_instruction(Instruction::GetValue);
+            }
+            if let Some(num_arguments) = known_num_arguments.as_mut() {
+                *num_arguments = num_arguments
+                    .checked_add(1)
+                    .expect("Too many function arguments");
                 ctx.exe.add_instruction(Instruction::Load);
+            } else {
+                // result: value; stack: [num, ...args]
+                ctx.exe.add_instruction(Instruction::LoadStoreSwap);
+                // result: num; stack: [value, ...args]
+                ctx.exe.add_instruction(Instruction::Increment);
+                // result: num + 1; stack: [value, ...args]
+                ctx.exe.add_instruction(Instruction::Load);
+                // stack: [num + 1, value, ...args]
             }
         }
+    }
+
+    if let Some(num_arguments) = known_num_arguments {
+        assert_ne!(num_arguments, IndexType::MAX);
+        num_arguments as usize
+    } else {
+        // stack: [num, ...args]
+        ctx.exe.add_instruction(Instruction::Store);
+        // result: num; stack: [...args]
+        IndexType::MAX as usize
     }
 }
 
@@ -1257,13 +1249,9 @@ impl CompileEvaluation for CallExpression<'_> {
         if !self.optional {
             if let ast::Expression::Identifier(ident) = &self.callee {
                 if ident.name == "eval" {
-                    for ele in &self.arguments {
-                        ele.compile(ctx);
-                    }
-                    ctx.exe.add_instruction_with_immediate(
-                        Instruction::DirectEvalCall,
-                        self.arguments.len(),
-                    );
+                    let num_arguments = compile_arguments(&self.arguments, ctx);
+                    ctx.exe
+                        .add_instruction_with_immediate(Instruction::DirectEvalCall, num_arguments);
                     return;
                 }
             }
@@ -1325,9 +1313,7 @@ impl CompileEvaluation for CallExpression<'_> {
         // If we're in an optional chain, we need to pluck it out while we're
         // compiling the parameters: They do not join our chain.
         let optional_chain = ctx.optional_chains.take();
-        for ele in &self.arguments {
-            ele.compile(ctx);
-        }
+        let num_arguments = compile_arguments(&self.arguments, ctx);
         // After we're done with compiling parameters we go back into the chain.
         if let Some(optional_chain) = optional_chain {
             ctx.optional_chains.replace(optional_chain);
@@ -1337,7 +1323,7 @@ impl CompileEvaluation for CallExpression<'_> {
             ctx.exe.add_instruction(Instruction::PopReference);
         }
         ctx.exe
-            .add_instruction_with_immediate(Instruction::EvaluateCall, self.arguments.len());
+            .add_instruction_with_immediate(Instruction::EvaluateCall, num_arguments);
     }
 }
 
@@ -1348,12 +1334,10 @@ impl CompileEvaluation for NewExpression<'_> {
             ctx.exe.add_instruction(Instruction::GetValue);
         }
         ctx.exe.add_instruction(Instruction::Load);
-        for ele in &self.arguments {
-            ele.compile(ctx);
-        }
 
+        let num_arguments = compile_arguments(&self.arguments, ctx);
         ctx.exe
-            .add_instruction_with_immediate(Instruction::EvaluateNew, self.arguments.len());
+            .add_instruction_with_immediate(Instruction::EvaluateNew, num_arguments);
     }
 }
 
