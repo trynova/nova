@@ -896,6 +896,9 @@ impl Vm {
                 };
                 let proto = Object::try_from(*vm.stack.last().unwrap()).unwrap();
 
+                let is_null_derived_class = !has_constructor_parent
+                    && proto.internal_get_prototype_of(agent).unwrap().is_none();
+
                 let ECMAScriptCodeEvaluationState {
                     lexical_environment,
                     private_environment,
@@ -922,11 +925,12 @@ impl Vm {
                 set_function_name(agent, function, class_name.into(), None);
                 make_constructor(agent, function, Some(false), Some(proto));
                 agent[function].ecmascript_function.home_object = Some(proto);
-                agent[function].ecmascript_function.constructor_status = if has_constructor_parent {
-                    ConstructorStatus::DerivedClass
-                } else {
-                    ConstructorStatus::BaseClass
-                };
+                agent[function].ecmascript_function.constructor_status =
+                    if has_constructor_parent || is_null_derived_class {
+                        ConstructorStatus::DerivedClass
+                    } else {
+                        ConstructorStatus::BaseClass
+                    };
 
                 proto
                     .internal_define_own_property(

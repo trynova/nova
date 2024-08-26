@@ -74,7 +74,6 @@ impl CompileEvaluation for ast::Class<'_> {
         }
 
         let mut has_constructor_parent = false;
-        let mut has_null_constructor_parent = true;
 
         // 7. If ClassHeritage is present, then
         if let Some(super_class) = &self.super_class {
@@ -84,7 +83,6 @@ impl CompileEvaluation for ast::Class<'_> {
                 // Hence we do not need to set has_constructor_parent true.
                 // But we do need to remember that this is still a derived
                 // class.
-                has_null_constructor_parent = true;
                 ctx.exe.add_instruction(Instruction::ObjectCreate);
                 ctx.exe
                     .add_instruction_with_constant(Instruction::StoreConstant, Value::Null);
@@ -241,16 +239,14 @@ impl CompileEvaluation for ast::Class<'_> {
         if has_class_name_on_stack {
             if has_constructor_parent {
                 // stack: [constructor_parent, proto, class_name]
-                ctx.exe.add_instruction(Instruction::Swap);
-                // stack: [proto, constructor_parent, class_name]
                 ctx.exe.add_instruction(Instruction::Store);
-                // stack: [constructor_parent, class_name]
+                // stack: [proto, class_name]
                 ctx.exe.add_instruction(Instruction::Swap);
-                // stack: [class_name, constructor_parent]
+                // stack: [class_name, proto]
                 ctx.exe.add_instruction(Instruction::Load);
-                // stack: [proto, class_name, constructor_parent]
+                // stack: [constructor_parent, class_name, proto]
                 ctx.exe.add_instruction(Instruction::Swap);
-                // stack: [class_name, proto, constructor_parent]
+                // stack: [class_name, constructor_parent, proto]
             } else {
                 // stack: [proto, class_name]
                 ctx.exe.add_instruction(Instruction::Swap);
@@ -259,24 +255,17 @@ impl CompileEvaluation for ast::Class<'_> {
         } else {
             // We don't have the class name on the stack, so we can just
             // push it there.
-            if has_constructor_parent {
-                ctx.exe.add_instruction(Instruction::Swap);
-            }
             ctx.exe.add_instruction_with_constant(
                 Instruction::LoadConstant,
                 class_identifier.unwrap_or(String::EMPTY_STRING),
             );
-            // stack: [class_name, proto, superclass?]
+            // stack: [class_name, constructor_parent?, proto]
         }
 
         // 14. If constructor is not empty, then
         if let Some(constructor) = constructor {
             // a. Let constructorInfo be ! DefineMethod of constructor with arguments proto and constructorParent.
-            define_constructor_method(
-                ctx,
-                constructor,
-                has_constructor_parent || has_null_constructor_parent,
-            );
+            define_constructor_method(ctx, constructor, has_constructor_parent);
             // b. Let F be constructorInfo.[[Closure]].
             // c. Perform MakeClassConstructor(F).
             // d. Perform SetFunctionName(F, className).
