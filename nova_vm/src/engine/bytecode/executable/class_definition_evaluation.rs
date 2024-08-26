@@ -192,7 +192,7 @@ impl CompileEvaluation for ast::Class<'_> {
                 ctx.exe.add_instruction(Instruction::Swap);
                 // Now protoParent is at the top of the stack, proto is second, and
                 // superclass is third.
-                ctx.exe.add_instruction(Instruction::Load);
+                ctx.exe.add_instruction(Instruction::Store);
                 ctx.exe.add_instruction(Instruction::ObjectSetPrototype);
 
                 // Now proto is first and superclass second.
