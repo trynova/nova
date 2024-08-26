@@ -98,6 +98,8 @@ pub(crate) fn derived_class_default_constructor(
         Some(Function::try_from(new_target).unwrap()),
     )?;
     // vi. Perform ? InitializeInstanceElements(result, F).
+    // TODO: Handle InitializeInstanceElements somehow.
+
     // vii. Return result.
     Ok(result.into_value())
 }
