@@ -109,6 +109,8 @@ impl CompileEvaluation for ast::Class<'_> {
 
         // 1. Let env be the LexicalEnvironment of the running execution context.
         // 2. Let classEnv be NewDeclarativeEnvironment(env).
+        // Note: The specification doesn't enter the declaration here, but
+        // no user code is run between here and first enter.
         ctx.exe
             .add_instruction(Instruction::EnterDeclarativeEnvironment);
 
@@ -175,9 +177,12 @@ impl CompileEvaluation for ast::Class<'_> {
                 // b. NOTE: The running execution context's PrivateEnvironment is outerPrivateEnvironment when evaluating ClassHeritage.
                 // c. Let superclassRef be Completion(Evaluation of ClassHeritage).
                 super_class.compile(ctx);
+                // d. Set the running execution context's LexicalEnvironment to env.
+                // Note: We are not following specification properly here:
+                // The GetValue here and EvaluatePropertyAccessWithIdentifierKey
+                // below should be performed in the parent environment. We do
+                // them in classEnv. Whether there's a difference I don't know.
                 if is_reference(super_class) {
-                    // d. Set the running execution context's LexicalEnvironment to env.
-                    // TODO: Figure out how to do the classEnv / env switch.
                     // e. Let superclass be ? GetValue(? superclassRef).
                     ctx.exe.add_instruction(Instruction::GetValue);
                 }
