@@ -50,7 +50,7 @@ pub(crate) struct CompileContext<'agent> {
     pub(crate) agent: &'agent mut Agent,
     pub(crate) exe: Executable,
     /// NamedEvaluation name parameter
-    pub(super) name_identifier: Option<NamedEvaluationParameter>,
+    name_identifier: Option<NamedEvaluationParameter>,
     /// If true, indicates that all bindings being created are lexical.
     ///
     /// Otherwise, all bindings being created are variable scoped.
@@ -197,7 +197,7 @@ impl Executable {
         Some(Instr { kind, args })
     }
 
-    pub(super) fn peek_last_instruction(&self) -> Option<u8> {
+    fn peek_last_instruction(&self) -> Option<u8> {
         for ele in self.instructions.iter().rev() {
             if *ele == Instruction::ExitDeclarativeEnvironment.as_u8() {
                 // Not a "real" instruction
@@ -284,7 +284,7 @@ impl Executable {
             .push(unsafe { std::mem::transmute::<Instruction, u8>(instruction) });
     }
 
-    pub(super) fn add_instruction(&mut self, instruction: Instruction) {
+    fn add_instruction(&mut self, instruction: Instruction) {
         debug_assert_eq!(instruction.argument_count(), 0);
         debug_assert!(
             !instruction.has_constant_index()
@@ -294,7 +294,7 @@ impl Executable {
         self._push_instruction(instruction);
     }
 
-    pub(super) fn add_instruction_with_jump_slot(&mut self, instruction: Instruction) -> JumpIndex {
+    fn add_instruction_with_jump_slot(&mut self, instruction: Instruction) -> JumpIndex {
         debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_jump_slot());
         self._push_instruction(instruction);
@@ -344,17 +344,13 @@ impl Executable {
         })
     }
 
-    pub(super) fn add_instruction_with_immediate(
-        &mut self,
-        instruction: Instruction,
-        immediate: usize,
-    ) {
+    fn add_instruction_with_immediate(&mut self, instruction: Instruction, immediate: usize) {
         debug_assert_eq!(instruction.argument_count(), 1);
         self._push_instruction(instruction);
         self.add_index(immediate);
     }
 
-    pub(super) fn add_instruction_with_constant(
+    fn add_instruction_with_constant(
         &mut self,
         instruction: Instruction,
         constant: impl Into<Value>,
@@ -366,11 +362,7 @@ impl Executable {
         self.add_index(constant);
     }
 
-    pub(super) fn add_instruction_with_identifier(
-        &mut self,
-        instruction: Instruction,
-        identifier: String,
-    ) {
+    fn add_instruction_with_identifier(&mut self, instruction: Instruction, identifier: String) {
         debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_identifier_index());
         self._push_instruction(instruction);
@@ -411,7 +403,7 @@ impl Executable {
         self.instructions.extend_from_slice(&bytes);
     }
 
-    pub(super) fn add_instruction_with_function_expression(
+    fn add_instruction_with_function_expression(
         &mut self,
         instruction: Instruction,
         function_expression: FunctionExpression,
@@ -424,7 +416,7 @@ impl Executable {
         self.add_index(index);
     }
 
-    pub(super) fn add_instruction_with_function_expression_and_immediate(
+    fn add_instruction_with_function_expression_and_immediate(
         &mut self,
         instruction: Instruction,
         function_expression: FunctionExpression,
@@ -460,14 +452,14 @@ impl Executable {
         }
     }
 
-    pub(super) fn set_jump_target(&mut self, source: JumpIndex, target: JumpIndex) {
+    fn set_jump_target(&mut self, source: JumpIndex, target: JumpIndex) {
         assert!(target.index < IndexType::MAX as usize);
         let bytes: [u8; 2] = (target.index as IndexType).to_ne_bytes();
         self.instructions[source.index] = bytes[0];
         self.instructions[source.index + 1] = bytes[1];
     }
 
-    pub(super) fn set_jump_target_here(&mut self, jump: JumpIndex) {
+    fn set_jump_target_here(&mut self, jump: JumpIndex) {
         self.set_jump_target(
             jump,
             JumpIndex {
