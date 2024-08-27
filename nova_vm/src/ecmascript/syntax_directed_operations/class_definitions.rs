@@ -26,10 +26,7 @@ pub(crate) fn base_class_default_constructor(
     };
 
     // iii. Let F be the active function object.
-    let _ = agent.running_execution_context().function.unwrap();
-
-    // TODO: Figure out if it's actually okay to split this function into two,
-    // or is F's [[ConstructorKind]] only decidable at runtime?
+    // let f = agent.running_execution_context().function.unwrap();
 
     // iv. If F.[[ConstructorKind]] is derived, then
     // v. Else,
@@ -41,6 +38,8 @@ pub(crate) fn base_class_default_constructor(
         ProtoIntrinsics::Object,
     )?;
     // vi. Perform ? InitializeInstanceElements(result, F).
+    // TODO: Handle InitializeInstanceElements somehow.
+
     // vii. Return result.
     Ok(result.into_value())
 }
@@ -61,9 +60,6 @@ pub(crate) fn derived_class_default_constructor(
     };
     // iii. Let F be the active function object.
     let f = agent.running_execution_context().function.unwrap();
-
-    // TODO: Figure out if it's actually okay to split this function into two,
-    // or is F's [[ConstructorKind]] only decidable at runtime?
 
     // iv. If F.[[ConstructorKind]] is derived, then
     // 1. NOTE: This branch behaves similarly to constructor(...args) { super(...args); }.
