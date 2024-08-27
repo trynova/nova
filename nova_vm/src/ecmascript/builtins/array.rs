@@ -534,12 +534,17 @@ fn ordinary_define_own_property_for_array(
         .heap
         .elements
         .get_descriptors_and_slice(elements.into());
+    let current_value = slice[index as usize];
     let current_descriptor = if let Some(descriptors) = descriptors {
         descriptors.get(&index).copied()
     } else {
-        None
+        if current_value.is_none() {
+            None
+        } else {
+            // Default data descriptor, WEC
+            Some(ElementDescriptor::WritableEnumerableConfigurableData)
+        }
     };
-    let current_value = slice[index as usize];
     let descriptor_value = descriptor.value;
 
     // 2. If current is undefined, then
@@ -702,8 +707,16 @@ fn ordinary_define_own_property_for_array(
             .heap
             .elements
             .get_descriptors_and_slice_mut(elements.into());
-        descriptors.unwrap().insert(index, new_descriptor);
         slice[index as usize] = None;
+        if let Some(descriptors) = descriptors {
+            descriptors.insert(index, new_descriptor);
+        } else {
+            agent.heap.elements.set_descriptor(
+                elements.into(),
+                index as usize,
+                Some(new_descriptor),
+            )
+        }
     }
     // b. Else if IsAccessorDescriptor(current) is true and IsDataDescriptor(Desc) is true, then
     else if current_is_accessor_descriptor && descriptor.is_data_descriptor() {
