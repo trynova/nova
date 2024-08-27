@@ -530,22 +530,21 @@ fn ordinary_define_own_property_for_array(
     index: u32,
     descriptor: PropertyDescriptor,
 ) -> bool {
+    let descriptor_value = descriptor.value;
+
     let (descriptors, slice) = agent
         .heap
         .elements
         .get_descriptors_and_slice(elements.into());
     let current_value = slice[index as usize];
-    let current_descriptor = if let Some(descriptors) = descriptors {
-        descriptors.get(&index).copied()
-    } else {
-        if current_value.is_none() {
-            None
-        } else {
-            // Default data descriptor, WEC
+    let current_descriptor = {
+        let descriptor = descriptors.and_then(|descriptors| descriptors.get(&index).copied());
+        if current_value.is_some() && descriptor.is_none() {
             Some(ElementDescriptor::WritableEnumerableConfigurableData)
+        } else {
+            descriptor
         }
     };
-    let descriptor_value = descriptor.value;
 
     // 2. If current is undefined, then
     if current_descriptor.is_none() && current_value.is_none() {
