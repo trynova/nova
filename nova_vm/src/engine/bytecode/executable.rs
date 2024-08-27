@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod class_definition_evaluation;
 mod for_in_of_statement;
 mod function_declaration_instantiation;
 
@@ -46,8 +47,8 @@ pub(crate) enum NamedEvaluationParameter {
 }
 
 pub(crate) struct CompileContext<'agent> {
-    agent: &'agent mut Agent,
-    exe: Executable,
+    pub(crate) agent: &'agent mut Agent,
+    pub(crate) exe: Executable,
     /// NamedEvaluation name parameter
     name_identifier: Option<NamedEvaluationParameter>,
     /// If true, indicates that all bindings being created are lexical.
@@ -142,7 +143,6 @@ unsafe impl<T: ?Sized> Sync for SendableRef<T> {}
 pub(crate) struct FunctionExpression {
     pub(crate) expression: SendableRef<ast::Function<'static>>,
     pub(crate) identifier: Option<NamedEvaluationParameter>,
-    pub(crate) home_object: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -197,7 +197,7 @@ impl Executable {
         Some(Instr { kind, args })
     }
 
-    pub(super) fn peek_last_instruction(&self) -> Option<u8> {
+    fn peek_last_instruction(&self) -> Option<u8> {
         for ele in self.instructions.iter().rev() {
             if *ele == Instruction::ExitDeclarativeEnvironment.as_u8() {
                 // Not a "real" instruction
@@ -398,8 +398,8 @@ impl Executable {
     }
 
     fn add_index(&mut self, index: usize) {
-        assert!(index < IndexType::MAX as usize);
-        let bytes: [u8; 2] = (index as IndexType).to_ne_bytes();
+        let index = IndexType::try_from(index).expect("Immediate value is too large");
+        let bytes: [u8; 2] = index.to_ne_bytes();
         self.instructions.extend_from_slice(&bytes);
     }
 
@@ -414,6 +414,21 @@ impl Executable {
         self.function_expressions.push(function_expression);
         let index = self.function_expressions.len() - 1;
         self.add_index(index);
+    }
+
+    fn add_instruction_with_function_expression_and_immediate(
+        &mut self,
+        instruction: Instruction,
+        function_expression: FunctionExpression,
+        immediate: usize,
+    ) {
+        debug_assert_eq!(instruction.argument_count(), 2);
+        debug_assert!(instruction.has_function_expression_index());
+        self._push_instruction(instruction);
+        self.function_expressions.push(function_expression);
+        let index = self.function_expressions.len() - 1;
+        self.add_index(index);
+        self.add_index(immediate);
     }
 
     fn add_arrow_function_expression(
@@ -464,7 +479,7 @@ pub(crate) trait CompileEvaluation {
     fn compile(&self, ctx: &mut CompileContext);
 }
 
-fn is_reference(expression: &ast::Expression) -> bool {
+pub(crate) fn is_reference(expression: &ast::Expression) -> bool {
     match expression {
         ast::Expression::Identifier(_)
         | ast::Expression::ComputedMemberExpression(_)
@@ -957,7 +972,6 @@ impl CompileEvaluation for ast::Function<'_> {
                 }),
                 // CompileContext holds a name identifier for us if this is NamedEvaluation.
                 identifier: ctx.name_identifier.take(),
-                home_object: None,
             },
         );
     }
@@ -1069,7 +1083,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                                 // b. Return unused.
                                 ctx.exe.add_instruction(Instruction::ObjectSetPrototype);
                             } else {
-                                ctx.exe.add_instruction(Instruction::ObjectSetProperty);
+                                ctx.exe.add_instruction(Instruction::ObjectDefineProperty);
                             }
                         }
                         ast::PropertyKind::Get | ast::PropertyKind::Set => {
@@ -1079,25 +1093,27 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                             else {
                                 unreachable!()
                             };
-                            ctx.exe.add_instruction_with_function_expression(
-                                if is_get {
-                                    Instruction::ObjectSetGetter
-                                } else {
-                                    Instruction::ObjectSetSetter
-                                },
-                                FunctionExpression {
-                                    expression: SendableRef::new(unsafe {
-                                        std::mem::transmute::<
-                                            &ast::Function<'_>,
-                                            &'static ast::Function<'static>,
-                                        >(
-                                            function_expression
-                                        )
-                                    }),
-                                    identifier: None,
-                                    home_object: None,
-                                },
-                            );
+                            ctx.exe
+                                .add_instruction_with_function_expression_and_immediate(
+                                    if is_get {
+                                        Instruction::ObjectDefineGetter
+                                    } else {
+                                        Instruction::ObjectDefineSetter
+                                    },
+                                    FunctionExpression {
+                                        expression: SendableRef::new(unsafe {
+                                            std::mem::transmute::<
+                                                &ast::Function<'_>,
+                                                &'static ast::Function<'static>,
+                                            >(
+                                                function_expression
+                                            )
+                                        }),
+                                        identifier: None,
+                                    },
+                                    // enumerable: true,
+                                    true.into(),
+                                );
                         }
                     }
                 }
@@ -1527,12 +1543,6 @@ impl CompileEvaluation for ast::ChainExpression<'_> {
                 .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
             ctx.exe.set_jump_target_here(jump_over_return_undefined);
         }
-    }
-}
-
-impl CompileEvaluation for ast::Class<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!()
     }
 }
 
@@ -3009,7 +3019,7 @@ impl CompileEvaluation for ast::Statement<'_> {
             Statement::SwitchStatement(statement) => statement.compile(ctx),
             Statement::WhileStatement(statement) => statement.compile(ctx),
             Statement::WithStatement(_) => todo!(),
-            Statement::ClassDeclaration(_) => todo!(),
+            Statement::ClassDeclaration(x) => x.compile(ctx),
             Statement::UsingDeclaration(_) => todo!(),
             Statement::ImportDeclaration(_) => todo!(),
             Statement::ExportAllDeclaration(_) => todo!(),
