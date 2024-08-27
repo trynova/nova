@@ -150,6 +150,8 @@ pub enum Instruction {
     LoadCopy,
     /// Load a constant and add it to the stack.
     LoadConstant,
+    /// Swaps the last value in the stack and the result value.
+    LoadStoreSwap,
     /// Determine the this value for an upcoming evaluate_call instruction and
     /// add it to the stack.
     LoadThisValue,

@@ -55,7 +55,7 @@ use super::{
     executable::{NamedEvaluationParameter, SendableRef},
     instructions::Instr,
     iterator::{ObjectPropertiesIterator, VmIterator},
-    Executable, Instruction, InstructionIter,
+    Executable, IndexType, Instruction, InstructionIter,
 };
 
 struct EmptyParametersList(ast::FormalParameters<'static>);
@@ -347,6 +347,14 @@ impl Vm {
             }
             Instruction::LoadCopy => {
                 vm.stack.push(vm.result.unwrap());
+            }
+            Instruction::LoadStoreSwap => {
+                let temp = vm
+                    .result
+                    .take()
+                    .expect("Expected result value to not be empty");
+                vm.result = Some(vm.stack.pop().expect("Trying to pop from empty stack"));
+                vm.stack.push(temp);
             }
             Instruction::Return => {
                 return Ok(ContinuationKind::Return);
@@ -1016,8 +1024,7 @@ impl Vm {
                 vm.stack.push(b);
             }
             Instruction::DirectEvalCall => {
-                let arg_count = instr.args[0].unwrap() as usize;
-                let args = vm.stack.split_off(vm.stack.len() - arg_count);
+                let args = vm.get_call_args(instr);
 
                 let func_reference = resolve_binding(agent, BUILTIN_STRING_MEMORY.eval, None)?;
                 let func = get_value(agent, &func_reference)?;
@@ -1052,8 +1059,7 @@ impl Vm {
                 }
             }
             Instruction::EvaluateCall => {
-                let arg_count = instr.args[0].unwrap() as usize;
-                let args = vm.stack.split_off(vm.stack.len() - arg_count);
+                let args = vm.get_call_args(instr);
                 let reference = vm.reference.take();
                 // 1. If ref is a Reference Record, then
                 let this_value = if let Some(reference) = reference {
@@ -1081,8 +1087,7 @@ impl Vm {
                 vm.result = Some(call(agent, func, this_value, Some(ArgumentsList(&args)))?);
             }
             Instruction::EvaluateNew => {
-                let arg_count = instr.args[0].unwrap() as usize;
-                let args = vm.stack.split_off(vm.stack.len() - arg_count);
+                let args = vm.get_call_args(instr);
                 let constructor = vm.stack.pop().unwrap();
                 let Some(constructor) = is_constructor(agent, constructor) else {
                     let error_message = format!(
@@ -1647,6 +1652,22 @@ impl Vm {
         }
 
         Ok(ContinuationKind::Normal)
+    }
+
+    fn get_call_args(&mut self, instr: &Instr) -> Vec<Value> {
+        let instr_arg0 = instr.args[0].unwrap();
+        let arg_count = if instr_arg0 != IndexType::MAX {
+            instr_arg0 as usize
+        } else {
+            // We parse the result as a SmallInteger.
+            let Value::Integer(integer) = self.result.take().unwrap() else {
+                panic!("Expected the number of function arguments to be an integer")
+            };
+            usize::try_from(integer.into_i64()).unwrap()
+        };
+
+        assert!(self.stack.len() >= arg_count);
+        self.stack.split_off(self.stack.len() - arg_count)
     }
 
     fn execute_simple_array_binding(
