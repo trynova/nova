@@ -1181,7 +1181,7 @@ fn compile_arguments(arguments: &[ast::Argument], ctx: &mut CompileContext) -> u
     let mut known_num_arguments = Some(0 as IndexType);
 
     for argument in arguments {
-        // If known_num_arguments is Some, the stack contains the number of
+        // If known_num_arguments is None, the stack contains the number of
         // arguments, followed by the arguments.
         if let ast::Argument::SpreadElement(spread) = argument {
             if let Some(num_arguments) = known_num_arguments.take() {
@@ -1216,10 +1216,22 @@ fn compile_arguments(arguments: &[ast::Argument], ctx: &mut CompileContext) -> u
                 ctx.exe.add_instruction(Instruction::GetValue);
             }
             if let Some(num_arguments) = known_num_arguments.as_mut() {
-                *num_arguments = num_arguments
-                    .checked_add(1)
-                    .expect("Too many function arguments");
                 ctx.exe.add_instruction(Instruction::Load);
+                // stack: [value, ...args]
+
+                if *num_arguments < IndexType::MAX - 1 {
+                    *num_arguments += 1;
+                } else {
+                    // If we overflow, we switch to tracking the number on the
+                    // result value.
+                    debug_assert_eq!(*num_arguments, IndexType::MAX - 1);
+                    known_num_arguments = None;
+                    ctx.exe.add_instruction_with_constant(
+                        Instruction::LoadConstant,
+                        Value::from(IndexType::MAX),
+                    );
+                    // stack: [num + 1, value, ...args]
+                }
             } else {
                 // result: value; stack: [num, ...args]
                 ctx.exe.add_instruction(Instruction::LoadStoreSwap);
