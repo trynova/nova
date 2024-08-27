@@ -3,7 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::types::{String, Value, BUILTIN_STRING_MEMORY},
+    ecmascript::{
+        execution::agent::ExceptionType,
+        types::{String, Value, BUILTIN_STRING_MEMORY},
+    },
     engine::{
         is_reference, CompileContext, CompileEvaluation, FunctionExpression, Instruction,
         NamedEvaluationParameter, SendableRef,
@@ -145,7 +148,10 @@ impl CompileEvaluation for ast::Class<'_> {
                     Instruction::StoreConstant,
                     String::from_static_str(ctx.agent, "class heritage is not a constructor"),
                 );
-                ctx.exe.add_instruction(Instruction::Throw);
+                ctx.exe.add_instruction_with_immediate(
+                    Instruction::ThrowError,
+                    ExceptionType::TypeError as usize,
+                );
 
                 // h. Else,
                 ctx.exe.set_jump_target_here(jump_over_throw);
@@ -178,7 +184,10 @@ impl CompileEvaluation for ast::Class<'_> {
                     Instruction::StoreConstant,
                     String::from_static_str(ctx.agent, "class heritage is not an object or null"),
                 );
-                ctx.exe.add_instruction(Instruction::Throw);
+                ctx.exe.add_instruction_with_immediate(
+                    Instruction::ThrowError,
+                    ExceptionType::TypeError as usize,
+                );
                 ctx.exe.set_jump_target_here(jump_over_throw);
                 ctx.exe.set_jump_target_here(jump_over_null_check_and_throw);
 

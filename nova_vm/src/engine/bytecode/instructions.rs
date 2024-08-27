@@ -385,7 +385,8 @@ impl Instruction {
             | Self::PushExceptionJumpTarget
             | Self::ResolveBinding
             | Self::StoreConstant
-            | Self::StringConcat => 1,
+            | Self::StringConcat
+            | Self::ThrowError => 1,
             _ => 0,
         }
     }
