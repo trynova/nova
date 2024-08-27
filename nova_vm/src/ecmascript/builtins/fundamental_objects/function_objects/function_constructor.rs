@@ -2,20 +2,22 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::operations_on_objects::define_property_or_throw;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
-use crate::ecmascript::builtins::ArgumentsList;
-use crate::ecmascript::builtins::Behaviour;
-use crate::ecmascript::builtins::Builtin;
-use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
-use crate::ecmascript::execution::Agent;
-use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::execution::RealmIdentifier;
-use crate::ecmascript::types::IntoObject;
-
-use crate::ecmascript::types::Object;
-use crate::ecmascript::types::String;
-use crate::ecmascript::types::Value;
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::ecmascript::builtins::ordinary::ordinary_object_create_with_intrinsics;
+use crate::ecmascript::types::PropertyDescriptor;
+use crate::ecmascript::{
+    builtins::{
+        make_constructor, ordinary::get_prototype_from_constructor, ordinary_function_create,
+        set_function_name, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+        ECMAScriptFunction, OrdinaryFunctionCreateParams,
+    },
+    execution::{
+        agent::ExceptionType, Agent, EnvironmentIndex, JsResult, ProtoIntrinsics, RealmIdentifier,
+    },
+    scripts_and_modules::source_code::SourceCode,
+    types::{Function, IntoObject, IntoValue, Object, String, Value, BUILTIN_STRING_MEMORY},
+};
 use crate::heap::IntrinsicConstructorIndexes;
 
 pub(crate) struct FunctionConstructor;
@@ -33,12 +35,32 @@ impl BuiltinIntrinsicConstructor for FunctionConstructor {
 
 impl FunctionConstructor {
     fn behaviour(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
+        arguments: ArgumentsList,
+        new_target: Option<Object>,
     ) -> JsResult<Value> {
-        todo!();
+        // 2. If bodyArg is not present, set bodyArg to the empty String.
+        let (parameter_args, body_arg) = if arguments.is_empty() {
+            (&[] as &[Value], String::EMPTY_STRING.into_value())
+        } else {
+            let (last, others) = arguments.split_last().unwrap();
+            (others, *last)
+        };
+        let constructor = if let Some(new_target) = new_target {
+            Function::try_from(new_target).unwrap()
+        } else {
+            agent.running_execution_context().function.unwrap()
+        };
+        // 3. Return ? CreateDynamicFunction(C, NewTarget, normal, parameterArgs, bodyArg).
+        Ok(create_dynamic_function(
+            agent,
+            constructor,
+            DynamicFunctionKind::Normal,
+            parameter_args,
+            body_arg,
+        )?
+        .into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -51,4 +73,173 @@ impl FunctionConstructor {
             .with_prototype_property(function_prototype)
             .build();
     }
+}
+
+pub(crate) enum DynamicFunctionKind {
+    Normal,
+    Generator,
+    Async,
+    // AsyncGenerator
+}
+impl DynamicFunctionKind {
+    fn prefix(&self) -> &'static str {
+        match self {
+            DynamicFunctionKind::Normal => "function",
+            DynamicFunctionKind::Generator => "function*",
+            DynamicFunctionKind::Async => "async function",
+        }
+    }
+    fn function_matches_kind(&self, function: &oxc_ast::ast::Function) -> bool {
+        let (is_async, is_generator) = match self {
+            DynamicFunctionKind::Normal => (false, false),
+            DynamicFunctionKind::Generator => (false, true),
+            DynamicFunctionKind::Async => (true, false),
+        };
+        function.r#async == is_async && function.generator == is_generator
+    }
+    fn intrinsic_prototype(&self) -> ProtoIntrinsics {
+        match self {
+            DynamicFunctionKind::Normal => ProtoIntrinsics::Function,
+            DynamicFunctionKind::Generator => ProtoIntrinsics::GeneratorFunction,
+            DynamicFunctionKind::Async => ProtoIntrinsics::AsyncFunction,
+        }
+    }
+}
+
+/// ### [20.2.1.1.1 CreateDynamicFunction ( constructor, newTarget, kind, parameterArgs, bodyArg )](https://tc39.es/ecma262/#sec-createdynamicfunction)
+pub(crate) fn create_dynamic_function(
+    agent: &mut Agent,
+    constructor: Function,
+    kind: DynamicFunctionKind,
+    parameter_args: &[Value],
+    body_arg: Value,
+) -> JsResult<ECMAScriptFunction> {
+    // 11. Perform ? HostEnsureCanCompileStrings(currentRealm, parameterStrings, bodyString, false).
+    agent
+        .host_hooks
+        .host_ensure_can_compile_strings(agent.current_realm_mut())?;
+
+    let parameters = {
+        let mut parameters = std::string::String::new();
+        for (i, parameter) in parameter_args.iter().enumerate() {
+            if i != 0 {
+                parameters.push(',');
+            }
+            parameters.push_str(parameter.to_string(agent)?.as_str(agent));
+        }
+        parameters
+    };
+    let source_string = format!(
+        "{} anonymous({}\n) {{\n{}\n}}",
+        kind.prefix(),
+        parameters,
+        body_arg.to_string(agent)?.as_str(agent)
+    );
+    let source_string = String::from_string(agent, source_string);
+
+    // The spec says to parse the parameters and the function body separately to
+    // avoid code injection, but oxc doesn't have a public API to do that.
+    // Instead, we parse the source string as a script, and throw unless it has
+    // exactly one statement which is a function declaration of the right kind.
+    let (function, source_code) = {
+        let mut function = None;
+        let mut source_code = None;
+
+        // SAFETY: The safety requirements are that the SourceCode cannot be
+        // GC'd before the program is dropped. If this function returns
+        // successfully, then the program's AST and the SourceCode will both be
+        // kept alive in the returned function object.
+        let parsed_result =
+            unsafe { SourceCode::parse_source(agent, source_string, Default::default()) };
+
+        if let Ok((program, sc)) = parsed_result {
+            source_code = Some(sc);
+            if program.hashbang.is_none()
+                && program.directives.is_empty()
+                && program.body.len() == 1
+            {
+                if let oxc_ast::ast::Statement::FunctionDeclaration(funct) = &program.body[0] {
+                    if kind.function_matches_kind(&funct) {
+                        // SAFETY: the Function is inside a oxc_allocator::Box, which will remain
+                        // alive as long as `source_code` is kept alive. Similarly, the inner
+                        // lifetime of Function is also kept alive by `source_code`.`
+                        function = Some(unsafe {
+                            std::mem::transmute::<
+                                &oxc_ast::ast::Function,
+                                &'static oxc_ast::ast::Function,
+                            >(&funct)
+                        });
+                    }
+                }
+            }
+        }
+
+        if let Some(function) = function {
+            (function, source_code.unwrap())
+        } else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::SyntaxError,
+                "Invalid function source text.",
+            ));
+        }
+    };
+
+    let params = OrdinaryFunctionCreateParams {
+        function_prototype: get_prototype_from_constructor(
+            agent,
+            constructor,
+            kind.intrinsic_prototype(),
+        )?,
+        source_code: Some(source_code),
+        source_text: function.span,
+        parameters_list: &function.params,
+        body: &function.body.as_ref().unwrap(),
+        is_concise_arrow_function: false,
+        is_async: function.r#async,
+        is_generator: function.generator,
+        lexical_this: false,
+        env: EnvironmentIndex::Global(agent.current_realm().global_env.unwrap()),
+        private_env: None,
+    };
+    let f = ordinary_function_create(agent, params);
+
+    set_function_name(
+        agent,
+        f,
+        BUILTIN_STRING_MEMORY.anonymous.to_property_key(),
+        None,
+    );
+    match kind {
+        DynamicFunctionKind::Normal => make_constructor(agent, f, None, None),
+        DynamicFunctionKind::Generator => {
+            let prototype = ordinary_object_create_with_intrinsics(
+                agent,
+                Some(ProtoIntrinsics::Object),
+                Some(
+                    agent
+                        .current_realm()
+                        .intrinsics()
+                        .generator_prototype()
+                        .into_object(),
+                ),
+            );
+            define_property_or_throw(
+                agent,
+                f,
+                BUILTIN_STRING_MEMORY.prototype.to_property_key(),
+                PropertyDescriptor {
+                    value: Some(prototype.into_value()),
+                    writable: Some(true),
+                    get: None,
+                    set: None,
+                    enumerable: Some(false),
+                    configurable: Some(false),
+                },
+            )
+            .unwrap();
+        }
+        _ => {}
+    }
+
+    Ok(f)
 }

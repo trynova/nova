@@ -31,6 +31,7 @@ AggregateError
 all
 allSettled
 and
+anonymous
 any
 apply
 arguments

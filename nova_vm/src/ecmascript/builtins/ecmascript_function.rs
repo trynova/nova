@@ -229,6 +229,7 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
 
 pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
     pub function_prototype: Option<Object>,
+    pub source_code: Option<SourceCode>,
     pub source_text: Span,
     pub parameters_list: &'agent FormalParameters<'program>,
     pub body: &'agent FunctionBody<'program>,
@@ -815,10 +816,17 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
     agent: &'agent mut Agent,
     params: OrdinaryFunctionCreateParams<'agent, 'program>,
 ) -> ECMAScriptFunction {
-    let running_ecmascript_code = &agent.running_execution_context().ecmascript_code.unwrap();
-    let source_code = running_ecmascript_code.source_code;
+    let (source_code, outer_env_is_strict) = if let Some(source_code) = params.source_code {
+        (source_code, false)
+    } else {
+        let running_ecmascript_code = &agent.running_execution_context().ecmascript_code.unwrap();
+        (
+            running_ecmascript_code.source_code,
+            running_ecmascript_code.is_strict_mode,
+        )
+    };
     // 7. If the source text matched by Body is strict mode code, let Strict be true; else let Strict be false.
-    let strict = params.body.has_use_strict_directive() || running_ecmascript_code.is_strict_mode;
+    let strict = params.body.has_use_strict_directive() || outer_env_is_strict;
 
     // 1. Let internalSlotsList be the internal slots listed in Table 30.
     // 2. Let F be OrdinaryObjectCreate(functionPrototype, internalSlotsList).

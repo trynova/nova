@@ -440,6 +440,7 @@ impl Vm {
                 //     a. Let prototype be %Function.prototype%.
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
+                    source_code: None,
                     // 4. Let sourceText be the source text matched by MethodDefinition.
                     source_text: function_expression.expression.get().span,
                     parameters_list: &function_expression.expression.get().params,
@@ -533,6 +534,7 @@ impl Vm {
                 });
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
+                    source_code: None,
                     // 4. Let sourceText be the source text matched by MethodDefinition.
                     source_text: function_expression.expression.get().span,
                     parameters_list: &empty_parameters.0,
@@ -596,6 +598,7 @@ impl Vm {
                     .unwrap();
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
+                    source_code: None,
                     // 4. Let sourceText be the source text matched by MethodDefinition.
                     source_text: function_expression.expression.get().span,
                     parameters_list: &function_expression.expression.get().params,
@@ -749,6 +752,7 @@ impl Vm {
                 // 1. If name is not present, set name to "".
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
+                    source_code: None,
                     source_text: function_expression.expression.get().span,
                     parameters_list: &function_expression.expression.get().params,
                     body: &function_expression.expression.get().body,
@@ -825,6 +829,7 @@ impl Vm {
                 };
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
+                    source_code: None,
                     source_text: function_expression.expression.get().span,
                     parameters_list: &function_expression.expression.get().params,
                     body: function_expression.expression.get().body.as_ref().unwrap(),
@@ -919,6 +924,7 @@ impl Vm {
 
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype,
+                    source_code: None,
                     source_text: function_expression.expression.get().span,
                     parameters_list: &function_expression.expression.get().params,
                     body: function_expression.expression.get().body.as_ref().unwrap(),
