@@ -114,6 +114,7 @@ pub(crate) fn instantiate_ordinary_function_object(
     // 3. Let F be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
     let params = OrdinaryFunctionCreateParams {
         function_prototype: None,
+        source_code: None,
         source_text,
         parameters_list: &function.params,
         body: function.body.as_deref().unwrap(),
@@ -201,6 +202,7 @@ pub(crate) fn instantiate_ordinary_function_expression(
         // 5. Let closure be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
         let params = OrdinaryFunctionCreateParams {
             function_prototype: None,
+            source_code: None,
             source_text,
             parameters_list: &function.expression.get().params,
             body: function.expression.get().body.as_ref().unwrap(),

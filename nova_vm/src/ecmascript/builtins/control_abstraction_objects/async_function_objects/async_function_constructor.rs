@@ -7,7 +7,10 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoObject, Object, String, Value, BUILTIN_STRING_MEMORY},
+        fundamental_objects::function_objects::function_constructor::{
+            create_dynamic_function, DynamicFunctionKind,
+        },
+        types::{Function, IntoObject, IntoValue, Object, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::IntrinsicConstructorIndexes,
 };
@@ -26,12 +29,32 @@ impl BuiltinIntrinsicConstructor for AsyncFunctionConstructor {
 
 impl AsyncFunctionConstructor {
     fn behaviour(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
+        arguments: ArgumentsList,
+        new_target: Option<Object>,
     ) -> JsResult<Value> {
-        todo!()
+        // 2. If bodyArg is not present, set bodyArg to the empty String.
+        let (parameter_args, body_arg) = if arguments.is_empty() {
+            (&[] as &[Value], String::EMPTY_STRING.into_value())
+        } else {
+            let (last, others) = arguments.split_last().unwrap();
+            (others, *last)
+        };
+        let constructor = if let Some(new_target) = new_target {
+            Function::try_from(new_target).unwrap()
+        } else {
+            agent.running_execution_context().function.unwrap()
+        };
+        // 3. Return ? CreateDynamicFunction(C, NewTarget, async, parameterArgs, bodyArg).
+        Ok(create_dynamic_function(
+            agent,
+            constructor,
+            DynamicFunctionKind::Async,
+            parameter_args,
+            body_arg,
+        )?
+        .into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
