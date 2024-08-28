@@ -4,13 +4,20 @@
 
 use crate::{
     ecmascript::{
+        abstract_operations::operations_on_objects::define_property_or_throw,
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, RealmIdentifier},
+        builtins::{
+            ordinary::ordinary_object_create_with_intrinsics, ArgumentsList, Behaviour, Builtin,
+            BuiltinIntrinsicConstructor,
+        },
+        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
         fundamental_objects::function_objects::function_constructor::{
             create_dynamic_function, DynamicFunctionKind,
         },
-        types::{Function, IntoObject, IntoValue, Object, String, Value, BUILTIN_STRING_MEMORY},
+        types::{
+            Function, IntoObject, IntoValue, Object, PropertyDescriptor, String, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     heap::IntrinsicConstructorIndexes,
 };
@@ -46,15 +53,46 @@ impl GeneratorFunctionConstructor {
         } else {
             agent.running_execution_context().function.unwrap()
         };
+
         // 3. Return ? CreateDynamicFunction(C, NewTarget, generator, parameterArgs, bodyArg).
-        Ok(create_dynamic_function(
+        let f = create_dynamic_function(
             agent,
             constructor,
             DynamicFunctionKind::Generator,
             parameter_args,
             body_arg,
-        )?
-        .into_value())
+        )?;
+        // 20.2.1.1.1 CreateDynamicFunction ( constructor, newTarget, kind, parameterArgs, bodyArg )
+        // 30. If kind is generator, then
+        //   a. Let prototype be OrdinaryObjectCreate(%GeneratorFunction.prototype.prototype%).
+        let prototype = ordinary_object_create_with_intrinsics(
+            agent,
+            Some(ProtoIntrinsics::Object),
+            Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .generator_prototype()
+                    .into_object(),
+            ),
+        );
+        //   b. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
+        define_property_or_throw(
+            agent,
+            f,
+            BUILTIN_STRING_MEMORY.prototype.to_property_key(),
+            PropertyDescriptor {
+                value: Some(prototype.into_value()),
+                writable: Some(true),
+                get: None,
+                set: None,
+                enumerable: Some(false),
+                configurable: Some(false),
+            },
+        )
+        .unwrap();
+
+        Ok(f.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

@@ -826,7 +826,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
         )
     };
     // 7. If the source text matched by Body is strict mode code, let Strict be true; else let Strict be false.
-    let strict = params.body.has_use_strict_directive() || outer_env_is_strict;
+    let strict = outer_env_is_strict || params.body.has_use_strict_directive();
 
     // 1. Let internalSlotsList be the internal slots listed in Table 30.
     // 2. Let F be OrdinaryObjectCreate(functionPrototype, internalSlotsList).
