@@ -159,7 +159,7 @@ pub(crate) fn create_dynamic_function(
                 && program.body.len() == 1
             {
                 if let oxc_ast::ast::Statement::FunctionDeclaration(funct) = &program.body[0] {
-                    if kind.function_matches_kind(&funct) {
+                    if kind.function_matches_kind(funct) {
                         // SAFETY: the Function is inside a oxc_allocator::Box, which will remain
                         // alive as long as `source_code` is kept alive. Similarly, the inner
                         // lifetime of Function is also kept alive by `source_code`.`
@@ -167,7 +167,7 @@ pub(crate) fn create_dynamic_function(
                             std::mem::transmute::<
                                 &oxc_ast::ast::Function,
                                 &'static oxc_ast::ast::Function,
-                            >(&funct)
+                            >(funct)
                         });
                     }
                 }
@@ -193,7 +193,7 @@ pub(crate) fn create_dynamic_function(
         source_code: Some(source_code),
         source_text: function.span,
         parameters_list: &function.params,
-        body: &function.body.as_ref().unwrap(),
+        body: function.body.as_ref().unwrap(),
         is_concise_arrow_function: false,
         is_async: function.r#async,
         is_generator: function.generator,
