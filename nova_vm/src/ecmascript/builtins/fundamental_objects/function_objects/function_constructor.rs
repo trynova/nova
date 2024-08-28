@@ -143,7 +143,7 @@ pub(crate) fn create_dynamic_function(
         }
 
         let mut string = std::string::String::with_capacity(str_len);
-        string.push_str(&kind.prefix());
+        string.push_str(kind.prefix());
         string.push_str(" anonymous(");
         for (i, parameter) in parameter_strings.iter().enumerate() {
             if i != 0 {
